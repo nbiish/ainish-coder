@@ -1,0 +1,29 @@
+# Exclude sensitive files from AI features and indexing
+.env
+.env.*
+!.env.example
+!mai-aider/.env.example
+
+# API keys and credentials files
+**/credentials.json
+**/*_key.json
+**/*_secret.json
+
+# Exclude mai-* directories except mai-aider
+mai-*/
+!mai-aider/
+
+# Large generated files
+node_modules/
+dist/
+build/
+.venv/
+venv/
+
+# History files
+.aider.input.history
+.aider.chat.history.md
+.aider.llm.history
+
+# Git internals
+.git/

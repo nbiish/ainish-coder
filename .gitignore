@@ -1,0 +1,67 @@
+# Ignore Aider history files but keep configs
+.aider.chat.history.md
+.aider.input.history
+.aider.*.json
+.aider.llm.history
+.env
+
+# Don't ignore our configuration directories
+!mai-aider/
+!mai-aider/configs/
+!mai-aider/.env.example
+!mai-cursor/
+
+# Cursor IDE files (ignore at root but allow in mai-cursor)
+/.cursor/
+/.cursorignore
+/.cursorindexingignore
+/.cursorrules
+!mai-cursor/.cursorignore
+!mai-cursor/.cursorindexingignore
+!mai-cursor/.cursorrules
+
+# Ignore mai-* directories (other mai tools) except mai-aider and mai-cursor
+mai-*/
+!mai-aider/
+!mai-cursor/
+
+# Python related
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
