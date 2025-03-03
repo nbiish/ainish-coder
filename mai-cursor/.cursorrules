@@ -1,36 +1,21 @@
-{
-  "projectInfo": {
-    "name": "MAI-Coder",
-    "description": "A custom setup for Aider AI pair programming with optimized model configurations",
-    "primaryLanguages": ["bash", "python", "markdown"]
+[
+  {
+    "name": "Ignore other AI tool files",
+    "pattern": ".aider*|.copilot*|copilot-instructions.md|mai-aider/*|mai-copilot/*",
+    "flags": "g",
+    "disabled": false
   },
-  "projectStructure": {
-    "setup.sh": "Main setup script that configures Aider with different model options",
-    "uv-setup.sh": "Handles Python dependencies installation using uv package manager",
-    ".aider-instructions.md": "Instructions for using Aider that get loaded when running Aider commands",
-    "README.md": "Project documentation"
+  {
+    "name": "Ignore build artifacts and dependencies",
+    "pattern": "**/node_modules/*|**/*.pyc|**/build/*|**/dist/*|.git/*",
+    "flags": "g",
+    "disabled": false
   },
-  "conventions": {
-    "codeStyle": {
-      "bash": "Use clear function names and descriptive comments",
-      "python": "Follow PEP 8 style guidelines"
-    },
-    "scripting": {
-      "errorHandling": "Include proper error checking in bash scripts",
-      "userFeedback": "Provide clear messages about script execution progress"
-    }
-  },
-  "toolConfiguration": {
-    "aider": {
-      "modelVariants": {
-        "pro": "Uses Gemini Pro 2.0 model with specific flags for optimal performance",
-        "smart": "Uses Claude Opus model",
-        "r1": "Uses Anthropic Claude Haiku model",
-        "v3": "Uses GPT-4 Turbo model"
-      }
-    }
-  },
-  "ignoreRules": {
-    "mai-prefixedFolders": "All 'mai-*' folders are ignored except 'mai-aider', which contains configuration files"
+  {
+    "name": "Focus on main code files",
+    "pattern": "mai-cursor/*|*.py|*.js|*.ts|*.sh|*.md|*.json|*.yml|*.yaml",
+    "flags": "g",
+    "disabled": false,
+    "highlight": true
   }
-}
+]

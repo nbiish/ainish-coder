@@ -1,4 +1,5 @@
 # This file inherits patterns from .gitignore by default
+
 # Additional patterns for files we don't want to index
 
 # Large binary files
@@ -27,9 +28,18 @@ __pycache__/
 .aider.chat.history.md
 .aider.llm.history
 
-# Exclude mai-* directories except mai-aider
+# Exclude mai-* directories except mai-cursor
 mai-*/
-!mai-aider/
+!mai-cursor/
+
+# Other AI tool files
+.aider*
+.aider.tags.cache.v3/
+.copilot/
+.copilotignore
+copilot-instructions.md
+mai-aider/
+mai-copilot/
 
 # Other large directories that shouldn't be indexed
 .git/

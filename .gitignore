@@ -3,6 +3,7 @@
 .aider.input.history
 .aider.*.json
 .aider.llm.history
+.aider.conf.yml
 .env
 
 # Don't ignore our configuration directories
@@ -20,10 +21,20 @@
 !mai-cursor/.cursorindexingignore
 !mai-cursor/.cursorrules
 
+# GitHub Copilot files
+.copilot/
+.copilotignore
+!mai-copilot/.copilotignore
+
+# VS Code AI settings
+.vscode/settings.json
+!mai-copilot/vscode-settings.json
+
 # Ignore mai-* directories (other mai tools) except mai-aider and mai-cursor
 mai-*/
 !mai-aider/
 !mai-cursor/
+!mai-copilot/
 
 # Python related
 __pycache__/
@@ -54,8 +65,10 @@ ENV/
 env/
 
 # IDE files
-.vscode/
 .idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 
 # OS generated files
 .DS_Store
@@ -65,3 +78,4 @@ env/
 .Trashes
 ehthumbs.db
 Thumbs.db
+.aider*
