@@ -45,6 +45,14 @@ mkdir -p "$INSTALL_DIR/mai-aider/.aider"
 
 # Copy aider files
 cp -R "$REPO_DIR/mai-aider/"* "$INSTALL_DIR/mai-aider/" 2>/dev/null
+
+# Ensure proper directory structure for Aider files
+# If we have an .aider directory in the repo root, copy its contents to mai-aider/.aider
+if [ -d "$REPO_DIR/.aider" ]; then
+    mkdir -p "$INSTALL_DIR/mai-aider/.aider"
+    cp -R "$REPO_DIR/.aider/"* "$INSTALL_DIR/mai-aider/.aider/" 2>/dev/null
+fi
+
 # Copy copilot files
 cp -R "$REPO_DIR/mai-copilot/"* "$INSTALL_DIR/mai-copilot/" 2>/dev/null
 # Copy cursor files
@@ -53,9 +61,44 @@ cp -R "$REPO_DIR/mai-cursor/"* "$INSTALL_DIR/mai-cursor/" 2>/dev/null
 # Create bin directory for symlinks
 mkdir -p "$INSTALL_DIR/bin"
 
+# Copy the configuration scripts
+echo -e "${GREEN}Copying configuration scripts...${NC}"
+mkdir -p "$INSTALL_DIR/lib"
+mkdir -p "$INSTALL_DIR/bin"
+
+# Copy mai-coder script and shared functions
+cp "$REPO_DIR/bin/mai-coder" "$INSTALL_DIR/bin/"
+chmod +x "$INSTALL_DIR/bin/mai-coder"
+
+# Create symbolic links
+ln -sf "$INSTALL_DIR/bin/mai-coder" "$INSTALL_DIR/bin/mai-coder-aider"
+ln -sf "$INSTALL_DIR/bin/mai-coder" "$INSTALL_DIR/bin/mai-coder-code"
+ln -sf "$INSTALL_DIR/bin/mai-coder" "$INSTALL_DIR/bin/mai-coder-cursor"
+
+# Create a symlink for backward compatibility
+ln -sf "$INSTALL_DIR/bin/mai-coder" "$INSTALL_DIR/bin/mai-coder-config"
+
+# Copy the add-to-path script
+cp "$REPO_DIR/bin/add-to-path.sh" "$INSTALL_DIR/bin/"
+chmod +x "$INSTALL_DIR/bin/add-to-path.sh"
+
+# Ask if user wants to add scripts to PATH
+echo ""
+echo "Would you like to add the mai-coder scripts to your PATH?"
+echo "This will allow you to run the scripts from anywhere."
+echo "1) No, I'll add them manually later"
+echo "2) Yes, add them to my PATH"
+read -p "Enter your choice (1/2): " choice
+
+if [ "$choice" = "2" ]; then
+    "$INSTALL_DIR/bin/add-to-path.sh"
+else
+    echo "You can add the scripts to your PATH later by running:"
+    echo "$INSTALL_DIR/bin/add-to-path.sh"
+fi
+
 # Create a shared function library for all wrappers
 echo -e "${GREEN}Creating shared function library for AI tool wrappers...${NC}"
-mkdir -p "$INSTALL_DIR/lib"
 
 cat > "$INSTALL_DIR/lib/shared_functions.sh" << 'EOF'
 #!/bin/bash
@@ -139,7 +182,7 @@ setup_aider_config() {
 setup_copilot_config() {
     local project_path="$1"
     local install_dir="$HOME/.mai-coder"
-    local github_dir_path="$install_dir/mai-copilot/github-copilot/.github"
+    local github_dir_path="$install_dir/mai-copilot/.github"
     
     # Ensure the GitHub directory exists in both the install dir and project
     mkdir -p "$github_dir_path"

@@ -66,6 +66,30 @@ The `aider` command is wrapped to prompt you about updating Aider configurations
 aider your-project
 ```
 
+### Configuration Scripts
+
+The repository includes scripts to configure AI tools for your projects:
+
+```bash
+# Configure all AI tools for the current directory
+./bin/mai-coder
+
+# Configure a specific tool for the current directory
+./bin/mai-coder aider    # Configure only Aider
+./bin/mai-coder code     # Configure only GitHub Copilot
+./bin/mai-coder cursor   # Configure only Cursor
+
+# Alternative commands
+./bin/mai-coder-aider    # Configure only Aider
+./bin/mai-coder-code     # Configure only GitHub Copilot
+./bin/mai-coder-cursor   # Configure only Cursor
+
+# Configure for a specific project directory
+./bin/mai-coder aider ~/myproject
+```
+
+These scripts will copy the appropriate configuration files from `~/.mai-coder` to your project directory, prompting you before overwriting any existing files.
+
 ## Configuration Details
 
 Each tool's configuration files are stored in the `~/.mai-coder` directory:
@@ -74,12 +98,42 @@ Each tool's configuration files are stored in the `~/.mai-coder` directory:
 - `~/.mai-coder/mai-copilot/`: GitHub Copilot configurations
 - `~/.mai-coder/mai-cursor/`: Cursor IDE configurations
 
-The wrapper scripts will prompt you about maintaining consistent configurations across projects.
+When you run the configuration commands (`mai-coder`, `mai-coder aider`, etc.), the tool copies the configuration files from `~/.mai-coder` to the appropriate locations in your project:
+
+- **Aider files** are copied directly to your project root (`.aider.conf.yml`, `.aiderignore`, etc.)
+- **GitHub Copilot files** are copied to the `.github` directory and project root
+- **Cursor files** are copied to your project root (`.cursorignore`, etc.)
+
+## Repository Structure
+
+If you're contributing to this project or creating your own fork, the repository should have the following structure:
+
+```
+mai-coder/
+├── mai-aider/
+│   ├── .aider.conf.yml
+│   ├── .aiderignore
+│   ├── .aider-instructions.md
+│   └── .env.example
+├── mai-copilot/
+│   ├── github-copilot/
+│   │   └── .github/
+│   │       └── copilot-instructions.md
+│   └── .copilotignore
+├── mai-cursor/
+│   ├── .cursorignore
+│   ├── .cursorindexingignore
+│   └── .cursorrules
+└── bin/
+    ├── mai-coder
+    ├── setup-repo-structure.sh
+    └── other scripts...
+```
+
+You can run `./bin/setup-repo-structure.sh` to create this directory structure automatically.
 
 ## Customization
 
 You can customize the configurations by editing files in the `~/.mai-coder` directory. The wrappers will use your customized configurations when creating or updating project files.
 
 ## License
-
-MIT
