@@ -1,0 +1,64 @@
+# Aider should ignore these files/directories when providing context to LLMs
+
+# Other AI tool configurations and caches
+.cursor/
+.cursorignore
+.cursorindexingignore
+.cursorrules
+.copilot/
+.copilotignore
+.github/
+copilot-instructions.md
+.vscode/settings.json
+
+# Aider's own history and caches (no need to self-reference)
+.aider.tags.cache.v3/
+.aider.chat.history.md
+.aider.input.history
+.aider.llm.history
+.aider.*.json
+
+# Git related
+.git/
+.gitignore
+
+# Dependencies and build artifacts
+node_modules/
+dist/
+build/
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.eggs/
+*.egg-info/
+*.egg
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large binary files
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.eot
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+**/credentials.json
+**/*_key.json
+**/*_secret.json

@@ -1,137 +1,142 @@
 #!/bin/bash
 
-# Get the absolute path of the repository
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Define paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOME_CONFIG_DIR="$HOME/.mai-coder"
 
-# Create .gitignore file if it doesn't exist
-if [ ! -f "${REPO_DIR}/.gitignore" ]; then
-  echo "Creating .gitignore file..."
-  cat > "${REPO_DIR}/.gitignore" << EOF
-# Ignore Aider history files but keep configs
-.aider.chat.history.md
-.aider.input.history
-.aider.*.json
-.aider.llm.history
-.env
+# Create home config directory if it doesn't exist
+mkdir -p "$HOME_CONFIG_DIR"
 
-# Don't ignore our configuration directories
-!mai-aider/
-!mai-aider/configs/
-!mai-aider/.env.example
-EOF
-else
-  # Update .gitignore to keep our configuration files but ignore .env
-  if grep -q "^.aider\*" "${REPO_DIR}/.gitignore"; then
-    echo "Updating .gitignore to keep configuration files..."
-    sed -i '' 's/^.aider\*$/# Ignore Aider history files but keep configs\n.aider.chat.history.md\n.aider.input.history\n.aider.*.json\n.aider.llm.history\n.env\n\n# Don'\''t ignore our configuration directories\n!mai-aider\/\n!mai-aider\/configs\/\n!mai-aider\/.env.example/' "${REPO_DIR}/.gitignore"
-  fi
-fi
+# Copy all configuration files and directories
+echo "Setting up configuration files in $HOME_CONFIG_DIR..."
 
-# Set up .env file if it doesn't exist
-if [ ! -f "${REPO_DIR}/mai-aider/.env" ]; then
-  if [ -f "${REPO_DIR}/mai-aider/.env.example" ]; then
-    echo "Setting up .env file from example..."
-    cp "${REPO_DIR}/mai-aider/.env.example" "${REPO_DIR}/mai-aider/.env"
-    echo "Please edit ${REPO_DIR}/mai-aider/.env to add your API keys."
-  else
-    echo "Warning: .env.example not found. Please manually create .env file."
-  fi
-fi
+# Copy mai-copilot files
+mkdir -p "$HOME_CONFIG_DIR/mai-copilot"
+cp -r "$SCRIPT_DIR/mai-copilot/.github" "$HOME_CONFIG_DIR/mai-copilot/" 2>/dev/null
+cp "$SCRIPT_DIR/mai-copilot/.copilotignore" "$HOME_CONFIG_DIR/mai-copilot/" 2>/dev/null
+cp "$SCRIPT_DIR/mai-copilot/copilot-instructions.md" "$HOME_CONFIG_DIR/mai-copilot/" 2>/dev/null
 
-# Create or update AIDER_CONFIG section in .zshrc
-ZSHRC="${HOME}/.zshrc"
-if [ -f "$ZSHRC" ]; then
-  echo "Updating .zshrc with Aider configurations..."
-  
-  # Check if AIDER_CONFIG section exists
-  if grep -q "### AIDER ALIASES ###" "$ZSHRC"; then
-    # Remove existing AIDER_CONFIG section
-    sed -i '' '/### AIDER ALIASES ###/,/### END AIDER ALIASES ###/d' "$ZSHRC"
-  fi
-  
-  # Remove Vertex AI settings if they exist
-  sed -i '' '/# VERTEX AI SETTINGS/,/# END VERTEX AI SETTINGS/d' "$ZSHRC" 2>/dev/null || true
-  
-  # Add new AIDER_CONFIG section
-  cat >> "$ZSHRC" << EOF
+# Copy mai-cursor files
+mkdir -p "$HOME_CONFIG_DIR/mai-cursor"
+cp "$SCRIPT_DIR/mai-cursor/.cursorignore" "$HOME_CONFIG_DIR/mai-cursor/" 2>/dev/null
+cp "$SCRIPT_DIR/mai-cursor/.cursorindexingignore" "$HOME_CONFIG_DIR/mai-cursor/" 2>/dev/null
+cp "$SCRIPT_DIR/mai-cursor/.cursorrules" "$HOME_CONFIG_DIR/mai-cursor/" 2>/dev/null
 
-# AIDER configuration
-export AIDER_DARK_MODE=true
+# Copy mai-aider files
+mkdir -p "$HOME_CONFIG_DIR/mai-aider"
+cp "$SCRIPT_DIR/mai-aider/.aider.conf.yml" "$HOME_CONFIG_DIR/mai-aider/" 2>/dev/null
+cp "$SCRIPT_DIR/mai-aider/.aider-instructions.md" "$HOME_CONFIG_DIR/mai-aider/" 2>/dev/null
 
-### AIDER ALIASES ###
-# Create a shell function for Aider that handles different configurations
-# API keys are expected to be in the environment when running aider
-aider() {
-  case "\$1" in
-    smart)
-      shift
-      # Using architect mode with R1 as architect and Claude 3.5 Sonnet as editor
-      command aider --architect --model r1 --editor-model openrouter/anthropic/claude-3.5-sonnet "\$@"
-      ;;
-    r1)
-      shift
-      command aider --model r1 --edit-format diff "\$@"
-      ;;
-    v3)
-      shift
-      # Using DeepSeek Chat model with diff edits
-      command aider --model deepseek/deepseek-chat --edit-format diff "\$@"
-      ;;
-    pro)
-      shift
-      # Using Gemini 2.0 Pro model with whole edits
-      command aider --model gemini/gemini-2.0-pro-exp-02-05 --edit-format whole --no-show-model-warnings "\$@"
-      ;;
-    *)
-      command aider "\$@"
-      ;;
-  esac
-}
-### END AIDER ALIASES ###
-EOF
+# Copy root .gitignore
+cp "$SCRIPT_DIR/.gitignore" "$HOME_CONFIG_DIR/" 2>/dev/null
 
-  echo "Aider configuration added to .zshrc"
-else
-  echo "Warning: ~/.zshrc not found. Please manually add the Aider configuration."
-fi
+# Create bin directory in home folder
+mkdir -p "$HOME/.mai-coder/bin"
 
-# Check if the required Python package for Gemini is installed
-# First check if uv is available
-if command -v uv &> /dev/null; then
-  # Use uv if available - using pip mode within uv to keep libraries isolated
-  if ! uv pip list | grep -q "google-generativeai"; then
-    echo "Installing required Python packages for Gemini using uv..."
-    # Using --system to ensure we're not creating a new virtualenv
-    uv pip install --system google-auth google-auth-oauthlib google-generativeai
+# Create common helper function file for all wrappers
+mkdir -p "$HOME/.mai-coder/lib"
+cat > "$HOME/.mai-coder/lib/helper.sh" << 'EOF'
+#!/bin/bash
+
+# Helper function to prompt for file installation
+install_config_files() {
+    local source_dir="$1"
+    local target_dir="$2"
+    local file_list=("${@:3}")
     
-    # If aider was installed as a uv tool, also install these packages in the aider environment
-    if command -v uv tool list | grep -q "aider-chat"; then
-      echo "Installing Google packages for aider UV tool..."
-      UV_TOOL_DIR=$(dirname "$(command -v aider)")
-      UV_ENV_DIR=$(dirname "$UV_TOOL_DIR")
-      
-      # Use uv pip to install packages to the aider tool environment
-      PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-      uv pip install --python "$PYTHON_VERSION" --target "$UV_ENV_DIR/lib/python$PYTHON_VERSION/site-packages" google-auth google-auth-oauthlib google-generativeai
-    fi
-  fi
-else
-  # Fall back to pip if uv is not available
-  if ! pip list | grep -q "google-generativeai"; then
-    echo "Installing required Python packages for Gemini using pip..."
-    pip install google-auth google-auth-oauthlib google-generativeai
-    echo "Tip: For faster package installation, consider using 'uv': https://github.com/astral-sh/uv"
-    echo "     Install with: curl -sSf https://astral.sh/uv/install.sh | sh"
-  fi
+    mkdir -p "$target_dir"
+    
+    for file in "${file_list[@]}"; do
+        source_file="$source_dir/$file"
+        target_file="$target_dir/$file"
+        
+        if [ -f "$source_file" ]; then
+            if [ -f "$target_file" ]; then
+                # Check if files are identical before prompting
+                if cmp -s "$source_file" "$target_file"; then
+                    # Files are identical, no action needed
+                    continue
+                fi
+                
+                read -p "File $target_file exists and is different. Overwrite? (y/n): " choice
+                if [[ $choice =~ ^[Yy]$ ]]; then
+                    cp "$source_file" "$target_file"
+                    echo "Updated: $target_file"
+                else
+                    echo "Kept existing: $target_file"
+                fi
+            else
+                cp "$source_file" "$target_file"
+                echo "Installed: $target_file"
+            fi
+        fi
+    done
+}
+EOF
+chmod +x "$HOME/.mai-coder/lib/helper.sh"
+
+# Copy wrapper scripts with enhanced functionality
+cat > "$HOME/.mai-coder/bin/code" << 'EOF'
+#!/bin/bash
+CONFIG_DIR="$HOME/.mai-coder"
+source "$CONFIG_DIR/lib/helper.sh"
+
+# Install/update configuration files
+install_config_files "$CONFIG_DIR/mai-copilot" "$HOME/.vscode" \
+  ".copilotignore" "copilot-instructions.md"
+
+# Run the original VSCode command
+code "$@"
+EOF
+
+cat > "$HOME/.mai-coder/bin/cursor" << 'EOF'
+#!/bin/bash
+CONFIG_DIR="$HOME/.mai-coder"
+source "$CONFIG_DIR/lib/helper.sh"
+
+# Install/update configuration files
+install_config_files "$CONFIG_DIR/mai-cursor" "$HOME" \
+  ".cursorignore" ".cursorindexingignore" ".cursorrules"
+
+# Run the original Cursor command
+cursor "$@"
+EOF
+
+cat > "$HOME/.mai-coder/bin/aider" << 'EOF'
+#!/bin/bash
+CONFIG_DIR="$HOME/.mai-coder"
+source "$CONFIG_DIR/lib/helper.sh"
+
+# Install/update configuration files
+install_config_files "$CONFIG_DIR/mai-aider" "$HOME" \
+  ".aider.conf.yml" ".aider-instructions.md"
+
+# Run the original Aider command
+aider "$@"
+EOF
+
+# Make wrapper scripts executable
+chmod +x "$HOME/.mai-coder/bin/code" 2>/dev/null
+chmod +x "$HOME/.mai-coder/bin/cursor" 2>/dev/null
+chmod +x "$HOME/.mai-coder/bin/aider" 2>/dev/null
+
+# Add bin directory to PATH if not already present
+SHELL_CONFIG_FILE=""
+if [ -n "$ZSH_VERSION" ]; then
+    SHELL_CONFIG_FILE="$HOME/.zshrc"
+elif [ -n "$BASH_VERSION" ]; then
+    SHELL_CONFIG_FILE="$HOME/.bashrc"
 fi
 
-echo "Setup complete! To activate the changes, run:"
-echo "source ~/.zshrc"
-echo ""
-echo "⚠️ Important: Set your API keys before running aider commands with:" 
-echo "OPENROUTER_API_KEY=your_key GEMINI_API_KEY=your_key DEEPSEEK_API_KEY=your_key aider <command>"
-echo ""
-echo "You can also set them for your whole shell session with:"
-echo "export OPENROUTER_API_KEY=your_key"
-echo "export GEMINI_API_KEY=your_key"
-echo "export DEEPSEEK_API_KEY=your_key" 
+if [ -n "$SHELL_CONFIG_FILE" ]; then
+    if ! grep -q "export PATH=\"\$HOME/.mai-coder/bin:\$PATH\"" "$SHELL_CONFIG_FILE"; then
+        echo '' >> "$SHELL_CONFIG_FILE"
+        echo '# Add mai-coder bin directory to PATH' >> "$SHELL_CONFIG_FILE"
+        echo 'export PATH="$HOME/.mai-coder/bin:$PATH"' >> "$SHELL_CONFIG_FILE"
+        echo "Added mai-coder bin directory to PATH in $SHELL_CONFIG_FILE"
+        echo "Please restart your terminal or run: source $SHELL_CONFIG_FILE"
+    fi
+fi
+
+echo "Setup complete! The wrapper scripts are now installed in $HOME/.mai-coder/bin"
+echo "Configuration files are installed in $HOME/.mai-coder"
