@@ -55,8 +55,22 @@ fi
 
 # Copy copilot files
 cp -R "$REPO_DIR/mai-copilot/"* "$INSTALL_DIR/mai-copilot/" 2>/dev/null
+
 # Copy cursor files
 cp -R "$REPO_DIR/mai-cursor/"* "$INSTALL_DIR/mai-cursor/" 2>/dev/null
+
+# Ensure cursor wrapper and license file are properly installed
+if [ -f "$REPO_DIR/mai-cursor/my-license.mdc" ]; then
+    cp "$REPO_DIR/mai-cursor/my-license.mdc" "$INSTALL_DIR/mai-cursor/my-license.mdc"
+    echo -e "${GREEN}Installed license template${NC}"
+fi
+
+if [ -f "$REPO_DIR/mai-cursor/bin/cursor-wrapper.sh" ]; then
+    mkdir -p "$INSTALL_DIR/mai-cursor/bin"
+    cp "$REPO_DIR/mai-cursor/bin/cursor-wrapper.sh" "$INSTALL_DIR/mai-cursor/bin/"
+    chmod +x "$INSTALL_DIR/mai-cursor/bin/cursor-wrapper.sh"
+    echo -e "${GREEN}Installed cursor wrapper script${NC}"
+fi
 
 # Create bin directory for symlinks
 mkdir -p "$INSTALL_DIR/bin"

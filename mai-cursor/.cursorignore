@@ -37,3 +37,43 @@ __pycache__/
 
 # Git internals
 .git/
+
+# Cursor IDE ignore file
+
+# Dependencies
+node_modules/
+venv/
+.env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

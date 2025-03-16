@@ -2,6 +2,7 @@
 
 # Define configuration paths
 HOME_CONFIG_PATH="$HOME/.mai-coder"
+CURSOR_CONFIG_PATH="$HOME_CONFIG_PATH/mai-cursor"
 
 # Function to handle config updates
 handle_configs() {
@@ -32,16 +33,24 @@ handle_configs() {
     
     # Update cursor configs if requested
     if [ "$force_update" = "all" ] || [ "$force_update" = "cursor" ] || [ ! -f "$target_dir/.cursorrules" ]; then
-        if [ -f "$HOME_CONFIG_PATH/mai-cursor/.cursorrules" ]; then
-            cp "$HOME_CONFIG_PATH/mai-cursor/.cursorrules" "$target_dir/.cursorrules"
+        if [ -f "$CURSOR_CONFIG_PATH/.cursorrules" ]; then
+            cp "$CURSOR_CONFIG_PATH/.cursorrules" "$target_dir/.cursorrules"
         fi
         
-        if [ -f "$HOME_CONFIG_PATH/mai-cursor/.cursorindexingignore" ]; then
-            cp "$HOME_CONFIG_PATH/mai-cursor/.cursorindexingignore" "$target_dir/.cursorindexingignore"
+        if [ -f "$CURSOR_CONFIG_PATH/.cursorindexingignore" ]; then
+            cp "$CURSOR_CONFIG_PATH/.cursorindexingignore" "$target_dir/.cursorindexingignore"
         fi
         
-        if [ -f "$HOME_CONFIG_PATH/mai-cursor/.cursorignore" ]; then
-            cp "$HOME_CONFIG_PATH/mai-cursor/.cursorignore" "$target_dir/.cursorignore"
+        if [ -f "$CURSOR_CONFIG_PATH/.cursorignore" ]; then
+            cp "$CURSOR_CONFIG_PATH/.cursorignore" "$target_dir/.cursorignore"
+        fi
+        
+        # Copy license file if it exists
+        if [ -f "$CURSOR_CONFIG_PATH/my-license.mdc" ]; then
+            # Create .mdc directory if it doesn't exist
+            mkdir -p "$target_dir/.mdc"
+            cp "$CURSOR_CONFIG_PATH/my-license.mdc" "$target_dir/.mdc/license.mdc"
+            echo "Added license template to $target_dir/.mdc/license.mdc"
         fi
     fi
     

@@ -14,14 +14,79 @@
 *.woff2
 *.ttf
 *.eot
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.iso
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
 
-# Large generated files
+# Media files
+*.mp3
+*.mp4
+*.wav
+*.avi
+*.mov
+
+# Documentation
+docs/
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+
+# Generated files
+*.min.js
+*.min.css
+*.map
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# Package manager directories
 node_modules/
+bower_components/
+vendor/
+
+# Build directories
 dist/
 build/
-.venv/
-venv/
+out/
+target/
+
+# IDE specific
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+logs/
+
+# Cache directories
+.cache/
+.tmp/
+.temp/
 __pycache__/
+
+# Environment files
+.env
+.env.*
+venv/
+.venv/
+env/
 
 # History files
 .aider.input.history
@@ -42,5 +107,4 @@ mai-aider/
 mai-copilot/
 
 # Other large directories that shouldn't be indexed
-.git/
 **/.ipynb_checkpoints/

@@ -1,0 +1,63 @@
+# This file is intentionally empty to allow per-project configuration.
+# Each project should define its own Cursor IDE rules based on its specific needs.
+#
+# Example configuration:
+#
+# [python]
+# max_line_length = 88
+# docstring_style = "google"
+#
+# [javascript]
+# semicolons = true
+# quotes = "single"
+#
+# [editor]
+# trim_trailing_whitespace = true
+# insert_final_newline = true
+
+# Cursor IDE rules
+
+# Language-specific rules
+[python]
+max_line_length = 88  # Black formatter default
+docstring_style = "google"  # Google style docstrings
+type_checking = true  # Enable type checking
+
+[javascript]
+semicolons = true  # Require semicolons
+quotes = "single"  # Use single quotes
+max_line_length = 80
+
+[typescript]
+strict = true  # Enable strict type checking
+semicolons = true
+quotes = "single"
+max_line_length = 80
+
+[markdown]
+line_wrap = true
+max_line_length = 80
+
+# Editor behavior
+[editor]
+trim_trailing_whitespace = true
+insert_final_newline = true
+tab_size = 2
+use_spaces = true
+
+# Code style
+[style]
+max_params = 5  # Maximum number of parameters in a function
+max_complexity = 10  # Maximum cyclomatic complexity
+max_nested_blocks = 4  # Maximum nesting depth
+
+# Documentation
+[docs]
+require_docstrings = true  # Require docstrings for functions and classes
+require_param_types = true  # Require parameter type annotations
+require_return_types = true  # Require return type annotations
+
+# Testing
+[test]
+naming_pattern = "test_*"  # Test function naming pattern
+require_assertions = true  # Require assertions in tests
