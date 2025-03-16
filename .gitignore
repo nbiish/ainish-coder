@@ -3,3 +3,10 @@
 .cursorignore
 .cursorindexingignore
 .cursorrules
+.aider&
+.copilot*
+# Ignore all Copilot related files
+.copilot/
+.copilotignore
+.copilotconfig
+

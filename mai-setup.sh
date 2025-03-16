@@ -1,155 +1,317 @@
 #!/bin/bash
 
-# MAI-Coder All-in-One Setup Script
-# This script sets up all tooling configurations in one go
+# MAI-Coder Unified Setup Script
+# This script sets up all tooling configurations in one go and provides wrapper functions
 
-# Get the absolute path of the repository
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the absolute path of the repository and export it
+export REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ZSHRC="${HOME}/.zshrc"
 
-# Print header
-echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║                MAI-Coder Setup Script                          ║"
-echo "╚════════════════════════════════════════════════════════════════╝"
-echo ""
+# Configuration variables - Edit these to match your installation paths
+export CURSOR_PATH="/Applications/Cursor.app/Contents/MacOS/Cursor"
+export VSCODE_PATH="code"  # Assuming 'code' is in PATH
+export AIDER_PATH="aider"  # Assuming 'aider' is in PATH
 
-echo "🔧 Setting up MAI-Coder tooling configurations..."
-echo ""
-
-# Make all scripts executable
-chmod +x "$REPO_DIR/setup.sh" "$REPO_DIR/install.sh" "$REPO_DIR/vscode-setup.sh" 2>/dev/null
-
-# Run the main setup script for Aider
-echo "┌─────────────────────────────────────────────────────────────────┐"
-echo "│                Setting up Aider Configuration                    │"
-echo "└─────────────────────────────────────────────────────────────────┘"
-"$REPO_DIR/setup.sh"
-echo ""
-
-# Create the VS Code wrapper scripts
-echo "┌─────────────────────────────────────────────────────────────────┐"
-echo "│               Setting up VS Code Configuration                   │"
-echo "└─────────────────────────────────────────────────────────────────┘"
-echo "🔧 Creating VS Code wrapper scripts..."
-echo ""
-
-# Create the VS Code setup script if it doesn't exist
-if [ ! -f "$REPO_DIR/vscode-setup.sh" ]; then
-  cat > "$REPO_DIR/vscode-setup.sh" << 'EOF'
-#!/bin/bash
-
-# Script to set up VS Code configuration files in a target directory
-
-# Get the target directory from the command line argument or use the current directory
-TARGET="${1:-.}"
-
-# Get absolute path of target
-if [[ "$TARGET" == "." ]]; then
-  TARGET="$(pwd)"
-elif [[ ! "$TARGET" =~ ^/ ]]; then
-  TARGET="$(pwd)/$TARGET"
-fi
-
-# Check if the target is a directory
-if [ ! -d "$TARGET" ]; then
-  echo "Error: $TARGET is not a directory"
-  exit 1
-fi
-
-# Get the script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-echo "Setting up VS Code/Copilot configuration for $TARGET"
-
-# Copy configuration files
-cp "$SCRIPT_DIR/mai-copilot/.copilotignore" "$TARGET/" 2>/dev/null
-cp "$SCRIPT_DIR/mai-copilot/.rooignore" "$TARGET/" 2>/dev/null
-
-# Create .github directory and copy copilot-instructions.md
-mkdir -p "$TARGET/.github"
-cp "$SCRIPT_DIR/mai-copilot/github/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-
-# Update .gitignore if it exists
-if [ -f "$TARGET/.gitignore" ]; then
-  if ! grep -q ".copilotignore" "$TARGET/.gitignore"; then
-    echo -e "\n# Copilot files\n.copilotignore\n.rooignore\n.github/copilot-instructions.md" >> "$TARGET/.gitignore"
-    echo "Added Copilot entries to .gitignore"
-  fi
-else
-  echo -e "# Copilot files\n.copilotignore\n.rooignore\n.github/copilot-instructions.md" > "$TARGET/.gitignore"
-  echo "Created .gitignore with Copilot entries"
-fi
-
-echo "✅ VS Code/Copilot configuration setup complete for $TARGET"
-EOF
-  chmod +x "$REPO_DIR/vscode-setup.sh"
-fi
-
-# Add VS Code wrapper to .zshrc
-if [ -f "$ZSHRC" ]; then
-  echo "🔧 Updating .zshrc with VS Code wrapper function..."
+# Verify the tool paths exist (for those that are files)
+verify_tool_paths() {
+  local errors=0
   
-  # Check if VS Code wrapper section exists
-  if grep -q "### VS CODE WRAPPER ###" "$ZSHRC"; then
-    # Remove existing VS Code wrapper section
-    sed -i '' '/### VS CODE WRAPPER ###/,/### END VS CODE WRAPPER ###/d' "$ZSHRC"
+  if [[ "$CURSOR_PATH" == /* && ! -f "$CURSOR_PATH" ]]; then
+    echo "⚠️  Warning: Cursor not found at $CURSOR_PATH"
+    echo "Please edit the CURSOR_PATH variable in mai-setup.sh"
+    errors=$((errors+1))
   fi
   
-  # Add new VS Code wrapper section
-  cat >> "$ZSHRC" << EOF
+  # For commands in PATH, just check if they're available
+  if ! command -v "$VSCODE_PATH" &> /dev/null; then
+    echo "⚠️  Warning: VS Code command '$VSCODE_PATH' not found in PATH"
+    echo "Please edit the VSCODE_PATH variable in mai-setup.sh"
+    errors=$((errors+1))
+  fi
+  
+  if ! command -v "$AIDER_PATH" &> /dev/null; then
+    echo "⚠️  Warning: Aider command '$AIDER_PATH' not found in PATH"
+    echo "Please edit the AIDER_PATH variable in mai-setup.sh"
+    errors=$((errors+1))
+  fi
+  
+  if [ $errors -gt 0 ]; then
+    return 1
+  fi
+  return 0
+}
 
-### VS CODE WRAPPER ###
-# VS Code wrapper function
-vscode_wrapper() {
-  # Get the target directory from the command line argument or use the current directory
-  local TARGET="\${1:-.}"
+# Clean up old mai-coder files from home directory
+cleanup_old_files() {
+  echo "🧹 Cleaning up old mai-coder files from home directory..."
   
-  # Get absolute path of target
-  if [[ "\$TARGET" == "." ]]; then
-    TARGET="\$(pwd)"
-  elif [[ ! "\$TARGET" =~ ^/ ]]; then
-    TARGET="\$(pwd)/\$TARGET"
+  # Remove old setup scripts
+  rm -f "${HOME}/setup.sh" "${HOME}/install.sh" "${HOME}/vscode-setup.sh" 2>/dev/null
+  
+  # Remove old configuration directories
+  rm -rf "${HOME}/.mai-coder" "${HOME}/.mai-cursor" "${HOME}/.mai-aider" "${HOME}/.mai-copilot" 2>/dev/null
+  
+  # Remove old configuration files
+  rm -f "${HOME}/.mai-config" "${HOME}/.mai-settings" 2>/dev/null
+  
+  echo "✅ Cleanup complete"
+}
+
+# Main deployment function
+deploy_mai_configs() {
+  local TARGET="$1"
+  
+  # Verify target is a directory
+  if [ ! -d "$TARGET" ]; then
+    echo "Error: $TARGET is not a directory"
+    return 1
   fi
   
-  # Check if the target is a directory
-  if [ -d "\$TARGET" ]; then
-    # Run the setup script
-    "$REPO_DIR/vscode-setup.sh" "\$TARGET"
+  echo "Deploying MAI configurations to $TARGET"
+  
+  # Create necessary directories
+  mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
+  mkdir -p "$TARGET/.github" 2>/dev/null
+  mkdir -p "$TARGET/.aider" 2>/dev/null
+  
+  # Deploy Cursor configurations
+  if [ -f "$REPO_DIR/mai-cursor/.cursorignore" ]; then
+    cp "$REPO_DIR/mai-cursor/.cursorignore" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .cursorignore"
   fi
   
-  # Run the original VS Code command
-  if [[ "\$1" == "-"* ]]; then
-    # If the first argument is an option, don't pass it as a path
-    /Applications/Visual\\ Studio\\ Code\\ -\\ Insiders.app/Contents/Resources/app/bin/code "\$@"
+  if [ -f "$REPO_DIR/mai-cursor/.cursorindexingignore" ]; then
+    cp "$REPO_DIR/mai-cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .cursorindexingignore"
+  fi
+  
+  if [ -d "$REPO_DIR/mai-cursor/.cursorrules" ]; then
+    cp -r "$REPO_DIR/mai-cursor/.cursorrules" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .cursorrules/"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-cursor/my-license.mdc" ]; then
+    cp "$REPO_DIR/mai-cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
+    echo "✓ Deployed .cursor/rules/license.mdc"
+  fi
+  
+  # Deploy Copilot configurations
+  if [ -f "$REPO_DIR/mai-copilot/.copilotignore" ]; then
+    cp "$REPO_DIR/mai-copilot/.copilotignore" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .copilotignore"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-copilot/.rooignore" ]; then
+    cp "$REPO_DIR/mai-copilot/.rooignore" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .rooignore"
+  fi
+  
+  # Copy copilot-instructions.md to .github directory
+  if [ -f "$REPO_DIR/mai-copilot/github/.github/copilot-instructions.md" ]; then
+    cp "$REPO_DIR/mai-copilot/github/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
+    echo "✓ Deployed .github/copilot-instructions.md"
+  elif [ -f "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" ]; then
+    cp "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
+    echo "✓ Deployed .github/copilot-instructions.md"
   else
-    # Otherwise, pass all arguments
-    /Applications/Visual\\ Studio\\ Code\\ -\\ Insiders.app/Contents/Resources/app/bin/code "\$@"
+    echo "⚠️ Warning: copilot-instructions.md not found"
+  fi
+  
+  # Deploy Aider configurations
+  if [ -d "$REPO_DIR/mai-aider/.aider" ]; then
+    # First ensure the target .aider directory exists
+    mkdir -p "$TARGET/.aider" 2>/dev/null
+    
+    # Copy each file individually to maintain structure
+    if [ -f "$REPO_DIR/mai-aider/.aider/prompts.txt" ]; then
+      cp "$REPO_DIR/mai-aider/.aider/prompts.txt" "$TARGET/.aider/" 2>/dev/null
+      echo "✓ Deployed .aider/prompts.txt"
+    fi
+    
+    if [ -f "$REPO_DIR/mai-aider/.aider/config.yml" ]; then
+      cp "$REPO_DIR/mai-aider/.aider/config.yml" "$TARGET/.aider/" 2>/dev/null
+      echo "✓ Deployed .aider/config.yml"
+    fi
+    
+    if [ -f "$REPO_DIR/mai-aider/.aider/settings.json" ]; then
+      cp "$REPO_DIR/mai-aider/.aider/settings.json" "$TARGET/.aider/" 2>/dev/null
+      echo "✓ Deployed .aider/settings.json"
+    fi
+    
+    # Copy any other files that might exist
+    for file in "$REPO_DIR/mai-aider/.aider/"*; do
+      if [ -f "$file" ]; then
+        filename=$(basename "$file")
+        if [[ "$filename" != "prompts.txt" && "$filename" != "config.yml" && "$filename" != "settings.json" ]]; then
+          cp "$file" "$TARGET/.aider/" 2>/dev/null
+          echo "✓ Deployed .aider/$filename"
+        fi
+      fi
+    done
+  fi
+  
+  # Update .gitignore
+  update_gitignore "$TARGET"
+  
+  echo "✅ MAI configurations deployed to $TARGET"
+}
+
+# Function to update .gitignore
+update_gitignore() {
+  local TARGET="$1"
+  local GITIGNORE="$TARGET/.gitignore"
+  
+  # Config entries to add to .gitignore
+  local ENTRIES=(
+    "# Cursor files"
+    ".cursor/"
+    ".cursorignore"
+    ".cursorindexingignore"
+    ".cursorrules"
+    ""
+    "# Aider files"
+    ".aider/"
+    ""
+    "# Copilot files"
+    ".copilot/"
+    ".copilotignore"
+    ".rooignore"
+    ".github/copilot-instructions.md"
+  )
+  
+  if [ -f "$GITIGNORE" ]; then
+    # Check if entries already exist
+    if ! grep -q ".cursorignore\|.copilotignore" "$GITIGNORE"; then
+      echo "" >> "$GITIGNORE"
+      for entry in "${ENTRIES[@]}"; do
+        echo "$entry" >> "$GITIGNORE"
+      done
+      echo "Updated .gitignore with MAI config entries"
+    else
+      echo ".gitignore already contains MAI entries"
+    fi
+  else
+    # Create new .gitignore
+    for entry in "${ENTRIES[@]}"; do
+      echo "$entry" >> "$GITIGNORE"
+    done
+    echo "Created .gitignore with MAI config entries"
+  fi
+
+  # Verify .gitignore was created/updated successfully
+  if [ -f "$GITIGNORE" ]; then
+    echo "✓ Verified .gitignore exists"
+  else
+    echo "⚠️ Warning: Failed to create .gitignore"
   fi
 }
-alias code=vscode_wrapper
-### END VS CODE WRAPPER ###
+
+# Setup wrapper functions in .zshrc
+setup_wrapper_functions() {
+  if [ ! -f "$ZSHRC" ]; then
+    echo "⚠️  Warning: ~/.zshrc not found. Please manually add the wrapper functions."
+    return
+  fi
+  
+  echo "🔧 Updating .zshrc with wrapper functions..."
+  
+  # Remove existing wrapper sections if they exist
+  sed -i '' '/### MAI CODER WRAPPERS ###/,/### END MAI CODER WRAPPERS ###/d' "$ZSHRC" 2>/dev/null
+  
+  # First export the REPO_DIR
+  cat >> "$ZSHRC" << EOF
+### MAI CODER WRAPPERS ###
+# Export MAI-Coder paths
+export REPO_DIR="$REPO_DIR"
+export CURSOR_PATH="$CURSOR_PATH"
+export VSCODE_PATH="$VSCODE_PATH"
+export AIDER_PATH="$AIDER_PATH"
+
 EOF
 
-  echo "✅ VS Code wrapper function added to .zshrc"
-  echo ""
-else
-  echo "⚠️  Warning: ~/.zshrc not found. Please manually add the VS Code wrapper function."
-  echo ""
-fi
+  # Then add the functions
+  cat >> "$ZSHRC" << 'EOF'
+# MAI-Coder wrapper functions
+function mai-coder {
+  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  echo "✨ MAI-Coder configurations deployed to current directory"
+}
 
-# Run the install script to set up the wrappers for cursor and aider
-echo "┌─────────────────────────────────────────────────────────────────┐"
-echo "│               Setting up Cursor Configuration                    │"
-echo "└─────────────────────────────────────────────────────────────────┘"
-"$REPO_DIR/install.sh"
-echo ""
+function mai-cursor {
+  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  if [[ "$1" == -* ]]; then
+    "$CURSOR_PATH" "$@"
+  else
+    "$CURSOR_PATH" "$@"
+  fi
+}
 
-echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║                   MAI-Coder Setup Complete!                     ║"
-echo "╚════════════════════════════════════════════════════════════════╝"
-echo ""
-echo "🔄 To activate all changes, run: source ~/.zshrc"
-echo ""
-echo "✨ Now you can use 'cursor', 'aider', and 'code' commands with your"
-echo "   configurations automatically applied."
-echo "" 
+function mai-aider {
+  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  "$AIDER_PATH" "$@"
+}
+
+function mai-code {
+  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  if [[ "$1" == -* ]]; then
+    "$VSCODE_PATH" "$@"
+  else
+    "$VSCODE_PATH" "$@"
+  fi
+}
+### END MAI CODER WRAPPERS ###
+EOF
+
+  echo "✅ Wrapper functions added to .zshrc"
+}
+
+# Main execution
+main() {
+  # Check for command argument
+  if [ "$1" == "deploy" ]; then
+    # Deploy configurations to the specified directory
+    deploy_mai_configs "$2"
+  else
+    # Print header
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║                MAI-Coder Unified Setup Script                   ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo ""
+    
+    # Regular setup
+    echo "🔧 Setting up MAI-Coder tooling configurations..."
+    echo ""
+    
+    # Clean up old files
+    cleanup_old_files
+    
+    # Verify tool paths
+    if ! verify_tool_paths; then
+      echo "⚠️  Setup will continue but some tools may not work correctly."
+      echo "Please edit the path variables in $REPO_DIR/mai-setup.sh to fix this."
+      echo ""
+    fi
+
+    # Make script executable
+    chmod +x "$REPO_DIR/mai-setup.sh"
+
+    # Set up wrapper functions
+    setup_wrapper_functions
+
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║                   MAI-Coder Setup Complete!                     ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "🔄 To activate all changes, run: source ~/.zshrc"
+    echo ""
+    echo "✨ You can now use any of these commands:"
+    echo "   - mai-coder: Deploy all configurations to current directory"
+    echo "   - mai-cursor: Launch Cursor with MAI configurations"
+    echo "   - mai-aider: Launch Aider with MAI configurations"
+    echo "   - mai-code: Launch VS Code with MAI configurations"
+    echo ""
+  fi
+}
+
+# Execute main function
+main "$@" 
