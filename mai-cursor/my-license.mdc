@@ -4,6 +4,7 @@ globs: README.md
 alwaysApply: false
 ---
 All [README.md](mdc:README.md) files must contain the following:
+```
 @misc{<|repo_title|><|year=2025|>,
   author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
   title = {<|repo_title|>}},
@@ -12,3 +13,4 @@ All [README.md](mdc:README.md) files must contain the following:
   journal = {GitHub repository},
   howpublished = {\url{https://github.com/nbiish/<|repo_title|>}},
 } 
+```
