@@ -1,1 +1,2 @@
-# Sample Aider configuration
+read:
+  - .aider-instructions.md

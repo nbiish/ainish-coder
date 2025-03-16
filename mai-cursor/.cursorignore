@@ -1,9 +1,0 @@
-# Ignore Copilot and Aider related files
-# This will prevent any interference from these tools
-*.copilot*
-.aider&
-# Ignore Cursor files
-.cursor/
-.cursorignore
-.cursorindexingignore
-.cursorrules

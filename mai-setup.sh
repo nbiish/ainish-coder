@@ -118,36 +118,24 @@ deploy_mai_configs() {
   fi
   
   # Deploy Aider configurations
-  if [ -d "$REPO_DIR/mai-aider/.aider" ]; then
-    # First ensure the target .aider directory exists
-    mkdir -p "$TARGET/.aider" 2>/dev/null
-    
-    # Copy each file individually to maintain structure
-    if [ -f "$REPO_DIR/mai-aider/.aider/prompts.txt" ]; then
-      cp "$REPO_DIR/mai-aider/.aider/prompts.txt" "$TARGET/.aider/" 2>/dev/null
-      echo "✓ Deployed .aider/prompts.txt"
-    fi
-    
-    if [ -f "$REPO_DIR/mai-aider/.aider/config.yml" ]; then
-      cp "$REPO_DIR/mai-aider/.aider/config.yml" "$TARGET/.aider/" 2>/dev/null
-      echo "✓ Deployed .aider/config.yml"
-    fi
-    
-    if [ -f "$REPO_DIR/mai-aider/.aider/settings.json" ]; then
-      cp "$REPO_DIR/mai-aider/.aider/settings.json" "$TARGET/.aider/" 2>/dev/null
-      echo "✓ Deployed .aider/settings.json"
-    fi
-    
-    # Copy any other files that might exist
-    for file in "$REPO_DIR/mai-aider/.aider/"*; do
-      if [ -f "$file" ]; then
-        filename=$(basename "$file")
-        if [[ "$filename" != "prompts.txt" && "$filename" != "config.yml" && "$filename" != "settings.json" ]]; then
-          cp "$file" "$TARGET/.aider/" 2>/dev/null
-          echo "✓ Deployed .aider/$filename"
-        fi
-      fi
-    done
+  if [ -f "$REPO_DIR/mai-aider/.aider-instructions.md" ]; then
+    cp "$REPO_DIR/mai-aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .aider-instructions.md"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-aider/.aider.conf.yml" ]; then
+    cp "$REPO_DIR/mai-aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .aider.conf.yml"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-aider/.aiderignore" ]; then
+    cp "$REPO_DIR/mai-aider/.aiderignore" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .aiderignore"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-aider/.env.example" ]; then
+    cp "$REPO_DIR/mai-aider/.env.example" "$TARGET/" 2>/dev/null
+    echo "✓ Deployed .env.example"
   fi
   
   # Update .gitignore
@@ -171,6 +159,10 @@ update_gitignore() {
     ""
     "# Aider files"
     ".aider/"
+    ".aider-instructions.md"
+    ".aider.conf.yml"
+    ".aiderignore"
+    ".env.example"
     ""
     "# Copilot files"
     ".copilot/"
