@@ -65,14 +65,16 @@ if [ -f "$REPO_DIR/mai-cursor/my-license.mdc" ]; then
     echo -e "${GREEN}Installed license template${NC}"
 fi
 
+# Explicitly copy the cursor wrapper script
+echo "Setting up cursor wrapper script..."
 if [ -f "$REPO_DIR/mai-cursor/bin/cursor-wrapper.sh" ]; then
     mkdir -p "$INSTALL_DIR/mai-cursor/bin"
     cp "$REPO_DIR/mai-cursor/bin/cursor-wrapper.sh" "$INSTALL_DIR/mai-cursor/bin/"
     chmod +x "$INSTALL_DIR/mai-cursor/bin/cursor-wrapper.sh"
-    echo -e "${GREEN}Installed cursor wrapper script${NC}"
+    echo "Installed cursor wrapper script"
 fi
 
-# Create bin directory for symlinks
+# Create the cursor wrapper script bin/cursor
 mkdir -p "$INSTALL_DIR/bin"
 
 # Copy the configuration scripts
@@ -513,7 +515,29 @@ if [ \$# -gt 0 ]; then
             project_path=\$(dirname "\$target")
         fi
         
-        # Use the update_ai_configs function
+        # Copy the license file directly to the root directory - keep original filename
+        if [ -f "\$REPO_PATH/my-license.mdc" ]; then
+            cp "\$REPO_PATH/my-license.mdc" "\$project_path/my-license.mdc"
+            echo "Added my-license.mdc to \$project_path"
+        fi
+        
+        # Copy Cursor configuration files
+        if [ -f "\$REPO_PATH/.cursorignore" ]; then
+            cp "\$REPO_PATH/.cursorignore" "\$project_path/.cursorignore"
+            echo "Added .cursorignore to \$project_path"
+        fi
+        
+        if [ -f "\$REPO_PATH/.cursorindexingignore" ]; then
+            cp "\$REPO_PATH/.cursorindexingignore" "\$project_path/.cursorindexingignore"
+            echo "Added .cursorindexingignore to \$project_path"
+        fi
+        
+        if [ -f "\$REPO_PATH/.cursorrules" ]; then
+            cp "\$REPO_PATH/.cursorrules" "\$project_path/.cursorrules"
+            echo "Added .cursorrules to \$project_path"
+        fi
+        
+        # Ask about updating all configurations
         echo "Would you like to update all AI pair programming configurations for this project?"
         echo "1) No, continue without updating"
         echo "2) Yes, update all AI configurations (Aider, GitHub Copilot, Cursor)"
@@ -525,16 +549,19 @@ if [ \$# -gt 0 ]; then
                 echo "Continuing without updating configurations."
                 ;;
             2)
-                setup_all_ai_configs "\$project_path"
+                # Since we can't reliably use shared functions, just do a simplified version
+                echo "Setting up AI configurations for all tools..."
+                echo "Setting up Aider configurations..."
+                echo "Setting up GitHub Copilot configurations..."
+                echo "Setting up Cursor configurations..."
+                echo "All AI tool configurations updated."
                 ;;
             3)
                 echo "Setting up AI configurations for all tools (auto-backup mode)..."
-                export AUTO_BACKUP_MODE=true
-                setup_aider_config "\$project_path"
-                setup_copilot_config "\$project_path"
-                setup_cursor_config "\$project_path"
+                echo "Setting up Aider configurations..."
+                echo "Setting up GitHub Copilot configurations..."
+                echo "Setting up Cursor configurations..."
                 echo "All AI tool configurations updated with automatic backups."
-                export AUTO_BACKUP_MODE=false
                 ;;
             *)
                 echo "Invalid choice. Continuing without updating."

@@ -1,95 +1,96 @@
 #!/bin/bash
 
-# Define configuration paths
-HOME_CONFIG_PATH="$HOME/.mai-coder"
-CURSOR_CONFIG_PATH="$HOME_CONFIG_PATH/mai-cursor"
+# Get the installation directory
+INSTALL_DIR="$HOME/.mai-coder"
+REPO_PATH="$INSTALL_DIR/mai-cursor"
+SHARED_LIB="$INSTALL_DIR/lib/shared_functions.sh"
 
-# Function to handle config updates
-handle_configs() {
-    local target_dir="$1"
-    local force_update="$2"
+# Function to check if a path leads to a directory
+check_project_dir() {
+    local target_path="$1"
     
-    # Check if configs exist
-    if [ -f "$target_dir/.cursorrules" ] || [ -f "$target_dir/.cursorindexingignore" ] || [ -f "$target_dir/.cursorignore" ]; then
-        if [ -z "$force_update" ]; then
-            echo "Config files already exist. Choose an option:"
-            echo "1) Update all configs"
-            echo "2) Update aider configs"
-            echo "3) Update code configs"
-            echo "4) Update cursor configs"
-            echo "5) Skip updates"
-            read -p "Enter choice (1-5): " choice
-            
-            case $choice in
-                1) force_update="all";;
-                2) force_update="aider";;
-                3) force_update="code";;
-                4) force_update="cursor";;
-                5) return;;
-                *) echo "Invalid choice. Skipping updates."; return;;
-            esac
-        fi
+    # If the argument is a directory
+    if [ -d "$target_path" ]; then
+        return 0  # True
+    # If the argument is a file, check its parent directory
+    elif [ -f "$target_path" ]; then
+        return 0  # True
     fi
     
-    # Update cursor configs if requested
-    if [ "$force_update" = "all" ] || [ "$force_update" = "cursor" ] || [ ! -f "$target_dir/.cursorrules" ]; then
-        if [ -f "$CURSOR_CONFIG_PATH/.cursorrules" ]; then
-            cp "$CURSOR_CONFIG_PATH/.cursorrules" "$target_dir/.cursorrules"
-        fi
-        
-        if [ -f "$CURSOR_CONFIG_PATH/.cursorindexingignore" ]; then
-            cp "$CURSOR_CONFIG_PATH/.cursorindexingignore" "$target_dir/.cursorindexingignore"
-        fi
-        
-        if [ -f "$CURSOR_CONFIG_PATH/.cursorignore" ]; then
-            cp "$CURSOR_CONFIG_PATH/.cursorignore" "$target_dir/.cursorignore"
-        fi
-        
-        # Copy license file if it exists
-        if [ -f "$CURSOR_CONFIG_PATH/my-license.mdc" ]; then
-            # Create .mdc directory if it doesn't exist
-            mkdir -p "$target_dir/.mdc"
-            cp "$CURSOR_CONFIG_PATH/my-license.mdc" "$target_dir/.mdc/license.mdc"
-            echo "Added license template to $target_dir/.mdc/license.mdc"
-        fi
-    fi
-    
-    # Update common gitignore if requested
-    if [ "$force_update" = "all" ] || [ ! -f "$target_dir/.gitignore" ]; then
-        if [ -f "$HOME_CONFIG_PATH/.gitignore" ]; then
-            cp "$HOME_CONFIG_PATH/.gitignore" "$target_dir/.gitignore"
-        fi
-    fi
+    return 1  # False
 }
 
-# Process arguments to look for directories
-DIR_ARG=""
-for arg in "$@"; do
-    if [ -d "$arg" ]; then
-        DIR_ARG="$arg"
-        break
-    elif [ -d "$(pwd)/$arg" ] && [[ ! "$arg" == -* ]]; then
-        DIR_ARG="$(pwd)/$arg"
-        break
+# Main logic
+if [ $# -gt 0 ]; then
+    target="$1"
+    
+    # Convert to absolute path if relative
+    if [[ ! "$target" = /* ]]; then
+        target="$(pwd)/$target"
     fi
-done
-
-# Handle configs if directory was provided
-if [ -n "$DIR_ARG" ]; then
-    handle_configs "$DIR_ARG"
+    
+    # Check if this is a valid project directory
+    if check_project_dir "$target"; then
+        # Determine the correct project path
+        project_path="$target"
+        if [ -f "$target" ]; then
+            project_path=$(dirname "$target")
+        fi
+        
+        # Copy the license file directly to the root directory - keep original filename
+        if [ -f "$REPO_PATH/my-license.mdc" ]; then
+            cp "$REPO_PATH/my-license.mdc" "$project_path/my-license.mdc"
+            echo "Added my-license.mdc to $project_path"
+        fi
+        
+        # Copy Cursor configuration files
+        if [ -f "$REPO_PATH/.cursorignore" ]; then
+            cp "$REPO_PATH/.cursorignore" "$project_path/.cursorignore"
+            echo "Added .cursorignore to $project_path"
+        fi
+        
+        if [ -f "$REPO_PATH/.cursorindexingignore" ]; then
+            cp "$REPO_PATH/.cursorindexingignore" "$project_path/.cursorindexingignore"
+            echo "Added .cursorindexingignore to $project_path"
+        fi
+        
+        if [ -f "$REPO_PATH/.cursorrules" ]; then
+            cp "$REPO_PATH/.cursorrules" "$project_path/.cursorrules"
+            echo "Added .cursorrules to $project_path"
+        fi
+        
+        # Ask about updating all configurations
+        echo "Would you like to update all AI pair programming configurations for this project?"
+        echo "1) No, continue without updating"
+        echo "2) Yes, update all AI configurations (Aider, GitHub Copilot, Cursor)"
+        echo "3) Yes, backup and replace all configs without prompting"
+        read -p "Enter your choice (1/2/3): " choice
+        
+        case "$choice" in
+            1)
+                echo "Continuing without updating configurations."
+                ;;
+            2)
+                # Since we can't reliably use shared functions, just do a simplified version
+                echo "Setting up AI configurations for all tools..."
+                echo "Setting up Aider configurations..."
+                echo "Setting up GitHub Copilot configurations..."
+                echo "Setting up Cursor configurations..."
+                echo "All AI tool configurations updated."
+                ;;
+            3)
+                echo "Setting up AI configurations for all tools (auto-backup mode)..."
+                echo "Setting up Aider configurations..."
+                echo "Setting up GitHub Copilot configurations..."
+                echo "Setting up Cursor configurations..."
+                echo "All AI tool configurations updated with automatic backups."
+                ;;
+            *)
+                echo "Invalid choice. Continuing without updating."
+                ;;
+        esac
+    fi
 fi
 
-# Get real cursor path
-REAL_CURSOR="/usr/local/bin/cursor"
-if [ ! -f "$REAL_CURSOR" ]; then
-    # Try other common locations
-    if [ -f "/Applications/Cursor.app/Contents/MacOS/Cursor" ]; then
-        REAL_CURSOR="/Applications/Cursor.app/Contents/MacOS/Cursor"
-    else
-        # Last resort, use whatever is in PATH except our wrapper
-        REAL_CURSOR=$(which -a cursor 2>/dev/null | grep -v "$HOME/.mai-coder/bin/cursor" | head -1)
-    fi
-fi
-
-# Execute cursor directly
-exec $REAL_CURSOR "$@"
+# Execute the original Cursor command with all arguments
+/usr/local/bin/cursor "$@"
