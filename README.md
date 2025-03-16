@@ -12,18 +12,46 @@ MAI-CODER is a unified toolkit for AI pair programming that integrates with mult
 - **Project-specific git configurations** and `.gitignore` templates
 - **Consistent experience** across different AI coding assistants
 
-## Installation
+## Quick Start
 
-Clone this repository and run the installation script:
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/nbiish/mai-coder.git
+   cd mai-coder
+   ```
+
+2. Run the installation script:
+   ```bash
+   ./install.sh
+   ```
+
+3. Apply the changes:
+   ```bash
+   source ~/.zshrc
+   ```
+
+## API Keys
+
+You'll need these API keys to use Aider's different modes:
 
 ```bash
-git clone https://github.com/yourusername/mai-coder.git
-cd mai-coder
-chmod +x install.sh
-./install.sh
+# Set in your shell:
+export OPENROUTER_API_KEY=your_key  # For Claude 3.5 (aider smart)
+export GEMINI_API_KEY=your_key      # For Gemini (aider pro)
+export DEEPSEEK_API_KEY=your_key    # For DeepSeek (aider r1/v3)
 ```
 
-This will:
+## Aider Commands
+
+After setup, you can use these Aider commands:
+- `aider smart` - Best for complex tasks (uses Claude 3.5)
+- `aider r1` - Good for reasoning tasks
+- `aider v3` - Fast for simple changes
+- `aider pro` - Uses Gemini for whole-file edits
+
+## Installation Details
+
+The installation script will:
 1. Copy configurations to `~/.mai-coder/`
 2. Create wrapper scripts for `code`, `cursor`, and `aider` commands
 3. Add these wrappers to your PATH in `.zshrc` or `.bashrc`
@@ -66,29 +94,13 @@ The `aider` command is wrapped to prompt you about updating Aider configurations
 aider your-project
 ```
 
-### Configuration Scripts
+## What Gets Added to Your Projects
 
-The repository includes scripts to configure AI tools for your projects:
-
-```bash
-# Configure all AI tools for the current directory
-./bin/mai-coder
-
-# Configure a specific tool for the current directory
-./bin/mai-coder aider    # Configure only Aider
-./bin/mai-coder code     # Configure only GitHub Copilot
-./bin/mai-coder cursor   # Configure only Cursor
-
-# Alternative commands
-./bin/mai-coder-aider    # Configure only Aider
-./bin/mai-coder-code     # Configure only GitHub Copilot
-./bin/mai-coder-cursor   # Configure only Cursor
-
-# Configure for a specific project directory
-./bin/mai-coder aider ~/myproject
-```
-
-These scripts will copy the appropriate configuration files from `~/.mai-coder` to your project directory, prompting you before overwriting any existing files.
+When you use the commands, these files are automatically added:
+- `.copilotignore` and `.rooignore` - For GitHub Copilot
+- `.cursorignore` and `.cursorindexingignore` - For Cursor IDE
+- `.aider-instructions.md` - For Aider
+- License citation in README.md (if missing)
 
 ## Configuration Details
 
@@ -137,3 +149,12 @@ You can run `./bin/setup-repo-structure.sh` to create this directory structure a
 You can customize the configurations by editing files in the `~/.mai-coder` directory. The wrappers will use your customized configurations when creating or updating project files.
 
 ## License
+
+@misc{mai-coder2025,
+  author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
+  title = {mai-coder},
+  year = {2025},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/nbiish/mai-coder}},
+}
