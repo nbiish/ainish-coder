@@ -12,26 +12,41 @@ export CURSOR_PATH="/Applications/Cursor.app/Contents/MacOS/Cursor"
 export VSCODE_PATH="code"  # Assuming 'code' is in PATH
 export AIDER_PATH="aider"  # Assuming 'aider' is in PATH
 
+# ANSI color codes for cyberpunk theme
+CYAN='\033[0;36m'
+BRIGHT_CYAN='\033[1;36m'
+MAGENTA='\033[0;35m'
+BRIGHT_MAGENTA='\033[1;35m'
+BLUE='\033[0;34m'
+BRIGHT_BLUE='\033[1;34m'
+GREEN='\033[0;32m'
+BRIGHT_GREEN='\033[1;32m'
+YELLOW='\033[0;33m'
+BRIGHT_YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BRIGHT_RED='\033[1;31m'
+RESET='\033[0m'
+
 # Verify the tool paths exist (for those that are files)
 verify_tool_paths() {
   local errors=0
   
   if [[ "$CURSOR_PATH" == /* && ! -f "$CURSOR_PATH" ]]; then
-    echo "⚠️  Warning: Cursor not found at $CURSOR_PATH"
-    echo "Please edit the CURSOR_PATH variable in mai-setup.sh"
+    echo -e "${BRIGHT_YELLOW}⚠️  Warning: Cursor not found at $CURSOR_PATH${RESET}"
+    echo -e "${YELLOW}Please edit the CURSOR_PATH variable in mai-setup.sh${RESET}"
     errors=$((errors+1))
   fi
   
   # For commands in PATH, just check if they're available
   if ! command -v "$VSCODE_PATH" &> /dev/null; then
-    echo "⚠️  Warning: VS Code command '$VSCODE_PATH' not found in PATH"
-    echo "Please edit the VSCODE_PATH variable in mai-setup.sh"
+    echo -e "${BRIGHT_YELLOW}⚠️  Warning: VS Code command '$VSCODE_PATH' not found in PATH${RESET}"
+    echo -e "${YELLOW}Please edit the VSCODE_PATH variable in mai-setup.sh${RESET}"
     errors=$((errors+1))
   fi
   
   if ! command -v "$AIDER_PATH" &> /dev/null; then
-    echo "⚠️  Warning: Aider command '$AIDER_PATH' not found in PATH"
-    echo "Please edit the AIDER_PATH variable in mai-setup.sh"
+    echo -e "${BRIGHT_YELLOW}⚠️  Warning: Aider command '$AIDER_PATH' not found in PATH${RESET}"
+    echo -e "${YELLOW}Please edit the AIDER_PATH variable in mai-setup.sh${RESET}"
     errors=$((errors+1))
   fi
   
@@ -43,7 +58,7 @@ verify_tool_paths() {
 
 # Clean up old mai-coder files from home directory
 cleanup_old_files() {
-  echo "🧹 Cleaning up old mai-coder files from home directory..."
+  echo -e "${BRIGHT_CYAN}🧹 Cleaning up old mai-coder files from home directory...${RESET}"
   
   # Remove old setup scripts
   rm -f "${HOME}/setup.sh" "${HOME}/install.sh" "${HOME}/vscode-setup.sh" 2>/dev/null
@@ -54,7 +69,7 @@ cleanup_old_files() {
   # Remove old configuration files
   rm -f "${HOME}/.mai-config" "${HOME}/.mai-settings" 2>/dev/null
   
-  echo "✅ Cleanup complete"
+  echo -e "${BRIGHT_GREEN}✅ Cleanup complete${RESET}"
 }
 
 # Main deployment function
@@ -63,11 +78,11 @@ deploy_mai_configs() {
   
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
-    echo "Error: $TARGET is not a directory"
+    echo -e "${BRIGHT_RED}Error: $TARGET is not a directory${RESET}"
     return 1
   fi
   
-  echo "Deploying MAI configurations to $TARGET"
+  echo -e "${BRIGHT_BLUE}Deploying MAI configurations to $TARGET${RESET}"
   
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
@@ -77,71 +92,71 @@ deploy_mai_configs() {
   # Deploy Cursor configurations
   if [ -f "$REPO_DIR/mai-cursor/.cursorignore" ]; then
     cp "$REPO_DIR/mai-cursor/.cursorignore" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .cursorignore"
+    echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
   fi
   
   if [ -f "$REPO_DIR/mai-cursor/.cursorindexingignore" ]; then
     cp "$REPO_DIR/mai-cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .cursorindexingignore"
+    echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
   fi
   
   if [ -d "$REPO_DIR/mai-cursor/.cursorrules" ]; then
     cp -r "$REPO_DIR/mai-cursor/.cursorrules" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .cursorrules/"
+    echo -e "${GREEN}✓ Deployed .cursorrules/${RESET}"
   fi
   
   if [ -f "$REPO_DIR/mai-cursor/my-license.mdc" ]; then
     cp "$REPO_DIR/mai-cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
-    echo "✓ Deployed .cursor/rules/license.mdc"
+    echo -e "${GREEN}✓ Deployed .cursor/rules/license.mdc${RESET}"
   fi
   
   # Deploy Copilot configurations
   if [ -f "$REPO_DIR/mai-copilot/.copilotignore" ]; then
     cp "$REPO_DIR/mai-copilot/.copilotignore" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .copilotignore"
+    echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
   fi
   
   if [ -f "$REPO_DIR/mai-copilot/.rooignore" ]; then
     cp "$REPO_DIR/mai-copilot/.rooignore" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .rooignore"
+    echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
   fi
   
   # Copy copilot-instructions.md to .github directory
   if [ -f "$REPO_DIR/mai-copilot/github/.github/copilot-instructions.md" ]; then
     cp "$REPO_DIR/mai-copilot/github/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-    echo "✓ Deployed .github/copilot-instructions.md"
+    echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md${RESET}"
   elif [ -f "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" ]; then
     cp "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-    echo "✓ Deployed .github/copilot-instructions.md"
+    echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md${RESET}"
   else
-    echo "⚠️ Warning: copilot-instructions.md not found"
+    echo -e "${YELLOW}⚠️ Warning: copilot-instructions.md not found${RESET}"
   fi
   
   # Deploy Aider configurations
   if [ -f "$REPO_DIR/mai-aider/.aider-instructions.md" ]; then
     cp "$REPO_DIR/mai-aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .aider-instructions.md"
+    echo -e "${GREEN}✓ Deployed .aider-instructions.md${RESET}"
   fi
   
   if [ -f "$REPO_DIR/mai-aider/.aider.conf.yml" ]; then
     cp "$REPO_DIR/mai-aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .aider.conf.yml"
+    echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
   fi
   
   if [ -f "$REPO_DIR/mai-aider/.aiderignore" ]; then
     cp "$REPO_DIR/mai-aider/.aiderignore" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .aiderignore"
+    echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
   fi
   
   if [ -f "$REPO_DIR/mai-aider/.env.example" ]; then
     cp "$REPO_DIR/mai-aider/.env.example" "$TARGET/" 2>/dev/null
-    echo "✓ Deployed .env.example"
+    echo -e "${GREEN}✓ Deployed .env.example${RESET}"
   fi
   
   # Update .gitignore
   update_gitignore "$TARGET"
   
-  echo "✅ MAI configurations deployed to $TARGET"
+  echo -e "${BRIGHT_GREEN}✅ MAI configurations deployed to $TARGET${RESET}"
 }
 
 # Function to update .gitignore
@@ -178,34 +193,34 @@ update_gitignore() {
       for entry in "${ENTRIES[@]}"; do
         echo "$entry" >> "$GITIGNORE"
       done
-      echo "Updated .gitignore with MAI config entries"
+      echo -e "${BLUE}Updated .gitignore with MAI config entries${RESET}"
     else
-      echo ".gitignore already contains MAI entries"
+      echo -e "${BLUE}.gitignore already contains MAI entries${RESET}"
     fi
   else
     # Create new .gitignore
     for entry in "${ENTRIES[@]}"; do
       echo "$entry" >> "$GITIGNORE"
     done
-    echo "Created .gitignore with MAI config entries"
+    echo -e "${BLUE}Created .gitignore with MAI config entries${RESET}"
   fi
 
   # Verify .gitignore was created/updated successfully
   if [ -f "$GITIGNORE" ]; then
-    echo "✓ Verified .gitignore exists"
+    echo -e "${GREEN}✓ Verified .gitignore exists${RESET}"
   else
-    echo "⚠️ Warning: Failed to create .gitignore"
+    echo -e "${YELLOW}⚠️ Warning: Failed to create .gitignore${RESET}"
   fi
 }
 
 # Setup wrapper functions in .zshrc
 setup_wrapper_functions() {
   if [ ! -f "$ZSHRC" ]; then
-    echo "⚠️  Warning: ~/.zshrc not found. Please manually add the wrapper functions."
+    echo -e "${YELLOW}⚠️  Warning: ~/.zshrc not found. Please manually add the wrapper functions.${RESET}"
     return
   fi
   
-  echo "🔧 Updating .zshrc with wrapper functions..."
+  echo -e "${BRIGHT_BLUE}🔧 Updating .zshrc with wrapper functions...${RESET}"
   
   # Remove existing wrapper sections if they exist
   sed -i '' '/### MAI CODER WRAPPERS ###/,/### END MAI CODER WRAPPERS ###/d' "$ZSHRC" 2>/dev/null
@@ -254,7 +269,7 @@ function mai-code {
 ### END MAI CODER WRAPPERS ###
 EOF
 
-  echo "✅ Wrapper functions added to .zshrc"
+  echo -e "${BRIGHT_GREEN}✅ Wrapper functions added to .zshrc${RESET}"
 }
 
 # Main execution
@@ -264,14 +279,14 @@ main() {
     # Deploy configurations to the specified directory
     deploy_mai_configs "$2"
   else
-    # Print header
-    echo "╔════════════════════════════════════════════════════════════════╗"
-    echo "║                MAI-Coder Unified Setup Script                   ║"
-    echo "╚════════════════════════════════════════════════════════════════╝"
+    # Print cyberpunk-style header
+    echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_CYAN}M A I - C O D E R${RESET}                ${BRIGHT_MAGENTA}║${RESET}"
+    echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
     
     # Regular setup
-    echo "🔧 Setting up MAI-Coder tooling configurations..."
+    echo -e "${BRIGHT_CYAN}🔧 [INIT] Setting up MAI-Coder tooling configurations...${RESET}"
     echo ""
     
     # Clean up old files
@@ -279,8 +294,8 @@ main() {
     
     # Verify tool paths
     if ! verify_tool_paths; then
-      echo "⚠️  Setup will continue but some tools may not work correctly."
-      echo "Please edit the path variables in $REPO_DIR/mai-setup.sh to fix this."
+      echo -e "${BRIGHT_YELLOW}⚠️  [WARN] Setup will continue but some tools may not work correctly.${RESET}"
+      echo -e "${YELLOW}Please edit the path variables in $REPO_DIR/mai-setup.sh to fix this.${RESET}"
       echo ""
     fi
 
@@ -290,17 +305,17 @@ main() {
     # Set up wrapper functions
     setup_wrapper_functions
 
-    echo "╔════════════════════════════════════════════════════════════════╗"
-    echo "║                   MAI-Coder Setup Complete!                     ║"
-    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_GREEN}M A I - C O D E R${RESET}            ${BRIGHT_MAGENTA}║${RESET}"
+    echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
-    echo "🔄 To activate all changes, run: source ~/.zshrc"
+    echo -e "${BRIGHT_CYAN}🔄 To activate all changes, run: ${BRIGHT_BLUE}source ~/.zshrc${RESET}"
     echo ""
-    echo "✨ You can now use any of these commands:"
-    echo "   - mai-coder: Deploy all configurations to current directory"
-    echo "   - mai-cursor: Launch Cursor with MAI configurations"
-    echo "   - mai-aider: Launch Aider with MAI configurations"
-    echo "   - mai-code: Launch VS Code with MAI configurations"
+    echo -e "${BRIGHT_MAGENTA}✨ AVAILABLE COMMANDS:${RESET}"
+    echo -e "${BRIGHT_BLUE}   ▶ mai-coder${RESET}: ${CYAN}Install all configurations to current directory${RESET}"
+    echo -e "${BRIGHT_BLUE}   ▶ mai-cursor${RESET}: ${CYAN}Install Cursor configurations to current directory${RESET}"
+    echo -e "${BRIGHT_BLUE}   ▶ mai-aider${RESET}: ${CYAN}Install Aider configurations to current directory${RESET}"
+    echo -e "${BRIGHT_BLUE}   ▶ mai-code${RESET}: ${CYAN}Install VS Code configurations to current directory${RESET}"
     echo ""
   fi
 }

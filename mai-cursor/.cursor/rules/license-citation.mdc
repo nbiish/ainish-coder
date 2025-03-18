@@ -3,7 +3,7 @@ description:
 globs: README.md
 alwaysApply: false
 ---
-All [README.md](mdc:README.md) files must contain the following:
+All [README.md](mdc:README.md) files must contain the following as a license/citation:
 ```
 @misc{<|repo_title|><|year=2025|>,
   author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
