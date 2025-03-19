@@ -245,7 +245,7 @@ function mai-coder {
 }
 
 function mai-cursor {
-  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  "$REPO_DIR/mai-setup.sh" deploy_cursor_configs "$PWD"
   if [[ "$1" == -* ]]; then
     "$CURSOR_PATH" "$@"
   else
@@ -254,12 +254,12 @@ function mai-cursor {
 }
 
 function mai-aider {
-  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  "$REPO_DIR/mai-setup.sh" deploy_aider_configs "$PWD"
   "$AIDER_PATH" "$@"
 }
 
 function mai-code {
-  "$REPO_DIR/mai-setup.sh" deploy "$PWD"
+  "$REPO_DIR/mai-setup.sh" deploy_vscode_configs "$PWD"
   if [[ "$1" == -* ]]; then
     "$VSCODE_PATH" "$@"
   else
@@ -272,12 +272,131 @@ EOF
   echo -e "${BRIGHT_GREEN}✅ Wrapper functions added to .zshrc${RESET}"
 }
 
+# Function to deploy only VS Code configurations
+deploy_vscode_configs() {
+  local TARGET="$1"
+
+  # Verify target is a directory
+  if [ ! -d "$TARGET" ]; then
+    echo -e "${BRIGHT_RED}Error: $TARGET is not a directory${RESET}"
+    return 1
+  fi
+
+  echo -e "${BRIGHT_BLUE}Deploying VS Code configurations to $TARGET${RESET}"
+
+  # Deploy VS Code-specific configurations
+  if [ -f "$REPO_DIR/mai-copilot/.copilotignore" ]; then
+    cp "$REPO_DIR/mai-copilot/.copilotignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+  fi
+
+  if [ -f "$REPO_DIR/mai-copilot/.rooignore" ]; then
+    cp "$REPO_DIR/mai-copilot/.rooignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
+  fi
+
+  # Copy copilot-instructions.md to .github directory
+  if [ -f "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" ]; then
+    cp "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md${RESET}"
+  fi
+
+  echo -e "${BRIGHT_GREEN}✅ VS Code configurations deployed to $TARGET${RESET}"
+}
+
+# Function to deploy only Cursor configurations
+deploy_cursor_configs() {
+  local TARGET="$1"
+
+  # Verify target is a directory
+  if [ ! -d "$TARGET" ]; then
+    echo -e "${BRIGHT_RED}Error: $TARGET is not a directory${RESET}"
+    return 1
+  fi
+
+  echo -e "${BRIGHT_BLUE}Deploying Cursor configurations to $TARGET${RESET}"
+  
+  # Create necessary directories
+  mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
+  
+  # Deploy Cursor-specific configurations
+  if [ -f "$REPO_DIR/mai-cursor/.cursorignore" ]; then
+    cp "$REPO_DIR/mai-cursor/.cursorignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-cursor/.cursorindexingignore" ]; then
+    cp "$REPO_DIR/mai-cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
+  fi
+  
+  if [ -d "$REPO_DIR/mai-cursor/.cursorrules" ]; then
+    cp -r "$REPO_DIR/mai-cursor/.cursorrules" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .cursorrules/${RESET}"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-cursor/my-license.mdc" ]; then
+    cp "$REPO_DIR/mai-cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .cursor/rules/license.mdc${RESET}"
+  fi
+
+  echo -e "${BRIGHT_GREEN}✅ Cursor configurations deployed to $TARGET${RESET}"
+}
+
+# Function to deploy only Aider configurations
+deploy_aider_configs() {
+  local TARGET="$1"
+
+  # Verify target is a directory
+  if [ ! -d "$TARGET" ]; then
+    echo -e "${BRIGHT_RED}Error: $TARGET is not a directory${RESET}"
+    return 1
+  fi
+
+  echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET${RESET}"
+
+  # Create necessary directories
+  mkdir -p "$TARGET/.aider" 2>/dev/null
+  
+  # Deploy Aider-specific configurations
+  if [ -f "$REPO_DIR/mai-aider/.aider-instructions.md" ]; then
+    cp "$REPO_DIR/mai-aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .aider-instructions.md${RESET}"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-aider/.aider.conf.yml" ]; then
+    cp "$REPO_DIR/mai-aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-aider/.aiderignore" ]; then
+    cp "$REPO_DIR/mai-aider/.aiderignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
+  fi
+  
+  if [ -f "$REPO_DIR/mai-aider/.env.example" ]; then
+    cp "$REPO_DIR/mai-aider/.env.example" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .env.example${RESET}"
+  fi
+
+  echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
+}
+
 # Main execution
 main() {
   # Check for command argument
   if [ "$1" == "deploy" ]; then
     # Deploy configurations to the specified directory
     deploy_mai_configs "$2"
+  elif [ "$1" == "deploy_vscode_configs" ]; then
+    # Deploy VS Code configurations to the specified directory
+    deploy_vscode_configs "$2"
+  elif [ "$1" == "deploy_cursor_configs" ]; then
+    # Deploy Cursor configurations to the specified directory
+    deploy_cursor_configs "$2"
+  elif [ "$1" == "deploy_aider_configs" ]; then
+    # Deploy Aider configurations to the specified directory
+    deploy_aider_configs "$2"
   else
     # Print cyberpunk-style header
     echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
@@ -321,4 +440,4 @@ main() {
 }
 
 # Execute main function
-main "$@" 
+main "$@"
