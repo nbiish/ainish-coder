@@ -1,15 +1,15 @@
 # mai-coder
 
-A comprehensive configuration manager for AI coding assistants, providing seamless setup and integration of various AI development tools.
+A comprehensive configuration manager for AI coding assistants, providing seamless setup and integration for multiple AI development tools in your projects.
 
 ## 🌟 Features
 
-- **Unified Configuration**: Centralized management of AI coding assistant configurations
-- **Multiple Tool Support**: 
-  - `mai-aider`: Configuration for AI-powered coding assistance
-  - `mai-cursor`: Cursor IDE-specific configurations
-  - `mai-copilot`: GitHub Copilot integration settings
-  - `mai-gitignore`: Specialized gitignore rules for AI tools
+- **Unified Setup**: One script to configure all your AI coding assistants
+- **Multiple AI Tool Support**: 
+  - `mai-aider`: Configuration for the Aider AI pair programming assistant
+  - `mai-cursor`: Cursor IDE specific configurations and ignore files
+  - `mai-copilot`: GitHub Copilot and related tool configurations
+- **Automatic Configuration**: Gitignore rules and tool-specific ignore files included with each component
 
 ## 🚀 Installation
 
@@ -27,18 +27,30 @@ chmod +x mai-setup.sh
 
 ## 📦 Components
 
-- **mai-aider**: Adds all configurations to the root directory where called
-- **mai-cursor**: Installs Cursor IDE-specific configurations
-- **mai-copilot**: Sets up GitHub Copilot integration
-- **mai-gitignore**: Manages AI-specific gitignore rules
+### mai-aider
+- `.aider.conf.yml`: Core configuration file
+- `.aider-instructions.md`: Custom instructions for the Aider assistant
+- `.aiderignore`: File patterns to exclude from Aider
+- `.env.example`: Environment variable template
 
-## 🔧 Configuration
+### mai-cursor
+- `.cursor/`: Cursor IDE configuration directory
+- `.cursorignore`: Rules for files to exclude from Cursor AI
+- `.cursorindexingignore`: Rules for files to exclude from indexing
 
-All components are installed to `~/.mai-coder` by default. The setup script handles:
-- Configuration file placement
-- Permission settings
-- Tool-specific rule structures
-- License and citation management
+### mai-copilot
+- `.copilotignore`: Rules for files to exclude from GitHub Copilot
+- `.rooignore`: Rules for the Roo extension
+- `.github/`: GitHub specific configurations
+
+## 🔧 How It Works
+
+The `mai-setup.sh` script:
+1. Creates a `~/.mai-coder` directory to store all configurations
+2. Copies tool configurations to their appropriate directories
+3. Updates or creates `.gitignore` with AI-specific entries
+4. Adds wrapper functions to your shell configuration
+5. Verifies all components are properly installed
 
 ## 🤝 Contributing
 
