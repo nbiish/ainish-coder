@@ -105,9 +105,22 @@ deploy_mai_configs() {
     echo -e "${GREEN}✓ Deployed .cursorrules/${RESET}"
   fi
   
+  # Handle license files - mai-cursor uses its own, others use the root version
   if [ -f "$REPO_DIR/mai-cursor/my-license.mdc" ]; then
     cp "$REPO_DIR/mai-cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursor/rules/license.mdc${RESET}"
+    echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
+  fi
+  
+  # Deploy shared license-citation for other tools
+  if [ -f "$REPO_DIR/license-citation.mdc" ]; then
+    if [ -d "$TARGET/.aider" ]; then
+      cp "$REPO_DIR/license-citation.mdc" "$TARGET/.aider/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed license-citation.mdc to .aider/${RESET}"
+    fi
+    if [ -d "$TARGET/.github" ]; then
+      cp "$REPO_DIR/license-citation.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed license-citation.mdc to .github/${RESET}"
+    fi
   fi
   
   # Deploy Copilot configurations
@@ -284,6 +297,9 @@ deploy_vscode_configs() {
 
   echo -e "${BRIGHT_BLUE}Deploying VS Code configurations to $TARGET${RESET}"
 
+  # Create necessary directories
+  mkdir -p "$TARGET/.github" 2>/dev/null
+  
   # Deploy VS Code-specific configurations
   if [ -f "$REPO_DIR/mai-copilot/.copilotignore" ]; then
     cp "$REPO_DIR/mai-copilot/.copilotignore" "$TARGET/" 2>/dev/null
@@ -299,6 +315,12 @@ deploy_vscode_configs() {
   if [ -f "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" ]; then
     cp "$REPO_DIR/mai-copilot/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md${RESET}"
+  fi
+
+  # Deploy shared license-citation
+  if [ -f "$REPO_DIR/license-citation.mdc" ]; then
+    cp "$REPO_DIR/license-citation.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed license-citation.mdc to .github/${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ VS Code configurations deployed to $TARGET${RESET}"
@@ -377,6 +399,12 @@ deploy_aider_configs() {
   if [ -f "$REPO_DIR/mai-aider/.env.example" ]; then
     cp "$REPO_DIR/mai-aider/.env.example" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
+  fi
+
+  # Deploy shared license-citation
+  if [ -f "$REPO_DIR/license-citation.mdc" ]; then
+    cp "$REPO_DIR/license-citation.mdc" "$TARGET/.aider/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed license-citation.mdc to .aider/${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
