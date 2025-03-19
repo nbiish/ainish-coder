@@ -180,9 +180,12 @@ deploy_mai_configs() {
     echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
   fi
   
-  if [ -f "${MAI_CODER_DIR}/vscode/.rooignore" ]; then
+  # Only copy .rooignore if it doesn't already exist in the target directory
+  if [ -f "${MAI_CODER_DIR}/vscode/.rooignore" ] && [ ! -f "$TARGET/.rooignore" ]; then
     cp "${MAI_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
+  elif [ -f "$TARGET/.rooignore" ]; then
+    echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
   fi
   
   # Copy copilot-instructions.md to .github directory
@@ -354,9 +357,12 @@ deploy_vscode_configs() {
     echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
   fi
 
-  if [ -f "${MAI_CODER_DIR}/vscode/.rooignore" ]; then
+  # Only copy .rooignore if it doesn't already exist in the target directory
+  if [ -f "${MAI_CODER_DIR}/vscode/.rooignore" ] && [ ! -f "$TARGET/.rooignore" ]; then
     cp "${MAI_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
+  elif [ -f "$TARGET/.rooignore" ]; then
+    echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
   fi
 
   # Copy copilot-instructions.md to .github directory

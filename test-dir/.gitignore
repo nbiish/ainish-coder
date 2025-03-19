@@ -1,0 +1,18 @@
+# Cursor files
+.cursor/
+.cursorignore
+.cursorindexingignore
+.cursorrules
+
+# Aider files
+.aider/
+.aider-instructions.md
+.aider.conf.yml
+.aiderignore
+.env.example
+
+# Copilot files
+.copilot/
+.copilotignore
+.rooignore
+.github/copilot-instructions.md
