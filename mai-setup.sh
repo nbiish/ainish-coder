@@ -45,6 +45,17 @@ setup_mai_coder_dir() {
   cp -r "${REPO_DIR}/mai-copilot/"* "${MAI_CODER_DIR}/vscode/" 2>/dev/null
   cp -r "${REPO_DIR}/mai-aider/"* "${MAI_CODER_DIR}/aider/" 2>/dev/null
   
+  # Verify and create cursor ignore files if needed
+  if [ ! -f "${MAI_CODER_DIR}/cursor/.cursorignore" ]; then
+    touch "${MAI_CODER_DIR}/cursor/.cursorignore" 2>/dev/null
+    echo -e "${GREEN}✓ Created empty .cursorignore in ${MAI_CODER_DIR}/cursor/${RESET}"
+  fi
+  
+  if [ ! -f "${MAI_CODER_DIR}/cursor/.cursorindexingignore" ]; then
+    touch "${MAI_CODER_DIR}/cursor/.cursorindexingignore" 2>/dev/null
+    echo -e "${GREEN}✓ Created empty .cursorindexingignore in ${MAI_CODER_DIR}/cursor/${RESET}"
+  fi
+  
   # Copy the license-citation.mdc to the root ~/.mai-coder directory
   cp "${REPO_DIR}/license-citation.mdc" "${MAI_CODER_DIR}/" 2>/dev/null
   
@@ -121,11 +132,19 @@ deploy_mai_configs() {
   if [ -f "${MAI_CODER_DIR}/cursor/.cursorignore" ]; then
     cp "${MAI_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+  else
+    # Create empty .cursorignore if it doesn't exist
+    touch "$TARGET/.cursorignore" 2>/dev/null
+    echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
   fi
   
   if [ -f "${MAI_CODER_DIR}/cursor/.cursorindexingignore" ]; then
     cp "${MAI_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
+  else
+    # Create empty .cursorindexingignore if it doesn't exist
+    touch "$TARGET/.cursorindexingignore" 2>/dev/null
+    echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
   fi
   
   if [ -d "${MAI_CODER_DIR}/cursor/.cursorrules" ]; then
@@ -376,11 +395,19 @@ deploy_cursor_configs() {
   if [ -f "${MAI_CODER_DIR}/cursor/.cursorignore" ]; then
     cp "${MAI_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+  else
+    # Create empty .cursorignore if it doesn't exist
+    touch "$TARGET/.cursorignore" 2>/dev/null
+    echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
   fi
   
   if [ -f "${MAI_CODER_DIR}/cursor/.cursorindexingignore" ]; then
     cp "${MAI_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
+  else
+    # Create empty .cursorindexingignore if it doesn't exist
+    touch "$TARGET/.cursorindexingignore" 2>/dev/null
+    echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
   fi
   
   if [ -d "${MAI_CODER_DIR}/cursor/.cursorrules" ]; then
@@ -397,6 +424,19 @@ deploy_cursor_configs() {
   if [ -f "${MAI_CODER_DIR}/license-citation.mdc" ]; then
     cp "${MAI_CODER_DIR}/license-citation.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed license-citation.mdc to .cursor/rules/${RESET}"
+  fi
+
+  # Verify files were created
+  if [ -f "$TARGET/.cursorignore" ]; then
+    echo -e "${GREEN}✓ Verified .cursorignore exists${RESET}"
+  else
+    echo -e "${YELLOW}⚠️ Warning: Failed to create .cursorignore${RESET}"
+  fi
+  
+  if [ -f "$TARGET/.cursorindexingignore" ]; then
+    echo -e "${GREEN}✓ Verified .cursorindexingignore exists${RESET}"
+  else
+    echo -e "${YELLOW}⚠️ Warning: Failed to create .cursorindexingignore${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ Cursor configurations deployed to $TARGET${RESET}"
