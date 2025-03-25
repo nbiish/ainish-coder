@@ -1,7 +1,7 @@
 ---
 description: 
 globs: README.md
-alwaysApply: true
+alwaysApply: false
 ---
 All [README.md](mdc:README.md) files must contain the following as a license/citation:
 # License 
