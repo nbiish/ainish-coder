@@ -3,7 +3,7 @@ description: Comprehensive Restricted Use License with Tribal Sovereignty Protec
 globs: ["*.md", "LICENSE"]
 alwaysApply: true
 ---
-All projects must contain [README.md](mdc:README.md) (citation at end only) and @LICENSE files with the following:
+All projects must contain @README.md (citation at end only) and @LICENSE files with the following:
 ```
 Copyright © 2025 ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.
 
@@ -186,5 +186,5 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 13. AMENDMENTS AND MODIFICATIONS
     The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
 
-Any use of this software constitutes acceptance of these terms. 
+Any use of this software constitutes acceptance of these terms.  
 ```
