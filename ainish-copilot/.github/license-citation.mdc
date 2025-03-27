@@ -1,7 +1,7 @@
 ---
-description: Comprehensive Restricted Use License with Tribal Sovereignty Protections
-globs: ["*.md", "LICENSE"]
-alwaysApply: true
+description: 
+globs: 
+alwaysApply: false
 ---
 All projects must contain [README.md](mdc:README.md) (citation at end only) and @LICENSE files with the following:
 ```
@@ -135,4 +135,5 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
     The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
 
 Any use of this software constitutes acceptance of these terms. 
+
 ```
