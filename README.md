@@ -32,6 +32,7 @@ chmod +x ainish-setup.sh
 - `.aider-instructions.md`: Custom instructions for the Aider assistant
 - `.aiderignore`: File patterns to exclude from Aider
 - `.env.example`: Environment variable template
+- `license-citation.mdc`: License citation file for Aider
 
 ### ainish-cursor
 - `.cursor/`: Cursor IDE configuration directory
@@ -47,7 +48,7 @@ chmod +x ainish-setup.sh
 
 The `ainish-setup.sh` script:
 1. Creates a `~/.ainish-coder` directory to store all configurations
-2. Copies tool configurations to their appropriate directories
+2. Creates symbolic links to the original repo directories
 3. Updates or creates `.gitignore` with AI-specific entries
 4. Adds wrapper functions to your shell configuration
 5. Verifies all components are properly installed

@@ -122,7 +122,6 @@ deploy_ainish_configs() {
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
   mkdir -p "$TARGET/.github" 2>/dev/null
-  mkdir -p "$TARGET/.aider" 2>/dev/null
   
   # Deploy Cursor configurations
   if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
@@ -158,11 +157,6 @@ deploy_ainish_configs() {
   if [ -f "${AINISH_CODER_DIR}/license-citation.mdc" ]; then
     cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed license-citation.mdc to .cursor/rules/${RESET}"
-    
-    if [ -d "$TARGET/.aider" ]; then
-      cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.aider/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed license-citation.mdc to .aider/${RESET}"
-    fi
     
     if [ -d "$TARGET/.github" ]; then
       cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.github/" 2>/dev/null
@@ -240,7 +234,6 @@ update_gitignore() {
     ".cursorrules"
     ""
     "# Aider files"
-    ".aider/"
     ".aider-instructions.md"
     ".aider.conf.yml"
     ".aiderignore"
@@ -495,9 +488,6 @@ deploy_aider_configs() {
 
   echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET${RESET}"
 
-  # Create necessary directories
-  mkdir -p "$TARGET/.aider" 2>/dev/null
-  
   # Deploy Aider-specific configurations
   if [ -f "${AINISH_CODER_DIR}/aider/.aider-instructions.md" ]; then
     cp "${AINISH_CODER_DIR}/aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
@@ -519,10 +509,10 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
   fi
 
-  # Deploy shared license-citation
+  # Deploy shared license-citation directly to target directory, not to .aider subfolder
   if [ -f "${AINISH_CODER_DIR}/license-citation.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.aider/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed license-citation.mdc to .aider/${RESET}"
+    cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed license-citation.mdc to $TARGET${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
