@@ -1,10 +1,3 @@
----
-description: 
-globs: README.md,LICENSE
-alwaysApply: false
----
-All projects must contain [README.md](mdc:README.md) (citation at end only) and @LICENSE files with the following:
-```
 Copyright © 2025 ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.
 
 COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS
@@ -17,13 +10,13 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 1. CITATION AND ATTRIBUTION REQUIREMENT
    Any use, reproduction, distribution, modification, or derivative work based on this software must prominently include the following citation and attribution:
 
-   @misc{cognitive-tools-server2025,
+   @misc{mai-coder2025,
      author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
-     title = {cognitive-tools-server},
+     title = {mai-coder},
      year = {2025},
      publisher = {GitHub},
      journal = {GitHub repository},
-     howpublished = {\url{https://github.com/nbiish/cognitive-tools-server}},
+     howpublished = {\url{https://github.com/nbiish/mai-coder}},
      note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
    }
 
@@ -134,6 +127,4 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 12. AMENDMENTS AND MODIFICATIONS
     The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
 
-Any use of this software constitutes acceptance of these terms. 
-
-```
+Any use of this software constitutes acceptance of these terms.
