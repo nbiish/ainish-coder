@@ -17,13 +17,13 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 1. CITATION AND ATTRIBUTION REQUIREMENT
    Any use, reproduction, distribution, modification, or derivative work based on this software must prominently include the following citation and attribution:
 
-   @misc{cognitive-tools-server2025,
+   @misc{<|repo_name|><|current_year|>,
      author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
-     title = {cognitive-tools-server},
-     year = {2025},
+     title = {<|repo_name|>},
+     year = {<current_year|>},
      publisher = {GitHub},
      journal = {GitHub repository},
-     howpublished = {\url{https://github.com/nbiish/cognitive-tools-server}},
+     howpublished = {\url{https://github.com/nbiish/<|repo_name|>}},
      note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
    }
 

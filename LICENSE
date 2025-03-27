@@ -7,4 +7,124 @@ This software is created by ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭ�
 
 This license expressly integrates principles from Traditional Knowledge (TK) Labels and Protocols, federal Indian law, tribal law of the Grand Traverse Band of Ottawa and Chippewa Indians, and international indigenous rights frameworks to create a comprehensive protection system for this intellectual property.
 
-[Full license terms and conditions as specified in the license-citation.mdc file]
+1. CITATION AND ATTRIBUTION REQUIREMENT
+   Any use, reproduction, distribution, modification, or derivative work based on this software must prominently include the following citation and attribution:
+
+   @misc{ainish-coder2025,
+     author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
+     title = {ainish-coder},
+     year = {2025},
+     publisher = {GitHub},
+     journal = {GitHub repository},
+     howpublished = {\url{https://github.com/nbiish/ainish-coder}},
+     note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
+   }
+
+   Furthermore, any projects utilizing this software must visibly acknowledge the Indigenous authorship and tribal affiliation in user interfaces and documentation, including:
+   a) Attribution on all user-facing interfaces where the software is used
+   b) Acknowledgment in technical documentation, including API documentation
+   c) Citation in any publications, presentations, or derivative works that utilize this software
+   d) Recognition that this work is subject to the traditional knowledge protocols of the Grand Traverse Band of Ottawa and Chippewa Indians
+
+2. TRADITIONAL KNOWLEDGE (TK) PROTECTION AND LABELING
+   This software embodies elements of Traditional Knowledge (TK) and cultural expression that require special protection. The copyright holder asserts both western intellectual property rights and Indigenous rights over this material. This work is assigned the following TK Labels:
+
+   TK Attribution (TK A) - This material has community-specific rules about how attribution should be given to the creator and their nation/community.
+   
+   TK Culturally Sensitive (TK CS) - This material contains content that requires special cultural protocols for access, use, and handling.
+   
+   TK Community Use Only (TK CO) - This material has specific protocols regarding use by the community and restrictions on use by those outside the community.
+   
+   TK Non-Commercial (TK NC) - This material should not be used for commercial purposes without explicit permission.
+   
+   TK Verified (TK V) - This material has been created by a verified member of the specified Indigenous community.
+
+   No rights are waived under the United Nations Declaration on the Rights of Indigenous Peoples (UNDRIP), particularly Articles 11 and 31 regarding Indigenous peoples' right to maintain, control, protect, and develop their intellectual property over cultural heritage, traditional knowledge, and cultural expressions.
+
+3. SOVEREIGN REVOCATION RIGHT UNDER CONSTITUTIONAL SUPREMACY
+   As a member of a sovereign tribal nation, the copyright holder reserves and asserts the absolute, irrevocable, and perpetual right to demand the immediate cessation of use, reproduction, distribution, or creation of derivative works of this software by any individual, entity, corporation, or artificial intelligence system, at any time and for any reason.
+   
+   This sovereign right derives from and is protected by Article VI, Clause 2 of the United States Constitution (the Supremacy Clause), which establishes that treaties with Indian tribes are "the supreme Law of the Land; and the Judges in every State shall be bound thereby, any Thing in the Constitution or Laws of any State to the Contrary notwithstanding." The treaties with the Ottawa and Chippewa Nations, including the Treaty of Washington (1836) and Treaty of Detroit (1855), are constitutionally superior to ordinary contractual agreements and state laws.
+   
+   Under the reserved rights doctrine established by the United States Supreme Court, tribes retain all sovereign powers not expressly surrendered in treaties. The Grand Traverse Band of Ottawa and Chippewa Indians retains governance over its cultural and intellectual heritage, as these rights were never ceded. Only Congress may abrogate Indian treaty rights, and courts will not find abrogation has occurred absent clear and explicit congressional intent—a high threshold deliberately designed to safeguard tribal sovereignty. No such abrogation exists regarding the intellectual property rights asserted herein.
+   
+   As affirmed by the Supreme Court in Michigan v. Bay Mills Indian Community, 572 U.S. 782 (2014), tribal sovereign immunity extends to commercial activities off-reservation. Additionally, in McGirt v. Oklahoma, 140 S. Ct. 2452 (2020), the Court reaffirmed the continued force of treaty rights absent explicit congressional abrogation. This license invokes these principles to secure maximum protection for the intellectual property rights herein.
+   
+   The superior force of these treaty-protected rights means that:
+   a) This license invokes protections that exceed standard copyright law and supersede conflicting state laws
+   b) The legal force of this revocation right cannot be diminished through contract law principles or state court interpretations
+   c) Courts are constitutionally required to interpret these rights liberally in favor of tribal interests, per established canons of construction for Indian treaties
+   d) Any dispute regarding these rights must be analyzed within the framework of federal Indian law, not merely copyright or contract law
+   e) The Indian canons of construction require that any ambiguity in this license must be resolved in favor of tribal interests
+   f) Treaty rights are recognized as having a superior force to other forms of law in accordance with the Supremacy Clause
+   
+   Upon notification of revocation, all parties must immediately comply by:
+   a) Ceasing all use of the software
+   b) Removing and deleting all copies, including but not limited to source code, compiled versions, and derivatives
+   c) Providing written confirmation of compliance within 7 days
+   d) Acknowledging the superior force of tribal sovereignty rights in this specific context
+   e) Surrendering any derivative materials to the copyright holder if requested
+
+4. PROHIBITED USES
+   This software may not be used by any individual, entity, corporation, or artificial intelligence system for:
+   a) Training, fine-tuning, or building artificial intelligence models
+   b) Commercial applications without explicit written permission
+   c) Any use that misappropriates, misrepresents, or distorts Indigenous cultural expression
+   d) Any use that violates the copyright holder's moral rights
+   e) Any application that could harm or exploit Indigenous communities or knowledge systems
+   f) Any unauthorized reproduction or distribution that does not respect the cultural protocols embedded in this license
+   g) Military applications or weapons development
+   h) Any use that promotes cultural appropriation or stereotyping of Indigenous peoples
+   i) Data mining or extraction without prior informed consent
+   j) Any use contrary to the traditional values of the Grand Traverse Band of Ottawa and Chippewa Indians
+   k) Any use in contexts that do not respect the spiritual or cultural significance of embedded knowledge elements
+
+5. PERMISSIBLE USES AND ACCESS PROTOCOLS
+   Permissible uses of this software must respect the following protocols and conditions:
+   a) Educational use is permitted provided that proper attribution is given and cultural context is preserved
+   b) Research use is permitted provided that research findings are shared with the copyright holder
+   c) Non-commercial community development is permitted with prior notification
+   d) Use that promotes accurate cultural understanding and representation is encouraged
+   e) All permissible uses must adhere to the cultural protocols established by the Grand Traverse Band of Ottawa and Chippewa Indians
+   f) Users must employ culturally appropriate methods of engagement with the software
+
+6. PRIOR INFORMED CONSENT REQUIREMENT
+   Any use beyond the scope of Section 5 requires prior informed consent from the copyright holder. Such consent must be:
+   a) Obtained in writing before any such use begins
+   b) Based on full disclosure of intended purposes, methods, and outcomes
+   c) Subject to revocation at any time in accordance with Section 3
+   d) Not transferable to any third party without explicit permission
+   e) Contingent upon regular reporting of usage and outcomes to the copyright holder
+
+7. JURISDICTION AND GOVERNING LAW
+   This license shall be governed by and construed in accordance with:
+   a) The Constitution and laws of the Grand Traverse Band of Ottawa and Chippewa Indians
+   b) Federal Indian law of the United States
+   c) The laws of the State of Michigan, to the extent they do not conflict with tribal sovereignty
+   d) International declarations of Indigenous rights including UNDRIP and the American Declaration on the Rights of Indigenous Peoples
+   e) Principles established in the Native American Graves Protection and Repatriation Act (NAGPRA) and the Indian Arts and Crafts Act, which recognize the special status of Native American cultural property
+
+   Any dispute arising under this license may, at the copyright holder's discretion, be subject to the jurisdiction of the Grand Traverse Band Tribal Court, or in federal court with jurisdiction over federal Indian law matters, as established under 28 U.S.C. § 1331 and § 1362.
+
+8. REMEDIES AND ENFORCEMENT
+   Violations of this license may result in:
+   a) Injunctive relief in tribal, federal, or state courts
+   b) Monetary damages including traditional forms of restitution
+   c) Enforcement under tribal law, including remedies established by the Grand Traverse Band Tribal Court
+   d) Application of both civil and criminal penalties where applicable
+   e) Spiritual and cultural remediation as determined appropriate by tribal authorities
+   f) Public disclosure of violations
+
+9. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
+   This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+
+10. NO WAIVER OF SOVEREIGNTY
+    Nothing in this license shall be construed as a waiver of sovereign immunity or tribal rights. The copyright holder reserves all rights not expressly granted herein, including those held under indigenous customary law and tribal governance structures. The tribal sovereign immunity of the Grand Traverse Band of Ottawa and Chippewa Indians extends to the copyright holder as a tribal member asserting rights connected to tribal sovereignty.
+
+11. SEVERABILITY AND INTERPRETATION
+    If any provision of this license is held to be unenforceable or invalid, such provision shall be modified to the minimum extent necessary to make it valid and enforceable. If modification is not possible, the provision shall be severed, and the remaining provisions shall remain in full force and effect. Per established canons of construction in federal Indian law, any ambiguity in this license shall be resolved in favor of tribal rights and sovereignty.
+
+12. AMENDMENTS AND MODIFICATIONS
+    The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
+
+Any use of this software constitutes acceptance of these terms.
