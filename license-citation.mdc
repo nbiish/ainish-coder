@@ -17,13 +17,13 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 1. CITATION AND ATTRIBUTION REQUIREMENT
    Any use, reproduction, distribution, modification, or derivative work based on this software must prominently include the following citation and attribution:
 
-   @misc{ainish-coder2025,
+   @misc{cognitive-tools-server2025,
      author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
-     title = {ainish-coder},
+     title = {cognitive-tools-server},
      year = {2025},
      publisher = {GitHub},
      journal = {GitHub repository},
-     howpublished = {\url{https://github.com/nbiish/ainish-coder}},
+     howpublished = {\url{https://github.com/nbiish/cognitive-tools-server}},
      note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
    }
 
@@ -103,7 +103,59 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
    d) Not transferable to any third party without explicit permission
    e) Contingent upon regular reporting of usage and outcomes to the copyright holder
 
-7. JURISDICTION AND GOVERNING LAW
+7. COMPENSATION AND FINANCIAL RECOVERY FOR UNAUTHORIZED USE
+   Any individual, entity, corporation, business, or artificial intelligence system that uses, distributes, reproduces, modifies, commercializes, or otherwise derives benefit from this software without proper authorization shall be subject to comprehensive financial restitution provisions as follows:
+
+   7.1 MANDATORY DISGORGEMENT OF BENEFITS
+   Any party that derives financial or non-financial benefits from unauthorized use of this software shall be required to fully disgorge and transfer to the copyright holder:
+   a) All direct revenue and profits derived from the unauthorized use
+   b) All indirect revenue and profits reasonably attributable to the unauthorized use
+   c) Fair market value of any non-monetary benefits obtained
+   d) Interest accrued on all financial gains at a rate of 10% per annum compounded monthly from the date of first unauthorized use
+   e) The greater of actual or statutory damages as determined by the copyright holder or tribal court
+   f) Any enhanced value added to the user's products, services, or business attributable to the unauthorized use
+
+   7.2 COMPENSATION CALCULATION AND ASSESSMENT
+   The calculation of appropriate compensation shall be determined by the copyright holder or designated tribal authorities, and may include:
+   a) A royalty rate of no less than 20% of gross revenue derived from unauthorized use
+   b) Minimum statutory damages of $150,000 per instance of willful infringement
+   c) Traditional forms of restitution as determined according to the customs and practices of the Grand Traverse Band of Ottawa and Chippewa Indians
+   d) Compensation for cultural and spiritual harm caused by unauthorized use, which cannot be adequately measured in purely monetary terms
+   e) Compensation for diminishment of the unique value of the copyright holder's intellectual property
+   f) Predetermined liquidated damages of $10,000 per day for the duration of unauthorized use
+
+   7.3 ADDITIONAL FINANCIAL REMEDIES
+   In addition to disgorgement of benefits, unauthorized users shall be liable for:
+   a) All legal and professional fees incurred in pursuing recovery
+   b) Costs of cultural restoration and rehabilitation where applicable
+   c) Costs of publicly correcting any misrepresentations made about the software or its origins
+   d) Costs associated with notifying affected parties of the unauthorized use
+   e) Administrative fees associated with the assessment and collection of compensation
+
+   7.4 PROPERTY TRANSFER PROVISIONS
+   In cases of willful, flagrant, or continued unauthorized use after notification, the copyright holder may require:
+   a) Transfer of intellectual property rights in derivative works or applications
+   b) Transfer of domain names, user accounts, or other digital assets associated with the unauthorized use
+   c) Transfer of equipment used in the unauthorized exploitation of the software
+   d) Assignment of relevant patents, trademarks, or other intellectual property rights obtained in connection with the unauthorized use
+
+   7.5 JURISDICTIONAL AND PROCEDURAL CONSIDERATIONS
+   a) The Grand Traverse Band Tribal Court shall have primary jurisdiction to determine and enforce appropriate compensation
+   b) These compensation provisions shall be enforceable in tribal, federal, and state courts
+   c) The copyright holder may pursue compensation through traditional dispute resolution mechanisms of the Grand Traverse Band of Ottawa and Chippewa Indians
+   d) Unauthorized users expressly consent to the jurisdiction of tribal courts for resolving disputes regarding compensation
+   e) The copyright holder is entitled to seek enforcement and recognition of tribal court judgments in federal and state courts under principles of comity and full faith and credit
+   f) Non-monetary forms of restitution may be required in accordance with tribal customs and traditions
+
+   7.6 WAIVER OF DEFENSES
+   By using this software, users expressly waive defenses related to:
+   a) Lack of knowledge of these compensation provisions
+   b) Challenges to tribal court jurisdiction
+   c) Statute of limitations or laches defenses
+   d) Challenges to the reasonableness of the compensation amounts specified herein
+   e) Claims of sovereign immunity by governmental entities
+
+8. JURISDICTION AND GOVERNING LAW
    This license shall be governed by and construed in accordance with:
    a) The Constitution and laws of the Grand Traverse Band of Ottawa and Chippewa Indians
    b) Federal Indian law of the United States
@@ -113,7 +165,7 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 
    Any dispute arising under this license may, at the copyright holder's discretion, be subject to the jurisdiction of the Grand Traverse Band Tribal Court, or in federal court with jurisdiction over federal Indian law matters, as established under 28 U.S.C. § 1331 and § 1362.
 
-8. REMEDIES AND ENFORCEMENT
+9. REMEDIES AND ENFORCEMENT
    Violations of this license may result in:
    a) Injunctive relief in tribal, federal, or state courts
    b) Monetary damages including traditional forms of restitution
@@ -122,16 +174,17 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
    e) Spiritual and cultural remediation as determined appropriate by tribal authorities
    f) Public disclosure of violations
 
-9. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
-   This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+10. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
+    This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
 
-10. NO WAIVER OF SOVEREIGNTY
+11. NO WAIVER OF SOVEREIGNTY
     Nothing in this license shall be construed as a waiver of sovereign immunity or tribal rights. The copyright holder reserves all rights not expressly granted herein, including those held under indigenous customary law and tribal governance structures. The tribal sovereign immunity of the Grand Traverse Band of Ottawa and Chippewa Indians extends to the copyright holder as a tribal member asserting rights connected to tribal sovereignty.
 
-11. SEVERABILITY AND INTERPRETATION
+12. SEVERABILITY AND INTERPRETATION
     If any provision of this license is held to be unenforceable or invalid, such provision shall be modified to the minimum extent necessary to make it valid and enforceable. If modification is not possible, the provision shall be severed, and the remaining provisions shall remain in full force and effect. Per established canons of construction in federal Indian law, any ambiguity in this license shall be resolved in favor of tribal rights and sovereignty.
 
-12. AMENDMENTS AND MODIFICATIONS
+13. AMENDMENTS AND MODIFICATIONS
     The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
 
 Any use of this software constitutes acceptance of these terms. 
+```
