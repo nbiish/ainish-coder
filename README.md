@@ -1,4 +1,4 @@
-# mai-coder
+# ainish-coder
 
 A comprehensive configuration manager for AI coding assistants, providing seamless setup and integration for multiple AI development tools in your projects.
 
@@ -6,47 +6,47 @@ A comprehensive configuration manager for AI coding assistants, providing seamle
 
 - **Unified Setup**: One script to configure all your AI coding assistants
 - **Multiple AI Tool Support**: 
-  - `mai-aider`: Configuration for the Aider AI pair programming assistant
-  - `mai-cursor`: Cursor IDE specific configurations and ignore files
-  - `mai-copilot`: GitHub Copilot and related tool configurations
+  - `ainish-aider`: Configuration for the Aider AI pair programming assistant
+  - `ainish-cursor`: Cursor IDE specific configurations and ignore files
+  - `ainish-copilot`: GitHub Copilot and related tool configurations
 - **Automatic Configuration**: Gitignore rules and tool-specific ignore files included with each component
 
 ## 🚀 Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/nbiish/mai-coder
-cd mai-coder
+git clone https://github.com/nbiish/ainish-coder
+cd ainish-coder
 
 # Make the setup script executable
-chmod +x mai-setup.sh
+chmod +x ainish-setup.sh
 
 # Run the setup script
-./mai-setup.sh
+./ainish-setup.sh
 ```
 
 ## 📦 Components
 
-### mai-aider
+### ainish-aider
 - `.aider.conf.yml`: Core configuration file
 - `.aider-instructions.md`: Custom instructions for the Aider assistant
 - `.aiderignore`: File patterns to exclude from Aider
 - `.env.example`: Environment variable template
 
-### mai-cursor
+### ainish-cursor
 - `.cursor/`: Cursor IDE configuration directory
 - `.cursorignore`: Rules for files to exclude from Cursor AI
 - `.cursorindexingignore`: Rules for files to exclude from indexing
 
-### mai-copilot
+### ainish-copilot
 - `.copilotignore`: Rules for files to exclude from GitHub Copilot
 - `.rooignore`: Rules for the Roo extension
 - `.github/`: GitHub specific configurations
 
 ## 🔧 How It Works
 
-The `mai-setup.sh` script:
-1. Creates a `~/.mai-coder` directory to store all configurations
+The `ainish-setup.sh` script:
+1. Creates a `~/.ainish-coder` directory to store all configurations
 2. Copies tool configurations to their appropriate directories
 3. Updates or creates `.gitignore` with AI-specific entries
 4. Adds wrapper functions to your shell configuration
@@ -69,13 +69,13 @@ See the [LICENSE](LICENSE) file for complete details.
 ## 📚 Citation (BibTeX Format) 
 
 ```bibtex
-@misc{mai-coder2025,
+@misc{ainish-coder2025,
   author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
-  title = {mai-coder},
+  title = {ainish-coder},
   year = {2025},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{https://github.com/nbiish/mai-coder}},
+  howpublished = {\url{https://github.com/nbiish/ainish-coder}},
   note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
 }
 ``` 
