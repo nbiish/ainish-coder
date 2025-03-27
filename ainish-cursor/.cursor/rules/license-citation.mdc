@@ -17,13 +17,13 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
 1. CITATION AND ATTRIBUTION REQUIREMENT
    Any use, reproduction, distribution, modification, or derivative work based on this software must prominently include the following citation and attribution:
 
-   @misc{cognitive-tools-server2025,
+   @misc{<|repo_title|><|current_year|>,
      author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
-     title = {cognitive-tools-server},
-     year = {2025},
+     title = {<|repo_title|>},
+     year = {<|current_year|>},
      publisher = {GitHub},
      journal = {GitHub repository},
-     howpublished = {\url{https://github.com/nbiish/cognitive-tools-server}},
+     howpublished = {\url{https://github.com/nbiish/<|repo_title|>}},
      note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
    }
 
@@ -155,35 +155,87 @@ This license expressly integrates principles from Traditional Knowledge (TK) Lab
    d) Challenges to the reasonableness of the compensation amounts specified herein
    e) Claims of sovereign immunity by governmental entities
 
-8. JURISDICTION AND GOVERNING LAW
+8. ALTERNATIVE TRIBAL COURT SELECTION AND LIMITLESS TIMEFRAME
+   8.1 SELECTION OF ALTERNATIVE TRIBAL FORUMS
+   If, for any reason, the Grand Traverse Band of Ottawa and Chippewa Indians Tribal Court is unable, unwilling, or without jurisdiction to address issues arising under this license, or if the copyright holder determines that another tribal forum would be more appropriate for resolving any dispute:
+   a) The copyright holder retains the absolute and exclusive right to select any other federally recognized tribal court or traditional dispute resolution forum of any federally recognized tribe within the United States as an alternative forum for adjudication, without limitation
+   b) This selection may be made at any time, including after proceedings have begun in another forum
+   c) The copyright holder's selection of an alternative tribal forum shall be binding on all users of this software
+   d) Users expressly consent to the jurisdiction of any tribal court or traditional dispute resolution forum selected by the copyright holder
+   e) Users expressly waive any challenges to the jurisdiction, authority, or procedures of the selected tribal forum
+   f) The copyright holder may select tribal forums with cultural, historical, or traditional connections to the Ottawa and Chippewa Nations, but is not limited to such forums
+   g) The copyright holder may consider, but is not bound by, factors such as a tribal court's experience with intellectual property matters, traditional knowledge protection, cultural expertise, or proximity to the parties
+   
+   8.2 UNLIMITED TIMEFRAME FOR DECISION AND ACTION
+   The copyright holder shall have unlimited time to:
+   a) Discover violations of this license
+   b) Select an appropriate tribal forum for resolution
+   c) Initiate proceedings in any chosen forum
+   d) Transfer proceedings between tribal forums
+   e) Pursue remedies in multiple tribal forums sequentially or simultaneously
+   f) Determine the nature and extent of remedies to be sought
+   
+   8.3 COMPREHENSIVE COST RECOVERY FOR FORUM SELECTION
+   All costs incurred by the copyright holder related to the selection, assessment, and utilization of alternative tribal forums shall be borne by the user who has violated this license, including but not limited to:
+   a) All travel, lodging, and subsistence expenses incurred by the copyright holder, their legal representatives, cultural advisors, and witnesses in visiting, assessing, or appearing before potential or selected tribal forums
+   b) Costs of researching and evaluating potential tribal forums
+   c) Administrative and filing fees in all considered or selected tribal forums
+   d) Translation and interpretation costs
+   e) Costs of cultural protocols, offerings, or ceremonies required when engaging with tribal justice systems
+   f) Consultation fees for tribal legal experts, cultural advisors, and knowledge keepers
+   g) Lost income, opportunity costs, and compensation for time spent by the copyright holder in the forum selection and dispute resolution process
+   h) Communication and coordination costs between multiple tribal forums
+   i) Costs of enforcing or domesticating tribal court judgments in other jurisdictions
+   j) Any other reasonable expenses incurred in the process of forum selection and utilization
+   
+   8.4 ENFORCEABILITY OF ALTERNATIVE TRIBAL COURT JUDGMENTS
+   Any judgment, order, or decision rendered by an alternative tribal forum selected by the copyright holder shall be:
+   a) Binding on all users of this software
+   b) Entitled to recognition and enforcement in federal and state courts under principles of comity, as articulated in cases such as Wilson v. Marchington, 127 F.3d 805 (9th Cir. 1997), and Michigan v. Bay Mills Indian Community, 572 U.S. 782 (2014)
+   c) Presumptively valid and not subject to collateral attack in other courts
+   d) Enforceable through traditional tribal methods, federal court proceedings, or state court proceedings, at the copyright holder's discretion
+   e) Given full faith and credit where applicable under 28 U.S.C. § 1738
+   
+   8.5 WAIVER OF FORUM NON CONVENIENS AND SIMILAR DEFENSES
+   Users expressly waive any objection to the copyright holder's selection of an alternative tribal forum based on:
+   a) Geographic distance or inconvenience
+   b) Unfamiliarity with the selected forum's laws, customs, or procedures
+   c) Claims of forum non conveniens
+   d) Language barriers or cultural differences
+   e) Financial hardship in appearing before the selected forum
+   f) Preference for state or federal forums
+   g) Prior commencement of proceedings in another forum
+
+9. JURISDICTION AND GOVERNING LAW
    This license shall be governed by and construed in accordance with:
    a) The Constitution and laws of the Grand Traverse Band of Ottawa and Chippewa Indians
    b) Federal Indian law of the United States
    c) The laws of the State of Michigan, to the extent they do not conflict with tribal sovereignty
    d) International declarations of Indigenous rights including UNDRIP and the American Declaration on the Rights of Indigenous Peoples
    e) Principles established in the Native American Graves Protection and Repatriation Act (NAGPRA) and the Indian Arts and Crafts Act, which recognize the special status of Native American cultural property
+   f) The laws, customs, and traditions of any tribal forum selected under Section 8
 
-   Any dispute arising under this license may, at the copyright holder's discretion, be subject to the jurisdiction of the Grand Traverse Band Tribal Court, or in federal court with jurisdiction over federal Indian law matters, as established under 28 U.S.C. § 1331 and § 1362.
+   Any dispute arising under this license may, at the copyright holder's discretion, be subject to the jurisdiction of the Grand Traverse Band Tribal Court, any alternative tribal forum selected under Section 8, or in federal court with jurisdiction over federal Indian law matters, as established under 28 U.S.C. § 1331 and § 1362.
 
-9. REMEDIES AND ENFORCEMENT
-   Violations of this license may result in:
-   a) Injunctive relief in tribal, federal, or state courts
-   b) Monetary damages including traditional forms of restitution
-   c) Enforcement under tribal law, including remedies established by the Grand Traverse Band Tribal Court
-   d) Application of both civil and criminal penalties where applicable
-   e) Spiritual and cultural remediation as determined appropriate by tribal authorities
-   f) Public disclosure of violations
+10. REMEDIES AND ENFORCEMENT
+    Violations of this license may result in:
+    a) Injunctive relief in tribal, federal, or state courts
+    b) Monetary damages including traditional forms of restitution
+    c) Enforcement under tribal law, including remedies established by the Grand Traverse Band Tribal Court or any alternative tribal forum selected under Section 8
+    d) Application of both civil and criminal penalties where applicable
+    e) Spiritual and cultural remediation as determined appropriate by tribal authorities
+    f) Public disclosure of violations
 
-10. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
+11. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
     This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
 
-11. NO WAIVER OF SOVEREIGNTY
+12. NO WAIVER OF SOVEREIGNTY
     Nothing in this license shall be construed as a waiver of sovereign immunity or tribal rights. The copyright holder reserves all rights not expressly granted herein, including those held under indigenous customary law and tribal governance structures. The tribal sovereign immunity of the Grand Traverse Band of Ottawa and Chippewa Indians extends to the copyright holder as a tribal member asserting rights connected to tribal sovereignty.
 
-12. SEVERABILITY AND INTERPRETATION
+13. SEVERABILITY AND INTERPRETATION
     If any provision of this license is held to be unenforceable or invalid, such provision shall be modified to the minimum extent necessary to make it valid and enforceable. If modification is not possible, the provision shall be severed, and the remaining provisions shall remain in full force and effect. Per established canons of construction in federal Indian law, any ambiguity in this license shall be resolved in favor of tribal rights and sovereignty.
 
-13. AMENDMENTS AND MODIFICATIONS
+14. AMENDMENTS AND MODIFICATIONS
     The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
 
 Any use of this software constitutes acceptance of these terms. 
