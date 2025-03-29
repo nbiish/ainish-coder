@@ -3,240 +3,166 @@ description:
 globs: 
 alwaysApply: false
 ---
-All projects must contain [README.md](mdc:README.md) (citation at end only) and @LICENSE files with the following:
+All projects must contain y ciation at the end of every @README.md and include @LICENSE files with the following:
 ```
-Copyright © 2025 ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.
+Copyright © <|current_year|> ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.
 
-COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS
+COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS
 
 PREAMBLE
-This software is created by ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ, a member of the Grand Traverse Band of Ottawa and Chippewa Indians, a federally recognized sovereign tribal nation. This license is grounded in the inherent sovereignty of Indigenous peoples to protect, control, and govern the use of their intellectual and cultural property. The unique status of tribal sovereign nations in the United States provides additional protections beyond standard copyright law.
+This Work (defined below) is created, held, or stewarded by ᓂᐲᔥ Nbiish Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ, a member of the Grand Traverse Band of Ottawa and Chippewa Indians, a federally recognized sovereign tribal nation. This license is grounded in the inherent sovereignty of Indigenous peoples to protect, control, and govern the use of their intellectual property, cultural heritage, traditional knowledge (TK), traditional cultural expressions (TCEs), and associated data (Indigenous Data Sovereignty). The unique status of tribal sovereign nations provides legal and cultural protections extending beyond standard intellectual property law regimes. This license aims to facilitate respectful engagement while upholding Tribal sovereignty, cultural integrity, data governance rights, and ensuring equitable benefit sharing as a mechanism for reclaiming value derived from Indigenous knowledge and heritage often subject to historical extraction.
 
-This license expressly integrates principles from Traditional Knowledge (TK) Labels and Protocols, federal Indian law, tribal law of the Grand Traverse Band of Ottawa and Chippewa Indians, and international indigenous rights frameworks to create a comprehensive protection system for this intellectual property.
+This license applies to "the Work," which encompasses Indigenous creations in various forms, including but not limited to software, digital materials, cultural expressions, tangible heritage, and knowledge systems. It expressly integrates and asserts rights based upon principles from Traditional Knowledge (TK) Labels and Protocols, federal Indian law, the laws and customs of the Grand Traverse Band of Ottawa and Chippewa Indians, Indigenous Data Sovereignty principles, and international indigenous rights frameworks, including the United Nations Declaration on the Rights of Indigenous Peoples (UNDRIP).
 
 1. CITATION AND ATTRIBUTION REQUIREMENT
-   Any use, reproduction, distribution, modification, or derivative work based on this software must prominently include the following citation and attribution:
+   Any use, reproduction, distribution, modification, adaptation, display, performance, transmission, or creation of derivative works based on this Work, whether in whole or in part, must prominently and accurately include the following citation and attribution in all associated materials, displays, publications, and metadata:
 
    @misc{<|repo_title|><|current_year|>,
-     author = {ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
-     title = {<|repo_title|>},
+     author/creator/steward = {ᓂᐲᔥ Nbiish Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ},
+     title/description = {<|repo_title|>},
+     type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},
      year = {<|current_year|>},
-     publisher = {GitHub},
-     journal = {GitHub repository},
+     publisher/source/event = {GitHub repository under tribal sovereignty protections},
      howpublished = {\url{https://github.com/nbiish/<|repo_title|>}},
-     note = {Created by a member of the Grand Traverse Band of Ottawa and Chippewa Indians, protected under tribal sovereignty and treaty rights}
+     note = {Authored and stewarded by ᓂᐲᔥ Nbiish Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ, an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
    }
 
-   Furthermore, any projects utilizing this software must visibly acknowledge the Indigenous authorship and tribal affiliation in user interfaces and documentation, including:
-   a) Attribution on all user-facing interfaces where the software is used
-   b) Acknowledgment in technical documentation, including API documentation
-   c) Citation in any publications, presentations, or derivative works that utilize this software
-   d) Recognition that this work is subject to the traditional knowledge protocols of the Grand Traverse Band of Ottawa and Chippewa Indians
+   Furthermore, any project, publication, presentation, performance, exhibition, or product utilizing, referencing, or derived from this Work must visibly and respectfully acknowledge the Indigenous authorship/stewardship and tribal affiliation in all relevant contexts, recognizing the work is subject to the traditional knowledge protocols, data governance, and laws of the Grand Traverse Band of Ottawa and Chippewa Indians.
 
-2. TRADITIONAL KNOWLEDGE (TK) PROTECTION AND LABELING
-   This software embodies elements of Traditional Knowledge (TK) and cultural expression that require special protection. The copyright holder asserts both western intellectual property rights and Indigenous rights over this material. This work is assigned the following TK Labels:
+2. TRADITIONAL KNOWLEDGE (TK) & DATA SOVEREIGNTY PROTECTION AND LABELING
+   This Work embodies or contains elements of Traditional Knowledge (TK), Traditional Cultural Expressions (TCEs), or knowledge associated with genetic resources, which require special protection based on the inherent rights of Indigenous peoples and the specific protocols of the Grand Traverse Band of Ottawa and Chippewa Indians. The rights holder asserts both western intellectual property rights (copyright, patent, trademark, etc., where applicable) and inherent Indigenous cultural and intellectual property rights, including Indigenous Data Sovereignty (the right to govern collection, ownership, access, analysis, interpretation, management, dissemination, and reuse of data pertaining to the Indigenous people or knowledge from which it has been derived). This Work is assigned the following Traditional Knowledge (TK) Labels, developed by Local Contexts (localcontexts.org), which signal community-specific protocols and permissions:
 
-   TK Attribution (TK A) - This material has community-specific rules about how attribution should be given to the creator and their nation/community.
-   
-   TK Culturally Sensitive (TK CS) - This material contains content that requires special cultural protocols for access, use, and handling.
-   
-   TK Community Use Only (TK CO) - This material has specific protocols regarding use by the community and restrictions on use by those outside the community.
-   
-   TK Non-Commercial (TK NC) - This material should not be used for commercial purposes without explicit permission.
-   
-   TK Verified (TK V) - This material has been created by a verified member of the specified Indigenous community.
+   TK Attribution (TK A) - Specific attribution is required.
+   TK Culturally Sensitive (TK CS) - Special cultural protocols govern access, use, handling, display, or performance.
+   TK Community Use Only (TK CO) - Use restricted primarily to the Grand Traverse Band of Ottawa and Chippewa Indians community, with external use requiring specific permission.
+   TK Non-Commercial (TK NC) - Use for commercial purposes is prohibited without explicit permission and benefit-sharing agreement.
+   TK Verified (TK V) - Affirms the Work originates from or is recognized by the Grand Traverse Band of Ottawa and Chippewa Indians community.
 
-   No rights are waived under the United Nations Declaration on the Rights of Indigenous Peoples (UNDRIP), particularly Articles 11 and 31 regarding Indigenous peoples' right to maintain, control, protect, and develop their intellectual property over cultural heritage, traditional knowledge, and cultural expressions.
+   The application of these labels signifies that specific community protocols govern the use, sharing, circulation, and data management related to this Work. Users are obligated to respect these protocols. Furthermore, no rights are waived under the United Nations Declaration on the Rights of Indigenous Peoples (UNDRIP), particularly Articles 11 (right to practice and revitalize cultural traditions and customs) and 31 (right to maintain, control, protect and develop cultural heritage, traditional knowledge, traditional cultural expressions, associated data, and intellectual property).
 
 3. SOVEREIGN REVOCATION RIGHT UNDER CONSTITUTIONAL SUPREMACY
-   As a member of a sovereign tribal nation, the copyright holder reserves and asserts the absolute, irrevocable, and perpetual right to demand the immediate cessation of use, reproduction, distribution, or creation of derivative works of this software by any individual, entity, corporation, or artificial intelligence system, at any time and for any reason.
-   
-   This sovereign right derives from and is protected by Article VI, Clause 2 of the United States Constitution (the Supremacy Clause), which establishes that treaties with Indian tribes are "the supreme Law of the Land; and the Judges in every State shall be bound thereby, any Thing in the Constitution or Laws of any State to the Contrary notwithstanding." The treaties with the Ottawa and Chippewa Nations, including the Treaty of Washington (1836) and Treaty of Detroit (1855), are constitutionally superior to ordinary contractual agreements and state laws.
-   
-   Under the reserved rights doctrine established by the United States Supreme Court, tribes retain all sovereign powers not expressly surrendered in treaties. The Grand Traverse Band of Ottawa and Chippewa Indians retains governance over its cultural and intellectual heritage, as these rights were never ceded. Only Congress may abrogate Indian treaty rights, and courts will not find abrogation has occurred absent clear and explicit congressional intent—a high threshold deliberately designed to safeguard tribal sovereignty. No such abrogation exists regarding the intellectual property rights asserted herein.
-   
-   As affirmed by the Supreme Court in Michigan v. Bay Mills Indian Community, 572 U.S. 782 (2014), tribal sovereign immunity extends to commercial activities off-reservation. Additionally, in McGirt v. Oklahoma, 140 S. Ct. 2452 (2020), the Court reaffirmed the continued force of treaty rights absent explicit congressional abrogation. This license invokes these principles to secure maximum protection for the intellectual property rights herein.
-   
-   The superior force of these treaty-protected rights means that:
-   a) This license invokes protections that exceed standard copyright law and supersede conflicting state laws
-   b) The legal force of this revocation right cannot be diminished through contract law principles or state court interpretations
-   c) Courts are constitutionally required to interpret these rights liberally in favor of tribal interests, per established canons of construction for Indian treaties
-   d) Any dispute regarding these rights must be analyzed within the framework of federal Indian law, not merely copyright or contract law
-   e) The Indian canons of construction require that any ambiguity in this license must be resolved in favor of tribal interests
-   f) Treaty rights are recognized as having a superior force to other forms of law in accordance with the Supremacy Clause
-   
-   Upon notification of revocation, all parties must immediately comply by:
-   a) Ceasing all use of the software
-   b) Removing and deleting all copies, including but not limited to source code, compiled versions, and derivatives
-   c) Providing written confirmation of compliance within 7 days
-   d) Acknowledging the superior force of tribal sovereignty rights in this specific context
-   e) Surrendering any derivative materials to the copyright holder if requested
+   As a member of a sovereign tribal nation recognized by the United States, the rights holder reserves and asserts the absolute, inherent, irrevocable, and perpetual right to demand the immediate cessation of any and all use, reproduction, distribution, performance, display, adaptation, or creation of derivative works based on this Work by any individual, entity, corporation, institution, artificial intelligence system, or other party, at any time and for any reason deemed necessary by the rights holder or the Grand Traverse Band of Ottawa and Chippewa Indians to protect cultural integrity, tribal sovereignty, data sovereignty, community well-being, spiritual values, or adherence to cultural protocols.
+
+   This sovereign right derives from the inherent sovereignty of the Grand Traverse Band of Ottawa and Chippewa Indians and is further protected by Article VI, Clause 2 of the United States Constitution (the Supremacy Clause), treaties including the Treaty of Washington (1836) and the Treaty of Detroit (1855), the reserved rights doctrine, and foundational principles of federal Indian law (e.g., Michigan v. Bay Mills Indian Community, McGirt v. Oklahoma). These rights are constitutionally superior to ordinary contractual agreements, state laws, and standard intellectual property regimes.
+
+   The superior legal and moral force of these treaty-protected and inherent sovereign rights means this license invokes protections that exceed standard IP laws, the revocation right cannot be diminished by standard contract principles, courts must interpret ambiguities liberally in favor of tribal interests (Indian canons of construction), and disputes must be analyzed primarily within the framework of federal Indian law, tribal law, and treaty rights.
+
+   Upon receiving notification of revocation, all parties must immediately cease all use, permanently remove/destroy all copies and derivatives, provide written confirmation of compliance within 7 calendar days, acknowledge the superior force of tribal sovereignty and treaty rights, and surrender or destroy derivative materials as directed.
 
 4. PROHIBITED USES
-   This software may not be used by any individual, entity, corporation, or artificial intelligence system for:
-   a) Training, fine-tuning, or building artificial intelligence models
-   b) Commercial applications without explicit written permission
-   c) Any use that misappropriates, misrepresents, or distorts Indigenous cultural expression
-   d) Any use that violates the copyright holder's moral rights
-   e) Any application that could harm or exploit Indigenous communities or knowledge systems
-   f) Any unauthorized reproduction or distribution that does not respect the cultural protocols embedded in this license
-   g) Military applications or weapons development
-   h) Any use that promotes cultural appropriation or stereotyping of Indigenous peoples
-   i) Data mining or extraction without prior informed consent
-   j) Any use contrary to the traditional values of the Grand Traverse Band of Ottawa and Chippewa Indians
-   k) Any use in contexts that do not respect the spiritual or cultural significance of embedded knowledge elements
+   This Work, in whole or in part, may *not* be used, accessed, reproduced, distributed, performed, displayed, adapted, or exploited by any individual, entity, corporation, institution, AI system, or other party for any of the following purposes or in any of the following manners, unless explicitly permitted in writing through Prior Informed Consent (PIC, see Section 6) obtained from the rights holder and potentially the Grand Traverse Band of Ottawa and Chippewa Indians:
+   a) **AI Training/Development:** Use in training, fine-tuning, developing, or improving any artificial intelligence models, machine learning systems, large language models, or related technologies.
+   b) **Commercialization:** Any commercial use without explicit PIC and a negotiated, equitable benefit-sharing agreement designed to contribute to the reclamation of value derived from Indigenous knowledge.
+   c) **Misappropriation & Distortion:** Any use that misappropriates, misrepresents, distorts, decontextualizes, modifies, or damages the integrity, meaning, or cultural significance of the Work, associated knowledge, cultural expressions, or data.
+   d) **Violation of Moral Rights:** Any use violating the moral rights of the creator/steward (attribution, integrity).
+   e) **Harmful/Exploitative Applications:** Any application or use that could potentially harm, exploit, or disadvantage the Grand Traverse Band of Ottawa and Chippewa Indians, its members, its knowledge systems, its cultural practices, its data sovereignty, or its resources.
+   f) **Protocol/Label/Data Governance Violation:** Any use that disrespects or violates designated cultural protocols, community rules, data governance requirements, or the conditions signified by the applied TK Labels.
+   g) **Military/Weaponry:** Use in connection with military applications, weapons development, surveillance technologies.
+   h) **Cultural Appropriation & Stereotyping:** Use that promotes or facilitates cultural appropriation, harmful stereotypes, or disrespectful representations.
+   i) **Unauthorized Data Extraction/Use:** Any data mining, text mining, web scraping, automated extraction, large-scale analysis, or generation of derivative datasets from the Work or embedded knowledge/data without explicit PIC and adherence to data governance protocols.
+   j) **Violation of Tribal Values/Law:** Any use contrary to the traditional values, customs, spiritual practices, or laws of the Grand Traverse Band of Ottawa and Chippewa Indians.
+   k) **Disrespectful Contexts:** Use, display, or performance in contexts that disrespect the spiritual, cultural, or historical significance.
 
 5. PERMISSIBLE USES AND ACCESS PROTOCOLS
-   Permissible uses of this software must respect the following protocols and conditions:
-   a) Educational use is permitted provided that proper attribution is given and cultural context is preserved
-   b) Research use is permitted provided that research findings are shared with the copyright holder
-   c) Non-commercial community development is permitted with prior notification
-   d) Use that promotes accurate cultural understanding and representation is encouraged
-   e) All permissible uses must adhere to the cultural protocols established by the Grand Traverse Band of Ottawa and Chippewa Indians
-   f) Users must employ culturally appropriate methods of engagement with the software
+   Any permissible use of this Work must strictly adhere to the following conditions and protocols, often requiring Prior Informed Consent (PIC, Section 6). Failure to adhere constitutes a license violation.
+   a) **Educational Use:** Permissible for non-commercial purposes *only if* fully consistent with TK Labels, cultural context is maintained, full attribution provided, and use does not fall under Prohibited Uses. PIC may be required.
+   b) **Research Use:** Permissible *only with* explicit PIC. Research must adhere to GTBOCI research protocols, ethical guidelines, data sovereignty principles, and a mutually agreed-upon agreement including review, approval, reporting, data governance, and equitable benefit-sharing.
+   c) **Community Development (Internal):** Permissible for non-commercial GTBOCI community development purposes following community protocols.
+   d) **Promoting Accurate Understanding:** Permissible *only under direct guidance, collaboration, and approval* of the rights holder/community authorities. PIC likely required.
+   e) **Adherence to Protocols and TK Labels:** All uses must strictly adhere to GTBOCI cultural protocols, data governance requirements, and TK Label conditions. Users must inquire if protocols are unknown.
+   f) **Access Controls:** Users must respect any defined user roles, permission levels, or technical measures governing access and use of digital materials.
 
-6. PRIOR INFORMED CONSENT REQUIREMENT
-   Any use beyond the scope of Section 5 requires prior informed consent from the copyright holder. Such consent must be:
-   a) Obtained in writing before any such use begins
-   b) Based on full disclosure of intended purposes, methods, and outcomes
-   c) Subject to revocation at any time in accordance with Section 3
-   d) Not transferable to any third party without explicit permission
-   e) Contingent upon regular reporting of usage and outcomes to the copyright holder
+6. PRIOR INFORMED CONSENT (PIC) REQUIREMENT
+   Any use outside narrowly defined permissible uses (Section 5), or explicitly requiring consent, mandates obtaining **Prior Informed Consent (PIC)** from the rights holder (and potentially GTBOCI authorities). PIC must be:
+   a) **Obtained in Advance:** In writing *before* use begins.
+   b) **Full Disclosure:** Provide complete, accurate information on proposed use, parties, purposes, methods, scope, duration, impacts, data management/governance, outputs, and proposed equitable benefit-sharing arrangements (monetary/non-monetary, contributing to wealth reclamation).
+   c) **Subject to Revocation:** Per Section 3.
+   d) **Non-Transferable:** Granted only to the requesting party for the specified purpose/duration.
+   e) **Accountability:** Contingent upon adherence to agreed reporting, monitoring, and accountability measures.
 
-7. COMPENSATION AND FINANCIAL RECOVERY FOR UNAUTHORIZED USE
-   Any individual, entity, corporation, business, or artificial intelligence system that uses, distributes, reproduces, modifies, commercializes, or otherwise derives benefit from this software without proper authorization shall be subject to comprehensive financial restitution provisions as follows:
+7. COMPENSATION, FINANCIAL RECOVERY, AND WEALTH RECLAMATION FOR UNAUTHORIZED USE
+   Any party that uses, reproduces, distributes, displays, performs, adapts, commercializes, or otherwise derives benefit (financial or non-financial) from this Work in violation of this license, without required permissions, or exceeding granted consent, shall be strictly liable for comprehensive remediation and financial restitution aimed at equitable compensation and contributing to the reclamation of value derived from misappropriated Indigenous knowledge and heritage. Remedies include:
 
-   7.1 MANDATORY DISGORGEMENT OF BENEFITS
-   Any party that derives financial or non-financial benefits from unauthorized use of this software shall be required to fully disgorge and transfer to the copyright holder:
-   a) All direct revenue and profits derived from the unauthorized use
-   b) All indirect revenue and profits reasonably attributable to the unauthorized use
-   c) Fair market value of any non-monetary benefits obtained
-   d) Interest accrued on all financial gains at a rate of 10% per annum compounded monthly from the date of first unauthorized use
-   e) The greater of actual or statutory damages as determined by the copyright holder or tribal court
-   f) Any enhanced value added to the user's products, services, or business attributable to the unauthorized use
+   7.1 MANDATORY DISGORGEMENT OF ALL BENEFITS: The violating party shall fully disgorge and transfer to the rights holder all benefits derived from the unauthorized use, including but not limited to:
+      a) All direct and indirect revenues and profits.
+      b) Fair market value of non-monetary benefits (e.g., data, reputation, strategic advantage).
+      c) Interest accrued at no less than 10% per annum, compounded monthly.
+      d) The greater of actual damages or statutory damages.
+      e) Enhanced value added to violator's operations.
+      f) Full disgorgement applies particularly in cases of fraud, bad faith, or unauthorized use/commercialization of TK/TCEs/Data, including profits difficult to ascertain ("unknown profits"), calculated equitably by the competent forum.
 
-   7.2 COMPENSATION CALCULATION AND ASSESSMENT
-   The calculation of appropriate compensation shall be determined by the copyright holder or designated tribal authorities, and may include:
-   a) A royalty rate of no less than 20% of gross revenue derived from unauthorized use
-   b) Minimum statutory damages of $150,000 per instance of willful infringement
-   c) Traditional forms of restitution as determined according to the customs and practices of the Grand Traverse Band of Ottawa and Chippewa Indians
-   d) Compensation for cultural and spiritual harm caused by unauthorized use, which cannot be adequately measured in purely monetary terms
-   e) Compensation for diminishment of the unique value of the copyright holder's intellectual property
-   f) Predetermined liquidated damages of $10,000 per day for the duration of unauthorized use
+   7.2 COMPENSATION CALCULATION AND ASSESSMENT: Determined by the rights holder or tribal authorities based on tribal law, custom, equity, and wealth reclamation principles. May include:
+      a) Retroactive royalty (no less than 20% gross revenue, or higher percentage like 50%+ as determined equitable).
+      b) Minimum statutory damages ($150,000+ per willful infringement).
+      c) Traditional forms of restitution/recompense under GTBOCI law/custom.
+      d) Compensation for cultural, spiritual, collective harm, and data sovereignty violations.
+      e) Compensation for diminishment of value.
+      f) Liquidated damages ($10,000+ per day of continued violation).
 
-   7.3 ADDITIONAL FINANCIAL REMEDIES
-   In addition to disgorgement of benefits, unauthorized users shall be liable for:
-   a) All legal and professional fees incurred in pursuing recovery
-   b) Costs of cultural restoration and rehabilitation where applicable
-   c) Costs of publicly correcting any misrepresentations made about the software or its origins
-   d) Costs associated with notifying affected parties of the unauthorized use
-   e) Administrative fees associated with the assessment and collection of compensation
+   7.3 ADDITIONAL FINANCIAL REMEDIES: Violator liable for:
+      a) All legal, expert, court, travel, and professional fees incurred by rights holder/GTBOCI.
+      b) Costs of cultural restoration, language revitalization, ceremony, or data remediation efforts.
+      c) Costs of public corrections.
+      d) Costs of notifying affected parties.
+      e) Reasonable administrative fees.
 
-   7.4 PROPERTY TRANSFER PROVISIONS
-   In cases of willful, flagrant, or continued unauthorized use after notification, the copyright holder may require:
-   a) Transfer of intellectual property rights in derivative works or applications
-   b) Transfer of domain names, user accounts, or other digital assets associated with the unauthorized use
-   c) Transfer of equipment used in the unauthorized exploitation of the software
-   d) Assignment of relevant patents, trademarks, or other intellectual property rights obtained in connection with the unauthorized use
+   7.4 PROPERTY TRANSFER PROVISIONS: For willful/flagrant violations, rights holder/tribal court may require transfer of:
+      a) IP rights in derivative works.
+      b) Associated digital assets (domains, accounts).
+      c) Equipment/materials used in exploitation.
+      d) Improperly obtained patents/trademarks.
 
-   7.5 JURISDICTIONAL AND PROCEDURAL CONSIDERATIONS
-   a) The Grand Traverse Band Tribal Court shall have primary jurisdiction to determine and enforce appropriate compensation
-   b) These compensation provisions shall be enforceable in tribal, federal, and state courts
-   c) The copyright holder may pursue compensation through traditional dispute resolution mechanisms of the Grand Traverse Band of Ottawa and Chippewa Indians
-   d) Unauthorized users expressly consent to the jurisdiction of tribal courts for resolving disputes regarding compensation
-   e) The copyright holder is entitled to seek enforcement and recognition of tribal court judgments in federal and state courts under principles of comity and full faith and credit
-   f) Non-monetary forms of restitution may be required in accordance with tribal customs and traditions
+   7.5 JURISDICTIONAL AND PROCEDURAL CONSIDERATIONS:
+      a) GTBOCI Tribal Court (or alternative per Section 8) has primary jurisdiction.
+      b) Provisions enforceable in tribal, federal, state courts (consent, treaty rights, comity, full faith and credit).
+      c) Rights holder may use traditional GTBOCI dispute resolution.
+      d) Unauthorized users consent to tribal court jurisdiction for remedy disputes.
+      e) Tribal court judgments enforceable in other courts.
+      f) Remedies may include non-monetary/culturally appropriate actions.
 
-   7.6 WAIVER OF DEFENSES
-   By using this software, users expressly waive defenses related to:
-   a) Lack of knowledge of these compensation provisions
-   b) Challenges to tribal court jurisdiction
-   c) Statute of limitations or laches defenses
-   d) Challenges to the reasonableness of the compensation amounts specified herein
-   e) Claims of sovereign immunity by governmental entities
+   7.6 WAIVER OF DEFENSES: Users waive defenses based on:
+      a) Lack of knowledge of license/compensation terms.
+      b) Jurisdictional challenges to chosen tribal forum.
+      c) Statutes of limitations/laches (unless per GTBOCI law).
+      d) Challenges to reasonableness of compensation calculated per this license.
+      e) Sovereign immunity claims by governmental entities.
+
+   7.7 CONTINUITY OF COMPENSATION RECOVERY IN EVENT OF RIGHTS HOLDER INCAPACITATION:
+      a) Undiminished Obligation: In the event the rights holder is temporarily detained, arrested, jailed, incarcerated, hospitalized, incapacitated, or otherwise unable to directly receive or manage the remedies awarded under this Section 7 ("Incapacitated"), the violating party's obligation to provide full compensation and restitution remains undiminished.
+      b) Payment Instructions and Representation: The violating party shall follow written instructions regarding the direction of payments or transfer of assets required as remedies. Such instructions may come from:
+         i. The rights holder directly, if able.
+         ii. An individual pre-designated in writing by the rights holder to act on their behalf in such circumstances (e.g., via alternative payee designation or durable power of attorney).
+         iii. A court-appointed fiduciary, guardian, conservator, or other legal representative authorized to act on the rights holder's behalf, evidenced by appropriate court documentation.
+         iv. An authorized representative of the Grand Traverse Band of Ottawa and Chippewa Indians designated by tribal authorities in accordance with tribal law and governance procedures to act on the rights holder's behalf in this matter.
+      c) Purpose of Redirection: Remedies redirected under this section are intended to ensure the rights holder's needs are met (including legal fees, medical costs, dependent support, etc.) and that the value reclamation goals of this license are fulfilled, even during periods of incapacitation.
+      d) Escrow Protocol: If the rights holder is Incapacitated and no designated representative (as per 7.7(b)) provides valid payment instructions within thirty (30) calendar days of the violating party becoming aware (or being reasonably expected to be aware) of the incapacitation, the violating party shall place all monetary remedies then due or accruing into a segregated, interest-bearing escrow account with a reputable financial institution. The violating party must provide written notification to the rights holder's last known address and to the designated legal or administrative office of the Grand Traverse Band of Ottawa and Chippewa Indians regarding the establishment, location, and status of the escrowed funds, with updates provided at least quarterly. The violating party shall release the escrowed funds, including any accrued interest, promptly upon receiving proper instructions from the rights holder or an authorized representative as defined in 7.7(b).
+      e) Confidentiality: The violating party shall maintain strict confidentiality regarding any non-public information about the rights holder's incapacitation obtained solely through the process of executing remedy instructions or establishing escrow under this subsection, except as strictly required by law or necessary to execute payment/escrow instructions.
+      f) Survival of Obligations: The violating party's obligations under this Section 7 survive regardless of the rights holder's incapacitation. The rights holder's condition shall not be used by the violating party as a defense against liability or as grounds to delay or withhold remedies due under this license.
 
 8. ALTERNATIVE TRIBAL COURT SELECTION AND LIMITLESS TIMEFRAME
-   8.1 SELECTION OF ALTERNATIVE TRIBAL FORUMS
-   If, for any reason, the Grand Traverse Band of Ottawa and Chippewa Indians Tribal Court is unable, unwilling, or without jurisdiction to address issues arising under this license, or if the copyright holder determines that another tribal forum would be more appropriate for resolving any dispute:
-   a) The copyright holder retains the absolute and exclusive right to select any other federally recognized tribal court or traditional dispute resolution forum of any federally recognized tribe within the United States as an alternative forum for adjudication, without limitation
-   b) This selection may be made at any time, including after proceedings have begun in another forum
-   c) The copyright holder's selection of an alternative tribal forum shall be binding on all users of this software
-   d) Users expressly consent to the jurisdiction of any tribal court or traditional dispute resolution forum selected by the copyright holder
-   e) Users expressly waive any challenges to the jurisdiction, authority, or procedures of the selected tribal forum
-   f) The copyright holder may select tribal forums with cultural, historical, or traditional connections to the Ottawa and Chippewa Nations, but is not limited to such forums
-   g) The copyright holder may consider, but is not bound by, factors such as a tribal court's experience with intellectual property matters, traditional knowledge protection, cultural expertise, or proximity to the parties
-   
-   8.2 UNLIMITED TIMEFRAME FOR DECISION AND ACTION
-   The copyright holder shall have unlimited time to:
-   a) Discover violations of this license
-   b) Select an appropriate tribal forum for resolution
-   c) Initiate proceedings in any chosen forum
-   d) Transfer proceedings between tribal forums
-   e) Pursue remedies in multiple tribal forums sequentially or simultaneously
-   f) Determine the nature and extent of remedies to be sought
-   
-   8.3 COMPREHENSIVE COST RECOVERY FOR FORUM SELECTION
-   All costs incurred by the copyright holder related to the selection, assessment, and utilization of alternative tribal forums shall be borne by the user who has violated this license, including but not limited to:
-   a) All travel, lodging, and subsistence expenses incurred by the copyright holder, their legal representatives, cultural advisors, and witnesses in visiting, assessing, or appearing before potential or selected tribal forums
-   b) Costs of researching and evaluating potential tribal forums
-   c) Administrative and filing fees in all considered or selected tribal forums
-   d) Translation and interpretation costs
-   e) Costs of cultural protocols, offerings, or ceremonies required when engaging with tribal justice systems
-   f) Consultation fees for tribal legal experts, cultural advisors, and knowledge keepers
-   g) Lost income, opportunity costs, and compensation for time spent by the copyright holder in the forum selection and dispute resolution process
-   h) Communication and coordination costs between multiple tribal forums
-   i) Costs of enforcing or domesticating tribal court judgments in other jurisdictions
-   j) Any other reasonable expenses incurred in the process of forum selection and utilization
-   
-   8.4 ENFORCEABILITY OF ALTERNATIVE TRIBAL COURT JUDGMENTS
-   Any judgment, order, or decision rendered by an alternative tribal forum selected by the copyright holder shall be:
-   a) Binding on all users of this software
-   b) Entitled to recognition and enforcement in federal and state courts under principles of comity, as articulated in cases such as Wilson v. Marchington, 127 F.3d 805 (9th Cir. 1997), and Michigan v. Bay Mills Indian Community, 572 U.S. 782 (2014)
-   c) Presumptively valid and not subject to collateral attack in other courts
-   d) Enforceable through traditional tribal methods, federal court proceedings, or state court proceedings, at the copyright holder's discretion
-   e) Given full faith and credit where applicable under 28 U.S.C. § 1738
-   
-   8.5 WAIVER OF FORUM NON CONVENIENS AND SIMILAR DEFENSES
-   Users expressly waive any objection to the copyright holder's selection of an alternative tribal forum based on:
-   a) Geographic distance or inconvenience
-   b) Unfamiliarity with the selected forum's laws, customs, or procedures
-   c) Claims of forum non conveniens
-   d) Language barriers or cultural differences
-   e) Financial hardship in appearing before the selected forum
-   f) Preference for state or federal forums
-   g) Prior commencement of proceedings in another forum
+   8.1 SELECTION OF ALTERNATIVE TRIBAL FORUMS: If GTBOCI Tribal Court is unavailable/unsuitable, or at rights holder's discretion, rights holder has absolute right to select any other federally recognized tribal court/dispute resolution forum in the US. Selection is binding; users consent to jurisdiction and waive challenges (including *forum non conveniens*).
+   8.2 UNLIMITED TIMEFRAME FOR ACTION: Rights holder has unlimited time (to maximum extent permitted by law) to discover violations, select forum(s), initiate/transfer proceedings, and determine remedies.
+   8.3 COMPREHENSIVE COST RECOVERY: Violator bears all rights holder's costs related to selecting/utilizing alternative forums (travel, research, fees, translation, cultural protocols, consultation, time/opportunity costs, enforcement).
+   8.4 ENFORCEABILITY OF JUDGMENTS: Judgments from selected alternative tribal forum are final, binding, and enforceable in federal/state courts (comity, full faith and credit, relevant case law).
+   8.5 WAIVER OF FORUM DEFENSES: Users waive objections to alternative forum selection based on distance, unfamiliarity, *forum non conveniens*, language/culture, hardship, preference for other courts, or prior proceedings.
 
 9. JURISDICTION AND GOVERNING LAW
-   This license shall be governed by and construed in accordance with:
-   a) The Constitution and laws of the Grand Traverse Band of Ottawa and Chippewa Indians
-   b) Federal Indian law of the United States
-   c) The laws of the State of Michigan, to the extent they do not conflict with tribal sovereignty
-   d) International declarations of Indigenous rights including UNDRIP and the American Declaration on the Rights of Indigenous Peoples
-   e) Principles established in the Native American Graves Protection and Repatriation Act (NAGPRA) and the Indian Arts and Crafts Act, which recognize the special status of Native American cultural property
-   f) The laws, customs, and traditions of any tribal forum selected under Section 8
-
-   Any dispute arising under this license may, at the copyright holder's discretion, be subject to the jurisdiction of the Grand Traverse Band Tribal Court, any alternative tribal forum selected under Section 8, or in federal court with jurisdiction over federal Indian law matters, as established under 28 U.S.C. § 1331 and § 1362.
+   Governed by hierarchy: 1) GTBOCI Constitution, laws, customs, traditions, jurisprudence. 2) Federal Indian law (treaties, reserved rights, canons). 3) Michigan law (only if not conflicting/diminishing tribal/federal Indian law). 4) International Indigenous rights declarations (UNDRIP) as interpretive aids. 5) Analogous federal statutes (NAGPRA, IACA). 6) Law of selected alternative tribal forum (per Section 8).
+   Disputes brought, at rights holder's sole discretion, in: GTBOCI Tribal Court; alternative tribal forum (Sec 8); or US federal court with federal Indian law jurisdiction. Users consent to these forums.
 
 10. REMEDIES AND ENFORCEMENT
-    Violations of this license may result in:
-    a) Injunctive relief in tribal, federal, or state courts
-    b) Monetary damages including traditional forms of restitution
-    c) Enforcement under tribal law, including remedies established by the Grand Traverse Band Tribal Court or any alternative tribal forum selected under Section 8
-    d) Application of both civil and criminal penalties where applicable
-    e) Spiritual and cultural remediation as determined appropriate by tribal authorities
-    f) Public disclosure of violations
+    Violations subject violator to full range of remedies under applicable tribal law, federal Indian law, and this license, including: Injunctive Relief; Monetary Damages & Restitution (Sec 7); Enforcement under Tribal Law; Civil/Criminal Penalties; Spiritual/Cultural/Data Remediation; Public Disclosure of violation.
 
 11. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
-    This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+    This Work is provided "as is," without warranty of any kind (merchantability, fitness, accuracy, non-infringement). Entire risk rests with user. Rights holder/GTBOCI not liable for claims/damages arising from Work or its use, except for remedies available for violation of this license itself.
 
-12. NO WAIVER OF SOVEREIGNTY
-    Nothing in this license shall be construed as a waiver of sovereign immunity or tribal rights. The copyright holder reserves all rights not expressly granted herein, including those held under indigenous customary law and tribal governance structures. The tribal sovereign immunity of the Grand Traverse Band of Ottawa and Chippewa Indians extends to the copyright holder as a tribal member asserting rights connected to tribal sovereignty.
+12. NO WAIVER OF SOVEREIGNTY OR RIGHTS
+    Nothing herein waives GTBOCI sovereign immunity or rights holder/GTBOCI rights under tribal/federal/treaty/international/customary law. All rights reserved. Tribal sovereign immunity extends to rights holder as tribal member asserting rights connected to tribal sovereignty, cultural heritage, data sovereignty, and self-governance.
 
 13. SEVERABILITY AND INTERPRETATION
-    If any provision of this license is held to be unenforceable or invalid, such provision shall be modified to the minimum extent necessary to make it valid and enforceable. If modification is not possible, the provision shall be severed, and the remaining provisions shall remain in full force and effect. Per established canons of construction in federal Indian law, any ambiguity in this license shall be resolved in favor of tribal rights and sovereignty.
+    If any provision is held invalid/unenforceable, it shall be modified minimally to be valid or severed. Remaining provisions remain effective. Ambiguities resolved liberally in favor of rights holder and protection of tribal rights, sovereignty, cultural interests, and data governance, per federal Indian law canons.
 
 14. AMENDMENTS AND MODIFICATIONS
-    The copyright holder reserves the right to amend or modify this license at any time. Continued use of the software after any such changes constitutes acceptance of the modified terms. It is the responsibility of the user to regularly check for updates to this license.
+    Rights holder reserves right to amend/modify license anytime by posting revised version at https://github.com/nbiish/<|repo_title|>/blob/main/LICENSE (or designated successor URL). Continued use constitutes acceptance. User responsible for checking updates.
 
-Any use of this software constitutes acceptance of these terms. 
-```
+Any access, use, reproduction, display, performance, distribution, or other interaction with this Work signifies unconditional acceptance of all terms and conditions set forth in this license.
