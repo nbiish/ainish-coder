@@ -1,13 +1,14 @@
 # ainish-coder
 
-A comprehensive configuration manager for AI coding assistants, providing seamless setup and integration for multiple AI development tools in your projects.
-
 <div align="center">
+  <h3>A comprehensive configuration manager for AI coding assistants</h3>
+  <p>Providing seamless setup and integration for multiple AI development tools in your projects.</p>
+
   <img src="qr-stripe-donation.png" alt="Scan to donate" width="200"/>
   <p>
-    <a href="https://donate.stripe.com/3cs29La1j8UGfnObII">Scan to donate</a>
+    <a href="https://donate.stripe.com/3cs29La1j8UGfnObII">Scan to donate</a> |
+    <a href="https://www.buymeacoffee.com/nbiish"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
   </p>
-  <a href="https://www.buymeacoffee.com/nbiish"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
 </div>
 
 ## 🌟 Features
@@ -40,7 +41,7 @@ chmod +x ainish-setup.sh
 - `.aider-instructions.md`: Custom instructions for the Aider assistant
 - `.aiderignore`: File patterns to exclude from Aider
 - `.env.example`: Environment variable template
-- `license-citation.mdc`: License citation file for Aider
+- `critical.mdc`: License citation file for Aider
 
 ### ainish-cursor
 - `.cursor/`: Cursor IDE configuration directory

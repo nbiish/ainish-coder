@@ -45,8 +45,8 @@ setup_ainish_coder_dir() {
   ln -sf "${REPO_DIR}/ainish-copilot" "${AINISH_CODER_DIR}/vscode" 2>/dev/null
   ln -sf "${REPO_DIR}/ainish-aider" "${AINISH_CODER_DIR}/aider" 2>/dev/null
   
-  # Create symlink for license-citation.mdc
-  ln -sf "${REPO_DIR}/license-citation.mdc" "${AINISH_CODER_DIR}/license-citation.mdc" 2>/dev/null
+  # Create symlink for critical.mdc
+  ln -sf "${REPO_DIR}/critical.mdc" "${AINISH_CODER_DIR}/critical.mdc" 2>/dev/null
   
   # Copy the setup script itself (this should be a copy, not a symlink)
   cp "${REPO_DIR}/ainish-setup.sh" "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
@@ -153,14 +153,14 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
   fi
   
-  # Deploy shared license-citation for other tools
-  if [ -f "${AINISH_CODER_DIR}/license-citation.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed license-citation.mdc to .cursor/rules/${RESET}"
+  # Deploy shared critical.mdc for other tools
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
     
     if [ -d "$TARGET/.github" ]; then
-      cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed license-citation.mdc to .github/${RESET}"
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
     fi
   fi
   
@@ -212,6 +212,18 @@ deploy_ainish_configs() {
   if [ -f "${AINISH_CODER_DIR}/aider/.env.example" ]; then
     cp "${AINISH_CODER_DIR}/aider/.env.example" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
+  fi
+  
+  # Deploy shared critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+  fi
+  
+  # Deploy shared critical.mdc directly to target directory, not to .aider subfolder
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
   fi
   
   # Update .gitignore
@@ -401,10 +413,10 @@ deploy_vscode_configs() {
     fi
   fi
 
-  # Deploy shared license-citation
-  if [ -f "${AINISH_CODER_DIR}/license-citation.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed license-citation.mdc to .github/${RESET}"
+  # Deploy shared critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ VS Code configurations deployed to $TARGET${RESET}"
@@ -454,10 +466,10 @@ deploy_cursor_configs() {
     echo -e "${GREEN}✓ Deployed .cursor/rules/license.mdc${RESET}"
   fi
 
-  # Deploy shared license-citation
-  if [ -f "${AINISH_CODER_DIR}/license-citation.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed license-citation.mdc to .cursor/rules/${RESET}"
+  # Deploy shared critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
   fi
 
   # Verify files were created
@@ -509,10 +521,10 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
   fi
 
-  # Deploy shared license-citation directly to target directory, not to .aider subfolder
-  if [ -f "${AINISH_CODER_DIR}/license-citation.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/license-citation.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed license-citation.mdc to $TARGET${RESET}"
+  # Deploy shared critical.mdc directly to target directory, not to .aider subfolder
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"

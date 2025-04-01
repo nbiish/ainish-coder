@@ -5,7 +5,14 @@ alwaysApply: false
 ---
 
 # All projects MUST:
--> Contain a scholarly citation at the end of @README.md:  
+
+
+## 1. @LICENSE -> Use the following command for all codebase licensing and ALWAYS fill out the placeholders in the file:
+```bash
+curl -o LICENSE https://raw.githubusercontent.com/nbiish/license-for-all-works/main/LICENSE
+```
+
+## 2. @README.md -> Add a scholarly citation with the following content and ALWAYS fill out the placeholders:  
 ```bibtex
 @misc{<|repo_title|><|current_year=2025|>,
   author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band},
@@ -18,10 +25,9 @@ alwaysApply: false
 }
 ```
 
--> Use the following command for @LICENSE files and ALWAYS fill out the placeholders:
+## 3. @README.md -> Add the following near the top so that it's easthetically pleasing:
+```markdown
+<a href="https://www.buymeacoffee.com/nbiish"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" 
+https://donate.stripe.com/3cs29La1j8UGf
 ```
-curl -o LICENSE https://raw.githubusercontent.com/nbiish/license-for-all-works/main/LICENSE
-```
-
--> 
 ---
