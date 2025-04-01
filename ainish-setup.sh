@@ -325,7 +325,7 @@ function ainish-aider {
   "$AIDER_PATH" "$@"
 }
 
-function ainish-code {
+function ainish-copilot {
   # Deploy from the linked repo directories to ensure latest changes are used
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$PWD"
   echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
@@ -573,7 +573,7 @@ main() {
     echo -e "${BRIGHT_BLUE}   ▶ ainish-coder${RESET}: ${CYAN}Install all configurations to current directory${RESET}"
     echo -e "${BRIGHT_BLUE}   ▶ ainish-cursor${RESET}: ${CYAN}Install Cursor configurations to current directory${RESET}"
     echo -e "${BRIGHT_BLUE}   ▶ ainish-aider${RESET}: ${CYAN}Install Aider configurations to current directory${RESET}"
-    echo -e "${BRIGHT_BLUE}   ▶ ainish-code${RESET}: ${CYAN}Install VS Code configurations to current directory${RESET}"
+    echo -e "${BRIGHT_BLUE}   ▶ ainish-copilot${RESET}: ${CYAN}Install VS Code configurations to current directory${RESET}"
     echo -e "${BRIGHT_BLUE}   ▶ ainish-update${RESET}: ${CYAN}Update AINISH-Coder from the repository${RESET}"
     echo ""
     echo -e "${BRIGHT_GREEN}🔗 SYMLINKED CONFIGURATION:${RESET}"

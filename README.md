@@ -2,6 +2,14 @@
 
 A comprehensive configuration manager for AI coding assistants, providing seamless setup and integration for multiple AI development tools in your projects.
 
+<div align="center">
+  <img src="qr-stripe-donation.png" alt="Scan to donate" width="200"/>
+  <p>
+    <a href="https://donate.stripe.com/3cs29La1j8UGfnObII">Scan to donate</a>
+  </p>
+  <a href="https://www.buymeacoffee.com/nbiish"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
+</div>
+
 ## 🌟 Features
 
 - **Unified Setup**: One script to configure all your AI coding assistants
