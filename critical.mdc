@@ -8,12 +8,12 @@ alwaysApply: false
 
 ## 1. @LICENSE -> Use the following command for all codebase licensing and ALWAYS fill out the placeholders in the file:
 ```bash
-curl -o LICENSE https://raw.githubusercontent.com/nbiish/license-for-all-works/main/LICENSE
+curl -o LICENSE https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/working-LICENSE
 ```
 
 ## 2. @README.md -> Add a scholarly citation with the following content and ALWAYS fill out the placeholders:  
 ```bibtex
-@misc{<|repo_title|><|current_year|>,
+@misc{<|repo_title|><|current_year=2025|>,
   author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band},
   title/description = {<|repo_title|>},
   type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},

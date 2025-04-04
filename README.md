@@ -44,6 +44,8 @@ chmod +x ainish-setup.sh
 ./ainish-setup.sh
 ```
 
+After installation, you can periodically run `ainish-update` to ensure all configurations, including critical.mdc files, are kept in sync across all ainish-* directories.
+
 ## 📦 Components
 
 ### ainish-aider
@@ -71,6 +73,12 @@ The `ainish-setup.sh` script:
 3. Updates or creates `.gitignore` with AI-specific entries
 4. Adds wrapper functions to your shell configuration
 5. Verifies all components are properly installed
+6. Ensures critical.mdc is copied to all ainish-* directories during updates
+
+The script also provides the `ainish-update` command which:
+- Updates critical.mdc in all ainish-* directories automatically
+- Ensures license compliance and configuration consistency across all components
+- Re-runs the setup script to refresh all configurations
 
 ## 🤝 Contributing
 

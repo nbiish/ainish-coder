@@ -3,6 +3,31 @@
 # AINISH-Coder Unified Setup Script
 # This script sets up all tooling configurations in one go and provides wrapper functions
 
+#########################################################################
+# FUNCTION REFERENCE
+#########################################################################
+# Main Functions:
+# - setup_ainish_coder_dir(): Creates ~/.ainish-coder and sets up symlinks to repository
+# - verify_tool_paths(): Checks if configured tool paths exist
+# - cleanup_old_files(): Removes old configuration files from previous versions
+# - deploy_ainish_configs(): Deploys all AINISH configurations to a target directory
+# - update_gitignore(): Updates .gitignore with AINISH-related entries
+# - setup_wrapper_functions(): Adds wrapper functions to .zshrc
+# - deploy_vscode_configs(): Deploys only VS Code/Copilot specific configurations
+# - deploy_cursor_configs(): Deploys only Cursor specific configurations
+# - deploy_aider_configs(): Deploys only Aider specific configurations
+# - update_critical_mdc(): Updates critical.mdc in all ainish-* directories
+# - main(): Main execution function that processes command arguments
+#
+# Usage Examples:
+# ./ainish-setup.sh                     # Run full setup
+# ./ainish-setup.sh deploy /path/dir    # Deploy all configs to specified directory
+# ./ainish-setup.sh deploy_cursor_configs /path/dir  # Deploy only Cursor configs
+# ./ainish-setup.sh deploy_vscode_configs /path/dir  # Deploy only VS Code configs
+# ./ainish-setup.sh deploy_aider_configs /path/dir   # Deploy only Aider configs
+# ./ainish-setup.sh update_critical_mdc  # Update critical.mdc in all ainish-* dirs
+#########################################################################
+
 # Get the absolute path of the repository and export it
 export REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ZSHRC="${HOME}/.zshrc"
@@ -355,6 +380,10 @@ function ainish-update {
   if [ -z "$REPO_DIR" ] && [ -f "$AINISH_CODER_DIR/config.sh" ]; then
     source "$AINISH_CODER_DIR/config.sh"
   fi
+  # Update critical.mdc in all ainish-* directories
+  if [ -d "$REPO_DIR" ]; then
+    "$REPO_DIR/ainish-setup.sh" update_critical_mdc
+  fi
   # Re-run the setup script from the repository
   if [ -d "$REPO_DIR" ]; then
     "$REPO_DIR/ainish-setup.sh"
@@ -530,6 +559,39 @@ deploy_aider_configs() {
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
 }
 
+# Function to update critical.mdc in all ainish-* directories
+update_critical_mdc() {
+  echo -e "${BRIGHT_CYAN}🔄 Updating critical.mdc in all ainish-* directories...${RESET}"
+  
+  # Check if critical.mdc exists
+  if [ ! -f "${REPO_DIR}/critical.mdc" ]; then
+    echo -e "${BRIGHT_YELLOW}⚠️ Warning: critical.mdc not found in repository${RESET}"
+    return 1
+  fi
+  
+  # Find and update all ainish-* directories
+  for dir in "${REPO_DIR}"/ainish-*; do
+    # Skip if not a directory
+    if [ ! -d "$dir" ]; then
+      continue
+    fi
+    
+    # Get directory name
+    dirname=$(basename "$dir")
+    
+    # Copy critical.mdc to the directory
+    cp "${REPO_DIR}/critical.mdc" "$dir/" 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✓ Updated critical.mdc in $dirname${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Failed to update critical.mdc in $dirname${RESET}"
+    fi
+  done
+  
+  echo -e "${BRIGHT_GREEN}✅ critical.mdc update complete${RESET}"
+}
+
 # Main execution
 main() {
   # Check for command argument
@@ -545,6 +607,9 @@ main() {
   elif [ "$1" == "deploy_aider_configs" ]; then
     # Deploy Aider configurations to the specified directory
     deploy_aider_configs "$2"
+  elif [ "$1" == "update_critical_mdc" ]; then
+    # Update critical.mdc in all ainish-* directories
+    update_critical_mdc
   else
     # Print cyberpunk-style header
     echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"

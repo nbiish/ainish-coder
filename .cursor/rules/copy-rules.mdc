@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Copy [critical.mdc](mdc:critical.mdc) into the rest of the ainish-* dirs.
