@@ -380,13 +380,9 @@ function ainish-update {
   if [ -z "$REPO_DIR" ] && [ -f "$AINISH_CODER_DIR/config.sh" ]; then
     source "$AINISH_CODER_DIR/config.sh"
   fi
-  # Update critical.mdc in all ainish-* directories
+  # Run the update command from the setup script
   if [ -d "$REPO_DIR" ]; then
-    "$REPO_DIR/ainish-setup.sh" update_critical_mdc
-  fi
-  # Re-run the setup script from the repository
-  if [ -d "$REPO_DIR" ]; then
-    "$REPO_DIR/ainish-setup.sh"
+    "$REPO_DIR/ainish-setup.sh" update
     echo "✅ AINISH-Coder updated successfully"
   else
     echo "❌ Repository directory not found. Please set REPO_DIR environment variable."
@@ -559,37 +555,68 @@ deploy_aider_configs() {
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
 }
 
-# Function to update critical.mdc in all ainish-* directories
+# Function to manage critical.mdc location during updates
 update_critical_mdc() {
-  echo -e "${BRIGHT_CYAN}🔄 Updating critical.mdc in all ainish-* directories...${RESET}"
-  
-  # Check if critical.mdc exists
-  if [ ! -f "${REPO_DIR}/critical.mdc" ]; then
-    echo -e "${BRIGHT_YELLOW}⚠️ Warning: critical.mdc not found in repository${RESET}"
+  echo -e "${BRIGHT_CYAN}🔄 Managing critical.mdc locations...${RESET}"
+
+  # Check if root critical.mdc exists
+  local source_file="${REPO_DIR}/critical.mdc"
+  if [ ! -f "$source_file" ]; then
+    echo -e "${BRIGHT_YELLOW}⚠️ Warning: Source critical.mdc not found: $source_file${RESET}"
     return 1
   fi
-  
-  # Find and update all ainish-* directories
-  for dir in "${REPO_DIR}"/ainish-*; do
-    # Skip if not a directory
-    if [ ! -d "$dir" ]; then
-      continue
+
+  # --- Ensure critical.mdc is PRESENT in required locations ---
+  local updated_targets=0
+  local required_present=(
+    "${REPO_DIR}/ainish-aider/critical.mdc"
+    "${REPO_DIR}/ainish-copilot/.github/critical.mdc"
+    "${REPO_DIR}/ainish-cursor/.cursor/rules/critical.mdc"
+  )
+  for target_path in "${required_present[@]}"; do
+    local target_dir=$(dirname "$target_path")
+    # Ensure parent directory exists
+    if [ ! -d "$target_dir" ]; then
+       mkdir -p "$target_dir" 2>/dev/null
+       if [ $? -ne 0 ]; then
+          echo -e "${YELLOW}⚠️ Failed to create directory $target_dir${RESET}"
+          continue # Skip if cannot create dir
+       fi
     fi
-    
-    # Get directory name
-    dirname=$(basename "$dir")
-    
-    # Copy critical.mdc to the directory
-    cp "${REPO_DIR}/critical.mdc" "$dir/" 2>/dev/null
-    
+    # Copy the file
+    cp "$source_file" "$target_path" 2>/dev/null
     if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Updated critical.mdc in $dirname${RESET}"
+      echo -e "${GREEN}✓ Ensured/Updated $target_path${RESET}"
+      updated_targets=$((updated_targets + 1))
     else
-      echo -e "${YELLOW}⚠️ Failed to update critical.mdc in $dirname${RESET}"
+      echo -e "${YELLOW}⚠️ Failed to update $target_path${RESET}"
     fi
   done
-  
-  echo -e "${BRIGHT_GREEN}✅ critical.mdc update complete${RESET}"
+
+  # --- Ensure critical.mdc is ABSENT from specific roots ---
+  local removed_targets=0
+  local required_absent=(
+    "${REPO_DIR}/ainish-cursor/critical.mdc"
+    "${REPO_DIR}/ainish-copilot/critical.mdc"
+  )
+  for target_file in "${required_absent[@]}"; do
+    if [ -f "$target_file" ]; then
+      rm -f "$target_file" 2>/dev/null
+      if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Removed $target_file${RESET}"
+        removed_targets=$((removed_targets + 1))
+      else
+        echo -e "${YELLOW}⚠️ Failed to remove $target_file${RESET}"
+      fi
+    fi
+  done
+  if [ $removed_targets -gt 0 ]; then
+     echo -e "${BLUE}✓ Ensured critical.mdc is removed from specific ainish-* roots.${RESET}"
+  else
+     echo -e "${BLUE}✓ critical.mdc already absent from specific ainish-* roots.${RESET}"
+  fi
+
+  echo -e "${BRIGHT_GREEN}✅ critical.mdc location management complete${RESET}"
 }
 
 # Main execution
@@ -608,25 +635,37 @@ main() {
     # Deploy Aider configurations to the specified directory
     deploy_aider_configs "$2"
   elif [ "$1" == "update_critical_mdc" ]; then
-    # Update critical.mdc in all ainish-* directories
+    # Update critical.mdc in all ainish-* directories (standalone execution)
     update_critical_mdc
+  elif [ "$1" == "update" ]; then
+    # Run the full update process
+    echo -e "${BRIGHT_CYAN}🔄 Running full AINISH-Coder update...${RESET}"
+    update_critical_mdc # Ensure critical.mdc is up-to-date first
+    echo ""
+    # Run essential setup steps again
+    cleanup_old_files
+    setup_ainish_coder_dir
+    verify_tool_paths # Check paths again in case they changed
+    setup_wrapper_functions # Ensure wrappers are up-to-date
+    echo -e "${BRIGHT_GREEN}✅ Update process complete.${RESET}"
   else
+    # Default: Run full initial setup
     # Print cyberpunk-style header
     echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
     echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_CYAN}A I N I S H - C O D E R${RESET}                ${BRIGHT_MAGENTA}║${RESET}"
     echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
-    
+
     # Regular setup
     echo -e "${BRIGHT_CYAN}🔧 [INIT] Setting up AINISH-Coder tooling configurations...${RESET}"
     echo ""
-    
+
     # Clean up old files
     cleanup_old_files
-    
+
     # Setup ~/.ainish-coder directory
     setup_ainish_coder_dir
-    
+
     # Verify tool paths
     if ! verify_tool_paths; then
       echo -e "${BRIGHT_YELLOW}⚠️  [WARN] Setup will continue but some tools may not work correctly.${RESET}"

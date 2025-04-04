@@ -3,4 +3,4 @@ description:
 globs: 
 alwaysApply: false
 ---
-Copy [critical.mdc](mdc:critical.mdc) into the rest of the ainish-* dirs.
+Copy [critical.mdc](mdc:critical.mdc) to [critical.mdc](mdc:ainish-cursor/.cursor/rules/critical.mdc) [critical.mdc](mdc:ainish-copilot/.github/critical.mdc) and [critical.mdc](mdc:ainish-aider/critical.mdc).
