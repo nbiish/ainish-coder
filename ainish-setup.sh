@@ -338,15 +338,21 @@ EOF
   cat >> "$ZSHRC" << 'EOF'
 # AINISH-Coder wrapper functions
 function ainish-coder {
+  # Capture current directory explicitly to handle external volumes
+  local CURRENT_DIR="$(pwd)"
+  
   # Deploy from the linked repo directories to ensure latest changes are used
-  "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$PWD"
+  "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$CURRENT_DIR"
   echo "✨ AINISH-Coder configurations deployed to current directory"
   echo "🔄 Using symlinks to repository - changes to repo files are immediately available"
 }
 
 function ainish-cursor {
+  # Capture current directory explicitly to handle external volumes
+  local CURRENT_DIR="$(pwd)"
+  
   # Deploy from the linked repo directories to ensure latest changes are used
-  "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$PWD"
+  "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR"
   echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   if [[ "$1" == -* ]]; then
     "$CURSOR_PATH" "$@"
@@ -356,15 +362,21 @@ function ainish-cursor {
 }
 
 function ainish-aider {
+  # Capture current directory explicitly to handle external volumes
+  local CURRENT_DIR="$(pwd)"
+  
   # Deploy from the linked repo directories to ensure latest changes are used
-  "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$PWD"
+  "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR"
   echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   "$AIDER_PATH" "$@"
 }
 
 function ainish-copilot {
+  # Capture current directory explicitly to handle external volumes
+  local CURRENT_DIR="$(pwd)"
+  
   # Deploy from the linked repo directories to ensure latest changes are used
-  "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$PWD"
+  "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$CURRENT_DIR"
   echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   if [[ "$1" == -* ]]; then
     "$VSCODE_PATH" "$@"
