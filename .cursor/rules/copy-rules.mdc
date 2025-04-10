@@ -3,4 +3,8 @@ description:
 globs: 
 alwaysApply: false
 ---
-Copy @/critical.mdc to @/ainish-aider/ @/ainish-copilot/.github/ and @/ainish-cursor/.cursor/rules/.
+Copy @/critical.mdc to:
+- @/ainish-aider/
+- @/ainish-copilot/.github/
+- @/ainish-cursor/.cursor/rules/
+- @.cursor/rules/
