@@ -1,53 +1,4 @@
----
-description: 
-globs: 
-alwaysApply: false
----
-## 1. Agile "PRD" / Requirements Management: The Evolving Conversation
-
-Agile methodologies (like Scrum or Kanban) embrace change and iterative development. There isn't typically a single, massive, upfront PRD in the Waterfall sense. Instead, requirements are captured and refined dynamically using various artifacts.
-
-* **Core Philosophy:** Requirements emerge and evolve through collaboration and feedback. Focus on delivering working software incrementally and responding to change. Clarity is achieved *just-in-time*.
-* **Timing:** Requirements are defined and refined *continuously* throughout the project lifecycle, often just before and during development iterations (Sprints in Scrum).
-* **Purpose:**
-    * To guide the development team for the *next* increment of work.
-    * To capture user needs and business value concisely.
-    * To facilitate ongoing conversation and clarification between the product owner, stakeholders, and the development team.
-    * To enable prioritization and adaptation based on feedback and changing priorities.
-* **Key Characteristics:**
-    * **Iterative & Incremental:** Details are added progressively.
-    * **Dynamic & Flexible:** Requirements (especially their priority and specific implementation details) can change based on feedback and learning.
-    * **User-Centric:** Often expressed from the user's perspective (User Stories).
-    * **Collaborative:** Requirements are understood and refined through discussion.
-    * **Lean:** Avoids excessive upfront documentation; details are elaborated "just-in-time."
-* **Common Agile Artifacts (Replacing/Supplementing a single PRD):**
-    * **Product Vision/Strategy:** A high-level document outlining the overarching goals, target market, and value proposition. Sets the direction.
-    * **Product Roadmap:** A high-level, strategic plan showing major features or themes planned over time (quarters, releases). Less detailed than a Waterfall plan.
-    * **Product Backlog:** *The primary artifact.* A prioritized, living list of *everything* that might be needed in the product – features, enhancements, bug fixes, technical debt remediation, etc. Items are often represented as:
-        * **Epics:** Large bodies of work or features that can be broken down further.
-        * **User Stories:** Short descriptions of functionality from an end-user perspective, typically following the format: "As a [type of user], I want [to perform some action] so that [I can achieve some goal/benefit]."
-        * **Tasks:** Smaller technical steps needed to complete a User Story.
-    * **Sprint Backlog:** The subset of Product Backlog items selected by the team for development during a specific Sprint.
-    * **User Stories + Acceptance Criteria (AC):** User Stories become the core requirement units. They are elaborated with specific, testable Acceptance Criteria just before or during a sprint. AC define the conditions that must be met for the story to be considered "Done."
-    * **Definition of Done (DoD):** A team agreement on the quality standards and checks that apply to *all* completed work (e.g., code reviewed, unit tests passed, documented, deployed to staging).
-    * **Wireframes/Mockups/Prototypes:** Used heavily, but often developed iteratively alongside user stories, rather than being finalized upfront based on a massive PRD.
-
-* **Pros:**
-    * Highly adaptable to change and evolving requirements.
-    * Faster time-to-market for initial versions (MVP).
-    * Focuses on delivering highest-priority value first.
-    * Encourages collaboration and incorporates user feedback early and often.
-    * Reduces risk of building the wrong product.
-    * Less upfront documentation overhead.
-* **Cons:**
-    * Less predictability regarding final scope, timeline, and cost, especially early on.
-    * Requires strong product ownership, team discipline, and continuous communication to avoid chaos or scope creep.
-    * Can be harder for external stakeholders (less involved day-to-day) to grasp the full picture at any given moment.
-    * Potential for documentation to become fragmented if not managed well (e.g., relying too much on tacit knowledge).
-
----
-
-## 2. Waterfall PRD: The Comprehensive Blueprint
+## 1. Waterfall PRD: The Comprehensive Blueprint
 
 In the traditional Waterfall model, development phases flow sequentially (Requirements -> Design -> Implementation -> Testing -> Deployment). The PRD is a critical *upfront* artifact.
 
@@ -97,18 +48,62 @@ In the traditional Waterfall model, development phases flow sequentially (Requir
 
 ---
 
+## 2. Agile "PRD" / Requirements Management: The Evolving Conversation
+
+Agile methodologies (like Scrum or Kanban) embrace change and iterative development. There isn't typically a single, massive, upfront PRD in the Waterfall sense. Instead, requirements are captured and refined dynamically using various artifacts.
+
+* **Core Philosophy:** Requirements emerge and evolve through collaboration and feedback. Focus on delivering working software incrementally and responding to change. Clarity is achieved *just-in-time*.
+* **Timing:** Requirements are defined and refined *continuously* throughout the project lifecycle, often just before and during development iterations (Sprints in Scrum).
+* **Purpose:**
+    * To guide the development team for the *next* increment of work.
+    * To capture user needs and business value concisely.
+    * To facilitate ongoing conversation and clarification between the product owner, stakeholders, and the development team.
+    * To enable prioritization and adaptation based on feedback and changing priorities.
+* **Key Characteristics:**
+    * **Iterative & Incremental:** Details are added progressively.
+    * **Dynamic & Flexible:** Requirements (especially their priority and specific implementation details) can change based on feedback and learning.
+    * **User-Centric:** Often expressed from the user's perspective (User Stories).
+    * **Collaborative:** Requirements are understood and refined through discussion.
+    * **Lean:** Avoids excessive upfront documentation; details are elaborated "just-in-time."
+* **Common Agile Artifacts (Replacing/Supplementing a single PRD):**
+    * **Product Vision/Strategy:** A high-level document outlining the overarching goals, target market, and value proposition. Sets the direction.
+    * **Product Roadmap:** A high-level, strategic plan showing major features or themes planned over time (quarters, releases). Less detailed than a Waterfall plan.
+    * **Product Backlog:** *The primary artifact.* A prioritized, living list of *everything* that might be needed in the product – features, enhancements, bug fixes, technical debt remediation, etc. Items are often represented as:
+        * **Epics:** Large bodies of work or features that can be broken down further.
+        * **User Stories:** Short descriptions of functionality from an end-user perspective, typically following the format: "As a [type of user], I want [to perform some action] so that [I can achieve some goal/benefit]."
+        * **Tasks:** Smaller technical steps needed to complete a User Story.
+    * **Sprint Backlog:** The subset of Product Backlog items selected by the team for development during a specific Sprint.
+    * **User Stories + Acceptance Criteria (AC):** User Stories become the core requirement units. They are elaborated with specific, testable Acceptance Criteria just before or during a sprint. AC define the conditions that must be met for the story to be considered "Done."
+    * **Definition of Done (DoD):** A team agreement on the quality standards and checks that apply to *all* completed work (e.g., code reviewed, unit tests passed, documented, deployed to staging).
+    * **Wireframes/Mockups/Prototypes:** Used heavily, but often developed iteratively alongside user stories, rather than being finalized upfront based on a massive PRD.
+
+* **Pros:**
+    * Highly adaptable to change and evolving requirements.
+    * Faster time-to-market for initial versions (MVP).
+    * Focuses on delivering highest-priority value first.
+    * Encourages collaboration and incorporates user feedback early and often.
+    * Reduces risk of building the wrong product.
+    * Less upfront documentation overhead.
+* **Cons:**
+    * Less predictability regarding final scope, timeline, and cost, especially early on.
+    * Requires strong product ownership, team discipline, and continuous communication to avoid chaos or scope creep.
+    * Can be harder for external stakeholders (less involved day-to-day) to grasp the full picture at any given moment.
+    * Potential for documentation to become fragmented if not managed well (e.g., relying too much on tacit knowledge).
+
+---
+
 ## 3. Key Differences Summarized
 
-| Feature             | Agile Requirements Management              | Waterfall PRD                     |
-| :------------------ | :----------------------------------------- | :-------------------------------- |
-| **Timing** | Continuous, Just-in-time elaboration       | Upfront, before development        |
-| **Scope** | Evolves; details emerge iteratively        | Aims to be fully comprehensive     |
-| **Detail Level** | High-level initially, detailed "just-in-time" | Exhaustive, highly detailed        |
-| **Flexibility** | High; change is expected and embraced      | Low; changes are difficult/costly  |
-| **Primary Artifact** | Product Backlog (Epics, User Stories), AC | Single, large PRD document         |
-| **Purpose** | Guide iteration, facilitate conversation   | Define contract, minimize change   |
-| **Format** | User Stories, Backlogs, collaborative tools | Formal, structured text document   |
-| **Collaboration** | High, continuous throughout               | Lower during definition phase      |
+| Feature             | Waterfall PRD                     | Agile Requirements Management               |
+| :------------------ | :-------------------------------- | :------------------------------------------ |
+| **Timing** | Upfront, before development       | Continuous, Just-in-time elaboration        |
+| **Scope** | Aims to be fully comprehensive    | Evolves; details emerge iteratively        |
+| **Detail Level** | Exhaustive, highly detailed       | High-level initially, detailed "just-in-time" |
+| **Flexibility** | Low; changes are difficult/costly | High; change is expected and embraced      |
+| **Primary Artifact** | Single, large PRD document        | Product Backlog (Epics, User Stories), AC |
+| **Purpose** | Define contract, minimize change  | Guide iteration, facilitate conversation   |
+| **Format** | Formal, structured text document  | User Stories, Backlogs, collaborative tools |
+| **Collaboration** | Lower during definition phase     | High, continuous throughout               |
 
 ---
 

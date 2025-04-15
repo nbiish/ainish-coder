@@ -73,6 +73,9 @@ setup_ainish_coder_dir() {
   
   # Create symlink for critical.mdc
   ln -sf "${REPO_DIR}/critical.mdc" "${AINISH_CODER_DIR}/critical.mdc" 2>/dev/null
+
+  # Create symlink for PRD.mdc
+  ln -sf "${REPO_DIR}/PRD.mdc" "${AINISH_CODER_DIR}/PRD.mdc" 2>/dev/null
   
   # Copy the setup script itself (this should be a copy, not a symlink)
   cp "${REPO_DIR}/ainish-setup.sh" "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
