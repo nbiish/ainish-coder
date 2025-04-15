@@ -14,3 +14,7 @@ Copy @PRD.mdc to:
 - @/ainish-copilot/.github/
 - @/ainish-cursor/.cursor/rules/
 - @.cursor/rules/
+
+Copy @prompt.md to:
+- @ainish-copilot/.github/copilot-instructions.md
+- @ainish-aider/.aider-instructions.md

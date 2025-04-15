@@ -18,6 +18,7 @@
 # - deploy_aider_configs(): Deploys only Aider specific configurations
 # - update_critical_mdc(): Updates critical.mdc in all ainish-* directories
 # - update_prd_mdc(): Updates PRD.mdc in all ainish-* directories
+# - update_prompt_md(): Updates prompt.md in all ainish-* directories
 # - main(): Main execution function that processes command arguments
 #
 # Usage Examples:
@@ -217,19 +218,20 @@ deploy_ainish_configs() {
     echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
   fi
   
-  # Copy copilot-instructions.md to .github directory
-  if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
-    cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md${RESET}"
-  else
-    # Check if it exists directly in the source
-    if [ -f "${REPO_DIR}/ainish-copilot/.github/copilot-instructions.md" ]; then
-      mkdir -p "$TARGET/.github" 2>/dev/null
-      cp "${REPO_DIR}/ainish-copilot/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md (from repo)${RESET}"
+  # Copy copilot-instructions.md from the root prompt.md
+  local prompt_source="${REPO_DIR}/prompt.md"
+  local copilot_target_dir="$TARGET/.github"
+  local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
+  if [ -f "$prompt_source" ]; then
+    mkdir -p "$copilot_target_dir" 2>/dev/null
+    cp "$prompt_source" "$copilot_target_file" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✓ Deployed $copilot_target_file (from root prompt.md)${RESET}"
     else
-      echo -e "${YELLOW}⚠️ Warning: copilot-instructions.md not found${RESET}"
+      echo -e "${YELLOW}⚠️ Warning: Failed to deploy $copilot_target_file${RESET}"
     fi
+  else
+    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
   fi
   
   # Deploy Aider configurations
@@ -449,19 +451,20 @@ deploy_vscode_configs() {
     echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
   fi
 
-  # Copy copilot-instructions.md to .github directory
-  if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
-    cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md${RESET}"
-  else
-    # Check if it exists directly in the source
-    if [ -f "${REPO_DIR}/ainish-copilot/.github/copilot-instructions.md" ]; then
-      mkdir -p "$TARGET/.github" 2>/dev/null
-      cp "${REPO_DIR}/ainish-copilot/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed .github/copilot-instructions.md (from repo)${RESET}"
+  # Copy copilot-instructions.md from the root prompt.md
+  local prompt_source="${REPO_DIR}/prompt.md"
+  local copilot_target_dir="$TARGET/.github"
+  local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
+  if [ -f "$prompt_source" ]; then
+    mkdir -p "$copilot_target_dir" 2>/dev/null
+    cp "$prompt_source" "$copilot_target_file" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✓ Deployed $copilot_target_file (from root prompt.md)${RESET}"
     else
-      echo -e "${YELLOW}⚠️ Warning: copilot-instructions.md not found${RESET}"
+      echo -e "${YELLOW}⚠️ Warning: Failed to deploy $copilot_target_file${RESET}"
     fi
+  else
+    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
   fi
 
   # Deploy shared critical.mdc and PRD.mdc
@@ -562,9 +565,18 @@ deploy_aider_configs() {
   echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET${RESET}"
 
   # Deploy Aider-specific configurations
-  if [ -f "${AINISH_CODER_DIR}/aider/.aider-instructions.md" ]; then
-    cp "${AINISH_CODER_DIR}/aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .aider-instructions.md${RESET}"
+  # Copy .aider-instructions.md from the root prompt.md
+  local prompt_source="${REPO_DIR}/prompt.md"
+  local aider_target_file="$TARGET/.aider-instructions.md"
+  if [ -f "$prompt_source" ]; then
+    cp "$prompt_source" "$aider_target_file" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✓ Deployed $aider_target_file (from root prompt.md)${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Failed to deploy $aider_target_file${RESET}"
+    fi
+  else
+    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
   fi
   
   if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
@@ -724,6 +736,44 @@ update_prd_mdc() {
   echo -e "${BRIGHT_GREEN}✅ PRD.mdc location management complete${RESET}"
 }
 
+# Function to manage prompt.md location during updates
+update_prompt_md() {
+  echo -e "${BRIGHT_CYAN}🔄 Managing prompt.md locations...${RESET}"
+
+  # Check if root prompt.md exists
+  local source_file="${REPO_DIR}/prompt.md"
+  if [ ! -f "$source_file" ]; then
+    echo -e "${BRIGHT_YELLOW}⚠️ Warning: Source prompt.md not found: $source_file${RESET}"
+    return 1
+  fi
+
+  local updated_targets=0
+  local aider_target="${REPO_DIR}/ainish-aider/.aider-instructions.md"
+  local copilot_target_dir="${REPO_DIR}/ainish-copilot/.github"
+  local copilot_target="${copilot_target_dir}/copilot-instructions.md"
+
+  # Copy to Aider target
+  cp "$source_file" "$aider_target" 2>/dev/null
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ Ensured/Updated $aider_target${RESET}"
+    updated_targets=$((updated_targets + 1))
+  else
+    echo -e "${YELLOW}⚠️ Failed to update $aider_target${RESET}"
+  fi
+
+  # Copy to Copilot target
+  mkdir -p "$copilot_target_dir" 2>/dev/null # Ensure dir exists
+  cp "$source_file" "$copilot_target" 2>/dev/null
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ Ensured/Updated $copilot_target${RESET}"
+    updated_targets=$((updated_targets + 1))
+  else
+    echo -e "${YELLOW}⚠️ Failed to update $copilot_target${RESET}"
+  fi
+
+  echo -e "${BRIGHT_GREEN}✅ prompt.md location management complete${RESET}"
+}
+
 # Main execution
 main() {
   # Check for command argument
@@ -745,11 +795,15 @@ main() {
   elif [ "$1" == "update_prd_mdc" ]; then
     # Update PRD.mdc in all ainish-* directories (standalone execution)
     update_prd_mdc
+  elif [ "$1" == "update_prompt_md" ]; then
+    # Update prompt.md in all ainish-* directories (standalone execution)
+    update_prompt_md
   elif [ "$1" == "update" ]; then
     # Run the full update process
     echo -e "${BRIGHT_CYAN}🔄 Running full AINISH-Coder update...${RESET}"
     update_critical_mdc # Ensure critical.mdc is up-to-date first
     update_prd_mdc # Ensure PRD.mdc is up-to-date
+    update_prompt_md # Ensure prompt.md derived files are up-to-date
     echo ""
     # Run essential setup steps again
     cleanup_old_files
@@ -792,6 +846,7 @@ main() {
     echo -e "${BRIGHT_CYAN}🔄 Updating configuration files in all directories...${RESET}"
     update_critical_mdc # Ensure critical.mdc is up-to-date 
     update_prd_mdc # Ensure PRD.mdc is up-to-date
+    update_prompt_md # Ensure prompt.md derived files are up-to-date
     echo ""
 
     echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
