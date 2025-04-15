@@ -240,3 +240,16 @@ Here are a few notable ones, presented in the same style as before:
     * Significant overlap with well-written User Stories and Acceptance Criteria in mature Agile teams.
 
 These documents aren't always mutually exclusive. An MRD might feed into a Lean PRD for an MVP, and specific complex features within that MVP might warrant a detailed FSD (or highly detailed User Stories/AC in Agile). The key is choosing the right tool(s) for the level of detail, clarity, and flexibility needed for your specific project context and development methodology.
+
+---
+
+## 7. Key Differences Summarized (MRD, Lean/MVP, FSD)
+
+| Feature         | Market Requirements Doc (MRD)      | Lean PRD / MVP Spec             | Functional Spec Doc (FSD)           |
+| :-------------- | :--------------------------------- | :------------------------------ | :---------------------------------- |
+| **Timing**      | Very Early (Pre-PRD/Backlog)       | Before MVP Development          | Pre/During Feature Development      |
+| **Purpose**     | Justify Market Need ("Why")        | Define Core MVP ("What First")  | Detail Feature Behavior ("How")     |
+| **Scope**       | Market Opportunity, High-Level Needs | Minimal Essential Features Only | Specific Feature(s) Functionality |
+| **Detail Level**| Strategic, Market-Focused        | High-Level Features, Metrics    | Exhaustive Functional Details       |
+| **Flexibility** | Moderate (Market Changes)          | High (Based on MVP Feedback)    | Lower (Defines Specific Behavior)   |
+| **Primary Focus**| Market, Business Justification   | Validation, Learning, Speed     | Implementation Clarity, Test Basis  |
