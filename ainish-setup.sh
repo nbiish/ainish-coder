@@ -17,6 +17,7 @@
 # - deploy_cursor_configs(): Deploys only Cursor specific configurations
 # - deploy_aider_configs(): Deploys only Aider specific configurations
 # - update_critical_mdc(): Updates critical.mdc in all ainish-* directories
+# - update_prd_mdc(): Updates PRD.mdc in all ainish-* directories
 # - main(): Main execution function that processes command arguments
 #
 # Usage Examples:
@@ -178,7 +179,7 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
   fi
   
-  # Deploy shared critical.mdc for other tools
+  # Deploy shared critical.mdc and PRD.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
@@ -186,6 +187,16 @@ deploy_ainish_configs() {
     if [ -d "$TARGET/.github" ]; then
       cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+    fi
+  fi
+  
+  if [ -f "${AINISH_CODER_DIR}/PRD.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed PRD.mdc to .cursor/rules/${RESET}"
+    
+    if [ -d "$TARGET/.github" ]; then
+      cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed PRD.mdc to .github/${RESET}"
     fi
   fi
   
@@ -450,10 +461,15 @@ deploy_vscode_configs() {
     fi
   fi
 
-  # Deploy shared critical.mdc
+  # Deploy shared critical.mdc and PRD.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+  fi
+
+  if [ -f "${AINISH_CODER_DIR}/PRD.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed PRD.mdc to .github/${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ VS Code configurations deployed to $TARGET${RESET}"
@@ -503,10 +519,15 @@ deploy_cursor_configs() {
     echo -e "${GREEN}✓ Deployed .cursor/rules/license.mdc${RESET}"
   fi
 
-  # Deploy shared critical.mdc
+  # Deploy shared critical.mdc and PRD.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
+  fi
+
+  if [ -f "${AINISH_CODER_DIR}/PRD.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed PRD.mdc to .cursor/rules/${RESET}"
   fi
 
   # Verify files were created
@@ -558,10 +579,15 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
   fi
 
-  # Deploy shared critical.mdc directly to target directory, not to .aider subfolder
+  # Deploy shared critical.mdc and PRD.mdc directly to target directory
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
+  fi
+
+  if [ -f "${AINISH_CODER_DIR}/PRD.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed PRD.mdc to $TARGET${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
@@ -631,6 +657,70 @@ update_critical_mdc() {
   echo -e "${BRIGHT_GREEN}✅ critical.mdc location management complete${RESET}"
 }
 
+# Function to manage PRD.mdc location during updates
+update_prd_mdc() {
+  echo -e "${BRIGHT_CYAN}🔄 Managing PRD.mdc locations...${RESET}"
+
+  # Check if root PRD.mdc exists
+  local source_file="${REPO_DIR}/PRD.mdc"
+  if [ ! -f "$source_file" ]; then
+    echo -e "${BRIGHT_YELLOW}⚠️ Warning: Source PRD.mdc not found: $source_file${RESET}"
+    return 1
+  fi
+
+  # --- Ensure PRD.mdc is PRESENT in required locations ---
+  local updated_targets=0
+  local required_present=(
+    "${REPO_DIR}/ainish-aider/PRD.mdc"
+    "${REPO_DIR}/ainish-copilot/.github/PRD.mdc"
+    "${REPO_DIR}/ainish-cursor/.cursor/rules/PRD.mdc"
+  )
+  for target_path in "${required_present[@]}"; do
+    local target_dir=$(dirname "$target_path")
+    # Ensure parent directory exists
+    if [ ! -d "$target_dir" ]; then
+       mkdir -p "$target_dir" 2>/dev/null
+       if [ $? -ne 0 ]; then
+          echo -e "${YELLOW}⚠️ Failed to create directory $target_dir${RESET}"
+          continue # Skip if cannot create dir
+       fi
+    fi
+    # Copy the file
+    cp "$source_file" "$target_path" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}✓ Ensured/Updated $target_path${RESET}"
+      updated_targets=$((updated_targets + 1))
+    else
+      echo -e "${YELLOW}⚠️ Failed to update $target_path${RESET}"
+    fi
+  done
+
+  # --- Ensure PRD.mdc is ABSENT from specific roots ---
+  local removed_targets=0
+  local required_absent=(
+    "${REPO_DIR}/ainish-cursor/PRD.mdc"
+    "${REPO_DIR}/ainish-copilot/PRD.mdc"
+  )
+  for target_file in "${required_absent[@]}"; do
+    if [ -f "$target_file" ]; then
+      rm -f "$target_file" 2>/dev/null
+      if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Removed $target_file${RESET}"
+        removed_targets=$((removed_targets + 1))
+      else
+        echo -e "${YELLOW}⚠️ Failed to remove $target_file${RESET}"
+      fi
+    fi
+  done
+  if [ $removed_targets -gt 0 ]; then
+     echo -e "${BLUE}✓ Ensured PRD.mdc is removed from specific ainish-* roots.${RESET}"
+  else
+     echo -e "${BLUE}✓ PRD.mdc already absent from specific ainish-* roots.${RESET}"
+  fi
+
+  echo -e "${BRIGHT_GREEN}✅ PRD.mdc location management complete${RESET}"
+}
+
 # Main execution
 main() {
   # Check for command argument
@@ -649,10 +739,14 @@ main() {
   elif [ "$1" == "update_critical_mdc" ]; then
     # Update critical.mdc in all ainish-* directories (standalone execution)
     update_critical_mdc
+  elif [ "$1" == "update_prd_mdc" ]; then
+    # Update PRD.mdc in all ainish-* directories (standalone execution)
+    update_prd_mdc
   elif [ "$1" == "update" ]; then
     # Run the full update process
     echo -e "${BRIGHT_CYAN}🔄 Running full AINISH-Coder update...${RESET}"
     update_critical_mdc # Ensure critical.mdc is up-to-date first
+    update_prd_mdc # Ensure PRD.mdc is up-to-date
     echo ""
     # Run essential setup steps again
     cleanup_old_files
