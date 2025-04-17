@@ -274,6 +274,12 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
   fi
   
+  if [ -f "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" ]; then
+    cp "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" "$TARGET/" 2>/dev/null
+    chmod +x "$TARGET/aider-cli-commands.sh" 2>/dev/null # Ensure executable
+    echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
+  fi
+  
   # Deploy shared critical.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
@@ -622,6 +628,12 @@ deploy_aider_configs() {
   if [ -f "${AINISH_CODER_DIR}/aider/.env.example" ]; then
     cp "${AINISH_CODER_DIR}/aider/.env.example" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .env.example${RESET}"
+  fi
+
+  if [ -f "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" ]; then
+    cp "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" "$TARGET/" 2>/dev/null
+    chmod +x "$TARGET/aider-cli-commands.sh" 2>/dev/null # Ensure executable
+    echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
   fi
 
   # Deploy shared critical.mdc and PRD.mdc directly to target directory
