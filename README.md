@@ -8,14 +8,12 @@
   
   <h3>Support This Project</h3>
   <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
-    <div>
-      <h4>Stripe</h4>
-      <img src="qr-stripe-donation.png" alt="Scan to donate" width="180"/>
-      <p><a href="https://donate.stripe.com/3cs29La1j8UGfnObII">Donate via Stripe</a></p>
-    </div>
-    <div style="display: flex; align-items: center;">
-      <a href="https://www.buymeacoffee.com/nbiish"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
-    </div>
+    <a href="https://donate.stripe.com/3cs29La1j8UGfnObII">
+      <img src="qr-stripe-donation.png" alt="Donate via Stripe" width="180"/>
+    </a>
+    <a href="https://www.buymeacoffee.com/nbiish">
+      <img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" />
+    </a>
   </div>
   
   <hr width="50%">
@@ -84,17 +82,13 @@ The script also provides the `ainish-update` command which:
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📝 License 
+## 📝 License and Copyright
 
-Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. All rights reserved.
+Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
 
-COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS
+This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS. See the [LICENSE](LICENSE) file for complete details.
 
-This software is created by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band. This license is grounded in the inherent sovereignty of Indigenous peoples to protect, control, and govern the use of their intellectual and cultural property.
-
-See the [LICENSE](LICENSE) file for complete details.
-
-## 📚 Citation (BibTeX Format) 
+## 📚 Citation
 
 ```bibtex
 @misc{ainish-coder2025,
