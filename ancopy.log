@@ -1,0 +1,23 @@
+2025-04-17 11:51:02 - Starting interactive file copy operations
+2025-04-17 11:51:02 - Checking source files in root directory...
+2025-04-17 11:51:02 - Processing critical.mdc distribution...
+Copy critical.mdc to ainish-aider/critical.mdc? (y/n): Create backup of ainish-aider/critical.mdc? (y/n): 2025-04-17 11:51:14 - Created backup: ainish-aider/critical.mdc.bak
+2025-04-17 11:51:14 - Successfully copied critical.mdc to ainish-aider/critical.mdc
+Copy critical.mdc to ainish-copilot/.github/critical.mdc? (y/n): Create backup of ainish-copilot/.github/critical.mdc? (y/n): 2025-04-17 11:53:04 - Starting file copy operations
+Perform all file copy operations? (y/n): 2025-04-17 11:53:07 - File copy operations enabled
+Create backups before overwriting files? (y/n): 2025-04-17 11:53:10 - Backup creation disabled
+2025-04-17 11:53:10 - Checking source files in root directory...
+2025-04-17 11:53:10 - Processing critical.mdc distribution...
+2025-04-17 11:53:10 - Successfully copied critical.mdc to ainish-aider/critical.mdc
+2025-04-17 11:53:10 - Successfully copied critical.mdc to ainish-copilot/.github/critical.mdc
+2025-04-17 11:53:10 - Successfully copied critical.mdc to ainish-cursor/.cursor/rules/critical.mdc
+2025-04-17 11:53:10 - Successfully copied critical.mdc to .cursor/rules/critical.mdc
+2025-04-17 11:53:10 - Processing PRD.mdc distribution...
+2025-04-17 11:53:10 - Successfully copied PRD.mdc to ainish-aider/PRD.mdc
+2025-04-17 11:53:10 - Successfully copied PRD.mdc to ainish-copilot/.github/PRD.mdc
+2025-04-17 11:53:10 - Successfully copied PRD.mdc to ainish-cursor/.cursor/rules/PRD.mdc
+2025-04-17 11:53:10 - Successfully copied PRD.mdc to .cursor/rules/PRD.mdc
+2025-04-17 11:53:10 - Processing prompt.md distribution...
+2025-04-17 11:53:10 - Successfully copied prompt.md to ainish-copilot/.github/copilot-instructions.md
+2025-04-17 11:53:10 - Successfully copied prompt.md to ainish-aider/.aider-instructions.md
+2025-04-17 11:53:10 - All copy operations completed successfully

@@ -819,8 +819,15 @@ main() {
     echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
 
-    # Regular setup
+    # Regular setup with automatic update
     echo -e "${BRIGHT_CYAN}🔧 [INIT] Setting up AINISH-Coder tooling configurations...${RESET}"
+    echo ""
+    
+    # Automatically run update process first (same as update command)
+    echo -e "${BRIGHT_CYAN}🔄 Automatically running update process...${RESET}"
+    update_critical_mdc # Ensure critical.mdc is up-to-date first
+    update_prd_mdc # Ensure PRD.mdc is up-to-date
+    update_prompt_md # Ensure prompt.md derived files are up-to-date
     echo ""
 
     # Clean up old files
@@ -842,13 +849,6 @@ main() {
     # Set up wrapper functions
     setup_wrapper_functions
     
-    # Update critical.mdc and PRD.mdc in all ainish-* directories
-    echo -e "${BRIGHT_CYAN}🔄 Updating configuration files in all directories...${RESET}"
-    update_critical_mdc # Ensure critical.mdc is up-to-date 
-    update_prd_mdc # Ensure PRD.mdc is up-to-date
-    update_prompt_md # Ensure prompt.md derived files are up-to-date
-    echo ""
-
     echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
     echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_GREEN}A I N I S H - C O D E R${RESET}            ${BRIGHT_MAGENTA}║${RESET}"
     echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
