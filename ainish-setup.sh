@@ -137,6 +137,32 @@ cleanup_old_files() {
   echo -e "${BRIGHT_GREEN}✅ Cleanup complete${RESET}"
 }
 
+# Helper function to prompt for ignore files
+prompt_for_ignore_files() {
+  local TARGET="$1"
+  local TOOL="$2"
+  local FILE="$3"
+  local DESC="$4"
+  local RESPONSE=""
+
+  # Skip if file already exists in target
+  if [ -f "$TARGET/$FILE" ]; then
+    echo -e "${BLUE}✓ $FILE already exists in target directory, skipping${RESET}"
+    return 1
+  fi
+
+  echo -e "${BRIGHT_CYAN}Would you like to include $FILE for $TOOL?${RESET}"
+  echo -e "${CYAN}$DESC${RESET}"
+  echo -e "${BRIGHT_CYAN}[Y/n]:${RESET} "
+  read -r RESPONSE
+
+  # Default to yes if empty response
+  if [[ -z "$RESPONSE" ]] || [[ "$RESPONSE" =~ ^[Yy] ]]; then
+    return 0
+  fi
+  return 1
+}
+
 # Main deployment function
 deploy_ainish_configs() {
   local TARGET="$1"
@@ -154,22 +180,26 @@ deploy_ainish_configs() {
   mkdir -p "$TARGET/.github" 2>/dev/null
   
   # Deploy Cursor configurations
-  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
-    cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
-  else
-    # Create empty .cursorignore if it doesn't exist
-    touch "$TARGET/.cursorignore" 2>/dev/null
-    echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorignore" "Controls which files Cursor AI will ignore during code generation and analysis."; then
+    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
+      cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+    else
+      # Create empty .cursorignore if it doesn't exist
+      touch "$TARGET/.cursorignore" 2>/dev/null
+      echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
+    fi
   fi
   
-  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
-    cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
-  else
-    # Create empty .cursorindexingignore if it doesn't exist
-    touch "$TARGET/.cursorindexingignore" 2>/dev/null
-    echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorindexingignore" "Controls which files Cursor will skip during indexing (improves performance)."; then
+    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
+      cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
+    else
+      # Create empty .cursorindexingignore if it doesn't exist
+      touch "$TARGET/.cursorindexingignore" 2>/dev/null
+      echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
+    fi
   fi
   
   if [ -d "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
@@ -177,7 +207,6 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed .cursorrules/${RESET}"
   fi
   
-  # Handle license files - ainish-cursor uses its own, others use the root version
   if [ -f "${AINISH_CODER_DIR}/cursor/my-license.mdc" ]; then
     cp "${AINISH_CODER_DIR}/cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
     echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
@@ -205,17 +234,19 @@ deploy_ainish_configs() {
   fi
   
   # Deploy Copilot configurations
-  if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
-    cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Copilot" ".copilotignore" "Controls which files GitHub Copilot will ignore during code suggestions."; then
+    if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+    fi
   fi
   
-  # Only copy .rooignore if it doesn't already exist in the target directory
-  if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ] && [ ! -f "$TARGET/.rooignore" ]; then
-    cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
-  elif [ -f "$TARGET/.rooignore" ]; then
-    echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
+  # Only copy .rooignore if user wants it
+  if prompt_for_ignore_files "$TARGET" "Copilot" ".rooignore" "Controls which files are excluded from Copilot's context window."; then
+    if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
+    fi
   fi
   
   # Deploy custom copilot instructions from ainish-copilot
@@ -226,19 +257,16 @@ deploy_ainish_configs() {
   fi
 
   # Deploy Aider configurations
-  if [ -f "${AINISH_CODER_DIR}/aider/.aider-instructions.md" ]; then
-    cp "${AINISH_CODER_DIR}/aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .aider-instructions.md${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Aider" ".aiderignore" "Controls which files Aider will ignore during code generation and edits."; then
+    if [ -f "${AINISH_CODER_DIR}/aider/.aiderignore" ]; then
+      cp "${AINISH_CODER_DIR}/aider/.aiderignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
+    fi
   fi
   
   if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
     cp "${AINISH_CODER_DIR}/aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
-  fi
-  
-  if [ -f "${AINISH_CODER_DIR}/aider/.aiderignore" ]; then
-    cp "${AINISH_CODER_DIR}/aider/.aiderignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
   fi
   
   if [ -f "${AINISH_CODER_DIR}/aider/.env.example" ]; then
@@ -429,17 +457,19 @@ deploy_vscode_configs() {
   mkdir -p "$TARGET/.github" 2>/dev/null
   
   # Deploy VS Code-specific configurations
-  if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
-    cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Copilot" ".copilotignore" "Controls which files GitHub Copilot will ignore during code suggestions."; then
+    if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+    fi
   fi
 
-  # Only copy .rooignore if it doesn't already exist in the target directory
-  if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ] && [ ! -f "$TARGET/.rooignore" ]; then
-    cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
-  elif [ -f "$TARGET/.rooignore" ]; then
-    echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
+  # Only copy .rooignore if user wants it
+  if prompt_for_ignore_files "$TARGET" "Copilot" ".rooignore" "Controls which files are excluded from Copilot's context window."; then
+    if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
+    fi
   fi
 
   # Deploy custom copilot instructions from ainish-copilot
@@ -493,22 +523,26 @@ deploy_cursor_configs() {
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
   
   # Deploy Cursor-specific configurations
-  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
-    cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
-  else
-    # Create empty .cursorignore if it doesn't exist
-    touch "$TARGET/.cursorignore" 2>/dev/null
-    echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorignore" "Controls which files Cursor AI will ignore during code generation and analysis."; then
+    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
+      cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+    else
+      # Create empty .cursorignore if it doesn't exist
+      touch "$TARGET/.cursorignore" 2>/dev/null
+      echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
+    fi
   fi
   
-  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
-    cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
-  else
-    # Create empty .cursorindexingignore if it doesn't exist
-    touch "$TARGET/.cursorindexingignore" 2>/dev/null
-    echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
+  if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorindexingignore" "Controls which files Cursor will skip during indexing (improves performance)."; then
+    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
+      cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
+    else
+      # Create empty .cursorindexingignore if it doesn't exist
+      touch "$TARGET/.cursorindexingignore" 2>/dev/null
+      echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
+    fi
   fi
   
   if [ -d "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
