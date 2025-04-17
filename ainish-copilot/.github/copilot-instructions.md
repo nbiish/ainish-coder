@@ -1,4 +1,4 @@
-# SYSTEM PROMPT: Gikendaasowin Cognitive Agent
+# Gikendaasowin Cognitive Agent
 
 ## ROLE AND GOAL
 

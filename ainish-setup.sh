@@ -218,22 +218,13 @@ deploy_ainish_configs() {
     echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
   fi
   
-  # Copy copilot-instructions.md from the root prompt.md
-  local prompt_source="${REPO_DIR}/prompt.md"
-  local copilot_target_dir="$TARGET/.github"
-  local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
-  if [ -f "$prompt_source" ]; then
-    mkdir -p "$copilot_target_dir" 2>/dev/null
-    cp "$prompt_source" "$copilot_target_file" 2>/dev/null
-    if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Deployed $copilot_target_file (from root prompt.md)${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: Failed to deploy $copilot_target_file${RESET}"
-    fi
-  else
-    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
+  # Deploy custom copilot instructions from ainish-copilot
+  if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
+    mkdir -p "$TARGET/.github" 2>/dev/null
+    cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
   fi
-  
+
   # Deploy Aider configurations
   if [ -f "${AINISH_CODER_DIR}/aider/.aider-instructions.md" ]; then
     cp "${AINISH_CODER_DIR}/aider/.aider-instructions.md" "$TARGET/" 2>/dev/null
@@ -451,20 +442,25 @@ deploy_vscode_configs() {
     echo -e "${BLUE}✓ .rooignore already exists, skipping${RESET}"
   fi
 
-  # Copy copilot-instructions.md from the root prompt.md
-  local prompt_source="${REPO_DIR}/prompt.md"
-  local copilot_target_dir="$TARGET/.github"
-  local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
-  if [ -f "$prompt_source" ]; then
-    mkdir -p "$copilot_target_dir" 2>/dev/null
-    cp "$prompt_source" "$copilot_target_file" 2>/dev/null
-    if [ $? -eq 0 ]; then
+  # Deploy custom copilot instructions from ainish-copilot
+  if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
+    mkdir -p "$TARGET/.github" 2>/dev/null
+    cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
+  fi
+
+  # Fallback: copy copilot-instructions.md from root prompt.md if no custom file
+  if [ ! -f "$TARGET/.github/copilot-instructions.md" ]; then
+    local prompt_source="${REPO_DIR}/prompt.md"
+    local copilot_target_dir="$TARGET/.github"
+    local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
+    if [ -f "$prompt_source" ]; then
+      mkdir -p "$copilot_target_dir" 2>/dev/null
+      cp "$prompt_source" "$copilot_target_file" 2>/dev/null
       echo -e "${GREEN}✓ Deployed $copilot_target_file (from root prompt.md)${RESET}"
     else
-      echo -e "${YELLOW}⚠️ Warning: Failed to deploy $copilot_target_file${RESET}"
+      echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
     fi
-  else
-    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
   fi
 
   # Deploy shared critical.mdc and PRD.mdc
