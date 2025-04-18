@@ -5,9 +5,18 @@
 # Asks once for all copy operations and once for all backup operations
 
 # Set up logging
-LOG_FILE="ancopy.log"
+LOG_FILE="copy.log"
 exec 1> >(tee -a "$LOG_FILE")
 exec 2> >(tee -a "$LOG_FILE" >&2)
+
+# ANSI color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
 # Global confirmation flags
 PERFORM_COPIES=false
@@ -23,9 +32,19 @@ log() {
     echo "$(timestamp) - $1"
 }
 
+# Colored log function (uses timestamp and %b for ANSI escapes)
+colored_log() {
+    local color="$1"; shift
+    local ts=$(timestamp)
+    # Print colored message
+    printf "%s - %b%s%b\n" "$ts" "$color" "$*" "$NC"
+    # Also write plain message to log file
+    log "$*"
+}
+
 # Error handling function
 handle_error() {
-    log "ERROR: $1"
+    colored_log "$RED" "ERROR: $1"
     exit 1
 }
 
@@ -81,7 +100,16 @@ copy_file() {
     
     # Perform copy
     cp "$src" "$dst" || handle_error "Failed to copy $src to $dst"
-    log "Successfully copied $src to $dst"
+    # Color based on source file name
+    local bn=$(basename "$src")
+    case "$bn" in
+        critical.mdc) color="$RED" ;; 
+        PRD.mdc)       color="$GREEN" ;; 
+        prompt.md)     color="$YELLOW" ;; 
+        copy-rules.mdc) color="$BLUE" ;; 
+        *)             color="$NC" ;; 
+    esac
+    colored_log "$color" "Successfully copied $src to $dst"
 }
 
 log "Starting file copy operations"
@@ -152,6 +180,34 @@ if [ -f "prompt.md" ]; then
     copy_file "prompt.md" "ainish-aider/.aider-instructions.md"
 else
     log "prompt.md not found in root directory"
+fi
+
+# Ensure copy-rules.mdc exists in root directory if missing
+if [ ! -f "copy-rules.mdc" ] && $PERFORM_COPIES; then
+    log "copy-rules.mdc not found in root directory"
+    if [ -f ".cursor/rules/copy-rules.mdc" ]; then
+        cp ".cursor/rules/copy-rules.mdc" "copy-rules.mdc" || handle_error "Failed to copy copy-rules.mdc to root"
+        log "Successfully copied copy-rules.mdc from .cursor/rules/ to root directory"
+    elif [ -f "ainish-cursor/.cursor/rules/copy-rules.mdc" ]; then
+        cp "ainish-cursor/.cursor/rules/copy-rules.mdc" "copy-rules.mdc" || handle_error "Failed to copy copy-rules.mdc to root"
+        log "Successfully copied copy-rules.mdc from ainish-cursor/.cursor/rules/ to root directory"
+    elif [ -f "ainish-aider/copy-rules.mdc" ]; then
+        cp "ainish-aider/copy-rules.mdc" "copy-rules.mdc" || handle_error "Failed to copy copy-rules.mdc to root"
+        log "Successfully copied copy-rules.mdc from ainish-aider/ to root directory"
+    else
+        log "Could not find copy-rules.mdc in any location to copy to root"
+    fi
+fi
+
+# Copy copy-rules.mdc from root to destinations
+log "Processing copy-rules.mdc distribution..."
+if [ -f "copy-rules.mdc" ]; then
+    copy_file "copy-rules.mdc" "ainish-aider/copy-rules.mdc"
+    copy_file "copy-rules.mdc" "ainish-copilot/.github/copy-rules.mdc"
+    copy_file "copy-rules.mdc" "ainish-cursor/.cursor/rules/copy-rules.mdc"
+    copy_file "copy-rules.mdc" ".cursor/rules/copy-rules.mdc"
+else
+    log "copy-rules.mdc not found in root directory"
 fi
 
 if $PERFORM_COPIES; then

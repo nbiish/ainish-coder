@@ -3,7 +3,134 @@ description:
 globs: 
 alwaysApply: false
 ---
-## 1. Agile Requirements Management: The Evolving Conversation
+# LLM-Optimized Agile MVP PRD
+
+## Purpose
+* Provide a lean, standardized PRD template for LLM-driven requirement definition and iteration.
+
+## Vision & Goals
+* **Vision:** [Aspirational product outcome]
+* **Primary Goal:** [Key user problem to solve & desired outcome]
+
+## Core MVP Definition
+* **Definition:** Minimal feature set to solve the core problem for early adopters and enable validated learning.
+* **Scope:**
+  * **Must have:** [List essential features]
+  * **Out of scope:** [Explicitly excluded features]
+
+## Guiding Principles
+* Build–Measure–Learn feedback loop
+* Problem-focused & user-centric
+* Minimalism: include only essentials
+* Viability: ensure functional value
+
+## Success Metrics
+* **Quantitative:** e.g., activation rate, task completion
+* **Qualitative:** e.g., user satisfaction, feedback themes
+
+## Feedback & Iteration
+* Collect feedback via surveys, interviews, analytics.
+* Plan and prioritize next iterations based on insights.
+
+## Terminology
+* **MVP:** Minimum Viable Product
+* **MLP:** Minimum Lovable Product
+* **MMP:** Minimum Marketable Product
+
+## Prompt Engineering Guide
+* Reference sections by header (e.g., "## Success Metrics") to scope LLM responses.
+* Example prompt: "Based on the Vision & Goals, suggest three Must-have features."
+
+## Document Types Overview
+
+### Agile Requirements Management
+* **Definition:** Iterative, just-in-time requirements captured via Product Backlog, User Stories, Sprints.
+* **Characteristics:** Dynamic, collaborative, user-centric; heavy on feedback loops.
+* **Use when:** Projects require flexibility and rapid adaptation.
+
+### Waterfall PRD
+* **Definition:** Comprehensive upfront specification covering functional & non-functional requirements.
+* **Characteristics:** Formal, detailed, static; includes wireframes, release criteria.
+* **Use when:** Scope is well-known, regulatory constraints, high predictability needed.
+
+### MRD → PRD Combined
+* **Definition:** Starts with a Market Requirements Document (market analysis, personas, competitive landscape), then detailed PRD.
+* **Characteristics:** Maximal formality; sequential strategy → tactical specs.
+* **Use when:** Large-scale, high-investment initiatives requiring strategic justification.
+
+### Functional Specification Document (FSD)
+* **Definition:** Detailed feature-level behavior and UI/UX flow specifications.
+* **Characteristics:** Focused on how features work; guides developers & QA.
+* **Use when:** Complex features need explicit behavior definitions.
+
+### Comparison Matrix
+| Type         | Minimalism     | Formality     | Focus                  | Timing                   | Ideal for                         |
+|--------------|----------------|---------------|------------------------|---------------------------|-----------------------------------|
+| Agile        | Low            | Low           | Iteration, feedback    | Continuous, sprint-based | Dynamic, uncertain environments   |
+| MVP Spec     | High           | Moderate      | Hypothesis testing     | Initial release phase     | Early-stage learning & validation |
+| Waterfall    | Low            | High          | Full scope upfront     | Pre-development          | Regulated, predictable contexts   |
+| MRD→PRD      | Lowest         | Highest       | Market & strategic case| Pre-development          | Enterprise, high-investment       |
+| FSD          | N/A            | Medium        | Feature behavior       | Post-PRD                 | Complex feature implementation    |
+
+## Prompting Tips
+* **Target headers:** Scope LLM queries by section (e.g., "## Success Metrics").
+* **Comparison prompts:** "Compare Agile vs Waterfall based on Formality and Timing."
+* **Feature generation:** "Suggest 3 Must-have features under Core MVP Definition."
+* **Refinement prompts:** "Based on feedback data, propose next iteration goals."
+
+## Agile MVP Framework for Project Goal Setting
+
+This framework synthesizes Agile principles and the Minimum Viable Product (MVP) concept for defining focused, iterative project goals. It prioritizes validated learning, speed, and core value delivery.
+
+**1. Core Concept: The Agile MVP**
+
+*   **Definition:** An MVP is the version of a new product with the *minimum set of core features* necessary to:
+    *   Solve a specific, primary problem for target users (early adopters).
+    *   Deliver tangible value.
+    *   Allow the team to collect the maximum amount of validated learning about customers with the least effort.
+*   **Agile Context:** Within Agile (like Scrum or Kanban), the MVP is not a one-off spec but an *iterative goal*. It's built incrementally through cycles (sprints), leveraging feedback to refine direction. It contrasts sharply with comprehensive upfront specs (like Waterfall PRDs).
+*   **Philosophy:** Focus on the **Build-Measure-Learn** feedback loop. Launch quickly to test assumptions, gather real-world data, and adapt based on evidence, minimizing wasted resources on unproven ideas.
+
+**2. Guiding Principles for MVP Goal Definition**
+
+*   **Problem-Focused:** Clearly articulate the *core user problem* the MVP aims to solve.
+*   **User-Centric:** Define the *specific target audience* (early adopters) whose feedback is most critical.
+*   **Value-Driven:** Identify the *single most important value proposition* or benefit the MVP must deliver.
+*   **Minimalism ("Minimum"):** Ruthlessly prioritize. Include *only* essential features required to test the core hypothesis and deliver core value. Actively defer or exclude non-essential features.
+*   **Viability ("Viable"):** Ensure the minimal feature set *actually solves* the core problem adequately for early adopters to derive value and provide meaningful feedback. It must function and be usable.
+
+**3. Actionable Process for Defining the MVP Goal**
+
+Use these steps to structure the definition of an MVP project goal:
+
+*   **(A) Define Problem & Target Audience:**
+    *   *Goal:* What specific user pain point are we addressing?
+    *   *Goal:* Who are the specific early adopters we need to learn from?
+*   **(B) Identify Core Value & Essential Features:**
+    *   *Goal:* What is the primary value/solution the MVP must provide?
+    *   *Goal:* What are the absolute bare-minimum features required to deliver this value and test our core assumptions? (List them explicitly).
+    *   *Goal:* What features are explicitly *out of scope* for this MVP iteration?
+*   **(C) Prioritize & Scope:**
+    *   *Goal:* Confirm these features represent the *smallest possible* increment to start the learning loop. Use methods like MoSCoW (Must have, Should have, Could have, Won't have) to enforce focus on "Must haves".
+*   **(D) Define Success Metrics (Learning Goals):**
+    *   *Goal:* How will we measure if the MVP is validating our core assumptions? What key metrics (e.g., user engagement with core feature, task completion rate, qualitative feedback themes) define success *for this learning iteration*?
+*   **(E) Plan for Feedback & Iteration:**
+    *   *Goal:* Outline the mechanism for collecting user feedback (e.g., surveys, interviews, analytics).
+    *   *Goal:* Acknowledge that the MVP is the *start* of an iterative process, guided by the feedback received.
+
+**4. Beyond the MVP: Related Concepts**
+
+While defining the initial MVP, consider these related concepts for future iterations or refined goals:
+
+*   **Minimum Lovable Product (MLP):** Focuses beyond viability on delivering a superior user *experience* for the core features, aiming for user delight even in the minimal version. Priority is high value and customer love. [Source: Atlassian]
+*   **Minimum Marketable Product (MMP):** Represents the simplest version that meets market expectations sufficiently to be *sold or broadly released* to early adopters. It implies a higher bar of polish and feature completeness than a purely learning-focused MVP, often evolving from an MVP/MLP based on validated learning. [Source: Atlassian]
+
+**5. Key Considerations**
+
+*   **Benefits:** Faster time-to-market (for learning), reduced development waste, early risk mitigation, validated learning, customer-centric development. [Source: Miro]
+*   **Challenges:** Resisting feature creep ("scope creep"), effectively gathering and acting on user feedback, managing stakeholder expectations (MVP is not the final product). [Source: Miro]
+
+## 2. Agile Requirements Management: The Evolving Conversation
 
 Agile methodologies (like Scrum or Kanban) embrace change and iterative development. There isn't typically a single, massive, upfront PRD in the Waterfall sense. Instead, requirements are captured and refined dynamically using various artifacts.
 
@@ -48,51 +175,6 @@ Agile methodologies (like Scrum or Kanban) embrace change and iterative developm
     * Requires strong product ownership, team discipline, and continuous communication to avoid chaos or scope creep.
     * Can be harder for external stakeholders (less involved day-to-day) to grasp the full picture at any given moment.
     * Potential for documentation to become fragmented if not managed well (e.g., relying too much on tacit knowledge).
-
----
-
-## 2. Lean PRD / Minimum Viable Product (MVP) Specification
-
-* **Core Philosophy:** Define only the *essential core features* necessary to launch a usable product (the MVP) that delivers value to early adopters and allows the team to test key hypotheses and gather feedback. Focus on maximizing learning with minimal effort.
-* **Timing:** Created before the development of an MVP or initial product version. Can be an iterative document itself as the MVP evolves.
-* **Purpose:**
-    * To clearly define the limited scope of the MVP.
-    * To prioritize features ruthlessly based on core value and learning objectives.
-    * To enable faster time-to-market for the initial version.
-    * To provide a focused guide for the development team building the MVP.
-    * To articulate the key assumptions being tested by the MVP release.
-* **Key Characteristics:**
-    * **Minimalist:** Contains only the necessary requirements for the MVP.
-    * **Focused:** Centers on the core value proposition and user problem.
-    * **Action-Oriented:** Geared towards building, launching, and learning quickly.
-    * **Flexible:** Expected to evolve based on feedback post-launch.
-    * **Hypothesis-Driven:** Often explicitly states the assumptions the MVP aims to validate.
-* **Typical Structure & Contents:**
-    * **Product Vision/Goal (for MVP):** What specific goal does this MVP aim to achieve?
-    * **Problem Statement:** The core user problem the MVP addresses.
-    * **Target Users (Early Adopters):** Specific user segment targeted by the MVP.
-    * **Key Features/User Stories (MVP Scope):** Prioritized list of essential features/stories ONLY for the MVP. Explicitly lists what's *out* of scope.
-    * **Key Metrics/Success Criteria:** How will the success/failure of the MVP hypotheses be measured? (e.g., user sign-ups, completion rates of a core task, feedback scores).
-    * **Riskiest Assumptions:** What core assumptions about users/market/technology is this MVP testing?
-    * **(Optional) Core User Flow/Wireframes:** Simplified design sketches for the essential MVP workflow.
-
-* **Minimalism:** Creates a specific, focused document, but only for the bare essentials needed for an initial launch (MVP). It deliberately limits scope to maximize learning and speed. More formal than pure Agile backlog grooming for the initial idea, but far less comprehensive than a full PRD.
-* **Formality:** Moderate formality for the MVP scope definition, but emphasizes lean principles (avoiding waste).
-* **Focus:** Validating core hypotheses quickly, speed-to-market for first version, minimizing initial development waste.
-
-* **Pros:**
-    * Significantly speeds up time-to-market for the first version.
-    * Reduces initial development cost and risk.
-    * Focuses effort on validating the core product idea.
-    * Maximizes learning from real user feedback early on.
-    * Minimizes wasted development effort on features users don't want.
-* **Cons:**
-    * Initial product may feel very basic or incomplete to some stakeholders or users.
-    * Requires strong discipline to resist scope creep ("just one more feature...").
-    * Defining "minimum" and "viable" correctly can be challenging.
-    * May require significant follow-on investment to build a fully-featured product.
-
----
 
 ## 3. Waterfall PRD: The Comprehensive Blueprint
 
@@ -146,8 +228,6 @@ In the traditional Waterfall model, development phases flow sequentially (Requir
     * Can stifle innovation and iterative improvement.
     * Often becomes outdated quickly but remains the "official" document.
 
----
-
 ## 4. MRD (Market Requirements Document) -> Waterfall PRD (Combined Process)
 
 * **Core Philosophy:** Define the *market opportunity* and high-level *customer needs* for a product or service before diving into specific product features. It answers the "Why" from a market perspective, and then proceeds to detailed product specifications.
@@ -194,8 +274,6 @@ In the traditional Waterfall model, development phases flow sequentially (Requir
     * Highest risk of documentation becoming disconnected from implementation reality.
     * Most resource-intensive approach.
 
----
-
 ## 5. Additional Document Types: Functional Specification Document (FSD / FRD)
 
 * **Core Philosophy:** Provide a detailed description of *how* a specific feature or the system as a whole will behave from a user's perspective. It translates the "what" (from PRD or user stories) into specific functional behavior without necessarily dictating the technical implementation.
@@ -232,21 +310,17 @@ In the traditional Waterfall model, development phases flow sequentially (Requir
     * Can quickly become outdated if not diligently updated alongside code changes.
     * Significant overlap with well-written User Stories and Acceptance Criteria in mature Agile teams.
 
----
-
 ## 6. Key Differences Summarized
 
-| Feature             | Agile Requirements | Lean PRD / MVP Spec | Waterfall PRD | MRD -> PRD Combined |
-| :------------------ | :----------------- | :------------------ | :------------ | :------------------ |
-| **Minimalism** | Most minimal; lightweight artifacts | Focused only on MVP essentials | Comprehensive product blueprint | Most extensive; market analysis + complete product specs |
-| **Formality** | Low; collaborative | Moderate for MVP scope | High; structured document | Highest; multiple formal documents |
-| **Focus** | Iteration, flexibility, responding to change | Validating hypotheses, speed to market | Defining full scope upfront, predictability | Rigorous justification, strategic alignment, detailed planning |
-| **Timing** | Continuous, Just-in-time | Before MVP development | Upfront, before development | Extended upfront phase (MRD then PRD) |
-| **Flexibility** | High; change expected | Moderate; MVP scope fixed but future flexible | Low; changes difficult/costly | Lowest; multiple layers of documentation to change |
-| **Documentation** | Product Backlog, User Stories | Focused MVP specification | Single, comprehensive PRD | MRD followed by detailed PRD |
-| **Best For** | Dynamic environments, innovative products | Startups, new products, uncertain markets | Stable requirements, regulated industries | Large enterprise, high-investment products |
-
----
+| Feature             | Lean PRD / MVP Spec | Agile Requirements | Waterfall PRD | MRD -> PRD Combined |
+| :------------------ | :------------------ | :----------------- | :------------ | :------------------ |
+| **Minimalism** | Focused only on MVP essentials | Most minimal; lightweight artifacts | Comprehensive product blueprint | Most extensive; market analysis + complete product specs |
+| **Formality** | Moderate for MVP scope | Low; collaborative | High; structured document | Highest; multiple formal documents |
+| **Focus** | Validating hypotheses, speed to market | Iteration, flexibility, responding to change | Defining full scope upfront, predictability | Rigorous justification, strategic alignment, detailed planning |
+| **Timing** | Before MVP development | Continuous, Just-in-time | Upfront, before development | Extended upfront phase (MRD then PRD) |
+| **Flexibility** | Moderate; MVP scope fixed but future flexible | High; change expected | Low; changes difficult/costly | Lowest; multiple layers of documentation to change |
+| **Documentation** | Focused MVP specification | Product Backlog, User Stories | Single, comprehensive PRD | MRD followed by detailed PRD |
+| **Best For** | Startups, new products, uncertain markets | Dynamic environments, innovative products | Stable requirements, regulated industries | Large enterprise, high-investment products |
 
 As a software engineering assistant, understanding these differences is crucial. When working on a project:
 
