@@ -55,6 +55,7 @@ After installation, you can periodically run `ainish-update` to ensure all confi
 
 ### ainish-cursor
 - `.cursor/`: Cursor IDE configuration directory
+- `.cursor/rules/gikendaasowin.md`: Cognitive Agent instructions for Cursor
 - `.cursorignore`: Rules for files to exclude from Cursor AI
 - `.cursorindexingignore`: Rules for files to exclude from indexing
 
