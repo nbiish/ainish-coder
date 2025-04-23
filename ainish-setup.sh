@@ -301,10 +301,6 @@ deploy_ainish_configs() {
     
     cp "${REPO_DIR}/prompt.md" "$TARGET/.aider-instructions.md" 2>/dev/null
     echo -e "${GREEN}✓ Deployed prompt.md as .aider-instructions.md${RESET}"
-    
-    mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
-    cp "${REPO_DIR}/prompt.md" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed prompt.md as gikendaasowin.md to .cursor/rules/${RESET}"
   fi
   
   # Update .gitignore
@@ -814,8 +810,6 @@ update_prompt_md() {
   local aider_target="${REPO_DIR}/ainish-aider/.aider-instructions.md"
   local copilot_target_dir="${REPO_DIR}/ainish-copilot/.github"
   local copilot_target="${copilot_target_dir}/copilot-instructions.md"
-  local cursor_target_dir="${REPO_DIR}/ainish-cursor/.cursor/rules"
-  local cursor_target="${cursor_target_dir}/gikendaasowin.md"
 
   # Copy to Aider target
   cp "$source_file" "$aider_target" 2>/dev/null
@@ -834,16 +828,6 @@ update_prompt_md() {
     updated_targets=$((updated_targets + 1))
   else
     echo -e "${YELLOW}⚠️ Failed to update $copilot_target${RESET}"
-  fi
-
-  # Copy to Cursor target as gikendaasowin.md
-  mkdir -p "$cursor_target_dir" 2>/dev/null # Ensure dir exists
-  cp "$source_file" "$cursor_target" 2>/dev/null
-  if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Ensured/Updated $cursor_target${RESET}"
-    updated_targets=$((updated_targets + 1))
-  else
-    echo -e "${YELLOW}⚠️ Failed to update $cursor_target${RESET}"
   fi
 
   echo -e "${BRIGHT_GREEN}✅ prompt.md location management complete${RESET}"

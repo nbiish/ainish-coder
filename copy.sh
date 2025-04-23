@@ -1,5 +1,30 @@
 #!/bin/bash
 
+# Purpose: Synchronizes key configuration files across different AINISH tool directories.
+#
+# Actions:
+# 1. Confirmation: Asks the user for confirmation ONCE for all copy operations and ONCE for all backup operations.
+# 2. File Handling:
+#    - Copies `critical.mdc` from the root to:
+#      - `ainish-aider/`
+#      - `ainish-copilot/.github/`
+#      - `ainish-cursor/.cursor/rules/`
+#      - `.cursor/rules/`
+#    - Copies `PRD.mdc` from the root to the same destinations as `critical.mdc`.
+#      - If `PRD.mdc` is missing in the root, attempts to copy it from `.cursor/rules/`, `ainish-cursor/.cursor/rules/`, or `ainish-aider/`.
+#    - Copies `prompt.md` from the root to:
+#      - `ainish-copilot/.github/copilot-instructions.md`
+#      - `ainish-aider/.aider-instructions.md`
+#      - `ainish-cursor/.cursor/rules/gikendaasowin.md`
+#    - Copies `copy-rules.mdc` from the root to the same destinations as `critical.mdc`.
+#      - If `copy-rules.mdc` is missing in the root, attempts to copy it from `.cursor/rules/`, `ainish-cursor/.cursor/rules/`, or `ainish-aider/`.
+# 3. Backup: If backup creation is confirmed, creates a `.bak` file for any destination file before overwriting it.
+# 4. Directory Creation: Automatically creates destination directories if they don't exist.
+# 5. Error Handling: Exits with an error message if source files are missing (unless recoverable) or copy operations fail.
+# 6. Output: Prints colored status messages for copy operations and backups.
+#
+# Note: Logging functionality has been commented out.
+
 # ancopy.sh - Automated file copy script for ainish project
 # Handles copying of critical.mdc, PRD.mdc, and prompt.md to specified locations
 # Asks once for all copy operations and once for all backup operations
