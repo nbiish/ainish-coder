@@ -229,40 +229,7 @@ else
     echo "prompt.md not found in root directory"
 fi
 
-# Ensure copy-rules.mdc exists in root directory if missing
-if [ ! -f "copy-rules.mdc" ] && $PERFORM_COPIES; then
-    # log "copy-rules.mdc not found in root directory"
-    echo "copy-rules.mdc not found in root directory"
-    if [ -f ".cursor/rules/copy-rules.mdc" ]; then
-        cp ".cursor/rules/copy-rules.mdc" "copy-rules.mdc" || handle_error "Failed to copy copy-rules.mdc to root"
-        # log "Successfully copied copy-rules.mdc from .cursor/rules/ to root directory"
-        echo "Successfully copied copy-rules.mdc from .cursor/rules/ to root directory"
-    elif [ -f "ainish-cursor/.cursor/rules/copy-rules.mdc" ]; then
-        cp "ainish-cursor/.cursor/rules/copy-rules.mdc" "copy-rules.mdc" || handle_error "Failed to copy copy-rules.mdc to root"
-        # log "Successfully copied copy-rules.mdc from ainish-cursor/.cursor/rules/ to root directory"
-        echo "Successfully copied copy-rules.mdc from ainish-cursor/.cursor/rules/ to root directory"
-    elif [ -f "ainish-aider/copy-rules.mdc" ]; then
-        cp "ainish-aider/copy-rules.mdc" "copy-rules.mdc" || handle_error "Failed to copy copy-rules.mdc to root"
-        # log "Successfully copied copy-rules.mdc from ainish-aider/ to root directory"
-        echo "Successfully copied copy-rules.mdc from ainish-aider/ to root directory"
-    else
-        # log "Could not find copy-rules.mdc in any location to copy to root"
-        echo "Could not find copy-rules.mdc in any location to copy to root"
-    fi
-fi
-
-# Copy copy-rules.mdc from root to destinations
-# log "Processing copy-rules.mdc distribution..."
-echo "Processing copy-rules.mdc distribution..."
-if [ -f "copy-rules.mdc" ]; then
-    copy_file "copy-rules.mdc" "ainish-aider/copy-rules.mdc"
-    copy_file "copy-rules.mdc" "ainish-copilot/.github/copy-rules.mdc"
-    copy_file "copy-rules.mdc" "ainish-cursor/.cursor/rules/copy-rules.mdc"
-    copy_file "copy-rules.mdc" ".cursor/rules/copy-rules.mdc"
-else
-    # log "copy-rules.mdc not found in root directory"
-    echo "copy-rules.mdc not found in root directory"
-fi
+# <<<<< REMOVED LOGIC CHECKING FOR/COPYING copy-rules.mdc >>>>>
 
 if $PERFORM_COPIES; then
     # log "All copy operations completed successfully"

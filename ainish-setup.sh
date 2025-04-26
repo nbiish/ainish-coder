@@ -496,6 +496,17 @@ deploy_vscode_configs() {
     echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
   fi
 
+  # Deploy shared critical.mdc and PRD.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+  fi
+
+  if [ -f "${AINISH_CODER_DIR}/PRD.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed PRD.mdc to .github/${RESET}"
+  fi
+
   # Fallback: copy copilot-instructions.md from root prompt.md if no custom file
   if [ ! -f "$TARGET/.github/copilot-instructions.md" ]; then
     local prompt_source="${REPO_DIR}/prompt.md"
@@ -509,18 +520,7 @@ deploy_vscode_configs() {
       echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
     fi
   fi
-
-  # Deploy shared critical.mdc and PRD.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
-  fi
-
-  if [ -f "${AINISH_CODER_DIR}/PRD.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed PRD.mdc to .github/${RESET}"
-  fi
-
+  
   echo -e "${BRIGHT_GREEN}✅ VS Code configurations deployed to $TARGET${RESET}"
 }
 

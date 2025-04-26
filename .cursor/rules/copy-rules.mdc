@@ -18,5 +18,6 @@ Copy @PRD.mdc to:
 Copy @prompt.md to:
 - @ainish-copilot/.github/copilot-instructions.md
 - @ainish-aider/.aider-instructions.md
+- @ainish-cursor/.cursor/rules/gikendaasowin.md
 
 make or update a copy script if there is not a proper one
