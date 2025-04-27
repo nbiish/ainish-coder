@@ -72,6 +72,12 @@ setup_ainish_coder_dir() {
   ln -sf "${REPO_DIR}/ainish-copilot" "${AINISH_CODER_DIR}/vscode" 2>/dev/null
   ln -sf "${REPO_DIR}/ainish-aider" "${AINISH_CODER_DIR}/aider" 2>/dev/null
   
+  # Symlink .cursorrules to ~/.ainish-coder/cursor/.cursorrules if it exists
+  if [ -f "${REPO_DIR}/.cursorrules" ]; then
+    ln -sf "${REPO_DIR}/.cursorrules" "${AINISH_CODER_DIR}/cursor/.cursorrules" 2>/dev/null
+    echo -e "${GREEN}✓ Symlinked .cursorrules to ~/.ainish-coder/cursor/.cursorrules${RESET}"
+  fi
+  
   # Create symlink for critical.mdc
   ln -sf "${REPO_DIR}/critical.mdc" "${AINISH_CODER_DIR}/critical.mdc" 2>/dev/null
 
