@@ -23,41 +23,52 @@
 
 ## 🌟 Features
 
-- **Unified Setup**: One script to configure all your AI coding assistants
+- **Unified Setup**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
+- **Initial File Sync**: Automatically runs `copy.sh` to distribute key files (`critical.mdc`, `PRD.mdc`, `prompt.md`) to appropriate tool directories, with confirmation prompts.
 - **Multiple AI Tool Support**: 
-  - `ainish-aider`: Configuration for the Aider AI pair programming assistant
-  - `ainish-cursor`: Cursor IDE specific configurations and ignore files
-  - `ainish-copilot`: GitHub Copilot and related tool configurations
-- **Automatic Configuration**: Gitignore rules and tool-specific ignore files included with each component
+  - `ainish-aider`: Configuration for the Aider AI pair programming assistant.
+  - `ainish-cursor`: Cursor IDE specific configurations and ignore files.
+  - `ainish-copilot`: GitHub Copilot and related tool configurations.
+- **Automatic Configuration**: Includes Gitignore rules and tool-specific ignore files.
+- **Wrapper Functions**: Sets up convenient shell commands (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) for easy tool usage.
 
-## 🚀 Installation
+## 🚀 Installation & Updating
 
 ```bash
-# Clone the repository
+# Clone the repository (if you haven't already)
 git clone https://github.com/nbiish/ainish-coder
 cd ainish-coder
 
 # Make the setup script executable
-chmod +x ainish-setup.sh
+chmod +x ainish-setup.sh copy.sh
 
 # Run the setup script
+# This performs the full setup/update process:
+# 1. Runs copy.sh to sync files (critical.mdc, PRD.mdc, prompt.md)
+# 2. Sets up ~/.ainish-coder with symlinks
+# 3. Installs/Updates wrapper functions in .zshrc
 ./ainish-setup.sh
 ```
 
-After installation, you can periodically run `ainish-update` to ensure all configurations, including critical.mdc files, are kept in sync across all ainish-* directories.
+After installation or update, you may need to run `source ~/.zshrc` (or your shell's equivalent) to activate the latest wrapper functions.
+
+To update later, simply pull the latest changes into the repository directory and re-run `./ainish-setup.sh`.
 
 ## 📦 Components
 
 ### ainish-aider
 - `.aider.conf.yml`: Core configuration file
-- `.aider-instructions.md`: Custom instructions for the Aider assistant
+- `.aider-instructions.md`: Custom instructions for the Aider assistant (from `prompt.md`)
 - `.aiderignore`: File patterns to exclude from Aider
 - `.env.example`: Environment variable template
-- `critical.mdc`: License citation file for Aider
+- `critical.mdc`: License citation file (from root `critical.mdc`)
+- `PRD.mdc`: Project requirements doc (from root `PRD.mdc`)
 
 ### ainish-cursor
 - `.cursor/`: Cursor IDE configuration directory
-- `.cursor/rules/gikendaasowin.md`: Cognitive Agent instructions for Cursor
+- `.cursor/rules/gikendaasowin.md`: Cognitive Agent instructions (from `prompt.md`, handled by `deploy_cursor_configs`)
+- `.cursor/rules/critical.mdc`: License citation file (from root `critical.mdc`)
+- `.cursor/rules/PRD.mdc`: Project requirements doc (from root `PRD.mdc`)
 - `.cursorignore`: Rules for files to exclude from Cursor AI
 - `.cursorindexingignore`: Rules for files to exclude from indexing
 
@@ -65,21 +76,23 @@ After installation, you can periodically run `ainish-update` to ensure all confi
 - `.copilotignore`: Rules for files to exclude from GitHub Copilot
 - `.rooignore`: Rules for the Roo extension
 - `.github/`: GitHub specific configurations
+- `.github/copilot-instructions.md`: Custom instructions (from `prompt.md`)
+- `.github/critical.mdc`: License citation file (from root `critical.mdc`)
+- `.github/PRD.mdc`: Project requirements doc (from root `PRD.mdc`)
 
 ## 🔧 How It Works
 
 The `ainish-setup.sh` script:
-1. Creates a `~/.ainish-coder` directory to store all configurations
-2. Creates symbolic links to the original repo directories
-3. Updates or creates `.gitignore` with AI-specific entries
-4. Adds wrapper functions to your shell configuration
-5. Verifies all components are properly installed
-6. Ensures critical.mdc is copied to all ainish-* directories during updates
+1. Executes `./copy.sh` to synchronize `critical.mdc`, `PRD.mdc`, and `prompt.md` from the root to their respective tool directories, asking for user confirmation first.
+2. Creates a `~/.ainish-coder` directory.
+3. Creates symbolic links from `~/.ainish-coder` to the tool configuration directories (`ainish-aider`, `ainish-cursor`, `ainish-copilot`) in the repository, ensuring changes in the repo are reflected immediately.
+4. Adds convenient wrapper functions (`ainish-cursor`, `ainish-aider`, etc.) to your shell configuration (`.zshrc`).
+5. Cleans up potentially conflicting older configuration files.
+6. Verifies tool paths.
 
-The script also provides the `ainish-update` command which:
-- Updates critical.mdc in all ainish-* directories automatically
-- Ensures license compliance and configuration consistency across all components
-- Re-runs the setup script to refresh all configurations
+The wrapper functions (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) ensure that the necessary configurations are deployed to the current working directory when you invoke the tool via the wrapper.
+
+Re-running `./ainish-setup.sh` refreshes the entire setup, including re-running `copy.sh` and updating the wrappers.
 
 ## 🤝 Contributing
 

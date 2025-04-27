@@ -437,21 +437,6 @@ function ainish-copilot {
   fi
 }
 
-# Function to update the AINISH-Coder installation from the repository
-function ainish-update {
-  echo "🔄 Updating AINISH-Coder from repository..."
-  # Try to load REPO_DIR from config if not set
-  if [ -z "$REPO_DIR" ] && [ -f "$AINISH_CODER_DIR/config.sh" ]; then
-    source "$AINISH_CODER_DIR/config.sh"
-  fi
-  # Run the update command from the setup script
-  if [ -d "$REPO_DIR" ]; then
-    "$REPO_DIR/ainish-setup.sh" update
-    echo "✅ AINISH-Coder updated successfully"
-  else
-    echo "❌ Repository directory not found. Please set REPO_DIR environment variable."
-  fi
-}
 ### END AINISH CODER WRAPPERS ###
 EOF
 
@@ -682,16 +667,6 @@ main() {
   elif [ "$1" == "deploy_aider_configs" ]; then
     # Deploy Aider configurations to the specified directory
     deploy_aider_configs "$2"
-  elif [ "$1" == "update" ]; then
-    # Run the full update process
-    echo -e "${BRIGHT_CYAN}🔄 Running full AINISH-Coder update...${RESET}"
-    echo ""
-    # Run essential setup steps again
-    cleanup_old_files
-    setup_ainish_coder_dir
-    verify_tool_paths # Check paths again in case they changed
-    setup_wrapper_functions # Ensure wrappers are up-to-date
-    echo -e "${BRIGHT_GREEN}✅ Update process complete.${RESET}"
   else
     # Default: Run full initial setup
     # Print cyberpunk-style header
