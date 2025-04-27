@@ -208,9 +208,18 @@ deploy_ainish_configs() {
     fi
   fi
   
-  if [ -d "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
-    cp -r "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursorrules/${RESET}"
+  # Deploy .cursorrules as a symlink if possible, otherwise copy
+  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
+    if [ -L "$TARGET/.cursorrules" ] || [ -f "$TARGET/.cursorrules" ]; then
+      rm -f "$TARGET/.cursorrules"
+    fi
+    ln -sf "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
+    if [ -L "$TARGET/.cursorrules" ]; then
+      echo -e "${GREEN}✓ Symlinked .cursorrules to project root${RESET}"
+    else
+      cp "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
+      echo -e "${GREEN}✓ Copied .cursorrules to project root${RESET}"
+    fi
   fi
   
   if [ -f "${AINISH_CODER_DIR}/cursor/my-license.mdc" ]; then
@@ -553,9 +562,18 @@ deploy_cursor_configs() {
     fi
   fi
   
-  if [ -d "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
-    cp -r "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursorrules/${RESET}"
+  # Deploy .cursorrules as a symlink if possible, otherwise copy
+  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
+    if [ -L "$TARGET/.cursorrules" ] || [ -f "$TARGET/.cursorrules" ]; then
+      rm -f "$TARGET/.cursorrules"
+    fi
+    ln -sf "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
+    if [ -L "$TARGET/.cursorrules" ]; then
+      echo -e "${GREEN}✓ Symlinked .cursorrules to project root${RESET}"
+    else
+      cp "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
+      echo -e "${GREEN}✓ Copied .cursorrules to project root${RESET}"
+    fi
   fi
   
   if [ -f "${AINISH_CODER_DIR}/cursor/my-license.mdc" ]; then
