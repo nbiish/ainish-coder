@@ -667,172 +667,6 @@ deploy_aider_configs() {
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
 }
 
-# Function to manage critical.mdc location during updates
-update_critical_mdc() {
-  echo -e "${BRIGHT_CYAN}🔄 Managing critical.mdc locations...${RESET}"
-
-  # Check if root critical.mdc exists
-  local source_file="${REPO_DIR}/critical.mdc"
-  if [ ! -f "$source_file" ]; then
-    echo -e "${BRIGHT_YELLOW}⚠️ Warning: Source critical.mdc not found: $source_file${RESET}"
-    return 1
-  fi
-
-  # --- Ensure critical.mdc is PRESENT in required locations ---
-  local updated_targets=0
-  local required_present=(
-    "${REPO_DIR}/ainish-aider/critical.mdc"
-    "${REPO_DIR}/ainish-copilot/.github/critical.mdc"
-    "${REPO_DIR}/ainish-cursor/.cursor/rules/critical.mdc"
-  )
-  for target_path in "${required_present[@]}"; do
-    local target_dir=$(dirname "$target_path")
-    # Ensure parent directory exists
-    if [ ! -d "$target_dir" ]; then
-       mkdir -p "$target_dir" 2>/dev/null
-       if [ $? -ne 0 ]; then
-          echo -e "${YELLOW}⚠️ Failed to create directory $target_dir${RESET}"
-          continue # Skip if cannot create dir
-       fi
-    fi
-    # Copy the file
-    cp "$source_file" "$target_path" 2>/dev/null
-    if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Ensured/Updated $target_path${RESET}"
-      updated_targets=$((updated_targets + 1))
-    else
-      echo -e "${YELLOW}⚠️ Failed to update $target_path${RESET}"
-    fi
-  done
-
-  # --- Ensure critical.mdc is ABSENT from specific roots ---
-  local removed_targets=0
-  local required_absent=(
-    "${REPO_DIR}/ainish-cursor/critical.mdc"
-    "${REPO_DIR}/ainish-copilot/critical.mdc"
-  )
-  for target_file in "${required_absent[@]}"; do
-    if [ -f "$target_file" ]; then
-      rm -f "$target_file" 2>/dev/null
-      if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Removed $target_file${RESET}"
-        removed_targets=$((removed_targets + 1))
-      else
-        echo -e "${YELLOW}⚠️ Failed to remove $target_file${RESET}"
-      fi
-    fi
-  done
-  if [ $removed_targets -gt 0 ]; then
-     echo -e "${BLUE}✓ Ensured critical.mdc is removed from specific ainish-* roots.${RESET}"
-  else
-     echo -e "${BLUE}✓ critical.mdc already absent from specific ainish-* roots.${RESET}"
-  fi
-
-  echo -e "${BRIGHT_GREEN}✅ critical.mdc location management complete${RESET}"
-}
-
-# Function to manage PRD.mdc location during updates
-update_prd_mdc() {
-  echo -e "${BRIGHT_CYAN}🔄 Managing PRD.mdc locations...${RESET}"
-
-  # Check if root PRD.mdc exists
-  local source_file="${REPO_DIR}/PRD.mdc"
-  if [ ! -f "$source_file" ]; then
-    echo -e "${BRIGHT_YELLOW}⚠️ Warning: Source PRD.mdc not found: $source_file${RESET}"
-    return 1
-  fi
-
-  # --- Ensure PRD.mdc is PRESENT in required locations ---
-  local updated_targets=0
-  local required_present=(
-    "${REPO_DIR}/ainish-aider/PRD.mdc"
-    "${REPO_DIR}/ainish-copilot/.github/PRD.mdc"
-    "${REPO_DIR}/ainish-cursor/.cursor/rules/PRD.mdc"
-  )
-  for target_path in "${required_present[@]}"; do
-    local target_dir=$(dirname "$target_path")
-    # Ensure parent directory exists
-    if [ ! -d "$target_dir" ]; then
-       mkdir -p "$target_dir" 2>/dev/null
-       if [ $? -ne 0 ]; then
-          echo -e "${YELLOW}⚠️ Failed to create directory $target_dir${RESET}"
-          continue # Skip if cannot create dir
-       fi
-    fi
-    # Copy the file
-    cp "$source_file" "$target_path" 2>/dev/null
-    if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Ensured/Updated $target_path${RESET}"
-      updated_targets=$((updated_targets + 1))
-    else
-      echo -e "${YELLOW}⚠️ Failed to update $target_path${RESET}"
-    fi
-  done
-
-  # --- Ensure PRD.mdc is ABSENT from specific roots ---
-  local removed_targets=0
-  local required_absent=(
-    "${REPO_DIR}/ainish-cursor/PRD.mdc"
-    "${REPO_DIR}/ainish-copilot/PRD.mdc"
-  )
-  for target_file in "${required_absent[@]}"; do
-    if [ -f "$target_file" ]; then
-      rm -f "$target_file" 2>/dev/null
-      if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Removed $target_file${RESET}"
-        removed_targets=$((removed_targets + 1))
-      else
-        echo -e "${YELLOW}⚠️ Failed to remove $target_file${RESET}"
-      fi
-    fi
-  done
-  if [ $removed_targets -gt 0 ]; then
-     echo -e "${BLUE}✓ Ensured PRD.mdc is removed from specific ainish-* roots.${RESET}"
-  else
-     echo -e "${BLUE}✓ PRD.mdc already absent from specific ainish-* roots.${RESET}"
-  fi
-
-  echo -e "${BRIGHT_GREEN}✅ PRD.mdc location management complete${RESET}"
-}
-
-# Function to manage prompt.md location during updates
-update_prompt_md() {
-  echo -e "${BRIGHT_CYAN}🔄 Managing prompt.md locations...${RESET}"
-
-  # Check if root prompt.md exists
-  local source_file="${REPO_DIR}/prompt.md"
-  if [ ! -f "$source_file" ]; then
-    echo -e "${BRIGHT_YELLOW}⚠️ Warning: Source prompt.md not found: $source_file${RESET}"
-    return 1
-  fi
-
-  local updated_targets=0
-  local aider_target="${REPO_DIR}/ainish-aider/.aider-instructions.md"
-  local copilot_target_dir="${REPO_DIR}/ainish-copilot/.github"
-  local copilot_target="${copilot_target_dir}/copilot-instructions.md"
-
-  # Copy to Aider target
-  cp "$source_file" "$aider_target" 2>/dev/null
-  if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Ensured/Updated $aider_target${RESET}"
-    updated_targets=$((updated_targets + 1))
-  else
-    echo -e "${YELLOW}⚠️ Failed to update $aider_target${RESET}"
-  fi
-
-  # Copy to Copilot target
-  mkdir -p "$copilot_target_dir" 2>/dev/null # Ensure dir exists
-  cp "$source_file" "$copilot_target" 2>/dev/null
-  if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Ensured/Updated $copilot_target${RESET}"
-    updated_targets=$((updated_targets + 1))
-  else
-    echo -e "${YELLOW}⚠️ Failed to update $copilot_target${RESET}"
-  fi
-
-  echo -e "${BRIGHT_GREEN}✅ prompt.md location management complete${RESET}"
-}
-
 # Main execution
 main() {
   # Check for command argument
@@ -848,21 +682,9 @@ main() {
   elif [ "$1" == "deploy_aider_configs" ]; then
     # Deploy Aider configurations to the specified directory
     deploy_aider_configs "$2"
-  elif [ "$1" == "update_critical_mdc" ]; then
-    # Update critical.mdc in all ainish-* directories (standalone execution)
-    update_critical_mdc
-  elif [ "$1" == "update_prd_mdc" ]; then
-    # Update PRD.mdc in all ainish-* directories (standalone execution)
-    update_prd_mdc
-  elif [ "$1" == "update_prompt_md" ]; then
-    # Update prompt.md in all ainish-* directories (standalone execution)
-    update_prompt_md
   elif [ "$1" == "update" ]; then
     # Run the full update process
     echo -e "${BRIGHT_CYAN}🔄 Running full AINISH-Coder update...${RESET}"
-    update_critical_mdc # Ensure critical.mdc is up-to-date first
-    update_prd_mdc # Ensure PRD.mdc is up-to-date
-    update_prompt_md # Ensure prompt.md derived files are up-to-date
     echo ""
     # Run essential setup steps again
     cleanup_old_files
@@ -878,16 +700,27 @@ main() {
     echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
 
-    # Regular setup with automatic update
+    # --- Run copy.sh first --- 
+    echo -e "${BRIGHT_YELLOW}Running initial file distribution (copy.sh)...${RESET}"
+    if [ -f "./copy.sh" ]; then
+        ./copy.sh
+        if [ $? -ne 0 ]; then
+            echo -e "${BRIGHT_RED}Error during copy.sh execution. Aborting setup.${RESET}" >&2
+            exit 1
+        fi
+        echo -e "${GREEN}✓ copy.sh completed.${RESET}"
+    else
+        echo -e "${BRIGHT_RED}Error: copy.sh not found in the current directory. Aborting setup.${RESET}" >&2
+        exit 1
+    fi
+    echo ""
+    # --- End copy.sh --- 
+
+    # Regular setup steps continue...
     echo -e "${BRIGHT_CYAN}🔧 [INIT] Setting up AINISH-Coder tooling configurations...${RESET}"
     echo ""
     
-    # Automatically run update process first (same as update command)
-    echo -e "${BRIGHT_CYAN}🔄 Automatically running update process...${RESET}"
-    update_critical_mdc # Ensure critical.mdc is up-to-date first
-    update_prd_mdc # Ensure PRD.mdc is up-to-date
-    update_prompt_md # Ensure prompt.md derived files are up-to-date
-    echo ""
+    # Removed redundant update calls here - handled by copy.sh
 
     # Clean up old files
     cleanup_old_files
