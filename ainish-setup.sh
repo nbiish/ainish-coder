@@ -704,7 +704,7 @@ main() {
     
     # Define source files (use actual filenames)
     local critical_src="${REPO_DIR}/critical.mdc"
-    local memory_src="${REPO_DIR}/@MEMORY-BANK.mdc" # Correct filename
+    local memory_src="${REPO_DIR}/MEMORY-BANK.mdc" # Correct filename (removed @)
     local prompt_src="${REPO_DIR}/prompt.md"
     
     # Define destination directories relative to REPO_DIR
@@ -729,14 +729,14 @@ main() {
       echo -e "${YELLOW}⚠️ Warning: Source critical.mdc not found at $critical_src${RESET}"
     fi
 
-    # Copy @MEMORY-BANK.mdc
+    # Copy MEMORY-BANK.mdc
     if [ -f "$memory_src" ]; then
-      cp "$memory_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied @MEMORY-BANK.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy @MEMORY-BANK.mdc to ainish-aider/${RESET}"
-      cp "$memory_src" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied @MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy @MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}"
-      cp "$memory_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied @MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy @MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}"
-      cp "$memory_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied @MEMORY-BANK.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy @MEMORY-BANK.mdc to .cursor/rules/${RESET}"
+      cp "$memory_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-aider/${RESET}"
+      cp "$memory_src" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}"
+      cp "$memory_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}"
+      cp "$memory_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to .cursor/rules/${RESET}"
     else
-      echo -e "${YELLOW}⚠️ Warning: Source @MEMORY-BANK.mdc not found at $memory_src${RESET}"
+      echo -e "${YELLOW}⚠️ Warning: Source MEMORY-BANK.mdc not found at $memory_src${RESET}"
     fi
     
     # Copy prompt.md to specific destinations
