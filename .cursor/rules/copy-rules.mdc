@@ -4,21 +4,21 @@ globs: *.sh
 alwaysApply: false
 ---
 Copy [critical.mdc](mdc:critical.mdc) to:
-- @/ainish-aider/
-- @/ainish-copilot/.github/
-- @/ainish-cursor/.cursor/rules/
-- @.cursor/rules/
+- /ainish-aider/
+- /ainish-copilot/.github/
+- /ainish-cursor/.cursor/rules/
+- .cursor/rules/
 
 Copy [MEMORY-BANK.mdc](mdc:MEMORY-BANK.mdc) to:
-- @/ainish-aider/
-- @/ainish-copilot/.github/
-- @/ainish-cursor/.cursor/rules/
-- @.cursor/rules/
+- /ainish-aider/
+- /ainish-copilot/.github/
+- /ainish-cursor/.cursor/rules/
+- .cursor/rules/
 
 Copy [prompt.md](mdc:prompt.md) to:
-- @ainish-copilot/.github/copilot-instructions.md
-- @ainish-aider/.aider-instructions.md
-- @ainish-cursor/.cursor/rules/gikendaasowin.md
+- ainish-copilot/.github/copilot-instructions.md
+- ainish-aider/.aider-instructions.md
+- ainish-cursor/.cursor/rules/gikendaasowin.md
 
 Additionally:
 - make, update, or verify a copy script if there is not a proper upon reading this

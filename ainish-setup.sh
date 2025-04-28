@@ -81,8 +81,8 @@ setup_ainish_coder_dir() {
   # Create symlink for critical.mdc
   ln -sf "${REPO_DIR}/critical.mdc" "${AINISH_CODER_DIR}/critical.mdc" 2>/dev/null
 
-  # Create symlink for @MEMORY-BANK.mdc
-  ln -sf "${REPO_DIR}/@MEMORY-BANK.mdc" "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" 2>/dev/null
+  # Create symlink for MEMORY-BANK.mdc (Corrected filename)
+  ln -sf "${REPO_DIR}/MEMORY-BANK.mdc" "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" 2>/dev/null
   
   # Copy the setup script itself (this should be a copy, not a symlink)
   cp "${REPO_DIR}/ainish-setup.sh" "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
@@ -527,6 +527,7 @@ deploy_vscode_configs() {
 # Function to deploy only Cursor configurations
 deploy_cursor_configs() {
   local TARGET="$1"
+  local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor" # Points to REPO_DIR/ainish-cursor via symlink
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -535,83 +536,93 @@ deploy_cursor_configs() {
   fi
 
   echo -e "${BRIGHT_BLUE}Deploying Cursor configurations to $TARGET${RESET}"
-  
+
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
-  
-  # Deploy Cursor-specific configurations
+
+  # --- Deploy files directly into the TARGET directory ---
+
+  # Deploy .cursorignore
   if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorignore" "Controls which files Cursor AI will ignore during code generation and analysis."; then
-    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
-      cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
+    if [ -f "${SRC_CURSOR_DIR}/.cursorignore" ]; then
+      cp "${SRC_CURSOR_DIR}/.cursorignore" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
     else
-      # Create empty .cursorignore if it doesn't exist
       touch "$TARGET/.cursorignore" 2>/dev/null
       echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
     fi
   fi
-  
+
+  # Deploy .cursorindexingignore
   if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorindexingignore" "Controls which files Cursor will skip during indexing (improves performance)."; then
-    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
-      cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
+    if [ -f "${SRC_CURSOR_DIR}/.cursorindexingignore" ]; then
+      cp "${SRC_CURSOR_DIR}/.cursorindexingignore" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
     else
-      # Create empty .cursorindexingignore if it doesn't exist
       touch "$TARGET/.cursorindexingignore" 2>/dev/null
       echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
     fi
   fi
-  
-  # Deploy .cursorrules as a symlink if possible, otherwise copy
-  if [ -f "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
-    if [ -L "$TARGET/.cursorrules" ] || [ -f "$TARGET/.cursorrules" ]; then
-      rm -f "$TARGET/.cursorrules"
-    fi
-    ln -sf "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
+
+  # Deploy .cursorrules (Symlink preferred, copy fallback)
+  if [ -f "${SRC_CURSOR_DIR}/.cursorrules" ]; then
+    # Remove existing file/symlink first
+    rm -f "$TARGET/.cursorrules" 2>/dev/null
+    ln -sf "${SRC_CURSOR_DIR}/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
     if [ -L "$TARGET/.cursorrules" ]; then
       echo -e "${GREEN}✓ Symlinked .cursorrules to project root${RESET}"
     else
-      cp "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
-      echo -e "${GREEN}✓ Copied .cursorrules to project root${RESET}"
+      cp "${SRC_CURSOR_DIR}/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
+      echo -e "${GREEN}✓ Copied .cursorrules to project root (symlink failed)${RESET}"
     fi
   fi
-  
-  if [ -f "${AINISH_CODER_DIR}/cursor/my-license.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed .cursor/rules/license.mdc${RESET}"
-  fi
 
-  # Deploy shared critical.mdc and @MEMORY-BANK.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
-  fi
+  # --- Deploy files into the TARGET/.cursor/rules directory ---
+  local SRC_RULES_DIR="${SRC_CURSOR_DIR}/.cursor/rules"
+  local TARGET_RULES_DIR="$TARGET/.cursor/rules"
 
-  # Use the correct filename MEMORY-BANK.mdc
-  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then 
-    # Copy to the target directory, keeping the name MEMORY-BANK.mdc
-    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.cursor/rules/MEMORY-BANK.mdc" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .cursor/rules/${RESET}"
-  fi
-
-  # Deploy prompt.md as gikendaasowin.md
-  if [ -f "${REPO_DIR}/prompt.md" ]; then
-    cp "${REPO_DIR}/prompt.md" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed prompt.md as gikendaasowin.md to .cursor/rules/${RESET}"
-  fi
-
-  # Verify files were created
-  if [ -f "$TARGET/.cursorignore" ]; then
-    echo -e "${GREEN}✓ Verified .cursorignore exists${RESET}"
+  echo -e "${BLUE}Syncing contents of ${SRC_RULES_DIR} to ${TARGET_RULES_DIR}...${RESET}"
+  # Copy all contents from source rules directory, overwriting existing files
+  if [ -d "$SRC_RULES_DIR" ]; then
+     cp -R "${SRC_RULES_DIR}/." "$TARGET_RULES_DIR/" 2>/dev/null
+     echo -e "${GREEN}✓ Copied all rules from ${SRC_RULES_DIR}${RESET}"
   else
-    echo -e "${YELLOW}⚠️ Warning: Failed to create .cursorignore${RESET}"
+     echo -e "${YELLOW}⚠️ Warning: Source rules directory ${SRC_RULES_DIR} not found.${RESET}"
   fi
-  
-  if [ -f "$TARGET/.cursorindexingignore" ]; then
-    echo -e "${GREEN}✓ Verified .cursorindexingignore exists${RESET}"
-  else
-    echo -e "${YELLOW}⚠️ Warning: Failed to create .cursorindexingignore${RESET}"
+
+  # --- Overwrite specific files if needed (ensuring correct source) ---
+
+  # Deploy critical.mdc (ensure it comes from the central location)
+  local critical_src="${AINISH_CODER_DIR}/critical.mdc" # Should point to REPO_DIR/critical.mdc
+  if [ -f "$critical_src" ]; then
+    cp "$critical_src" "$TARGET_RULES_DIR/" 2>/dev/null
+    echo -e "${GREEN}✓ Ensured latest critical.mdc is in .cursor/rules/${RESET}"
   fi
+
+  # Deploy MEMORY-BANK.mdc (ensure it comes from the central location)
+  local memory_src="${AINISH_CODER_DIR}/MEMORY-BANK.mdc" # Should point to REPO_DIR/MEMORY-BANK.mdc
+  if [ -f "$memory_src" ]; then
+    cp "$memory_src" "$TARGET_RULES_DIR/" 2>/dev/null # Ensure it's copied into the rules dir
+    echo -e "${GREEN}✓ Ensured latest MEMORY-BANK.mdc is in .cursor/rules/${RESET}"
+  fi
+
+  # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
+  local prompt_src="${REPO_DIR}/prompt.md" # Use REPO_DIR directly for root files
+  if [ -f "$prompt_src" ]; then
+    cp "$prompt_src" "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
+    echo -e "${GREEN}✓ Ensured latest prompt.md is deployed as gikendaasowin.md${RESET}"
+  fi
+
+  # Deploy license.mdc if it exists in the source cursor dir (might be specific)
+  if [ -f "${SRC_CURSOR_DIR}/my-license.mdc" ]; then
+      cp "${SRC_CURSOR_DIR}/my-license.mdc" "$TARGET_RULES_DIR/license.mdc" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed license.mdc from ${SRC_CURSOR_DIR}${RESET}"
+  fi
+
+  # Verification steps (optional but good)
+  echo -e "${BLUE}Verifying deployed Cursor files...${RESET}"
+  ls -l "$TARGET/.cursorignore" "$TARGET/.cursorindexingignore" "$TARGET/.cursorrules" "$TARGET_RULES_DIR/" 2>/dev/null || echo -e "${YELLOW}Verification step encountered issues.${RESET}"
+
 
   echo -e "${BRIGHT_GREEN}✅ Cursor configurations deployed to $TARGET${RESET}"
 }
