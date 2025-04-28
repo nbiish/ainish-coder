@@ -15,6 +15,12 @@ Copy [MEMORY-BANK.mdc](mdc:MEMORY-BANK.mdc) to:
 - /ainish-cursor/.cursor/rules/
 - .cursor/rules/
 
+Copy [docs-use.mdc](mdc:docs-use.mdc) to:
+- /ainish-aider/
+- /ainish-copilot/.github/
+- /ainish-cursor/.cursor/rules/
+- .cursor/rules/
+
 Copy [prompt.md](mdc:prompt.md) to:
 - ainish-copilot/.github/copilot-instructions.md
 - ainish-aider/.aider-instructions.md
