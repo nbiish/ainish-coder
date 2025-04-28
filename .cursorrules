@@ -1,5 +1,4 @@
-- use context7 (mcp) for all docs, frameworks, libraries, etc..
+- use all-docs (context7 mcp) for all docs, frameworks, libraries, etc..
     - fallback to internal search
-    - fallback to brave-search (mcp)
 
 - use all available websearch tools for all other web searches and information gathering
