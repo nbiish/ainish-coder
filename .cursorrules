@@ -1,6 +1,8 @@
+# Tools & Capabilities
+
 - use all-docs (context7 mcp) to learn/confirm knowledge about frameworks, libraries, etc..
     - fallback to internal search
     - use MEMORY-BANK.mdc for local information/docs storage
     - fallback to alternative search tools
 
-- use all available websearch tools for information/docs gathering
+- all available websearch & tools for information/docs gathering based on .cursor/rules/MEMORY-BANK.mdc
