@@ -587,9 +587,11 @@ deploy_cursor_configs() {
     echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
   fi
 
-  if [ -f "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .cursor/rules/${RESET}"
+  # Use the correct filename MEMORY-BANK.mdc
+  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then 
+    # Copy to the target directory, keeping the name MEMORY-BANK.mdc
+    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.cursor/rules/MEMORY-BANK.mdc" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .cursor/rules/${RESET}"
   fi
 
   # Deploy prompt.md as gikendaasowin.md
