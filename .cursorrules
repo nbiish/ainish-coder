@@ -1,4 +1,6 @@
-- use all-docs (context7 mcp) for all docs, frameworks, libraries, etc..
+- use all-docs (context7 mcp) to learn/confirm knowledge about frameworks, libraries, etc..
     - fallback to internal search
+    - use MEMORY-BANK.mdc for local information/docs storage
+    - fallback to alternative search tools
 
-- use all available websearch tools for all other web searches and information gathering
+- use all available websearch tools for information/docs gathering
