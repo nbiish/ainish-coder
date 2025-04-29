@@ -1,6 +1,6 @@
 ---
 description: 
-globs: *.*
+globs: *.json,*.py,*.js,*.ts,*.rs,*.sh,*.md
 alwaysApply: false
 ---
 - use context7 (mcp tool) to learn/confirm knowledge about frameworks, libraries, etc..
@@ -8,4 +8,4 @@ alwaysApply: false
     - fallback to internal search
     - fallback to other search tools
 
-- all available websearch & tools for information/docs gathering based on .cursor/rules/MEMORY-BANK.mdc
+- all available websearch & tools for information/docs gathering -> base on .cursor/rules/MEMORY-BANK.mdc

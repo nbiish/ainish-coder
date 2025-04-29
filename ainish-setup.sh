@@ -719,6 +719,8 @@ main() {
     local critical_src="${REPO_DIR}/critical.mdc"
     local memory_src="${REPO_DIR}/MEMORY-BANK.mdc" # Correct filename (removed @)
     local prompt_src="${REPO_DIR}/prompt.md"
+    # Define docs-use.mdc source
+    local docs_src="${REPO_DIR}/docs-use.mdc"
     
     # Define destination directories relative to REPO_DIR
     local aider_dest_dir="${REPO_DIR}/ainish-aider"
@@ -750,6 +752,15 @@ main() {
       cp "$memory_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to .cursor/rules/${RESET}"
     else
       echo -e "${YELLOW}⚠️ Warning: Source MEMORY-BANK.mdc not found at $memory_src${RESET}"
+    fi
+    # Copy docs-use.mdc
+    if [ -f "$docs_src" ]; then
+      cp "$docs_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-aider/${RESET}"
+      cp "$docs_src" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-copilot/.github/${RESET}"
+      cp "$docs_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-cursor/.cursor/rules/${RESET}"
+      cp "$docs_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to .cursor/rules/${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Source docs-use.mdc not found at $docs_src${RESET}"
     fi
     
     # Copy prompt.md to specific destinations
