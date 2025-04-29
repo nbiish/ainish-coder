@@ -26,5 +26,10 @@ Copy [prompt.md](mdc:prompt.md) to:
 - ainish-aider/.aider-instructions.md
 - ainish-cursor/.cursor/rules/gikendaasowin.md
 
+Copy [.gitignore](mdc:.gitignore) to:
+- /ainish-aider/
+- /ainish-copilot/
+- /ainish-cursor/
+
 Additionally:
 - make, update, or verify a copy script if there is not a proper upon reading this

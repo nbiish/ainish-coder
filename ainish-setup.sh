@@ -232,9 +232,12 @@ deploy_ainish_configs() {
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
     
+    # Also deploy to aider and copilot locations
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null # For Aider
+    echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET (for Aider)${RESET}"
     if [ -d "$TARGET/.github" ]; then
       cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+      echo -e "${GREEN}✓ Deployed critical.mdc to .github/ (for Copilot)${RESET}"
     fi
   fi
   
@@ -242,10 +245,26 @@ deploy_ainish_configs() {
     cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .cursor/rules/${RESET}"
     
+    # Also deploy to aider and copilot locations
+    cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null # For Aider
+    echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to $TARGET (for Aider)${RESET}"
     if [ -d "$TARGET/.github" ]; then
       cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .github/${RESET}"
+      echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .github/ (for Copilot)${RESET}"
     fi
+  fi
+  
+  # Deploy shared docs-use.mdc
+  if [ -f "${REPO_DIR}/docs-use.mdc" ]; then # Use REPO_DIR for root files
+      cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed docs-use.mdc to .cursor/rules/${RESET}"
+
+      cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null # For Aider
+      echo -e "${GREEN}✓ Deployed docs-use.mdc to $TARGET (for Aider)${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+          cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
+          echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/ (for Copilot)${RESET}"
+      fi
   fi
   
   # Deploy Copilot configurations
@@ -295,30 +314,30 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
   fi
   
-  # Deploy shared critical.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
-  fi
-  
-  # Deploy shared critical.mdc directly to target directory, not to .aider subfolder
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
-  fi
-  
   # Deploy prompt.md from root to destinations with special names
   if [ -f "${REPO_DIR}/prompt.md" ]; then
+    # Deploy for Copilot
     if [ -d "$TARGET/.github" ]; then
       cp "${REPO_DIR}/prompt.md" "$TARGET/.github/copilot-instructions.md" 2>/dev/null
       echo -e "${GREEN}✓ Deployed prompt.md as copilot-instructions.md to .github/${RESET}"
     fi
-    
+    # Deploy for Aider
     cp "${REPO_DIR}/prompt.md" "$TARGET/.aider-instructions.md" 2>/dev/null
     echo -e "${GREEN}✓ Deployed prompt.md as .aider-instructions.md${RESET}"
+    # Deploy for Cursor
+    if [ -d "$TARGET/.cursor/rules" ]; then
+        cp "${REPO_DIR}/prompt.md" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed prompt.md as gikendaasowin.md to .cursor/rules/${RESET}"
+    fi
   fi
   
-  # Update .gitignore
+  # Deploy .gitignore from root
+  if [ -f "${REPO_DIR}/.gitignore" ]; then
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+  fi
+  
+  # Update .gitignore (append tool-specific ignores)
   update_gitignore "$TARGET"
   
   echo -e "${BRIGHT_GREEN}✅ AINISH configurations deployed to $TARGET${RESET}"
@@ -507,19 +526,34 @@ deploy_vscode_configs() {
     echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .github/${RESET}"
   fi
 
-  # Fallback: copy copilot-instructions.md from root prompt.md if no custom file
-  if [ ! -f "$TARGET/.github/copilot-instructions.md" ]; then
-    local prompt_source="${REPO_DIR}/prompt.md"
-    local copilot_target_dir="$TARGET/.github"
-    local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
-    if [ -f "$prompt_source" ]; then
-      mkdir -p "$copilot_target_dir" 2>/dev/null
-      cp "$prompt_source" "$copilot_target_file" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed $copilot_target_file (from root prompt.md)${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
+  # Deploy shared docs-use.mdc
+  if [ -f "${REPO_DIR}/docs-use.mdc" ]; then # Use REPO_DIR for root files
+    if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
     fi
   fi
+
+  # Deploy prompt.md as copilot-instructions.md (ensure it happens)
+  local prompt_source="${REPO_DIR}/prompt.md"
+  local copilot_target_dir="$TARGET/.github"
+  local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
+  if [ -f "$prompt_source" ]; then
+      mkdir -p "$copilot_target_dir" 2>/dev/null
+      cp "$prompt_source" "$copilot_target_file" 2>/dev/null
+      echo -e "${GREEN}✓ Ensured $copilot_target_file exists (from root prompt.md)${RESET}"
+  else
+      echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
+  fi
+
+  # Deploy .gitignore from root
+  if [ -f "${REPO_DIR}/.gitignore" ]; then
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+  fi
+
+  # Update .gitignore (append tool-specific ignores)
+  update_gitignore "$TARGET"
   
   echo -e "${BRIGHT_GREEN}✅ VS Code configurations deployed to $TARGET${RESET}"
 }
@@ -606,6 +640,13 @@ deploy_cursor_configs() {
     echo -e "${GREEN}✓ Ensured latest MEMORY-BANK.mdc is in .cursor/rules/${RESET}"
   fi
 
+  # Deploy docs-use.mdc (ensure it comes from the central location)
+  local docs_src="${REPO_DIR}/docs-use.mdc" # Use REPO_DIR for root files
+  if [ -f "$docs_src" ]; then
+      cp "$docs_src" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Ensured latest docs-use.mdc is in .cursor/rules/${RESET}"
+  fi
+
   # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
   local prompt_src="${REPO_DIR}/prompt.md" # Use REPO_DIR directly for root files
   if [ -f "$prompt_src" ]; then
@@ -623,6 +664,14 @@ deploy_cursor_configs() {
   echo -e "${BLUE}Verifying deployed Cursor files...${RESET}"
   ls -l "$TARGET/.cursorignore" "$TARGET/.cursorindexingignore" "$TARGET/.cursorrules" "$TARGET_RULES_DIR/" 2>/dev/null || echo -e "${YELLOW}Verification step encountered issues.${RESET}"
 
+  # Deploy .gitignore from root
+  if [ -f "${REPO_DIR}/.gitignore" ]; then
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+  fi
+
+  # Update .gitignore (append tool-specific ignores)
+  update_gitignore "$TARGET"
 
   echo -e "${BRIGHT_GREEN}✅ Cursor configurations deployed to $TARGET${RESET}"
 }
@@ -686,6 +735,31 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to $TARGET${RESET}"
   fi
 
+  # Deploy docs-use.mdc (ensure it comes from the central location)
+  local docs_src="${REPO_DIR}/docs-use.mdc" # Use REPO_DIR for root files
+  if [ -f "$docs_src" ]; then
+      cp "$docs_src" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed docs-use.mdc to $TARGET${RESET}"
+  fi
+
+  # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
+  local prompt_src="${REPO_DIR}/prompt.md"
+  if [ -f "$prompt_src" ]; then
+    cp "$prompt_src" "$TARGET/.aider-instructions.md" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed prompt.md as .aider-instructions.md${RESET}"
+  else
+    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_src${RESET}"
+  fi
+
+  # Deploy .gitignore from root
+  if [ -f "${REPO_DIR}/.gitignore" ]; then
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+  fi
+
+  # Update .gitignore (append tool-specific ignores)
+  update_gitignore "$TARGET"
+  
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
 }
 
@@ -724,20 +798,24 @@ main() {
     
     # Define destination directories relative to REPO_DIR
     local aider_dest_dir="${REPO_DIR}/ainish-aider"
-    local copilot_dest_dir="${REPO_DIR}/ainish-copilot/.github"
+    local copilot_dest_dir="${REPO_DIR}/ainish-copilot" # Base dir for .gitignore
+    local copilot_github_dest_dir="${REPO_DIR}/ainish-copilot/.github"
+    local cursor_dest_dir="${REPO_DIR}/ainish-cursor" # Base dir for .gitignore
     local cursor_rules_dest_dir="${REPO_DIR}/ainish-cursor/.cursor/rules"
     local root_cursor_rules_dest_dir="${REPO_DIR}/.cursor/rules" # Target for root .cursor/rules/
 
     # Ensure target directories exist
     mkdir -p "$aider_dest_dir" 2>/dev/null
-    mkdir -p "$copilot_dest_dir" 2>/dev/null
+    mkdir -p "$copilot_github_dest_dir" 2>/dev/null # Ensure .github exists
+    mkdir -p "$copilot_dest_dir" 2>/dev/null        # Ensure base copilot dir exists
     mkdir -p "$cursor_rules_dest_dir" 2>/dev/null
+    mkdir -p "$cursor_dest_dir" 2>/dev/null         # Ensure base cursor dir exists
     mkdir -p "$root_cursor_rules_dest_dir" 2>/dev/null # Ensure root .cursor/rules exists
 
     # Copy critical.mdc
     if [ -f "$critical_src" ]; then
       cp "$critical_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied critical.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy critical.mdc to ainish-aider/${RESET}"
-      cp "$critical_src" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied critical.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy critical.mdc to ainish-copilot/.github/${RESET}"
+      cp "$critical_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied critical.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy critical.mdc to ainish-copilot/.github/${RESET}"
       cp "$critical_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied critical.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy critical.mdc to ainish-cursor/.cursor/rules/${RESET}"
       cp "$critical_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied critical.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy critical.mdc to .cursor/rules/${RESET}"
     else
@@ -747,7 +825,7 @@ main() {
     # Copy MEMORY-BANK.mdc
     if [ -f "$memory_src" ]; then
       cp "$memory_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-aider/${RESET}"
-      cp "$memory_src" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}"
+      cp "$memory_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}"
       cp "$memory_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}"
       cp "$memory_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to .cursor/rules/${RESET}"
     else
@@ -756,7 +834,7 @@ main() {
     # Copy docs-use.mdc
     if [ -f "$docs_src" ]; then
       cp "$docs_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-aider/${RESET}"
-      cp "$docs_src" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-copilot/.github/${RESET}"
+      cp "$docs_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-copilot/.github/${RESET}"
       cp "$docs_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-cursor/.cursor/rules/${RESET}"
       cp "$docs_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to .cursor/rules/${RESET}"
     else
@@ -765,7 +843,7 @@ main() {
     
     # Copy prompt.md to specific destinations
     if [ -f "$prompt_src" ]; then
-      local copilot_target="${copilot_dest_dir}/copilot-instructions.md"
+      local copilot_target="${copilot_github_dest_dir}/copilot-instructions.md" # Corrected path
       local aider_target="${aider_dest_dir}/.aider-instructions.md"
       local cursor_target="${cursor_rules_dest_dir}/gikendaasowin.md"
       
@@ -774,6 +852,15 @@ main() {
       cp "$prompt_src" "$cursor_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $cursor_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $cursor_target${RESET}"
     else
       echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_src${RESET}"
+    fi
+    
+    # Copy .gitignore to specific destinations
+    if [ -f "${REPO_DIR}/.gitignore" ]; then
+        cp "${REPO_DIR}/.gitignore" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied .gitignore to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy .gitignore to ainish-aider/${RESET}"
+        cp "${REPO_DIR}/.gitignore" "$copilot_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied .gitignore to ainish-copilot/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy .gitignore to ainish-copilot/${RESET}"
+        cp "${REPO_DIR}/.gitignore" "$cursor_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied .gitignore to ainish-cursor/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy .gitignore to ainish-cursor/${RESET}"
+    else
+        echo -e "${YELLOW}⚠️ Warning: Source .gitignore not found at ${REPO_DIR}/.gitignore${RESET}"
     fi
     
     echo -e "${GREEN}✓ Initial file distribution complete.${RESET}"
