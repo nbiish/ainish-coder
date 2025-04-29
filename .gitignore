@@ -14,3 +14,11 @@ venv.bak*
 config.*
 *config.*
 *.config.*
+
+# Memory Bank documents
+projectbrief.md
+productContext.md
+systemPatterns.md
+techContext.md
+activeContext.md
+progress.md
