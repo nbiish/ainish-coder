@@ -3,9 +3,9 @@ description:
 globs: *.json,*.py,*.js,*.ts,*.rs,*.sh,*.md
 alwaysApply: false
 ---
+# CRITICAL -> UPON ANY ERRORS/ISSUES -> YOU MUST GO THROUGH THE FOLLOWING TOP TO BOTTOM:
 - use context7 (mcp tool) to learn/confirm knowledge about frameworks, libraries, etc..
-    - use MEMORY-BANK.mdc for local information/docs storage
     - fallback to internal search
     - fallback to other search tools
-
-- all available websearch & tools for information/docs gathering -> base on .cursor/rules/MEMORY-BANK.mdc
+    - use MEMORY-BANK.mdc for local information/docs storage
+    - all available websearch & tools for information/docs gathering -> base on .cursor/rules/MEMORY-BANK.mdc
