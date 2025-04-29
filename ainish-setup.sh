@@ -247,16 +247,17 @@ deploy_ainish_configs() {
     fi
   fi
   
-  if [ -f "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .cursor/rules/${RESET}"
+  # Deploy shared MEMORY-BANK.mdc
+  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .cursor/rules/${RESET}"
     
     # Also deploy to aider and copilot locations
-    cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null # For Aider
-    echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to $TARGET (for Aider)${RESET}"
+    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null # For Aider
+    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to $TARGET (for Aider)${RESET}"
     if [ -d "$TARGET/.github" ]; then
-      cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .github/ (for Copilot)${RESET}"
+      cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .github/ (for Copilot)${RESET}"
     fi
   fi
   
@@ -527,9 +528,10 @@ deploy_vscode_configs() {
     echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
   fi
 
-  if [ -f "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to .github/${RESET}"
+  # Corrected source file name
+  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .github/${RESET}"
   fi
 
   # Deploy shared docs-use.mdc
@@ -736,9 +738,10 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
   fi
 
-  if [ -f "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/@MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed @MEMORY-BANK.mdc to $TARGET${RESET}"
+  # Corrected source file name
+  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to $TARGET${RESET}"
   fi
 
   # Deploy docs-use.mdc (ensure it comes from the central location)

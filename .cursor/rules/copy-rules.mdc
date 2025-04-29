@@ -3,33 +3,33 @@ description:
 globs: *.sh
 alwaysApply: false
 ---
-Copy [critical.mdc](mdc:critical.mdc) to:
-- /ainish-aider/
-- /ainish-copilot/.github/
-- /ainish-cursor/.cursor/rules/
+Copy critical.mdc to:
+- ainish-aider/
+- ainish-copilot/.github/
+- ainish-cursor/.cursor/rules/
 - .cursor/rules/
 
-Copy [MEMORY-BANK.mdc](mdc:MEMORY-BANK.mdc) to:
-- /ainish-aider/
-- /ainish-copilot/.github/
-- /ainish-cursor/.cursor/rules/
+Copy MEMORY-BANK.mdc to:
+- ainish-aider/
+- ainish-copilot/.github/
+- ainish-cursor/.cursor/rules/
 - .cursor/rules/
 
-Copy [docs-use.mdc](mdc:docs-use.mdc) to:
-- /ainish-aider/
-- /ainish-copilot/.github/
-- /ainish-cursor/.cursor/rules/
+Copy docs-use.mdc to:
+- ainish-aider/
+- ainish-copilot/.github/
+- ainish-cursor/.cursor/rules/
 - .cursor/rules/
 
-Copy [prompt.md](mdc:prompt.md) to:
+Copy prompt.md to:
 - ainish-copilot/.github/copilot-instructions.md
 - ainish-aider/.aider-instructions.md
 - ainish-cursor/.cursor/rules/gikendaasowin.md
 
-Copy [.gitignore](mdc:.gitignore) to:
-- /ainish-aider/
-- /ainish-copilot/
-- /ainish-cursor/
+Copy .gitignore to:
+- ainish-aider/
+- ainish-copilot/
+- ainish-cursor/
 
 Additionally:
 - make, update, or verify a copy script if there is not a proper upon reading this
