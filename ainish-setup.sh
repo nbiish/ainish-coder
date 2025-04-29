@@ -83,6 +83,12 @@ setup_ainish_coder_dir() {
 
   # Create symlink for MEMORY-BANK.mdc (Corrected filename)
   ln -sf "${REPO_DIR}/MEMORY-BANK.mdc" "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" 2>/dev/null
+
+  # Create symlink for docs-use.mdc
+  ln -sf "${REPO_DIR}/docs-use.mdc" "${AINISH_CODER_DIR}/docs-use.mdc" 2>/dev/null
+
+  # Create symlink for prompt.md
+  ln -sf "${REPO_DIR}/prompt.md" "${AINISH_CODER_DIR}/prompt.md" 2>/dev/null
   
   # Copy the setup script itself (this should be a copy, not a symlink)
   cp "${REPO_DIR}/ainish-setup.sh" "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
