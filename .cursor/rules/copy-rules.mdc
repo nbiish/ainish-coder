@@ -9,6 +9,12 @@ Copy critical.mdc to:
 - ainish-cursor/.cursor/rules/
 - .cursor/rules/
 
+Copy anishinaabe-cyberpunk-style.mdc to:
+- ainish-aider/
+- ainish-copilot/.github/
+- ainish-cursor/.cursor/rules/
+- .cursor/rules/
+
 Copy MEMORY-BANK.mdc to:
 - ainish-aider/
 - ainish-copilot/.github/

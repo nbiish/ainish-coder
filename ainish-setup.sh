@@ -19,6 +19,7 @@
 # - update_critical_mdc(): Updates critical.mdc in all ainish-* directories
 # - update_memory_bank_mdc(): Updates @MEMORY-BANK.mdc in all ainish-* directories
 # - update_prompt_md(): Updates prompt.md in all ainish-* directories
+# - prepend_non_cursor_content(): Prepends header content from non-cursor-prepend.md to prompt.md files (except for ainish-cursor)
 # - main(): Main execution function that processes command arguments
 #
 # Usage Examples:
@@ -81,6 +82,9 @@ setup_ainish_coder_dir() {
   # Create symlink for critical.mdc
   ln -sf "${REPO_DIR}/critical.mdc" "${AINISH_CODER_DIR}/critical.mdc" 2>/dev/null
 
+  # Create symlink for anishinaabe-cyberpunk-style.mdc
+  ln -sf "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" 2>/dev/null
+
   # Create symlink for MEMORY-BANK.mdc (Corrected filename)
   ln -sf "${REPO_DIR}/MEMORY-BANK.mdc" "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" 2>/dev/null
 
@@ -89,6 +93,9 @@ setup_ainish_coder_dir() {
 
   # Create symlink for prompt.md
   ln -sf "${REPO_DIR}/prompt.md" "${AINISH_CODER_DIR}/prompt.md" 2>/dev/null
+  
+  # Create symlink for non-cursor-prepend.md
+  ln -sf "${REPO_DIR}/non-cursor-prepend.md" "${AINISH_CODER_DIR}/non-cursor-prepend.md" 2>/dev/null
   
   # Copy the setup script itself (this should be a copy, not a symlink)
   cp "${REPO_DIR}/ainish-setup.sh" "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
@@ -247,6 +254,20 @@ deploy_ainish_configs() {
     fi
   fi
   
+  # Deploy shared anishinaabe-cyberpunk-style.mdc
+  if [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
+    
+    # Also deploy to aider and copilot locations
+    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
+    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
+    if [ -d "$TARGET/.github" ]; then
+      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
+    fi
+  fi
+  
   # Deploy shared MEMORY-BANK.mdc
   if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
     cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
@@ -325,13 +346,11 @@ deploy_ainish_configs() {
   if [ -f "${REPO_DIR}/prompt.md" ]; then
     # Deploy for Copilot
     if [ -d "$TARGET/.github" ]; then
-      cp "${REPO_DIR}/prompt.md" "$TARGET/.github/copilot-instructions.md" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed prompt.md as copilot-instructions.md to .github/${RESET}"
+      prepend_non_cursor_content "${REPO_DIR}/prompt.md" "$TARGET/.github/copilot-instructions.md"
     fi
     # Deploy for Aider
-    cp "${REPO_DIR}/prompt.md" "$TARGET/.aider-instructions.md" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed prompt.md as .aider-instructions.md${RESET}"
-    # Deploy for Cursor
+    prepend_non_cursor_content "${REPO_DIR}/prompt.md" "$TARGET/.aider-instructions.md"
+    # Deploy for Cursor (without non-cursor-append.md content)
     if [ -d "$TARGET/.cursor/rules" ]; then
         cp "${REPO_DIR}/prompt.md" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
         echo -e "${GREEN}✓ Deployed prompt.md as gikendaasowin.md to .cursor/rules/${RESET}"
@@ -461,7 +480,6 @@ function ainish-aider {
   # Deploy from the linked repo directories to ensure latest changes are used
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR"
   echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
-  "$AIDER_PATH" "$@"
 }
 
 function ainish-copilot {
@@ -527,6 +545,12 @@ deploy_vscode_configs() {
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
   fi
+  
+  # Deploy anishinaabe-cyberpunk-style.mdc
+  if [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
+  fi
 
   # Corrected source file name
   if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
@@ -548,8 +572,7 @@ deploy_vscode_configs() {
   local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
   if [ -f "$prompt_source" ]; then
       mkdir -p "$copilot_target_dir" 2>/dev/null
-      cp "$prompt_source" "$copilot_target_file" 2>/dev/null
-      echo -e "${GREEN}✓ Ensured $copilot_target_file exists (from root prompt.md)${RESET}"
+      prepend_non_cursor_content "$prompt_source" "$copilot_target_file"
   else
       echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
   fi
@@ -658,6 +681,7 @@ deploy_cursor_configs() {
   # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
   local prompt_src="${REPO_DIR}/prompt.md" # Use REPO_DIR directly for root files
   if [ -f "$prompt_src" ]; then
+    # For Cursor, don't append non-cursor content
     cp "$prompt_src" "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
     echo -e "${GREEN}✓ Ensured latest prompt.md is deployed as gikendaasowin.md${RESET}"
   fi
@@ -701,14 +725,15 @@ deploy_aider_configs() {
   local prompt_source="${REPO_DIR}/prompt.md"
   local aider_target_file="$TARGET/.aider-instructions.md"
   if [ -f "$prompt_source" ]; then
-    cp "$prompt_source" "$aider_target_file" 2>/dev/null
-    if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Deployed $aider_target_file (from root prompt.md)${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: Failed to deploy $aider_target_file${RESET}"
-    fi
+    prepend_non_cursor_content "$prompt_source" "$aider_target_file"
   else
     echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
+  fi
+  
+  # Deploy anishinaabe-cyberpunk-style.mdc
+  if [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
   fi
   
   if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
@@ -751,11 +776,10 @@ deploy_aider_configs() {
       echo -e "${GREEN}✓ Deployed docs-use.mdc to $TARGET${RESET}"
   fi
 
-  # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
+  # Deploy prompt.md as .aider-instructions.md (ensure it comes from the central location)
   local prompt_src="${REPO_DIR}/prompt.md"
   if [ -f "$prompt_src" ]; then
-    cp "$prompt_src" "$TARGET/.aider-instructions.md" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed prompt.md as .aider-instructions.md${RESET}"
+    prepend_non_cursor_content "$prompt_src" "$TARGET/.aider-instructions.md"
   else
     echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_src${RESET}"
   fi
@@ -770,6 +794,42 @@ deploy_aider_configs() {
   update_gitignore "$TARGET"
   
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
+}
+
+# Function to append non-cursor content to prompt.md derived files
+prepend_non_cursor_content() {
+  local SOURCE="$1"
+  local DEST="$2"
+  local NON_CURSOR_PREPEND="${REPO_DIR}/non-cursor-prepend.md"
+  
+  # Don't prepend if destination contains "cursor" (for ainish-cursor directory or .cursor/rules)
+  if [[ "$DEST" == *"cursor"* ]]; then
+    # Just copy the file without modification
+    cp "$SOURCE" "$DEST" 2>/dev/null
+    return $?
+  fi
+  
+  # Check if non-cursor-prepend.md exists
+  if [ ! -f "$NON_CURSOR_PREPEND" ]; then
+    echo -e "${YELLOW}⚠️ Warning: non-cursor-prepend.md not found at $NON_CURSOR_PREPEND${RESET}"
+    # Fall back to normal copy
+    cp "$SOURCE" "$DEST" 2>/dev/null
+    return $?
+  fi
+  
+  # Create combined file: non-cursor-prepend.md + separator + prompt.md
+  { cat "$NON_CURSOR_PREPEND"; cat "$SOURCE"; } > "$DEST" 2>/dev/null
+  local RESULT=$?
+  
+  if [ $RESULT -eq 0 ]; then
+    echo -e "${GREEN}✓ Deployed $SOURCE to $DEST with non-cursor prepended content${RESET}"
+  else
+    echo -e "${YELLOW}⚠️ Warning: Failed to prepend non-cursor content to $DEST${RESET}"
+    # Fall back to normal copy
+    cp "$SOURCE" "$DEST" 2>/dev/null
+  fi
+  
+  return $RESULT
 }
 
 # Main execution
