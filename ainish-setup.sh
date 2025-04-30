@@ -97,6 +97,9 @@ setup_ainish_coder_dir() {
   # Create symlink for non-cursor-prepend.md
   ln -sf "${REPO_DIR}/non-cursor-prepend.md" "${AINISH_CODER_DIR}/non-cursor-prepend.md" 2>/dev/null
   
+  # Create symlink for mdc-headers.md
+  ln -sf "${REPO_DIR}/mdc-headers.md" "${AINISH_CODER_DIR}/mdc-headers.md" 2>/dev/null
+  
   # Copy the setup script itself (this should be a copy, not a symlink)
   cp "${REPO_DIR}/ainish-setup.sh" "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
   chmod +x "${AINISH_CODER_DIR}/ainish-setup.sh" 2>/dev/null
@@ -292,6 +295,20 @@ deploy_ainish_configs() {
       if [ -d "$TARGET/.github" ]; then
           cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
           echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/ (for Copilot)${RESET}"
+      fi
+  fi
+  
+  # Deploy mdc-headers.md (but not to Cursor)
+  if [ -f "${REPO_DIR}/mdc-headers.md" ]; then # Use REPO_DIR for root files
+      # Skip deploying to .cursor/rules/ as requested
+      # cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.cursor/rules/" 2>/dev/null
+      # echo -e "${GREEN}✓ Deployed mdc-headers.md to .cursor/rules/${RESET}"
+
+      cp "${REPO_DIR}/mdc-headers.md" "$TARGET/" 2>/dev/null # For Aider
+      echo -e "${GREEN}✓ Deployed mdc-headers.md to $TARGET (for Aider)${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+          cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.github/" 2>/dev/null
+          echo -e "${GREEN}✓ Deployed mdc-headers.md to .github/ (for Copilot)${RESET}"
       fi
   fi
   
@@ -565,6 +582,14 @@ deploy_vscode_configs() {
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
     fi
   fi
+  
+  # Deploy mdc-headers.md
+  if [ -f "${REPO_DIR}/mdc-headers.md" ]; then # Use REPO_DIR for root files
+    if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed mdc-headers.md to .github/${RESET}"
+    fi
+  fi
 
   # Deploy prompt.md as copilot-instructions.md (ensure it happens)
   local prompt_source="${REPO_DIR}/prompt.md"
@@ -677,6 +702,13 @@ deploy_cursor_configs() {
       cp "$docs_src" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Ensured latest docs-use.mdc is in .cursor/rules/${RESET}"
   fi
+  
+  # Skip deploying mdc-headers.md to Cursor as requested
+  # local mdc_headers_src="${REPO_DIR}/mdc-headers.md" # Use REPO_DIR for root files
+  # if [ -f "$mdc_headers_src" ]; then
+  #     cp "$mdc_headers_src" "$TARGET_RULES_DIR/" 2>/dev/null
+  #     echo -e "${GREEN}✓ Ensured latest mdc-headers.md is in .cursor/rules/${RESET}"
+  # fi
 
   # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
   local prompt_src="${REPO_DIR}/prompt.md" # Use REPO_DIR directly for root files
@@ -774,6 +806,13 @@ deploy_aider_configs() {
   if [ -f "$docs_src" ]; then
       cp "$docs_src" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc to $TARGET${RESET}"
+  fi
+  
+  # Deploy mdc-headers.md (ensure it comes from the central location)
+  local mdc_headers_src="${REPO_DIR}/mdc-headers.md" # Use REPO_DIR for root files
+  if [ -f "$mdc_headers_src" ]; then
+      cp "$mdc_headers_src" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed mdc-headers.md to $TARGET${RESET}"
   fi
 
   # Deploy prompt.md as .aider-instructions.md (ensure it comes from the central location)
