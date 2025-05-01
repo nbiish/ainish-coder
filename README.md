@@ -1,49 +1,8 @@
-# ainish-coder
+# ◈──◆──◇ ainish-coder ◇──◆──◈
 
 <div align="center">
   <h2>A comprehensive configuration manager for AI coding assistants</h2>
-  <p>P## 🔧 How It Works
-
-### Setup Script
-
-The `ainish-setup.sh` script:
-1. Automatically distributes `critical.mdc`, `MEMORY-BANK.mdc`, `prompt.md`, `docs-use.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
-2. Creates a `~/.ainish-coder` directory.
-3. Creates symbolic links from `~/.ainish-coder` to the tool configuration directories (`ainish-aider`, `ainish-cursor`, `ainish-copilot`) in the repository, ensuring changes in the repo are reflected immediately.
-4. Adds convenient wrapper functions (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) to your shell configuration (`.zshrc`).
-5. Cleans up potentially conflicting older configuration files.
-6. Verifies tool paths.
-
-### Deployment Options
-
-The script supports several deployment options:
-
-```bash
-# Full deployment of all configurations
-./ainish-setup.sh deploy /path/to/project
-
-# Deploy only Cursor configurations
-./ainish-setup.sh deploy_cursor_configs /path/to/project
-
-# Deploy only VS Code/Copilot configurations
-./ainish-setup.sh deploy_vscode_configs /path/to/project
-
-# Deploy only Aider configurations
-./ainish-setup.sh deploy_aider_configs /path/to/project
-
-# Update critical.mdc in all ainish-* directories
-./ainish-setup.sh update_critical_mdc
-
-# Update MEMORY-BANK.mdc in all ainish-* directories
-./ainish-setup.sh update_memory_bank_mdc
-
-# Update prompt.md in all ainish-* directories
-./ainish-setup.sh update_prompt_md
-```
-
-### Wrapper Functions
-
-The wrapper functions (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) ensure that the necessary configurations are deployed to the current working directory when you invoke the tool via the wrapper. This creates a seamless workflow where configuration happens automatically without manual file management.amless setup and integration for multiple AI development tools in your projects.</p>
+  <p>Seamless setup and integration for multiple AI development tools in your projects.</p>
 
   <hr width="50%">
   
@@ -62,18 +21,26 @@ The wrapper functions (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainis
   <hr width="50%">
 </div>
 
-## 🌟 Features
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
 
-- **Unified Setup**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **Automatic File Distribution**: The setup script automatically distributes key files (`critical.mdc`, `MEMORY-BANK.mdc`, `prompt.md`, `mdc-headers.md`, `docs-use.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
-- **Multiple AI Tool Support**: 
+## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
+
+- **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
+- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `MEMORY-BANK.mdc`, `prompt.md`, `mdc-headers.md`, `docs-use.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
+- **◇ Multiple AI Tool Support ◇**: 
   - `ainish-aider`: Configuration for the Aider AI pair programming assistant.
   - `ainish-cursor`: Cursor IDE specific configurations and ignore files.
   - `ainish-copilot`: GitHub Copilot and related tool configurations.
-- **Automatic Configuration**: Includes Gitignore rules and tool-specific ignore files.
-- **Wrapper Functions**: Sets up convenient shell commands (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) for easy tool usage.
+- **◇ Automatic Configuration ◇**: Includes Gitignore rules and tool-specific ignore files.
+- **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) for easy tool usage.
 
-## 🛠️ Requirements
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ NITAM-AABAJICHIGANAN ᔔ [Prerequisites] ◈──◆──◇──◆──◈
 
 Before installation, ensure you have:
 
@@ -86,7 +53,11 @@ Before installation, ensure you have:
 
 The script will check for the availability of these tools but can still set up configurations even if some are missing.
 
-## 🚀 Installation & Updating
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ AABAJITOOWINAN ᔔ [Installation] ◈──◆──◇──◆──◈
 
 ```bash
 # Clone the repository (if you haven't already)
@@ -130,7 +101,11 @@ Each wrapper function automatically ensures the latest configuration files are d
 
 To update later, simply pull the latest changes into the repository directory and re-run `./ainish-setup.sh`.
 
-## 📦 Project Structure
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ WAAWIINDAMAAGEWIN ᔔ [Overview] ◈──◆──◇──◆──◈
 
 ```
 ainish-coder/
@@ -147,7 +122,11 @@ ainish-coder/
 └── ainish-copilot/              # GitHub Copilot/VS Code configurations
 ```
 
-## 📦 Components
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 ### ainish-aider
 - `.gitignore`: Standard Git ignore rules
@@ -186,7 +165,11 @@ ainish-coder/
 - `.github/mdc-headers.md`: MDC header definitions and documentation
 - `.github/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 
-## 🔧 How It Works
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ INAABAJICHIGAN ᔔ [Usage] ◈──◆──◇──◆──◈
 
 The `ainish-setup.sh` script:
 1. Automatically distributes `critical.mdc`, `MEMORY-BANK.mdc`, `prompt.md`, `docs-use.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
@@ -200,7 +183,11 @@ The wrapper functions (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainis
 
 Re-running `./ainish-setup.sh` refreshes the entire setup, including re-distributing files and updating the wrappers.
 
-## 🎨 Styling Guidelines
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ ONAAKONIGE ᔔ [Configuration] ◈──◆──◇──◆──◈
 
 This project uses a unique **Anishinaabe-Cyberpunk** styling approach that combines elements from Anishinaabe culture with cyberpunk aesthetics. This is documented in `anishinaabe-cyberpunk-style.mdc`, which provides detailed guidelines on:
 
@@ -219,7 +206,11 @@ The style guide is automatically distributed to all tool directories, ensuring c
 
 For examples of this styling, see the **Standard Anishinaabe Terms** section in `anishinaabe-cyberpunk-style.mdc`.
 
-## 📄 MDC Headers and Context Files
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ ONAAKONIGE ᔔ [Configuration] ◈──◆──◇──◆──◈
 
 The `mdc-headers.md` file contains important header definitions that extend the functionality of MDC (Markdown Comments) within the AI coding assistant tools. These headers:
 
@@ -230,11 +221,19 @@ The `mdc-headers.md` file contains important header definitions that extend the 
 
 MDC headers are crucial for creating effective AI tool configurations and are distributed to all three tools by the setup script.
 
-## 🤝 Contributing
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ WIIDOOKAAZOWIN ᔔ [Assistance] ◈──◆──◇──◆──◈
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## ❓ Troubleshooting
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
+
+## ᐴ WIIDOOKAAZOWIN ᔔ [Assistance] ◈──◆──◇──◆──◈
 
 ### Common Issues
 
@@ -252,6 +251,10 @@ A: Make sure you have the correct file structure in your repository. All root fi
 
 **Q: My changes to configuration files aren't taking effect.**  
 A: The script uses symlinks to ensure changes to repository files are immediately available. If a file was modified directly in `~/.ainish-coder`, make sure to update the original file in the repository.
+
+<div align="center">
+◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+</div>
 
 ## 📝 License and Copyright
 
