@@ -1,8 +1,3 @@
----
-description: 
-globs: MEMORY-BANK/
-alwaysApply: false
----
 (COMPILE EVERYTHING INTO -> MEMORY-BANK/)
 # Chain-of-Draft Agile Memory Prompt for AI Pair Programming
 

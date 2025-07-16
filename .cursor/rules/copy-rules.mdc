@@ -1,8 +1,3 @@
----
-description: 
-globs: *.sh
-alwaysApply: false
----
 Copy critical.mdc to:
 - ainish-aider/
 - ainish-copilot/.github/
