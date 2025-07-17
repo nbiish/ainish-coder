@@ -1,4 +1,8 @@
 ---
+description: 
+globs: *.json,*.py,*.js,*.ts,*.rs,*.sh,*.md
+alwaysApply: false
+---
 # CRITICAL -> UPON ANY ERRORS/ISSUES -> YOU MUST GO THROUGH THE FOLLOWING TOP TO BOTTOM:
 - use mcp_All_docs_and_libraries (context7 mcp tool) to learn/confirm knowledge about frameworks, libraries, etc..
     - fallback to internal search
