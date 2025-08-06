@@ -4,7 +4,7 @@ globs: MEMORY-BANK/
 alwaysApply: false
 ---
 (COMPILE EVERYTHING INTO -> MEMORY-BANK/)
-# Chain-of-Draft Agile Memory Prompt for AI Pair Programming
+# Chain-of-Draft CoD Agile Memory Prompt for AI Pair Programming
 
 ## 1. Core Principles
 
