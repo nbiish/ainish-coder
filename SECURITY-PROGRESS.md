@@ -1,18 +1,17 @@
 # Security Progress Log
 
-Date (America/New_York): 2025-08-07 19:42
+Date (America/New_York): 2025-08-07 19:56
 
 ## Changes
 
-- Strengthened `prompt.md` with additional guardrails: default-deny agency, secrets/PII hygiene, auditability, command execution safeguards, and supply-chain integrity.
-- Added LLM Top 10-aligned checklist and security gates requiring explicit authorization for high-risk actions.
-- Expanded cryptography policy (Argon2id, HKDF, AES-GCM-SIV options) and clarified compliance/data governance expectations.
+- Adjusted Cursor deploy verification to treat `.cursorrules` as optional and avoid false warnings during `ainish-cursor` runs on repos without that file.
+- Ensured Cursor launches with `NODE_OPTIONS=--force-node-api-uncaught-exceptions-policy=true` to properly handle N-API uncaught exceptions and silence the deprecation warning.
 
 ## Impact
 
-- Tighter controls reduce risk of prompt injection, output misuse, excessive agency, and secret leakage.
-- Clearer execution policy and audit requirements improve operational security and traceability.
+- Reduces noise during verification and prevents confusion when `.cursorrules` is intentionally absent.
+- Improves runtime resilience and avoids deprecation warnings when launching Cursor via wrapper.
 
 ## Next
 
-- Consider integrating CI checks for SBOM generation and signature verification.
+- Consider adding an env toggle to enable/disable the Node option and documenting `.cursorrules` optionality in README.

@@ -17,7 +17,7 @@
 # - deploy_cursor_configs(): Deploys only Cursor specific configurations
 # - deploy_aider_configs(): Deploys only Aider specific configurations
 # - update_critical_mdc(): Updates critical.mdc in all ainish-* directories
-# - update_memory_bank_mdc(): Updates @MEMORY-BANK.mdc in all ainish-* directories
+# - update_memory_bank_mdc(): Updates MEMORY-BANK.mdc in all ainish-* directories
 # - update_prompt_md(): Updates prompt.md in all ainish-* directories
 # - update_anishinaabe_cyberpunk_style(): Updates anishinaabe-cyberpunk-style.mdc in all ainish-* directories
 # - prepend_non_cursor_content(): Prepends header content from non-cursor-prepend.md to prompt.md files (except for ainish-cursor)
@@ -187,9 +187,26 @@ prompt_for_ignore_files() {
   return 1
 }
 
+# Prompt once per command whether to include styling rules
+prompt_include_style_rules() {
+  local RESPONSE=""
+  echo -e "${BRIGHT_CYAN}Include styling rules (anishinaabe-cyberpunk-style.mdc)?${RESET}"
+  echo -e "${CYAN}These provide the Anishinaabe cyberpunk style guidance for AI tools.${RESET}"
+  echo -e "${BRIGHT_CYAN}[Y/n]:${RESET} "
+  read -r RESPONSE
+  if [[ -z "$RESPONSE" ]] || [[ "$RESPONSE" =~ ^[Yy] ]]; then
+    return 0
+  fi
+  return 1
+}
+
 # Main deployment function
 deploy_ainish_configs() {
   local TARGET="$1"
+  local INCLUDE_STYLE_RULES=0
+  if prompt_include_style_rules; then
+    INCLUDE_STYLE_RULES=1
+  fi
   
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -245,7 +262,7 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
   fi
   
-  # Deploy shared critical.mdc and @MEMORY-BANK.mdc
+  # Deploy shared critical.mdc and MEMORY-BANK.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
@@ -259,31 +276,35 @@ deploy_ainish_configs() {
     fi
   fi
   
-  # Deploy shared anishinaabe-cyberpunk-style.mdc
-  if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
-    
-    # Also deploy to aider and copilot locations
-    cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
-    if [ -d "$TARGET/.github" ]; then
-      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
-    fi
-  elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
-    
-    # Also deploy to aider and copilot locations
-    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
-    if [ -d "$TARGET/.github" ]; then
-      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
+  # Deploy shared anishinaabe-cyberpunk-style.mdc (conditional)
+  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+    if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
+      
+      # Also deploy to aider and copilot locations
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
+      fi
+    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
+      
+      # Also deploy to aider and copilot locations
+      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+        cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
+      fi
+    else
+      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
     fi
   else
-    echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
   
   # Deploy shared MEMORY-BANK.mdc
@@ -499,9 +520,9 @@ function ainish-cursor {
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR"
   echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   if [[ "$1" == -* ]]; then
-    "$CURSOR_PATH" "$@"
+    env NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--force-node-api-uncaught-exceptions-policy=true" "$CURSOR_PATH" "$@"
   else
-    "$CURSOR_PATH" "$@"
+    env NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--force-node-api-uncaught-exceptions-policy=true" "$CURSOR_PATH" "$@"
   fi
 }
 
@@ -537,6 +558,10 @@ EOF
 # Function to deploy only VS Code configurations
 deploy_vscode_configs() {
   local TARGET="$1"
+  local INCLUDE_STYLE_RULES=0
+  if prompt_include_style_rules; then
+    INCLUDE_STYLE_RULES=1
+  fi
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -572,21 +597,25 @@ deploy_vscode_configs() {
     echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
   fi
 
-  # Deploy shared critical.mdc and @MEMORY-BANK.mdc
+  # Deploy shared critical.mdc and MEMORY-BANK.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
   fi
   
-  # Deploy anishinaabe-cyberpunk-style.mdc
-  if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
-  elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
+  # Deploy anishinaabe-cyberpunk-style.mdc (conditional)
+  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+    if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
+    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    fi
   else
-    echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
 
   # Corrected source file name
@@ -638,6 +667,10 @@ deploy_vscode_configs() {
 deploy_cursor_configs() {
   local TARGET="$1"
   local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor" # Points to REPO_DIR/ainish-cursor via symlink
+  local INCLUDE_STYLE_RULES=0
+  if prompt_include_style_rules; then
+    INCLUDE_STYLE_RULES=1
+  fi
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -716,15 +749,19 @@ deploy_cursor_configs() {
     echo -e "${GREEN}✓ Ensured latest MEMORY-BANK.mdc is in .cursor/rules/${RESET}"
   fi
 
-  # Deploy shared anishinaabe-cyberpunk-style.mdc
-  if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
-    echo -e "${GREEN}✓ Ensured latest anishinaabe-cyberpunk-style.mdc is in .cursor/rules/${RESET}"
-  elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
-    echo -e "${GREEN}✓ Ensured latest anishinaabe-cyberpunk-style.mdc is in .cursor/rules/${RESET}"
+  # Deploy shared anishinaabe-cyberpunk-style.mdc (conditional)
+  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+    if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Ensured latest anishinaabe-cyberpunk-style.mdc is in .cursor/rules/${RESET}"
+    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Ensured latest anishinaabe-cyberpunk-style.mdc is in .cursor/rules/${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    fi
   else
-    echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
   
   # Skip deploying mdc-headers.md to Cursor as requested
@@ -750,7 +787,14 @@ deploy_cursor_configs() {
 
   # Verification steps (optional but good)
   echo -e "${BLUE}Verifying deployed Cursor files...${RESET}"
-  ls -l "$TARGET/.cursorignore" "$TARGET/.cursorindexingignore" "$TARGET/.cursorrules" "$TARGET_RULES_DIR/" 2>/dev/null || echo -e "${YELLOW}Verification step encountered issues.${RESET}"
+  # Build a verification list that only includes files that should exist
+  # .cursorrules is optional; include it only if present
+  {
+    [ -f "$TARGET/.cursorignore" ] && ls -l "$TARGET/.cursorignore"
+    [ -f "$TARGET/.cursorindexingignore" ] && ls -l "$TARGET/.cursorindexingignore"
+    [ -f "$TARGET/.cursorrules" ] && ls -l "$TARGET/.cursorrules"
+    [ -d "$TARGET_RULES_DIR" ] && ls -ld "$TARGET_RULES_DIR" && ls -l "$TARGET_RULES_DIR"
+  } 2>/dev/null || echo -e "${YELLOW}Verification step encountered issues.${RESET}"
 
   # Deploy .gitignore from root
   if [ -f "${REPO_DIR}/.gitignore" ]; then
@@ -767,6 +811,10 @@ deploy_cursor_configs() {
 # Function to deploy only Aider configurations
 deploy_aider_configs() {
   local TARGET="$1"
+  local INCLUDE_STYLE_RULES=0
+  if prompt_include_style_rules; then
+    INCLUDE_STYLE_RULES=1
+  fi
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -786,15 +834,19 @@ deploy_aider_configs() {
     echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
   fi
   
-  # Deploy anishinaabe-cyberpunk-style.mdc
-  if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
-  elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
+  # Deploy anishinaabe-cyberpunk-style.mdc (conditional)
+  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+    if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
+    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    fi
   else
-    echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
   
   if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
@@ -818,7 +870,7 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
   fi
 
-  # Deploy shared critical.mdc and @MEMORY-BANK.mdc directly to target directory
+  # Deploy shared critical.mdc and MEMORY-BANK.mdc directly to target directory
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
