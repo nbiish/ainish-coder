@@ -144,7 +144,7 @@ ainish-coder/
 - `.cursorignore`: Controls which files Cursor AI will ignore
 - `.cursorindexingignore`: Controls which files Cursor will skip during indexing
 - `.cursor/`: Cursor IDE configuration directory
-- `.cursor/rules/gikendaasowin.md`: Cognitive Agent instructions (from `prompt.md`)
+- `.cursor/rules/cognitive-tool.md`: Cognitive Agent instructions (from `prompt.md`)
 - `.cursor/rules/critical.mdc`: License citation file (from root `critical.mdc`)
 - `.cursor/rules/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
 - `.cursor/rules/mdc-headers.md`: MDC header definitions and documentation

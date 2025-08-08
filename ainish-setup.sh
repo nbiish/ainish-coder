@@ -401,8 +401,10 @@ deploy_ainish_configs() {
     prepend_non_cursor_content "$prompt_source" "$TARGET/.aider-instructions.md"
     # Deploy for Cursor (without non-cursor content)
     if [ -d "$TARGET/.cursor/rules" ]; then
-        cp "$prompt_source" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed prompt (initial) to .cursor/rules/gikendaasowin.md${RESET}"
+        cp "$prompt_source" "$TARGET/.cursor/rules/cognitive-tool.md" 2>/dev/null
+        # Cleanup old name if present
+        rm -f "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed prompt (initial) to .cursor/rules/cognitive-tool.md${RESET}"
     fi
   fi
   
@@ -799,23 +801,26 @@ deploy_cursor_configs() {
   #     echo -e "${GREEN}✓ Ensured latest mdc-headers.md is in .cursor/rules/${RESET}"
   # fi
 
-  # Deploy prompt as gikendaasowin.md based on PROMPT_MODE
+  # Deploy prompt as cognitive-tool.md based on PROMPT_MODE
   local prompt_src="${REPO_DIR}/prompt.md"
   if [ "$PROMPT_MODE" = "security" ]; then
     prompt_src="${REPO_DIR}/security-meta-prompt.md"
   elif [ "$PROMPT_MODE" = "none" ]; then
     prompt_src=""
   fi
-  local cursor_prompt_target="$TARGET_RULES_DIR/gikendaasowin.md"
+  local cursor_prompt_target="$TARGET_RULES_DIR/cognitive-tool.md"
   if [ -n "$prompt_src" ]; then
     if [ -f "$prompt_src" ]; then
       cp "$prompt_src" "$cursor_prompt_target" 2>/dev/null
+      # Cleanup legacy filename if present
+      rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
       echo -e "${GREEN}✓ Deployed prompt (mode=${PROMPT_MODE:-normal}) to $cursor_prompt_target${RESET}"
     else
       echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_src${RESET}"
     fi
   else
     rm -f "$cursor_prompt_target" 2>/dev/null
+    rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
     echo -e "${BLUE}↪ Skipped deploying Cursor prompt (mode=none)${RESET}"
   fi
 
@@ -1107,11 +1112,13 @@ main() {
     if [ -f "$prompt_src" ]; then
       local copilot_target="${copilot_github_dest_dir}/copilot-instructions.md" # Corrected path
       local aider_target="${aider_dest_dir}/.aider-instructions.md"
-      local cursor_target="${cursor_rules_dest_dir}/gikendaasowin.md"
+      local cursor_target="${cursor_rules_dest_dir}/cognitive-tool.md"
       
       cp "$prompt_src" "$copilot_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $copilot_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $copilot_target${RESET}"
       cp "$prompt_src" "$aider_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $aider_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $aider_target${RESET}"
       cp "$prompt_src" "$cursor_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $cursor_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $cursor_target${RESET}"
+      # Cleanup legacy filename inside repository distribution
+      rm -f "${cursor_rules_dest_dir}/gikendaasowin.md" 2>/dev/null
     else
       echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_src${RESET}"
     fi

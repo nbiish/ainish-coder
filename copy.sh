@@ -82,7 +82,7 @@ echo
 echo -e "${BRIGHT_CYAN}Copying prompt.md with special naming...${RESET}"
 copy_file "${REPO_DIR}/prompt.md" "$COPILOT_GITHUB_DIR/copilot-instructions.md" "prompt.md to ainish-copilot/.github/copilot-instructions.md"
 copy_file "${REPO_DIR}/prompt.md" "$AIDER_DIR/.aider-instructions.md" "prompt.md to ainish-aider/.aider-instructions.md"
-copy_file "${REPO_DIR}/prompt.md" "$CURSOR_RULES_DIR/gikendaasowin.md" "prompt.md to ainish-cursor/.cursor/rules/gikendaasowin.md"
+copy_file "${REPO_DIR}/prompt.md" "$CURSOR_RULES_DIR/cognitive-tool.md" "prompt.md to ainish-cursor/.cursor/rules/cognitive-tool.md"
 echo
 
 echo -e "${BRIGHT_CYAN}Copying .gitignore...${RESET}"
