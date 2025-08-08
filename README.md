@@ -28,7 +28,7 @@
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `MEMORY-BANK.mdc`, `prompt.md`, `mdc-headers.md`, `docs-use.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
+- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `prompt.md`, `mdc-headers.md`, `docs-use.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
 - **◇ Multiple AI Tool Support ◇**: 
   - `ainish-aider`: Configuration for the Aider AI pair programming assistant.
   - `ainish-cursor`: Cursor IDE specific configurations and ignore files.
@@ -69,7 +69,7 @@ chmod +x ainish-setup.sh
 
 # Run the setup script
 # This performs the full setup/update process:
-# 1. Distributes files (critical.mdc, MEMORY-BANK.mdc, prompt.md, mdc-headers.md, etc.) to tool directories
+# 1. Distributes files (critical.mdc, prompt.md, mdc-headers.md, etc.) to tool directories
 # 2. Sets up ~/.ainish-coder with symlinks
 # 3. Installs/Updates wrapper functions in .zshrc
 ./ainish-setup.sh
@@ -111,7 +111,6 @@ To update later, simply pull the latest changes into the repository directory an
 ainish-coder/
 ├── ainish-setup.sh              # Main setup and distribution script
 ├── critical.mdc                 # License citation file (distributed to all tools)
-├── MEMORY-BANK.mdc              # Project requirements/memory (distributed to all tools)
 ├── prompt.md                    # Core prompt used by all tools
 ├── docs-use.mdc                 # Documentation usage guidelines
 ├── mdc-headers.md               # MDC header definitions and documentation
@@ -136,7 +135,6 @@ ainish-coder/
 - `.aider-instructions.md`: Instructions for Aider (from `prompt.md` with prepended content)
 - `aider-cli-commands.sh`: CLI commands for Aider
 - `critical.mdc`: License citation file (from root `critical.mdc`)
-- `MEMORY-BANK.mdc`: Project requirements doc (from root `MEMORY-BANK.mdc`)
 - `docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
 - `mdc-headers.md`: MDC header definitions and documentation
 - `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
@@ -148,7 +146,6 @@ ainish-coder/
 - `.cursor/`: Cursor IDE configuration directory
 - `.cursor/rules/gikendaasowin.md`: Cognitive Agent instructions (from `prompt.md`)
 - `.cursor/rules/critical.mdc`: License citation file (from root `critical.mdc`)
-- `.cursor/rules/MEMORY-BANK.mdc`: Project requirements doc (from root `MEMORY-BANK.mdc`)
 - `.cursor/rules/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
 - `.cursor/rules/mdc-headers.md`: MDC header definitions and documentation
 - `.cursor/rules/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
@@ -160,7 +157,6 @@ ainish-coder/
 - `.github/`: GitHub specific configurations
 - `.github/copilot-instructions.md`: Custom instructions for GitHub Copilot (from `prompt.md` with prepended content)
 - `.github/critical.mdc`: License citation file (from root `critical.mdc`)
-- `.github/MEMORY-BANK.mdc`: Project requirements doc (from root `MEMORY-BANK.mdc`)
 - `.github/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
 - `.github/mdc-headers.md`: MDC header definitions and documentation
 - `.github/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
@@ -172,7 +168,7 @@ ainish-coder/
 ## ᐴ INAABAJICHIGAN ᔔ [Usage] ◈──◆──◇──◆──◈
 
 The `ainish-setup.sh` script:
-1. Automatically distributes `critical.mdc`, `MEMORY-BANK.mdc`, `prompt.md`, `docs-use.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
+1. Automatically distributes `critical.mdc`, `prompt.md`, `docs-use.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
 2. Creates a `~/.ainish-coder` directory.
 3. Creates symbolic links from `~/.ainish-coder` to the tool configuration directories (`ainish-aider`, `ainish-cursor`, `ainish-copilot`) in the repository, ensuring changes in the repo are reflected immediately.
 4. Adds convenient wrapper functions (`ainish-cursor`, `ainish-aider`, etc.) to your shell configuration (`.zshrc`).

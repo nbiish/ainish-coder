@@ -17,7 +17,7 @@
 # - deploy_cursor_configs(): Deploys only Cursor specific configurations
 # - deploy_aider_configs(): Deploys only Aider specific configurations
 # - update_critical_mdc(): Updates critical.mdc in all ainish-* directories
-# - update_memory_bank_mdc(): Updates MEMORY-BANK.mdc in all ainish-* directories
+#
 # - update_prompt_md(): Updates prompt.md in all ainish-* directories
 # - update_anishinaabe_cyberpunk_style(): Updates anishinaabe-cyberpunk-style.mdc in all ainish-* directories
 # - prepend_non_cursor_content(): Prepends header content from non-cursor-prepend.md to prompt.md files (except for ainish-cursor)
@@ -87,8 +87,7 @@ setup_ainish_coder_dir() {
   # Create symlink for anishinaabe-cyberpunk-style.mdc
   ln -sf "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" 2>/dev/null
 
-  # Create symlink for MEMORY-BANK.mdc (Corrected filename)
-  ln -sf "${REPO_DIR}/MEMORY-BANK.mdc" "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" 2>/dev/null
+  
 
   # Create symlink for docs-use.mdc
   ln -sf "${REPO_DIR}/docs-use.mdc" "${AINISH_CODER_DIR}/docs-use.mdc" 2>/dev/null
@@ -262,7 +261,7 @@ deploy_ainish_configs() {
     echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
   fi
   
-  # Deploy shared critical.mdc and MEMORY-BANK.mdc
+  # Deploy shared critical.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
@@ -307,19 +306,7 @@ deploy_ainish_configs() {
     echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
   
-  # Deploy shared MEMORY-BANK.mdc
-  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .cursor/rules/${RESET}"
-    
-    # Also deploy to aider and copilot locations
-    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null # For Aider
-    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to $TARGET (for Aider)${RESET}"
-    if [ -d "$TARGET/.github" ]; then
-      cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .github/ (for Copilot)${RESET}"
-    fi
-  fi
+  
   
   # Deploy shared docs-use.mdc
   if [ -f "${REPO_DIR}/docs-use.mdc" ]; then # Use REPO_DIR for root files
@@ -597,7 +584,7 @@ deploy_vscode_configs() {
     echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
   fi
 
-  # Deploy shared critical.mdc and MEMORY-BANK.mdc
+  # Deploy shared critical.mdc
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
@@ -618,11 +605,7 @@ deploy_vscode_configs() {
     echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
 
-  # Corrected source file name
-  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to .github/${RESET}"
-  fi
+  
 
   # Deploy shared docs-use.mdc
   if [ -f "${REPO_DIR}/docs-use.mdc" ]; then # Use REPO_DIR for root files
@@ -742,12 +725,7 @@ deploy_cursor_configs() {
     echo -e "${GREEN}✓ Ensured latest critical.mdc is in .cursor/rules/${RESET}"
   fi
 
-  # Deploy MEMORY-BANK.mdc (ensure it comes from the central location)
-  local memory_src="${AINISH_CODER_DIR}/MEMORY-BANK.mdc" # Should point to REPO_DIR/MEMORY-BANK.mdc
-  if [ -f "$memory_src" ]; then
-    cp "$memory_src" "$TARGET_RULES_DIR/" 2>/dev/null # Ensure it's copied into the rules dir
-    echo -e "${GREEN}✓ Ensured latest MEMORY-BANK.mdc is in .cursor/rules/${RESET}"
-  fi
+  
 
   # Deploy shared anishinaabe-cyberpunk-style.mdc (conditional)
   if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
@@ -870,17 +848,13 @@ deploy_aider_configs() {
     echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
   fi
 
-  # Deploy shared critical.mdc and MEMORY-BANK.mdc directly to target directory
+  # Deploy shared critical.mdc directly to target directory
   if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
     cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
     echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
   fi
 
-  # Corrected source file name
-  if [ -f "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/MEMORY-BANK.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed MEMORY-BANK.mdc to $TARGET${RESET}"
-  fi
+  
 
   # Deploy docs-use.mdc (ensure it comes from the central location)
   local docs_src="${REPO_DIR}/docs-use.mdc" # Use REPO_DIR for root files
@@ -1018,7 +992,7 @@ main() {
     
     # Define source files (use actual filenames)
     local critical_src="${REPO_DIR}/critical.mdc"
-    local memory_src="${REPO_DIR}/MEMORY-BANK.mdc" # Correct filename (removed @)
+    
     local prompt_src="${REPO_DIR}/prompt.md"
     # Define docs-use.mdc source
     local docs_src="${REPO_DIR}/docs-use.mdc"
@@ -1049,15 +1023,7 @@ main() {
       echo -e "${YELLOW}⚠️ Warning: Source critical.mdc not found at $critical_src${RESET}"
     fi
 
-    # Copy MEMORY-BANK.mdc
-    if [ -f "$memory_src" ]; then
-      cp "$memory_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-aider/${RESET}"
-      cp "$memory_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-copilot/.github/${RESET}"
-      cp "$memory_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/${RESET}"
-      cp "$memory_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied MEMORY-BANK.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy MEMORY-BANK.mdc to .cursor/rules/${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: Source MEMORY-BANK.mdc not found at $memory_src${RESET}"
-    fi
+    
     # Copy docs-use.mdc
     if [ -f "$docs_src" ]; then
       cp "$docs_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to ainish-aider/${RESET}"

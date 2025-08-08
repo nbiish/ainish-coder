@@ -10,12 +10,6 @@ Copy anishinaabe-cyberpunk-style.mdc to:
 - ainish-cursor/.cursor/rules/
 - .cursor/rules/
 
-Copy MEMORY-BANK.mdc to:
-- ainish-aider/
-- ainish-copilot/.github/
-- ainish-cursor/.cursor/rules/
-- .cursor/rules/
-
 Copy docs-use.mdc to:
 - ainish-aider/
 - ainish-copilot/.github/

@@ -71,12 +71,6 @@ copy_file "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$CURSOR_RULES_DIR/anish
 copy_file "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$ROOT_CURSOR_RULES_DIR/anishinaabe-cyberpunk-style.mdc" "anishinaabe-cyberpunk-style.mdc to .cursor/rules/"
 echo
 
-echo -e "${BRIGHT_CYAN}Copying MEMORY-BANK.mdc...${RESET}"
-copy_file "${REPO_DIR}/MEMORY-BANK.mdc" "$AIDER_DIR/MEMORY-BANK.mdc" "MEMORY-BANK.mdc to ainish-aider/"
-copy_file "${REPO_DIR}/MEMORY-BANK.mdc" "$COPILOT_GITHUB_DIR/MEMORY-BANK.mdc" "MEMORY-BANK.mdc to ainish-copilot/.github/"
-copy_file "${REPO_DIR}/MEMORY-BANK.mdc" "$CURSOR_RULES_DIR/MEMORY-BANK.mdc" "MEMORY-BANK.mdc to ainish-cursor/.cursor/rules/"
-copy_file "${REPO_DIR}/MEMORY-BANK.mdc" "$ROOT_CURSOR_RULES_DIR/MEMORY-BANK.mdc" "MEMORY-BANK.mdc to .cursor/rules/"
-echo
 
 echo -e "${BRIGHT_CYAN}Copying docs-use.mdc...${RESET}"
 copy_file "${REPO_DIR}/docs-use.mdc" "$AIDER_DIR/docs-use.mdc" "docs-use.mdc to ainish-aider/"
