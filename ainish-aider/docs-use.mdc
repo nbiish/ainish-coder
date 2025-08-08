@@ -7,7 +7,5 @@ alwaysApply: false
 - use mcp_All_docs_and_libraries (context7 mcp tool) to learn/confirm knowledge about frameworks, libraries, etc..
     - fallback to internal search
     - fallback to other search tools
-    - fall back to browsermcp <- controls chrome browser
-    - (MEMORY-BANK.mdc removed from active distribution)
         - VERIFY and use CURRENT TIME using mcp_time_get_current_time <-!!
     - all available websearch & tools for information/docs gathering -> reference project docs directly
