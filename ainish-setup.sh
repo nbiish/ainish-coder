@@ -94,6 +94,10 @@ setup_ainish_coder_dir() {
 
   # Create symlink for prompt.md
   ln -sf "${REPO_DIR}/prompt.md" "${AINISH_CODER_DIR}/prompt.md" 2>/dev/null
+  # Create symlink for security-meta-prompt.md
+  if [ -f "${REPO_DIR}/security-meta-prompt.md" ]; then
+    ln -sf "${REPO_DIR}/security-meta-prompt.md" "${AINISH_CODER_DIR}/security-meta-prompt.md" 2>/dev/null
+  fi
   
   # Create symlink for non-cursor-prepend.md
   ln -sf "${REPO_DIR}/non-cursor-prepend.md" "${AINISH_CODER_DIR}/non-cursor-prepend.md" 2>/dev/null
@@ -384,16 +388,21 @@ deploy_ainish_configs() {
   
   # Deploy prompt.md from root to destinations with special names
   if [ -f "${REPO_DIR}/prompt.md" ]; then
+    # Respect AINISH_PROMPT_MODE for initial distribution
+    local prompt_source="${REPO_DIR}/prompt.md"
+    if [ "${AINISH_PROMPT_MODE:-}" = "security" ] && [ -f "${REPO_DIR}/security-meta-prompt.md" ]; then
+      prompt_source="${REPO_DIR}/security-meta-prompt.md"
+    fi
     # Deploy for Copilot
     if [ -d "$TARGET/.github" ]; then
-      prepend_non_cursor_content "${REPO_DIR}/prompt.md" "$TARGET/.github/copilot-instructions.md"
+      prepend_non_cursor_content "$prompt_source" "$TARGET/.github/copilot-instructions.md"
     fi
     # Deploy for Aider
-    prepend_non_cursor_content "${REPO_DIR}/prompt.md" "$TARGET/.aider-instructions.md"
-    # Deploy for Cursor (without non-cursor-append.md content)
+    prepend_non_cursor_content "$prompt_source" "$TARGET/.aider-instructions.md"
+    # Deploy for Cursor (without non-cursor content)
     if [ -d "$TARGET/.cursor/rules" ]; then
-        cp "${REPO_DIR}/prompt.md" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed prompt.md as gikendaasowin.md to .cursor/rules/${RESET}"
+        cp "$prompt_source" "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed prompt (initial) to .cursor/rules/gikendaasowin.md${RESET}"
     fi
   fi
   
@@ -492,6 +501,13 @@ EOF
 function ainish-coder {
   # Capture current directory explicitly to handle external volumes
   local CURRENT_DIR="$(pwd)"
+  local MODE_ARG="${1:-}"
+  case "$MODE_ARG" in
+    --prompt=security|--prompt=normal|--prompt=none) ;;
+    "") ;; # no override
+    *) MODE_ARG="" ;; # ignore unknown
+  esac
+  if [[ "$MODE_ARG" == --prompt=* ]]; then export AINISH_PROMPT_MODE="${MODE_ARG#--prompt=}"; fi
   
   # Deploy from the linked repo directories to ensure latest changes are used
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$CURRENT_DIR"
@@ -502,6 +518,13 @@ function ainish-coder {
 function ainish-cursor {
   # Capture current directory explicitly to handle external volumes
   local CURRENT_DIR="$(pwd)"
+  local MODE_ARG="${1:-}"
+  case "$MODE_ARG" in
+    --prompt=security|--prompt=normal|--prompt=none) ;;
+    "") ;; # no override
+    *) MODE_ARG="" ;; # ignore unknown
+  esac
+  if [[ "$MODE_ARG" == --prompt=* ]]; then export AINISH_PROMPT_MODE="${MODE_ARG#--prompt=}"; shift; fi
   
   # Deploy from the linked repo directories to ensure latest changes are used
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR"
@@ -516,6 +539,13 @@ function ainish-cursor {
 function ainish-aider {
   # Capture current directory explicitly to handle external volumes
   local CURRENT_DIR="$(pwd)"
+  local MODE_ARG="${1:-}"
+  case "$MODE_ARG" in
+    --prompt=security|--prompt=normal|--prompt=none) ;;
+    "") ;; # no override
+    *) MODE_ARG="" ;; # ignore unknown
+  esac
+  if [[ "$MODE_ARG" == --prompt=* ]]; then export AINISH_PROMPT_MODE="${MODE_ARG#--prompt=}"; shift; fi
   
   # Deploy from the linked repo directories to ensure latest changes are used
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR"
@@ -525,6 +555,13 @@ function ainish-aider {
 function ainish-copilot {
   # Capture current directory explicitly to handle external volumes
   local CURRENT_DIR="$(pwd)"
+  local MODE_ARG="${1:-}"
+  case "$MODE_ARG" in
+    --prompt=security|--prompt=normal|--prompt=none) ;;
+    "") ;; # no override
+    *) MODE_ARG="" ;; # ignore unknown
+  esac
+  if [[ "$MODE_ARG" == --prompt=* ]]; then export AINISH_PROMPT_MODE="${MODE_ARG#--prompt=}"; shift; fi
   
   # Deploy from the linked repo directories to ensure latest changes are used
   "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$CURRENT_DIR"
@@ -545,6 +582,7 @@ EOF
 # Function to deploy only VS Code configurations
 deploy_vscode_configs() {
   local TARGET="$1"
+  local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   local INCLUDE_STYLE_RULES=0
   if prompt_include_style_rules; then
     INCLUDE_STYLE_RULES=1
@@ -623,15 +661,26 @@ deploy_vscode_configs() {
     fi
   fi
 
-  # Deploy prompt.md as copilot-instructions.md (ensure it happens)
+  # Deploy prompt as copilot-instructions.md (source depends on PROMPT_MODE)
   local prompt_source="${REPO_DIR}/prompt.md"
+  if [ "$PROMPT_MODE" = "security" ]; then
+    prompt_source="${REPO_DIR}/security-meta-prompt.md"
+  elif [ "$PROMPT_MODE" = "none" ]; then
+    prompt_source=""
+  fi
   local copilot_target_dir="$TARGET/.github"
   local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
-  if [ -f "$prompt_source" ]; then
-      mkdir -p "$copilot_target_dir" 2>/dev/null
-      prepend_non_cursor_content "$prompt_source" "$copilot_target_file"
+  if [ -n "$prompt_source" ]; then
+    if [ -f "$prompt_source" ]; then
+        mkdir -p "$copilot_target_dir" 2>/dev/null
+        prepend_non_cursor_content "$prompt_source" "$copilot_target_file"
+    else
+        echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
+    fi
   else
-      echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
+    # none: remove if exists
+    rm -f "$copilot_target_file" 2>/dev/null
+    echo -e "${BLUE}↪ Skipped deploying Copilot prompt (mode=none)${RESET}"
   fi
 
   # Deploy .gitignore from root
@@ -649,6 +698,7 @@ deploy_vscode_configs() {
 # Function to deploy only Cursor configurations
 deploy_cursor_configs() {
   local TARGET="$1"
+  local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor" # Points to REPO_DIR/ainish-cursor via symlink
   local INCLUDE_STYLE_RULES=0
   if prompt_include_style_rules; then
@@ -749,12 +799,24 @@ deploy_cursor_configs() {
   #     echo -e "${GREEN}✓ Ensured latest mdc-headers.md is in .cursor/rules/${RESET}"
   # fi
 
-  # Deploy prompt.md as gikendaasowin.md (ensure it comes from the central location)
-  local prompt_src="${REPO_DIR}/prompt.md" # Use REPO_DIR directly for root files
-  if [ -f "$prompt_src" ]; then
-    # For Cursor, don't append non-cursor content
-    cp "$prompt_src" "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
-    echo -e "${GREEN}✓ Ensured latest prompt.md is deployed as gikendaasowin.md${RESET}"
+  # Deploy prompt as gikendaasowin.md based on PROMPT_MODE
+  local prompt_src="${REPO_DIR}/prompt.md"
+  if [ "$PROMPT_MODE" = "security" ]; then
+    prompt_src="${REPO_DIR}/security-meta-prompt.md"
+  elif [ "$PROMPT_MODE" = "none" ]; then
+    prompt_src=""
+  fi
+  local cursor_prompt_target="$TARGET_RULES_DIR/gikendaasowin.md"
+  if [ -n "$prompt_src" ]; then
+    if [ -f "$prompt_src" ]; then
+      cp "$prompt_src" "$cursor_prompt_target" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed prompt (mode=${PROMPT_MODE:-normal}) to $cursor_prompt_target${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_src${RESET}"
+    fi
+  else
+    rm -f "$cursor_prompt_target" 2>/dev/null
+    echo -e "${BLUE}↪ Skipped deploying Cursor prompt (mode=none)${RESET}"
   fi
 
   # Deploy license.mdc if it exists in the source cursor dir (might be specific)
@@ -789,6 +851,7 @@ deploy_cursor_configs() {
 # Function to deploy only Aider configurations
 deploy_aider_configs() {
   local TARGET="$1"
+  local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   local INCLUDE_STYLE_RULES=0
   if prompt_include_style_rules; then
     INCLUDE_STYLE_RULES=1
@@ -803,13 +866,23 @@ deploy_aider_configs() {
   echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET${RESET}"
 
   # Deploy Aider-specific configurations
-  # Copy .aider-instructions.md from the root prompt.md
+  # Copy .aider-instructions.md from selected prompt
   local prompt_source="${REPO_DIR}/prompt.md"
+  if [ "$PROMPT_MODE" = "security" ]; then
+    prompt_source="${REPO_DIR}/security-meta-prompt.md"
+  elif [ "$PROMPT_MODE" = "none" ]; then
+    prompt_source=""
+  fi
   local aider_target_file="$TARGET/.aider-instructions.md"
-  if [ -f "$prompt_source" ]; then
-    prepend_non_cursor_content "$prompt_source" "$aider_target_file"
+  if [ -n "$prompt_source" ]; then
+    if [ -f "$prompt_source" ]; then
+      prepend_non_cursor_content "$prompt_source" "$aider_target_file"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
+    fi
   else
-    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_source${RESET}"
+    rm -f "$aider_target_file" 2>/dev/null
+    echo -e "${BLUE}↪ Skipped deploying Aider prompt (mode=none)${RESET}"
   fi
   
   # Deploy anishinaabe-cyberpunk-style.mdc (conditional)
@@ -870,13 +943,7 @@ deploy_aider_configs() {
       echo -e "${GREEN}✓ Deployed mdc-headers.md to $TARGET${RESET}"
   fi
 
-  # Deploy prompt.md as .aider-instructions.md (ensure it comes from the central location)
-  local prompt_src="${REPO_DIR}/prompt.md"
-  if [ -f "$prompt_src" ]; then
-    prepend_non_cursor_content "$prompt_src" "$TARGET/.aider-instructions.md"
-  else
-    echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_src${RESET}"
-  fi
+  # (Prompt deployment handled above based on PROMPT_MODE)
 
   # Deploy .gitignore from root
   if [ -f "${REPO_DIR}/.gitignore" ]; then
@@ -895,6 +962,8 @@ prepend_non_cursor_content() {
   local SOURCE="$1"
   local DEST="$2"
   local NON_CURSOR_PREPEND="${REPO_DIR}/non-cursor-prepend.md"
+  local BASENAME
+  BASENAME="$(basename "$SOURCE")"
   
   # Don't prepend if destination contains "cursor" (for ainish-cursor directory or .cursor/rules)
   if [[ "$DEST" == *"cursor"* ]]; then
@@ -911,8 +980,8 @@ prepend_non_cursor_content() {
     return $?
   fi
   
-  # Create combined file: non-cursor-prepend.md + separator + prompt.md
-  { cat "$NON_CURSOR_PREPEND"; cat "$SOURCE"; } > "$DEST" 2>/dev/null
+  # Create combined file: non-cursor-prepend.md + separator + prompt
+  { cat "$NON_CURSOR_PREPEND"; echo ""; echo "<!-- Source: $BASENAME -->"; echo ""; cat "$SOURCE"; } > "$DEST" 2>/dev/null
   local RESULT=$?
   
   if [ $RESULT -eq 0 ]; then
