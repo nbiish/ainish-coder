@@ -95,12 +95,10 @@ setup_ainish_coder_dir() {
   # Create symlink for PRD.mdc
   ln -sf "${REPO_DIR}/PRD.mdc" "${AINISH_CODER_DIR}/PRD.mdc" 2>/dev/null
 
-  # Create symlink for prompt.md
-  ln -sf "${REPO_DIR}/prompt.md" "${AINISH_CODER_DIR}/prompt.md" 2>/dev/null
-  # Create symlink for security-meta-prompt.md
-  if [ -f "${REPO_DIR}/security-meta-prompt.md" ]; then
-    ln -sf "${REPO_DIR}/security-meta-prompt.md" "${AINISH_CODER_DIR}/security-meta-prompt.md" 2>/dev/null
-  fi
+  # Create symlink for modern-prompting.mdc
+  ln -sf "${REPO_DIR}/modern-prompting.mdc" "${AINISH_CODER_DIR}/modern-prompting.mdc" 2>/dev/null
+  # Create symlink for security.mdc
+  ln -sf "${REPO_DIR}/security.mdc" "${AINISH_CODER_DIR}/security.mdc" 2>/dev/null
   
   # Create symlink for non-cursor-prepend.md
   ln -sf "${REPO_DIR}/non-cursor-prepend.md" "${AINISH_CODER_DIR}/non-cursor-prepend.md" 2>/dev/null
@@ -365,27 +363,37 @@ deploy_ainish_configs() {
     fi
   fi
   
-  # Deploy prompt files
+  # Deploy prompt and security files
   if [[ $DEPLOY_CORE -eq 1 ]]; then
-    if [ -f "${REPO_DIR}/prompt.md" ]; then
-      local prompt_source="${REPO_DIR}/prompt.md"
-      if [ "${AINISH_PROMPT_MODE:-}" = "security" ] && [ -f "${REPO_DIR}/security-meta-prompt.md" ]; then
-        prompt_source="${REPO_DIR}/security-meta-prompt.md"
-      fi
-      
-      # Deploy for Copilot
+    # Deploy modern-prompting.mdc
+    if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
+      cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed modern-prompting.mdc to .cursor/rules/${RESET}"
+      cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed modern-prompting.mdc to root${RESET}"
       if [ -d "$TARGET/.github" ]; then
-        prepend_non_cursor_content "$prompt_source" "$TARGET/.github/copilot-instructions.md"
+        cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed modern-prompting.mdc to .github/${RESET}"
       fi
-      # Deploy for Aider
-      prepend_non_cursor_content "$prompt_source" "$TARGET/.aider-instructions.md"
-      # Deploy for Cursor
-      if [ -d "$TARGET/.cursor/rules" ]; then
-        cp "$prompt_source" "$TARGET/.cursor/rules/cognitive-tool.md" 2>/dev/null
-        rm -f "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed prompt to .cursor/rules/cognitive-tool.md${RESET}"
+      # Deploy for Aider (prepend non-cursor content)
+      prepend_non_cursor_content "${REPO_DIR}/modern-prompting.mdc" "$TARGET/.aider-instructions.md"
+    fi
+    
+    # Deploy security.mdc  
+    if [ -f "${REPO_DIR}/security.mdc" ]; then
+      cp "${REPO_DIR}/security.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed security.mdc to .cursor/rules/${RESET}"
+      cp "${REPO_DIR}/security.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed security.mdc to root${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/security.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed security.mdc to .github/${RESET}"
       fi
     fi
+    
+    # Clean up legacy files
+    rm -f "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
+    rm -f "$TARGET/.cursor/rules/cognitive-tool.md" 2>/dev/null
   fi
   
   # Deploy .gitignore
@@ -707,25 +715,26 @@ deploy_vscode_configs() {
     fi
   fi
 
-  # Deploy prompt
+  # Deploy prompt and security files
   if [[ $DEPLOY_CORE -eq 1 ]]; then
-    local prompt_source="${REPO_DIR}/prompt.md"
-    if [ "$PROMPT_MODE" = "security" ]; then
-      prompt_source="${REPO_DIR}/security-meta-prompt.md"
-    elif [ "$PROMPT_MODE" = "none" ]; then
-      prompt_source=""
-    fi
-    local copilot_target_file="$TARGET/.github/copilot-instructions.md"
-    if [ -n "$prompt_source" ]; then
-      if [ -f "$prompt_source" ]; then
-        mkdir -p "$TARGET/.github" 2>/dev/null
-        prepend_non_cursor_content "$prompt_source" "$copilot_target_file"
-      else
-        echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
+    # Deploy modern-prompting.mdc
+    if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed modern-prompting.mdc to .github/${RESET}"
       fi
-    else
-      rm -f "$copilot_target_file" 2>/dev/null
-      echo -e "${BLUE}↪ Skipped deploying prompt (mode=none)${RESET}"
+      # Deploy for Copilot (prepend non-cursor content)
+      local copilot_target_file="$TARGET/.github/copilot-instructions.md"
+      mkdir -p "$TARGET/.github" 2>/dev/null
+      prepend_non_cursor_content "${REPO_DIR}/modern-prompting.mdc" "$copilot_target_file"
+    fi
+    
+    # Deploy security.mdc
+    if [ -f "${REPO_DIR}/security.mdc" ]; then
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/security.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed security.mdc to .github/${RESET}"
+      fi
     fi
   fi
 
@@ -826,27 +835,20 @@ deploy_cursor_configs() {
       echo -e "${GREEN}✓ Deployed PRD.mdc${RESET}"
     fi
     
-    # Deploy prompt
-    local prompt_src="${REPO_DIR}/prompt.md"
-    if [ "$PROMPT_MODE" = "security" ]; then
-      prompt_src="${REPO_DIR}/security-meta-prompt.md"
-    elif [ "$PROMPT_MODE" = "none" ]; then
-      prompt_src=""
+    # Deploy prompt and security files
+    if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
+      cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed modern-prompting.mdc${RESET}"
     fi
-    local cursor_prompt_target="$TARGET_RULES_DIR/cognitive-tool.md"
-    if [ -n "$prompt_src" ]; then
-      if [ -f "$prompt_src" ]; then
-        cp "$prompt_src" "$cursor_prompt_target" 2>/dev/null
-        rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed prompt to cognitive-tool.md${RESET}"
-      else
-        echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_src${RESET}"
-      fi
-    else
-      rm -f "$cursor_prompt_target" 2>/dev/null
-      rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
-      echo -e "${BLUE}↪ Skipped deploying prompt (mode=none)${RESET}"
+    
+    if [ -f "${REPO_DIR}/security.mdc" ]; then
+      cp "${REPO_DIR}/security.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed security.mdc${RESET}"
     fi
+    
+    # Clean up legacy files
+    rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
+    rm -f "$TARGET_RULES_DIR/cognitive-tool.md" 2>/dev/null
   fi
 
   # Deploy style files for mode 1 and 4
@@ -907,23 +909,20 @@ deploy_aider_configs() {
 
   # Deploy core files
   if [[ $DEPLOY_CORE -eq 1 ]]; then
-    # Deploy prompt
-    local prompt_source="${REPO_DIR}/prompt.md"
-    if [ "$PROMPT_MODE" = "security" ]; then
-      prompt_source="${REPO_DIR}/security-meta-prompt.md"
-    elif [ "$PROMPT_MODE" = "none" ]; then
-      prompt_source=""
+    # Deploy modern-prompting.mdc for Aider (prepend non-cursor content)
+    if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
+      local aider_target_file="$TARGET/.aider-instructions.md"
+      prepend_non_cursor_content "${REPO_DIR}/modern-prompting.mdc" "$aider_target_file"
+      
+      # Also deploy as regular file
+      cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed modern-prompting.mdc${RESET}"
     fi
-    local aider_target_file="$TARGET/.aider-instructions.md"
-    if [ -n "$prompt_source" ]; then
-      if [ -f "$prompt_source" ]; then
-        prepend_non_cursor_content "$prompt_source" "$aider_target_file"
-      else
-        echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
-      fi
-    else
-      rm -f "$aider_target_file" 2>/dev/null
-      echo -e "${BLUE}↪ Skipped deploying prompt (mode=none)${RESET}"
+    
+    # Deploy security.mdc
+    if [ -f "${REPO_DIR}/security.mdc" ]; then
+      cp "${REPO_DIR}/security.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed security.mdc${RESET}"
     fi
     
     # Deploy critical.mdc and docs-use.mdc
@@ -1099,8 +1098,8 @@ main() {
     
     # Define source files (use actual filenames)
     local critical_src="${REPO_DIR}/critical.mdc"
-    
-    local prompt_src="${REPO_DIR}/prompt.md"
+    local modern_prompting_src="${REPO_DIR}/modern-prompting.mdc"
+    local security_src="${REPO_DIR}/security.mdc"
     # Define docs-use.mdc source
     local docs_src="${REPO_DIR}/docs-use.mdc"
     # Define PRD.mdc source
@@ -1153,20 +1152,40 @@ main() {
       echo -e "${YELLOW}⚠️ Warning: Source PRD.mdc not found at $prd_src${RESET}"
     fi
     
-    # Copy prompt.md to specific destinations
-    if [ -f "$prompt_src" ]; then
-      local copilot_target="${copilot_github_dest_dir}/copilot-instructions.md" # Corrected path
-      local aider_target="${aider_dest_dir}/.aider-instructions.md"
-      local cursor_target="${cursor_rules_dest_dir}/cognitive-tool.md"
+    # Copy modern-prompting.mdc and security.mdc to specific destinations
+    if [ -f "$modern_prompting_src" ]; then
+      # Copy modern-prompting.mdc to all destination directories
+      cp "$modern_prompting_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied modern-prompting.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy modern-prompting.mdc to ainish-aider/${RESET}"
+      cp "$modern_prompting_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied modern-prompting.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy modern-prompting.mdc to ainish-copilot/.github/${RESET}"
+      cp "$modern_prompting_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied modern-prompting.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy modern-prompting.mdc to ainish-cursor/.cursor/rules/${RESET}"
+      cp "$modern_prompting_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied modern-prompting.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy modern-prompting.mdc to .cursor/rules/${RESET}"
       
-      cp "$prompt_src" "$copilot_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $copilot_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $copilot_target${RESET}"
-      cp "$prompt_src" "$aider_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $aider_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $aider_target${RESET}"
-      cp "$prompt_src" "$cursor_target" 2>/dev/null && echo -e "${GREEN}✓ Copied prompt.md to $cursor_target${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy prompt.md to $cursor_target${RESET}"
-      # Cleanup legacy filename inside repository distribution
-      rm -f "${cursor_rules_dest_dir}/gikendaasowin.md" 2>/dev/null
+      # Create .aider-instructions.md (prepend non-cursor content)
+      local aider_target="${aider_dest_dir}/.aider-instructions.md"
+      prepend_non_cursor_content "$modern_prompting_src" "$aider_target"
+      
+      # Create copilot-instructions.md (prepend non-cursor content)
+      local copilot_target="${copilot_github_dest_dir}/copilot-instructions.md"
+      prepend_non_cursor_content "$modern_prompting_src" "$copilot_target"
     else
-      echo -e "${YELLOW}⚠️ Warning: Source prompt.md not found at $prompt_src${RESET}"
+      echo -e "${YELLOW}⚠️ Warning: Source modern-prompting.mdc not found at $modern_prompting_src${RESET}"
     fi
+    
+    if [ -f "$security_src" ]; then
+      # Copy security.mdc to all destination directories
+      cp "$security_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied security.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy security.mdc to ainish-aider/${RESET}"
+      cp "$security_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied security.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy security.mdc to ainish-copilot/.github/${RESET}"
+      cp "$security_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied security.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy security.mdc to ainish-cursor/.cursor/rules/${RESET}"
+      cp "$security_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied security.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy security.mdc to .cursor/rules/${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Source security.mdc not found at $security_src${RESET}"
+    fi
+    
+    # Cleanup legacy files
+    rm -f "${cursor_rules_dest_dir}/gikendaasowin.md" 2>/dev/null
+    rm -f "${cursor_rules_dest_dir}/cognitive-tool.md" 2>/dev/null
+    rm -f "${root_cursor_rules_dest_dir}/gikendaasowin.md" 2>/dev/null
+    rm -f "${root_cursor_rules_dest_dir}/cognitive-tool.md" 2>/dev/null
     
     # Copy .gitignore to specific destinations
     if [ -f "${REPO_DIR}/.gitignore" ]; then
