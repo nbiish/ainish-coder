@@ -1,0 +1,168 @@
+---
+description: Expert-level Product Requirements Document for LLM tooling and AI-assisted development workflow
+globs: *.mdc,*.md,*.sh,*.ts,*.js,*.py
+alwaysApply: true
+---
+
+# PRODUCT REQUIREMENTS DOCUMENT: AINISH-CODER LLM TOOLING
+
+## 1. OVERVIEW
+
+### 1.1 Purpose
+
+AI-assisted development environment providing structured tooling for LLM-driven code generation, documentation, and project management with Anishinaabe cyberpunk aesthetic integration.
+
+### 1.2 Core Features
+
+- **Structured MDC Documentation System**: YAML-frontmatter files for precise LLM instruction delivery
+- **Multi-LLM Tooling Support**: Aider, Copilot, Cursor integration with unified workflow
+- **Context-Aware AI Assistance**: MCP (Model Context Protocol) integration for real-time documentation access
+- **Cultural Design Integration**: Anishinaabe cyberpunk aesthetic with modern UX standards
+
+## 2. FRONTEND REQUIREMENTS
+
+### 2.1 Design Standards
+
+- Adherence to accessibility guidelines (WCAG 2.1 AA)
+- Responsive design for terminal and web interfaces
+- Anishinaabe cyberpunk visual language integration
+- Consistent typography and color schemes across tools
+
+### 2.2 User Interface Components
+
+- Command-line interfaces with rich output formatting
+- File structure visualization for mdc/documentation hierarchy
+- Real-time status indicators for AI tool operations
+- Interactive setup and configuration wizards
+
+## 3. BACKEND REQUIREMENTS
+
+### 3.1 Core Architecture
+
+- **File Processing Engine**: MDC header parsing and validation
+- **Context Management**: Dynamic rule application based on globs and alwaysApply flags
+- **Integration Layer**: Unified API for Aider, Copilot, and Cursor tools
+- **Documentation Pipeline**: MCP tool integration for real-time library documentation
+
+### 3.2 API Behaviors
+
+```yaml
+MDC_Parser:
+  input: file_path, content
+  output: parsed_metadata, validation_status
+  error_handling: conservative_interpretation, backward_compatibility
+
+Context_Manager:
+  input: current_task, file_patterns
+  output: applicable_rules, priority_order
+  behavior: respect_alwaysApply, honor_globs
+
+Integration_Controller:
+  input: tool_type, command, context
+  output: unified_response, status_metrics
+  supported_tools: [aider, copilot, cursor]
+```
+
+## 4. DATA MODEL
+
+### 4.1 MDC Header Schema
+
+```yaml
+required_fields:
+  - description: string (purpose/context hint)
+optional_fields:
+  - globs: string (comma-separated file patterns)
+  - alwaysApply: boolean (unconditional application flag)
+  - contextType: enum [rule, documentation, configuration]
+```
+
+### 4.2 Configuration Entities
+
+- **Tool Profiles**: Per-LLM configuration and capabilities
+- **Project Context**: Repository-specific settings and preferences
+- **Rule Hierarchy**: Priority ordering for conflicting directives
+
+## 5. ENDPOINT BEHAVIORS
+
+### 5.1 File Processing
+
+- **Parse MDC Headers**: Extract and validate YAML frontmatter
+- **Apply Context Rules**: Determine applicable processing directives
+- **Generate Responses**: Format output according to specified constraints
+
+### 5.2 Tool Integration
+
+- **Unified Command Interface**: Single entry point for multi-tool operations
+- **Status Monitoring**: Real-time feedback on AI tool operations
+- **Error Recovery**: Fallback mechanisms for tool failures
+
+## 6. SECURITY CONSIDERATIONS
+
+### 6.1 File Access Controls
+
+- Respect gitignore patterns for sensitive files
+- Validate file paths to prevent directory traversal
+- Sanitize user inputs in MDC headers
+
+### 6.2 AI Tool Security
+
+- Sandbox execution environments for code generation
+- Input validation for LLM prompts
+- Audit logging for AI-generated changes
+
+## 7. PERFORMANCE REQUIREMENTS
+
+### 7.1 Response Times
+
+- MDC header parsing: <100ms per file
+- Context rule application: <200ms for full repository scan
+- AI tool integration: <5s for simple operations
+
+### 7.2 Scalability
+
+- Support repositories with 10,000+ files
+- Concurrent AI tool operations
+- Efficient caching for repeated operations
+
+## 8. ACCEPTANCE CRITERIA
+
+### 8.1 Core Functionality
+
+✓ MDC headers parse correctly with YAML validation
+✓ glob patterns match intended file sets
+✓ alwaysApply flag enforces unconditional rule application
+✓ Multiple LLM tools integrate seamlessly
+✓ MCP documentation access works in real-time
+
+### 8.2 User Experience
+
+✓ Setup script completes successfully on macOS/Linux
+✓ Documentation is discoverable and actionable
+✓ Error messages provide clear guidance
+✓ Cultural design elements enhance rather than obstruct functionality
+
+### 8.3 Technical Requirements
+
+✓ All tools respect MDC header directives
+✓ No conflicts between different AI assistants
+✓ Fallback mechanisms handle tool failures gracefully
+✓ Security protocols prevent unauthorized access
+
+## 9. IMPLEMENTATION NOTES
+
+### 9.1 Development Workflow
+
+1. Stakeholder collaboration for feature prioritization
+2. Detailed feature prompts with comprehensive requirements
+3. LLM-assisted PRD generation and refinement
+4. Iterative development with continuous validation
+
+### 9.2 Quality Assurance
+
+- Automated testing for MDC header processing
+- Integration testing across all supported LLM tools
+- User acceptance testing with diverse project types
+- Performance benchmarking against established metrics
+
+---
+*This PRD serves as the definitive specification for LLM tooling development and must be referenced for all feature implementations and modifications.*

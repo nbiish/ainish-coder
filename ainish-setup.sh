@@ -92,6 +92,9 @@ setup_ainish_coder_dir() {
   # Create symlink for docs-use.mdc
   ln -sf "${REPO_DIR}/docs-use.mdc" "${AINISH_CODER_DIR}/docs-use.mdc" 2>/dev/null
 
+  # Create symlink for PRD.mdc
+  ln -sf "${REPO_DIR}/PRD.mdc" "${AINISH_CODER_DIR}/PRD.mdc" 2>/dev/null
+
   # Create symlink for prompt.md
   ln -sf "${REPO_DIR}/prompt.md" "${AINISH_CODER_DIR}/prompt.md" 2>/dev/null
   # Create symlink for security-meta-prompt.md
@@ -287,6 +290,17 @@ deploy_ainish_configs() {
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
+      fi
+    fi
+    
+    if [ -f "${REPO_DIR}/PRD.mdc" ]; then
+      cp "${REPO_DIR}/PRD.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed PRD.mdc to .cursor/rules/${RESET}"
+      cp "${REPO_DIR}/PRD.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed PRD.mdc to root${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed PRD.mdc to .github/${RESET}"
       fi
     fi
   fi
@@ -502,7 +516,7 @@ function ainish-coder {
   MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
   
   # Deploy from the linked repo directories to ensure latest changes are used
-  AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$CURRENT_DIR"
+  AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$CURRENT_DIR" "$MODE_VAL"
   echo "✨ AINISH-Coder configurations deployed to current directory"
   echo "🔄 Using symlinks to repository - changes to repo files are immediately available"
 }
@@ -529,12 +543,12 @@ function ainish-cursor {
     MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
     
     # Deploy from the linked repo directories to ensure latest changes are used
-    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR"
+    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR" "$MODE_VAL"
     echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   else
     echo "Skipping deployment..."
   fi
-  env NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--force-node-api-uncaught-exceptions-policy=true" "$CURSOR_PATH" "${PASSTHROUGH_ARGS[@]}"
+  "$CURSOR_PATH" "${PASSTHROUGH_ARGS[@]}"
 }
 
 function ainish-aider {
@@ -557,7 +571,7 @@ function ainish-aider {
     MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
     
     # Deploy from the linked repo directories to ensure latest changes are used
-    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR"
+    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR" "$MODE_VAL"
     echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   else
     echo "Skipping deployment..."
@@ -586,7 +600,7 @@ function ainish-copilot {
     MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
     
     # Deploy from the linked repo directories to ensure latest changes are used
-    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$CURRENT_DIR"
+    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$CURRENT_DIR" "$MODE_VAL"
     echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
   else
     echo "Skipping deployment..."
@@ -672,6 +686,13 @@ deploy_vscode_configs() {
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
+      fi
+    fi
+    
+    if [ -f "${REPO_DIR}/PRD.mdc" ]; then
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed PRD.mdc to .github/${RESET}"
       fi
     fi
   fi
@@ -800,6 +821,11 @@ deploy_cursor_configs() {
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
     fi
     
+    if [ -f "${REPO_DIR}/PRD.mdc" ]; then
+      cp "${REPO_DIR}/PRD.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed PRD.mdc${RESET}"
+    fi
+    
     # Deploy prompt
     local prompt_src="${REPO_DIR}/prompt.md"
     if [ "$PROMPT_MODE" = "security" ]; then
@@ -909,6 +935,11 @@ deploy_aider_configs() {
     if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
+    fi
+    
+    if [ -f "${REPO_DIR}/PRD.mdc" ]; then
+      cp "${REPO_DIR}/PRD.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed PRD.mdc${RESET}"
     fi
   fi
   
@@ -1072,6 +1103,8 @@ main() {
     local prompt_src="${REPO_DIR}/prompt.md"
     # Define docs-use.mdc source
     local docs_src="${REPO_DIR}/docs-use.mdc"
+    # Define PRD.mdc source
+    local prd_src="${REPO_DIR}/PRD.mdc"
     
     # Define destination directories relative to REPO_DIR
     local aider_dest_dir="${REPO_DIR}/ainish-aider"
@@ -1108,6 +1141,16 @@ main() {
       cp "$docs_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied docs-use.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy docs-use.mdc to .cursor/rules/${RESET}"
     else
       echo -e "${YELLOW}⚠️ Warning: Source docs-use.mdc not found at $docs_src${RESET}"
+    fi
+    
+    # Copy PRD.mdc
+    if [ -f "$prd_src" ]; then
+      cp "$prd_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied PRD.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy PRD.mdc to ainish-aider/${RESET}"
+      cp "$prd_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied PRD.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy PRD.mdc to ainish-copilot/.github/${RESET}"
+      cp "$prd_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied PRD.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy PRD.mdc to ainish-cursor/.cursor/rules/${RESET}"
+      cp "$prd_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied PRD.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy PRD.mdc to .cursor/rules/${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Source PRD.mdc not found at $prd_src${RESET}"
     fi
     
     # Copy prompt.md to specific destinations

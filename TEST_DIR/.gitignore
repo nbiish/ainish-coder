@@ -1,0 +1,50 @@
+# env
+.env
+.env.*
+!.env.example
+
+# venv
+venv/
+venv.bak/
+venv.bak*
+
+# config files
+*.conf
+*.config
+config.*
+*config.*
+*.config.*
+
+# Memory Bank documents
+projectbrief.md
+productContext.md
+systemPatterns.md
+techContext.md
+activeContext.md
+progress.md
+.aider*
+
+# Test
+test/
+test.bak/
+test.bak*
+test-dir/
+test-dir.bak/
+test-dir.bak*
+# Cursor files
+.cursor/
+.cursorignore
+.cursorindexingignore
+.cursorrules
+
+# Aider files
+.aider-instructions.md
+.aider.conf.yml
+.aiderignore
+.env.example
+
+# Copilot files
+.copilot/
+.copilotignore
+.rooignore
+.github/copilot-instructions.md
