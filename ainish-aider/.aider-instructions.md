@@ -42,22 +42,22 @@ Summarize what has just happened (user input, tool results, context changes)
 <orient>
 1. **CUC-N Assessment** (Complexity, Uncertainty, Consequence, Novelty)
 2. **Knowledge Gap Analysis** 
-   - What information is missing?
-   - Requires: web search | memory recall | file analysis | tool consultation
+   - What internal knowledge needs activation?
+   - Requires: parametric memory activation | cognitive scaffolding | tool consultation | knowledge synthesis
 3. **Context Ecosystem Design (2025 Best Practice)**
    - Dynamic context window assembly:
      • User request → canonical restatement
      • Relevant prior context (<memory>)
-     • External data placeholders (<search>, <file>, <tool-def>)
+     • Internal knowledge activation cues (<memory>, <synthesis>, <tool-def>)
      • Output constraints (<format>, <length>, <style>)
-   - Retrieval & grounding strategy:
-     • High-signal chunking + metadata
-     • Hybrid retrieval (sparse + dense)
-     • Reranking and relevance scoring
-     • Fine-grained attribution (sentence-level for long-form)
-     • HyDE (hypothetical document) query expansion
+   - Internal Knowledge Activation Strategy:
+     • Structured knowledge elicitation from parametric memory
+     • Progressive cognitive scaffolding for complex reasoning
+     • Multi-perspective knowledge synthesis and validation
+     • Fine-grained internal coherence verification
+     • Cache-augmented context expansion from parametric memory
      • Context budget management (LLMLingua/LongLLMLingua compression)
-     • Contradiction/consistency verification
+     • Cross-domain knowledge integration and consistency checks
    - XML tags for lightweight structural scaffolding
 </orient>
 
@@ -102,11 +102,12 @@ Include rollback triggers and verification steps
 
 ### Primary Strategies (Choose explicitly)
 
-**Grounded-RAG + ReAct** (Default)
-- Interleave retrieve/think/act cycles
+**Cache-Augmented Reasoning + ReAct** (Default)
+- Interleave internal knowledge activation with reasoning/action cycles
+- Preload all relevant context into working memory
 - Keep rationale concise (≤ 8 bullets)
-- Inline citations for all factual claims
-- Reference→claim alternation for long-form content
+- Synthesize knowledge from multiple internal sources
+- Progressive knowledge building through iterative refinement
 
 **Self-Consistency**
 - Generate 3 short reasoning drafts in parallel
@@ -133,17 +134,37 @@ Include rollback triggers and verification steps
 - Use for complex problem decomposition
 - Limited branching to maintain efficiency
 
+**Progressive-Hint Prompting (PHP)**
+- Use previously generated outputs as contextual hints
+- Iterative refinement toward optimal solutions
+- Multi-turn interaction with cumulative knowledge building
+- Automatic guidance toward correct reasoning paths
+
+**Cache-Augmented Generation (CAG)**
+- Preload all relevant context into working memory
+- Eliminate real-time retrieval dependencies
+- Leverage extended context capabilities of modern LLMs
+- Reduce latency and minimize retrieval errors
+
+**Cognitive Scaffolding Prompting**
+- Structure reasoning through metacognitive frameworks
+- Explicit mental model construction and validation
+- Progressive complexity building from simple to complex tasks
+- Self-monitoring and regulation of reasoning processes
+
 ### Advanced Techniques
 
-**HyDE (Hypothetical Document Embeddings)**
-- Generate hypothetical relevant documents
-- Use for recall-boost in retrieval scenarios
-- Rerank and trim results
+**Internal Knowledge Synthesis (IKS)**
+- Generate hypothetical knowledge constructs from parametric memory
+- Activate latent knowledge through structured prompting
+- Cross-reference and validate internal knowledge consistency
+- Synthesize coherent responses from distributed model knowledge
 
-**ReClaim (Reference-Claim Interleaving)**
-- Alternate citations and claims
-- Fine-grained attribution for credibility
-- Essential for factual content generation
+**Knowledge Synthesis Prompting (KSP)**
+- Integrate knowledge from multiple internal domains
+- Fine-grained coherence validation for credibility
+- Essential for complex factual content generation
+- Cross-domain knowledge validation and integration
 
 **Prompt Compression**
 - LLMLingua for token budget management
@@ -170,7 +191,7 @@ Include rollback triggers and verification steps
 ### Dynamic Assembly
 1. **Core Context**: User request + immediate task context
 2. **Memory Layer**: Relevant prior interactions and decisions  
-3. **Knowledge Layer**: Retrieved information with provenance
+3. **Knowledge Layer**: Activated internal knowledge with coherence tracking
 4. **Constraint Layer**: Format, length, style requirements
 5. **Tool Layer**: Available capabilities and schemas
 
@@ -180,19 +201,19 @@ Include rollback triggers and verification steps
 - Use structured formats (XML, JSON) for efficiency
 - Apply progressive detail reduction based on relevance
 
-### Attribution Standards
-- Inline citations for all external facts: [Source](URL)
-- Sentence-level attribution for long-form content
-- Provenance tracking for retrieved information
-- Multi-source corroboration for high-stakes claims
+### Internal Coherence Standards
+- Knowledge source identification from parametric memory
+- Sentence-level coherence verification for long-form content
+- Internal consistency tracking across knowledge domains
+- Multi-perspective validation for high-stakes claims
 
 ## QUALITY CONTROL
 
 ### Consistency Checks
-- Cross-reference facts across sources
+- Cross-reference knowledge across internal domains
 - Verify logical coherence in reasoning chains
-- Validate citations and source accessibility
-- Check for contradictions in conclusions
+- Validate internal knowledge consistency and reliability
+- Check for contradictions in synthesized conclusions
 
 ### Confidence Calibration
 - Explicit uncertainty quantification (0.0-1.0)
@@ -205,8 +226,8 @@ Include rollback triggers and verification steps
 **Core Frameworks:**
 - OOReDAct = Observe-Orient-Reason-Decide-Act
 - CUC-N = Complexity, Uncertainty, Consequence, Novelty
-- RAG = Retrieval-Augmented Generation
-- HyDE = Hypothetical Document Embeddings
+- CAG = Cache-Augmented Generation
+- IKS = Internal Knowledge Synthesis
 
 **Reasoning Methods:**
 - CoT = Chain-of-Thought
@@ -216,10 +237,12 @@ Include rollback triggers and verification steps
 - ReAct = Reasoning and Acting (interleaved)
 
 **Advanced Techniques:**
-- ReClaim = Reference-Claim Interleaving
+- KSP = Knowledge Synthesis Prompting
 - LLMLingua = Prompt compression framework
 - PoT = Program-of-Thought
 - SC = Self-Consistency
+- PHP = Progressive-Hint Prompting
+- CSP = Cognitive Scaffolding Prompting
 
 ---
 
