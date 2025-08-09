@@ -164,122 +164,42 @@ cleanup_old_files() {
   echo -e "${BRIGHT_GREEN}✅ Cleanup complete${RESET}"
 }
 
-# Helper function to prompt for ignore files
+# Legacy function - no longer used with simplified mode system
 prompt_for_ignore_files() {
-  local TARGET="$1"
-  local TOOL="$2"
-  local FILE="$3"
-  local DESC="$4"
-  local RESPONSE=""
-  local MODE="${AINISH_DEPLOY_MODE:-}"
-
-  # Skip if file already exists in target
-  if [ -f "$TARGET/$FILE" ]; then
-    echo -e "${BLUE}✓ $FILE already exists in target directory, skipping${RESET}"
-    return 1
-  fi
-
-  # If a global deploy mode (1-4) is set, decide non-interactively
-  if [[ "$MODE" =~ ^[1-4]$ ]]; then
-    case "$MODE" in
-      2|4)
-        return 0
-        ;;
-      1|3)
-        return 1
-        ;;
-    esac
-  fi
-
-  echo -e "${BRIGHT_CYAN}Would you like to include $FILE for $TOOL?${RESET}"
-  echo -e "${CYAN}$DESC${RESET}"
-  echo -e "${BRIGHT_CYAN}[Y/n]:${RESET} "
-  read -r RESPONSE
-
-  # Default to yes if empty response
-  if [[ -z "$RESPONSE" ]] || [[ "$RESPONSE" =~ ^[Yy] ]]; then
-    return 0
-  fi
+  echo -e "${YELLOW}Warning: prompt_for_ignore_files() is deprecated. Files are now deployed based on mode automatically.${RESET}" >&2
   return 1
 }
 
-# Prompt once per command whether to include styling rules
+# Legacy function - no longer used with simplified mode system
 prompt_include_style_rules() {
-  local RESPONSE=""
-  local MODE="${AINISH_DEPLOY_MODE:-}"
-
-  # If a global deploy mode (1-4) is set, decide non-interactively
-  if [[ "$MODE" =~ ^[1-4]$ ]]; then
-    case "$MODE" in
-      1|4)
-        return 0
-        ;;
-      2|3)
-        return 1
-        ;;
-    esac
-  fi
-  echo -e "${BRIGHT_CYAN}Include styling rules (anishinaabe-cyberpunk-style.mdc)?${RESET}"
-  echo -e "${CYAN}These provide the Anishinaabe cyberpunk style guidance for AI tools.${RESET}"
-  echo -e "${BRIGHT_CYAN}[Y/n]:${RESET} "
-  read -r RESPONSE
-  if [[ -z "$RESPONSE" ]] || [[ "$RESPONSE" =~ ^[Yy] ]]; then
-    return 0
-  fi
+  echo -e "${YELLOW}Warning: prompt_include_style_rules() is deprecated. Style rules are now controlled by mode (1=style only, 4=everything).${RESET}" >&2
   return 1
 }
 
-# Helper: ask once for deployment scope (1-4) if not already set
+# Legacy function - no longer used with simplified mode system
 choose_deploy_mode() {
-  if [[ "${AINISH_DEPLOY_MODE:-}" =~ ^[1-4]$ ]]; then
-    return 0
-  fi
-  echo -e "${BRIGHT_CYAN}Select deployment scope:${RESET}" >&2
-  echo "1) Styling only" >&2
-  echo "2) Ignore files only" >&2
-  echo "3) Critical + Docs-use + Prompt" >&2
-  echo "4) Everything" >&2
-  read -r -p "Enter [1-4]: " _mode_choice
-  # Sanitize input by removing potential carriage return
-  _mode_choice=${_mode_choice%$'\\r'}
-  if [[ "$_mode_choice" =~ ^[1-4]$ ]]; then
-    export AINISH_DEPLOY_MODE="$_mode_choice"
-    return 0
-  fi
-  echo -e "${YELLOW}Invalid choice. Aborting.${RESET}" >&2
+  echo -e "${YELLOW}Warning: choose_deploy_mode() is deprecated. Use simple mode parameters instead.${RESET}" >&2
   return 1
 }
 
 # Main deployment function
 deploy_ainish_configs() {
   local TARGET="$1"
-  local INCLUDE_STYLE_RULES=0
-  local MODE="${AINISH_DEPLOY_MODE:-}"
-  # Ask once for mode if not already set
-  if [[ -z "$MODE" ]]; then
-    if ! choose_deploy_mode; then
-      echo -e "${BRIGHT_RED}Aborting due to invalid mode selection.${RESET}"
-      return 1
-    fi
-    MODE="${AINISH_DEPLOY_MODE}"
-  fi
-  # Interpret mode flags
-  local MODE_STYLE_ONLY=0
-  local MODE_IGNORE_ONLY=0
-  local MODE_CORE_ONLY=0
-  local MODE_ALL=0
+  local MODE="${2:-4}"  # Default to everything if no mode specified
+  
+  # Simple mode interpretation
+  local DEPLOY_BASIC=0
+  local DEPLOY_IGNORE=0
+  local DEPLOY_CORE=0
+  local DEPLOY_ALL=0
+  
   case "$MODE" in
-    1) MODE_STYLE_ONLY=1 ; INCLUDE_STYLE_RULES=1 ;;
-    2) MODE_IGNORE_ONLY=1 ;;
-    3) MODE_CORE_ONLY=1 ;;
-    4) MODE_ALL=1 ; INCLUDE_STYLE_RULES=1 ;;
-    *) ;;
+    1) DEPLOY_BASIC=1 ;;
+    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
+    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
-  if [[ $INCLUDE_STYLE_RULES -eq 0 && ! "$MODE" =~ ^[1-4]$ ]]; then
-    if prompt_include_style_rules; then
-      INCLUDE_STYLE_RULES=1
-    fi
-  fi
   
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -287,179 +207,133 @@ deploy_ainish_configs() {
     return 1
   fi
   
-  echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $TARGET${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $TARGET (mode $MODE)${RESET}"
   
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
   mkdir -p "$TARGET/.github" 2>/dev/null
   
-  # Deploy Cursor configurations (ignore files only when mode specifies)
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorignore" "Controls which files Cursor AI will ignore during code generation and analysis."; then
-      if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
-        cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
-      else
-        # Create empty .cursorignore if it doesn't exist
-        touch "$TARGET/.cursorignore" 2>/dev/null
-        echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
-      fi
+  # Deploy Cursor ignore files
+  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
+      cp "${AINISH_CODER_DIR}/cursor/.cursorignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+    fi
+    
+    if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
+      cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
     fi
   fi
   
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorindexingignore" "Controls which files Cursor will skip during indexing (improves performance)."; then
-      if [ -f "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" ]; then
-        cp "${AINISH_CODER_DIR}/cursor/.cursorindexingignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
-      else
-        # Create empty .cursorindexingignore if it doesn't exist
-        touch "$TARGET/.cursorindexingignore" 2>/dev/null
-        echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
-      fi
-    fi
-  fi
-  
-  # Deploy .cursorrules as a symlink if possible, otherwise copy
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy .cursorrules and other files
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
       if [ -L "$TARGET/.cursorrules" ] || [ -f "$TARGET/.cursorrules" ]; then
         rm -f "$TARGET/.cursorrules"
       fi
       ln -sf "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
       if [ -L "$TARGET/.cursorrules" ]; then
-        echo -e "${GREEN}✓ Symlinked .cursorrules to project root${RESET}"
+        echo -e "${GREEN}✓ Symlinked .cursorrules${RESET}"
       else
         cp "${AINISH_CODER_DIR}/cursor/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
-        echo -e "${GREEN}✓ Copied .cursorrules to project root${RESET}"
+        echo -e "${GREEN}✓ Copied .cursorrules${RESET}"
       fi
     fi
-  fi
-  
-  if [[ $MODE_ALL -eq 1 ]]; then
+    
     if [ -f "${AINISH_CODER_DIR}/cursor/my-license.mdc" ]; then
       cp "${AINISH_CODER_DIR}/cursor/my-license.mdc" "$TARGET/.cursor/rules/license.mdc" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed Cursor-specific license.mdc${RESET}"
+      echo -e "${GREEN}✓ Deployed license.mdc${RESET}"
     fi
   fi
   
-  # Deploy shared critical.mdc
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+  # Deploy core files  
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
       cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
-      # Also deploy to aider and copilot locations
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null # For Aider
-      echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET (for Aider)${RESET}"
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc to root${RESET}"
       if [ -d "$TARGET/.github" ]; then
         cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed critical.mdc to .github/ (for Copilot)${RESET}"
+        echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
       fi
     fi
   fi
   
-  # Deploy shared anishinaabe-cyberpunk-style.mdc (conditional)
-  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+  # Deploy style files for mode 1 and 4
+  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
-      
-      # Also deploy to aider and copilot locations
-      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
+      echo -e "${GREEN}✓ Deployed style guide to .cursor/rules/${RESET}"
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed style guide to root${RESET}"
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
+        echo -e "${GREEN}✓ Deployed style guide to .github/${RESET}"
       fi
-    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .cursor/rules/${RESET}"
-      
-      # Also deploy to aider and copilot locations
-      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null # For Aider
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET (for Aider)${RESET}"
+    fi
+  fi
+  
+  
+  
+  # Deploy documentation files  
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
+    if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
+      cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed docs-use.mdc to .cursor/rules/${RESET}"
+      cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed docs-use.mdc to root${RESET}"
       if [ -d "$TARGET/.github" ]; then
-        cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/ (for Copilot)${RESET}"
+        cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
-    else
-      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
-    fi
-  else
-    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
-  fi
-  
-  
-  
-  # Deploy shared docs-use.mdc (core modes)
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if [ -f "${REPO_DIR}/docs-use.mdc" ]; then # Use REPO_DIR for root files
-        cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed docs-use.mdc to .cursor/rules/${RESET}"
-
-        cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null # For Aider
-        echo -e "${GREEN}✓ Deployed docs-use.mdc to $TARGET (for Aider)${RESET}"
-        if [ -d "$TARGET/.github" ]; then
-            cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
-            echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/ (for Copilot)${RESET}"
-        fi
     fi
   fi
   
-  # Deploy mdc-headers.md (but not to Cursor)
-  if [ -f "${REPO_DIR}/mdc-headers.md" ]; then # Use REPO_DIR for root files
-      # Skip deploying to .cursor/rules/ as requested
-      # cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.cursor/rules/" 2>/dev/null
-      # echo -e "${GREEN}✓ Deployed mdc-headers.md to .cursor/rules/${RESET}"
-
-      cp "${REPO_DIR}/mdc-headers.md" "$TARGET/" 2>/dev/null # For Aider
-      echo -e "${GREEN}✓ Deployed mdc-headers.md to $TARGET (for Aider)${RESET}"
+  # Deploy mdc-headers.md (all modes except basic)
+  if [[ $MODE -gt 1 ]]; then
+    if [ -f "${REPO_DIR}/mdc-headers.md" ]; then
+      cp "${REPO_DIR}/mdc-headers.md" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed mdc-headers.md to root${RESET}"
       if [ -d "$TARGET/.github" ]; then
-          cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.github/" 2>/dev/null
-          echo -e "${GREEN}✓ Deployed mdc-headers.md to .github/ (for Copilot)${RESET}"
-      fi
-  fi
-  
-  # Deploy Copilot configurations (ignore files)
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Copilot" ".copilotignore" "Controls which files GitHub Copilot will ignore during code suggestions."; then
-      if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
-        cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+        cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed mdc-headers.md to .github/${RESET}"
       fi
     fi
   fi
   
-  # Only copy .rooignore if user wants it
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Copilot" ".rooignore" "Controls which files are excluded from Copilot's context window."; then
-      if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ]; then
-        cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
-      fi
+  # Deploy Copilot ignore files
+  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+    fi
+    
+    if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
     fi
   fi
   
-  # Deploy custom copilot instructions from ainish-copilot
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy Copilot instructions
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
       mkdir -p "$TARGET/.github" 2>/dev/null
       cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
+      echo -e "${GREEN}✓ Deployed copilot-instructions.md${RESET}"
     fi
   fi
 
-  # Deploy Aider configurations (.aiderignore is an ignore file; others only in mode 4)
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Aider" ".aiderignore" "Controls which files Aider will ignore during code generation and edits."; then
-      if [ -f "${AINISH_CODER_DIR}/aider/.aiderignore" ]; then
-        cp "${AINISH_CODER_DIR}/aider/.aiderignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
-      fi
+  # Deploy Aider configurations
+  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/aider/.aiderignore" ]; then
+      cp "${AINISH_CODER_DIR}/aider/.aiderignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
     fi
   fi
   
-  if [[ $MODE_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
       cp "${AINISH_CODER_DIR}/aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
@@ -472,43 +346,41 @@ deploy_ainish_configs() {
     
     if [ -f "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" ]; then
       cp "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" "$TARGET/" 2>/dev/null
-      chmod +x "$TARGET/aider-cli-commands.sh" 2>/dev/null # Ensure executable
+      chmod +x "$TARGET/aider-cli-commands.sh" 2>/dev/null
       echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
     fi
   fi
   
-  # Deploy prompt.md from root to destinations with special names (core modes)
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+  # Deploy prompt files
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
     if [ -f "${REPO_DIR}/prompt.md" ]; then
-      # Respect AINISH_PROMPT_MODE for initial distribution
       local prompt_source="${REPO_DIR}/prompt.md"
       if [ "${AINISH_PROMPT_MODE:-}" = "security" ] && [ -f "${REPO_DIR}/security-meta-prompt.md" ]; then
         prompt_source="${REPO_DIR}/security-meta-prompt.md"
       fi
+      
       # Deploy for Copilot
       if [ -d "$TARGET/.github" ]; then
         prepend_non_cursor_content "$prompt_source" "$TARGET/.github/copilot-instructions.md"
       fi
       # Deploy for Aider
       prepend_non_cursor_content "$prompt_source" "$TARGET/.aider-instructions.md"
-      # Deploy for Cursor (without non-cursor content)
+      # Deploy for Cursor
       if [ -d "$TARGET/.cursor/rules" ]; then
-          cp "$prompt_source" "$TARGET/.cursor/rules/cognitive-tool.md" 2>/dev/null
-          # Cleanup old name if present
-          rm -f "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
-          echo -e "${GREEN}✓ Deployed prompt (initial) to .cursor/rules/cognitive-tool.md${RESET}"
+        cp "$prompt_source" "$TARGET/.cursor/rules/cognitive-tool.md" 2>/dev/null
+        rm -f "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed prompt to .cursor/rules/cognitive-tool.md${RESET}"
       fi
     fi
   fi
   
-  # Deploy .gitignore and update (everything mode only)
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy .gitignore
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${REPO_DIR}/.gitignore" ]; then
-        cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
     fi
     
-    # Update .gitignore (append tool-specific ignores)
     update_gitignore "$TARGET"
   fi
   
@@ -607,7 +479,8 @@ __ainish_read_mode() {
   echo "2) Ignore files only" >&2
   echo "3) Critical + Docs-use + Prompt" >&2
   echo "4) Everything" >&2
-  read -r -p "Enter [1-4]: " MODE
+  printf "Enter [1-4]: " >&2
+  read -r MODE
   # Sanitize input by removing potential carriage return
   MODE=${MODE%$'\\r'}
   if [[ ! "$MODE" =~ ^[1-4]$ ]]; then echo "Invalid choice" >&2; return 1; fi
@@ -730,34 +603,22 @@ EOF
 # Function to deploy only VS Code configurations
 deploy_vscode_configs() {
   local TARGET="$1"
+  local MODE="${2:-4}"
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
-  local INCLUDE_STYLE_RULES=0
-  local MODE="${AINISH_DEPLOY_MODE:-}"
-  # Ask once for mode if not already set
-  if [[ -z "$MODE" ]]; then
-    if ! choose_deploy_mode; then
-      echo -e "${BRIGHT_RED}Aborting due to invalid mode selection.${RESET}"
-      return 1
-    fi
-    MODE="${AINISH_DEPLOY_MODE}"
-  fi
-  # Interpret mode flags
-  local MODE_STYLE_ONLY=0
-  local MODE_IGNORE_ONLY=0
-  local MODE_CORE_ONLY=0
-  local MODE_ALL=0
+  
+  # Simple mode interpretation
+  local DEPLOY_BASIC=0
+  local DEPLOY_IGNORE=0
+  local DEPLOY_CORE=0
+  local DEPLOY_ALL=0
+  
   case "$MODE" in
-    1) MODE_STYLE_ONLY=1 ; INCLUDE_STYLE_RULES=1 ;;
-    2) MODE_IGNORE_ONLY=1 ;;
-    3) MODE_CORE_ONLY=1 ;;
-    4) MODE_ALL=1 ; INCLUDE_STYLE_RULES=1 ;;
-    *) ;; # fall through
+    1) DEPLOY_BASIC=1 ;;
+    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
+    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
-  if [[ $INCLUDE_STYLE_RULES -eq 0 && ! "$MODE" =~ ^[1-4]$ ]]; then
-    if prompt_include_style_rules; then
-      INCLUDE_STYLE_RULES=1
-    fi
-  fi
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -765,111 +626,92 @@ deploy_vscode_configs() {
     return 1
   fi
 
-  echo -e "${BRIGHT_BLUE}Deploying VS Code configurations to $TARGET${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying VS Code configurations to $TARGET (mode $MODE)${RESET}"
 
   # Create necessary directories
   mkdir -p "$TARGET/.github" 2>/dev/null
   
-  # Deploy VS Code-specific configurations
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Copilot" ".copilotignore" "Controls which files GitHub Copilot will ignore during code suggestions."; then
-      if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
-        cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
-      fi
+  # Deploy ignore files
+  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/vscode/.copilotignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.copilotignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
+    fi
+    
+    if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ]; then
+      cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
     fi
   fi
 
-  # Only copy .rooignore if user wants it
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Copilot" ".rooignore" "Controls which files are excluded from Copilot's context window."; then
-      if [ -f "${AINISH_CODER_DIR}/vscode/.rooignore" ]; then
-        cp "${AINISH_CODER_DIR}/vscode/.rooignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
-      fi
-    fi
-  fi
-
-  # Deploy custom copilot instructions from ainish-copilot
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+  # Deploy core files
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
       mkdir -p "$TARGET/.github" 2>/dev/null
       cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed custom copilot-instructions.md from ainish-copilot${RESET}"
+      echo -e "${GREEN}✓ Deployed copilot-instructions.md${RESET}"
     fi
-  fi
-
-  # Deploy shared critical.mdc
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+    
     if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
       cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
     fi
   fi
   
-  # Deploy anishinaabe-cyberpunk-style.mdc (conditional)
-  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+  # Deploy style files for mode 1 and 4
+  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
-    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to .github/${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+      echo -e "${GREEN}✓ Deployed style guide to .github/${RESET}"
     fi
-  else
-    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
   fi
 
-  
-
-  # Deploy shared docs-use.mdc
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if [ -f "${REPO_DIR}/docs-use.mdc" ]; then # Use REPO_DIR for root files
+  # Deploy documentation files
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
+    if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       if [ -d "$TARGET/.github" ]; then
-          cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
-          echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
+        cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
     fi
   fi
   
-  # Deploy mdc-headers.md
-  if [ -f "${REPO_DIR}/mdc-headers.md" ]; then # Use REPO_DIR for root files
-    if [ -d "$TARGET/.github" ]; then
+  # Deploy mdc-headers.md  
+  if [[ $MODE -gt 1 ]]; then
+    if [ -f "${REPO_DIR}/mdc-headers.md" ]; then
+      if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.github/" 2>/dev/null
         echo -e "${GREEN}✓ Deployed mdc-headers.md to .github/${RESET}"
+      fi
     fi
   fi
 
-  # Deploy prompt as copilot-instructions.md (source depends on PROMPT_MODE)
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+  # Deploy prompt
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
     local prompt_source="${REPO_DIR}/prompt.md"
     if [ "$PROMPT_MODE" = "security" ]; then
       prompt_source="${REPO_DIR}/security-meta-prompt.md"
     elif [ "$PROMPT_MODE" = "none" ]; then
       prompt_source=""
     fi
-    local copilot_target_dir="$TARGET/.github"
-    local copilot_target_file="$copilot_target_dir/copilot-instructions.md"
+    local copilot_target_file="$TARGET/.github/copilot-instructions.md"
     if [ -n "$prompt_source" ]; then
       if [ -f "$prompt_source" ]; then
-          mkdir -p "$copilot_target_dir" 2>/dev/null
-          prepend_non_cursor_content "$prompt_source" "$copilot_target_file"
+        mkdir -p "$TARGET/.github" 2>/dev/null
+        prepend_non_cursor_content "$prompt_source" "$copilot_target_file"
       else
-          echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
+        echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
       fi
     else
-      # none: remove if exists
       rm -f "$copilot_target_file" 2>/dev/null
-      echo -e "${BLUE}↪ Skipped deploying Copilot prompt (mode=none)${RESET}"
+      echo -e "${BLUE}↪ Skipped deploying prompt (mode=none)${RESET}"
     fi
   fi
 
-  if [[ $MODE_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${REPO_DIR}/.gitignore" ]; then
-        cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
     fi
     update_gitignore "$TARGET"
   fi
@@ -880,36 +722,23 @@ deploy_vscode_configs() {
 # Function to deploy only Cursor configurations
 deploy_cursor_configs() {
   local TARGET="$1"
+  local MODE="${2:-4}"
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
-  local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor" # Points to REPO_DIR/ainish-cursor via symlink
-  local INCLUDE_STYLE_RULES=0
-  local MODE="${AINISH_DEPLOY_MODE:-}"
-  # Ask once for mode if not already set
-  if [[ -z "$MODE" ]]; then
-    if ! choose_deploy_mode; then
-      echo -e "${BRIGHT_RED}Aborting due to invalid mode selection.${RESET}"
-      return 1
-    fi
-    MODE="${AINISH_DEPLOY_MODE}"
-  fi
-  # Interpret mode flags
-  local MODE_STYLE_ONLY=0
-  local MODE_IGNORE_ONLY=0
-  local MODE_CORE_ONLY=0
-  local MODE_ALL=0
+  local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor"
+  
+  # Simple mode interpretation
+  local DEPLOY_BASIC=0
+  local DEPLOY_IGNORE=0
+  local DEPLOY_CORE=0
+  local DEPLOY_ALL=0
+  
   case "$MODE" in
-    1) MODE_STYLE_ONLY=1 ; INCLUDE_STYLE_RULES=1 ;;
-    2) MODE_IGNORE_ONLY=1 ;;
-    3) MODE_CORE_ONLY=1 ;;
-    4) MODE_ALL=1 ; INCLUDE_STYLE_RULES=1 ;;
-    *) ;; # leave defaults; prompt funcs may still ask
+    1) DEPLOY_BASIC=1 ;;
+    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
+    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
-  # If mode wasn't recognized, fall back to style prompt
-  if [[ $INCLUDE_STYLE_RULES -eq 0 && ! "$MODE" =~ ^[1-4]$ ]]; then
-    if prompt_include_style_rules; then
-      INCLUDE_STYLE_RULES=1
-    fi
-  fi
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -917,106 +746,61 @@ deploy_cursor_configs() {
     return 1
   fi
 
-  echo -e "${BRIGHT_BLUE}Deploying Cursor configurations to $TARGET${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying Cursor configurations to $TARGET (mode $MODE)${RESET}"
 
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
 
-  # --- Deploy files directly into the TARGET directory ---
-
-  # Deploy .cursorignore
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorignore" "Controls which files Cursor AI will ignore during code generation and analysis."; then
-      if [ -f "${SRC_CURSOR_DIR}/.cursorignore" ]; then
-        cp "${SRC_CURSOR_DIR}/.cursorignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
-      else
-        touch "$TARGET/.cursorignore" 2>/dev/null
-        echo -e "${GREEN}✓ Created empty .cursorignore${RESET}"
-      fi
+  # Deploy ignore files
+  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
+    if [ -f "${SRC_CURSOR_DIR}/.cursorignore" ]; then
+      cp "${SRC_CURSOR_DIR}/.cursorignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
+    fi
+    
+    if [ -f "${SRC_CURSOR_DIR}/.cursorindexingignore" ]; then
+      cp "${SRC_CURSOR_DIR}/.cursorindexingignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
     fi
   fi
 
-  # Deploy .cursorindexingignore
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if prompt_for_ignore_files "$TARGET" "Cursor" ".cursorindexingignore" "Controls which files Cursor will skip during indexing (improves performance)."; then
-      if [ -f "${SRC_CURSOR_DIR}/.cursorindexingignore" ]; then
-        cp "${SRC_CURSOR_DIR}/.cursorindexingignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
-      else
-        touch "$TARGET/.cursorindexingignore" 2>/dev/null
-        echo -e "${GREEN}✓ Created empty .cursorindexingignore${RESET}"
-      fi
-    fi
-  fi
-
-  # Deploy .cursorrules (Symlink preferred, copy fallback)
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy .cursorrules and all rules
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${SRC_CURSOR_DIR}/.cursorrules" ]; then
-      # Remove existing file/symlink first
       rm -f "$TARGET/.cursorrules" 2>/dev/null
       ln -sf "${SRC_CURSOR_DIR}/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
       if [ -L "$TARGET/.cursorrules" ]; then
-        echo -e "${GREEN}✓ Symlinked .cursorrules to project root${RESET}"
+        echo -e "${GREEN}✓ Symlinked .cursorrules${RESET}"
       else
         cp "${SRC_CURSOR_DIR}/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
-        echo -e "${GREEN}✓ Copied .cursorrules to project root (symlink failed)${RESET}"
+        echo -e "${GREEN}✓ Copied .cursorrules${RESET}"
       fi
     fi
-  fi
-
-  # --- Deploy files into the TARGET/.cursor/rules directory ---
-  local SRC_RULES_DIR="${SRC_CURSOR_DIR}/.cursor/rules"
-  local TARGET_RULES_DIR="$TARGET/.cursor/rules"
-
-  if [[ $MODE_ALL -eq 1 ]]; then
-    echo -e "${BLUE}Syncing contents of ${SRC_RULES_DIR} to ${TARGET_RULES_DIR}...${RESET}"
-    # Copy all contents from source rules directory, overwriting existing files
+    
+    # Copy all rules directory contents
+    local SRC_RULES_DIR="${SRC_CURSOR_DIR}/.cursor/rules"
+    local TARGET_RULES_DIR="$TARGET/.cursor/rules"
     if [ -d "$SRC_RULES_DIR" ]; then
-       cp -R "${SRC_RULES_DIR}/." "$TARGET_RULES_DIR/" 2>/dev/null
-       echo -e "${GREEN}✓ Copied all rules from ${SRC_RULES_DIR}${RESET}"
-    else
-       echo -e "${YELLOW}⚠️ Warning: Source rules directory ${SRC_RULES_DIR} not found.${RESET}"
+      cp -R "${SRC_RULES_DIR}/." "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Copied all rules${RESET}"
     fi
   fi
 
-  # --- Overwrite specific files if needed (ensuring correct source) ---
-
-  # Deploy critical.mdc (ensure it comes from the central location)
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    local critical_src="${AINISH_CODER_DIR}/critical.mdc" # Should point to REPO_DIR/critical.mdc
-    if [ -f "$critical_src" ]; then
-      cp "$critical_src" "$TARGET_RULES_DIR/" 2>/dev/null
-      echo -e "${GREEN}✓ Ensured latest critical.mdc is in .cursor/rules/${RESET}"
-    fi
-  fi
-
+  # Deploy core files individually to ensure they're updated
+  local TARGET_RULES_DIR="$TARGET/.cursor/rules"
   
-
-  # Deploy shared anishinaabe-cyberpunk-style.mdc (conditional)
-  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
-    if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
-      echo -e "${GREEN}✓ Ensured latest anishinaabe-cyberpunk-style.mdc is in .cursor/rules/${RESET}"
-    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
-      echo -e "${GREEN}✓ Ensured latest anishinaabe-cyberpunk-style.mdc is in .cursor/rules/${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
     fi
-  else
-    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
-  fi
-  
-  # Skip deploying mdc-headers.md to Cursor as requested
-  # local mdc_headers_src="${REPO_DIR}/mdc-headers.md" # Use REPO_DIR for root files
-  # if [ -f "$mdc_headers_src" ]; then
-  #     cp "$mdc_headers_src" "$TARGET_RULES_DIR/" 2>/dev/null
-  #     echo -e "${GREEN}✓ Ensured latest mdc-headers.md is in .cursor/rules/${RESET}"
-  # fi
-
-  # Deploy prompt as cognitive-tool.md based on PROMPT_MODE
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+    
+    if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
+      cp "${REPO_DIR}/docs-use.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
+    fi
+    
+    # Deploy prompt
     local prompt_src="${REPO_DIR}/prompt.md"
     if [ "$PROMPT_MODE" = "security" ]; then
       prompt_src="${REPO_DIR}/security-meta-prompt.md"
@@ -1027,52 +811,39 @@ deploy_cursor_configs() {
     if [ -n "$prompt_src" ]; then
       if [ -f "$prompt_src" ]; then
         cp "$prompt_src" "$cursor_prompt_target" 2>/dev/null
-        # Cleanup legacy filename if present
         rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed prompt (mode=${PROMPT_MODE:-normal}) to $cursor_prompt_target${RESET}"
+        echo -e "${GREEN}✓ Deployed prompt to cognitive-tool.md${RESET}"
       else
         echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_src${RESET}"
       fi
     else
       rm -f "$cursor_prompt_target" 2>/dev/null
       rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
-      echo -e "${BLUE}↪ Skipped deploying Cursor prompt (mode=none)${RESET}"
+      echo -e "${BLUE}↪ Skipped deploying prompt (mode=none)${RESET}"
     fi
   fi
 
-  # Ensure docs-use.mdc for core/all modes
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    local docs_src="${REPO_DIR}/docs-use.mdc"
-    if [ -f "$docs_src" ]; then
-      cp "$docs_src" "$TARGET_RULES_DIR/" 2>/dev/null
-      echo -e "${GREEN}✓ Ensured docs-use.mdc is in .cursor/rules/${RESET}"
+  # Deploy style files for mode 1 and 4
+  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
+    if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
+      cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed style guide${RESET}"
     fi
   fi
 
-  # Deploy license.mdc if it exists in the source cursor dir (might be specific)
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy additional files for everything mode
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${SRC_CURSOR_DIR}/my-license.mdc" ]; then
-        cp "${SRC_CURSOR_DIR}/my-license.mdc" "$TARGET_RULES_DIR/license.mdc" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed license.mdc from ${SRC_CURSOR_DIR}${RESET}"
+      cp "${SRC_CURSOR_DIR}/my-license.mdc" "$TARGET_RULES_DIR/license.mdc" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed license.mdc${RESET}"
     fi
   fi
 
-  # Verification steps (optional but good)
-  echo -e "${BLUE}Verifying deployed Cursor files...${RESET}"
-  # Build a verification list that only includes files that should exist
-  # .cursorrules is optional; include it only if present
-  {
-    [ -f "$TARGET/.cursorignore" ] && ls -l "$TARGET/.cursorignore"
-    [ -f "$TARGET/.cursorindexingignore" ] && ls -l "$TARGET/.cursorindexingignore"
-    [ -f "$TARGET/.cursorrules" ] && ls -l "$TARGET/.cursorrules"
-    [ -d "$TARGET_RULES_DIR" ] && ls -ld "$TARGET_RULES_DIR" && ls -l "$TARGET_RULES_DIR"
-  } 2>/dev/null || echo -e "${YELLOW}Verification step encountered issues.${RESET}"
-
-  # Deploy .gitignore and update ignore entries only for full mode
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy .gitignore for everything mode
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [ -f "${REPO_DIR}/.gitignore" ]; then
-        cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
+      cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
     fi
     update_gitignore "$TARGET"
   fi
@@ -1083,34 +854,22 @@ deploy_cursor_configs() {
 # Function to deploy only Aider configurations
 deploy_aider_configs() {
   local TARGET="$1"
+  local MODE="${2:-4}"
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
-  local INCLUDE_STYLE_RULES=0
-  local MODE="${AINISH_DEPLOY_MODE:-}"
-  # Ask once for mode if not already set
-  if [[ -z "$MODE" ]]; then
-    if ! choose_deploy_mode; then
-      echo -e "${BRIGHT_RED}Aborting due to invalid mode selection.${RESET}"
-      return 1
-    fi
-    MODE="${AINISH_DEPLOY_MODE}"
-  fi
-  # Interpret mode flags
-  local MODE_STYLE_ONLY=0
-  local MODE_IGNORE_ONLY=0
-  local MODE_CORE_ONLY=0
-  local MODE_ALL=0
+  
+  # Simple mode interpretation
+  local DEPLOY_BASIC=0
+  local DEPLOY_IGNORE=0
+  local DEPLOY_CORE=0
+  local DEPLOY_ALL=0
+  
   case "$MODE" in
-    1) MODE_STYLE_ONLY=1 ; INCLUDE_STYLE_RULES=1 ;;
-    2) MODE_IGNORE_ONLY=1 ;;
-    3) MODE_CORE_ONLY=1 ;;
-    4) MODE_ALL=1 ; INCLUDE_STYLE_RULES=1 ;;
-    *) ;;
+    1) DEPLOY_BASIC=1 ;;
+    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
+    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
-  if [[ $INCLUDE_STYLE_RULES -eq 0 && ! "$MODE" =~ ^[1-4]$ ]]; then
-    if prompt_include_style_rules; then
-      INCLUDE_STYLE_RULES=1
-    fi
-  fi
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -1118,110 +877,89 @@ deploy_aider_configs() {
     return 1
   fi
 
-  echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET (mode $MODE)${RESET}"
 
-  # Deploy Aider-specific configurations
-  # Copy .aider-instructions.md from selected prompt
-  local prompt_source="${REPO_DIR}/prompt.md"
-  if [ "$PROMPT_MODE" = "security" ]; then
-    prompt_source="${REPO_DIR}/security-meta-prompt.md"
-  elif [ "$PROMPT_MODE" = "none" ]; then
-    prompt_source=""
-  fi
-  local aider_target_file="$TARGET/.aider-instructions.md"
-  if [ -n "$prompt_source" ]; then
-    if [ -f "$prompt_source" ]; then
-      prepend_non_cursor_content "$prompt_source" "$aider_target_file"
-    else
-      echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
+  # Deploy core files
+  if [[ $DEPLOY_CORE -eq 1 ]]; then
+    # Deploy prompt
+    local prompt_source="${REPO_DIR}/prompt.md"
+    if [ "$PROMPT_MODE" = "security" ]; then
+      prompt_source="${REPO_DIR}/security-meta-prompt.md"
+    elif [ "$PROMPT_MODE" = "none" ]; then
+      prompt_source=""
     fi
-  else
-    rm -f "$aider_target_file" 2>/dev/null
-    echo -e "${BLUE}↪ Skipped deploying Aider prompt (mode=none)${RESET}"
+    local aider_target_file="$TARGET/.aider-instructions.md"
+    if [ -n "$prompt_source" ]; then
+      if [ -f "$prompt_source" ]; then
+        prepend_non_cursor_content "$prompt_source" "$aider_target_file"
+      else
+        echo -e "${YELLOW}⚠️ Warning: Prompt source not found at $prompt_source${RESET}"
+      fi
+    else
+      rm -f "$aider_target_file" 2>/dev/null
+      echo -e "${BLUE}↪ Skipped deploying prompt (mode=none)${RESET}"
+    fi
+    
+    # Deploy critical.mdc and docs-use.mdc
+    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+    fi
+    
+    if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
+      cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
+    fi
   fi
   
-  # Deploy anishinaabe-cyberpunk-style.mdc (conditional)
-  if [ $INCLUDE_STYLE_RULES -eq 1 ]; then
+  # Deploy style files for mode 1 and 4
+  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
-    elif [ -f "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc to $TARGET${RESET}"
-    else
-      echo -e "${YELLOW}⚠️ Warning: anishinaabe-cyberpunk-style.mdc not found${RESET}"
-    fi
-  else
-    echo -e "${BLUE}↪ Skipped styling rules by user choice${RESET}"
-  fi
-  
-  if [[ $MODE_ALL -eq 1 ]]; then
-    if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
-      cp "${AINISH_CODER_DIR}/aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
+      echo -e "${GREEN}✓ Deployed style guide${RESET}"
     fi
   fi
   
-  if [[ $MODE_IGNORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
+  # Deploy ignore files
+  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/aider/.aiderignore" ]; then
       cp "${AINISH_CODER_DIR}/aider/.aiderignore" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
     fi
   fi
   
-  if [[ $MODE_ALL -eq 1 ]]; then
+  # Deploy everything mode files
+  if [[ $DEPLOY_ALL -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
+      cp "${AINISH_CODER_DIR}/aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
+    fi
+    
     if [ -f "${AINISH_CODER_DIR}/aider/.env.example" ]; then
       cp "${AINISH_CODER_DIR}/aider/.env.example" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .env.example${RESET}"
     fi
-  fi
 
-  if [[ $MODE_ALL -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" ]; then
       cp "${AINISH_CODER_DIR}/aider/aider-cli-commands.sh" "$TARGET/" 2>/dev/null
-      chmod +x "$TARGET/aider-cli-commands.sh" 2>/dev/null # Ensure executable
+      chmod +x "$TARGET/aider-cli-commands.sh" 2>/dev/null
       echo -e "${GREEN}✓ Deployed aider-cli-commands.sh${RESET}"
     fi
-  fi
-
-  # Deploy shared critical.mdc directly to target directory
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc to $TARGET${RESET}"
+    
+    # Deploy mdc-headers.md for everything mode
+    if [ -f "${REPO_DIR}/mdc-headers.md" ]; then
+      cp "${REPO_DIR}/mdc-headers.md" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed mdc-headers.md${RESET}"
     fi
-  fi
-
-  
-
-  # Deploy docs-use.mdc (ensure it comes from the central location)
-  if [[ $MODE_CORE_ONLY -eq 1 || $MODE_ALL -eq 1 ]]; then
-    local docs_src="${REPO_DIR}/docs-use.mdc" # Use REPO_DIR for root files
-    if [ -f "$docs_src" ]; then
-        cp "$docs_src" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed docs-use.mdc to $TARGET${RESET}"
-    fi
-  fi
-  
-  # Deploy mdc-headers.md (ensure it comes from the central location)
-  if [[ $MODE_ALL -eq 1 ]]; then
-    local mdc_headers_src="${REPO_DIR}/mdc-headers.md" # Use REPO_DIR for root files
-    if [ -f "$mdc_headers_src" ]; then
-        cp "$mdc_headers_src" "$TARGET/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed mdc-headers.md to $TARGET${RESET}"
-    fi
-  fi
-
-  # (Prompt deployment handled above based on PROMPT_MODE)
-
-  # Deploy .gitignore from root
-  if [ -f "${REPO_DIR}/.gitignore" ]; then
+    
+    # Deploy .gitignore 
+    if [ -f "${REPO_DIR}/.gitignore" ]; then
       cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed root .gitignore to $TARGET${RESET}"
-  fi
+      echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
+    fi
 
-  # Update .gitignore (append tool-specific ignores)
-  update_gitignore "$TARGET"
+    update_gitignore "$TARGET"
+  fi
   
   echo -e "${BRIGHT_GREEN}✅ Aider configurations deployed to $TARGET${RESET}"
 }
@@ -1269,16 +1007,16 @@ main() {
   # Check for command argument
   if [ "$1" == "deploy" ]; then
     # Deploy configurations to the specified directory
-    deploy_ainish_configs "$2"
+    deploy_ainish_configs "$2" "$3"
   elif [ "$1" == "deploy_vscode_configs" ]; then
     # Deploy VS Code configurations to the specified directory
-    deploy_vscode_configs "$2"
+    deploy_vscode_configs "$2" "$3"
   elif [ "$1" == "deploy_cursor_configs" ]; then
     # Deploy Cursor configurations to the specified directory
-    deploy_cursor_configs "$2"
+    deploy_cursor_configs "$2" "$3"
   elif [ "$1" == "deploy_aider_configs" ]; then
     # Deploy Aider configurations to the specified directory
-    deploy_aider_configs "$2"
+    deploy_aider_configs "$2" "$3"
   elif [ "$1" == "update_anishinaabe_cyberpunk_style" ]; then
     # Update anishinaabe-cyberpunk-style.mdc in all ainish-* directories
     local style_src="${REPO_DIR}/anishinaabe-cyberpunk-style.mdc"
