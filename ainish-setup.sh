@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # AINISH-Coder Unified Setup Script
 # This script sets up all tooling configurations in one go and provides wrapper functions
@@ -234,17 +234,19 @@ choose_deploy_mode() {
   if [[ "${AINISH_DEPLOY_MODE:-}" =~ ^[1-4]$ ]]; then
     return 0
   fi
-  echo -e "${BRIGHT_CYAN}Select deployment scope:${RESET}"
-  echo "1) Styling only"
-  echo "2) Ignore files only"
-  echo "3) Critical + Docs-use + Prompt"
-  echo "4) Everything"
+  echo -e "${BRIGHT_CYAN}Select deployment scope:${RESET}" >&2
+  echo "1) Styling only" >&2
+  echo "2) Ignore files only" >&2
+  echo "3) Critical + Docs-use + Prompt" >&2
+  echo "4) Everything" >&2
   read -r -p "Enter [1-4]: " _mode_choice
+  # Sanitize input by removing potential carriage return
+  _mode_choice=${_mode_choice%$'\\r'}
   if [[ "$_mode_choice" =~ ^[1-4]$ ]]; then
     export AINISH_DEPLOY_MODE="$_mode_choice"
     return 0
   fi
-  echo -e "${YELLOW}Invalid choice. Aborting.${RESET}"
+  echo -e "${YELLOW}Invalid choice. Aborting.${RESET}" >&2
   return 1
 }
 
@@ -600,13 +602,15 @@ __ainish_read_mode() {
   local MODE="${AINISH_DEPLOY_MODE:-}"
   if [[ "$CLI_ARG" == --mode=* ]]; then MODE="${CLI_ARG#--mode=}"; fi
   if [[ "$MODE" =~ ^[1-4]$ ]]; then echo "$MODE"; return 0; fi
-  echo -e "\033[1;36mSelect deployment scope:\033[0m"
-  echo "1) Styling only"
-  echo "2) Ignore files only"
-  echo "3) Critical + Docs-use + Prompt"
-  echo "4) Everything"
+  echo -e "\\033[1;36mSelect deployment scope:\\033[0m" >&2
+  echo "1) Styling only" >&2
+  echo "2) Ignore files only" >&2
+  echo "3) Critical + Docs-use + Prompt" >&2
+  echo "4) Everything" >&2
   read -r -p "Enter [1-4]: " MODE
-  if [[ ! "$MODE" =~ ^[1-4]$ ]]; then echo "Invalid choice"; return 1; fi
+  # Sanitize input by removing potential carriage return
+  MODE=${MODE%$'\\r'}
+  if [[ ! "$MODE" =~ ^[1-4]$ ]]; then echo "Invalid choice" >&2; return 1; fi
   echo "$MODE"
 }
 function ainish-coder {
@@ -635,21 +639,28 @@ function ainish-cursor {
   local CURRENT_DIR="$(pwd)"
   local PROMPT_ARG=""
   local MODE_CLI_ARG=""
+  local NO_DEPLOY=0
   local PASSTHROUGH_ARGS=()
   for arg in "$@"; do
     case "$arg" in
       --prompt=*) PROMPT_ARG="$arg" ;;
       --mode=*) MODE_CLI_ARG="$arg" ;;
+      --no-deploy) NO_DEPLOY=1 ;;
       *) PASSTHROUGH_ARGS+=("$arg") ;;
     esac
   done
-  if [[ -n "$PROMPT_ARG" ]]; then export AINISH_PROMPT_MODE="${PROMPT_ARG#--prompt=}"; fi
-  local MODE_VAL
-  MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
-  
-  # Deploy from the linked repo directories to ensure latest changes are used
-  AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR"
-  echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
+
+  if [[ $NO_DEPLOY -eq 0 ]]; then
+    if [[ -n "$PROMPT_ARG" ]]; then export AINISH_PROMPT_MODE="${PROMPT_ARG#--prompt=}"; fi
+    local MODE_VAL
+    MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
+    
+    # Deploy from the linked repo directories to ensure latest changes are used
+    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_cursor_configs "$CURRENT_DIR"
+    echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
+  else
+    echo "Skipping deployment..."
+  fi
   env NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--force-node-api-uncaught-exceptions-policy=true" "$CURSOR_PATH" "${PASSTHROUGH_ARGS[@]}"
 }
 
@@ -658,19 +669,26 @@ function ainish-aider {
   local CURRENT_DIR="$(pwd)"
   local PROMPT_ARG=""
   local MODE_CLI_ARG=""
+  local NO_DEPLOY=0
   for arg in "$@"; do
     case "$arg" in
       --prompt=*) PROMPT_ARG="$arg" ;;
       --mode=*) MODE_CLI_ARG="$arg" ;;
+      --no-deploy) NO_DEPLOY=1 ;;
     esac
   done
-  if [[ -n "$PROMPT_ARG" ]]; then export AINISH_PROMPT_MODE="${PROMPT_ARG#--prompt=}"; fi
-  local MODE_VAL
-  MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
-  
-  # Deploy from the linked repo directories to ensure latest changes are used
-  AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR"
-  echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
+
+  if [[ $NO_DEPLOY -eq 0 ]]; then
+    if [[ -n "$PROMPT_ARG" ]]; then export AINISH_PROMPT_MODE="${PROMPT_ARG#--prompt=}"; fi
+    local MODE_VAL
+    MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
+    
+    # Deploy from the linked repo directories to ensure latest changes are used
+    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_aider_configs "$CURRENT_DIR"
+    echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
+  else
+    echo "Skipping deployment..."
+  fi
 }
 
 function ainish-copilot {
@@ -678,21 +696,28 @@ function ainish-copilot {
   local CURRENT_DIR="$(pwd)"
   local PROMPT_ARG=""
   local MODE_CLI_ARG=""
+  local NO_DEPLOY=0
   local PASSTHROUGH_ARGS=()
   for arg in "$@"; do
     case "$arg" in
       --prompt=*) PROMPT_ARG="$arg" ;;
       --mode=*) MODE_CLI_ARG="$arg" ;;
+      --no-deploy) NO_DEPLOY=1 ;;
       *) PASSTHROUGH_ARGS+=("$arg") ;;
     esac
   done
-  if [[ -n "$PROMPT_ARG" ]]; then export AINISH_PROMPT_MODE="${PROMPT_ARG#--prompt=}"; fi
-  local MODE_VAL
-  MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
-  
-  # Deploy from the linked repo directories to ensure latest changes are used
-  AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$CURRENT_DIR"
-  echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
+
+  if [[ $NO_DEPLOY -eq 0 ]]; then
+    if [[ -n "$PROMPT_ARG" ]]; then export AINISH_PROMPT_MODE="${PROMPT_ARG#--prompt=}"; fi
+    local MODE_VAL
+    MODE_VAL="$(__ainish_read_mode "$MODE_CLI_ARG")" || return 1
+    
+    # Deploy from the linked repo directories to ensure latest changes are used
+    AINISH_DEPLOY_MODE="$MODE_VAL" "$AINISH_CODER_DIR/ainish-setup.sh" deploy_vscode_configs "$CURRENT_DIR"
+    echo "🔄 Using symlinked configuration - changes to repo files are immediately available"
+  else
+    echo "Skipping deployment..."
+  fi
   "$VSCODE_PATH" "${PASSTHROUGH_ARGS[@]}"
 }
 
