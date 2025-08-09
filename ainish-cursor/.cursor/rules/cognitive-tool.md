@@ -363,7 +363,8 @@ ANTI-VIBE CODING SECURITY IMPERATIVES
     • Require security code review for all AI-generated code
     • Maintain security debt tracking and remediation
 
-CRITICAL REMINDER — Speed without security is just fast failure. The democratization of coding through AI must be coupled with the democratization of security awareness and tooling
+CRITICAL REMINDER: Speed without security is just fast failure. The democratization of coding through AI must be coupled with the democratization of security awareness and tooling.
+
 ====================================================================
 
 LLM APPLICATION SECURITY CONTROLS (OWASP LLM Top 10 Alignment)
