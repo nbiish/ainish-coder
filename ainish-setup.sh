@@ -810,19 +810,17 @@ deploy_cursor_configs() {
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
 
-  # Deploy ignore files
-  if [[ $DEPLOY_IGNORE -eq 1 ]]; then
-    if [ -f "${SRC_CURSOR_DIR}/.cursorignore" ]; then
-      cp "${SRC_CURSOR_DIR}/.cursorignore" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
-    fi
-    
-    if [ -f "${SRC_CURSOR_DIR}/.cursorindexingignore" ]; then
-      cp "${SRC_CURSOR_DIR}/.cursorindexingignore" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
-    fi
+  # ALWAYS deploy ignore files for ainish-cursor
+  if [ -f "${SRC_CURSOR_DIR}/.cursorignore" ]; then
+    cp "${SRC_CURSOR_DIR}/.cursorignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
   fi
-
+  
+  if [ -f "${SRC_CURSOR_DIR}/.cursorindexingignore" ]; then
+    cp "${SRC_CURSOR_DIR}/.cursorindexingignore" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
+  fi
+  
   # Deploy .cursorrules and all rules (everything mode)
   if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${SRC_CURSOR_DIR}/.cursorrules" ]; then
