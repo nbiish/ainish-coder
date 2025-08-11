@@ -189,16 +189,22 @@ deploy_ainish_configs() {
   local MODE="${2:-4}"  # Default to everything if no mode specified
   
   # Simple mode interpretation
-  local DEPLOY_BASIC=0
+  local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
-  local DEPLOY_CORE=0
-  local DEPLOY_ALL=0
-  
+  local DEPLOY_SECURITY=0
+  local DEPLOY_PRD=0
+  local DEPLOY_PROMPT=0
+  local DEPLOY_DOCS=0
+  local DEPLOY_EVERYTHING=0
+
   case "$MODE" in
-    1) DEPLOY_BASIC=1 ;;
-    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
-    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    1) DEPLOY_STYLING=1 ;;
+    2) DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_SECURITY=1 ;;
+    4) DEPLOY_PRD=1 ;;
+    5) DEPLOY_PROMPT=1 ;;
+    6) DEPLOY_DOCS=1 ;;
+    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
     *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
   
@@ -214,6 +220,18 @@ deploy_ainish_configs() {
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
   mkdir -p "$TARGET/.github" 2>/dev/null
   
+  # ALWAYS deploy critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to root${RESET}"
+    if [ -d "$TARGET/.github" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+    fi
+  fi
+  
   # Deploy Cursor ignore files
   if [[ $DEPLOY_IGNORE -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/cursor/.cursorignore" ]; then
@@ -227,8 +245,8 @@ deploy_ainish_configs() {
     fi
   fi
   
-  # Deploy .cursorrules and other files
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  # Deploy .cursorrules and other files (only for 'everything' mode)
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/cursor/.cursorrules" ]; then
       if [ -L "$TARGET/.cursorrules" ] || [ -f "$TARGET/.cursorrules" ]; then
         rm -f "$TARGET/.cursorrules"
@@ -247,23 +265,9 @@ deploy_ainish_configs() {
       echo -e "${GREEN}✓ Deployed license.mdc${RESET}"
     fi
   fi
-  
-  # Deploy core files  
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
-    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc to root${RESET}"
-      if [ -d "$TARGET/.github" ]; then
-        cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-        echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
-      fi
-    fi
-  fi
-  
-  # Deploy style files for mode 1 and 4
-  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
+    
+  # Deploy style files
+  if [[ $DEPLOY_STYLING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed style guide to .cursor/rules/${RESET}"
@@ -276,10 +280,8 @@ deploy_ainish_configs() {
     fi
   fi
   
-  
-  
-  # Deploy documentation files  
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
+  # Deploy documentation files
+  if [[ $DEPLOY_DOCS -eq 1 ]]; then
     if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc to .cursor/rules/${RESET}"
@@ -290,7 +292,10 @@ deploy_ainish_configs() {
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
     fi
-    
+  fi
+  
+  # Deploy PRD files
+  if [[ $DEPLOY_PRD -eq 1 ]]; then
     if [ -f "${REPO_DIR}/PRD.mdc" ]; then
       cp "${REPO_DIR}/PRD.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed PRD.mdc to .cursor/rules/${RESET}"
@@ -303,8 +308,8 @@ deploy_ainish_configs() {
     fi
   fi
   
-  # Deploy mdc-headers.md (all modes except basic)
-  if [[ $MODE -gt 1 ]]; then
+  # Deploy mdc-headers.md (everything mode)
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/mdc-headers.md" ]; then
       cp "${REPO_DIR}/mdc-headers.md" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed mdc-headers.md to root${RESET}"
@@ -328,8 +333,8 @@ deploy_ainish_configs() {
     fi
   fi
   
-  # Deploy Copilot instructions
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  # Deploy Copilot instructions (everything mode)
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
       mkdir -p "$TARGET/.github" 2>/dev/null
       cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
@@ -345,7 +350,7 @@ deploy_ainish_configs() {
     fi
   fi
   
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
       cp "${AINISH_CODER_DIR}/aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
@@ -364,7 +369,7 @@ deploy_ainish_configs() {
   fi
   
   # Deploy prompt and security files
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
+  if [[ $DEPLOY_PROMPT -eq 1 ]]; then
     # Deploy modern-prompting.mdc
     if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
       cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
@@ -378,7 +383,9 @@ deploy_ainish_configs() {
       # Deploy for Aider (prepend non-cursor content)
       prepend_non_cursor_content "${REPO_DIR}/modern-prompting.mdc" "$TARGET/.aider-instructions.md"
     fi
+  fi
     
+  if [[ $DEPLOY_SECURITY -eq 1 ]]; then
     # Deploy security.mdc  
     if [ -f "${REPO_DIR}/security.mdc" ]; then
       cp "${REPO_DIR}/security.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
@@ -390,14 +397,16 @@ deploy_ainish_configs() {
         echo -e "${GREEN}✓ Deployed security.mdc to .github/${RESET}"
       fi
     fi
+  fi
     
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     # Clean up legacy files
     rm -f "$TARGET/.cursor/rules/gikendaasowin.md" 2>/dev/null
     rm -f "$TARGET/.cursor/rules/cognitive-tool.md" 2>/dev/null
   fi
   
   # Deploy .gitignore
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/.gitignore" ]; then
       cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
@@ -495,17 +504,20 @@ __ainish_read_mode() {
   local CLI_ARG="${1:-}"
   local MODE="${AINISH_DEPLOY_MODE:-}"
   if [[ "$CLI_ARG" == --mode=* ]]; then MODE="${CLI_ARG#--mode=}"; fi
-  if [[ "$MODE" =~ ^[1-4]$ ]]; then echo "$MODE"; return 0; fi
+  if [[ "$MODE" =~ ^[1-7]$ ]]; then echo "$MODE"; return 0; fi
   echo -e "\\033[1;36mSelect deployment scope:\\033[0m" >&2
-  echo "1) Styling only" >&2
-  echo "2) Ignore files only" >&2
-  echo "3) Critical + Docs-use + Prompt" >&2
-  echo "4) Everything" >&2
-  printf "Enter [1-4]: " >&2
+  echo "1) Styling" >&2
+  echo "2) Ignore files" >&2
+  echo "3) Security" >&2
+  echo "4) PRD" >&2
+  echo "5) Prompt" >&2
+  echo "6) Docs" >&2
+  echo "7) Everything" >&2
+  printf "Enter [1-7]: " >&2
   read -r MODE
   # Sanitize input by removing potential carriage return
   MODE=${MODE%$'\\r'}
-  if [[ ! "$MODE" =~ ^[1-4]$ ]]; then echo "Invalid choice" >&2; return 1; fi
+  if [[ ! "$MODE" =~ ^[1-7]$ ]]; then echo "Invalid choice" >&2; return 1; fi
   echo "$MODE"
 }
 function ainish-coder {
@@ -629,16 +641,22 @@ deploy_vscode_configs() {
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   
   # Simple mode interpretation
-  local DEPLOY_BASIC=0
+  local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
-  local DEPLOY_CORE=0
-  local DEPLOY_ALL=0
-  
+  local DEPLOY_SECURITY=0
+  local DEPLOY_PRD=0
+  local DEPLOY_PROMPT=0
+  local DEPLOY_DOCS=0
+  local DEPLOY_EVERYTHING=0
+
   case "$MODE" in
-    1) DEPLOY_BASIC=1 ;;
-    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
-    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    1) DEPLOY_STYLING=1 ;;
+    2) DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_SECURITY=1 ;;
+    4) DEPLOY_PRD=1 ;;
+    5) DEPLOY_PROMPT=1 ;;
+    6) DEPLOY_DOCS=1 ;;
+    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
     *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
 
@@ -666,22 +684,22 @@ deploy_vscode_configs() {
     fi
   fi
 
-  # Deploy core files
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
+  # ALWAYS deploy critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+  fi
+    
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" ]; then
       mkdir -p "$TARGET/.github" 2>/dev/null
       cp "${AINISH_CODER_DIR}/vscode/.github/copilot-instructions.md" "$TARGET/.github/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed copilot-instructions.md${RESET}"
     fi
-    
-    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
-    fi
   fi
   
-  # Deploy style files for mode 1 and 4
-  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
+  # Deploy style files
+  if [[ $DEPLOY_STYLING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/.github/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed style guide to .github/${RESET}"
@@ -689,14 +707,17 @@ deploy_vscode_configs() {
   fi
 
   # Deploy documentation files
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
+  if [[ $DEPLOY_DOCS -eq 1 ]]; then
     if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
     fi
+  fi
     
+  # Deploy PRD files
+  if [[ $DEPLOY_PRD -eq 1 ]]; then
     if [ -f "${REPO_DIR}/PRD.mdc" ]; then
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/PRD.mdc" "$TARGET/.github/" 2>/dev/null
@@ -705,8 +726,8 @@ deploy_vscode_configs() {
     fi
   fi
   
-  # Deploy mdc-headers.md  
-  if [[ $MODE -gt 1 ]]; then
+  # Deploy mdc-headers.md (everything mode)
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/mdc-headers.md" ]; then
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/mdc-headers.md" "$TARGET/.github/" 2>/dev/null
@@ -716,7 +737,7 @@ deploy_vscode_configs() {
   fi
 
   # Deploy prompt and security files
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
+  if [[ $DEPLOY_PROMPT -eq 1 ]]; then
     # Deploy modern-prompting.mdc
     if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
       if [ -d "$TARGET/.github" ]; then
@@ -728,8 +749,10 @@ deploy_vscode_configs() {
       mkdir -p "$TARGET/.github" 2>/dev/null
       prepend_non_cursor_content "${REPO_DIR}/modern-prompting.mdc" "$copilot_target_file"
     fi
+  fi
     
-    # Deploy security.mdc
+  # Deploy security.mdc
+  if [[ $DEPLOY_SECURITY -eq 1 ]]; then
     if [ -f "${REPO_DIR}/security.mdc" ]; then
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/security.mdc" "$TARGET/.github/" 2>/dev/null
@@ -738,7 +761,7 @@ deploy_vscode_configs() {
     fi
   fi
 
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/.gitignore" ]; then
       cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
@@ -757,16 +780,22 @@ deploy_cursor_configs() {
   local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor"
   
   # Simple mode interpretation
-  local DEPLOY_BASIC=0
+  local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
-  local DEPLOY_CORE=0
-  local DEPLOY_ALL=0
-  
+  local DEPLOY_SECURITY=0
+  local DEPLOY_PRD=0
+  local DEPLOY_PROMPT=0
+  local DEPLOY_DOCS=0
+  local DEPLOY_EVERYTHING=0
+
   case "$MODE" in
-    1) DEPLOY_BASIC=1 ;;
-    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
-    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    1) DEPLOY_STYLING=1 ;;
+    2) DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_SECURITY=1 ;;
+    4) DEPLOY_PRD=1 ;;
+    5) DEPLOY_PROMPT=1 ;;
+    6) DEPLOY_DOCS=1 ;;
+    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
     *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
 
@@ -794,8 +823,8 @@ deploy_cursor_configs() {
     fi
   fi
 
-  # Deploy .cursorrules and all rules
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  # Deploy .cursorrules and all rules (everything mode)
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${SRC_CURSOR_DIR}/.cursorrules" ]; then
       rm -f "$TARGET/.cursorrules" 2>/dev/null
       ln -sf "${SRC_CURSOR_DIR}/.cursorrules" "$TARGET/.cursorrules" 2>/dev/null
@@ -819,40 +848,49 @@ deploy_cursor_configs() {
   # Deploy core files individually to ensure they're updated
   local TARGET_RULES_DIR="$TARGET/.cursor/rules"
   
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
-    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
-    fi
+  # ALWAYS deploy critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+  fi
     
+  if [[ $DEPLOY_DOCS -eq 1 ]]; then
     if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
     fi
+  fi
     
+  if [[ $DEPLOY_PRD -eq 1 ]]; then
     if [ -f "${REPO_DIR}/PRD.mdc" ]; then
       cp "${REPO_DIR}/PRD.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed PRD.mdc${RESET}"
     fi
+  fi
     
-    # Deploy prompt and security files
+  # Deploy prompt and security files
+  if [[ $DEPLOY_PROMPT -eq 1 ]]; then
     if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
       cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed modern-prompting.mdc${RESET}"
     fi
+  fi
     
+  if [[ $DEPLOY_SECURITY -eq 1 ]]; then
     if [ -f "${REPO_DIR}/security.mdc" ]; then
       cp "${REPO_DIR}/security.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed security.mdc${RESET}"
     fi
+  fi
     
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     # Clean up legacy files
     rm -f "$TARGET_RULES_DIR/gikendaasowin.md" 2>/dev/null
     rm -f "$TARGET_RULES_DIR/cognitive-tool.md" 2>/dev/null
   fi
 
-  # Deploy style files for mode 1 and 4
-  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
+  # Deploy style files
+  if [[ $DEPLOY_STYLING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed style guide${RESET}"
@@ -860,7 +898,7 @@ deploy_cursor_configs() {
   fi
 
   # Deploy additional files for everything mode
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${SRC_CURSOR_DIR}/my-license.mdc" ]; then
       cp "${SRC_CURSOR_DIR}/my-license.mdc" "$TARGET_RULES_DIR/license.mdc" 2>/dev/null
       echo -e "${GREEN}✓ Deployed license.mdc${RESET}"
@@ -868,7 +906,7 @@ deploy_cursor_configs() {
   fi
 
   # Deploy .gitignore for everything mode
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/.gitignore" ]; then
       cp "${REPO_DIR}/.gitignore" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
@@ -886,16 +924,22 @@ deploy_aider_configs() {
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   
   # Simple mode interpretation
-  local DEPLOY_BASIC=0
+  local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
-  local DEPLOY_CORE=0
-  local DEPLOY_ALL=0
-  
+  local DEPLOY_SECURITY=0
+  local DEPLOY_PRD=0
+  local DEPLOY_PROMPT=0
+  local DEPLOY_DOCS=0
+  local DEPLOY_EVERYTHING=0
+
   case "$MODE" in
-    1) DEPLOY_BASIC=1 ;;
-    2) DEPLOY_BASIC=1; DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1 ;;
-    4) DEPLOY_BASIC=1; DEPLOY_IGNORE=1; DEPLOY_CORE=1; DEPLOY_ALL=1 ;;
+    1) DEPLOY_STYLING=1 ;;
+    2) DEPLOY_IGNORE=1 ;;
+    3) DEPLOY_SECURITY=1 ;;
+    4) DEPLOY_PRD=1 ;;
+    5) DEPLOY_PROMPT=1 ;;
+    6) DEPLOY_DOCS=1 ;;
+    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
     *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
   esac
 
@@ -907,8 +951,14 @@ deploy_aider_configs() {
 
   echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET (mode $MODE)${RESET}"
 
+  # ALWAYS deploy critical.mdc
+  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+    echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+  fi
+  
   # Deploy core files
-  if [[ $DEPLOY_CORE -eq 1 ]]; then
+  if [[ $DEPLOY_PROMPT -eq 1 ]]; then
     # Deploy modern-prompting.mdc for Aider (prepend non-cursor content)
     if [ -f "${REPO_DIR}/modern-prompting.mdc" ]; then
       local aider_target_file="$TARGET/.aider-instructions.md"
@@ -918,32 +968,33 @@ deploy_aider_configs() {
       cp "${REPO_DIR}/modern-prompting.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed modern-prompting.mdc${RESET}"
     fi
+  fi
     
+  if [[ $DEPLOY_SECURITY -eq 1 ]]; then
     # Deploy security.mdc
     if [ -f "${REPO_DIR}/security.mdc" ]; then
       cp "${REPO_DIR}/security.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed security.mdc${RESET}"
     fi
+  fi
     
+  if [[ $DEPLOY_DOCS -eq 1 ]]; then
     # Deploy critical.mdc and docs-use.mdc
-    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
-    fi
-    
     if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
     fi
+  fi
     
+  if [[ $DEPLOY_PRD -eq 1 ]]; then
     if [ -f "${REPO_DIR}/PRD.mdc" ]; then
       cp "${REPO_DIR}/PRD.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed PRD.mdc${RESET}"
     fi
   fi
   
-  # Deploy style files for mode 1 and 4
-  if [[ $MODE -eq 1 || $MODE -eq 4 ]]; then
+  # Deploy style files
+  if [[ $DEPLOY_STYLING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" ]; then
       cp "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed style guide${RESET}"
@@ -959,7 +1010,7 @@ deploy_aider_configs() {
   fi
   
   # Deploy everything mode files
-  if [[ $DEPLOY_ALL -eq 1 ]]; then
+  if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
     if [ -f "${AINISH_CODER_DIR}/aider/.aider.conf.yml" ]; then
       cp "${AINISH_CODER_DIR}/aider/.aider.conf.yml" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed .aider.conf.yml${RESET}"
