@@ -3,4 +3,4 @@ description:
 globs: "*.ts, *.js, *.py, *.rs, *.go ,*.sh, *.bash, *.java, *.c, *.cpp, *.cs, *.php, *.json, *.html, *.css, *.xml, *.yml, *.yaml, *.toml, *.sql* "
 alwaysApply: false
 ---
-All code sections must include detailed, verbose, and professional descriptions that expertly inform the user of function and list of used concepts.
+All code must include a professional description that expertly informs the user about the function of the code and the concepts used.

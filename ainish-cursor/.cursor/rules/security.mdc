@@ -1,8 +1,8 @@
 ---
-description: "Comprehensive security operating contract and cybersecurity framework for LLM-assisted development"
-globs: "*.md,*.mdc,*.py,*.js,*.ts,*.json,*.yaml,*.yml"
+description: "Apply security framework to all development files"
+globs: ["*.md", "*.mdc", "*.py", "*.js", "*.ts", "*.jsx", "*.tsx", "*.json", "*.yaml", "*.yml", "*.toml", "*.ini", "*.conf", "*.cfg", "*.sh", "*.bash", "*.zsh", "*.fish", "*.ps1", "*.bat", "*.cmd", "*.dockerfile", "Dockerfile*", "*.sql", "*.env*", "*.properties"]
 alwaysApply: true
-contextType: rule
+priority: 1000
 ---
 
 # LLM Security Operating Contract & Cybersecurity Framework

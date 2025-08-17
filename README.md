@@ -28,10 +28,10 @@
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `prompt.md`, `mdc-headers.md`, `docs-use.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
+- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `mdc-headers.md`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
 - **◇ Multiple AI Tool Support ◇**: 
   - `ainish-aider`: Configuration for the Aider AI pair programming assistant.
-  - `ainish-cursor`: Cursor IDE specific configurations and ignore files.
+    - `ainish-cursor`: Cursor IDE specific configurations and ignore files.
   - `ainish-copilot`: GitHub Copilot and related tool configurations.
 - **◇ Automatic Configuration ◇**: Includes Gitignore rules and tool-specific ignore files.
 - **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) for easy tool usage.
@@ -69,7 +69,7 @@ chmod +x ainish-setup.sh
 
 # Run the setup script
 # This performs the full setup/update process:
-# 1. Distributes files (critical.mdc, prompt.md, mdc-headers.md, etc.) to tool directories
+# 1. Distributes files (critical.mdc, modern-prompting.mdc, mdc-headers.md, etc.) to tool directories
 # 2. Sets up ~/.ainish-coder with symlinks
 # 3. Installs/Updates wrapper functions in .zshrc
 ./ainish-setup.sh
@@ -107,18 +107,22 @@ To update later, simply pull the latest changes into the repository directory an
 
 ## ᐴ WAAWIINDAMAAGEWIN ᔔ [Overview] ◈──◆──◇──◆──◈
 
-```
+```text
 ainish-coder/
 ├── ainish-setup.sh              # Main setup and distribution script
 ├── critical.mdc                 # License citation file (distributed to all tools)
-├── prompt.md                    # Core prompt used by all tools
+├── modern-prompting.mdc         # Advanced cognitive framework for LLM interactions
+├── security.mdc                 # Comprehensive security and cybersecurity framework
 ├── docs-use.mdc                 # Documentation usage guidelines
+├── informing.mdc                # Code documentation requirements
+├── PRD.mdc                      # Universal Product Requirements Document template
 ├── mdc-headers.md               # MDC header definitions and documentation
 ├── non-cursor-prepend.md        # Content to prepend to non-Cursor prompts
 ├── anishinaabe-cyberpunk-style.mdc  # Styling guide
 ├── ainish-aider/                # Aider-specific configurations
 ├── ainish-cursor/               # Cursor-specific configurations
-└── ainish-copilot/              # GitHub Copilot/VS Code configurations
+├── ainish-copilot/              # GitHub Copilot/VS Code configurations
+└── TEST_DIR/                    # Testing directory
 ```
 
 <div align="center">
@@ -128,36 +132,49 @@ ainish-coder/
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 ### ainish-aider
+
 - `.gitignore`: Standard Git ignore rules
 - `.aider.conf.yml`: Aider configuration file
 - `.aiderignore`: Files to be ignored by Aider
 - `.env.example`: Example environment variables for Aider
-- `.aider-instructions.md`: Instructions for Aider (from `prompt.md` with prepended content)
+- `.aider-instructions.md`: Instructions for Aider (from `modern-prompting.mdc` with prepended content)
 - `aider-cli-commands.sh`: CLI commands for Aider
 - `critical.mdc`: License citation file (from root `critical.mdc`)
+- `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions (from root `modern-prompting.mdc`)
+- `security.mdc`: Comprehensive security and cybersecurity framework (from root `security.mdc`)
 - `docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
+- `informing.mdc`: Code documentation requirements (from root `informing.mdc`)
+- `PRD.mdc`: Universal Product Requirements Document template (from root `PRD.mdc`)
 - `mdc-headers.md`: MDC header definitions and documentation
 - `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 
 ### ainish-cursor
+
 - `.cursorrules`: Rules for Cursor AI
 - `.cursorignore`: Controls which files Cursor AI will ignore
 - `.cursorindexingignore`: Controls which files Cursor will skip during indexing
 - `.cursor/`: Cursor IDE configuration directory
-- `.cursor/rules/cognitive-tool.md`: Cognitive Agent instructions (from `prompt.md`)
+- `.cursor/rules/modern-prompting.mdc`: Advanced cognitive framework for LLM interactions (from root `modern-prompting.mdc`)
 - `.cursor/rules/critical.mdc`: License citation file (from root `critical.mdc`)
+- `.cursor/rules/security.mdc`: Comprehensive security and cybersecurity framework (from root `security.mdc`)
 - `.cursor/rules/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
+- `.cursor/rules/informing.mdc`: Code documentation requirements (from root `informing.mdc`)
+- `.cursor/rules/PRD.mdc`: Universal Product Requirements Document template (from root `PRD.mdc`)
 - `.cursor/rules/mdc-headers.md`: MDC header definitions and documentation
 - `.cursor/rules/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-- `.cursor/rules/license.mdc`: License information specific to Cursor (from `my-license.mdc`)
 
 ### ainish-copilot
+
 - `.copilotignore`: Controls which files GitHub Copilot will ignore
 - `.rooignore`: Controls which files are excluded from Copilot's context window
 - `.github/`: GitHub specific configurations
-- `.github/copilot-instructions.md`: Custom instructions for GitHub Copilot (from `prompt.md` with prepended content)
+- `.github/copilot-instructions.md`: Custom instructions for GitHub Copilot (from `modern-prompting.mdc` with prepended content)
 - `.github/critical.mdc`: License citation file (from root `critical.mdc`)
+- `.github/modern-prompting.mdc`: Advanced cognitive framework for LLM interactions (from root `modern-prompting.mdc`)
+- `.github/security.mdc`: Comprehensive security and cybersecurity framework (from root `security.mdc`)
 - `.github/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
+- `.github/informing.mdc`: Code documentation requirements (from root `informing.mdc`)
+- `.github/PRD.mdc`: Universal Product Requirements Document template (from root `PRD.mdc`)
 - `.github/mdc-headers.md`: MDC header definitions and documentation
 - `.github/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 
@@ -168,7 +185,8 @@ ainish-coder/
 ## ᐴ INAABAJICHIGAN ᔔ [Usage] ◈──◆──◇──◆──◈
 
 The `ainish-setup.sh` script:
-1. Automatically distributes `critical.mdc`, `prompt.md`, `docs-use.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
+
+1. Automatically distributes `critical.mdc`, `modern-prompting.mdc`, `security.mdc`, `docs-use.mdc`, `informing.mdc`, `PRD.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
 2. Creates a `~/.ainish-coder` directory.
 3. Creates symbolic links from `~/.ainish-coder` to the tool configuration directories (`ainish-aider`, `ainish-cursor`, `ainish-copilot`) in the repository, ensuring changes in the repo are reflected immediately.
 4. Adds convenient wrapper functions (`ainish-cursor`, `ainish-aider`, etc.) to your shell configuration (`.zshrc`).
@@ -190,7 +208,7 @@ This project uses a unique **Anishinaabe-Cyberpunk** styling approach that combi
 - Cultural context for symbol usage
 - Markdown styling elements (headers, dividers, banners)
 - Shell script styling patterns
-- Standard Anishinaabe terms with translations 
+- Standard Anishinaabe terms with translations
 - Cyberpunk symbol reference guide
 
 This styling creates a distinctive visual identity that:
@@ -206,7 +224,7 @@ For examples of this styling, see the **Standard Anishinaabe Terms** section in 
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
 </div>
 
-## ᐴ ONAAKONIGE ᔔ [Configuration] ◈──◆──◇──◆──◈
+## ᐴ GIKENDAASOWIN ᔔ [MDC Headers] ◈──◆──◇──◆──◈
 
 The `mdc-headers.md` file contains important header definitions that extend the functionality of MDC (Markdown Comments) within the AI coding assistant tools. These headers:
 
@@ -221,7 +239,7 @@ MDC headers are crucial for creating effective AI tool configurations and are di
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
 </div>
 
-## ᐴ WIIDOOKAAZOWIN ᔔ [Assistance] ◈──◆──◇──◆──◈
+## ᐴ WIIDOOKAAZOWIN ᔔ [Contributing] ◈──◆──◇──◆──◈
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -229,7 +247,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
 </div>
 
-## ᐴ WIIDOOKAAZOWIN ᔔ [Assistance] ◈──◆──◇──◆──◈
+## ᐴ GIGWEJIWEWIN ᔔ [Troubleshooting] ◈──◆──◇──◆──◈
 
 ### Common Issues
 
