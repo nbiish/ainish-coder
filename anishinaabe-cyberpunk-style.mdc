@@ -1,7 +1,8 @@
 ---
-description: 
-globs: README.md
+description: "Anishinaabe-inspired cyberpunk styling guide for documentation combining Indigenous syllabics with technological aesthetics"
+globs: ["README.md", "*.md"]
 alwaysApply: false
+priority: 50
 ---
 # Anishinaabe-Inspired Cyberpunk Styling Guide
 

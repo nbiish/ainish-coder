@@ -1,7 +1,8 @@
 ---
-description: 
-globs: *.json,*.py,*.js,*.ts,*.rs,*.sh,*.md
+description: "Guidelines for handling errors and issues with MCP tools and knowledge verification procedures"
+globs: ["*.json", "*.py", "*.js", "*.ts", "*.rs", "*.sh", "*.md"]
 alwaysApply: false
+priority: 100
 ---
 UPON ERRORS/ISSUES:
 - use mcp_All_docs_and_libraries (context7 mcp tool) to learn/confirm knowledge about frameworks, libraries, etc..

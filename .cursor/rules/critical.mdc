@@ -1,5 +1,8 @@
 ---
+description: "Critical project licensing and contributing guidelines enforcement with automatic file retrieval"
+globs: ["LICENSE", "CONTRIBUTING.md", "README.md", "*.md"]
 alwaysApply: false
+priority: 999
 ---
 # STRICTLY follow the instructions below:
 

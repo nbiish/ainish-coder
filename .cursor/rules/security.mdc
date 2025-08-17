@@ -1,7 +1,7 @@
 ---
 description: "Apply security framework to all development files"
 globs: ["*.md", "*.mdc", "*.py", "*.js", "*.ts", "*.jsx", "*.tsx", "*.json", "*.yaml", "*.yml", "*.toml", "*.ini", "*.conf", "*.cfg", "*.sh", "*.bash", "*.zsh", "*.fish", "*.ps1", "*.bat", "*.cmd", "*.dockerfile", "Dockerfile*", "*.sql", "*.env*", "*.properties"]
-alwaysApply: true
+alwaysApply: false
 priority: 1000
 ---
 
