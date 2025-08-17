@@ -79,6 +79,13 @@ copy_file "${REPO_DIR}/docs-use.mdc" "$CURSOR_RULES_DIR/docs-use.mdc" "docs-use.
 copy_file "${REPO_DIR}/docs-use.mdc" "$ROOT_CURSOR_RULES_DIR/docs-use.mdc" "docs-use.mdc to .cursor/rules/"
 echo
 
+echo -e "${BRIGHT_CYAN}Copying informing.mdc...${RESET}"
+copy_file "${REPO_DIR}/informing.mdc" "$AIDER_DIR/informing.mdc" "informing.mdc to ainish-aider/"
+copy_file "${REPO_DIR}/informing.mdc" "$COPILOT_GITHUB_DIR/informing.mdc" "informing.mdc to ainish-copilot/.github/"
+copy_file "${REPO_DIR}/informing.mdc" "$CURSOR_RULES_DIR/informing.mdc" "informing.mdc to ainish-cursor/.cursor/rules/"
+copy_file "${REPO_DIR}/informing.mdc" "$ROOT_CURSOR_RULES_DIR/informing.mdc" "informing.mdc to .cursor/rules/"
+echo
+
 echo -e "${BRIGHT_CYAN}Copying prompt.md with special naming...${RESET}"
 copy_file "${REPO_DIR}/prompt.md" "$COPILOT_GITHUB_DIR/copilot-instructions.md" "prompt.md to ainish-copilot/.github/copilot-instructions.md"
 copy_file "${REPO_DIR}/prompt.md" "$AIDER_DIR/.aider-instructions.md" "prompt.md to ainish-aider/.aider-instructions.md"

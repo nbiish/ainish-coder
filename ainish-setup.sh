@@ -99,6 +99,9 @@ setup_ainish_coder_dir() {
   ln -sf "${REPO_DIR}/modern-prompting.mdc" "${AINISH_CODER_DIR}/modern-prompting.mdc" 2>/dev/null
   # Create symlink for security.mdc
   ln -sf "${REPO_DIR}/security.mdc" "${AINISH_CODER_DIR}/security.mdc" 2>/dev/null
+
+  # Create symlink for informing.mdc
+  ln -sf "${REPO_DIR}/informing.mdc" "${AINISH_CODER_DIR}/informing.mdc" 2>/dev/null
   
   # Create symlink for non-cursor-prepend.md
   ln -sf "${REPO_DIR}/non-cursor-prepend.md" "${AINISH_CODER_DIR}/non-cursor-prepend.md" 2>/dev/null
@@ -290,6 +293,16 @@ deploy_ainish_configs() {
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/docs-use.mdc" "$TARGET/.github/" 2>/dev/null
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
+      fi
+    fi
+    if [ -f "${REPO_DIR}/informing.mdc" ]; then
+      cp "${REPO_DIR}/informing.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed informing.mdc to .cursor/rules/${RESET}"
+      cp "${REPO_DIR}/informing.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed informing.mdc to root${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/informing.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed informing.mdc to .github/${RESET}"
       fi
     fi
   fi
@@ -714,6 +727,12 @@ deploy_vscode_configs() {
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
     fi
+    if [ -f "${REPO_DIR}/informing.mdc" ]; then
+      if [ -d "$TARGET/.github" ]; then
+        cp "${REPO_DIR}/informing.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed informing.mdc to .github/${RESET}"
+      fi
+    fi
   fi
     
   # Deploy PRD files
@@ -857,6 +876,10 @@ deploy_cursor_configs() {
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
     fi
+    if [ -f "${REPO_DIR}/informing.mdc" ]; then
+      cp "${REPO_DIR}/informing.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed informing.mdc${RESET}"
+    fi
   fi
     
   if [[ $DEPLOY_PRD -eq 1 ]]; then
@@ -981,6 +1004,10 @@ deploy_aider_configs() {
     if [ -f "${REPO_DIR}/docs-use.mdc" ]; then
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
+    fi
+    if [ -f "${REPO_DIR}/informing.mdc" ]; then
+      cp "${REPO_DIR}/informing.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed informing.mdc${RESET}"
     fi
   fi
     
@@ -1153,6 +1180,8 @@ main() {
     local docs_src="${REPO_DIR}/docs-use.mdc"
     # Define PRD.mdc source
     local prd_src="${REPO_DIR}/PRD.mdc"
+    # Define informing.mdc source
+    local informing_src="${REPO_DIR}/informing.mdc"
     
     # Define destination directories relative to REPO_DIR
     local aider_dest_dir="${REPO_DIR}/ainish-aider"
@@ -1199,6 +1228,16 @@ main() {
       cp "$prd_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied PRD.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy PRD.mdc to .cursor/rules/${RESET}"
     else
       echo -e "${YELLOW}⚠️ Warning: Source PRD.mdc not found at $prd_src${RESET}"
+    fi
+    
+    # Copy informing.mdc
+    if [ -f "$informing_src" ]; then
+      cp "$informing_src" "$aider_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied informing.mdc to ainish-aider/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy informing.mdc to ainish-aider/${RESET}"
+      cp "$informing_src" "$copilot_github_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied informing.mdc to ainish-copilot/.github/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy informing.mdc to ainish-copilot/.github/${RESET}"
+      cp "$informing_src" "$cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied informing.mdc to ainish-cursor/.cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy informing.mdc to ainish-cursor/.cursor/rules/${RESET}"
+      cp "$informing_src" "$root_cursor_rules_dest_dir/" 2>/dev/null && echo -e "${GREEN}✓ Copied informing.mdc to .cursor/rules/${RESET}" || echo -e "${YELLOW}⚠️ Failed to copy informing.mdc to .cursor/rules/${RESET}"
+    else
+      echo -e "${YELLOW}⚠️ Warning: Source informing.mdc not found at $informing_src${RESET}"
     fi
     
     # Copy modern-prompting.mdc and security.mdc to specific destinations

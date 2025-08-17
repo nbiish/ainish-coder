@@ -1,0 +1,6 @@
+---
+description:
+globs: "*.ts,*.js,*.py,*.rs,*.go,*.sh,*.bash"
+alwaysApply: false
+---
+All code sections must include detailed, verbose, and professional descriptions that expertly inform the user of function and list of used concepts.
