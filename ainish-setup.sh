@@ -547,6 +547,8 @@ __ainish_read_mode() {
   read -r MODE
   # Sanitize input
   MODE=${MODE%$'\\r'}
+  # Remove commas and trim trailing comma if present
+  MODE=$(echo "$MODE" | sed -e 's/,//g' -e 's/[[:space:]]*$//' -e 's/,$//')
   # Trim leading/trailing whitespace and replace multiple spaces with a single space
   MODE=$(echo "$MODE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\+/ /g')
 
