@@ -189,27 +189,33 @@ choose_deploy_mode() {
 # Main deployment function
 deploy_ainish_configs() {
   local TARGET="$1"
-  local MODE="${2:-4}"  # Default to everything if no mode specified
+  local MODES="${2:-4}" # Default to everything if no mode specified
   
   # Simple mode interpretation
   local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
+  local DEPLOY_CRITICAL=0
   local DEPLOY_SECURITY=0
   local DEPLOY_PRD=0
   local DEPLOY_PROMPT=0
   local DEPLOY_DOCS=0
+  local DEPLOY_INFORMING=0
   local DEPLOY_EVERYTHING=0
 
-  case "$MODE" in
-    1) DEPLOY_STYLING=1 ;;
-    2) DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_SECURITY=1 ;;
-    4) DEPLOY_PRD=1 ;;
-    5) DEPLOY_PROMPT=1 ;;
-    6) DEPLOY_DOCS=1 ;;
-    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
-    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
-  esac
+  for MODE in $MODES; do
+    case "$MODE" in
+      1) DEPLOY_STYLING=1 ;;
+      2) DEPLOY_IGNORE=1 ;;
+      3) DEPLOY_CRITICAL=1 ;;
+      4) DEPLOY_SECURITY=1 ;;
+      5) DEPLOY_PRD=1 ;;
+      6) DEPLOY_PROMPT=1 ;;
+      7) DEPLOY_DOCS=1 ;;
+      8) DEPLOY_INFORMING=1 ;;
+      9) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_CRITICAL=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1; DEPLOY_INFORMING=1 ;;
+      *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE in list '$MODES'${RESET}"; return 1 ;;
+    esac
+  done
   
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -217,21 +223,23 @@ deploy_ainish_configs() {
     return 1
   fi
   
-  echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $TARGET (mode $MODE)${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $TARGET (modes $MODES)${RESET}"
   
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
   mkdir -p "$TARGET/.github" 2>/dev/null
   
-  # ALWAYS deploy critical.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to root${RESET}"
-    if [ -d "$TARGET/.github" ]; then
-      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-      echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+  # Deploy critical.mdc
+  if [[ $DEPLOY_CRITICAL -eq 1 || $DEPLOY_EVERYTHING -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc to .cursor/rules/${RESET}"
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc to root${RESET}"
+      if [ -d "$TARGET/.github" ]; then
+        cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+        echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+      fi
     fi
   fi
   
@@ -295,6 +303,11 @@ deploy_ainish_configs() {
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
     fi
+
+  fi
+  
+  # Deploy informing files
+  if [[ $DEPLOY_INFORMING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/informing.mdc" ]; then
       cp "${REPO_DIR}/informing.mdc" "$TARGET/.cursor/rules/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed informing.mdc to .cursor/rules/${RESET}"
@@ -512,25 +525,39 @@ EOF
   cat >> "$ZSHRC" << 'EOF'
 # AINISH-Coder wrapper functions
 
-# Helper to read deploy mode (1-4). Honors AINISH_DEPLOY_MODE or --mode= flag.
+# Helper to read deploy mode (1-9). Honors AINISH_DEPLOY_MODE or --mode= flag.
 __ainish_read_mode() {
   local CLI_ARG="${1:-}"
   local MODE="${AINISH_DEPLOY_MODE:-}"
   if [[ "$CLI_ARG" == --mode=* ]]; then MODE="${CLI_ARG#--mode=}"; fi
-  if [[ "$MODE" =~ ^[1-7]$ ]]; then echo "$MODE"; return 0; fi
-  echo -e "\\033[1;36mSelect deployment scope:\\033[0m" >&2
+  # Validate mode if passed via argument, allows space separated numbers
+  if [[ -n "$MODE" && "$MODE" =~ ^[1-9]([[:space:]][1-9])*$ ]]; then echo "$MODE"; return 0; fi
+
+  echo -e "\\033[1;36mSelect deployment scope (space-separated numbers, e.g., 1 3 8):\\033[0m" >&2
   echo "1) Styling" >&2
   echo "2) Ignore files" >&2
-  echo "3) Security" >&2
-  echo "4) PRD" >&2
-  echo "5) Prompt" >&2
-  echo "6) Docs" >&2
-  echo "7) Everything" >&2
-  printf "Enter [1-7]: " >&2
+  echo "3) Critical" >&2
+  echo "4) Security" >&2
+  echo "5) PRD" >&2
+  echo "6) Prompting" >&2
+  echo "7) Documentation" >&2
+  echo "8) Informing" >&2
+  echo "9) Everything" >&2
+  printf "Enter numbers: " >&2
   read -r MODE
-  # Sanitize input by removing potential carriage return
+  # Sanitize input
   MODE=${MODE%$'\\r'}
-  if [[ ! "$MODE" =~ ^[1-7]$ ]]; then echo "Invalid choice" >&2; return 1; fi
+  # Trim leading/trailing whitespace and replace multiple spaces with a single space
+  MODE=$(echo "$MODE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\+/ /g')
+
+  # Validate each number
+  for num in $MODE; do
+    if [[ ! "$num" =~ ^[1-9]$ ]]; then
+      echo "Invalid choice: '$num'. Please enter numbers from 1 to 9." >&2
+      return 1
+    fi
+  done
+
   echo "$MODE"
 }
 function ainish-coder {
@@ -650,28 +677,34 @@ EOF
 # Function to deploy only VS Code configurations
 deploy_vscode_configs() {
   local TARGET="$1"
-  local MODE="${2:-4}"
+  local MODES="${2:-4}"
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   
   # Simple mode interpretation
   local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
+  local DEPLOY_CRITICAL=0
   local DEPLOY_SECURITY=0
   local DEPLOY_PRD=0
   local DEPLOY_PROMPT=0
   local DEPLOY_DOCS=0
+  local DEPLOY_INFORMING=0
   local DEPLOY_EVERYTHING=0
 
-  case "$MODE" in
-    1) DEPLOY_STYLING=1 ;;
-    2) DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_SECURITY=1 ;;
-    4) DEPLOY_PRD=1 ;;
-    5) DEPLOY_PROMPT=1 ;;
-    6) DEPLOY_DOCS=1 ;;
-    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
-    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
-  esac
+  for MODE in $MODES; do
+    case "$MODE" in
+      1) DEPLOY_STYLING=1 ;;
+      2) DEPLOY_IGNORE=1 ;;
+      3) DEPLOY_CRITICAL=1 ;;
+      4) DEPLOY_SECURITY=1 ;;
+      5) DEPLOY_PRD=1 ;;
+      6) DEPLOY_PROMPT=1 ;;
+      7) DEPLOY_DOCS=1 ;;
+      8) DEPLOY_INFORMING=1 ;;
+      9) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_CRITICAL=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1; DEPLOY_INFORMING=1 ;;
+      *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE in list '$MODES'${RESET}"; return 1 ;;
+    esac
+  done
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -679,7 +712,7 @@ deploy_vscode_configs() {
     return 1
   fi
 
-  echo -e "${BRIGHT_BLUE}Deploying VS Code configurations to $TARGET (mode $MODE)${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying VS Code configurations to $TARGET (modes $MODES)${RESET}"
 
   # Create necessary directories
   mkdir -p "$TARGET/.github" 2>/dev/null
@@ -697,10 +730,12 @@ deploy_vscode_configs() {
     fi
   fi
 
-  # ALWAYS deploy critical.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+  # Deploy critical.mdc
+  if [[ $DEPLOY_CRITICAL -eq 1 || $DEPLOY_EVERYTHING -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/.github/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc to .github/${RESET}"
+    fi
   fi
     
   if [[ $DEPLOY_EVERYTHING -eq 1 ]]; then
@@ -727,6 +762,11 @@ deploy_vscode_configs() {
         echo -e "${GREEN}✓ Deployed docs-use.mdc to .github/${RESET}"
       fi
     fi
+
+  fi
+  
+  # Deploy informing files
+  if [[ $DEPLOY_INFORMING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/informing.mdc" ]; then
       if [ -d "$TARGET/.github" ]; then
         cp "${REPO_DIR}/informing.mdc" "$TARGET/.github/" 2>/dev/null
@@ -794,29 +834,35 @@ deploy_vscode_configs() {
 # Function to deploy only Cursor configurations
 deploy_cursor_configs() {
   local TARGET="$1"
-  local MODE="${2:-4}"
+  local MODES="${2:-4}"
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   local SRC_CURSOR_DIR="${AINISH_CODER_DIR}/cursor"
   
   # Simple mode interpretation
   local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
+  local DEPLOY_CRITICAL=0
   local DEPLOY_SECURITY=0
   local DEPLOY_PRD=0
   local DEPLOY_PROMPT=0
   local DEPLOY_DOCS=0
+  local DEPLOY_INFORMING=0
   local DEPLOY_EVERYTHING=0
 
-  case "$MODE" in
-    1) DEPLOY_STYLING=1 ;;
-    2) DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_SECURITY=1 ;;
-    4) DEPLOY_PRD=1 ;;
-    5) DEPLOY_PROMPT=1 ;;
-    6) DEPLOY_DOCS=1 ;;
-    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
-    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
-  esac
+  for MODE in $MODES; do
+    case "$MODE" in
+      1) DEPLOY_STYLING=1 ;;
+      2) DEPLOY_IGNORE=1 ;;
+      3) DEPLOY_CRITICAL=1 ;;
+      4) DEPLOY_SECURITY=1 ;;
+      5) DEPLOY_PRD=1 ;;
+      6) DEPLOY_PROMPT=1 ;;
+      7) DEPLOY_DOCS=1 ;;
+      8) DEPLOY_INFORMING=1 ;;
+      9) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_CRITICAL=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1; DEPLOY_INFORMING=1 ;;
+      *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE in list '$MODES'${RESET}"; return 1 ;;
+    esac
+  done
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -824,7 +870,7 @@ deploy_cursor_configs() {
     return 1
   fi
 
-  echo -e "${BRIGHT_BLUE}Deploying Cursor configurations to $TARGET (mode $MODE)${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying Cursor configurations to $TARGET (modes $MODES)${RESET}"
 
   # Create necessary directories
   mkdir -p "$TARGET/.cursor/rules" 2>/dev/null
@@ -865,10 +911,12 @@ deploy_cursor_configs() {
   # Deploy core files individually to ensure they're updated
   local TARGET_RULES_DIR="$TARGET/.cursor/rules"
   
-  # ALWAYS deploy critical.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+  # Deploy critical.mdc
+  if [[ $DEPLOY_CRITICAL -eq 1 || $DEPLOY_EVERYTHING -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+    fi
   fi
     
   if [[ $DEPLOY_DOCS -eq 1 ]]; then
@@ -876,6 +924,11 @@ deploy_cursor_configs() {
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
     fi
+
+  fi
+  
+  # Deploy informing files
+  if [[ $DEPLOY_INFORMING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/informing.mdc" ]; then
       cp "${REPO_DIR}/informing.mdc" "$TARGET_RULES_DIR/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed informing.mdc${RESET}"
@@ -941,28 +994,34 @@ deploy_cursor_configs() {
 # Function to deploy only Aider configurations
 deploy_aider_configs() {
   local TARGET="$1"
-  local MODE="${2:-4}"
+  local MODES="${2:-4}"
   local PROMPT_MODE="${AINISH_PROMPT_MODE:-}"
   
   # Simple mode interpretation
   local DEPLOY_STYLING=0
   local DEPLOY_IGNORE=0
+  local DEPLOY_CRITICAL=0
   local DEPLOY_SECURITY=0
   local DEPLOY_PRD=0
   local DEPLOY_PROMPT=0
   local DEPLOY_DOCS=0
+  local DEPLOY_INFORMING=0
   local DEPLOY_EVERYTHING=0
 
-  case "$MODE" in
-    1) DEPLOY_STYLING=1 ;;
-    2) DEPLOY_IGNORE=1 ;;
-    3) DEPLOY_SECURITY=1 ;;
-    4) DEPLOY_PRD=1 ;;
-    5) DEPLOY_PROMPT=1 ;;
-    6) DEPLOY_DOCS=1 ;;
-    7) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1 ;;
-    *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE${RESET}"; return 1 ;;
-  esac
+  for MODE in $MODES; do
+    case "$MODE" in
+      1) DEPLOY_STYLING=1 ;;
+      2) DEPLOY_IGNORE=1 ;;
+      3) DEPLOY_CRITICAL=1 ;;
+      4) DEPLOY_SECURITY=1 ;;
+      5) DEPLOY_PRD=1 ;;
+      6) DEPLOY_PROMPT=1 ;;
+      7) DEPLOY_DOCS=1 ;;
+      8) DEPLOY_INFORMING=1 ;;
+      9) DEPLOY_EVERYTHING=1; DEPLOY_STYLING=1; DEPLOY_IGNORE=1; DEPLOY_CRITICAL=1; DEPLOY_SECURITY=1; DEPLOY_PRD=1; DEPLOY_PROMPT=1; DEPLOY_DOCS=1; DEPLOY_INFORMING=1 ;;
+      *) echo -e "${BRIGHT_RED}Error: Invalid mode $MODE in list '$MODES'${RESET}"; return 1 ;;
+    esac
+  done
 
   # Verify target is a directory
   if [ ! -d "$TARGET" ]; then
@@ -970,12 +1029,14 @@ deploy_aider_configs() {
     return 1
   fi
 
-  echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET (mode $MODE)${RESET}"
+  echo -e "${BRIGHT_BLUE}Deploying Aider configurations to $TARGET (modes $MODES)${RESET}"
 
-  # ALWAYS deploy critical.mdc
-  if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
-    cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
-    echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+  # Deploy critical.mdc
+  if [[ $DEPLOY_CRITICAL -eq 1 || $DEPLOY_EVERYTHING -eq 1 ]]; then
+    if [ -f "${AINISH_CODER_DIR}/critical.mdc" ]; then
+      cp "${AINISH_CODER_DIR}/critical.mdc" "$TARGET/" 2>/dev/null
+      echo -e "${GREEN}✓ Deployed critical.mdc${RESET}"
+    fi
   fi
   
   # Deploy core files
@@ -1005,6 +1066,11 @@ deploy_aider_configs() {
       cp "${REPO_DIR}/docs-use.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed docs-use.mdc${RESET}"
     fi
+
+  fi
+  
+  # Deploy informing files
+  if [[ $DEPLOY_INFORMING -eq 1 ]]; then
     if [ -f "${REPO_DIR}/informing.mdc" ]; then
       cp "${REPO_DIR}/informing.mdc" "$TARGET/" 2>/dev/null
       echo -e "${GREEN}✓ Deployed informing.mdc${RESET}"

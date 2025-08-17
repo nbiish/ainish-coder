@@ -1,168 +1,133 @@
 ---
-description: Expert-level Product Requirements Document for LLM tooling and AI-assisted development workflow
-globs: *.mdc,*.md,*.sh,*.ts,*.js,*.py
-alwaysApply: true
+description: Universal Product Requirements Document template for any project
+globs: PRD.md, PRD.txt, PRD.doc, prd.md, prd.txt, prd.doc
+alwaysApply: false
 ---
 
-# PRODUCT REQUIREMENTS DOCUMENT: AINISH-CODER LLM TOOLING
+# PRODUCT REQUIREMENTS DOCUMENT: [PROJECT NAME]
 
-## 1. OVERVIEW
+**Author:** [Your Name] | **Date:** [Date] | **Version:** [1.0]
 
-### 1.1 Purpose
+## 1. OBJECTIVE
 
-AI-assisted development environment providing structured tooling for LLM-driven code generation, documentation, and project management with Anishinaabe cyberpunk aesthetic integration.
+**Purpose:** [Define the problem this product solves and why it matters]
 
-### 1.2 Core Features
+**Target Audience:** [Primary users and stakeholders]
 
-- **Structured MDC Documentation System**: YAML-frontmatter files for precise LLM instruction delivery
-- **Multi-LLM Tooling Support**: Aider, Copilot, Cursor integration with unified workflow
-- **Context-Aware AI Assistance**: MCP (Model Context Protocol) integration for real-time documentation access
-- **Cultural Design Integration**: Anishinaabe cyberpunk aesthetic with modern UX standards
+**Strategic Alignment:** [How this aligns with organizational goals]
 
-## 2. FRONTEND REQUIREMENTS
+## 2. SCOPE
 
-### 2.1 Design Standards
+**In-Scope Features:**
 
-- Adherence to accessibility guidelines (WCAG 2.1 AA)
-- Responsive design for terminal and web interfaces
-- Anishinaabe cyberpunk visual language integration
-- Consistent typography and color schemes across tools
+- [Feature 1: Brief description]
+- [Feature 2: Brief description]
+- [Feature 3: Brief description]
 
-### 2.2 User Interface Components
+**Out-of-Scope:**
 
-- Command-line interfaces with rich output formatting
-- File structure visualization for mdc/documentation hierarchy
-- Real-time status indicators for AI tool operations
-- Interactive setup and configuration wizards
+- [What will NOT be included in this release]
 
-## 3. BACKEND REQUIREMENTS
+## 3. USER PERSONAS & SCENARIOS
 
-### 3.1 Core Architecture
+**Primary User:** [Name/Role] - [Key goals and pain points]
+**Secondary User:** [Name/Role] - [Key goals and pain points]
 
-- **File Processing Engine**: MDC header parsing and validation
-- **Context Management**: Dynamic rule application based on globs and alwaysApply flags
-- **Integration Layer**: Unified API for Aider, Copilot, and Cursor tools
-- **Documentation Pipeline**: MCP tool integration for real-time library documentation
+**Key User Journey:** [How users will interact with the product]
 
-### 3.2 API Behaviors
+## 4. FUNCTIONAL REQUIREMENTS
 
-```yaml
-MDC_Parser:
-  input: file_path, content
-  output: parsed_metadata, validation_status
-  error_handling: conservative_interpretation, backward_compatibility
+### Core Features
 
-Context_Manager:
-  input: current_task, file_patterns
-  output: applicable_rules, priority_order
-  behavior: respect_alwaysApply, honor_globs
+- **[Feature Name]:** [User story format: "As a [user], I want [action] so that [benefit]"]
+- **[Feature Name]:** [User story format]
+- **[Feature Name]:** [User story format]
 
-Integration_Controller:
-  input: tool_type, command, context
-  output: unified_response, status_metrics
-  supported_tools: [aider, copilot, cursor]
-```
+## 5. NON-FUNCTIONAL REQUIREMENTS
 
-## 4. DATA MODEL
+**Performance:** [Response times, scalability, reliability targets]
+**Usability:** [Design principles, accessibility standards (WCAG 2.1 AA)]
+**Security:** [Authentication, data protection, compliance requirements]
+**Compatibility:** [Browser/platform support, integrations]
 
-### 4.1 MDC Header Schema
+## 6. ASSUMPTIONS & CONSTRAINTS
 
-```yaml
-required_fields:
-  - description: string (purpose/context hint)
-optional_fields:
-  - globs: string (comma-separated file patterns)
-  - alwaysApply: boolean (unconditional application flag)
-  - contextType: enum [rule, documentation, configuration]
-```
+**Assumptions:**
 
-### 4.2 Configuration Entities
+- [Key assumption 1]
+- [Key assumption 2]
 
-- **Tool Profiles**: Per-LLM configuration and capabilities
-- **Project Context**: Repository-specific settings and preferences
-- **Rule Hierarchy**: Priority ordering for conflicting directives
+**Constraints:**
 
-## 5. ENDPOINT BEHAVIORS
+- Budget: [Amount/limitations]
+- Timeline: [Key deadlines]
+- Technology: [Technical limitations]
 
-### 5.1 File Processing
+## 7. SUCCESS METRICS
 
-- **Parse MDC Headers**: Extract and validate YAML frontmatter
-- **Apply Context Rules**: Determine applicable processing directives
-- **Generate Responses**: Format output according to specified constraints
+**Key Performance Indicators:**
 
-### 5.2 Tool Integration
+- [Metric 1]: [Target value]
+- [Metric 2]: [Target value]
+- [Metric 3]: [Target value]
 
-- **Unified Command Interface**: Single entry point for multi-tool operations
-- **Status Monitoring**: Real-time feedback on AI tool operations
-- **Error Recovery**: Fallback mechanisms for tool failures
+## 8. TIMELINE & MILESTONES
 
-## 6. SECURITY CONSIDERATIONS
+**Development Phases:**
 
-### 6.1 File Access Controls
+- Phase 1: [Date] - [Deliverable]
+- Phase 2: [Date] - [Deliverable]
+- Phase 3: [Date] - [Deliverable]
 
-- Respect gitignore patterns for sensitive files
-- Validate file paths to prevent directory traversal
-- Sanitize user inputs in MDC headers
+**Critical Milestones:**
 
-### 6.2 AI Tool Security
+- [Milestone]: [Date]
+- [Beta Release]: [Date]
+- [Launch]: [Date]
 
-- Sandbox execution environments for code generation
-- Input validation for LLM prompts
-- Audit logging for AI-generated changes
+## 9. ACCEPTANCE CRITERIA
 
-## 7. PERFORMANCE REQUIREMENTS
+**Core Functionality:**
 
-### 7.1 Response Times
+- [ ] [Specific testable requirement]
+- [ ] [Specific testable requirement]
+- [ ] [Specific testable requirement]
 
-- MDC header parsing: <100ms per file
-- Context rule application: <200ms for full repository scan
-- AI tool integration: <5s for simple operations
+**Quality Standards:**
 
-### 7.2 Scalability
+- [ ] Performance meets stated targets
+- [ ] Security requirements satisfied
+- [ ] Accessibility standards met
 
-- Support repositories with 10,000+ files
-- Concurrent AI tool operations
-- Efficient caching for repeated operations
+## 10. OPEN QUESTIONS
 
-## 8. ACCEPTANCE CRITERIA
-
-### 8.1 Core Functionality
-
-✓ MDC headers parse correctly with YAML validation
-✓ glob patterns match intended file sets
-✓ alwaysApply flag enforces unconditional rule application
-✓ Multiple LLM tools integrate seamlessly
-✓ MCP documentation access works in real-time
-
-### 8.2 User Experience
-
-✓ Setup script completes successfully on macOS/Linux
-✓ Documentation is discoverable and actionable
-✓ Error messages provide clear guidance
-✓ Cultural design elements enhance rather than obstruct functionality
-
-### 8.3 Technical Requirements
-
-✓ All tools respect MDC header directives
-✓ No conflicts between different AI assistants
-✓ Fallback mechanisms handle tool failures gracefully
-✓ Security protocols prevent unauthorized access
-
-## 9. IMPLEMENTATION NOTES
-
-### 9.1 Development Workflow
-
-1. Stakeholder collaboration for feature prioritization
-2. Detailed feature prompts with comprehensive requirements
-3. LLM-assisted PRD generation and refinement
-4. Iterative development with continuous validation
-
-### 9.2 Quality Assurance
-
-- Automated testing for MDC header processing
-- Integration testing across all supported LLM tools
-- User acceptance testing with diverse project types
-- Performance benchmarking against established metrics
+- [Unresolved question 1]
+- [Unresolved question 2]
+- [Areas requiring further research]
 
 ---
-*This PRD serves as the definitive specification for LLM tooling development and must be referenced for all feature implementations and modifications.*
+
+## PRD BEST PRACTICES CHECKLIST
+
+**Before Writing:**
+
+- [ ] Engage cross-functional teams in creation
+- [ ] Validate assumptions with stakeholders
+- [ ] Research user needs and market requirements
+
+**During Writing:**
+
+- [ ] Use clear, unambiguous language
+- [ ] Include specific, measurable requirements
+- [ ] Define success criteria objectively
+- [ ] Balance detail with conciseness
+
+**After Writing:**
+
+- [ ] Review with all stakeholders
+- [ ] Get formal approval from decision-makers
+- [ ] Treat as living document for updates
+- [ ] Reference throughout development lifecycle
+
+---
+*This PRD template is designed for universal application across any project type. Customize sections as needed while maintaining clarity and stakeholder alignment.*
