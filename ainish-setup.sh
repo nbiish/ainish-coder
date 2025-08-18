@@ -525,15 +525,32 @@ EOF
   cat >> "$ZSHRC" << 'EOF'
 # AINISH-Coder wrapper functions
 
+# Helper function to sanitize input (remove commas, normalize spaces)
+__ainish_sanitize_mode() {
+  local input="$1"
+  # Remove carriage returns
+  input=${input%$'\r'}
+  # Remove commas and trim trailing comma if present
+  input=$(echo "$input" | sed -e 's/,//g' -e 's/[[:space:]]*$//' -e 's/,$//')
+  # Trim leading/trailing whitespace and replace multiple spaces with a single space
+  input=$(echo "$input" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\+/ /g')
+  echo "$input"
+}
+
 # Helper to read deploy mode (1-9). Honors AINISH_DEPLOY_MODE or --mode= flag.
 __ainish_read_mode() {
   local CLI_ARG="${1:-}"
   local MODE="${AINISH_DEPLOY_MODE:-}"
   if [[ "$CLI_ARG" == --mode=* ]]; then MODE="${CLI_ARG#--mode=}"; fi
-  # Validate mode if passed via argument, allows space separated numbers
-  if [[ -n "$MODE" && "$MODE" =~ ^[1-9]([[:space:]][1-9])*$ ]]; then echo "$MODE"; return 0; fi
+  
+  # Sanitize mode if provided via argument or environment variable
+  if [[ -n "$MODE" ]]; then
+    MODE=$(__ainish_sanitize_mode "$MODE")
+    # Validate mode if passed via argument, allows space separated numbers
+    if [[ "$MODE" =~ ^[1-9]([[:space:]][1-9])*$ ]]; then echo "$MODE"; return 0; fi
+  fi
 
-  echo -e "\\033[1;36mSelect deployment scope (space-separated numbers, e.g., 1 3 8):\\033[0m" >&2
+  echo -e "\\033[1;36mSelect deployment scope (space-separated or comma-separated numbers, e.g., 1 3 8 or 1,3,8):\\033[0m" >&2
   echo "1) Styling" >&2
   echo "2) Ignore files" >&2
   echo "3) Critical" >&2
@@ -545,17 +562,14 @@ __ainish_read_mode() {
   echo "9) Everything" >&2
   printf "Enter numbers: " >&2
   read -r MODE
+  
   # Sanitize input
-  MODE=${MODE%$'\\r'}
-  # Remove commas and trim trailing comma if present
-  MODE=$(echo "$MODE" | sed -e 's/,//g' -e 's/[[:space:]]*$//' -e 's/,$//')
-  # Trim leading/trailing whitespace and replace multiple spaces with a single space
-  MODE=$(echo "$MODE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\+/ /g')
+  MODE=$(__ainish_sanitize_mode "$MODE")
 
   # Validate each number
   for num in $MODE; do
     if [[ ! "$num" =~ ^[1-9]$ ]]; then
-      echo "Invalid choice: '$num'. Please enter numbers from 1 to 9." >&2
+      echo "Invalid choice: '$MODE'. Please enter numbers from 1 to 9." >&2
       return 1
     fi
   done
