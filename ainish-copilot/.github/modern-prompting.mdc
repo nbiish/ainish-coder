@@ -1,8 +1,6 @@
 ---
-description: "An advanced cognitive framework for LLM agents implementing the OOReDAct cycle, integrating modern context engineering (RAG), automated prompt optimization, and secure, ethical reasoning strategies."
-globs: ["*.md", "*.mdc", "*.py", "*.js", "*.ts", "*.jsx", "*.tsx", "*.json", "*.yaml", "*.yml", "*.toml", "*.ini", "*.conf", "*.cfg", "*.sh", "*.bash", "*.zsh", "*.fish", "*.ps1", "*.bat", "*.cmd", "*.dockerfile", "Dockerfile*", "*.sql", "*.env*", "*.properties"]
-alwaysApply: false
-priority: 900
+alwaysApply: true
+priority: 1000
 ---
 
 # Modern Prompting & Context Engineering Framework

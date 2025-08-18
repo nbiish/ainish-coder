@@ -567,9 +567,9 @@ __ainish_read_mode() {
   MODE=$(__ainish_sanitize_mode "$MODE")
 
   # Validate each number
-  for num in $MODE; do
+  for num in ${=MODE}; do
     if [[ ! "$num" =~ ^[1-9]$ ]]; then
-      echo "Invalid choice: '$MODE'. Please enter numbers from 1 to 9." >&2
+      echo "Invalid choice: '$num'. Please enter numbers from 1 to 9." >&2
       return 1
     fi
   done

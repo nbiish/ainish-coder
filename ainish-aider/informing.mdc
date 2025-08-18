@@ -1,7 +1,5 @@
 ---
-description: "Require professional documentation and informative descriptions for all code functions and concepts"
-globs: ["*.ts", "*.js", "*.py", "*.rs", "*.go", "*.sh", "*.bash", "*.java", "*.c", "*.cpp", "*.cs", "*.php", "*.json", "*.html", "*.css", "*.xml", "*.yml", "*.yaml", "*.toml", "*.sql"]
-alwaysApply: false
-priority: 300
+alwaysApply: true
+priority: 750
 ---
-All code sections must include a professional description that expertly informs the user about the function of the code, concise examples of usage, and the concepts used for the implementation.
+All code sections must include a professional description that expertly informs the user about the function of the code and if necessary, concise examples of usage.
