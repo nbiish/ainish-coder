@@ -530,10 +530,10 @@ __ainish_sanitize_mode() {
   local input="$1"
   # Remove carriage returns
   input=${input%$'\r'}
-  # Remove commas and trim trailing comma if present
-  input=$(echo "$input" | sed -e 's/,//g' -e 's/[[:space:]]*$//' -e 's/,$//')
-  # Trim leading/trailing whitespace and replace multiple spaces with a single space
-  input=$(echo "$input" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]\+/ /g')
+  # Replace commas with spaces and normalize all whitespace to single spaces
+  input=$(echo "$input" | tr ',' ' ' | tr -s ' ')
+  # Trim leading/trailing whitespace
+  input=$(echo "$input" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
   echo "$input"
 }
 
@@ -547,7 +547,7 @@ __ainish_read_mode() {
   if [[ -n "$MODE" ]]; then
     MODE=$(__ainish_sanitize_mode "$MODE")
     # Validate mode if passed via argument, allows space separated numbers
-    if [[ "$MODE" =~ ^[1-9]([[:space:]][1-9])*$ ]]; then echo "$MODE"; return 0; fi
+    if [[ "$MODE" =~ ^[1-9]( [1-9])*$ ]]; then echo "$MODE"; return 0; fi
   fi
 
   echo -e "\\033[1;36mSelect deployment scope (space-separated or comma-separated numbers, e.g., 1 3 8 or 1,3,8):\\033[0m" >&2
