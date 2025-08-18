@@ -1,6 +1,7 @@
 ---
+description: 
+globs: 
 alwaysApply: true
-priority: 1000
 ---
 
 # Modern Prompting & Context Engineering Framework

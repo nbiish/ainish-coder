@@ -1,8 +1,7 @@
 ---
 description: Comprehensive guide to MDC headers and their processing in IDE/AI systems
-globs: ["*.md", "*.mdc"]
+globs: *.md, *.mdc
 alwaysApply: true
-priority: 950
 ---
 # MDC HEADERS PROCESSING PROTOCOL
 

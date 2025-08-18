@@ -1,5 +1,6 @@
 ---
+description:
+globs:
 alwaysApply: true
-priority: 750
 ---
-All code sections must include a professional description that expertly informs the user about the function of the code and if necessary, concise examples of usage.
+All code sections must include a professional description that expertly informs the user about the function of the code and if applicable, concise examples of usage.

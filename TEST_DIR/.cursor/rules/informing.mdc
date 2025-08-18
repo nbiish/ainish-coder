@@ -1,5 +1,0 @@
----
-alwaysApply: true
-priority: 300
----
-All code sections must include a professional description that expertly informs the user about the function of the code, concise examples of usage, and the concepts used for the implementation.

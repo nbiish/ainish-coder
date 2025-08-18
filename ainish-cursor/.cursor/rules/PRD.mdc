@@ -1,8 +1,7 @@
 ---
 description: "Universal Product Requirements Document template for any project"
-globs: ["PRD.md", "PRD.txt", "PRD.doc", "prd.md", "prd.txt", "prd.doc"]
+globs: PRD.md, PRD.txt, PRD.doc, prd.md, prd.txt, prd.doc
 alwaysApply: false
-priority: 1000
 ---
 
 # PRODUCT REQUIREMENTS DOCUMENT: [PROJECT NAME]

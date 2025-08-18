@@ -1,6 +1,7 @@
 ---
+description:
+globs:
 alwaysApply: true
-priority: 999
 ---
 
 # LLM Security Operating Contract & Cybersecurity Framework
