@@ -1,9 +1,6 @@
 ---
-description: "Universal Product Requirements Document template for any project"
-globs: PRD.md, PRD.txt, PRD.doc, prd.md, prd.txt, prd.doc
 alwaysApply: false
 ---
-
 # PRODUCT REQUIREMENTS DOCUMENT: [PROJECT NAME]
 
 **Author:** [Your Name] | **Date:** [Date] | **Version:** [1.0]
