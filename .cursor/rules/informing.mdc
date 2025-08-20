@@ -1,6 +1,4 @@
 ---
-description:
-globs:
-alwaysApply: true
+alwaysApply: false
 ---
-All code components must include a professional description that expertly informs the user about the function of the code and if applicable, a concise example of usage.
+Include a professional comment description that expertly informs the user about the function, technical/methodology choices, algorithm choices, and if applicable, a concise example of usage.

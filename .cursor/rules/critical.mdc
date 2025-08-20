@@ -1,5 +1,4 @@
 ---
-description: "Project licensing and contributing guidelines."
 globs: LICENSE, CONTRIBUTING.md, README.md, *.md
 alwaysApply: false
 ---

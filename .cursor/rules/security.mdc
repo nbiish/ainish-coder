@@ -1,9 +1,6 @@
 ---
-description:
-globs:
-alwaysApply: true
+alwaysApply: false
 ---
-
 # LLM Security Operating Contract & Cybersecurity Framework
 
 ## MANDATORY SECURITY OPERATING CONTRACT
