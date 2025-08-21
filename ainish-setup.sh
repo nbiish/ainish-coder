@@ -48,7 +48,7 @@ RESET='\033[0m'
 # Mode names and descriptions (compatible with bash 3.2)
 get_mode_name() {
     case "$1" in
-        0) echo "All Ignore Files" ;;
+        0) echo "Reserved" ;;
         1) echo "Styling" ;;
         2) echo "Critical" ;;
         3) echo "Security" ;;
@@ -56,7 +56,7 @@ get_mode_name() {
         5) echo "Prompting" ;;
         6) echo "Documentation" ;;
         7) echo "Informing" ;;
-        8) echo "Core Files" ;;
+        8) echo "Reserved" ;;
         9) echo "Everything" ;;
         *) echo "Unknown" ;;
     esac
@@ -64,7 +64,7 @@ get_mode_name() {
 
 get_mode_description() {
     case "$1" in
-        0) echo "Deploy all ignore files (.cursorignore, .copilotignore, .aiderignore)" ;;
+        0) echo "Reserved for future use" ;;
         1) echo "Visual themes and aesthetic configurations" ;;
         2) echo "Essential development workflow configurations" ;;
         3) echo "Security-focused settings and policies" ;;
@@ -72,8 +72,8 @@ get_mode_description() {
         5) echo "AI prompting frameworks and templates" ;;
         6) echo "Documentation generation and standards" ;;
         7) echo "Code documentation and commenting standards" ;;
-        8) echo "Core configuration files (.cursorrules, etc.)" ;;
-        9) echo "Complete configuration suite deployment" ;;
+        8) echo "Reserved for future use" ;;
+        9) echo "Deploy all .mdc configuration files" ;;
         *) echo "Unknown mode" ;;
     esac
 }
@@ -262,191 +262,7 @@ deploy_file() {
     fi
 }
 
-# Create default ignore files from templates
-create_default_ignore_files() {
-    # Create default .cursorignore
-    cat > "${AINISH_CODER_DIR}/templates/cursor/.cursorignore" << 'EOF'
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
-# Testing
-coverage/
-.nyc_output
-
-# Production
-build/
-dist/
-
-# Environment variables
-.env*
-!.env.example
-
-# Logs
-*.log
-logs
-
-# Cache
-.cache/
-.parcel-cache/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-*.swp
-*.swo
-
-# Temporary
-tmp/
-temp/
-EOF
-
-    # Create default .cursorindexingignore
-    cat > "${AINISH_CODER_DIR}/templates/cursor/.cursorindexingignore" << 'EOF'
-node_modules
-.git
-dist
-build
-coverage
-.env*
-*.log
-.DS_Store
-EOF
-
-    # Create default .copilotignore
-    cat > "${AINISH_CODER_DIR}/templates/vscode/.copilotignore" << 'EOF'
-# Build outputs
-dist/
-build/
-out/
-
-# Dependencies
-node_modules/
-vendor/
-
-# Environment files
-.env*
-!.env.example
-
-# Logs
-*.log
-logs/
-
-# Cache directories
-.cache/
-.next/
-.nuxt/
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Temporary files
-tmp/
-temp/
-EOF
-
-    # Create default .rooignore
-    cat > "${AINISH_CODER_DIR}/templates/vscode/.rooignore" << 'EOF'
-node_modules
-.git
-dist
-build
-.env*
-*.log
-.DS_Store
-EOF
-
-    # Create default .aiderignore
-    cat > "${AINISH_CODER_DIR}/templates/aider/.aiderignore" << 'EOF'
-# Dependencies
-node_modules/
-vendor/
-
-# Build outputs
-dist/
-build/
-out/
-
-# Environment files
-.env*
-!.env.example
-
-# Logs
-*.log
-logs/
-
-# Cache
-.cache/
-.parcel-cache/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-EOF
-
-    echo -e "${GREEN}✓ Created default ignore file templates${RESET}"
-}
-
-# Deploy ignore files based on target type
-deploy_ignore_files() {
-    local target_dir="$1"
-    local target_type="$2"
-    
-    case "$target_type" in
-        cursor)
-            local cursor_templates="${AINISH_CODER_DIR}/templates/cursor"
-            if [[ -f "$cursor_templates/.cursorignore" ]]; then
-                cp "$cursor_templates/.cursorignore" "$target_dir/" 2>/dev/null
-                echo -e "${GREEN}✓ Deployed .cursorignore${RESET}"
-            fi
-            if [[ -f "$cursor_templates/.cursorindexingignore" ]]; then
-                cp "$cursor_templates/.cursorindexingignore" "$target_dir/" 2>/dev/null
-                echo -e "${GREEN}✓ Deployed .cursorindexingignore${RESET}"
-            fi
-            ;;
-        vscode)
-            local vscode_templates="${AINISH_CODER_DIR}/templates/vscode"
-            if [[ -f "$vscode_templates/.copilotignore" ]]; then
-                cp "$vscode_templates/.copilotignore" "$target_dir/" 2>/dev/null
-                echo -e "${GREEN}✓ Deployed .copilotignore${RESET}"
-            fi
-            if [[ -f "$vscode_templates/.rooignore" ]]; then
-                cp "$vscode_templates/.rooignore" "$target_dir/" 2>/dev/null
-                echo -e "${GREEN}✓ Deployed .rooignore${RESET}"
-            fi
-            ;;
-        aider)
-            local aider_templates="${AINISH_CODER_DIR}/templates/aider"
-            if [[ -f "$aider_templates/.aiderignore" ]]; then
-                cp "$aider_templates/.aiderignore" "$target_dir/" 2>/dev/null
-                echo -e "${GREEN}✓ Deployed .aiderignore${RESET}"
-            fi
-            ;;
-        all)
-            # Deploy all ignore files
-            deploy_ignore_files "$target_dir" "cursor"
-            deploy_ignore_files "$target_dir" "vscode"
-            deploy_ignore_files "$target_dir" "aider"
-            ;;
-    esac
-}
+# Removed ignore file functions - user will handle tool-specific files manually
 
 # Main deployment function - replaces all the duplicated deployment functions
 deploy_configurations() {
@@ -462,72 +278,46 @@ deploy_configurations() {
     
     echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $target_dir (modes: $modes, type: $target_type)${RESET}"
     
-    # Create necessary directories
-    mkdir -p "$target_dir/.cursor/rules" 2>/dev/null
-    mkdir -p "$target_dir/.github" 2>/dev/null
+    # Create ainish-coder directory
+    mkdir -p "$target_dir/ainish-coder" 2>/dev/null
     
     # Process each mode
     for mode in $modes; do
         case "$mode" in
-            0) # All Ignore Files
-                deploy_ignore_files "$target_dir" "$target_type"
+            0) # Reserved for future use
+                echo -e "${YELLOW}ℹ️  Mode 0 reserved for future use${RESET}"
                 ;;
             1) # Styling
-                deploy_file "anishinaabe-cyberpunk-style.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "anishinaabe-cyberpunk-style.mdc" "$target_dir" ".github"
+                deploy_file "anishinaabe-cyberpunk-style.mdc" "$target_dir" "ainish-coder"
                 ;;
             2) # Critical
-                deploy_file "critical.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "critical.mdc" "$target_dir" ".github"
-                deploy_file "critical.mdc" "$target_dir" ""
+                deploy_file "critical.mdc" "$target_dir" "ainish-coder"
                 ;;
             3) # Security
-                deploy_file "security.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "security.mdc" "$target_dir" ".github"
-                deploy_file "security.mdc" "$target_dir" ""
+                deploy_file "security.mdc" "$target_dir" "ainish-coder"
                 ;;
             4) # PRD
-                deploy_file "PRD.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "PRD.mdc" "$target_dir" ".github"
-                deploy_file "PRD.mdc" "$target_dir" ""
+                deploy_file "PRD.mdc" "$target_dir" "ainish-coder"
                 ;;
             5) # Prompting
-                deploy_file "modern-prompting.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "modern-prompting.mdc" "$target_dir" ".github"
-                deploy_file "modern-prompting.mdc" "$target_dir" ""
-                # Special handling for Aider instructions
-                if [[ "$target_type" == "aider" || "$target_type" == "all" ]]; then
-                    cp "${REPO_DIR}/modern-prompting.mdc" "$target_dir/.aider-instructions.md" 2>/dev/null
-                    echo -e "${GREEN}✓ Deployed .aider-instructions.md${RESET}"
-                fi
+                deploy_file "modern-prompting.mdc" "$target_dir" "ainish-coder"
                 ;;
             6) # Documentation
-                deploy_file "docs-use.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "docs-use.mdc" "$target_dir" ".github"
-                deploy_file "docs-use.mdc" "$target_dir" ""
+                deploy_file "docs-use.mdc" "$target_dir" "ainish-coder"
                 ;;
             7) # Informing
-                deploy_file "informing.mdc" "$target_dir" ".cursor/rules"
-                deploy_file "informing.mdc" "$target_dir" ".github"
-                deploy_file "informing.mdc" "$target_dir" ""
+                deploy_file "informing.mdc" "$target_dir" "ainish-coder"
                 ;;
-            8) # Core Files
-                if [[ "$target_type" == "cursor" || "$target_type" == "all" ]]; then
-                    if [[ -f "${AINISH_CODER_DIR}/.cursorrules" ]]; then
-                        deploy_file_direct "${AINISH_CODER_DIR}/.cursorrules" "$target_dir/.cursorrules" "symlink"
-                    elif [[ -f "${REPO_DIR}/.cursorrules" ]]; then
-                        deploy_file_direct "${REPO_DIR}/.cursorrules" "$target_dir/.cursorrules" "symlink"
-                    fi
-                fi
+            8) # Reserved for future use
+                echo -e "${YELLOW}ℹ️  Mode 8 reserved for future use${RESET}"
                 ;;
             9) # Everything
-                # Deploy all modes 0-8
-                for sub_mode in {0..8}; do
+                # Deploy all .mdc files (modes 1-7)
+                for sub_mode in {1..7}; do
                     deploy_configurations "$target_dir" "$sub_mode" "$target_type"
                 done
                 # Additional everything-specific files
-                deploy_file ".gitignore" "$target_dir" ""
-                update_gitignore "$target_dir"
+                deploy_file ".gitignore" "$target_dir" "ainish-coder"
                 ;;
         esac
     done
@@ -569,13 +359,7 @@ setup_ainish_coder_dir() {
     # Create the main directory
     mkdir -p "${AINISH_CODER_DIR}" 2>/dev/null
     
-    # Create tool-specific directories for ignore files and templates
-    mkdir -p "${AINISH_CODER_DIR}/templates/cursor" 2>/dev/null
-    mkdir -p "${AINISH_CODER_DIR}/templates/vscode" 2>/dev/null
-    mkdir -p "${AINISH_CODER_DIR}/templates/aider" 2>/dev/null
-    
-    # Create default ignore files from templates
-    create_default_ignore_files
+    # Simplified setup - no tool-specific directories needed
     
     # Symlink .cursorrules if it exists
     if [[ -f "${REPO_DIR}/.cursorrules" ]]; then
