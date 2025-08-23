@@ -22,7 +22,7 @@
 </div>
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
@@ -34,7 +34,7 @@
 - **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-coder`) for easy deployment.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ NITAM-AABAJICHIGANAN ᔔ [Prerequisites] ◈──◆──◇──◆──◈
@@ -48,7 +48,7 @@ Before installation, ensure you have:
 The script will check for Cursor availability but can still set up configurations even if it's missing.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ AABAJITOOWINAN ᔔ [Installation] ◈──◆──◇──◆──◈
@@ -87,7 +87,7 @@ This wrapper function automatically ensures the latest configuration files are d
 To update later, simply pull the latest changes into the repository directory and re-run `./ainish-setup.sh`.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ WAAWIINDAMAAGEWIN ᔔ [Overview] ◈──◆──◇──◆──◈
@@ -102,16 +102,15 @@ ainish-coder/
 ├── informing.mdc                # Code documentation requirements
 ├── PRD.mdc                      # Universal Product Requirements Document template
 ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+├── .gitignore                   # Standard Git ignore rules
 ├── .github/                     # GitHub configuration
 │   └── FUNDING.yml             # Funding configuration
-├── .cursor/                     # Cursor AI configuration
-│   └── rules/                  # Cursor rules directory
-├── .gitignore                  # Standard Git ignore rules
-└── qr-stripe-donation.png      # Stripe donation QR code
+└── .cursor/                     # Cursor AI configuration
+    └── rules/                  # Cursor rules directory
 ```
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
@@ -131,7 +130,7 @@ The setup script deploys all configuration files to a single `ainish-coder/` dir
 - `.cursorrules`: Rules for Cursor AI (if applicable)
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ INAABAJICHIGAN ᔔ [Usage] ◈──◆──◇──◆──◈
@@ -150,7 +149,7 @@ The wrapper function (`ainish-coder`) ensures that the necessary configurations 
 Re-running `./ainish-setup.sh` refreshes the entire setup, including re-distributing files and updating the wrappers.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ ONAAKONIGE ᔔ [Configuration] ◈──◆──◇──◆──◈
@@ -173,30 +172,15 @@ The style guide is automatically distributed to all tool directories, ensuring c
 For examples of this styling, see the **Standard Anishinaabe Terms** section in `anishinaabe-cyberpunk-style.mdc`.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
-</div>
-
-## ᐴ GIKENDAASOWIN ᔔ [MDC Headers] ◈──◆──◇──◆──◈
-
-The configuration files contain important header definitions that extend the functionality of MDC (Markdown Comments) within the AI coding assistant tools. These headers:
-
-- Define document metadata and behaviors
-- Control how documents interact with AI tools
-- Set up globs patterns and document relationships
-- Determine when and how documentation should be applied
-
-MDC headers are crucial for creating effective AI tool configurations and are distributed to all tools by the setup script.
-
-<div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ WIIDOOKAAZOWIN ᔔ [Contributing] ◈──◆──◇──◆──◈
 
-Contributions are welcome! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file for detailed guidelines on how to contribute to this project.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute to this project.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## ᐴ GIGWEJIWEWIN ᔔ [Troubleshooting] ◈──◆──◇──◆──◈
@@ -219,12 +203,12 @@ A: Make sure you have the correct file structure in your repository. All root fi
 A: The script uses symlinks to ensure changes to repository files are immediately available. If a file was modified directly in `~/.ainish-coder`, make sure to update the original file in the repository.
 
 <div align="center">
-◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
+◈──◆──◇─────────────────◇──◆──◈
 </div>
 
 ## 📝 License and Copyright
 
-Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
+Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᭇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
 
 This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS. See the [LICENSE](LICENSE) file for complete details.
 
@@ -232,12 +216,12 @@ This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TR
 
 ```bibtex
 @misc{ainish-coder2025,
-  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians},
+  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᭇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians},
   title/description = {ainish-coder},
   type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},
   year = {2025},
   publisher/source/event = {GitHub repository under tribal sovereignty protections},
   howpublished = {\url{https://github.com/nbiish/ainish-coder}},
-  note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
+  note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᭇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
 }
 ```
