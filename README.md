@@ -28,7 +28,7 @@
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `mdc-headers.md`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
+- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
 - **◇ Multiple AI Tool Support ◇**: Unified configuration system for all AI coding tools.
 - **◇ Automatic Configuration ◇**: Includes Gitignore rules and comprehensive configuration files.
 - **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-coder`) for easy deployment.
@@ -63,7 +63,7 @@ chmod +x ainish-setup.sh
 
 # Run the setup script
 # This performs the full setup/update process:
-# 1. Distributes files (critical.mdc, modern-prompting.mdc, mdc-headers.md, etc.) to tool directories
+# 1. Distributes files (critical.mdc, modern-prompting.mdc, docs-use.mdc, etc.) to tool directories
 # 2. Sets up ~/.ainish-coder with symlinks
 # 3. Installs/Updates wrapper functions in .zshrc
 ./ainish-setup.sh
@@ -101,11 +101,13 @@ ainish-coder/
 ├── docs-use.mdc                 # Documentation usage guidelines
 ├── informing.mdc                # Code documentation requirements
 ├── PRD.mdc                      # Universal Product Requirements Document template
-├── mdc-headers.md               # MDC header definitions and documentation
-├── non-cursor-prepend.md        # Content to prepend to non-Cursor prompts
-├── anishinaabe-cyberpunk-style.mdc  # Styling guide
-
-└── TEST_DIR/                    # Testing directory
+├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+├── .github/                     # GitHub configuration
+│   └── FUNDING.yml             # Funding configuration
+├── .cursor/                     # Cursor AI configuration
+│   └── rules/                  # Cursor rules directory
+├── .gitignore                  # Standard Git ignore rules
+└── qr-stripe-donation.png      # Stripe donation QR code
 ```
 
 <div align="center">
@@ -136,7 +138,7 @@ The setup script deploys all configuration files to a single `ainish-coder/` dir
 
 The `ainish-setup.sh` script:
 
-1. Automatically distributes `critical.mdc`, `modern-prompting.mdc`, `security.mdc`, `docs-use.mdc`, `informing.mdc`, `PRD.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
+1. Automatically distributes `critical.mdc`, `modern-prompting.mdc`, `security.mdc`, `docs-use.mdc`, `informing.mdc`, `PRD.mdc`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
 2. Creates a `~/.ainish-coder` directory.
 3. Creates symbolic links from `~/.ainish-coder` to the repository configuration files, ensuring changes in the repo are reflected immediately.
 4. Adds convenient wrapper functions (`ainish-coder`) to your shell configuration (`.zshrc`).
@@ -176,14 +178,14 @@ For examples of this styling, see the **Standard Anishinaabe Terms** section in 
 
 ## ᐴ GIKENDAASOWIN ᔔ [MDC Headers] ◈──◆──◇──◆──◈
 
-The `mdc-headers.md` file contains important header definitions that extend the functionality of MDC (Markdown Comments) within the AI coding assistant tools. These headers:
+The configuration files contain important header definitions that extend the functionality of MDC (Markdown Comments) within the AI coding assistant tools. These headers:
 
 - Define document metadata and behaviors
 - Control how documents interact with AI tools
 - Set up globs patterns and document relationships
 - Determine when and how documentation should be applied
 
-MDC headers are crucial for creating effective AI tool configurations and are distributed to all three tools by the setup script.
+MDC headers are crucial for creating effective AI tool configurations and are distributed to all tools by the setup script.
 
 <div align="center">
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
@@ -191,7 +193,7 @@ MDC headers are crucial for creating effective AI tool configurations and are di
 
 ## ᐴ WIIDOOKAAZOWIN ᔔ [Contributing] ◈──◆──◇──◆──◈
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file for detailed guidelines on how to contribute to this project.
 
 <div align="center">
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
