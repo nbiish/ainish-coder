@@ -7,27 +7,9 @@
 venv/
 venv.bak/
 venv.bak*
+venv.*
 
-# config files
-*.conf
-*.config
-config.*
-*config.*
-*.config.*
+# ainish-coder
+ainish-coder
+.cursor
 
-# Memory Bank documents
-projectbrief.md
-productContext.md
-systemPatterns.md
-techContext.md
-activeContext.md
-progress.md
-.aider*
-
-# Test
-test/
-test.bak/
-test.bak*
-test-dir/
-test-dir.bak/
-test-dir.bak*

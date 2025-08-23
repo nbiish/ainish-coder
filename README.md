@@ -29,12 +29,9 @@
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
 - **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `mdc-headers.md`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
-- **◇ Multiple AI Tool Support ◇**: 
-  - `ainish-aider`: Configuration for the Aider AI pair programming assistant.
-    - `ainish-cursor`: Cursor IDE specific configurations and ignore files.
-  - `ainish-copilot`: GitHub Copilot and related tool configurations.
-- **◇ Automatic Configuration ◇**: Includes Gitignore rules and tool-specific ignore files.
-- **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) for easy tool usage.
+- **◇ Multiple AI Tool Support ◇**: Unified configuration system for all AI coding tools.
+- **◇ Automatic Configuration ◇**: Includes Gitignore rules and comprehensive configuration files.
+- **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-coder`) for easy deployment.
 
 <div align="center">
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
@@ -46,12 +43,9 @@ Before installation, ensure you have:
 
 - **macOS** (script is currently optimized for macOS)
 - **Zsh** as your shell (default on modern macOS)
-- At least one of the following AI tools installed:
-  - **Cursor AI** (~1GB, download from [cursor.so](https://cursor.so))
-  - **GitHub Copilot** (VS Code extension, requires subscription)
-  - **Aider** (`pip install aider-chat`, requires OpenAI API key)
+- **Cursor AI** (~1GB, download from [cursor.so](https://cursor.so)) - recommended for optimal experience
 
-The script will check for the availability of these tools but can still set up configurations even if some are missing.
+The script will check for Cursor availability but can still set up configurations even if it's missing.
 
 <div align="center">
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
@@ -79,23 +73,14 @@ After installation or update, you may need to run `source ~/.zshrc` (or your she
 
 ### Using Wrapper Functions
 
-After installation, you'll have access to these convenient wrapper commands:
+After installation, you'll have access to this convenient wrapper command:
 
 ```bash
-# Deploy all configurations to current directory and run setup
+# Deploy all configurations to current directory
 ainish-coder
-
-# Deploy Cursor configurations to current directory and launch Cursor
-ainish-cursor [optional arguments]
-
-# Deploy Aider configurations to current directory
-ainish-aider
-
-# Deploy VS Code/Copilot configurations to current directory and launch VS Code
-ainish-copilot [optional arguments]
 ```
 
-Each wrapper function automatically ensures the latest configuration files are deployed to your current directory before launching the associated tool.
+This wrapper function automatically ensures the latest configuration files are deployed to your current directory.
 
 ### Updating
 
@@ -119,9 +104,7 @@ ainish-coder/
 ├── mdc-headers.md               # MDC header definitions and documentation
 ├── non-cursor-prepend.md        # Content to prepend to non-Cursor prompts
 ├── anishinaabe-cyberpunk-style.mdc  # Styling guide
-├── ainish-aider/                # Aider-specific configurations
-├── ainish-cursor/               # Cursor-specific configurations
-├── ainish-copilot/              # GitHub Copilot/VS Code configurations
+
 └── TEST_DIR/                    # Testing directory
 ```
 
@@ -131,52 +114,19 @@ ainish-coder/
 
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
-### ainish-aider
+### Unified Configuration System
 
-- `.gitignore`: Standard Git ignore rules
-- `.aider.conf.yml`: Aider configuration file
-- `.aiderignore`: Files to be ignored by Aider
-- `.env.example`: Example environment variables for Aider
-- `.aider-instructions.md`: Instructions for Aider (from `modern-prompting.mdc` with prepended content)
-- `aider-cli-commands.sh`: CLI commands for Aider
-- `critical.mdc`: License citation file (from root `critical.mdc`)
-- `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions (from root `modern-prompting.mdc`)
-- `security.mdc`: Comprehensive security and cybersecurity framework (from root `security.mdc`)
-- `docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
-- `informing.mdc`: Code documentation requirements (from root `informing.mdc`)
-- `PRD.mdc`: Universal Product Requirements Document template (from root `PRD.mdc`)
-- `mdc-headers.md`: MDC header definitions and documentation
+The setup script deploys all configuration files to a single `ainish-coder/` directory in your target location, including:
+
+- `critical.mdc`: License citation file
+- `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions
+- `security.mdc`: Comprehensive security and cybersecurity framework
+- `docs-use.mdc`: Documentation usage guidelines
+- `informing.mdc`: Code documentation requirements
+- `PRD.mdc`: Universal Product Requirements Document template
 - `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-
-### ainish-cursor
-
-- `.cursorrules`: Rules for Cursor AI
-- `.cursorignore`: Controls which files Cursor AI will ignore
-- `.cursorindexingignore`: Controls which files Cursor will skip during indexing
-- `.cursor/`: Cursor IDE configuration directory
-- `.cursor/rules/modern-prompting.mdc`: Advanced cognitive framework for LLM interactions (from root `modern-prompting.mdc`)
-- `.cursor/rules/critical.mdc`: License citation file (from root `critical.mdc`)
-- `.cursor/rules/security.mdc`: Comprehensive security and cybersecurity framework (from root `security.mdc`)
-- `.cursor/rules/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
-- `.cursor/rules/informing.mdc`: Code documentation requirements (from root `informing.mdc`)
-- `.cursor/rules/PRD.mdc`: Universal Product Requirements Document template (from root `PRD.mdc`)
-- `.cursor/rules/mdc-headers.md`: MDC header definitions and documentation
-- `.cursor/rules/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-
-### ainish-copilot
-
-- `.copilotignore`: Controls which files GitHub Copilot will ignore
-- `.rooignore`: Controls which files are excluded from Copilot's context window
-- `.github/`: GitHub specific configurations
-- `.github/copilot-instructions.md`: Custom instructions for GitHub Copilot (from `modern-prompting.mdc` with prepended content)
-- `.github/critical.mdc`: License citation file (from root `critical.mdc`)
-- `.github/modern-prompting.mdc`: Advanced cognitive framework for LLM interactions (from root `modern-prompting.mdc`)
-- `.github/security.mdc`: Comprehensive security and cybersecurity framework (from root `security.mdc`)
-- `.github/docs-use.mdc`: Documentation usage guidelines (from root `docs-use.mdc`)
-- `.github/informing.mdc`: Code documentation requirements (from root `informing.mdc`)
-- `.github/PRD.mdc`: Universal Product Requirements Document template (from root `PRD.mdc`)
-- `.github/mdc-headers.md`: MDC header definitions and documentation
-- `.github/anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+- `.gitignore`: Standard Git ignore rules
+- `.cursorrules`: Rules for Cursor AI (if applicable)
 
 <div align="center">
 ◈──◆──◇─────────────────────────────────────────────────◇──◆──◈
@@ -188,12 +138,12 @@ The `ainish-setup.sh` script:
 
 1. Automatically distributes `critical.mdc`, `modern-prompting.mdc`, `security.mdc`, `docs-use.mdc`, `informing.mdc`, `PRD.mdc`, `mdc-headers.md`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
 2. Creates a `~/.ainish-coder` directory.
-3. Creates symbolic links from `~/.ainish-coder` to the tool configuration directories (`ainish-aider`, `ainish-cursor`, `ainish-copilot`) in the repository, ensuring changes in the repo are reflected immediately.
-4. Adds convenient wrapper functions (`ainish-cursor`, `ainish-aider`, etc.) to your shell configuration (`.zshrc`).
+3. Creates symbolic links from `~/.ainish-coder` to the repository configuration files, ensuring changes in the repo are reflected immediately.
+4. Adds convenient wrapper functions (`ainish-coder`) to your shell configuration (`.zshrc`).
 5. Cleans up potentially conflicting older configuration files.
 6. Verifies tool paths.
 
-The wrapper functions (`ainish-cursor`, `ainish-aider`, `ainish-copilot`, `ainish-coder`) ensure that the necessary configurations are deployed to the current working directory when you invoke the tool via the wrapper.
+The wrapper function (`ainish-coder`) ensures that the necessary configurations are deployed to the current working directory when you invoke it.
 
 Re-running `./ainish-setup.sh` refreshes the entire setup, including re-distributing files and updating the wrappers.
 
@@ -258,7 +208,7 @@ A: Try running `source ~/.zshrc` to reload your shell configuration.
 A: Copy the wrapper functions from `~/.zshrc` to your shell's configuration file (e.g., `~/.bashrc` for Bash).
 
 **Q: Path validation fails during setup.**  
-A: Edit the `ainish-setup.sh` file to update the path variables (`CURSOR_PATH`, `VSCODE_PATH`, `AIDER_PATH`) to match your system's installation paths.
+A: Edit the `ainish-setup.sh` file to update the `CURSOR_PATH` variable to match your system's Cursor installation path.
 
 **Q: Files aren't being distributed to the tool directories.**  
 A: Make sure you have the correct file structure in your repository. All root files (`critical.mdc`, etc.) should be in the main repository directory.
