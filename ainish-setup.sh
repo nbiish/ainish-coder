@@ -99,6 +99,43 @@ deploy_all_to_ainish_coder() {
     echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count configuration files${RESET}"
 }
 
+deploy_vscode_to_github() {
+    local target_dir="$1"
+    
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Deploying VSCode configurations to $target_dir/.github${RESET}"
+    
+    local github_dir="$target_dir/.github"
+    mkdir -p "$github_dir" 2>/dev/null
+    
+    local vscode_dir="$REPO_DIR/ainish-vscode"
+    if [[ ! -d "$vscode_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: VSCode directory not found at $vscode_dir${RESET}"
+        return 1
+    fi
+    
+    local deployed_count=0
+    for source_file in "$vscode_dir"/*; do
+        if [[ -f "$source_file" ]]; then
+            local filename=$(basename "$source_file")
+            local dest_file="$github_dir/$filename"
+            
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed $filename to .github/${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy $filename to .github/${RESET}"
+            fi
+        fi
+    done
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count VSCode configuration files to .github/${RESET}"
+}
+
 setup_ainish_coder_dir() {
     echo -e "${BRIGHT_CYAN}🔧 Setting up ~/.ainish-coder directory...${RESET}"
     
@@ -249,8 +286,14 @@ export REPO_DIR="/Users/nbiish/code/ainish-coder"
 
 function ainish-coder { 
     local current_dir="$(pwd)"
-    "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$current_dir"
-    echo "✨ AINISH-Coder configurations deployed"
+    
+    if [[ "$1" == "--vscode" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
+        echo "✨ AINISH-Coder VSCode configurations deployed to .github/"
+    else
+        "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$current_dir"
+        echo "✨ AINISH-Coder configurations deployed"
+    fi
 }
 ### END AINISH CODER WRAPPERS ###
 EOF
@@ -266,6 +309,9 @@ main() {
     case "$1" in
         "deploy")
             deploy_all_to_ainish_coder "$2"
+            ;;
+        "--vscode")
+            deploy_vscode_to_github "$2"
             ;;
         "list_backups")
             list_zshrc_backups
@@ -305,6 +351,7 @@ main() {
             echo ""
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy VSCode configurations to .github directory${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"
