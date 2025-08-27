@@ -53,6 +53,7 @@ get_all_config_files() {
     echo "${REPO_DIR}/python-package-mgmt.mdc"
     echo "${REPO_DIR}/prd-and-context.mdc"
     echo "${REPO_DIR}/.gitignore"
+    echo "${REPO_DIR}/.github/FUNDING.yml"
 }
 
 deploy_all_to_ainish_coder() {

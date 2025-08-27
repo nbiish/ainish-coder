@@ -106,6 +106,8 @@ ainish-coder/
 ├── python-package-mgmt.mdc      # Python package management rules
 ├── verify-date-and-time.mdc     # Date and time verification rules
 ├── .gitignore                   # Standard Git ignore rules
+├── .github/                     # GitHub configuration
+│   └── FUNDING.yml             # Funding configuration for Sponsor button and donation links
 ├── ainish-vscode/               # VSCode/Copilot configurations
 │   ├── .copilotignore          # Copilot ignore rules
 │   ├── anishinaabe-cyberpunk-style.md  # VSCode styling guide
@@ -137,6 +139,7 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory:
 - `python-package-mgmt.mdc`: Python package management rules
 - `verify-date-and-time.mdc`: Date and time verification rules
 - `.gitignore`: Standard Git ignore rules
+- `.github/FUNDING.yml`: GitHub funding configuration for Sponsor button and donation links
 
 #### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
 Deploys editor-specific configurations:
@@ -164,7 +167,8 @@ After installation, you'll have access to these convenient wrapper commands:
 Deploys essential AINISH configuration files to `./ainish-coder/` directory in your current location:
 - Core configuration files (`.mdc` files)
 - `.gitignore` file
-- **Total: 11 configuration files**
+- `.github/FUNDING.yml` file
+- **Total: 12 configuration files**
 
 #### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
 Deploys editor-specific configurations:
