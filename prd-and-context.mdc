@@ -1,0 +1,65 @@
+---
+alwaysApply: true
+---
+# PRD & Context Rule
+
+All code, features, and implementation decisions MUST strictly follow the Product Requirements Document (PRD)
+and the project knowledge base as defined in:
+  - /docs* directories
+  - /usage* directories
+  - Any other officially designated documentation locations
+
+Technical/Methodology Choices:
+- All new features, bugfixes, and refactors must be cross-checked against the PRD and knowledge base for compliance.
+- If a conflict arises between code and documentation, the PRD and knowledge base take precedence.
+- All CLI argument behaviors, supported features, and environment management must match the specifications and tested behaviors described in the PRD.
+- Any deviation or extension must be documented in the PRD or an associated usage/knowledge base file before merging.
+
+Example Usage:
+  // When adding a new feature:
+  // 1. Update the knowledge base and PRD with feature details and usage.
+  // 2. Implement code changes to match the documented requirements.
+  // 3. Ensure all code aligns with the PRD and knowledge base.
+
+Professional Note:
+This rule ensures that the codebase remains aligned with user needs, avoids undocumented features, and maintains
+a single source of truth for requirements and technical decisions.
+
+# Python Package Management Rule
+When working with Python projects, always use 'uv' as the package manager for all Python-related tasks including:
+- Installing packages
+- Creating virtual environments
+- Managing dependencies
+- Building projects
+- Publishing packages
+
+# Rust Package Management Rule
+When working with Rust projects, always use 'cargo' as the package manager for all Rust-related tasks including:
+- Installing packages
+- Creating virtual environments
+- Managing dependencies
+- Building projects
+- Publishing packages
+
+# Node Package Management Rule
+When working with Node projects, always use 'npm' as the package manager for all Node-related tasks including:
+- Installing packages
+- Creating virtual environments
+- Managing dependencies
+- Building projects
+- Publishing packages
+
+
+# Go Package Management Rule
+When working with Go projects, always use 'go' as the package manager for all Go-related tasks including:
+- Installing packages
+- Creating virtual environments
+- Managing dependencies
+- Building projects
+- Publishing packages
+
+# Shell Scripting Rule
+When working with shell scripts, always use 'bash' as the shell for all shell-related tasks including:
+- Creating shell scripts
+- Running shell scripts
+- Managing shell scripts

@@ -51,8 +51,8 @@ get_all_config_files() {
     echo "${REPO_DIR}/informing.mdc"
     echo "${REPO_DIR}/verify-date-and-time.mdc"
     echo "${REPO_DIR}/python-package-mgmt.mdc"
+    echo "${REPO_DIR}/prd-and-context.mdc"
     echo "${REPO_DIR}/.gitignore"
-    echo "${REPO_DIR}/.github/FUNDING.yml"
 }
 
 deploy_all_to_ainish_coder() {
@@ -121,8 +121,9 @@ deploy_vscode_to_github() {
     fi
     
     local deployed_count=0
-    for source_file in "$vscode_dir"/*; do
-        if [[ -f "$source_file" ]]; then
+    # Deploy files from ainish-vscode directory (including hidden files)
+    for source_file in "$vscode_dir"/* "$vscode_dir"/.*; do
+        if [[ -f "$source_file" && "$(basename "$source_file")" != "." && "$(basename "$source_file")" != ".." ]]; then
             local filename=$(basename "$source_file")
             local dest_file="$github_dir/$filename"
             
@@ -135,7 +136,28 @@ deploy_vscode_to_github() {
         fi
     done
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count VSCode configuration files to .github/${RESET}"
+    # Deploy .cursor/rules directory if it exists
+    local cursor_rules_dir="$REPO_DIR/.cursor/rules"
+    if [[ -d "$cursor_rules_dir" ]]; then
+        local target_cursor_dir="$target_dir/.cursor/rules"
+        mkdir -p "$target_cursor_dir" 2>/dev/null
+        
+        for source_file in "$cursor_rules_dir"/*; do
+            if [[ -f "$source_file" ]]; then
+                local filename=$(basename "$source_file")
+                local dest_file="$target_cursor_dir/$filename"
+                
+                if cp "$source_file" "$dest_file" 2>/dev/null; then
+                    echo -e "${GREEN}✓ Deployed $filename to .cursor/rules/${RESET}"
+                    deployed_count=$((deployed_count + 1))
+                else
+                    echo -e "${YELLOW}⚠️  Failed to deploy $filename to .cursor/rules/${RESET}"
+                fi
+            fi
+        done
+    fi
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count VSCode configuration files${RESET}"
 }
 
 setup_ainish_coder_dir() {

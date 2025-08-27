@@ -95,16 +95,21 @@ To update later, simply pull the latest changes into the repository directory an
 ```text
 ainish-coder/
 ├── ainish-setup.sh              # Main setup and distribution script
-├── critical.mdc                 # License citation file (distributed to all tools)
+├── critical.mdc                 # Core AINISH configuration file
 ├── modern-prompting.mdc         # Advanced cognitive framework for LLM interactions
 ├── security.mdc                 # Comprehensive security and cybersecurity framework
 ├── docs-use.mdc                 # Documentation usage guidelines
 ├── informing.mdc                # Code documentation requirements
 ├── PRD.mdc                      # Universal Product Requirements Document template
+├── prd-and-context.mdc          # PRD and context management rules
 ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+├── python-package-mgmt.mdc      # Python package management rules
+├── verify-date-and-time.mdc     # Date and time verification rules
 ├── .gitignore                   # Standard Git ignore rules
-├── .github/                     # GitHub configuration
-│   └── FUNDING.yml             # Funding configuration
+├── ainish-vscode/               # VSCode/Copilot configurations
+│   ├── .copilotignore          # Copilot ignore rules
+│   ├── anishinaabe-cyberpunk-style.md  # VSCode styling guide
+│   └── copilot-instructions.md # Copilot instruction set
 └── .cursor/                     # Cursor AI configuration
     └── rules/                  # Cursor rules directory
 ```
@@ -115,19 +120,28 @@ ainish-coder/
 
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
-### Unified Configuration System
+### Dual Deployment System
 
-The setup script deploys all configuration files to a single `ainish-coder/` directory in your target location, including:
+The `ainish-coder` command provides two distinct deployment modes:
 
-- `critical.mdc`: License citation file
+#### **Core AINISH Configurations** (`ainish-coder`)
+Deploys essential AINISH configuration files to `./ainish-coder/` directory:
+- `critical.mdc`: Core AINISH configuration file
 - `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions
 - `security.mdc`: Comprehensive security and cybersecurity framework
 - `docs-use.mdc`: Documentation usage guidelines
 - `informing.mdc`: Code documentation requirements
 - `PRD.mdc`: Universal Product Requirements Document template
+- `prd-and-context.mdc`: PRD and context management rules
 - `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+- `python-package-mgmt.mdc`: Python package management rules
+- `verify-date-and-time.mdc`: Date and time verification rules
 - `.gitignore`: Standard Git ignore rules
-- `.cursorrules`: Rules for Cursor AI (if applicable)
+
+#### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
+Deploys editor-specific configurations:
+- `.github/` directory: Copilot instructions and styling guides
+- `.cursor/rules/` directory: Cursor AI rule files
 
 <div align="center">
 ◈──◆──◇─────────────────◇──◆──◈
@@ -137,16 +151,30 @@ The setup script deploys all configuration files to a single `ainish-coder/` dir
 
 The `ainish-setup.sh` script:
 
-1. Automatically distributes `critical.mdc`, `modern-prompting.mdc`, `security.mdc`, `docs-use.mdc`, `informing.mdc`, `PRD.mdc`, and `anishinaabe-cyberpunk-style.mdc` from the root to their respective tool directories.
-2. Creates a `~/.ainish-coder` directory.
-3. Creates symbolic links from `~/.ainish-coder` to the repository configuration files, ensuring changes in the repo are reflected immediately.
-4. Adds convenient wrapper functions (`ainish-coder`) to your shell configuration (`.zshrc`).
-5. Cleans up potentially conflicting older configuration files.
-6. Verifies tool paths.
+1. Creates a `~/.ainish-coder` directory with symbolic links to repository configuration files.
+2. Adds convenient wrapper functions (`ainish-coder`) to your shell configuration (`.zshrc`).
+3. Cleans up potentially conflicting older configuration files.
+4. Verifies tool paths.
 
-The wrapper function (`ainish-coder`) ensures that the necessary configurations are deployed to the current working directory when you invoke it.
+### Wrapper Functions
 
-Re-running `./ainish-setup.sh` refreshes the entire setup, including re-distributing files and updating the wrappers.
+After installation, you'll have access to these convenient wrapper commands:
+
+#### **`ainish-coder`** - Core AINISH Configurations
+Deploys essential AINISH configuration files to `./ainish-coder/` directory in your current location:
+- Core configuration files (`.mdc` files)
+- `.gitignore` file
+- **Total: 11 configuration files**
+
+#### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
+Deploys editor-specific configurations:
+- `.github/` directory: Copilot instructions and styling guides
+- `.cursor/rules/` directory: Cursor AI rule files
+- **Total: 9 VSCode configuration files**
+
+### Updating
+
+To update later, simply pull the latest changes into the repository directory and re-run `./ainish-setup.sh`.
 
 <div align="center">
 ◈──◆──◇─────────────────◇──◆──◈
@@ -178,6 +206,12 @@ For examples of this styling, see the **Standard Anishinaabe Terms** section in 
 ## ᐴ WIIDOOKAAZOWIN ᔔ [Contributing] ◈──◆──◇──◆──◈
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute to this project.
+
+**Note**: This project operates under a dual management system:
+- **AINISH-Coder**: Manages core configuration and rule files through local deployment
+- **Licensing System**: Handles LICENSE, CONTRIBUTING.md, README.md, and funding through centralized repository management
+
+**Important**: The current [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md) files have been updated through the centralized licensing system and should not be modified locally.
 
 <div align="center">
 ◈──◆──◇─────────────────◇──◆──◈
