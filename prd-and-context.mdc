@@ -36,7 +36,7 @@ When working with Python projects, always use 'uv' as the package manager for al
 # Rust Package Management Rule
 When working with Rust projects, always use 'cargo' as the package manager for all Rust-related tasks including:
 - Installing packages
-- Creating virtual environments
+- Creating workspaces
 - Managing dependencies
 - Building projects
 - Publishing packages
@@ -44,7 +44,7 @@ When working with Rust projects, always use 'cargo' as the package manager for a
 # Node Package Management Rule
 When working with Node projects, always use 'npm' as the package manager for all Node-related tasks including:
 - Installing packages
-- Creating virtual environments
+- Creating workspaces
 - Managing dependencies
 - Building projects
 - Publishing packages
@@ -53,7 +53,7 @@ When working with Node projects, always use 'npm' as the package manager for all
 # Go Package Management Rule
 When working with Go projects, always use 'go' as the package manager for all Go-related tasks including:
 - Installing packages
-- Creating virtual environments
+- Creating workspaces
 - Managing dependencies
 - Building projects
 - Publishing packages
