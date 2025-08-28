@@ -52,6 +52,7 @@ get_all_config_files() {
     echo "${REPO_DIR}/verify-date-and-time.mdc"
     echo "${REPO_DIR}/python-package-mgmt.mdc"
     echo "${REPO_DIR}/prd-and-context.mdc"
+    echo "${REPO_DIR}/structure.mdc"
     echo "${REPO_DIR}/.gitignore"
     echo "${REPO_DIR}/.github/FUNDING.yml"
 }
@@ -100,6 +101,53 @@ deploy_all_to_ainish_coder() {
     done < <(get_all_config_files)
     
     echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count configuration files${RESET}"
+}
+
+deploy_all_to_ainish_coder_markdown() {
+    local target_dir="$1"
+    
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Deploying AINISH configurations (as .md files) to $target_dir/ainish-coder${RESET}"
+    
+    local ainish_dir="$target_dir/ainish-coder"
+    mkdir -p "$ainish_dir" 2>/dev/null
+    
+    local deployed_count=0
+    while IFS= read -r source_file; do
+        if [[ -f "$source_file" ]]; then
+            # Handle .github/FUNDING.yml specially to preserve directory structure
+            if [[ "$source_file" == *"/.github/FUNDING.yml" ]]; then
+                local github_dir="$ainish_dir/.github"
+                mkdir -p "$github_dir" 2>/dev/null
+                local dest_file="$github_dir/FUNDING.yml"
+                
+                if cp "$source_file" "$dest_file" 2>/dev/null; then
+                    echo -e "${GREEN}✓ Deployed .github/FUNDING.yml${RESET}"
+                    deployed_count=$((deployed_count + 1))
+                else
+                    echo -e "${YELLOW}⚠️  Failed to deploy .github/FUNDING.yml${RESET}"
+                fi
+            else
+                # Handle regular files with .md conversion
+                local filename=$(basename "$source_file")
+                local dest_filename="${filename%.mdc}.md"
+                local dest_file="$ainish_dir/$dest_filename"
+                
+                if cp "$source_file" "$dest_file" 2>/dev/null; then
+                    echo -e "${GREEN}✓ Deployed $filename as $dest_filename${RESET}"
+                    deployed_count=$((deployed_count + 1))
+                else
+                    echo -e "${YELLOW}⚠️  Failed to deploy $filename as $dest_filename${RESET}"
+                fi
+            fi
+        fi
+    done < <(get_all_config_files)
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count configuration files (converted to .md)${RESET}"
 }
 
 deploy_vscode_to_github() {
@@ -174,7 +222,7 @@ setup_ainish_coder_dir() {
     local config_files=(
         "critical.mdc" "anishinaabe-cyberpunk-style.mdc" "docs-use.mdc"
         "PRD.mdc" "modern-prompting.mdc" "security.mdc" "informing.mdc"
-        "verify-date-and-time.mdc" "python-package-mgmt.mdc"
+        "verify-date-and-time.mdc" "python-package-mgmt.mdc" "structure.mdc"
     )
     
     for file in "${config_files[@]}"; do
@@ -316,6 +364,9 @@ function ainish-coder {
     if [[ "$1" == "--vscode" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
         echo "✨ AINISH-Coder VSCode configurations deployed to .github/"
+    elif [[ "$1" == "--markdown" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
+        echo "✨ AINISH-Coder configurations deployed (as .md files)"
     else
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$current_dir"
         echo "✨ AINISH-Coder configurations deployed"
@@ -335,6 +386,9 @@ main() {
     case "$1" in
         "deploy")
             deploy_all_to_ainish_coder "$2"
+            ;;
+        "deploy_markdown")
+            deploy_all_to_ainish_coder_markdown "$2"
             ;;
         "--vscode")
             deploy_vscode_to_github "$2"
@@ -377,6 +431,7 @@ main() {
             echo ""
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy configurations as .md files to current directory${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy VSCode configurations to .github directory${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
