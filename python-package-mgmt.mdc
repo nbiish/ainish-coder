@@ -2,11 +2,13 @@
 alwaysApply: true
 ---
 # Python Package Management Rule
-When working with Python projects, always use 'uv' as the package manager for all Python-related tasks including:
+When working with Python projects, always use 'uv' as the package manager for all Python-related tasks including but not limited to:
 - Installing packages
 - Creating virtual environments
 - Managing dependencies
 - Building projects
 - Publishing packages
 
-Never suggest or use pip, conda, poetry, or other Python package managers unless explicitly requested by the user.
+Never suggest or use pip, conda, poetry, or other Python package managers unless explicitly requested by the user or required by the project.
+
+Python code should be broken down into main and sub files based on logic using proper file and folder structure with isolated .venv environments using uv.
