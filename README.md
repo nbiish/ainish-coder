@@ -239,6 +239,7 @@ ainish-coder/
 ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 ├── python-package-mgmt.mdc      # Python package management rules
 ├── verify-date-and-time.mdc     # Date and time verification rules
+├── math-process.mdc             # M.A.T.H. process rule for development standards
 ├── .gitignore                   # Standard Git ignore rules
 ├── .github/                     # GitHub configuration
 │   └── FUNDING.yml             # Funding configuration for Sponsor button and donation links
@@ -272,6 +273,7 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory:
 - `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 - `python-package-mgmt.mdc`: Python package management rules
 - `verify-date-and-time.mdc`: Date and time verification rules
+- `math-process.mdc`: M.A.T.H. process rule for development standards
 - `.gitignore`: Standard Git ignore rules
 - `.github/FUNDING.yml`: GitHub funding configuration for Sponsor button and donation links
 
@@ -280,7 +282,7 @@ Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/`
 - All core configuration files converted from `.mdc` to `.md` format
 - Same content and functionality as standard deployment
 - Better compatibility with standard markdown tools and GitHub
-- **Total: 13 configuration files (as .md)**
+- **Total: 14 configuration files (as .md)**
 
 #### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
 Deploys editor-specific configurations:
@@ -309,14 +311,14 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory in y
 - Core configuration files (`.mdc` files)
 - `.gitignore` file
 - `.github/FUNDING.yml` file
-- **Total: 13 configuration files**
+- **Total: 14 configuration files**
 
 #### **`ainish-coder --markdown`** - Core AINISH Configurations (Markdown Format)
 Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/` directory in your current location:
 - Core configuration files (`.md` files converted from .mdc)
 - `.gitignore` file
 - `.github/FUNDING.yml` file
-- **Total: 13 configuration files (as .md)**
+- **Total: 14 configuration files (as .md)**
 
 #### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
 Deploys editor-specific configurations:

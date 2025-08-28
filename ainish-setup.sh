@@ -53,6 +53,7 @@ get_all_config_files() {
     echo "${REPO_DIR}/python-package-mgmt.mdc"
     echo "${REPO_DIR}/prd-and-context.mdc"
     echo "${REPO_DIR}/structure.mdc"
+    echo "${REPO_DIR}/math-process.mdc"
     echo "${REPO_DIR}/.gitignore"
     echo "${REPO_DIR}/.github/FUNDING.yml"
 }

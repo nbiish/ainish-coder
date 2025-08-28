@@ -672,6 +672,25 @@ Professional Note:
 This rule ensures that the codebase remains aligned with user needs, avoids undocumented features, and maintains
 a single source of truth for requirements and technical decisions.
 
+
+---
+alwaysApply: true
+---
+# Code Structure & Architecture - Development Standards
+
+## M.A.T.H. (Mistakes Allow Thinking to Happen) Process Rule
+
+We do **not** cover up or hide error code or mistakes. Instead, all contributors must follow the M.A.T.H. process:
+
+1. **Acknowledge Mistakes**: When an error, bug, or unexpected result occurs, document it clearly in code comments, commit messages, or issue trackers. Do not suppress, obfuscate, or silently "fix" errors without traceability.
+2. **Analyze and Reflect**: Treat each mistake as an opportunity for learning. Briefly analyze the root cause and document the reasoning or debugging steps taken.
+3. **Iterate Transparently**: Make iterative, visible changes towards a solution. Each step should be reviewable and, where possible, accompanied by a short rationale.
+4. **Share Learnings**: Summarize what was learned from the mistake and how it improved the codebase, process, or understanding. Prefer code comments or documentation updates for persistent knowledge.
+
+**Professional Note:**  
+This process ensures that errors are surfaced, not hidden, and that the team benefits from collective learning. It aligns with a growth mindset and supports robust, maintainable, and auditable development practices.
+
+---
 # Python Package Management Rule
 When working with Python projects, always use 'uv' as the package manager for all Python-related tasks including:
 - Installing packages
