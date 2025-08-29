@@ -1,0 +1,81 @@
+# Cursor Index Ignore Patterns for Ainish Coder Tooling Distribution
+# Files excluded from Cursor's semantic indexing
+
+# GitHub specific files
+.github/copilot-instructions.md
+
+# Python cache and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Large binary files and assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+*.zip
+*.tar.gz
+*.rar
+
+# Generated documentation and build artifacts
+docs/_build/
+docs/build/
+site/
+*.html
+*.css
+*.js
+
+# Logs and data files
+*.log
+*.csv
+*.json
+*.xml
+*.yaml
+*.yml
+
+# Temporary and cache files
+*.tmp
+*.temp
+.cache
+.pytest_cache/
+.tox/
+
+# OS and IDE files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Security and configuration
+.env*
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Test and coverage files
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Backup and version control
+*.bak
+*.backup
+*.old
+*.orig
+.git/
+
