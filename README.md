@@ -28,7 +28,7 @@
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
+- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `code-judge.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
 - **◇ Multiple AI Tool Support ◇**: Unified configuration system for all AI coding tools including GitHub Copilot, Cursor AI, and VSCode.
 - **◇ Comprehensive Copilot Instructions ◇**: Consolidated development guidelines, security protocols, and best practices in `copilot-instructions.md` for optimal AI-assisted development.
 - **◇ Flexible File Formats ◇**: Support for both `.mdc` and `.md` file formats with the `--markdown` flag.
@@ -232,6 +232,7 @@ ainish-coder/
 ├── critical.mdc                 # Core AINISH configuration file
 ├── modern-prompting.mdc         # Advanced cognitive framework for LLM interactions
 ├── security.mdc                 # Comprehensive security and cybersecurity framework
+├── code-judge.mdc               # Code judge and reasoning framework
 ├── docs-use.mdc                 # Documentation usage guidelines
 ├── informing.mdc                # Code documentation requirements
 ├── PRD.mdc                      # Universal Product Requirements Document template
@@ -266,6 +267,7 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory:
 - `critical.mdc`: Core AINISH configuration file
 - `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions
 - `security.mdc`: Comprehensive security and cybersecurity framework
+- `code-judge.mdc`: Code judge and reasoning framework
 - `docs-use.mdc`: Documentation usage guidelines
 - `informing.mdc`: Code documentation requirements
 - `PRD.mdc`: Universal Product Requirements Document template
@@ -282,7 +284,7 @@ Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/`
 - All core configuration files converted from `.mdc` to `.md` format
 - Same content and functionality as standard deployment
 - Better compatibility with standard markdown tools and GitHub
-- **Total: 14 configuration files (as .md)**
+- **Total: 15 configuration files (as .md)**
 
 #### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
 Deploys editor-specific configurations:
@@ -311,14 +313,14 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory in y
 - Core configuration files (`.mdc` files)
 - `.gitignore` file
 - `.github/FUNDING.yml` file
-- **Total: 14 configuration files**
+- **Total: 15 configuration files**
 
 #### **`ainish-coder --markdown`** - Core AINISH Configurations (Markdown Format)
 Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/` directory in your current location:
 - Core configuration files (`.md` files converted from .mdc)
 - `.gitignore` file
 - `.github/FUNDING.yml` file
-- **Total: 14 configuration files (as .md)**
+- **Total: 15 configuration files (as .md)**
 
 #### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
 Deploys editor-specific configurations:
@@ -342,6 +344,7 @@ The project includes a consolidated `copilot-instructions.md` file that combines
 
 - **Security & Cybersecurity Framework** (Highest Priority)
 - **Modern Prompting & Context Engineering** (Core Methodology)
+- **Code Judge & Reasoning Framework** (Cognitive Development)
 - **Code Structure & Architecture** (Development Standards)
 - **Package Management Rules** (Technology-Specific)
 - **Documentation & Context Rules** (Project Alignment)

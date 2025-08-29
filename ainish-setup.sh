@@ -50,6 +50,7 @@ get_all_config_files() {
     echo "${REPO_DIR}/PRD.mdc"
     echo "${REPO_DIR}/informing.mdc"
     echo "${REPO_DIR}/verify-date-and-time.mdc"
+    echo "${REPO_DIR}/code-judge.mdc"
     echo "${REPO_DIR}/python-package-mgmt.mdc"
     echo "${REPO_DIR}/prd-and-context.mdc"
     echo "${REPO_DIR}/structure.mdc"
@@ -223,7 +224,7 @@ setup_ainish_coder_dir() {
     local config_files=(
         "critical.mdc" "anishinaabe-cyberpunk-style.mdc" "docs-use.mdc"
         "PRD.mdc" "modern-prompting.mdc" "security.mdc" "informing.mdc"
-        "verify-date-and-time.mdc" "python-package-mgmt.mdc" "structure.mdc"
+        "verify-date-and-time.mdc" "code-judge.mdc" "python-package-mgmt.mdc" "structure.mdc"
     )
     
     for file in "${config_files[@]}"; do
