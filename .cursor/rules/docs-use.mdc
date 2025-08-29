@@ -1,8 +1,9 @@
 ---
 alwaysApply: true
 ---
-When encountering an error or lack of context:
-- use the context7 mcp tool to gather knowledge about frameworks, libraries, etc..
-- internal websearch
-- mcp websearch tools (brave, tavily, etc)
-- all other available tools for information/docs gathering (fetch, crawl4ai, etc)
+# When encountering an error, lack of context, or something you don't know
+
+- Use the context7 mcp tool to gather specific knowledge.
+- Use the websearch tool to gather general knowledge.
+- Use the mcp websearch tools like brave and tavily to gather up to date information.
+- Use tools like fetch and crawl4ai to gather information into our knowledge base.

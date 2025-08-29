@@ -106,25 +106,12 @@ alwaysApply: false
 
 ## PRD BEST PRACTICES CHECKLIST
 
-**Before Writing:**
-
-- [ ] Engage cross-functional teams in creation
-- [ ] Validate assumptions with stakeholders
-- [ ] Research user needs and market requirements
-
-**During Writing:**
-
 - [ ] Use clear, unambiguous language
 - [ ] Include specific, measurable requirements
 - [ ] Define success criteria objectively
 - [ ] Balance detail with conciseness
-
-**After Writing:**
-
-- [ ] Review with all stakeholders
-- [ ] Get formal approval from decision-makers
-- [ ] Treat as living document for updates
-- [ ] Reference throughout development lifecycle
+- [ ] Treat PRD and Knowledge Base as living documents
+- [ ] Reference PRD and Knowledge Base throughout development lifecycle
 
 ---
-*This PRD template is designed for universal application across any project type. Customize sections as needed while maintaining clarity and stakeholder alignment.*
+*This PRD template is designed for universal application across any project type. Customize sections as needed while maintaining clarity.*
