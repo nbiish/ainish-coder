@@ -9,13 +9,14 @@ All code should be organized using a tiered component structure for clarity, mai
 2. **Atom**: Simple, self-contained components built from quanta (e.g., a single-purpose class, a basic UI element, or a CLI argument parser).
 3. **Molecule**: Composed of multiple atoms and/or quanta, representing a meaningful functional unit (e.g., a command handler, a composite UI widget, or a data processing pipeline).
 4. **Matter**: High-level modules or features composed of molecules, atoms, and quanta, representing a complete workflow or user-facing feature (e.g., a CLI command, a service endpoint, or a full UI page).
-5. **Logical**: The top-level application logic, orchestrating matter and molecules to deliver the full product experience.
+5. **Matter Phase**: A phase of a matter, representing a complete workflow or user-facing feature (e.g., a CLI command, a service endpoint, or a full UI page).
+6. **Lifeform**: A complete application, representing a complete product experience (e.g., a CLI, a web app, or a mobile app).
 
 ## Technical/Methodology Choices
 
-- Each tier should only depend on the tiers below it (e.g., molecules depend on atoms/quanta, not on other molecules).
-- This structure enables easier testing, refactoring, and feature extension.
-- When designing new features or refactoring, always identify the appropriate tier for each component and document its role.
+- Each tier should only depend on the tiers below it (e.g., molecules depend on atoms/quanta).
+- This structure enables robust testing, refactoring, and feature extension.
+- When designing new features, making fixes, or refactoring, always identify the appropriate tier for each component and document its role in the PRD.md and knowledge base.
 
 ## Example Usage
 
@@ -24,7 +25,7 @@ All code should be organized using a tiered component structure for clarity, mai
 - Define quanta (e.g., string validators, file path resolvers).
 - Build atoms (e.g., argument parser, output formatter).
 - Compose molecules (e.g., command handler combining parser and formatter).
-- Integrate into matter (e.g., the command module).
-- Connect via logical (e.g., main application entrypoint).
+- Molecules form into matter (e.g., the command module).
+- Matter phases create the lifeform (e.g., a CLI, a web app, or a mobile app).
 
-This process enforces a clear, scalable, and robust architecture by decomposing complexity into well-defined, reusable components. The process aligns with modern best practices for maintainable and testable codebases. This process is crucial to planning, reviewing, and refactoring good code.
+This process enforces a clear, scalable, and robust architecture by decomposing complexity into well-defined, reusable components. The process aligns with modern best practices for maintainable and testable codebases. This process is crucial to planning, reviewing, fixing, and refactoring good code.

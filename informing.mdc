@@ -1,6 +1,12 @@
 ---
 alwaysApply: true
 ---
-# Informing Code Is Good Code
+# Concise Comments Are Good Comments
 
-All code should be accompanied by a professional comment description that expertly informs about the function, technical/methodology choices, algorithm choices, and usage.
+All code should be accompanied by a ultra concise comment description that contextualizes the function, algorithm, and purpose.
+
+## Example Usage
+
+```python
+# /// [function -> purpose]
+```

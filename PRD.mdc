@@ -1,4 +1,5 @@
 ---
+globs: PRD.md,*PRD.md,PRD*.md
 alwaysApply: false
 ---
 # PRODUCT REQUIREMENTS DOCUMENT: [PROJECT NAME]
@@ -8,10 +9,6 @@ alwaysApply: false
 ## 1. OBJECTIVE
 
 **Purpose:** [Define the problem this product solves and why it matters]
-
-**Target Audience:** [Primary users and stakeholders]
-
-**Strategic Alignment:** [How this aligns with organizational goals]
 
 ## 2. SCOPE
 
@@ -25,29 +22,38 @@ alwaysApply: false
 
 - [What will NOT be included in this release]
 
-## 3. USER PERSONAS & SCENARIOS
+## 3. USER EXPERIENCE
 
-**Primary User:** [Name/Role] - [Key goals and pain points]
-**Secondary User:** [Name/Role] - [Key goals and pain points]
+**User Flow:** [How users will interact with the product]
 
-**Key User Journey:** [How users will interact with the product]
+## 4. STRUCTURE -> 'camel' workflow -> QAMMML (Quanta Atoms Molecule Matter Matter-Phase Lifeform)
 
-## 4. FUNCTIONAL REQUIREMENTS
+**Quanta:** [The smallest unit of the product]
+
+**Atoms:** [The smallest units comprise the atomic structure]
+
+**Molecules:** [The atomic structure forms molecules]
+
+**Matter:** [The molecules form matter]
+
+**Matter Phases:** [Matter phases create lifeforms]
+
+**Lifeforms:** [Lifeforms are the final product]
+
+## 5. FUNCTIONAL REQUIREMENTS
 
 ### Core Features
 
-- **[Feature Name]:** [User story format: "As a [user], I want [action] so that [benefit]"]
-- **[Feature Name]:** [User story format]
-- **[Feature Name]:** [User story format]
+- **[Feature Name]:** [Examples _____, _____, _____]
 
-## 5. NON-FUNCTIONAL REQUIREMENTS
+## 6. NON-FUNCTIONAL REQUIREMENTS
 
 **Performance:** [Response times, scalability, reliability targets]
 **Usability:** [Design principles, accessibility standards (WCAG 2.1 AA)]
 **Security:** [Authentication, data protection, compliance requirements]
 **Compatibility:** [Browser/platform support, integrations]
 
-## 6. ASSUMPTIONS & CONSTRAINTS
+## 7. ASSUMPTIONS & CONSTRAINTS
 
 **Assumptions:**
 
@@ -56,11 +62,9 @@ alwaysApply: false
 
 **Constraints:**
 
-- Budget: [Amount/limitations]
-- Timeline: [Key deadlines]
-- Technology: [Technical limitations]
+- Technology: [Technical limitations, e.g., Python 3.12, React 18, etc.]
 
-## 7. SUCCESS METRICS
+## 8. SUCCESS METRICS
 
 **Key Performance Indicators:**
 
@@ -68,21 +72,13 @@ alwaysApply: false
 - [Metric 2]: [Target value]
 - [Metric 3]: [Target value]
 
-## 8. TIMELINE & MILESTONES
+## 9. Knowledge Base
 
-**Development Phases:**
+**Knowledge Base:**
 
-- Phase 1: [Date] - [Deliverable]
-- Phase 2: [Date] - [Deliverable]
-- Phase 3: [Date] - [Deliverable]
+- [Knowledge Base]: [Link to knowledge base]
 
-**Critical Milestones:**
-
-- [Milestone]: [Date]
-- [Beta Release]: [Date]
-- [Launch]: [Date]
-
-## 9. ACCEPTANCE CRITERIA
+## 10. ACCEPTANCE CRITERIA
 
 **Core Functionality:**
 
@@ -96,7 +92,7 @@ alwaysApply: false
 - [ ] Security requirements satisfied
 - [ ] Accessibility standards met
 
-## 10. OPEN QUESTIONS
+## 11. OPEN QUESTIONS
 
 - [Unresolved question 1]
 - [Unresolved question 2]
