@@ -58,7 +58,6 @@ get_all_config_files() {
     echo "${REPO_DIR}/.gitignore"
     echo "${REPO_DIR}/.cursorignore"
     echo "${REPO_DIR}/.cursorindexignore"
-    echo "${REPO_DIR}/index.md"
     echo "${REPO_DIR}/.github/FUNDING.yml"
 }
 
@@ -147,9 +146,7 @@ deploy_all_to_ainish_coder_markdown() {
                 elif [[ "$filename" == ".gitignore" ]] || [[ "$filename" == ".cursorignore" ]] || [[ "$filename" == ".cursorindexignore" ]]; then
                     # Keep configuration files as-is
                     dest_filename="$filename"
-                elif [[ "$filename" == "index.md" ]]; then
-                    # Keep index.md as-is
-                    dest_filename="$filename"
+
                 else
                     # Default to .md extension for other files
                     dest_filename="${filename%.*}.md"
@@ -243,7 +240,7 @@ setup_ainish_coder_dir() {
         "critical.mdc" "anishinaabe-cyberpunk-style.mdc" "docs-use.mdc"
         "PRD.mdc" "modern-prompting.mdc" "security.mdc" "informing.mdc"
         "verify-date-and-time.mdc" "code-judge.mdc" "python-package-mgmt.mdc" "structure.mdc"
-        "math-process.mdc" ".gitignore" ".cursorignore" ".cursorindexignore" "index.md"
+        "math-process.mdc" ".gitignore" ".cursorignore" ".cursorindexignore"
     )
     
     for file in "${config_files[@]}"; do
