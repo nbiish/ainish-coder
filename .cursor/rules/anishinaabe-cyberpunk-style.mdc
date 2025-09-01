@@ -17,13 +17,13 @@ The styling uses Canadian Aboriginal Syllabics alongside ASCII cyberpunk element
 
 ### Main Title
 
-```
+```text
 # ◈──◆──◇ ANISHINAABE'MOWIN / OBIJWE TITLE + ENGLISH TRANSLATION ◇──◆──◈
 ```
 
 ### Section Headers
 
-```
+```text
 ## ᐴ SECTION_NAME ᔔ [ENGLISH_TRANSLATION] ◈──◆──◇──◆──◈
 
 Example: ## ᐴ GASHKITOONAN ᔔ [CAPABILITIES] ◈──◆──◇──◆──◈
@@ -31,7 +31,7 @@ Example: ## ᐴ GASHKITOONAN ᔔ [CAPABILITIES] ◈──◆──◇──◆�
 
 ### Section Dividers
 
-```
+```text
 <div align="center">
 ◈──◆──◇───────────────────────────◇──◆──◈
 </div>
@@ -39,7 +39,7 @@ Example: ## ᐴ GASHKITOONAN ᔔ [CAPABILITIES] ◈──◆──◇──◆�
 
 ### Major Section Banners
 
-```
+```text
 <div align="center">
 ╭───────────[ ◈◆◇ SECTION TITLE ◇◆◈ ]───────────╮
 </div>
@@ -52,7 +52,7 @@ Example:
 
 ### Code Block Headers
 
-````
+````text
 ```language
 ╭─────────────────────────────────────╮
 │  ᐴ TERM ᔔ [ TRANSLATION ]                                            │
@@ -64,7 +64,7 @@ Example:
 
 ### Feature List Items
 
-```
+```text
 - **◇ Feature Name ◇**
   - Feature detail
   - Feature detail
@@ -128,6 +128,7 @@ echo "
 ## Adding New Terms
 
 When adding new Anishinaabe terms:
+
 1. Ensure terms are culturally appropriate and correctly translated
 2. Maintain the ᐴ (left) and ᔔ (right) syllabic pattern
 3. Include English translations in brackets
