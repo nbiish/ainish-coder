@@ -182,7 +182,7 @@ deploy_vscode_to_github() {
         return 1
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying .mdc files to $target_dir/ainish-coder/ with -instructions.md naming${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with -instructions.md naming${RESET}"
     
     local ainish_dir="$target_dir/ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
@@ -190,6 +190,7 @@ deploy_vscode_to_github() {
     local deployed_count=0
     local skipped_count=0
     
+    # Deploy .mdc files with -instructions.md naming
     while IFS= read -r source_file; do
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
@@ -213,19 +214,65 @@ deploy_vscode_to_github() {
         fi
     done < <(get_mdc_files_only)
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count .mdc files to $ainish_dir/ with -instructions.md naming${RESET}"
+    # Deploy GitHub Copilot configuration files
+    local copilot_files=(
+        ".copilotignore"
+        ".copilotindexignore"
+    )
+    
+    for copilot_file in "${copilot_files[@]}"; do
+        local source_file="${REPO_DIR}/ainish-vscode/${copilot_file}"
+        if [[ -f "$source_file" ]]; then
+            local dest_file="$ainish_dir/$copilot_file"
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed GitHub Copilot config: $copilot_file${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy GitHub Copilot config: $copilot_file${RESET}"
+                skipped_count=$((skipped_count + 1))
+            fi
+        else
+            echo -e "${YELLOW}⚠️  GitHub Copilot config not found: $copilot_file${RESET}"
+        fi
+    done
+    
+    # Deploy FUNDING.yml to .github directory
+    local github_dir="$ainish_dir/.github"
+    mkdir -p "$github_dir" 2>/dev/null
+    
+    local funding_source="${REPO_DIR}/.github/FUNDING.yml"
+    if [[ -f "$funding_source" ]]; then
+        local funding_dest="$github_dir/FUNDING.yml"
+        if cp "$funding_source" "$funding_dest" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed FUNDING.yml to .github/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy FUNDING.yml${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  FUNDING.yml not found in source${RESET}"
+    fi
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with -instructions.md naming and GitHub Copilot configs${RESET}"
     if [[ $skipped_count -gt 0 ]]; then
         echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
     fi
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    echo -e "${CYAN}  • .mdc files converted to -instructions.md format${RESET}"
+    echo -e "${CYAN}  • GitHub Copilot configuration files${RESET}"
+    echo -e "${CYAN}  • FUNDING.yml in .github/ directory${RESET}"
+    
+    # List actual instruction files
+    local instruction_count=0
     for file in "$ainish_dir"/*-instructions.md; do
         if [[ -f "$file" ]]; then
-            local display_name=$(basename "$file")
-            echo -e "  ${CYAN}• $display_name${RESET}"
+            instruction_count=$((instruction_count + 1))
         fi
     done
+    echo -e "${CYAN}  • Total instruction files: $instruction_count${RESET}"
 }
 
 setup_ainish_coder_dir() {
