@@ -182,7 +182,19 @@ deploy_vscode_to_github() {
         return 1
     fi
     
+    # Safety check: Ensure we don't overwrite existing root .github/instructions/
+    local root_github_dir="$target_dir/.github"
+    local root_instructions_dir="$root_github_dir/instructions"
+    
+    if [[ -d "$root_instructions_dir" ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  Warning: Found existing .github/instructions/ directory in target root${RESET}"
+        echo -e "${YELLOW}   This directory will NOT be modified to preserve your existing instructions${RESET}"
+        echo -e "${YELLOW}   AINISH-Coder instructions will be deployed to ainish-coder/.github/instructions/ instead${RESET}"
+        echo ""
+    fi
+    
     echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with proper .github/instructions/ structure${RESET}"
+    echo -e "${CYAN}   Naming convention: {filename}.mdc → {filename}.instructions.md${RESET}"
     
     local ainish_dir="$target_dir/ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
