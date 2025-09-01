@@ -182,7 +182,7 @@ deploy_vscode_to_github() {
         return 1
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with -instructions.md naming${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with proper .github/instructions/ structure${RESET}"
     
     local ainish_dir="$target_dir/ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
@@ -190,21 +190,26 @@ deploy_vscode_to_github() {
     local deployed_count=0
     local skipped_count=0
     
-    # Deploy .mdc files with -instructions.md naming
+    # Create .github/instructions directory structure for GitHub Copilot
+    local github_dir="$ainish_dir/.github"
+    local instructions_dir="$github_dir/instructions"
+    mkdir -p "$instructions_dir" 2>/dev/null
+    
+    # Deploy .mdc files to .github/instructions/ with -instructions.md naming
     while IFS= read -r source_file; do
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             local dest_filename
             
-            # Convert .mdc files to {filename}-instructions.md format
+            # Convert .mdc files to {filename}-instructions.md format in .github/instructions/
             if [[ "$filename" == *.mdc ]]; then
                 local base_name="${filename%.mdc}"
                 dest_filename="${base_name}-instructions.md"
                 
-                local dest_file="$ainish_dir/$dest_filename"
+                local dest_file="$instructions_dir/$dest_filename"
                 
                 if cp "$source_file" "$dest_file" 2>/dev/null; then
-                    echo -e "${GREEN}✓ Deployed $filename as $dest_filename${RESET}"
+                    echo -e "${GREEN}✓ Deployed $filename as $dest_filename to .github/instructions/${RESET}"
                     deployed_count=$((deployed_count + 1))
                 else
                     echo -e "${YELLOW}⚠️  Failed to deploy $filename as $dest_filename${RESET}"
@@ -237,9 +242,6 @@ deploy_vscode_to_github() {
     done
     
     # Deploy FUNDING.yml to .github directory
-    local github_dir="$ainish_dir/.github"
-    mkdir -p "$github_dir" 2>/dev/null
-    
     local funding_source="${REPO_DIR}/.github/FUNDING.yml"
     if [[ -f "$funding_source" ]]; then
         local funding_dest="$github_dir/FUNDING.yml"
@@ -254,25 +256,25 @@ deploy_vscode_to_github() {
         echo -e "${YELLOW}⚠️  FUNDING.yml not found in source${RESET}"
     fi
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with -instructions.md naming and GitHub Copilot configs${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with proper .github/instructions/ structure and GitHub Copilot configs${RESET}"
     if [[ $skipped_count -gt 0 ]]; then
         echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
     fi
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • .mdc files converted to -instructions.md format${RESET}"
+    echo -e "${CYAN}  • .mdc files converted to -instructions.md format in .github/instructions/${RESET}"
     echo -e "${CYAN}  • GitHub Copilot configuration files${RESET}"
     echo -e "${CYAN}  • FUNDING.yml in .github/ directory${RESET}"
     
     # List actual instruction files
     local instruction_count=0
-    for file in "$ainish_dir"/*-instructions.md; do
+    for file in "$instructions_dir"/*-instructions.md; do
         if [[ -f "$file" ]]; then
             instruction_count=$((instruction_count + 1))
         fi
     done
-    echo -e "${CYAN}  • Total instruction files: $instruction_count${RESET}"
+    echo -e "${CYAN}  • Total instruction files in .github/instructions/: $instruction_count${RESET}"
 }
 
 setup_ainish_coder_dir() {
@@ -430,7 +432,7 @@ function ainish-coder {
     
     if [[ "$1" == "--vscode" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
-        echo "✨ AINISH-Coder .mdc files deployed to ainish-coder/ with -instructions.md naming"
+        echo "✨ AINISH-Coder .mdc files deployed to ainish-coder/.github/instructions/ with -instructions.md naming"
     elif [[ "$1" == "--markdown" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
         echo "✨ AINISH-Coder configurations deployed (as .md files)"
@@ -501,7 +503,7 @@ main() {
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
-            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ with -instructions.md naming${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/.github/instructions/ with -instructions.md naming${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"
