@@ -61,6 +61,13 @@ get_all_config_files() {
     echo "${REPO_DIR}/.github/FUNDING.yml"
 }
 
+get_mdc_files_only() {
+    # Get only .mdc files for ainish-vscode deployment
+    find "${REPO_DIR}" -maxdepth 1 -name "*.mdc" -type f | sort
+}
+
+
+
 deploy_all_to_ainish_coder() {
     local target_dir="$1"
     
@@ -175,55 +182,50 @@ deploy_vscode_to_github() {
         return 1
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying VSCode configurations to $target_dir/.github${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying .mdc files to $target_dir/ainish-coder/ with -instructions.md naming${RESET}"
     
-    local github_dir="$target_dir/.github"
-    mkdir -p "$github_dir" 2>/dev/null
-    
-    local vscode_dir="$REPO_DIR/ainish-vscode"
-    if [[ ! -d "$vscode_dir" ]]; then
-        echo -e "${BRIGHT_RED}Error: VSCode directory not found at $vscode_dir${RESET}"
-        return 1
-    fi
+    local ainish_dir="$target_dir/ainish-coder"
+    mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
-    # Deploy files from ainish-vscode directory (including hidden files)
-    for source_file in "$vscode_dir"/* "$vscode_dir"/.*; do
-        if [[ -f "$source_file" && "$(basename "$source_file")" != "." && "$(basename "$source_file")" != ".." ]]; then
-            local filename=$(basename "$source_file")
-            local dest_file="$github_dir/$filename"
-            
-            if cp "$source_file" "$dest_file" 2>/dev/null; then
-                echo -e "${GREEN}✓ Deployed $filename to .github/${RESET}"
-                deployed_count=$((deployed_count + 1))
-            else
-                echo -e "${YELLOW}⚠️  Failed to deploy $filename to .github/${RESET}"
-            fi
-        fi
-    done
+    local skipped_count=0
     
-    # Deploy .cursor/rules directory if it exists
-    local cursor_rules_dir="$REPO_DIR/.cursor/rules"
-    if [[ -d "$cursor_rules_dir" ]]; then
-        local target_cursor_dir="$target_dir/.cursor/rules"
-        mkdir -p "$target_cursor_dir" 2>/dev/null
-        
-        for source_file in "$cursor_rules_dir"/*; do
-            if [[ -f "$source_file" ]]; then
-                local filename=$(basename "$source_file")
-                local dest_file="$target_cursor_dir/$filename"
+    while IFS= read -r source_file; do
+        if [[ -f "$source_file" ]]; then
+            local filename=$(basename "$source_file")
+            local dest_filename
+            
+            # Convert .mdc files to {filename}-instructions.md format
+            if [[ "$filename" == *.mdc ]]; then
+                local base_name="${filename%.mdc}"
+                dest_filename="${base_name}-instructions.md"
+                
+                local dest_file="$ainish_dir/$dest_filename"
                 
                 if cp "$source_file" "$dest_file" 2>/dev/null; then
-                    echo -e "${GREEN}✓ Deployed $filename to .cursor/rules/${RESET}"
+                    echo -e "${GREEN}✓ Deployed $filename as $dest_filename${RESET}"
                     deployed_count=$((deployed_count + 1))
                 else
-                    echo -e "${YELLOW}⚠️  Failed to deploy $filename to .cursor/rules/${RESET}"
+                    echo -e "${YELLOW}⚠️  Failed to deploy $filename as $dest_filename${RESET}"
+                    skipped_count=$((skipped_count + 1))
                 fi
             fi
-        done
+        fi
+    done < <(get_mdc_files_only)
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count .mdc files to $ainish_dir/ with -instructions.md naming${RESET}"
+    if [[ $skipped_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
     fi
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count VSCode configuration files${RESET}"
+    # Display summary of deployed files
+    echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    for file in "$ainish_dir"/*-instructions.md; do
+        if [[ -f "$file" ]]; then
+            local display_name=$(basename "$file")
+            echo -e "  ${CYAN}• $display_name${RESET}"
+        fi
+    done
 }
 
 setup_ainish_coder_dir() {
@@ -381,10 +383,11 @@ function ainish-coder {
     
     if [[ "$1" == "--vscode" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
-        echo "✨ AINISH-Coder VSCode configurations deployed to .github/"
+        echo "✨ AINISH-Coder .mdc files deployed to ainish-coder/ with -instructions.md naming"
     elif [[ "$1" == "--markdown" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
         echo "✨ AINISH-Coder configurations deployed (as .md files)"
+
     else
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$current_dir"
         echo "✨ AINISH-Coder configurations deployed"
@@ -411,6 +414,7 @@ main() {
         "--vscode")
             deploy_vscode_to_github "$2"
             ;;
+
         "list_backups")
             list_zshrc_backups
             ;;
@@ -449,8 +453,8 @@ main() {
             echo ""
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
-            echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy configurations as .md files to current directory${RESET}"
-            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy VSCode configurations to .github directory${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ with -instructions.md naming${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"

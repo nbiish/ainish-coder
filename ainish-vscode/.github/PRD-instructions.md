@@ -1,0 +1,113 @@
+---
+globs: PRD.md,*PRD.md,PRD*.md
+alwaysApply: false
+---
+# PRODUCT REQUIREMENTS DOCUMENT: [PROJECT NAME]
+
+**Author:** [Your Name] | **Date:** [Date] | **Version:** [1.0]
+
+## 1. OBJECTIVE
+
+**Purpose:** [Define the problem this product solves and why it matters]
+
+## 2. SCOPE
+
+**In-Scope Features:**
+
+- [Feature 1: Brief description]
+- [Feature 2: Brief description]
+- [Feature 3: Brief description]
+
+**Out-of-Scope:**
+
+- [What will NOT be included in this release]
+
+## 3. USER EXPERIENCE
+
+**User Flow:** [How users will interact with the product]
+
+## 4. STRUCTURE -> 'camel' workflow -> QAMMML (Quanta Atoms Molecule Matter Matter-Phase Lifeform)
+
+**Quanta:** [The smallest unit of the product]
+
+**Atoms:** [The smallest units comprise the atomic structure]
+
+**Molecules:** [The atomic structure forms molecules]
+
+**Matter:** [The molecules form matter]
+
+**Matter Phases:** [Matter phases create lifeforms]
+
+**Lifeforms:** [Lifeforms are the final product]
+
+## 5. FUNCTIONAL REQUIREMENTS
+
+### Core Features
+
+- **[Feature Name]:** [Examples _____, _____, _____]
+
+## 6. NON-FUNCTIONAL REQUIREMENTS
+
+**Performance:** [Response times, scalability, reliability targets]
+**Usability:** [Design principles, accessibility standards (WCAG 2.1 AA)]
+**Security:** [Authentication, data protection, compliance requirements]
+**Compatibility:** [Browser/platform support, integrations]
+
+## 7. ASSUMPTIONS & CONSTRAINTS
+
+**Assumptions:**
+
+- [Key assumption 1]
+- [Key assumption 2]
+
+**Constraints:**
+
+- Technology: [Technical limitations, e.g., Python 3.12, React 18, etc.]
+
+## 8. SUCCESS METRICS
+
+**Key Performance Indicators:**
+
+- [Metric 1]: [Target value]
+- [Metric 2]: [Target value]
+- [Metric 3]: [Target value]
+
+## 9. Knowledge Base
+
+**Knowledge Base:**
+
+- [Knowledge Base]: [Link to knowledge base]
+
+## 10. ACCEPTANCE CRITERIA
+
+**Core Functionality:**
+
+- [ ] [Specific testable requirement]
+- [ ] [Specific testable requirement]
+- [ ] [Specific testable requirement]
+
+**Quality Standards:**
+
+- [ ] Performance meets stated targets
+- [ ] Security requirements satisfied
+- [ ] Accessibility standards met
+
+## 11. OPEN QUESTIONS
+
+- [Unresolved question 1]
+- [Unresolved question 2]
+- [Areas requiring further research]
+
+---
+
+## PRD BEST PRACTICES CHECKLIST
+
+- [ ] Use clear, unambiguous language
+- [ ] Include specific, measurable requirements
+- [ ] Define success criteria objectively
+- [ ] Balance detail with conciseness
+- [ ] Treat PRD and Knowledge Base as living documents
+- [ ] Reference PRD and Knowledge Base throughout development lifecycle
+
+---
+*This PRD template is designed for universal application across any project type. Customize sections as needed while maintaining clarity.*

@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+# Concise Comments Are Good Comments
+
+All code should be accompanied by a ultra concise comment description that contextualizes the function, algorithm, and purpose.
+
+## Example Usage
+
+```python
+# /// [function -> purpose]
+```
