@@ -201,10 +201,10 @@ deploy_vscode_to_github() {
             local filename=$(basename "$source_file")
             local dest_filename
             
-            # Convert .mdc files to {filename}-instructions.md format in .github/instructions/
+            # Convert .mdc files to {filename}.instructions.md format in .github/instructions/
             if [[ "$filename" == *.mdc ]]; then
                 local base_name="${filename%.mdc}"
-                dest_filename="${base_name}-instructions.md"
+                dest_filename="${base_name}.instructions.md"
                 
                 local dest_file="$instructions_dir/$dest_filename"
                 
@@ -263,13 +263,13 @@ deploy_vscode_to_github() {
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • .mdc files converted to -instructions.md format in .github/instructions/${RESET}"
+    echo -e "${CYAN}  • .mdc files converted to .instructions.md format in .github/instructions/${RESET}"
     echo -e "${CYAN}  • GitHub Copilot configuration files${RESET}"
     echo -e "${CYAN}  • FUNDING.yml in .github/ directory${RESET}"
     
     # List actual instruction files
     local instruction_count=0
-    for file in "$instructions_dir"/*-instructions.md; do
+    for file in "$instructions_dir"/*.instructions.md; do
         if [[ -f "$file" ]]; then
             instruction_count=$((instruction_count + 1))
         fi
@@ -432,7 +432,7 @@ function ainish-coder {
     
     if [[ "$1" == "--vscode" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
-        echo "✨ AINISH-Coder .mdc files deployed to ainish-coder/.github/instructions/ with -instructions.md naming"
+        echo "✨ AINISH-Coder .mdc files deployed to ainish-coder/.github/instructions/ with .instructions.md naming"
     elif [[ "$1" == "--markdown" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
         echo "✨ AINISH-Coder configurations deployed (as .md files)"
@@ -503,7 +503,7 @@ main() {
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
-            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/.github/instructions/ with -instructions.md naming${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/.github/instructions/ with .instructions.md naming${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"
