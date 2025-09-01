@@ -176,6 +176,7 @@ deploy_all_to_ainish_coder_markdown() {
 
 deploy_vscode_to_github() {
     local target_dir="$1"
+    local single_mode="$2"
     
     if [[ ! -d "$target_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
@@ -193,8 +194,13 @@ deploy_vscode_to_github() {
         echo ""
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with proper .github/instructions/ structure${RESET}"
-    echo -e "${CYAN}   Naming convention: {filename}.mdc → {filename}.instructions.md${RESET}"
+    if [[ "$single_mode" == "single" ]]; then
+        echo -e "${BRIGHT_BLUE}Deploying .mdc files as consolidated copilot-instructions.md to $target_dir/ainish-coder/.github/${RESET}"
+        echo -e "${CYAN}   Mode: Single consolidated file (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+    else
+        echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with proper .github/instructions/ structure${RESET}"
+        echo -e "${CYAN}   Naming convention: {filename}.mdc → {filename}.instructions.md${RESET}"
+    fi
     
     local ainish_dir="$target_dir/ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
@@ -202,34 +208,81 @@ deploy_vscode_to_github() {
     local deployed_count=0
     local skipped_count=0
     
-    # Create .github/instructions directory structure for GitHub Copilot
+    # Create .github directory structure for GitHub Copilot
     local github_dir="$ainish_dir/.github"
-    local instructions_dir="$github_dir/instructions"
-    mkdir -p "$instructions_dir" 2>/dev/null
+    mkdir -p "$github_dir" 2>/dev/null
     
-    # Deploy .mdc files to .github/instructions/ with -instructions.md naming
-    while IFS= read -r source_file; do
-        if [[ -f "$source_file" ]]; then
-            local filename=$(basename "$source_file")
-            local dest_filename
-            
-            # Convert .mdc files to {filename}.instructions.md format in .github/instructions/
-            if [[ "$filename" == *.mdc ]]; then
-                local base_name="${filename%.mdc}"
-                dest_filename="${base_name}.instructions.md"
+    if [[ "$single_mode" == "single" ]]; then
+        # Single mode: Create consolidated copilot-instructions.md file
+        local consolidated_file="$github_dir/copilot-instructions.md"
+        
+        # Create the consolidated file
+        echo "# AINISH-Coder Instructions" > "$consolidated_file"
+        echo "" >> "$consolidated_file"
+        echo "This file contains consolidated instructions from all AINISH-Coder .mdc files (excluding anishinaabe-cyberpunk-style.mdc)." >> "$consolidated_file"
+        echo "" >> "$consolidated_file"
+        echo "---" >> "$consolidated_file"
+        echo "" >> "$consolidated_file"
+        
+        # Process .mdc files and append to consolidated file
+        while IFS= read -r source_file; do
+            if [[ -f "$source_file" ]]; then
+                local filename=$(basename "$source_file")
                 
-                local dest_file="$instructions_dir/$dest_filename"
+                # Skip anishinaabe-cyberpunk-style.mdc in single mode
+                if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]]; then
+                    echo -e "${YELLOW}⚠️  Skipped $filename (excluded in single mode)${RESET}"
+                    continue
+                fi
                 
-                if cp "$source_file" "$dest_file" 2>/dev/null; then
-                    echo -e "${GREEN}✓ Deployed $filename as $dest_filename to .github/instructions/${RESET}"
+                # Append .mdc files to consolidated file
+                if [[ "$filename" == *.mdc ]]; then
+                    echo "" >> "$consolidated_file"
+                    echo "## $filename" >> "$consolidated_file"
+                    echo "" >> "$consolidated_file"
+                    cat "$source_file" >> "$consolidated_file"
+                    echo "" >> "$consolidated_file"
+                    echo "---" >> "$consolidated_file"
+                    echo "" >> "$consolidated_file"
+                    
+                    echo -e "${GREEN}✓ Appended $filename to copilot-instructions.md${RESET}"
                     deployed_count=$((deployed_count + 1))
-                else
-                    echo -e "${YELLOW}⚠️  Failed to deploy $filename as $dest_filename${RESET}"
-                    skipped_count=$((skipped_count + 1))
                 fi
             fi
-        fi
-    done < <(get_mdc_files_only)
+        done < <(get_mdc_files_only)
+        
+        echo -e "${GREEN}✓ Created consolidated copilot-instructions.md${RESET}"
+        deployed_count=$((deployed_count + 1))
+        
+    else
+        # Normal mode: Create individual .instructions.md files
+        local instructions_dir="$github_dir/instructions"
+        mkdir -p "$instructions_dir" 2>/dev/null
+        
+        # Deploy .mdc files to .github/instructions/ with .instructions.md naming
+        while IFS= read -r source_file; do
+            if [[ -f "$source_file" ]]; then
+                local filename=$(basename "$source_file")
+                local dest_filename
+                
+                # Convert .mdc files to {filename}.instructions.md format in .github/instructions/
+                if [[ "$filename" == *.mdc ]]; then
+                    local base_name="${filename%.mdc}"
+                    dest_filename="${base_name}.instructions.md"
+                    
+                    local dest_file="$instructions_dir/$dest_filename"
+                    
+                    if cp "$source_file" "$dest_file" 2>/dev/null; then
+                        echo -e "${GREEN}✓ Deployed $filename as $dest_filename to .github/instructions/${RESET}"
+                        deployed_count=$((deployed_count + 1))
+                    else
+                        echo -e "${YELLOW}⚠️  Failed to deploy $filename as $dest_filename${RESET}"
+                        skipped_count=$((skipped_count + 1))
+                    fi
+                fi
+            fi
+        done < <(get_mdc_files_only)
+    fi
     
     # Deploy GitHub Copilot configuration files
     local copilot_files=(
@@ -268,25 +321,38 @@ deploy_vscode_to_github() {
         echo -e "${YELLOW}⚠️  FUNDING.yml not found in source${RESET}"
     fi
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with proper .github/instructions/ structure and GitHub Copilot configs${RESET}"
+    if [[ "$single_mode" == "single" ]]; then
+        echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with consolidated copilot-instructions.md structure${RESET}"
+    else
+        echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with proper .github/instructions/ structure and GitHub Copilot configs${RESET}"
+    fi
+    
     if [[ $skipped_count -gt 0 ]]; then
         echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
     fi
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • .mdc files converted to .instructions.md format in .github/instructions/${RESET}"
-    echo -e "${CYAN}  • GitHub Copilot configuration files${RESET}"
-    echo -e "${CYAN}  • FUNDING.yml in .github/ directory${RESET}"
     
-    # List actual instruction files
-    local instruction_count=0
-    for file in "$instructions_dir"/*.instructions.md; do
-        if [[ -f "$file" ]]; then
-            instruction_count=$((instruction_count + 1))
-        fi
-    done
-    echo -e "${CYAN}  • Total instruction files in .github/instructions/: $instruction_count${RESET}"
+    if [[ "$single_mode" == "single" ]]; then
+        echo -e "${CYAN}  • .mdc files consolidated into copilot-instructions.md in .github/${RESET}"
+        echo -e "${CYAN}  • GitHub Copilot configuration files${RESET}"
+        echo -e "${CYAN}  • FUNDING.yml in .github/ directory${RESET}"
+        echo -e "${CYAN}  • Excluded: anishinaabe-cyberpunk-style.mdc${RESET}"
+    else
+        echo -e "${CYAN}  • .mdc files converted to .instructions.md format in .github/instructions/${RESET}"
+        echo -e "${CYAN}  • GitHub Copilot configuration files${RESET}"
+        echo -e "${CYAN}  • FUNDING.yml in .github/ directory${RESET}"
+        
+        # List actual instruction files
+        local instruction_count=0
+        for file in "$instructions_dir"/*.instructions.md; do
+            if [[ -f "$file" ]]; then
+                instruction_count=$((instruction_count + 1))
+            fi
+        done
+        echo -e "${CYAN}  • Total instruction files in .github/instructions/: $instruction_count${RESET}"
+    fi
 }
 
 setup_ainish_coder_dir() {
@@ -473,7 +539,11 @@ main() {
             deploy_all_to_ainish_coder_markdown "$2"
             ;;
         "--vscode")
-            deploy_vscode_to_github "$2"
+            if [[ "$2" == "--single" ]]; then
+                deploy_vscode_to_github "$3" "single"
+            else
+                deploy_vscode_to_github "$2"
+            fi
             ;;
 
         "list_backups")
@@ -516,6 +586,7 @@ main() {
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/.github/instructions/ with .instructions.md naming${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode --single${RESET}: ${CYAN}Deploy .mdc files as consolidated copilot-instructions.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"
