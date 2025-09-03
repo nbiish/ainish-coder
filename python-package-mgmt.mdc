@@ -26,14 +26,16 @@ All Python code should be ran from proper isolated .venv or .env environments.
 
 - Add inline script metadata for dependencies at the top of your `.py` file using the `# /// script` TOML block.  
   Example:
-  ```
+
+```toml
   # /// script
   # dependencies = [
   #   "requests<3",
   #   "rich",
   # ]
   # ///
-  ```
+```
+
 - (Optionally) Use `uv add --script example.py 'requests<3' 'rich'` to automatically add or update the metadata block.
 - Place your Python code below the metadata block.
 - Run the script in an isolated environment with dependencies resolved: `uv run example.py`
@@ -44,6 +46,32 @@ All Python code should be ran from proper isolated .venv or .env environments.
 - `uv run` will automatically create and manage an isolated environment for the script, installing only the declared dependencies.
 - You can also specify dependencies at runtime with `uv run --with 'package' example.py`, but inline metadata is preferred for reproducibility.
 - For scripts with no dependencies, you can omit the metadata block.
+
+#### Notes on uv .venv -> best practices and notes
+
+- `uv venv` creates a `.venv` directory in the current folder by default, following Python community conventions.
+- To activate the environment manually:
+  - On Unix/macOS: `source .venv/bin/activate`
+  - On Windows: `.venv\Scripts\activate`
+- All `uv pip install ...` commands should be run with the environment activated, or by using `uv pip` directly (which auto-detects the local `.venv`).
+- For project isolation, always use a separate `.venv` per project or per model (e.g., `.model-envs/edge-tts-env/.venv`).
+- To remove an environment, simply delete the `.venv` directory.
+- `uv` does not require `python -m venv` or `virtualenv`; it manages environments natively.
+- For CI/CD, always recreate the environment with `uv venv` and install dependencies with `uv pip install -e .` or from a requirements file.
+- Avoid running `uv pip` or `uv run` from outside the project root to ensure the correct `.venv` is used.
+- For multi-model projects, maintain a clear directory structure for each model's environment as per the knowledge base:
+
+```bash
+.model-envs/
+├── edge-tts-env/
+│   └── .venv/
+├── vibevoice-env/
+│   └── .venv/
+└── f5-tts-env/
+        └── .venv/
+```
+
+- This approach prevents dependency conflicts and ensures reproducibility.
 
 #### Verification
 
