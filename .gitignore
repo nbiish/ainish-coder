@@ -2,12 +2,12 @@
 
 # ai pair programmer files
 .cursor/
+.cursorrules
 .github/copilot-instructions.md
 .github/instructions/*
 .gemini/
 .qwen/
 .claude/
-# qwen, gemini, claude, ...
 
 # Environment and configuration files
 .env
@@ -206,8 +206,5 @@ ainish-coder/
 
 # AINISH-Coder specific
 ainish-coder/
-.cursor/
-.cursorrules
-.github/copilot-instructions.md
 KNOWLEDGE_BASE/
 AINISH-DATA/
