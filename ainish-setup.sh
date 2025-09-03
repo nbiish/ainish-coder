@@ -867,8 +867,8 @@ main() {
         *)
             # Default: Run full initial setup
             echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
-            echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_CYAN}A I N I S H - C O D E R${RESET}                ${BRIGHT_MAGENTA}║${RESET}"
-            echo -e "${BRIGHT_MAGENTA}║${RESET}                    ${CYAN}SETUP SCRIPT${RESET}                     ${BRIGHT_MAGENTA}║${RESET}"
+            echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_CYAN}A I N I S H - C O D E R${RESET}                                    ${BRIGHT_MAGENTA}║${RESET}"
+            echo -e "${BRIGHT_MAGENTA}║${RESET}                    ${CYAN}SETUP SCRIPT${RESET}                                          ${BRIGHT_MAGENTA}║${RESET}"
             echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
             echo ""
 
