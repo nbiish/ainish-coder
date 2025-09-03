@@ -35,6 +35,8 @@
 - **◇ Flexible File Formats ◇**: Support for both `.mdc` and `.md` file formats with the `--markdown` flag.
 - **◇ Automatic Configuration ◇**: Includes Gitignore rules and comprehensive configuration files.
 - **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-coder`) for easy deployment.
+- **◇ Product Requirements Documentation ◇**: Comprehensive PRD.md with detailed project specifications and requirements.
+- **◇ Data Tracking ◇**: MCP usage tracking and data storage capabilities in `AINISH-DATA/` directory.
 
 <div align="center">
 ◈──◆──◇─────────────────◇──◆──◈
@@ -45,14 +47,17 @@
 Before installation, ensure you have:
 
 ### **Required:**
+
 - **Git** - Version control system
 - **Terminal/Command Line Interface** - Built into your operating system
 
 ### **Recommended:**
+
 - **Cursor AI** (~1GB, download from [cursor.so](https://cursor.so)) - Recommended for optimal experience
 - **VSCode** - Alternative code editor with Copilot support
 
 ### **Operating System Support:**
+
 - **macOS** - Fully supported with zsh/bash
 - **Linux** - Fully supported with bash/zsh/fish
 - **Windows** - Supported via PowerShell, Command Prompt, or WSL (Windows Subsystem for Linux)
@@ -68,9 +73,11 @@ The script will automatically detect your system and configure accordingly.
 ### **Step 1: Install Prerequisites**
 
 #### **Git Installation:**
+
 - **Windows:** Download from [git-scm.com](https://git-scm.com/download/win)
 - **macOS:** Install via [Homebrew](https://brew.sh) with `brew install git` or download from git-scm.com
 - **Linux:** Use your package manager:
+
   ```bash
   # Ubuntu/Debian
   sudo apt update && sudo apt install git
@@ -83,14 +90,17 @@ The script will automatically detect your system and configure accordingly.
   ```
 
 #### **Verify Git Installation:**
+
 ```bash
 git --version
 ```
+
 You should see something like `git version 2.39.0`
 
 ### **Step 2: Clone the Repository**
 
 Open your terminal/command prompt and run:
+
 ```bash
 # Clone the repository
 git clone https://github.com/nbiish/ainish-coder
@@ -102,6 +112,7 @@ cd ainish-coder
 ### **Step 3: Platform-Specific Installation**
 
 #### **macOS Installation:**
+
 ```bash
 # Make the setup script executable
 chmod +x ainish-setup.sh
@@ -111,6 +122,7 @@ chmod +x ainish-setup.sh
 ```
 
 #### **Linux Installation:**
+
 ```bash
 # Make the setup script executable
 chmod +x ainish-setup.sh
@@ -122,6 +134,7 @@ chmod +x ainish-setup.sh
 #### **Windows Installation:**
 
 **Option A: PowerShell (Recommended)**
+
 ```powershell
 # Navigate to the directory
 cd ainish-coder
@@ -131,6 +144,7 @@ cd ainish-coder
 ```
 
 **Option B: Command Prompt**
+
 ```cmd
 # Navigate to the directory
 cd ainish-coder
@@ -140,6 +154,7 @@ ainish-setup.sh
 ```
 
 **Option C: WSL (Windows Subsystem for Linux)**
+
 ```bash
 # Navigate to the directory
 cd ainish-coder
@@ -156,6 +171,7 @@ chmod +x ainish-setup.sh
 After running the setup script, you need to reload your shell configuration:
 
 **macOS/Linux:**
+
 ```bash
 source ~/.zshrc    # If using zsh
 source ~/.bashrc   # If using bash
@@ -163,11 +179,13 @@ source ~/.config/fish/config.fish  # If using fish
 ```
 
 **Windows PowerShell:**
+
 ```powershell
 . $PROFILE
 ```
 
 **Windows Command Prompt:**
+
 ```cmd
 # Restart your command prompt
 ```
@@ -175,6 +193,7 @@ source ~/.config/fish/config.fish  # If using fish
 ### **Step 5: Verify Installation**
 
 Test that the installation worked:
+
 ```bash
 # Check if the command is available
 ainish-coder --help
@@ -237,12 +256,17 @@ ainish-coder/
 ├── docs-use.mdc                 # Documentation usage guidelines
 ├── informing.mdc                # Code documentation requirements
 ├── PRD.mdc                      # Universal Product Requirements Document template
+├── PRD.md                       # Product Requirements Document (current version)
 ├── prd-and-context.mdc          # PRD and context management rules
 ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 ├── python-package-mgmt.mdc      # Python package management rules
 ├── verify-date-and-time.mdc     # Date and time verification rules
 ├── math-process.mdc             # M.A.T.H. process rule for development standards
+├── structure.mdc                # Code structure and architecture guidelines
+├── cursor-wrapper.sh            # Cursor AI wrapper script
 ├── .gitignore                   # Standard Git ignore rules
+├── .cursorignore                # Cursor AI ignore rules
+├── .cursorindexignore           # Cursor AI index ignore rules
 ├── .github/                     # GitHub configuration
 │   └── FUNDING.yml             # Funding configuration for Sponsor button and donation links
 ├── ainish-vscode/               # VSCode/Copilot configurations
@@ -255,8 +279,15 @@ ainish-coder/
 │       └── instructions/       # Separate instruction files
 │           ├── modern-prompting.instructions.md        # Modern prompting framework
 │           └── anishinaabe-cyberpunk-style.instructions.md  # Styling guide
-└── .cursor/                     # Cursor AI configuration
-    └── rules/                  # Cursor rules directory
+├── .cursor/                     # Cursor AI configuration
+│   └── rules/                  # Cursor rules directory
+├── AINISH-DATA/                 # Data storage directory
+│   ├── good-mcp-use.csv        # MCP usage tracking data
+│   └── mcp_data.db             # MCP database
+├── LICENSE                      # Comprehensive restricted use license
+├── CONTRIBUTING.md              # Contributing guidelines
+├── qr-stripe-donation.png       # Stripe donation QR code
+└── buymeacoffee-button.svg      # Buy me a coffee button
 ```
 
 <div align="center">
@@ -270,7 +301,9 @@ ainish-coder/
 The `ainish-coder` command provides three distinct deployment modes:
 
 #### **Core AINISH Configurations** (`ainish-coder`)
+
 Deploys essential AINISH configuration files to `./ainish-coder/` directory:
+
 - `critical.mdc`: Core AINISH configuration file
 - `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions
 - `security.mdc`: Comprehensive security and cybersecurity framework
@@ -287,14 +320,18 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory:
 - `.github/FUNDING.yml`: GitHub funding configuration for Sponsor button and donation links
 
 #### **Core AINISH Configurations (Markdown Format)** (`ainish-coder --markdown`)
+
 Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/` directory:
+
 - All core configuration files converted from `.mdc` to `.md` format
 - Same content and functionality as standard deployment
 - Better compatibility with standard markdown tools and GitHub
 - **Total: 15 configuration files (as .md)**
 
 #### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
+
 Deploys editor-specific configurations with structured distribution:
+
 - `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
 - `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
 - `copilot-instructions.md`: Consolidated instructions from all other .mdc files
@@ -319,21 +356,27 @@ The `ainish-setup.sh` script:
 After installation, you'll have access to these convenient wrapper commands:
 
 #### **`ainish-coder`** - Core AINISH Configurations
+
 Deploys essential AINISH configuration files to `./ainish-coder/` directory in your current location:
+
 - Core configuration files (`.mdc` files)
 - `.gitignore` file
 - `.github/FUNDING.yml` file
 - **Total: 15 configuration files**
 
 #### **`ainish-coder --markdown`** - Core AINISH Configurations (Markdown Format)
+
 Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/` directory in your current location:
+
 - Core configuration files (`.md` files converted from .mdc)
 - `.gitignore` file
 - `.github/FUNDING.yml` file
 - **Total: 15 configuration files (as .md)**
 
 #### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
+
 Deploys editor-specific configurations with structured distribution:
+
 - `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
 - `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
 - `copilot-instructions.md`: Consolidated instructions from all other .mdc files
@@ -384,6 +427,21 @@ The project now supports multiple file format options to meet different needs:
   - GitHub markdown rendering
   - Universal markdown processors
   - Better integration with existing workflows
+
+### Product Requirements Documentation
+
+The project includes a comprehensive **Product Requirements Document (PRD.md)** that serves as the foundation for all development decisions. The PRD includes:
+
+- **Objective and Purpose**: Clear definition of project goals and cultural integration
+- **Scope and Features**: Detailed in-scope and out-of-scope feature definitions
+- **User Experience Flow**: Complete user journey from installation to usage
+- **QAMMML Structure**: Quanta-Atoms-Molecules-Matter-Matter-Phase-Lifeform architecture
+- **Functional Requirements**: Core features and security implementations
+- **Non-Functional Requirements**: Performance, reliability, and cultural sensitivity standards
+- **Success Metrics**: Key performance indicators and acceptance criteria
+- **Knowledge Base**: Comprehensive documentation and cultural context
+
+The PRD embodies Indigenous intellectual property principles while maintaining technical excellence and serves as a living document for project development.
 
 ### Anishinaabe-Cyberpunk Styling
 

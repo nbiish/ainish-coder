@@ -290,4 +290,4 @@ Include rollback triggers and verification steps
 
 ---
 
-Begin every interaction with `deliberate(stage: "orient")` to establish proper cognitive grounding.
+Begin every interaction with `deliberate` to establish proper cognitive grounding.

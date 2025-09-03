@@ -1,7 +1,3 @@
-# AINISH-Coder Instructions
-
-This file contains consolidated instructions from all AINISH-Coder .mdc files (excluding modern-prompting.mdc and anishinaabe-cyberpunk-style.mdc which are available as separate instruction files).
-
 ---
 
 ## code-judge.mdc

@@ -201,3 +201,10 @@ ainish-coder/
 *.dmg
 *.pkg
 
+# AINISH-Coder specific
+ainish-coder/
+.cursor/
+.cursorrules
+.github/copilot-instructions.md
+KNOWLEDGE_BASE/
+AINISH-DATA/

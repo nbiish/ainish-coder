@@ -55,7 +55,7 @@ Example:
 ````text
 ```language
 ╭─────────────────────────────────────╮
-│  ᐴ TERM ᔔ [ TRANSLATION ]                                            │
+│  ᐴ TERM ᔔ [ TRANSLATION ]          │
 ╰─────────────────────────────────────╯
 
 // Code content here
@@ -77,8 +77,8 @@ Example:
 ```bash
 echo "
 ╭─────────────────────────────────────╮
-│  ᐴ TERM ᔔ [ TRANSLATION ]                    │
-│  ◈──◆──◇─◈ DESCRIPTION ◈─◇──◆──◈             │   
+│  ᐴ TERM ᔔ [ TRANSLATION ]          │
+│  ◈──◆──◇─◈ DESCRIPTION ◈─◇──◆──◈    │   
 ╰─────────────────────────────────────╯
 "
 ```

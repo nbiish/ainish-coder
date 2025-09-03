@@ -216,13 +216,8 @@ deploy_vscode_to_github() {
         # Single mode: Create consolidated copilot-instructions.md file
         local consolidated_file="$github_dir/copilot-instructions.md"
         
-        # Create the consolidated file
-        echo "# AINISH-Coder Instructions" > "$consolidated_file"
-        echo "" >> "$consolidated_file"
-        echo "This file contains consolidated instructions from all AINISH-Coder .mdc files (excluding anishinaabe-cyberpunk-style.mdc)." >> "$consolidated_file"
-        echo "" >> "$consolidated_file"
-        echo "---" >> "$consolidated_file"
-        echo "" >> "$consolidated_file"
+        # Create the consolidated file (no header, just pure content)
+        echo "" > "$consolidated_file"
         
         # Process .mdc files and append to consolidated file
         while IFS= read -r source_file; do
@@ -237,12 +232,7 @@ deploy_vscode_to_github() {
                 
                 # Append .mdc files to consolidated file
                 if [[ "$filename" == *.mdc ]]; then
-                    echo "" >> "$consolidated_file"
-                    echo "## $filename" >> "$consolidated_file"
-                    echo "" >> "$consolidated_file"
                     cat "$source_file" >> "$consolidated_file"
-                    echo "" >> "$consolidated_file"
-                    echo "---" >> "$consolidated_file"
                     echo "" >> "$consolidated_file"
                     
                     echo -e "${GREEN}✓ Appended $filename to copilot-instructions.md${RESET}"
@@ -491,6 +481,167 @@ deploy_vscode_structured() {
     echo -e "${CYAN}  • .github/FUNDING.yml${RESET}"
 }
 
+deploy_gemini_structured() {
+    local target_dir="$1"
+    
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Deploying AINISH-Coder configurations to GEMINI at ~/.gemini/${RESET}"
+    echo -e "${CYAN}   Structure: Consolidated .mdc files (excluding anishinaabe-cyberpunk-style.mdc) into GEMINI.md${RESET}"
+    
+    local deployed_count=0
+    local skipped_count=0
+    
+    # Create .gemini directory in home if it doesn't exist
+    local gemini_dir="${HOME}/.gemini"
+    mkdir -p "$gemini_dir" 2>/dev/null
+    
+    # Create consolidated GEMINI.md file
+    local gemini_file="$gemini_dir/GEMINI.md"
+    
+    # Create the consolidated file (no header, just pure content)
+    echo "" > "$gemini_file"
+    
+    # Process .mdc files and append to consolidated file
+    while IFS= read -r source_file; do
+        if [[ -f "$source_file" ]]; then
+            local filename=$(basename "$source_file")
+            
+            # Skip anishinaabe-cyberpunk-style.mdc
+            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]]; then
+                echo -e "${YELLOW}⚠️  Skipped $filename (excluded from GEMINI consolidation)${RESET}"
+                continue
+            fi
+            
+            # Append .mdc files to consolidated file
+            if [[ "$filename" == *.mdc ]]; then
+                cat "$source_file" >> "$gemini_file"
+                echo "" >> "$gemini_file"
+                
+                echo -e "${GREEN}✓ Appended $filename to GEMINI.md${RESET}"
+                deployed_count=$((deployed_count + 1))
+            fi
+        fi
+    done < <(get_mdc_files_only)
+    
+    echo -e "${GREEN}✓ Created consolidated GEMINI.md${RESET}"
+    deployed_count=$((deployed_count + 1))
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to ~/.gemini/ with GEMINI structured distribution${RESET}"
+    
+    if [[ $skipped_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
+    fi
+    
+    # Display summary of deployed files
+    echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    echo -e "${CYAN}  • GEMINI.md (consolidated from .mdc files, excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+}
+
+deploy_qwen_structured() {
+    local target_dir="$1"
+    
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Deploying AINISH-Coder configurations to QWEN at ~/.qwen/${RESET}"
+    echo -e "${CYAN}   Structure: Consolidated .mdc files (excluding anishinaabe-cyberpunk-style.mdc) into QWEN.md${RESET}"
+    
+    local deployed_count=0
+    local skipped_count=0
+    
+    # Create .qwen directory in home if it doesn't exist
+    local qwen_dir="${HOME}/.qwen"
+    mkdir -p "$qwen_dir" 2>/dev/null
+    
+    # Create consolidated QWEN.md file
+    local qwen_file="$qwen_dir/QWEN.md"
+    
+    # Create the consolidated file (no header, just pure content)
+    echo "" > "$qwen_file"
+    
+    # Process .mdc files and append to consolidated file
+    while IFS= read -r source_file; do
+        if [[ -f "$source_file" ]]; then
+            local filename=$(basename "$source_file")
+            
+            # Skip anishinaabe-cyberpunk-style.mdc
+            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]]; then
+                echo -e "${YELLOW}⚠️  Skipped $filename (excluded from QWEN consolidation)${RESET}"
+                continue
+            fi
+            
+            # Append .mdc files to consolidated file
+            if [[ "$filename" == *.mdc ]]; then
+                cat "$source_file" >> "$qwen_file"
+                echo "" >> "$qwen_file"
+                
+                echo -e "${GREEN}✓ Appended $filename to QWEN.md${RESET}"
+                deployed_count=$((deployed_count + 1))
+            fi
+        fi
+    done < <(get_mdc_files_only)
+    
+    echo -e "${GREEN}✓ Created consolidated QWEN.md${RESET}"
+    deployed_count=$((deployed_count + 1))
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to ~/.qwen/ with QWEN structured distribution${RESET}"
+    
+    if [[ $skipped_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
+    fi
+    
+    # Display summary of deployed files
+    echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    echo -e "${CYAN}  • QWEN.md (consolidated from .mdc files, excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+}
+
+deploy_style_file() {
+    local target_dir="$1"
+    
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Deploying anishinaabe-cyberpunk-style.mdc as .md file to $target_dir${RESET}"
+    
+    local deployed_count=0
+    local skipped_count=0
+    
+    # Deploy anishinaabe-cyberpunk-style.mdc as .md file
+    local source_file="${REPO_DIR}/anishinaabe-cyberpunk-style.mdc"
+    local dest_file="$target_dir/anishinaabe-cyberpunk-style.md"
+    
+    if [[ -f "$source_file" ]]; then
+        if cp "$source_file" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.mdc as anishinaabe-cyberpunk-style.md${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy anishinaabe-cyberpunk-style.mdc${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  anishinaabe-cyberpunk-style.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $target_dir/ with style deployment${RESET}"
+    
+    if [[ $skipped_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
+    fi
+    
+    # Display summary of deployed files
+    echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    echo -e "${CYAN}  • anishinaabe-cyberpunk-style.md (Anishinaabe-inspired cyberpunk styling guide)${RESET}"
+}
+
 setup_ainish_coder_dir() {
     echo -e "${BRIGHT_CYAN}🔧 Setting up ~/.ainish-coder directory...${RESET}"
     
@@ -647,6 +798,15 @@ function ainish-coder {
     if [[ "$1" == "--vscode" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
         echo "✨ AINISH-Coder deployed with structured distribution: separate modern-prompting & anishinaabe-cyberpunk-style, consolidated others"
+    elif [[ "$1" == "--gemini" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --gemini "$current_dir"
+        echo "✨ AINISH-Coder configurations deployed to GEMINI: consolidated .mdc files excluding anishinaabe-cyberpunk-style.mdc"
+    elif [[ "$1" == "--qwen" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --qwen "$current_dir"
+        echo "✨ AINISH-Coder configurations deployed to QWEN: consolidated .mdc files excluding anishinaabe-cyberpunk-style.mdc"
+    elif [[ "$1" == "--style" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --style "$current_dir"
+        echo "✨ AINISH-Coder style guide deployed: anishinaabe-cyberpunk-style.mdc as .md file"
     elif [[ "$1" == "--markdown" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
         echo "✨ AINISH-Coder configurations deployed (as .md files)"
@@ -683,6 +843,15 @@ main() {
                 deploy_vscode_structured "$2"
             fi
             ;;
+        "--gemini")
+            deploy_gemini_structured "$2"
+            ;;
+        "--qwen")
+            deploy_qwen_structured "$2"
+            ;;
+        "--style")
+            deploy_style_file "$2"
+            ;;
 
         "list_backups")
             list_zshrc_backups
@@ -714,8 +883,8 @@ main() {
             setup_wrapper_functions
             
             echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
-            echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_GREEN}A I N I S H - C O D E R${RESET}            ${BRIGHT_MAGENTA}║${RESET}"
-            echo -e "${BRIGHT_MAGENTA}║${RESET}                    ${GREEN}SETUP COMPLETE${RESET}                        ${BRIGHT_MAGENTA}║${RESET}"
+            echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_GREEN}A I N I S H - C O D E R${RESET}                                    ${BRIGHT_MAGENTA}║${RESET}"
+            echo -e "${BRIGHT_MAGENTA}║${RESET}                    ${GREEN}SETUP COMPLETE${RESET}                                        ${BRIGHT_MAGENTA}║${RESET}"
             echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
             echo ""
             echo -e "${BRIGHT_CYAN}🔄 To activate changes: ${BRIGHT_BLUE}source ~/.zshrc${RESET}"
@@ -725,6 +894,9 @@ main() {
             echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy with structured distribution: separate modern-prompting & anishinaabe-cyberpunk-style, consolidated others${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode --single${RESET}: ${CYAN}Deploy .mdc files as consolidated copilot-instructions.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --gemini${RESET}: ${CYAN}Deploy consolidated .mdc files to GEMINI.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --qwen${RESET}: ${CYAN}Deploy consolidated .mdc files to QWEN.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --style${RESET}: ${CYAN}Deploy anishinaabe-cyberpunk-style.mdc as .md file to current directory${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"

@@ -1,35 +1,38 @@
 ---
 alwaysApply: true
 ---
-# PRD - Context - Knowledge Base
+# Context = Knowledge Base = PRD
 
-All code, features, and implementation decisions MUST strictly follow the Product Requirements Document (PRD)
-and be based on foundational knowledge gathered into the project's knowledge base.
+All code, features, and implementation decisions MUST strictly follow the Product Requirements Document (PRD.md)
+and be based on factual information gathered into the project's KNOWLEDGE_BASE/*.
 
-Knowledge Base:
+## KNOWLEDGE_BASE/*
 
-- /facts* directories
-- /docs* directories
-- /usage* directories
-- /fix* directories
+- /docs*
+- /requirements*
+- /features*
+- /issues*
 
-## Technical/Methodology Choices
+## Technical & Methodology Choices
 
-- All new features, bugfixes, and refactors must be cross-checked against the PRD and knowledge base for compliance.
-- Any deviation or extension must be documented in the PRD and knowledge base before proceeding.
-- All planning should happen in the PRD and reference specific content from the knowledge base.
+- All new features, bugfixes, and refactors must be cross-checked against the PRD.md and KNOWLEDGE_BASE/* for compliance.
+- Any deviation or extension must be documented in the PRD.md and KNOWLEDGE_BASE/* before proceeding.
+- All planning should happen in the PRD.md and reference specific content from the KNOWLEDGE_BASE/*.
 
-Example Usage:
-  // When adding a new feature:
-  // 1. Update the knowledge base and PRD with feature details and usage.
-  // 2. Gather the facts and context for the knowledge base.
-  // 3. Implement code changes to match the documented requirements.
-  // 4. Ensure all code aligns with the PRD and knowledge base.
-  // 5. Update the PRD and knowledge base with the new feature details and usage.
+### Example Usage When Adding a New Feature
 
-Example Usage:
-  // When fixing a bug:
-  // 1. Update the PRD and knowledge base with the bug details and usage.
-  // 2. Gather the facts and context for the knowledge base.
-  // 3. Implement code changes to fix the bug.
-  // 4. Ensure all code aligns with the PRD and knowledge base.
+When adding a new feature:
+
+1. Concisely document the new feature in the PRD.md.
+2. Gather the docs, facts, and context for the KNOWLEDGE_BASE/* to supply factual information to the PRD.md, README.md, and codebase.
+3. Code must match factual information pulled from the KNOWLEDGE_BASE/*.
+4. Update the PRD.md and KNOWLEDGE_BASE/* with the new feature details and usage.
+
+### Example Usage When Fixing a Bug
+
+When fixing a bug:
+
+1. Update the PRD.md and KNOWLEDGE_BASE/* with the bug details and usage.
+2. Gather the facts and context into the KNOWLEDGE_BASE/*.
+3. Implement code changes to fix the bug.
+4. Ensure all code aligns with the PRD.md and KNOWLEDGE_BASE/*.
