@@ -28,7 +28,8 @@
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Automatic File Distribution ◇**: The setup script automatically distributes key files (`critical.mdc`, `modern-prompting.mdc`, `docs-use.mdc`, `informing.mdc`, `security.mdc`, `PRD.mdc`, `code-judge.mdc`, `anishinaabe-cyberpunk-style.mdc`) to appropriate tool directories.
+- **◇ Triple Deployment System ◇**: Core configurations, Markdown format deployment, and VSCode/Copilot structured distribution.
+- **◇ Structured VSCode Distribution ◇**: Separate `modern-prompting.instructions.md` and `anishinaabe-cyberpunk-style.instructions.md` files, plus consolidated `copilot-instructions.md`.
 - **◇ Multiple AI Tool Support ◇**: Unified configuration system for all AI coding tools including GitHub Copilot, Cursor AI, and VSCode.
 - **◇ Comprehensive Copilot Instructions ◇**: Consolidated development guidelines, security protocols, and best practices in `copilot-instructions.md` for optimal AI-assisted development.
 - **◇ Flexible File Formats ◇**: Support for both `.mdc` and `.md` file formats with the `--markdown` flag.
@@ -246,8 +247,14 @@ ainish-coder/
 │   └── FUNDING.yml             # Funding configuration for Sponsor button and donation links
 ├── ainish-vscode/               # VSCode/Copilot configurations
 │   ├── .copilotignore          # Copilot ignore rules
-│   ├── anishinaabe-cyberpunk-style.md  # VSCode styling guide
-│   └── copilot-instructions.md # Comprehensive Copilot instruction set
+│   ├── .copilotindexignore     # Copilot index ignore rules
+│   ├── .gitignore              # Git ignore rules
+│   ├── copilot-instructions.md # Consolidated Copilot instruction set
+│   └── .github/                # GitHub configuration
+│       ├── FUNDING.yml         # GitHub funding configuration
+│       └── instructions/       # Separate instruction files
+│           ├── modern-prompting.instructions.md        # Modern prompting framework
+│           └── anishinaabe-cyberpunk-style.instructions.md  # Styling guide
 └── .cursor/                     # Cursor AI configuration
     └── rules/                  # Cursor rules directory
 ```
@@ -287,9 +294,12 @@ Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/`
 - **Total: 15 configuration files (as .md)**
 
 #### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
-Deploys editor-specific configurations:
-- `.cursor/rules/` directory: Cursor AI rule files
-- `ainish-vscode/` directory: VSCode and Copilot configurations (including copilot-instructions.md and styling guides)
+Deploys editor-specific configurations with structured distribution:
+- `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
+- `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
+- `copilot-instructions.md`: Consolidated instructions from all other .mdc files
+- `.gitignore`, `.copilotignore`, `.copilotindexignore`: Configuration files
+- `.github/FUNDING.yml`: GitHub funding configuration
 
 <div align="center">
 ◈──◆──◇─────────────────◇──◆──◈
@@ -323,10 +333,13 @@ Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/`
 - **Total: 15 configuration files (as .md)**
 
 #### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
-Deploys editor-specific configurations:
-- `.cursor/rules/` directory: Cursor AI rule files
-- `ainish-vscode/` directory: VSCode and Copilot configurations (including copilot-instructions.md and styling guides)
-- **Total: 14+ VSCode/Copilot configuration files**
+Deploys editor-specific configurations with structured distribution:
+- `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
+- `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
+- `copilot-instructions.md`: Consolidated instructions from all other .mdc files
+- `.gitignore`, `.copilotignore`, `.copilotindexignore`: Configuration files
+- `.github/FUNDING.yml`: GitHub funding configuration
+- **Total: 7 structured configuration files**
 
 ### Updating
 
@@ -338,18 +351,28 @@ To update later, simply pull the latest changes into the repository directory an
 
 ## ᐴ ONAAKONIGE ᔔ [Configuration] ◈──◆──◇──◆──◈
 
-### Comprehensive Copilot Instructions
+### Structured VSCode Distribution
 
-The project includes a consolidated `copilot-instructions.md` file that combines all development guidelines, security protocols, and best practices into a single, professionally organized reference. This file is automatically distributed to the `ainish-vscode/` directory when using `ainish-coder --vscode`, providing GitHub Copilot with:
+The project now features a structured distribution system for VSCode/Copilot configurations that separates key instruction files for better organization and accessibility:
 
-- **Security & Cybersecurity Framework** (Highest Priority)
-- **Modern Prompting & Context Engineering** (Core Methodology)
-- **Code Judge & Reasoning Framework** (Cognitive Development)
-- **Code Structure & Architecture** (Development Standards)
-- **Package Management Rules** (Technology-Specific)
-- **Documentation & Context Rules** (Project Alignment)
-- **Time & Information Gathering** (Current Data Protocol)
-- **Critical Operations** (Essential Procedures)
+#### **Separate Instruction Files:**
+- **`modern-prompting.instructions.md`**: Advanced cognitive framework for LLM interactions, available as a standalone file for easy reference and integration
+- **`anishinaabe-cyberpunk-style.instructions.md`**: Cultural styling guide combining Anishinaabe elements with cyberpunk aesthetics, available as a separate file for design consistency
+
+#### **Consolidated Instructions:**
+- **`copilot-instructions.md`**: Combines all other development guidelines, security protocols, and best practices into a single, professionally organized reference
+
+This structured approach provides GitHub Copilot with:
+
+- **Security & Cybersecurity Framework** (Highest Priority) - Available in consolidated file
+- **Modern Prompting & Context Engineering** (Core Methodology) - Available as separate file
+- **Code Judge & Reasoning Framework** (Cognitive Development) - Available in consolidated file
+- **Code Structure & Architecture** (Development Standards) - Available in consolidated file
+- **Package Management Rules** (Technology-Specific) - Available in consolidated file
+- **Documentation & Context Rules** (Project Alignment) - Available in consolidated file
+- **Time & Information Gathering** (Current Data Protocol) - Available in consolidated file
+- **Critical Operations** (Essential Procedures) - Available in consolidated file
+- **Anishinaabe-Cyberpunk Styling** (Cultural Integration) - Available as separate file
 
 ### Flexible File Formats
 

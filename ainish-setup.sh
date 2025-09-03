@@ -355,6 +355,142 @@ deploy_vscode_to_github() {
     fi
 }
 
+deploy_vscode_structured() {
+    local target_dir="$1"
+    
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Deploying AINISH-Coder with structured distribution to $target_dir/ainish-coder/${RESET}"
+    echo -e "${CYAN}   Structure: Separate modern-prompting & anishinaabe-cyberpunk-style, consolidated others${RESET}"
+    
+    local ainish_dir="$target_dir/ainish-coder"
+    mkdir -p "$ainish_dir" 2>/dev/null
+    
+    local deployed_count=0
+    local skipped_count=0
+    
+    # Create .github directory structure
+    local github_dir="$ainish_dir/.github"
+    local instructions_dir="$github_dir/instructions"
+    mkdir -p "$instructions_dir" 2>/dev/null
+    
+    # Deploy modern-prompting.instructions.md separately
+    local modern_prompting_source="${REPO_DIR}/ainish-vscode/.github/instructions/modern-prompting.instructions.md"
+    if [[ -f "$modern_prompting_source" ]]; then
+        local dest_file="$instructions_dir/modern-prompting.instructions.md"
+        if cp "$modern_prompting_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed modern-prompting.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy modern-prompting.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  modern-prompting.instructions.md not found in source${RESET}"
+    fi
+    
+    # Deploy anishinaabe-cyberpunk-style.instructions.md separately
+    local anishinaabe_source="${REPO_DIR}/ainish-vscode/.github/instructions/anishinaabe-cyberpunk-style.instructions.md"
+    if [[ -f "$anishinaabe_source" ]]; then
+        local dest_file="$instructions_dir/anishinaabe-cyberpunk-style.instructions.md"
+        if cp "$anishinaabe_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed anishinaabe-cyberpunk-style.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy anishinaabe-cyberpunk-style.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  anishinaabe-cyberpunk-style.instructions.md not found in source${RESET}"
+    fi
+    
+    # Deploy consolidated copilot-instructions.md
+    local consolidated_source="${REPO_DIR}/ainish-vscode/copilot-instructions.md"
+    if [[ -f "$consolidated_source" ]]; then
+        local dest_file="$ainish_dir/copilot-instructions.md"
+        if cp "$consolidated_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed consolidated copilot-instructions.md${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy copilot-instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  copilot-instructions.md not found in source${RESET}"
+    fi
+    
+    # Deploy .gitignore
+    local gitignore_source="${REPO_DIR}/ainish-vscode/.gitignore"
+    if [[ -f "$gitignore_source" ]]; then
+        local dest_file="$ainish_dir/.gitignore"
+        if cp "$gitignore_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed .gitignore${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy .gitignore${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  .gitignore not found in source${RESET}"
+    fi
+    
+    # Deploy GitHub Copilot configuration files
+    local copilot_files=(
+        ".copilotignore"
+        ".copilotindexignore"
+    )
+    
+    for copilot_file in "${copilot_files[@]}"; do
+        local source_file="${REPO_DIR}/ainish-vscode/${copilot_file}"
+        if [[ -f "$source_file" ]]; then
+            local dest_file="$ainish_dir/$copilot_file"
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed GitHub Copilot config: $copilot_file${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy GitHub Copilot config: $copilot_file${RESET}"
+                skipped_count=$((skipped_count + 1))
+            fi
+        else
+            echo -e "${YELLOW}⚠️  GitHub Copilot config not found: $copilot_file${RESET}"
+        fi
+    done
+    
+    # Deploy FUNDING.yml to .github directory
+    local funding_source="${REPO_DIR}/ainish-vscode/.github/FUNDING.yml"
+    if [[ -f "$funding_source" ]]; then
+        local funding_dest="$github_dir/FUNDING.yml"
+        if cp "$funding_source" "$funding_dest" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed FUNDING.yml to .github/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy FUNDING.yml${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  FUNDING.yml not found in source${RESET}"
+    fi
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to $ainish_dir/ with structured distribution${RESET}"
+    
+    if [[ $skipped_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
+    fi
+    
+    # Display summary of deployed files
+    echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    echo -e "${CYAN}  • .github/instructions/modern-prompting.instructions.md (separate)${RESET}"
+    echo -e "${CYAN}  • .github/instructions/anishinaabe-cyberpunk-style.instructions.md (separate)${RESET}"
+    echo -e "${CYAN}  • copilot-instructions.md (consolidated from other .mdc files)${RESET}"
+    echo -e "${CYAN}  • .gitignore${RESET}"
+    echo -e "${CYAN}  • .copilotignore${RESET}"
+    echo -e "${CYAN}  • .copilotindexignore${RESET}"
+    echo -e "${CYAN}  • .github/FUNDING.yml${RESET}"
+}
+
 setup_ainish_coder_dir() {
     echo -e "${BRIGHT_CYAN}🔧 Setting up ~/.ainish-coder directory...${RESET}"
     
@@ -510,7 +646,7 @@ function ainish-coder {
     
     if [[ "$1" == "--vscode" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" --vscode "$current_dir"
-        echo "✨ AINISH-Coder .mdc files deployed to ainish-coder/.github/instructions/ with .instructions.md naming"
+        echo "✨ AINISH-Coder deployed with structured distribution: separate modern-prompting & anishinaabe-cyberpunk-style, consolidated others"
     elif [[ "$1" == "--markdown" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
         echo "✨ AINISH-Coder configurations deployed (as .md files)"
@@ -541,8 +677,10 @@ main() {
         "--vscode")
             if [[ "$2" == "--single" ]]; then
                 deploy_vscode_to_github "$3" "single"
+            elif [[ "$2" == "--structured" ]]; then
+                deploy_vscode_structured "$3"
             else
-                deploy_vscode_to_github "$2"
+                deploy_vscode_structured "$2"
             fi
             ;;
 
@@ -585,7 +723,7 @@ main() {
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
-            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/.github/instructions/ with .instructions.md naming${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy with structured distribution: separate modern-prompting & anishinaabe-cyberpunk-style, consolidated others${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode --single${RESET}: ${CYAN}Deploy .mdc files as consolidated copilot-instructions.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"

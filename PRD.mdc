@@ -2,101 +2,129 @@
 globs: PRD.md,*PRD.md,PRD*.md
 alwaysApply: false
 ---
-# PRODUCT REQUIREMENTS DOCUMENT: [PROJECT NAME]
+# PRODUCT REQUIREMENTS DOCUMENT: ainish-coder
 
-**Author:** [Your Name] | **Date:** [Date] | **Version:** [1.0]
+**Author:** ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi) | **Date:** September 2, 2025 | **Version:** 2.0
 
 ## 1. OBJECTIVE
 
-**Purpose:** [Define the problem this product solves and why it matters]
+**Purpose:** ainish-coder is a comprehensive configuration manager for AI coding assistants that provides seamless setup and integration for multiple AI development tools in projects. It solves the problem of fragmented AI tool configuration by providing a unified system for deploying structured configurations across different AI coding environments.
 
 ## 2. SCOPE
 
 **In-Scope Features:**
 
-- [Feature 1: Brief description]
-- [Feature 2: Brief description]
-- [Feature 3: Brief description]
+- **Triple Deployment System**: Core AINISH configurations, Markdown format deployment, and VSCode/Copilot structured distribution
+- **Structured VSCode Distribution**: Separate modern-prompting.instructions.md and anishinaabe-cyberpunk-style.instructions.md files, plus consolidated copilot-instructions.md
+- **Unified Configuration Management**: Single script deployment across multiple AI coding environments
+- **Anishinaabe-Cyberpunk Styling**: Cultural integration with modern technical aesthetics
+- **Comprehensive Security Framework**: Built-in cybersecurity and prompt injection defense
+- **Flexible File Formats**: Support for both .mdc and .md file formats
 
 **Out-of-Scope:**
 
-- [What will NOT be included in this release]
+- GUI-based configuration interfaces
+- Real-time configuration synchronization
+- Cloud-based configuration storage
+- Integration with proprietary AI tools beyond GitHub Copilot, Cursor AI, and VSCode
 
 ## 3. USER EXPERIENCE
 
-**User Flow:** [How users will interact with the product]
+**User Flow:** 
+1. **Installation**: Clone repository and run `./ainish-setup.sh` for automatic setup
+2. **Core Deployment**: Use `ainish-coder` to deploy essential configurations to current directory
+3. **Markdown Deployment**: Use `ainish-coder --markdown` for .md format compatibility
+4. **VSCode Deployment**: Use `ainish-coder --vscode` for structured distribution with separate instruction files
+5. **Verification**: Confirm files are deployed correctly in target directories
 
 ## 4. STRUCTURE -> 'camel' workflow -> QAMMML (Quanta Atoms Molecule Matter Matter-Phase Lifeform)
 
-**Quanta:** [The smallest unit of the product]
+**Quanta:** Individual configuration files (.mdc/.md), shell functions, and deployment scripts
 
-**Atoms:** [The smallest units comprise the atomic structure]
+**Atoms:** Configuration modules (security.mdc, modern-prompting.mdc, etc.), deployment functions, wrapper commands
 
-**Molecules:** [The atomic structure forms molecules]
+**Molecules:** Deployment systems (core, markdown, vscode), configuration bundles, installation workflows
 
-**Matter:** [The molecules form matter]
+**Matter:** ainish-setup.sh script, ainish-coder wrapper functions, structured distribution system
 
-**Matter Phases:** [Matter phases create lifeforms]
+**Matter Phases:** Installation phase, deployment phase, verification phase, update phase
 
-**Lifeforms:** [Lifeforms are the final product]
+**Lifeforms:** Complete ainish-coder system providing unified AI coding assistant configuration management
 
 ## 5. FUNCTIONAL REQUIREMENTS
 
 ### Core Features
 
-- **[Feature Name]:** [Examples _____, _____, _____]
+- **Triple Deployment System:** Core configurations, Markdown format, VSCode structured distribution
+- **Structured VSCode Distribution:** Separate modern-prompting.instructions.md, anishinaabe-cyberpunk-style.instructions.md, consolidated copilot-instructions.md
+- **Unified Configuration Management:** Single script deployment across multiple AI coding environments
+- **Anishinaabe-Cyberpunk Styling:** Cultural integration with modern technical aesthetics
+- **Comprehensive Security Framework:** Built-in cybersecurity and prompt injection defense
+- **Flexible File Formats:** Support for both .mdc and .md file formats
 
 ## 6. NON-FUNCTIONAL REQUIREMENTS
 
-**Performance:** [Response times, scalability, reliability targets]
-**Usability:** [Design principles, accessibility standards (WCAG 2.1 AA)]
-**Security:** [Authentication, data protection, compliance requirements]
-**Compatibility:** [Browser/platform support, integrations]
+**Performance:** Deployment completes within 5 seconds, supports projects with 1000+ files, 99.9% reliability
+**Usability:** Command-line interface with clear feedback, cross-platform compatibility, intuitive wrapper functions
+**Security:** Built-in prompt injection defense, secure file handling, no external dependencies for core functionality
+**Compatibility:** macOS, Linux, Windows (PowerShell/Command Prompt/WSL), Git, zsh/bash/fish shells
 
 ## 7. ASSUMPTIONS & CONSTRAINTS
 
 **Assumptions:**
 
-- [Key assumption 1]
-- [Key assumption 2]
+- Users have basic command-line familiarity
+- Target projects use Git for version control
+- AI coding assistants support instruction file formats (.md/.mdc)
+- Users want structured, professional AI coding configurations
 
 **Constraints:**
 
-- Technology: [Technical limitations, e.g., Python 3.12, React 18, etc.]
+- Technology: Bash/shell scripting, Git, cross-platform compatibility requirements
+- File System: Requires write permissions to target directories
+- Dependencies: Minimal external dependencies (Git only for core functionality)
 
 ## 8. SUCCESS METRICS
 
 **Key Performance Indicators:**
 
-- [Metric 1]: [Target value]
-- [Metric 2]: [Target value]
-- [Metric 3]: [Target value]
+- **Deployment Success Rate**: 99.9% successful deployments across all supported platforms
+- **User Adoption**: 1000+ active users within 6 months of release
+- **Configuration Accuracy**: 100% accurate file distribution with proper structure
+- **Cross-Platform Compatibility**: 100% functionality across macOS, Linux, and Windows
 
 ## 9. Knowledge Base
 
 **Knowledge Base:**
 
-- [Knowledge Base]: [Link to knowledge base]
+- **Configuration Files**: All .mdc files in repository root serve as the knowledge base
+- **Documentation**: README.md, CONTRIBUTING.md, and inline code documentation
+- **Structured Distribution**: ainish-vscode/ directory contains pre-structured configurations
+- **Cultural Context**: anishinaabe-cyberpunk-style.mdc provides cultural and styling guidelines
 
 ## 10. ACCEPTANCE CRITERIA
 
 **Core Functionality:**
 
-- [ ] [Specific testable requirement]
-- [ ] [Specific testable requirement]
-- [ ] [Specific testable requirement]
+- [x] Triple deployment system works correctly (core, markdown, vscode)
+- [x] Structured VSCode distribution creates proper file hierarchy
+- [x] Separate modern-prompting.instructions.md and anishinaabe-cyberpunk-style.instructions.md files
+- [x] Consolidated copilot-instructions.md contains all other .mdc files
+- [x] Cross-platform compatibility across macOS, Linux, and Windows
+- [x] Wrapper functions work correctly after installation
 
 **Quality Standards:**
 
-- [ ] Performance meets stated targets
-- [ ] Security requirements satisfied
-- [ ] Accessibility standards met
+- [x] Performance meets stated targets (deployment completes within 5 seconds)
+- [x] Security requirements satisfied (prompt injection defense, secure file handling)
+- [x] Accessibility standards met (clear command-line interface, comprehensive documentation)
 
 ## 11. OPEN QUESTIONS
 
-- [Unresolved question 1]
-- [Unresolved question 2]
-- [Areas requiring further research]
+- [ ] Integration with additional AI coding assistants beyond GitHub Copilot, Cursor AI, and VSCode
+- [ ] GUI-based configuration interface for non-technical users
+- [ ] Real-time configuration synchronization across multiple projects
+- [ ] Cloud-based configuration storage and sharing capabilities
 
 ---
 
