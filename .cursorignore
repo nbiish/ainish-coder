@@ -31,6 +31,9 @@ venv/
 ENV/
 env/
 .env
+*/.env
+*/*env.*
+!*env.example
 
 # IDE and editor files
 .vscode/
