@@ -251,7 +251,8 @@ ainish-coder/
 ├── ainish-setup.sh              # Main setup and distribution script
 ├── critical.mdc                 # Core AINISH configuration file
 ├── modern-prompting.mdc         # Advanced cognitive framework for LLM interactions
-├── security.mdc                 # Comprehensive security and cybersecurity framework
+├── code-security.mdc            # Code security and cybersecurity framework
+├── prompt-security.mdc          # LLM security and prompt injection protection framework
 ├── code-judge.mdc               # Code judge and reasoning framework
 ├── docs-use.mdc                 # Documentation usage guidelines
 ├── informing.mdc                # Code documentation requirements
@@ -306,7 +307,8 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory:
 
 - `critical.mdc`: Core AINISH configuration file
 - `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions
-- `security.mdc`: Comprehensive security and cybersecurity framework
+- `code-security.mdc`: Code security and cybersecurity framework
+- `prompt-security.mdc`: LLM security and prompt injection protection framework
 - `code-judge.mdc`: Code judge and reasoning framework
 - `docs-use.mdc`: Documentation usage guidelines
 - `informing.mdc`: Code documentation requirements

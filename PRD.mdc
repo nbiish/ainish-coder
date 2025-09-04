@@ -2,100 +2,116 @@
 globs: PRD.md,*PRD.md,PRD*.md
 alwaysApply: false
 ---
-# PRODUCT REQUIREMENTS DOCUMENT: ainish-coder
+# PRODUCT REQUIREMENTS DOCUMENT
 
-**Author:** ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish-Justin Waabanimikii-Kenwabikise) | **Date:** ... | **Version:** 0.0.1
+**Author:** [Author Name] | **Date:** [Date] | **Version:** [Version]
 
 ## 1. OBJECTIVE
 
-**Purpose:** - ...
+**Purpose:** [Clear statement of what the product does and why it exists]
 
 ## 2. SCOPE
 
-**In-Scope Features:**
+**In-Scope:**
 
-- [ ] ...
+- [Feature 1]
+- [Feature 2]
 
 **Out-of-Scope:**
 
-- [ ] ...
+- [Excluded feature 1]
+- [Excluded feature 2]
 
-## 3. USER EXPERIENCE
+## 3. ARCHITECTURE: TIERED COMPOSITION
 
-**User Flow:** 
+### Component Structure (Atom → Molecule → Matter)
 
-- [ ] ...
+**Atoms:** Small, self-contained components
 
-## 4. STRUCTURE -> 'camel' workflow -> QAMMML (Quanta Atoms Molecule Matter Matter-Phase Lifeform)
+- [Component 1: parser, formatter, validator]
+- [Component 2: data model, utility function]
 
-**Quanta:** ...
+**Molecules:** Functional units composed of atoms
 
-**Atoms:** ...
+- [Unit 1: command handler, data pipeline]
+- [Unit 2: service layer, business logic]
 
-**Molecules:** ...
+**Matter:** High-level features from molecules/atoms
 
-**Matter:** ...
+- [Feature 1: CLI command, API endpoint]
+- [Feature 2: complete workflow, user interface]
 
-**Matter Phases:** ...
-
-**Lifeforms:** ...
-
-## 5. FUNCTIONAL REQUIREMENTS
+## 4. FUNCTIONAL REQUIREMENTS
 
 ### Core Features
 
-- [ ] ...
+- [ ] [Feature 1 with acceptance criteria]
+- [ ] [Feature 2 with acceptance criteria]
 
-## 6. NON-FUNCTIONAL REQUIREMENTS
+### User Experience
 
-- [ ] ...
+- [ ] [User flow 1]
+- [ ] [User flow 2]
 
-## 7. ASSUMPTIONS & CONSTRAINTS
+## 5. NON-FUNCTIONAL REQUIREMENTS
 
-**Assumptions:**
+- [ ] Performance: [specific metrics]
+- [ ] Security: [security requirements]
+- [ ] Scalability: [scaling requirements]
+- [ ] Compliance: [regulatory requirements]
 
-- [ ] ...
+## 6. SUCCESS METRICS
 
-**Constraints:**
+- [ ] [Measurable KPI 1]
+- [ ] [Measurable KPI 2]
 
-- [ ] ...
+## 7. KNOWLEDGE BASE
 
-## 8. SUCCESS METRICS
+**Documentation Structure:**
 
-**Key Performance Indicators:**
+- `KNOWLEDGE_BASE/docs/` - Technical documentation
+- `KNOWLEDGE_BASE/requirements/` - Requirements and specifications
+- `KNOWLEDGE_BASE/features/` - Feature documentation
+- `KNOWLEDGE_BASE/security/` - Security documentation
 
-- [ ] ...
-
-## 9. Knowledge Base
-
-**Knowledge Base:**
-
-- [ ] ...
-
-## 10. ACCEPTANCE CRITERIA
+## 8. ACCEPTANCE CRITERIA
 
 **Core Functionality:**
 
-- [ ] ...
+- [ ] [Specific acceptance criteria 1]
+- [ ] [Specific acceptance criteria 2]
 
 **Quality Standards:**
 
-- [ ] ...
+- [ ] Code follows tiered composition structure
+- [ ] All components documented in KNOWLEDGE_BASE/*
+- [ ] Security requirements met
+- [ ] Performance benchmarks achieved
 
-## 11. OPEN QUESTIONS
+## 9. ASSUMPTIONS & CONSTRAINTS
 
-- [ ] ...
+**Assumptions:**
+
+- [Assumption 1]
+- [Assumption 2]
+
+**Constraints:**
+
+- [Constraint 1]
+- [Constraint 2]
 
 ---
 
-## PRD BEST PRACTICES CHECKLIST
+## PRD BEST PRACTICES
 
-- [ ] Use clear, unambiguous language
-- [ ] Include specific, measurable requirements
-- [ ] Define success criteria objectively
-- [ ] Balance detail with conciseness
-- [ ] Treat PRD and KNOWLEDGE_BASE/* as living documents
-- [ ] Reference PRD and KNOWLEDGE_BASE/* throughout development lifecycle
+- Use clear, unambiguous language
+- Include specific, measurable requirements
+- Define success criteria objectively
+- Balance detail with conciseness
+- Treat PRD and KNOWLEDGE_BASE/* as living documents
+- Reference PRD and KNOWLEDGE_BASE/* throughout development lifecycle
+- Follow Atom → Molecule → Matter component structure
+- Document all components in KNOWLEDGE_BASE/*
 
 ---
-*This PRD template is designed for universal application across any project type. Customize sections as needed while maintaining clarity.*
+*This PRD template follows modern tiered composition principles for maintainable, scalable software architecture.*

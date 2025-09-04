@@ -11,9 +11,7 @@ All code should be accompanied by a ultra concise comment description that conte
 # /// [function -> purpose]
 ```
 
-# #!/usr/bin/env ... 
-
--> ensures script uses correct interpreter for portability and environment
+# #!/usr/bin/env {language}
 
 The "right" shebang...
-    - (e.g., #!/usr/bin/env python3 | #!/usr/bin/env bash) makes scripts executable across systems and virtual environments.
+    - (e.g., #!/usr/bin/env {language}) ensures scripts are executed correctly.

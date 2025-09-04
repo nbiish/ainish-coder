@@ -59,7 +59,7 @@
 
 **Atoms:** 
 - `ainish-setup.sh` script
-- Individual configuration modules (critical.mdc, security.mdc, etc.)
+- Individual configuration modules (critical.mdc, code-security.mdc, prompt-security.mdc, etc.)
 - Wrapper functions
 - File deployment mechanisms
 - Shell configuration management

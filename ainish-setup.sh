@@ -43,7 +43,8 @@ RESET='\033[0m'
 
 get_all_config_files() {
     echo "${REPO_DIR}/critical.mdc"
-    echo "${REPO_DIR}/security.mdc"
+    echo "${REPO_DIR}/code-security.mdc"
+    echo "${REPO_DIR}/prompt-security.mdc"
     echo "${REPO_DIR}/modern-prompting.mdc"
     echo "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc"
     echo "${REPO_DIR}/docs-use.mdc"
@@ -654,7 +655,7 @@ setup_ainish_coder_dir() {
     
     local config_files=(
         "critical.mdc" "anishinaabe-cyberpunk-style.mdc" "docs-use.mdc"
-        "PRD.mdc" "modern-prompting.mdc" "security.mdc" "informing.mdc"
+        "PRD.mdc" "modern-prompting.mdc" "code-security.mdc" "prompt-security.mdc" "informing.mdc"
         "verify-date-and-time.mdc" "code-judge.mdc" "python-package-mgmt.mdc" "structure.mdc"
         "math-process.mdc" ".gitignore" ".cursorignore" ".cursorindexignore"
     )

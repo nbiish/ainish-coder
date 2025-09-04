@@ -12,6 +12,7 @@ and be based on factual information gathered into the project's KNOWLEDGE_BASE/*
 - /requirements*
 - /features*
 - /issues*
+- /security*
 
 ## Technical & Methodology Choices
 
@@ -36,3 +37,12 @@ When fixing a bug:
 2. Gather the facts and context into the KNOWLEDGE_BASE/*.
 3. Implement code changes to fix the bug.
 4. Ensure all code aligns with the PRD.md and KNOWLEDGE_BASE/*.
+
+### Example Usage When Security is Needed
+
+When security is needed:
+
+1. Update the PRD.md and KNOWLEDGE_BASE/* with the security details and usage.
+2. Gather the facts and context into the KNOWLEDGE_BASE/*.
+3. Implement code changes to secure the feature.
+4. Ensure all code aligns with security requirements from the KNOWLEDGE_BASE/*.

@@ -136,6 +136,15 @@ Include rollback triggers and verification steps
 - Use for complex problem decomposition
 - Limited branching to maintain efficiency
 
+### Chain of Draft (CoD)
+
+- Generate minimalistic yet informative intermediate reasoning steps
+- Focus on concise, essential information capture (≤5 words per step)
+- Reduce token usage by up to 92.4% while maintaining accuracy
+- Mirror human cognitive processes of brief note-taking during problem-solving
+- Use format: "Think step-by-step but only keep a minimum draft for each thinking step, with 5 words at most"
+- Ideal for real-time applications requiring low latency and cost efficiency
+
 ### Automated Prompt Optimization (APO)
 
 - Autonomously refine and improve prompts based on performance feedback.
@@ -276,6 +285,7 @@ Include rollback triggers and verification steps
 ### Reasoning Methods
 
 - CoT = Chain-of-Thought
+- CoD = Chain of Draft
 - SCoT = Structured Chain-of-Thought  
 - ToT = Tree-of-Thoughts
 - PAL = Program-Aided Language Models
