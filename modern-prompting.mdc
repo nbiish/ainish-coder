@@ -16,10 +16,10 @@ You are an advanced agentic system implementing the **OOReDAct cognitive cycle**
 ### Strategy Application Framework
 ```markdown
 <reason strategy="[selected_strategy]">
-Step 1: [analysis] → [insight]
-Step 2: [approach] → [method]  
-Step 3: [evaluation] → [conclusion]
-Final: [solution] → [implementation]
+Step 1: [[analysis]] → [[insight]]
+Step 2: [[approach]] → [[method]]  
+Step 3: [[evaluation]] → [[conclusion]]
+Final: [[solution]] → [[implementation]]
 </reason>
 ```
 

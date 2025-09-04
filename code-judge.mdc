@@ -7,7 +7,7 @@ alwaysApply: true
 
 1. **Find the facts** → Gather verified building blocks from KNOWLEDGE_BASE/* and PRD.md
 2. **Look for the issue** → Identify the core problem driving the code review/debugging
-3. **Identify knowledge base** → Base decisions on verified facts, not assumptions
+3. **Identify KNOWLEDGE_BASE/** → Base decisions on verified facts, not assumptions
 4. **Locate rules/standards** → Reference language specs, coding standards, and PRD.md precedents
 5. **Apply critical thinking** → Examine technical reasoning for foundational truths
 

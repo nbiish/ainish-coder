@@ -1,5 +1,5 @@
 ---
-globs: LICENSE, CONTRIBUTING.md, README.md, *.md
+globs: LICENSE, CONTRIBUTING.md, README.md
 alwaysApply: false
 ---
 # STRICTLY follow the instructions below

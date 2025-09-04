@@ -8,10 +8,10 @@ All code should be accompanied by a ultra concise comment description that conte
 ## Example Usage
 
 ```python
-# /// [function -> purpose]
+# [[function]] -> [[purpose]]
 ```
 
-# #!/usr/bin/env {language}
+# #!/usr/bin/env [[language]]
 
 The "right" shebang...
-    - (e.g., #!/usr/bin/env {language}) ensures scripts are executed correctly.
+    - (e.g., #!/usr/bin/env [[language]]) ensures scripts are executed correctly.

@@ -54,20 +54,20 @@ All Python code should be ran from proper isolated .venv or .env environments.
   - On Unix/macOS: `source .venv/bin/activate`
   - On Windows: `.venv\Scripts\activate`
 - All `uv pip install ...` commands should be run with the environment activated, or by using `uv pip` directly (which auto-detects the local `.venv`).
-- For project isolation, always use a separate `.venv` per project or per model (e.g., `.model-envs/edge-tts-env/.venv`).
+- For project isolation, always use a separate `.venv` per project or per model (e.g., `.project-envs/atom-level/.venv`).
 - To remove an environment, simply delete the `.venv` directory.
 - `uv` does not require `python -m venv` or `virtualenv`; it manages environments natively.
 - For CI/CD, always recreate the environment with `uv venv` and install dependencies with `uv pip install -e .` or from a requirements file.
 - Avoid running `uv pip` or `uv run` from outside the project root to ensure the correct `.venv` is used.
-- For multi-model projects, maintain a clear directory structure for each model's environment as per the knowledge base:
+- For multi-.venv projects, maintain a clear directory structure for each .venv environment as per the KNOWLEDGE_BASE/*:
 
 ```bash
-.model-envs/
-├── edge-tts-env/
+.project-envs/
+├── atom-level/
 │   └── .venv/
-├── vibevoice-env/
+├── molecule-level/
 │   └── .venv/
-└── f5-tts-env/
+└── matter-level/
         └── .venv/
 ```
 
@@ -75,5 +75,5 @@ All Python code should be ran from proper isolated .venv or .env environments.
 
 #### Verification
 
-This description matches the official `uv` documentation for "script mode" (PEP 723/722), including inline metadata, dependency management, and isolated execution.  
+This description matches the official `uv` documentation for "script mode", including inline metadata, dependency management, and isolated execution.  
 "uv scripts" refers to Python scripts with inline TOML metadata blocks that declare dependencies and environment requirements, which `uv` uses to manage isolated execution environments automatically.
