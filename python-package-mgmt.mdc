@@ -1,79 +1,53 @@
 ---
-alwaysApply: true
+globs: *.py,.venv,venv,*venv,venv*,*venv*
+alwaysApply: false
 ---
-# Python Package Management
+# NEVER USE PYTHON WITHOUT READING THE FOLLOWING
 
-When working with Python code; use the ```uv``` package manager for all Python-related tasks including but not limited to:
+Use `uv` for all Python-related tasks.
 
-- Creating virtual environments
-- Installing packages
-- Managing dependencies
-- Running isolated scripts with their own dependencies (e.g., ```uv run script.py```)
+## Core Commands
 
-Only use other Python package managers when explicitly requested by the user or required by the project or PRD.md.
+- `uv venv` → Creates virtual environments
+- `uv pip install` → Installs packages
+- `uv pip install -e .` → Installs packages in development mode
+- `uv run script.py` → Runs scripts with automatic dependency management
+- `uvx tool_name` → Runs tools without installation (alias for `uv tool run`)
 
-All Python code should be ran from proper isolated .venv or .env environments.
+## UV Tools
 
-## Example Usage
+- `uv tool install <tool>` → Install tool system-wide
+- `uv tool run <tool>` → Run tool in temporary environment
+- `uv tool list` → List installed tools
+- `uv tool upgrade <tool>` → Upgrade specific tool
+- `uv tool upgrade --all` → Upgrade all tools
 
-### Standard Python Project Usage
+## Script Metadata
 
-- Create a virtual environment: `uv venv`
-- Install a package: `uv pip install 'package_name'`
-- Run a script: `uv run script.py`
+Add dependencies using inline TOML metadata:
 
-### Using uv Script Mode (PEP 723/PEP 722 inline metadata)
+```python
+# /// script
+# dependencies = [
+#   "requests<3",
+#   "rich",
+# ]
+# ///
 
-- Add inline script metadata for dependencies at the top of your `.py` file using the `# /// script` TOML block.  
-  Example:
-
-```toml
-  # /// script
-  # dependencies = [
-  #   "requests<3",
-  #   "rich",
-  # ]
-  # ///
+import requests
+from rich import print
 ```
 
-- (Optionally) Use `uv add --script example.py 'requests<3' 'rich'` to automatically add or update the metadata block.
-- Place your Python code below the metadata block.
-- Run the script in an isolated environment with dependencies resolved: `uv run example.py`
+**Commands:**
+- `uv add --script script.py 'package'` → Add dependencies to script
+- `uv run script.py` → Run with declared dependencies
+- `uv run --with 'package' script.py` → Run with runtime dependencies
 
-#### Notes on uv Script Mode
+## Virtual Environment Best Practices
 
-- The inline metadata block declares dependencies and (optionally) Python version requirements for the script.
-- `uv run` will automatically create and manage an isolated environment for the script, installing only the declared dependencies.
-- You can also specify dependencies at runtime with `uv run --with 'package' example.py`, but inline metadata is preferred for reproducibility.
-- For scripts with no dependencies, you can omit the metadata block.
-
-#### Notes on uv .venv -> best practices and notes
-
-- `uv venv` creates a `.venv` directory in the current folder by default, following Python community conventions.
-- To activate the environment manually:
-  - On Unix/macOS: `source .venv/bin/activate`
-  - On Windows: `.venv\Scripts\activate`
-- All `uv pip install ...` commands should be run with the environment activated, or by using `uv pip` directly (which auto-detects the local `.venv`).
-- For project isolation, always use a separate `.venv` per project or per model (e.g., `.project-envs/atom-level/.venv`).
-- To remove an environment, simply delete the `.venv` directory.
-- `uv` does not require `python -m venv` or `virtualenv`; it manages environments natively.
-- For CI/CD, always recreate the environment with `uv venv` and install dependencies with `uv pip install -e .` or from a requirements file.
-- Avoid running `uv pip` or `uv run` from outside the project root to ensure the correct `.venv` is used.
-- For multi-.venv projects, maintain a clear directory structure for each .venv environment as per the KNOWLEDGE_BASE/*:
-
-```bash
-.project-envs/
-├── atom-level/
-│   └── .venv/
-├── molecule-level/
-│   └── .venv/
-└── matter-level/
-        └── .venv/
-```
-
-- This approach prevents dependency conflicts and ensures reproducibility.
-
-#### Verification
-
-This description matches the official `uv` documentation for "script mode", including inline metadata, dependency management, and isolated execution.  
-"uv scripts" refers to Python scripts with inline TOML metadata blocks that declare dependencies and environment requirements, which `uv` uses to manage isolated execution environments automatically.
+- `uv venv` creates `.venv` (IDE-recognized)
+- `uv venv --python 3.12` → Specify Python version
+- `uv venv myenv` → Custom environment name
+- `uv pip` auto-detects local environments
+- Delete environments: `rm -rf .venv`
+- Use `--no-project` flag when running scripts outside projects
