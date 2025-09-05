@@ -367,21 +367,15 @@ deploy_vscode_structured() {
     local instructions_dir="$github_dir/instructions"
     mkdir -p "$instructions_dir" 2>/dev/null
     
-    # Create consolidated copilot-instructions.md from .mdc files (excluding specific ones per PRD)
+    # Create consolidated copilot-instructions.md from ALL .mdc files per PRD
     local consolidated_file="$ainish_dir/copilot-instructions.md"
     echo "" > "$consolidated_file"
-    
+
     while IFS= read -r source_file; do
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
-            
-            # Skip files excluded from copilot-instructions.md consolidation per PRD
-            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]] || [[ "$filename" == "prompt-security.mdc" ]] || [[ "$filename" == "critical.mdc" ]]; then
-                echo -e "${YELLOW}⚠️  Skipped $filename (excluded from copilot-instructions.md consolidation)${RESET}"
-                continue
-            fi
-            
-            # Append .mdc files to consolidated file
+
+            # Append ALL .mdc files to consolidated file per PRD specification
             if [[ "$filename" == *.mdc ]]; then
                 cat "$source_file" >> "$consolidated_file"
                 echo "" >> "$consolidated_file"
@@ -393,55 +387,24 @@ deploy_vscode_structured() {
     deployed_count=$((deployed_count + 1))
     echo -e "${GREEN}✓ Created consolidated copilot-instructions.md${RESET}"
     
-    # Create individual instruction files for the excluded ones
-    
-    # Deploy anishinaabe-cyberpunk-style.instructions.md
-    local anishinaabe_source="${REPO_DIR}/RULES_WE_WANT/anishinaabe-cyberpunk-style.mdc"
-    if [[ -f "$anishinaabe_source" ]]; then
-        local dest_file="$instructions_dir/ainishinaabe-cyberpunk-style.instructions.md"
-        if cp "$anishinaabe_source" "$dest_file" 2>/dev/null; then
-            echo -e "${GREEN}✓ Deployed ainishinaabe-cyberpunk-style.instructions.md to .github/instructions/${RESET}"
-            deployed_count=$((deployed_count + 1))
-        else
-            echo -e "${YELLOW}⚠️  Failed to deploy ainishinaabe-cyberpunk-style.instructions.md${RESET}"
-            skipped_count=$((skipped_count + 1))
+    # Create individual instruction files for all .mdc files as per PRD
+
+    # Deploy all .mdc files as individual instruction files
+    while IFS= read -r source_file; do
+        if [[ -f "$source_file" ]]; then
+            local filename=$(basename "$source_file")
+            local base_name="${filename%.mdc}"
+            local dest_file="$instructions_dir/${base_name}.instructions.md"
+
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed ${base_name}.instructions.md to .github/instructions/${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy ${base_name}.instructions.md${RESET}"
+                skipped_count=$((skipped_count + 1))
+            fi
         fi
-    else
-        echo -e "${YELLOW}⚠️  anishinaabe-cyberpunk-style.mdc not found in source${RESET}"
-        skipped_count=$((skipped_count + 1))
-    fi
-    
-    # Deploy prompt-security.instructions.md
-    local prompt_security_source="${REPO_DIR}/RULES_WE_WANT/prompt-security.mdc"
-    if [[ -f "$prompt_security_source" ]]; then
-        local dest_file="$instructions_dir/prompt-security.instructions.md"
-        if cp "$prompt_security_source" "$dest_file" 2>/dev/null; then
-            echo -e "${GREEN}✓ Deployed prompt-security.instructions.md to .github/instructions/${RESET}"
-            deployed_count=$((deployed_count + 1))
-        else
-            echo -e "${YELLOW}⚠️  Failed to deploy prompt-security.instructions.md${RESET}"
-            skipped_count=$((skipped_count + 1))
-        fi
-    else
-        echo -e "${YELLOW}⚠️  prompt-security.mdc not found in source${RESET}"
-        skipped_count=$((skipped_count + 1))
-    fi
-    
-    # Deploy critical.instructions.md
-    local critical_source="${REPO_DIR}/RULES_WE_WANT/critical.mdc"
-    if [[ -f "$critical_source" ]]; then
-        local dest_file="$instructions_dir/critical.instructions.md"
-        if cp "$critical_source" "$dest_file" 2>/dev/null; then
-            echo -e "${GREEN}✓ Deployed critical.instructions.md to .github/instructions/${RESET}"
-            deployed_count=$((deployed_count + 1))
-        else
-            echo -e "${YELLOW}⚠️  Failed to deploy critical.instructions.md${RESET}"
-            skipped_count=$((skipped_count + 1))
-        fi
-    else
-        echo -e "${YELLOW}⚠️  critical.mdc not found in source${RESET}"
-        skipped_count=$((skipped_count + 1))
-    fi
+    done < <(get_mdc_files_only)
     
     # Deploy .gitignore
     local gitignore_source="${REPO_DIR}/.gitignore"
@@ -515,14 +478,15 @@ deploy_vscode_structured() {
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • copilot-instructions.md (consolidated from .mdc files, excluding specific ones)${RESET}"
+    echo -e "${CYAN}  • copilot-instructions.md (consolidated from ALL .mdc files per PRD)${RESET}"
     echo -e "${CYAN}  • .github/instructions/ainishinaabe-cyberpunk-style.instructions.md${RESET}"
     echo -e "${CYAN}  • .github/instructions/prompt-security.instructions.md${RESET}"
     echo -e "${CYAN}  • .github/instructions/critical.instructions.md${RESET}"
+    echo -e "${CYAN}  • .github/instructions/code-security.instructions.md${RESET}"
+    echo -e "${CYAN}  • .github/instructions/KNOWLEDGE_BASE.instructions.md${RESET}"
+    echo -e "${CYAN}  • .github/instructions/PRD.instructions.md${RESET}"
     echo -e "${CYAN}  • .gitignore${RESET}"
     echo -e "${CYAN}  • .copilotignore${RESET}"
-    echo -e "${CYAN}  • .copilotindexignore${RESET}"
-    echo -e "${CYAN}  • .github/FUNDING.yml${RESET}"
     echo -e "${CYAN}  • .copilotindexignore${RESET}"
     echo -e "${CYAN}  • .github/FUNDING.yml${RESET}"
 }
