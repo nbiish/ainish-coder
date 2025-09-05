@@ -26,7 +26,7 @@
 ⮑ .copilotindexignore
 ⮑ .github/
     ⮑ FUNDING.yml
-    ⮑ instructions/
+    ⮑ instructions/  # if a file is listed here is MUST NOT be appended into copilot-instructions.md
         ⮑ ainishinaabe-cyberpunk-style.instructions.md
         ⮑ prompt-security.instructions.md
         ⮑ critical.instructions.md
@@ -49,7 +49,7 @@
 
 ```bash
 ~/.qwen/QWEN.md # -> (append all *.mdc this file QWEN.md !{certain.mdc} files)
-# !{certain.mdc} files:
+# !{certain.mdc} files: MUST NOT be appended into QWEN.md
 # .ainish-coder/
 # ⮑ ainishinaabe-cyberpunk-style.md
 # ⮑ prompt-security.md
@@ -63,7 +63,7 @@
 
 ```bash
 ~/.gemini/GEMINI.md # -> (append all *.mdc this file GEMINI.md !{certain.mdc} files)
-# !{certain.mdc} files:
+# !{certain.mdc} files: MUST NOT be appended into GEMINI.md
 # .ainish-coder/
 # ⮑ ainishinaabe-cyberpunk-style.md
 # ⮑ prompt-security.md

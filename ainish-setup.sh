@@ -367,15 +367,22 @@ deploy_vscode_structured() {
     local instructions_dir="$github_dir/instructions"
     mkdir -p "$instructions_dir" 2>/dev/null
     
-    # Create consolidated copilot-instructions.md from ALL .mdc files per PRD
+    # Create consolidated copilot-instructions.md from .mdc files (excluding specific ones per PRD)
     local consolidated_file="$ainish_dir/copilot-instructions.md"
     echo "" > "$consolidated_file"
-
+    
     while IFS= read -r source_file; do
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
-
-            # Append ALL .mdc files to consolidated file per PRD specification
+            
+            # Skip files excluded from copilot-instructions.md consolidation per PRD
+            # All files that are deployed as separate instruction files should be excluded from consolidation
+            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]] || [[ "$filename" == "prompt-security.mdc" ]] || [[ "$filename" == "critical.mdc" ]] || [[ "$filename" == "code-security.mdc" ]] || [[ "$filename" == "KNOWLEDGE_BASE.mdc" ]] || [[ "$filename" == "PRD.mdc" ]]; then
+                echo -e "${YELLOW}⚠️  Skipped $filename (excluded from copilot-instructions.md consolidation)${RESET}"
+                continue
+            fi
+            
+            # Append .mdc files to consolidated file
             if [[ "$filename" == *.mdc ]]; then
                 cat "$source_file" >> "$consolidated_file"
                 echo "" >> "$consolidated_file"
@@ -387,24 +394,103 @@ deploy_vscode_structured() {
     deployed_count=$((deployed_count + 1))
     echo -e "${GREEN}✓ Created consolidated copilot-instructions.md${RESET}"
     
-    # Create individual instruction files for all .mdc files as per PRD
-
-    # Deploy all .mdc files as individual instruction files
-    while IFS= read -r source_file; do
-        if [[ -f "$source_file" ]]; then
-            local filename=$(basename "$source_file")
-            local base_name="${filename%.mdc}"
-            local dest_file="$instructions_dir/${base_name}.instructions.md"
-
-            if cp "$source_file" "$dest_file" 2>/dev/null; then
-                echo -e "${GREEN}✓ Deployed ${base_name}.instructions.md to .github/instructions/${RESET}"
-                deployed_count=$((deployed_count + 1))
-            else
-                echo -e "${YELLOW}⚠️  Failed to deploy ${base_name}.instructions.md${RESET}"
-                skipped_count=$((skipped_count + 1))
-            fi
+    # Create individual instruction files for the excluded ones
+    
+    # Deploy anishinaabe-cyberpunk-style.instructions.md
+    local anishinaabe_source="${REPO_DIR}/RULES_WE_WANT/anishinaabe-cyberpunk-style.mdc"
+    if [[ -f "$anishinaabe_source" ]]; then
+        local dest_file="$instructions_dir/ainishinaabe-cyberpunk-style.instructions.md"
+        if cp "$anishinaabe_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed ainishinaabe-cyberpunk-style.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy ainishinaabe-cyberpunk-style.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
         fi
-    done < <(get_mdc_files_only)
+    else
+        echo -e "${YELLOW}⚠️  anishinaabe-cyberpunk-style.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
+    
+    # Deploy prompt-security.instructions.md
+    local prompt_security_source="${REPO_DIR}/RULES_WE_WANT/prompt-security.mdc"
+    if [[ -f "$prompt_security_source" ]]; then
+        local dest_file="$instructions_dir/prompt-security.instructions.md"
+        if cp "$prompt_security_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed prompt-security.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy prompt-security.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  prompt-security.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
+    
+    # Deploy critical.instructions.md
+    local critical_source="${REPO_DIR}/RULES_WE_WANT/critical.mdc"
+    if [[ -f "$critical_source" ]]; then
+        local dest_file="$instructions_dir/critical.instructions.md"
+        if cp "$critical_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed critical.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy critical.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  critical.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
+    
+    # Deploy code-security.instructions.md
+    local code_security_source="${REPO_DIR}/RULES_WE_WANT/code-security.mdc"
+    if [[ -f "$code_security_source" ]]; then
+        local dest_file="$instructions_dir/code-security.instructions.md"
+        if cp "$code_security_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed code-security.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy code-security.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  code-security.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
+    
+    # Deploy KNOWLEDGE_BASE.instructions.md
+    local knowledge_base_source="${REPO_DIR}/RULES_WE_WANT/KNOWLEDGE_BASE.mdc"
+    if [[ -f "$knowledge_base_source" ]]; then
+        local dest_file="$instructions_dir/KNOWLEDGE_BASE.instructions.md"
+        if cp "$knowledge_base_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed KNOWLEDGE_BASE.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy KNOWLEDGE_BASE.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  KNOWLEDGE_BASE.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
+    
+    # Deploy PRD.instructions.md
+    local prd_source="${REPO_DIR}/RULES_WE_WANT/PRD.mdc"
+    if [[ -f "$prd_source" ]]; then
+        local dest_file="$instructions_dir/PRD.instructions.md"
+        if cp "$prd_source" "$dest_file" 2>/dev/null; then
+            echo -e "${GREEN}✓ Deployed PRD.instructions.md to .github/instructions/${RESET}"
+            deployed_count=$((deployed_count + 1))
+        else
+            echo -e "${YELLOW}⚠️  Failed to deploy PRD.instructions.md${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    else
+        echo -e "${YELLOW}⚠️  PRD.mdc not found in source${RESET}"
+        skipped_count=$((skipped_count + 1))
+    fi
     
     # Deploy .gitignore
     local gitignore_source="${REPO_DIR}/.gitignore"
@@ -478,7 +564,7 @@ deploy_vscode_structured() {
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • copilot-instructions.md (consolidated from ALL .mdc files per PRD)${RESET}"
+    echo -e "${CYAN}  • copilot-instructions.md (consolidated from .mdc files, excluding specific ones)${RESET}"
     echo -e "${CYAN}  • .github/instructions/ainishinaabe-cyberpunk-style.instructions.md${RESET}"
     echo -e "${CYAN}  • .github/instructions/prompt-security.instructions.md${RESET}"
     echo -e "${CYAN}  • .github/instructions/critical.instructions.md${RESET}"
@@ -521,7 +607,7 @@ deploy_gemini_structured() {
             local filename=$(basename "$source_file")
             
             # Skip files excluded from GEMINI consolidation per PRD
-            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]] || [[ "$filename" == "prompt-security.mdc" ]] || [[ "$filename" == "critical.mdc" ]]; then
+            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]] || [[ "$filename" == "prompt-security.mdc" ]] || [[ "$filename" == "critical.mdc" ]] || [[ "$filename" == "code-security.mdc" ]] || [[ "$filename" == "KNOWLEDGE_BASE.mdc" ]] || [[ "$filename" == "PRD.mdc" ]]; then
                 echo -e "${YELLOW}⚠️  Skipped $filename (excluded from GEMINI consolidation)${RESET}"
                 continue
             fi
@@ -540,7 +626,40 @@ deploy_gemini_structured() {
     echo -e "${GREEN}✓ Created consolidated GEMINI.md${RESET}"
     deployed_count=$((deployed_count + 1))
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to ~/.gemini/ with GEMINI structured distribution${RESET}"
+    # Create .ainish-coder directory for separate .md files
+    local ainish_dir="$target_dir/.ainish-coder"
+    mkdir -p "$ainish_dir" 2>/dev/null
+    
+    # Create separate .md files for excluded ones per PRD
+    local excluded_files=(
+        "anishinaabe-cyberpunk-style.mdc"
+        "prompt-security.mdc"
+        "critical.mdc"
+        "code-security.mdc"
+        "KNOWLEDGE_BASE.mdc"
+        "PRD.mdc"
+    )
+    
+    for source_filename in "${excluded_files[@]}"; do
+        local source_file="${REPO_DIR}/RULES_WE_WANT/${source_filename}"
+        local dest_filename="${source_filename%.mdc}.md"
+        local dest_file="$ainish_dir/$dest_filename"
+        
+        if [[ -f "$source_file" ]]; then
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed $source_filename as $dest_filename to .ainish-coder/${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy $source_filename as $dest_filename${RESET}"
+                skipped_count=$((skipped_count + 1))
+            fi
+        else
+            echo -e "${YELLOW}⚠️  $source_filename not found in source${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    done
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to ~/.gemini/ and $target_dir/.ainish-coder/ with GEMINI structured distribution${RESET}"
     
     if [[ $skipped_count -gt 0 ]]; then
         echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
@@ -548,7 +667,13 @@ deploy_gemini_structured() {
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • GEMINI.md (consolidated from .mdc files, excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+    echo -e "${CYAN}  • GEMINI.md (consolidated from .mdc files, excluding specific ones)${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/ainishinaabe-cyberpunk-style.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/prompt-security.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/critical.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/code-security.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/KNOWLEDGE_BASE.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/PRD.md${RESET}"
 }
 
 deploy_qwen_structured() {
@@ -581,7 +706,7 @@ deploy_qwen_structured() {
             local filename=$(basename "$source_file")
             
             # Skip files excluded from QWEN consolidation per PRD
-            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]] || [[ "$filename" == "prompt-security.mdc" ]] || [[ "$filename" == "critical.mdc" ]]; then
+            if [[ "$filename" == "anishinaabe-cyberpunk-style.mdc" ]] || [[ "$filename" == "prompt-security.mdc" ]] || [[ "$filename" == "critical.mdc" ]] || [[ "$filename" == "code-security.mdc" ]] || [[ "$filename" == "KNOWLEDGE_BASE.mdc" ]] || [[ "$filename" == "PRD.mdc" ]]; then
                 echo -e "${YELLOW}⚠️  Skipped $filename (excluded from QWEN consolidation)${RESET}"
                 continue
             fi
@@ -600,7 +725,40 @@ deploy_qwen_structured() {
     echo -e "${GREEN}✓ Created consolidated QWEN.md${RESET}"
     deployed_count=$((deployed_count + 1))
     
-    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to ~/.qwen/ with QWEN structured distribution${RESET}"
+    # Create .ainish-coder directory for separate .md files
+    local ainish_dir="$target_dir/.ainish-coder"
+    mkdir -p "$ainish_dir" 2>/dev/null
+    
+    # Create separate .md files for excluded ones per PRD
+    local excluded_files=(
+        "anishinaabe-cyberpunk-style.mdc"
+        "prompt-security.mdc"
+        "critical.mdc"
+        "code-security.mdc"
+        "KNOWLEDGE_BASE.mdc"
+        "PRD.mdc"
+    )
+    
+    for source_filename in "${excluded_files[@]}"; do
+        local source_file="${REPO_DIR}/RULES_WE_WANT/${source_filename}"
+        local dest_filename="${source_filename%.mdc}.md"
+        local dest_file="$ainish_dir/$dest_filename"
+        
+        if [[ -f "$source_file" ]]; then
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed $source_filename as $dest_filename to .ainish-coder/${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy $source_filename as $dest_filename${RESET}"
+                skipped_count=$((skipped_count + 1))
+            fi
+        else
+            echo -e "${YELLOW}⚠️  $source_filename not found in source${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    done
+    
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count files to ~/.qwen/ and $target_dir/.ainish-coder/ with QWEN structured distribution${RESET}"
     
     if [[ $skipped_count -gt 0 ]]; then
         echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
@@ -608,7 +766,13 @@ deploy_qwen_structured() {
     
     # Display summary of deployed files
     echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
-    echo -e "${CYAN}  • QWEN.md (consolidated from .mdc files, excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
+    echo -e "${CYAN}  • QWEN.md (consolidated from .mdc files, excluding specific ones)${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/ainishinaabe-cyberpunk-style.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/prompt-security.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/critical.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/code-security.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/KNOWLEDGE_BASE.md${RESET}"
+    echo -e "${CYAN}  • .ainish-coder/PRD.md${RESET}"
 }
 
 deploy_style_file() {
@@ -1013,7 +1177,17 @@ function ainish-coder {
     elif [[ "$1" == "--markdown" ]]; then
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy_markdown "$current_dir"
         echo "✨ AINISH-Coder configurations deployed (as .md files)"
-
+    elif [[ "$1" == "--security" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --security "$current_dir"
+        echo "✨ AINISH-Coder security guidelines deployed: prompt-security.md, code-security.md, critical.md"
+    elif [[ "$1" == "--instructions" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --instructions "$current_dir"
+        echo "✨ AINISH-Coder instructions deployed as .md files"
+    elif [[ "$1" == "--license" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --license "$current_dir"
+        echo "✨ AINISH-Coder critical reminders deployed: critical.md"
+    elif [[ "$1" == "--help" ]]; then
+        "$AINISH_CODER_DIR/ainish-setup.sh" --help
     else
         "$AINISH_CODER_DIR/ainish-setup.sh" deploy "$current_dir"
         echo "✨ AINISH-Coder configurations deployed"
