@@ -10,8 +10,3 @@ All code should be accompanied by a ultra concise comment description that conte
 ```python
 # [[function]] -> [[purpose]]
 ```
-
-# #!/usr/bin/env [[language]]
-
-The "right" shebang...
-    - (e.g., #!/usr/bin/env [[language]]) ensures scripts are executed correctly.

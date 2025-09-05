@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+globs: prd.md,PRD.md,*PRD.md,PRD*.md,*prd.md,prd*.md,!README.md,*.md,KNOWLEDGE_BASE/,KNOWLEDGE_BASE/*
+alwaysApply: false
 ---
 # Context = Knowledge Base = PRD
 

@@ -4,10 +4,10 @@
 
 ## 1. EXAMPLES
 
-1. ```ainish-coder``` distributes the `ainish-coder/` directory where it is called.
+1. ```ainish-coder``` distributes the `.ainish-coder/` directory where it is called.
 
 ```bash
-ainish-coder/
+.ainish-coder/
 ⮑ *.mdc
 ⮑ .gitignore
 ⮑ .cursorignore
@@ -16,11 +16,11 @@ ainish-coder/
     ⮑ FUNDING.yml
 ```
 
-2. ```ainish-coder --vscode``` distributes the `ainish-coder/` directory where it is called.
+2. ```ainish-coder --vscode``` distributes the `.ainish-coder/` directory where it is called.
 
 ```bash
-ainish-coder/
-⮑ copilot-instructions.md # (*.mdc appended into this file !anishinaabe-cyberpunk-style.mdc & !prompt-security.mdc & !critical.mdc)
+.ainish-coder/
+⮑ copilot-instructions.md # (*.mdc appended into this directory -> !{certain.mdc} files)
 ⮑ .gitignore
 ⮑ .copilotignore
 ⮑ .copilotindexignore
@@ -30,13 +30,16 @@ ainish-coder/
         ⮑ ainishinaabe-cyberpunk-style.instructions.md
         ⮑ prompt-security.instructions.md
         ⮑ critical.instructions.md
+        ⮑ code-security.instructions.md
+        ⮑ KNOWLEDGE_BASE.instructions.md
+        ⮑ PRD.instructions.md
 ```
 
-3. ```ainish-coder --markdown``` distributes the `ainish-coder/` directory where it is called.
+3. ```ainish-coder --markdown``` distributes the `.ainish-coder/` directory where it is called.
 
 ```bash
-ainish-coder/
-⮑ *.mdc
+.ainish-coder/
+⮑ cp ../*.mdc *.md
 ⮑ .gitignore
 ⮑ .github/
     ⮑ FUNDING.yml
@@ -45,22 +48,38 @@ ainish-coder/
 4. ```ainish-coder --qwen``` distribution below:
 
 ```bash
-~/.qwen/QWEN.md # (*.mdc appended into this file !anishinaabe-cyberpunk-style.mdc & !prompt-security.mdc & !critical.mdc)
+~/.qwen/QWEN.md # -> (append all *.mdc this file QWEN.md !{certain.mdc} files)
+# !{certain.mdc} files:
+# .ainish-coder/
+# ⮑ ainishinaabe-cyberpunk-style.md
+# ⮑ prompt-security.md
+# ⮑ critical.md
+# ⮑ code-security.md
+# ⮑ KNOWLEDGE_BASE.md
+# ⮑ PRD.md
 ```
 
 5. ```ainish-coder --gemini``` distribution below:
 
 ```bash
-~/.gemini/GEMINI.md # (*.mdc appended into this file !anishinaabe-cyberpunk-style.md & !prompt-security.md & !critical.md)
+~/.gemini/GEMINI.md # -> (append all *.mdc this file GEMINI.md !{certain.mdc} files)
+# !{certain.mdc} files:
+# .ainish-coder/
+# ⮑ ainishinaabe-cyberpunk-style.md
+# ⮑ prompt-security.md
+# ⮑ critical.md
+# ⮑ code-security.md
+# ⮑ KNOWLEDGE_BASE.md
+# ⮑ PRD.md
 ```
 
-6. ```ainish-coder --style``` dirstibutes the `ainishinaabe-cyberpunk-style.mdc` as a .md file in the current directory.
+6. ```ainish-coder --style``` distributes the `ainishinaabe-cyberpunk-style.mdc` as a .md file in the current directory.
 
 ```bash
 ainishinaabe-cyberpunk-style.md
 ```
 
-7. ```ainish-coder --security``` dirstibutes the `prompt-security.mdc` & `code-security.mdc` as a .md file in the current directory.
+7. ```ainish-coder --security``` distributes the `prompt-security.mdc` & `code-security.mdc` as a .md file in the current directory.
 
 ```bash
 prompt-security.md
@@ -68,13 +87,25 @@ code-security.md
 critical.md
 ```
 
-8. ```ainish-coder --license``` dirstibutes the `critical.mdc` as a .md file in the current directory.
+8. ```ainish-coder --license``` distributes the `critical.mdc` as a .md file in the current directory.
 
 ```bash
 critical.md
 ```
 
-9. ```ainish-coder --help``` displays the help message.
+9. ```ainish-coder --instructions``` distributes the `.ainish-coder/` directory where it is called.
+
+```bash
+.ainish-coder/
+⮑ ainishinaabe-cyberpunk-style.md
+⮑ prompt-security.md
+⮑ critical.md
+⮑ code-security.md
+⮑ KNOWLEDGE_BASE.md
+⮑ PRD.md
+```
+
+10. ```ainish-coder --help``` displays the help message.
 
 ```bash
 Usage: ainish-coder [options]
@@ -85,6 +116,7 @@ Options:
   --gemini        Distribute for Gemini
   --style         Distribute Ainshinaabe Cyberpunk Style Guide
   --security      Distribute Prompt & Code Security Guidelines
+  --instructions  Distribute Instructions
   --license       Distribute Critical Reminders
   --help          Display this help message
 ```

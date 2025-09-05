@@ -13,7 +13,7 @@ Organize code using a tiered component structure for clarity, maintainability, a
 
 - Each tier depends only on lower tiers (molecules → atoms)
 - Enables robust testing, refactoring, and feature extension
-- Document component roles in PRD.md and KNOWLEDGE_BASE/*
+- Documentation goes into PRD.md and KNOWLEDGE_BASE/*
 
 ## Implementation Process
 
@@ -27,7 +27,9 @@ This decomposes complexity into well-defined, reusable components following mode
 
 ## Directory Management
 
-All file/directory management scripts go in `mgmt-scripts/`:
+All file/directory management scripts run from the `mgmt-scripts/` directory:
+
+**Example:**
 
 ```bash
 mgmt-scripts/

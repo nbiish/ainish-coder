@@ -42,20 +42,19 @@ RESET='\033[0m'
 #########################################################################
 
 get_all_config_files() {
-    echo "${REPO_DIR}/critical.mdc"
-    echo "${REPO_DIR}/code-security.mdc"
-    echo "${REPO_DIR}/prompt-security.mdc"
-    echo "${REPO_DIR}/modern-prompting.mdc"
-    echo "${REPO_DIR}/anishinaabe-cyberpunk-style.mdc"
-    echo "${REPO_DIR}/docs-use.mdc"
-    echo "${REPO_DIR}/PRD.mdc"
-    echo "${REPO_DIR}/informing.mdc"
-    echo "${REPO_DIR}/verify-date-and-time.mdc"
-    echo "${REPO_DIR}/code-judge.mdc"
-    echo "${REPO_DIR}/python-package-mgmt.mdc"
-    echo "${REPO_DIR}/prd-and-context.mdc"
-    echo "${REPO_DIR}/structure.mdc"
-    echo "${REPO_DIR}/math-process.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/critical.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/code-security.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/prompt-security.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/modern-prompting.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/anishinaabe-cyberpunk-style.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/docs-use.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/PRD.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/informing.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/verify-date-and-time.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/code-judge.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/python-package-mgmt.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/structure.mdc"
+    echo "${REPO_DIR}/RULES_WE_WANT/KNOWLEDGE_BASE.mdc"
     echo "${REPO_DIR}/.gitignore"
     echo "${REPO_DIR}/.cursorignore"
     echo "${REPO_DIR}/.cursorindexignore"
@@ -64,7 +63,7 @@ get_all_config_files() {
 
 get_mdc_files_only() {
     # Get only .mdc files for ainish-vscode deployment
-    find "${REPO_DIR}" -maxdepth 1 -name "*.mdc" -type f | sort
+    find "${REPO_DIR}/RULES_WE_WANT" -maxdepth 1 -name "*.mdc" -type f | sort
 }
 
 
@@ -77,9 +76,9 @@ deploy_all_to_ainish_coder() {
         return 1
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $target_dir/ainish-coder${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying AINISH configurations to $target_dir/.ainish-coder${RESET}"
     
-    local ainish_dir="$target_dir/ainish-coder"
+    local ainish_dir="$target_dir/.ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
@@ -123,9 +122,9 @@ deploy_all_to_ainish_coder_markdown() {
         return 1
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying AINISH configurations (as .md files) to $target_dir/ainish-coder${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying AINISH configurations (as .md files) to $target_dir/.ainish-coder${RESET}"
     
-    local ainish_dir="$target_dir/ainish-coder"
+    local ainish_dir="$target_dir/.ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
@@ -191,19 +190,19 @@ deploy_vscode_to_github() {
     if [[ -d "$root_instructions_dir" ]]; then
         echo -e "${BRIGHT_YELLOW}⚠️  Warning: Found existing .github/instructions/ directory in target root${RESET}"
         echo -e "${YELLOW}   This directory will NOT be modified to preserve your existing instructions${RESET}"
-        echo -e "${YELLOW}   AINISH-Coder instructions will be deployed to ainish-coder/.github/instructions/ instead${RESET}"
+        echo -e "${YELLOW}   AINISH-Coder instructions will be deployed to .ainish-coder/.github/instructions/ instead${RESET}"
         echo ""
     fi
     
     if [[ "$single_mode" == "single" ]]; then
-        echo -e "${BRIGHT_BLUE}Deploying .mdc files as consolidated copilot-instructions.md to $target_dir/ainish-coder/.github/${RESET}"
+        echo -e "${BRIGHT_BLUE}Deploying .mdc files as consolidated copilot-instructions.md to $target_dir/.ainish-coder/.github/${RESET}"
         echo -e "${CYAN}   Mode: Single consolidated file (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
     else
-        echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/ainish-coder/ with proper .github/instructions/ structure${RESET}"
+        echo -e "${BRIGHT_BLUE}Deploying .mdc files and GitHub Copilot configs to $target_dir/.ainish-coder/ with proper .github/instructions/ structure${RESET}"
         echo -e "${CYAN}   Naming convention: {filename}.mdc → {filename}.instructions.md${RESET}"
     fi
     
-    local ainish_dir="$target_dir/ainish-coder"
+    local ainish_dir="$target_dir/.ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
@@ -354,10 +353,10 @@ deploy_vscode_structured() {
         return 1
     fi
     
-    echo -e "${BRIGHT_BLUE}Deploying AINISH-Coder for VSCode Copilot to $target_dir/ainish-coder/${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying AINISH-Coder for VSCode Copilot to $target_dir/.ainish-coder/${RESET}"
     echo -e "${CYAN}   Structure: Consolidated copilot-instructions.md + separate instruction files + configs${RESET}"
     
-    local ainish_dir="$target_dir/ainish-coder"
+    local ainish_dir="$target_dir/.ainish-coder"
     mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
@@ -397,7 +396,7 @@ deploy_vscode_structured() {
     # Create individual instruction files for the excluded ones
     
     # Deploy anishinaabe-cyberpunk-style.instructions.md
-    local anishinaabe_source="${REPO_DIR}/anishinaabe-cyberpunk-style.mdc"
+    local anishinaabe_source="${REPO_DIR}/RULES_WE_WANT/anishinaabe-cyberpunk-style.mdc"
     if [[ -f "$anishinaabe_source" ]]; then
         local dest_file="$instructions_dir/ainishinaabe-cyberpunk-style.instructions.md"
         if cp "$anishinaabe_source" "$dest_file" 2>/dev/null; then
@@ -413,7 +412,7 @@ deploy_vscode_structured() {
     fi
     
     # Deploy prompt-security.instructions.md
-    local prompt_security_source="${REPO_DIR}/prompt-security.mdc"
+    local prompt_security_source="${REPO_DIR}/RULES_WE_WANT/prompt-security.mdc"
     if [[ -f "$prompt_security_source" ]]; then
         local dest_file="$instructions_dir/prompt-security.instructions.md"
         if cp "$prompt_security_source" "$dest_file" 2>/dev/null; then
@@ -429,7 +428,7 @@ deploy_vscode_structured() {
     fi
     
     # Deploy critical.instructions.md
-    local critical_source="${REPO_DIR}/critical.mdc"
+    local critical_source="${REPO_DIR}/RULES_WE_WANT/critical.mdc"
     if [[ -f "$critical_source" ]]; then
         local dest_file="$instructions_dir/critical.instructions.md"
         if cp "$critical_source" "$dest_file" 2>/dev/null; then
@@ -662,7 +661,7 @@ deploy_style_file() {
     local skipped_count=0
     
     # Deploy anishinaabe-cyberpunk-style.mdc as .md file
-    local source_file="${REPO_DIR}/anishinaabe-cyberpunk-style.mdc"
+    local source_file="${REPO_DIR}/RULES_WE_WANT/anishinaabe-cyberpunk-style.mdc"
     local dest_file="$target_dir/anishinaabe-cyberpunk-style.md"
     
     if [[ -f "$source_file" ]]; then
@@ -689,6 +688,67 @@ deploy_style_file() {
     echo -e "${CYAN}  • anishinaabe-cyberpunk-style.md (Anishinaabe-inspired cyberpunk styling guide)${RESET}"
 }
 
+deploy_instructions_files() {
+    local target_dir="$1"
+
+    if [[ ! -d "$target_dir" ]]; then
+        echo -e "${BRIGHT_RED}Error: $target_dir is not a directory${RESET}"
+        return 1
+    fi
+
+    echo -e "${BRIGHT_BLUE}Deploying instructions .md files to $target_dir/.ainish-coder/${RESET}"
+
+    local ainish_dir="$target_dir/.ainish-coder"
+    mkdir -p "$ainish_dir" 2>/dev/null
+
+    local deployed_count=0
+    local skipped_count=0
+
+    # Deploy excluded .mdc files as individual .md files
+    local instructions_files=(
+        "anishinaabe-cyberpunk-style.mdc"
+        "prompt-security.mdc"
+        "critical.mdc"
+        "code-security.mdc"
+        "KNOWLEDGE_BASE.mdc"
+        "PRD.mdc"
+    )
+
+    for source_filename in "${instructions_files[@]}"; do
+        local source_file="${REPO_DIR}/RULES_WE_WANT/${source_filename}"
+        local dest_filename="${source_filename%.mdc}.md"
+        local dest_file="$ainish_dir/$dest_filename"
+
+        if [[ -f "$source_file" ]]; then
+            if cp "$source_file" "$dest_file" 2>/dev/null; then
+                echo -e "${GREEN}✓ Deployed $source_filename as $dest_filename${RESET}"
+                deployed_count=$((deployed_count + 1))
+            else
+                echo -e "${YELLOW}⚠️  Failed to deploy $source_filename${RESET}"
+                skipped_count=$((skipped_count + 1))
+            fi
+        else
+            echo -e "${YELLOW}⚠️  $source_filename not found in source${RESET}"
+            skipped_count=$((skipped_count + 1))
+        fi
+    done
+
+    echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count instructions .md files to $ainish_dir/${RESET}"
+
+    if [[ $skipped_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Skipped $skipped_count files due to errors${RESET}"
+    fi
+
+    # Display summary of deployed files
+    echo -e "${BRIGHT_CYAN}📋 Summary of deployed files:${RESET}"
+    echo -e "${CYAN}  • ainishinaabe-cyberpunk-style.md${RESET}"
+    echo -e "${CYAN}  • prompt-security.md${RESET}"
+    echo -e "${CYAN}  • critical.md${RESET}"
+    echo -e "${CYAN}  • code-security.md${RESET}"
+    echo -e "${CYAN}  • KNOWLEDGE_BASE.md${RESET}"
+    echo -e "${CYAN}  • PRD.md${RESET}"
+}
+
 show_help() {
     echo "Usage: ainish-coder [options]"
     echo "Options:"
@@ -698,6 +758,7 @@ show_help() {
     echo "  --gemini        Distribute for Gemini"
     echo "  --style         Distribute Ainshinaabe Cyberpunk Style Guide"
     echo "  --security      Distribute Prompt & Code Security Guidelines"
+    echo "  --instructions  Distribute as instructions .md files"
     echo "  --license       Distribute Critical Reminders"
     echo "  --help          Display this help message"
 }
@@ -716,7 +777,7 @@ deploy_security_files() {
     local skipped_count=0
     
     # Deploy prompt-security.mdc as .md file
-    local prompt_security_source="${REPO_DIR}/prompt-security.mdc"
+    local prompt_security_source="${REPO_DIR}/RULES_WE_WANT/prompt-security.mdc"
     local prompt_security_dest="$target_dir/prompt-security.md"
     
     if [[ -f "$prompt_security_source" ]]; then
@@ -733,7 +794,7 @@ deploy_security_files() {
     fi
     
     # Deploy code-security.mdc as .md file
-    local code_security_source="${REPO_DIR}/code-security.mdc"
+    local code_security_source="${REPO_DIR}/RULES_WE_WANT/code-security.mdc"
     local code_security_dest="$target_dir/code-security.md"
     
     if [[ -f "$code_security_source" ]]; then
@@ -750,7 +811,7 @@ deploy_security_files() {
     fi
     
     # Deploy critical.mdc as .md file
-    local critical_source="${REPO_DIR}/critical.mdc"
+    local critical_source="${REPO_DIR}/RULES_WE_WANT/critical.mdc"
     local critical_dest="$target_dir/critical.md"
     
     if [[ -f "$critical_source" ]]; then
@@ -793,7 +854,7 @@ deploy_license_file() {
     local skipped_count=0
     
     # Deploy critical.mdc as .md file
-    local source_file="${REPO_DIR}/critical.mdc"
+    local source_file="${REPO_DIR}/RULES_WE_WANT/critical.mdc"
     local dest_file="$target_dir/critical.md"
     
     if [[ -f "$source_file" ]]; then
@@ -834,7 +895,7 @@ setup_ainish_coder_dir() {
         "critical.mdc" "anishinaabe-cyberpunk-style.mdc" "docs-use.mdc"
         "PRD.mdc" "modern-prompting.mdc" "code-security.mdc" "prompt-security.mdc" "informing.mdc"
         "verify-date-and-time.mdc" "code-judge.mdc" "python-package-mgmt.mdc" "structure.mdc"
-        "math-process.mdc" ".gitignore" ".cursorignore" ".cursorindexignore"
+        "KNOWLEDGE_BASE.mdc" ".gitignore" ".cursorignore" ".cursorindexignore"
     )
     
     for file in "${config_files[@]}"; do
@@ -1030,6 +1091,9 @@ main() {
         "--license")
             deploy_license_file "$2"
             ;;
+        "--instructions")
+            deploy_instructions_files "$2"
+            ;;
         "--help")
             show_help
             ;;
@@ -1072,12 +1136,13 @@ main() {
             echo ""
             echo -e "${BRIGHT_MAGENTA}✨ USAGE:${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder${RESET}: ${CYAN}Deploy configurations to current directory${RESET}"
-            echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to ainish-coder/ as .md files${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --markdown${RESET}: ${CYAN}Deploy .mdc files to .ainish-coder/ as .md files${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode${RESET}: ${CYAN}Deploy with structured distribution: separate modern-prompting & anishinaabe-cyberpunk-style, consolidated others${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --vscode --single${RESET}: ${CYAN}Deploy .mdc files as consolidated copilot-instructions.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --gemini${RESET}: ${CYAN}Deploy consolidated .mdc files to GEMINI.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --qwen${RESET}: ${CYAN}Deploy consolidated .mdc files to QWEN.md (excluding anishinaabe-cyberpunk-style.mdc)${RESET}"
             echo -e "${BRIGHT_BLUE}   ainish-coder --style${RESET}: ${CYAN}Deploy anishinaabe-cyberpunk-style.mdc as .md file to current directory${RESET}"
+            echo -e "${BRIGHT_BLUE}   ainish-coder --instructions${RESET}: ${CYAN}Deploy as instructions .md files${RESET}"
             echo ""
             echo -e "${BRIGHT_MAGENTA}🔧 BACKUP COMMANDS:${RESET}"
             echo -e "${BRIGHT_BLUE}   $0 list_backups${RESET}: ${CYAN}List .zshrc backups${RESET}"

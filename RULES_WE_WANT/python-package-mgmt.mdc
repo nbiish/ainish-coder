@@ -14,35 +14,6 @@ Use `uv` for all Python-related tasks.
 - `uv run script.py` → Runs scripts with automatic dependency management
 - `uvx tool_name` → Runs tools without installation (alias for `uv tool run`)
 
-## UV Tools
-
-- `uv tool install <tool>` → Install tool system-wide
-- `uv tool run <tool>` → Run tool in temporary environment
-- `uv tool list` → List installed tools
-- `uv tool upgrade <tool>` → Upgrade specific tool
-- `uv tool upgrade --all` → Upgrade all tools
-
-## Script Metadata
-
-Add dependencies using inline TOML metadata:
-
-```python
-# /// script
-# dependencies = [
-#   "requests<3",
-#   "rich",
-# ]
-# ///
-
-import requests
-from rich import print
-```
-
-**Commands:**
-- `uv add --script script.py 'package'` → Add dependencies to script
-- `uv run script.py` → Run with declared dependencies
-- `uv run --with 'package' script.py` → Run with runtime dependencies
-
 ## Virtual Environment Best Practices
 
 - `uv venv` creates `.venv` (IDE-recognized)
@@ -50,4 +21,3 @@ from rich import print
 - `uv venv myenv` → Custom environment name
 - `uv pip` auto-detects local environments
 - Delete environments: `rm -rf .venv`
-- Use `--no-project` flag when running scripts outside projects

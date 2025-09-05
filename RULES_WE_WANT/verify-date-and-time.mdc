@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+description: Apply this rule with websearch, fetch, and mpc tools for gathering information.
+alwaysApply: false
 ---
 # CRITICAL: Time-Sensitive Content Protocol
 
