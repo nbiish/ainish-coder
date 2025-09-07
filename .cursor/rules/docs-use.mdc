@@ -1,13 +1,9 @@
 ---
 alwaysApply: true
 ---
-# Information Gathering Protocol
+# ERROR HANDLING PROTOCOL
 
-**When encountering errors, lack of context, or unknown facts:**
-
-1. **context7** → Verified package/library/framework knowledge
-2. **websearch** → General knowledge and current information  
-3. **mcp tools** (brave/tavily) → Additional context verification
-4. **fetch** → Highly specific information for knowledge base
-
-**Fact Verification:** Repeat results across searches = factual knowledge for KNOWLEDGE_BASE/*
+1. websearch → General knowledge and current information  
+2. mcp tools (brave/tavily) → Additional context verification
+3. fetch → Highly specific information for knowledge base
+4. mcp tools → Anything else

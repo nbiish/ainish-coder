@@ -42,28 +42,30 @@ RESET='\033[0m'
 #########################################################################
 
 get_all_config_files() {
-    echo "${REPO_DIR}/RULES_WE_WANT/critical.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/code-security.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/prompt-security.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/modern-prompting.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/anishinaabe-cyberpunk-style.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/docs-use.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/PRD.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/informing.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/verify-date-and-time.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/code-judge.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/python-package-mgmt.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/structure.mdc"
-    echo "${REPO_DIR}/RULES_WE_WANT/KNOWLEDGE_BASE.mdc"
-    echo "${REPO_DIR}/.gitignore"
-    echo "${REPO_DIR}/.cursorignore"
-    echo "${REPO_DIR}/.cursorindexignore"
-    echo "${REPO_DIR}/.github/FUNDING.yml"
+    # Check if RULES_WE_WANT directory exists
+    if [[ ! -d "${REPO_DIR}/RULES_WE_WANT" ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  Warning: RULES_WE_WANT directory not found at ${REPO_DIR}/RULES_WE_WANT${RESET}" >&2
+        return 1
+    fi
+    
+    # Get all .mdc files from RULES_WE_WANT directory (dynamic discovery)
+    find "${REPO_DIR}/RULES_WE_WANT" -maxdepth 1 -name "*.mdc" -type f 2>/dev/null | sort
+    
+    # Add other configuration files if they exist
+    [[ -f "${REPO_DIR}/.gitignore" ]] && echo "${REPO_DIR}/.gitignore"
+    [[ -f "${REPO_DIR}/.cursorignore" ]] && echo "${REPO_DIR}/.cursorignore"
+    [[ -f "${REPO_DIR}/.cursorindexignore" ]] && echo "${REPO_DIR}/.cursorindexignore"
+    [[ -f "${REPO_DIR}/.github/FUNDING.yml" ]] && echo "${REPO_DIR}/.github/FUNDING.yml"
 }
 
 get_mdc_files_only() {
     # Get only .mdc files for ainish-vscode deployment
-    find "${REPO_DIR}/RULES_WE_WANT" -maxdepth 1 -name "*.mdc" -type f | sort
+    if [[ ! -d "${REPO_DIR}/RULES_WE_WANT" ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  Warning: RULES_WE_WANT directory not found at ${REPO_DIR}/RULES_WE_WANT${RESET}" >&2
+        return 1
+    fi
+    
+    find "${REPO_DIR}/RULES_WE_WANT" -maxdepth 1 -name "*.mdc" -type f 2>/dev/null | sort
 }
 
 
@@ -82,7 +84,16 @@ deploy_all_to_ainish_coder() {
     mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
+    local files_found=0
+    
+    # Check if we can get any files
+    if ! get_all_config_files >/dev/null 2>&1; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No configuration files found to deploy${RESET}"
+        return 1
+    fi
+    
     while IFS= read -r source_file; do
+        files_found=1
         if [[ -f "$source_file" ]]; then
             # Handle .github/FUNDING.yml specially to preserve directory structure
             if [[ "$source_file" == *"/.github/FUNDING.yml" ]]; then
@@ -111,6 +122,11 @@ deploy_all_to_ainish_coder() {
         fi
     done < <(get_all_config_files)
     
+    if [[ $files_found -eq 0 ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No configuration files found to deploy${RESET}"
+        return 1
+    fi
+    
     echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count configuration files${RESET}"
 }
 
@@ -128,7 +144,16 @@ deploy_all_to_ainish_coder_markdown() {
     mkdir -p "$ainish_dir" 2>/dev/null
     
     local deployed_count=0
+    local files_found=0
+    
+    # Check if we can get any files
+    if ! get_all_config_files >/dev/null 2>&1; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No configuration files found to deploy${RESET}"
+        return 1
+    fi
+    
     while IFS= read -r source_file; do
+        files_found=1
         if [[ -f "$source_file" ]]; then
             # Handle .github/FUNDING.yml specially to preserve directory structure
             if [[ "$source_file" == *"/.github/FUNDING.yml" ]]; then
@@ -170,6 +195,11 @@ deploy_all_to_ainish_coder_markdown() {
             fi
         fi
     done < <(get_all_config_files)
+    
+    if [[ $files_found -eq 0 ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No configuration files found to deploy${RESET}"
+        return 1
+    fi
     
     echo -e "${BRIGHT_GREEN}✅ Deployed $deployed_count configuration files (converted to .md)${RESET}"
 }
@@ -219,8 +249,16 @@ deploy_vscode_to_github() {
         # Create the consolidated file (no header, just pure content)
         echo "" > "$consolidated_file"
         
+        # Check if we can get any .mdc files
+        if ! get_mdc_files_only >/dev/null 2>&1; then
+            echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+            return 1
+        fi
+        
         # Process .mdc files and append to consolidated file
+        local files_found=0
         while IFS= read -r source_file; do
+            files_found=1
             if [[ -f "$source_file" ]]; then
                 local filename=$(basename "$source_file")
                 
@@ -241,6 +279,11 @@ deploy_vscode_to_github() {
             fi
         done < <(get_mdc_files_only)
         
+        if [[ $files_found -eq 0 ]]; then
+            echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+            return 1
+        fi
+        
         echo -e "${GREEN}✓ Created consolidated copilot-instructions.md${RESET}"
         deployed_count=$((deployed_count + 1))
         
@@ -249,8 +292,16 @@ deploy_vscode_to_github() {
         local instructions_dir="$github_dir/instructions"
         mkdir -p "$instructions_dir" 2>/dev/null
         
+        # Check if we can get any .mdc files
+        if ! get_mdc_files_only >/dev/null 2>&1; then
+            echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to deploy${RESET}"
+            return 1
+        fi
+        
         # Deploy .mdc files to .github/instructions/ with .instructions.md naming
+        local files_found=0
         while IFS= read -r source_file; do
+            files_found=1
             if [[ -f "$source_file" ]]; then
                 local filename=$(basename "$source_file")
                 local dest_filename
@@ -272,6 +323,11 @@ deploy_vscode_to_github() {
                 fi
             fi
         done < <(get_mdc_files_only)
+        
+        if [[ $files_found -eq 0 ]]; then
+            echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to deploy${RESET}"
+            return 1
+        fi
     fi
     
     # Deploy GitHub Copilot configuration files
@@ -371,7 +427,15 @@ deploy_vscode_structured() {
     local consolidated_file="$ainish_dir/copilot-instructions.md"
     echo "" > "$consolidated_file"
     
+    # Check if we can get any .mdc files
+    if ! get_mdc_files_only >/dev/null 2>&1; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+        return 1
+    fi
+    
+    local files_found=0
     while IFS= read -r source_file; do
+        files_found=1
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             
@@ -390,6 +454,11 @@ deploy_vscode_structured() {
             fi
         fi
     done < <(get_mdc_files_only)
+    
+    if [[ $files_found -eq 0 ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+        return 1
+    fi
     
     deployed_count=$((deployed_count + 1))
     echo -e "${GREEN}✓ Created consolidated copilot-instructions.md${RESET}"
@@ -601,8 +670,16 @@ deploy_gemini_structured() {
     # Create the consolidated file (no header, just pure content)
     echo "" > "$gemini_file"
     
+    # Check if we can get any .mdc files
+    if ! get_mdc_files_only >/dev/null 2>&1; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+        return 1
+    fi
+    
     # Process .mdc files and append to consolidated file
+    local files_found=0
     while IFS= read -r source_file; do
+        files_found=1
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             
@@ -622,6 +699,11 @@ deploy_gemini_structured() {
             fi
         fi
     done < <(get_mdc_files_only)
+    
+    if [[ $files_found -eq 0 ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+        return 1
+    fi
     
     echo -e "${GREEN}✓ Created consolidated GEMINI.md${RESET}"
     deployed_count=$((deployed_count + 1))
@@ -700,8 +782,16 @@ deploy_qwen_structured() {
     # Create the consolidated file (no header, just pure content)
     echo "" > "$qwen_file"
     
+    # Check if we can get any .mdc files
+    if ! get_mdc_files_only >/dev/null 2>&1; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+        return 1
+    fi
+    
     # Process .mdc files and append to consolidated file
+    local files_found=0
     while IFS= read -r source_file; do
+        files_found=1
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             
@@ -721,6 +811,11 @@ deploy_qwen_structured() {
             fi
         fi
     done < <(get_mdc_files_only)
+    
+    if [[ $files_found -eq 0 ]]; then
+        echo -e "${BRIGHT_YELLOW}⚠️  No .mdc files found to consolidate${RESET}"
+        return 1
+    fi
     
     echo -e "${GREEN}✓ Created consolidated QWEN.md${RESET}"
     deployed_count=$((deployed_count + 1))

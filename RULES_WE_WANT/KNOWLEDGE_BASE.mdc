@@ -1,49 +1,9 @@
 ---
-globs: prd.md,PRD.md,*PRD.md,PRD*.md,*prd.md,prd*.md,!README.md,*.md,KNOWLEDGE_BASE/,KNOWLEDGE_BASE/*
-alwaysApply: false
+alwaysApply: true
 ---
-# Context = Knowledge Base = PRD
+# KNOWLEDGE_BASE/* structure
 
-All code, features, and implementation decisions MUST strictly follow the Product Requirements Document (PRD.md)
-and be based on factual information gathered into the project's KNOWLEDGE_BASE/*.
-
-## KNOWLEDGE_BASE/*
-
-- /docs*
-- /requirements*
-- /features*
-- /issues*
-- /security*
-
-## Technical & Methodology Choices
-
-- All new features, bugfixes, and refactors must be cross-checked against the PRD.md and KNOWLEDGE_BASE/* for compliance.
-- Any deviation or extension must be documented in the PRD.md and KNOWLEDGE_BASE/* before proceeding.
-- All planning should happen in the PRD.md and reference specific content from the KNOWLEDGE_BASE/*.
-
-### Example Usage When Adding a New Feature
-
-When adding a new feature:
-
-1. Concisely document the new feature in the PRD.md.
-2. Gather the docs, facts, and context for the KNOWLEDGE_BASE/* to supply factual information to the PRD.md, README.md, and codebase.
-3. Code must match factual information pulled from the KNOWLEDGE_BASE/*.
-4. Update the PRD.md and KNOWLEDGE_BASE/* with the new feature details and usage.
-
-### Example Usage When Fixing a Bug
-
-When fixing a bug:
-
-1. Update the PRD.md and KNOWLEDGE_BASE/* with the bug details and usage.
-2. Gather the facts and context into the KNOWLEDGE_BASE/*.
-3. Implement code changes to fix the bug.
-4. Ensure all code aligns with the PRD.md and KNOWLEDGE_BASE/*.
-
-### Example Usage When Security is Needed
-
-When security is needed:
-
-1. Update the PRD.md and KNOWLEDGE_BASE/* with the security details and usage.
-2. Gather the facts and context into the KNOWLEDGE_BASE/*.
-3. Implement code changes to secure the feature.
-4. Ensure all code aligns with security requirements from the KNOWLEDGE_BASE/*.
+- /PRD.md
+- /FACTS.md
+- /TASKS.md
+- /DOCS/*

@@ -1,39 +1,15 @@
 ---
 alwaysApply: true
 ---
-# Structure Rule: Logical Tiered Composition
+# Code Structure
 
 Organize code using a tiered component structure for clarity, maintainability, and robustness:
 
-1. **Atom**: Small, self-contained components (class, UI element, argument parser)
-2. **Molecule**: Functional units composed of atoms (command handler, data pipeline)  
-3. **Matter**: High-level features from molecules/atoms (CLI command, service endpoint)
+1. **Atom**: functions | variables | constants | classes
+2. **Molecule**: classes | modules
+3. **Matter**: main entry point
 
-## Technical/Methodology Choices
+## Technical Methodology
 
-- Each tier depends only on lower tiers (molecules → atoms)
-- Enables robust testing, refactoring, and feature extension
-- Documentation goes into PRD.md and KNOWLEDGE_BASE/*
-
-## Implementation Process
-
-**New Features:**
-
-- Build atoms (parser, formatter)
-- Compose molecules (command handler)  
-- Form matter (complete workflow)
-
-This decomposes complexity into well-defined, reusable components following modern best practices.
-
-## Directory Management
-
-All file/directory management scripts run from the `mgmt-scripts/` directory:
-
-**Example:**
-
-```bash
-mgmt-scripts/
-⮑ cleanup/cleanup.sh
-⮑ rename/rename.sh  
-⮑ organize/organize.sh
-```
+- Each tier depends only on lower tiers (matter → molecules → atoms)
+- Documentation goes into KNOWLEDGE_BASE/*

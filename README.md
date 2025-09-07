@@ -28,10 +28,10 @@
 ## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
 
 - **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Triple Deployment System ◇**: Core configurations, Markdown format deployment, and VSCode/Copilot structured distribution.
-- **◇ Structured VSCode Distribution ◇**: Separate `modern-prompting.instructions.md` and `anishinaabe-cyberpunk-style.instructions.md` files, plus consolidated `copilot-instructions.md`.
+- **◇ Dual Source Structure ◇**: Configuration files maintained in both `.cursor/rules/` and `RULES_WE_WANT/` directories for different deployment needs.
+- **◇ Structured Distribution System ◇**: Separate instruction files for modern prompting and Anishinaabe cyberpunk styling.
 - **◇ Multiple AI Tool Support ◇**: Unified configuration system for all AI coding tools including GitHub Copilot, Cursor AI, and VSCode.
-- **◇ Comprehensive Copilot Instructions ◇**: Consolidated development guidelines, security protocols, and best practices in `copilot-instructions.md` for optimal AI-assisted development.
+- **◇ Comprehensive Configuration Framework ◇**: Extensive set of `.mdc` files covering security, documentation, code structure, and cultural integration.
 - **◇ Flexible File Formats ◇**: Support for both `.mdc` and `.md` file formats with the `--markdown` flag.
 - **◇ Automatic Configuration ◇**: Includes Gitignore rules and comprehensive configuration files.
 - **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-coder`) for easy deployment.
@@ -249,42 +249,44 @@ To update later, simply pull the latest changes into the repository directory an
 ```text
 ainish-coder/
 ├── ainish-setup.sh              # Main setup and distribution script
-├── critical.mdc                 # Core AINISH configuration file
-├── modern-prompting.mdc         # Advanced cognitive framework for LLM interactions
-├── code-security.mdc            # Code security and cybersecurity framework
-├── prompt-security.mdc          # LLM security and prompt injection protection framework
-├── code-judge.mdc               # Code judge and reasoning framework
-├── docs-use.mdc                 # Documentation usage guidelines
-├── informing.mdc                # Code documentation requirements
-├── PRD.mdc                      # Universal Product Requirements Document template
-├── PRD.md                       # Product Requirements Document (current version)
-├── prd-and-context.mdc          # PRD and context management rules
-├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-├── python-package-mgmt.mdc      # Python package management rules
-├── verify-date-and-time.mdc     # Date and time verification rules
-├── math-process.mdc             # M.A.T.H. process rule for development standards
-├── structure.mdc                # Code structure and architecture guidelines
-├── cursor-wrapper.sh            # Cursor AI wrapper script
+├── .copilotignore               # Copilot ignore rules
+├── .copilotindexignore          # Copilot index ignore rules
 ├── .gitignore                   # Standard Git ignore rules
 ├── .cursorignore                # Cursor AI ignore rules
 ├── .cursorindexignore           # Cursor AI index ignore rules
 ├── .github/                     # GitHub configuration
 │   └── FUNDING.yml             # Funding configuration for Sponsor button and donation links
-├── ainish-vscode/               # VSCode/Copilot configurations
-│   ├── .copilotignore          # Copilot ignore rules
-│   ├── .copilotindexignore     # Copilot index ignore rules
-│   ├── .gitignore              # Git ignore rules
-│   ├── copilot-instructions.md # Consolidated Copilot instruction set
-│   └── .github/                # GitHub configuration
-│       ├── FUNDING.yml         # GitHub funding configuration
-│       └── instructions/       # Separate instruction files
-│           ├── modern-prompting.instructions.md        # Modern prompting framework
-│           └── anishinaabe-cyberpunk-style.instructions.md  # Styling guide
 ├── .cursor/                     # Cursor AI configuration
 │   └── rules/                  # Cursor rules directory
+│       ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+│       ├── code-judge.mdc       # Code judge and reasoning framework
+│       ├── code-security.mdc    # Code security and cybersecurity framework
+│       ├── critical.mdc         # Core AINISH configuration file
+│       ├── docs-use.mdc         # Documentation usage guidelines
+│       ├── KNOWLEDGE_BASE.mdc   # Knowledge base management rules
+│       ├── modern-prompting.mdc # Advanced cognitive framework for LLM interactions
+│       ├── PRD.mdc              # Universal Product Requirements Document template
+│       ├── prompt-security.mdc  # LLM security and prompt injection protection framework
+│       ├── python-package-mgmt.mdc  # Python package management rules
+│       ├── structure.mdc        # Code structure and architecture guidelines
+│       └── verify-date-and-time.mdc  # Date and time verification rules
 ├── AINISH-DATA/                 # Data storage directory
 │   ├── good-mcp-use.csv        # MCP usage tracking data
 │   └── mcp_data.db             # MCP database
+├── RULES_WE_WANT/              # Source configuration files directory
+│   ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
+│   ├── code-judge.mdc          # Code judge and reasoning framework
+│   ├── code-security.mdc       # Code security and cybersecurity framework
+│   ├── critical.mdc            # Core AINISH configuration file
+│   ├── docs-use.mdc            # Documentation usage guidelines
+│   ├── KNOWLEDGE_BASE.mdc      # Knowledge base management rules
+│   ├── modern-prompting.mdc    # Advanced cognitive framework for LLM interactions
+│   ├── PRD.mdc                 # Universal Product Requirements Document template
+│   ├── prompt-security.mdc     # LLM security and prompt injection protection framework
+│   ├── python-package-mgmt.mdc # Python package management rules
+│   ├── structure.mdc           # Code structure and architecture guidelines
+│   └── verify-date-and-time.mdc  # Date and time verification rules
+├── PRD.md                       # Product Requirements Document (current version)
 ├── LICENSE                      # Comprehensive restricted use license
 ├── CONTRIBUTING.md              # Contributing guidelines
 ├── qr-stripe-donation.png       # Stripe donation QR code
@@ -311,13 +313,12 @@ Deploys essential AINISH configuration files to `./ainish-coder/` directory:
 - `prompt-security.mdc`: LLM security and prompt injection protection framework
 - `code-judge.mdc`: Code judge and reasoning framework
 - `docs-use.mdc`: Documentation usage guidelines
-- `informing.mdc`: Code documentation requirements
+- `KNOWLEDGE_BASE.mdc`: Knowledge base management rules
 - `PRD.mdc`: Universal Product Requirements Document template
-- `prd-and-context.mdc`: PRD and context management rules
 - `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
 - `python-package-mgmt.mdc`: Python package management rules
 - `verify-date-and-time.mdc`: Date and time verification rules
-- `math-process.mdc`: M.A.T.H. process rule for development standards
+- `structure.mdc`: Code structure and architecture guidelines
 - `.gitignore`: Standard Git ignore rules
 - `.github/FUNDING.yml`: GitHub funding configuration for Sponsor button and donation links
 
@@ -336,9 +337,10 @@ Deploys editor-specific configurations with structured distribution:
 
 - `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
 - `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
-- `copilot-instructions.md`: Consolidated instructions from all other .mdc files
+- `copilot-instructions.md`: Consolidated instructions from all .mdc files
 - `.gitignore`, `.copilotignore`, `.copilotindexignore`: Configuration files
 - `.github/FUNDING.yml`: GitHub funding configuration
+- Files sourced from `.cursor/rules/` directory for Cursor AI integration
 
 <div align="center">
 ◈──◆──◇─────────────────◇──◆──◈
@@ -586,3 +588,9 @@ This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TR
   note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
 }
 ```
+
+## 📄 License and Contributing
+
+This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS. See the [LICENSE](LICENSE) file for complete details.
+
+For contribution guidelines, please see [CONTRIBUTING.md](CONTRIBUTING.md).

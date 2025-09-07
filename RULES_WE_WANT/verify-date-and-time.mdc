@@ -1,35 +1,17 @@
 ---
-description: Apply this rule with websearch, fetch, and mpc tools for gathering information.
-alwaysApply: false
+alwaysApply: true
 ---
-# CRITICAL: Time-Sensitive Content Protocol
-
-## MANDATORY TIME TOOL USAGE
-
-**You MUST use the MCP time tool for:**
-
-### PRIMARY TRIGGERS (Always Required)
+# VERIFY DATE AND TIME
 
 - Web search requests
 - Questions about "current", "latest", "recent", "modern", "up-to-date" information
 - Time-relative data ("today's", "this year's")
-
-### SECONDARY TRIGGERS (Context-Dependent)
-
 - News, events, statistics, prices, weather
 - Software versions, technology updates, market data
 - Any factual claim that could become outdated
 
-## IMPORTANT CONTEXT
+## Important Context
 
 - AI models have training data cutoffs
 - Without current time data, responses may contain outdated information
 - Always establish current date/time before providing time-sensitive answers
-
-## FORMAT
-
-1. Use time tool to get current date/time
-2. Proceed with request using current temporal context
-3. Note when information might be outdated due to training cutoff
-
-**REMEMBER: When in doubt about temporal relevance, USE THE TIME TOOL.**

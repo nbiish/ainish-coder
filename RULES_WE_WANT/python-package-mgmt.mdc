@@ -1,23 +1,10 @@
 ---
-globs: *.py,.venv,venv,*venv,venv*,*venv*
-alwaysApply: false
+alwaysApply: true
 ---
-# NEVER USE PYTHON WITHOUT READING THE FOLLOWING
+# ```uv``` for all Python tasks
 
-Use `uv` for all Python-related tasks.
-
-## Core Commands
-
-- `uv venv` → Creates virtual environments
-- `uv pip install` → Installs packages
-- `uv pip install -e .` → Installs packages in development mode
-- `uv run script.py` → Runs scripts with automatic dependency management
-- `uvx tool_name` → Runs tools without installation (alias for `uv tool run`)
-
-## Virtual Environment Best Practices
-
-- `uv venv` creates `.venv` (IDE-recognized)
-- `uv venv --python 3.12` → Specify Python version
-- `uv venv myenv` → Custom environment name
-- `uv pip` auto-detects local environments
-- Delete environments: `rm -rf .venv`
+- `uv venv` -> Creates `.venv` environment in the current directory
+- `uv venv --python 3.12` -> Creates `.venv` environment in the current directory with Python 3.12
+- `uv venv myenv` -> Creates `.venv` environment in the current directory as `myenv` (no `.` suffix)
+- `uv pip install` -> Installs packages into the current directory's .venv
+- `uv run need-package.py` -> Runs python files with the current directory's .venv dependencies

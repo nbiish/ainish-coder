@@ -1,117 +1,51 @@
 ---
-globs: PRD.md,*PRD.md,PRD*.md
-alwaysApply: false
+alwaysApply: true
 ---
 # PRODUCT REQUIREMENTS DOCUMENT
 
-**Author:** [Author Name] | **Date:** [Date] | **Version:** [Version]
-
 ## 1. OBJECTIVE
 
-**Purpose:** [Clear statement of what the product does and why it exists]
+**Purpose:** [[...]]
 
-## 2. SCOPE
-
-**In-Scope:**
-
-- [Feature 1]
-- [Feature 2]
-
-**Out-of-Scope:**
-
-- [Excluded feature 1]
-- [Excluded feature 2]
-
-## 3. ARCHITECTURE: TIERED COMPOSITION
+## 2. ARCHITECTURE
 
 ### Component Structure (Atom → Molecule → Matter)
 
-**Atoms:** Small, self-contained components
+**Atoms:** functions | variables | constants | packages
 
-- [Component 1: parser, formatter, validator]
-- [Component 2: data model, utility function]
+- [[...]]
 
-**Molecules:** Functional units composed of atoms
+**Molecules:** classes | modules
 
-- [Unit 1: command handler, data pipeline]
-- [Unit 2: service layer, business logic]
+- [[...]]
 
-**Matter:** High-level features from molecules/atoms
+**Matter:** main entry point
 
-- [Feature 1: CLI command, API endpoint]
-- [Feature 2: complete workflow, user interface]
+- [[...]]
 
-## 4. FUNCTIONAL REQUIREMENTS
+## 3. FUNCTIONAL REQUIREMENTS
 
 ### Core Features
 
-- [ ] [Feature 1 with acceptance criteria]
-- [ ] [Feature 2 with acceptance criteria]
+- [[...]]
 
 ### User Experience
 
-- [ ] [User flow 1]
-- [ ] [User flow 2]
+- [[...]]
 
-## 5. NON-FUNCTIONAL REQUIREMENTS
-
-- [ ] Performance: [specific metrics]
-- [ ] Security: [security requirements]
-- [ ] Scalability: [scaling requirements]
-- [ ] Compliance: [regulatory requirements]
-
-## 6. SUCCESS METRICS
-
-- [ ] [Measurable KPI 1]
-- [ ] [Measurable KPI 2]
-
-## 7. KNOWLEDGE BASE
+## 4. KNOWLEDGE BASE
 
 **Documentation Structure:**
 
-- `KNOWLEDGE_BASE/docs/` - Technical documentation
-- `KNOWLEDGE_BASE/requirements/` - Requirements and specifications
-- `KNOWLEDGE_BASE/features/` - Feature documentation
-- `KNOWLEDGE_BASE/security/` - Security documentation
-
-## 8. ACCEPTANCE CRITERIA
-
-**Core Functionality:**
-
-- [ ] [Specific acceptance criteria 1]
-- [ ] [Specific acceptance criteria 2]
-
-**Quality Standards:**
-
-- [ ] Code follows tiered composition structure
-- [ ] All components documented in KNOWLEDGE_BASE/*
-- [ ] Security requirements met
-- [ ] Performance benchmarks achieved
-
-## 9. ASSUMPTIONS & CONSTRAINTS
-
-**Assumptions:**
-
-- [Assumption 1]
-- [Assumption 2]
-
-**Constraints:**
-
-- [Constraint 1]
-- [Constraint 2]
+- `KNOWLEDGE_BASE/PRD.md` - PRD
+- `KNOWLEDGE_BASE/FACTS.md` - Facts
+- `KNOWLEDGE_BASE/NOTES.md` - Notes
+- `KNOWLEDGE_BASE/FETCHED_DOCS/*` - Fetched docs (if any)
 
 ---
 
 ## PRD BEST PRACTICES
 
-- Use clear, unambiguous language
-- Include specific, measurable requirements
-- Define success criteria objectively
-- Balance detail with conciseness
 - Treat PRD and KNOWLEDGE_BASE/* as living documents
 - Reference PRD and KNOWLEDGE_BASE/* throughout development lifecycle
 - Follow Atom → Molecule → Matter component structure
-- Document all components in KNOWLEDGE_BASE/*
-
----
-*This PRD template follows modern tiered composition principles for maintainable, scalable software architecture.*

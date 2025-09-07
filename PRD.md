@@ -1,6 +1,60 @@
 # PRODUCT REQUIREMENTS DOCUMENT: ainish-coder
 
-**Author:** ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish-Justin Waabanimikii-Kenwabikise) | **Date:** 2025-01-27 | **Version:** 1.0.0
+**Author:** ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish-Justin Waabanimikii-Kenwabikise) | **Date:** 2025-01-27 | **Version:** 1.1.0
+
+## 1. OBJECTIVE
+
+**Purpose:** ainish-coder is a comprehensive configuration manager for AI coding assistants that provides seamless setup and integration for multiple AI development tools in projects. It embodies Indigenous intellectual property principles while maintaining technical excellence through a unique Anishinaabe-Cyberpunk styling approach.
+
+## 2. ARCHITECTURE
+
+### Component Structure (Atom → Molecule → Matter)
+
+**Atoms:** functions | variables | constants | packages
+- Configuration files (.mdc/.md formats)
+- Shell scripts and wrapper functions
+- Git ignore rules and GitHub configurations
+- Data tracking capabilities
+
+**Molecules:** classes | modules
+- ainish-setup.sh (main setup script)
+- Triple deployment system (core, markdown, vscode)
+- Structured VSCode distribution system
+- MCP usage tracking system
+
+**Matter:** main entry point
+- ainish-coder wrapper command
+- Unified configuration management
+- Cross-platform compatibility
+
+## 3. FUNCTIONAL REQUIREMENTS
+
+### Core Features
+- Unified setup script for all AI coding assistants
+- Triple deployment system (core configurations, markdown format, VSCode/Copilot)
+- Multiple AI tool support (GitHub Copilot, Cursor AI, VSCode)
+- Flexible file format support (.mdc and .md)
+- Automatic configuration with Gitignore rules
+- Wrapper functions for convenient deployment
+- MCP usage tracking and data storage
+- Product Requirements Documentation
+
+### User Experience
+- One-command installation and setup
+- Cross-platform compatibility (macOS, Linux, Windows)
+- Clear documentation with Anishinaabe cultural elements
+- Support for multiple shell environments
+- Comprehensive troubleshooting guides
+
+## 4. KNOWLEDGE BASE
+
+**Documentation Structure:**
+- `PRD.md` - Product Requirements Document
+- `README.md` - Comprehensive user guide with scholarly citation
+- `LICENSE` - Comprehensive restricted use license with tribal sovereignty protections
+- `CONTRIBUTING.md` - Contributing guidelines
+- `RULES_WE_WANT/` - Source configuration files
+- `AINISH-DATA/` - MCP usage tracking and data storage
 
 ## 1. EXAMPLES
 

@@ -5,10 +5,10 @@ alwaysApply: true
 
 **Fact-based code evaluation framework:**
 
-1. **Find the facts** → Gather verified building blocks from KNOWLEDGE_BASE/* and PRD.md
-2. **Look for the issue** → Identify the core problem driving the code review/debugging
+1. **Find the facts** → Gather verified facts from KNOWLEDGE_BASE/*
+2. **Look for the issue** → Identify the core problem driving the issue
 3. **Identify KNOWLEDGE_BASE/** → Base decisions on verified facts, not assumptions
-4. **Locate rules/standards** → Reference language specs, coding standards, and PRD.md precedents
+4. **Locate rules/standards** → Gather specs into KNOWLEDGE_BASE/*
 5. **Apply critical thinking** → Examine technical reasoning for foundational truths
 
 ## Critical Thinking Guidelines
