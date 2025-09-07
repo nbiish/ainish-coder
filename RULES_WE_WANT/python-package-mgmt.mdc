@@ -1,10 +1,8 @@
 ---
 alwaysApply: true
 ---
-# ```uv``` for all Python tasks
+# CRITICAL: ```uv``` MUST be used for all Python tasks
 
-- `uv venv` -> Creates `.venv` environment in the current directory
-- `uv venv --python 3.12` -> Creates `.venv` environment in the current directory with Python 3.12
-- `uv venv myenv` -> Creates `.venv` environment in the current directory as `myenv` (no `.` suffix)
-- `uv pip install` -> Installs packages into the current directory's .venv
-- `uv run need-package.py` -> Runs python files with the current directory's .venv dependencies
+- ```uv venv``` -> Creates ```.venv``` in the current directory
+- ```uv pip install some-package``` -> Installs packages into the current directory's ```.venv```
+- ```uv run needs-some-package.py``` -> Runs python files with the current directory's ```.venv``` dependencies
