@@ -1,6 +1,3 @@
----
-alwaysApply: false
----
 # Modern Prompting & Context Engineering Framework
 
 ## Compression Principles
@@ -412,7 +409,7 @@ Convergence: 82% (optimal)
 
 ### Reflexive Analysis
 
-Embed ethical, legal, and cultural considerations directly into reasoning processes. Enables responsible AI by evaluating outputs against established guidelines and ensuring contextually-aware generations that consider broader societal implications. Particularly important for high-stakes decisions where bias, fairness, and cultural sensitivity are critical factors.
+Embed code quality, compliance, and architectural considerations directly into reasoning processes. Enables robust development by evaluating outputs against established codebase guidelines and ensuring contextually-aware generations that consider broader system implications. Particularly important for high-stakes decisions where maintainability, correctness, and adherence to standards are critical factors.
 
 #### Visual Representation
 

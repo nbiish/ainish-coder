@@ -1,596 +1,401 @@
 # ◈──◆──◇ ainish-coder ◇──◆──◈
 
 <div align="center">
-  <h2>A comprehensive configuration manager for AI coding assistants</h2>
-  <p>Seamless setup and integration for multiple AI development tools in your projects.</p>
+  <h2>Configuration manager for AI coding assistants</h2>
+  <p>Simple deployment of MAI RULES and AGENTS.md configurations to your projects.</p>
+  <p><strong>✨ Now supports AGENTS.md - the universal standard for AI pair programmers</strong></p>
 
   <hr width="50%">
   
   <h3>Support This Project</h3>
-  <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
-    <div>
-      <h4>Stripe</h4>
-      <img src="qr-stripe-donation.png" alt="Scan to donate" width="180"/>
-      <p><a href="https://raw.githubusercontent.com/nbiish/license-for-all-works/8e9b73b269add9161dc04bbdd79f818c40fca14e/qr-stripe-donation.png">Donate via Stripe</a></p>
-    </div>
-    <div style="display: flex; align-items: center;">
-      <a href="https://www.buymeacoffee.com/nbiish"><img src="buymeacoffee-button.svg" alt="Buy me a coffee" /></a>
-    </div>
-  </div>
+  <a href="https://www.buymeacoffee.com/nbiish"><img src="buymeacoffee-button.svg" alt="Buy me a coffee" /></a>
   
   <hr width="50%">
 </div>
 
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
+## 🎯 What's New: AGENTS.md Single Source of Truth
 
-## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
+**AGENTS.md** is the universal standard for AI pair programmer instructions (August 2025). This tool now enforces a **simplified workflow**:
 
-- **◇ Unified Setup ◇**: One script (`ainish-setup.sh`) to configure all your AI coding assistants.
-- **◇ Dual Source Structure ◇**: Configuration files maintained in both `.cursor/rules/` and `RULES_WE_WANT/` directories for different deployment needs.
-- **◇ Structured Distribution System ◇**: Separate instruction files for modern prompting and Anishinaabe cyberpunk styling.
-- **◇ Multiple AI Tool Support ◇**: Unified configuration system for all AI coding tools including GitHub Copilot, Cursor AI, and VSCode.
-- **◇ Comprehensive Configuration Framework ◇**: Extensive set of `.mdc` files covering security, documentation, code structure, and cultural integration.
-- **◇ Flexible File Formats ◇**: Support for both `.mdc` and `.md` file formats with the `--markdown` flag.
-- **◇ Automatic Configuration ◇**: Includes Gitignore rules and comprehensive configuration files.
-- **◇ Wrapper Functions ◇**: Sets up convenient shell commands (`ainish-coder`) for easy deployment.
-- **◇ Product Requirements Documentation ◇**: Comprehensive PRD.md with detailed project specifications and requirements.
-- **◇ Data Tracking ◇**: MCP usage tracking and data storage capabilities in `AINISH-DATA/` directory.
+- ✅ **Run --agents first** to create AGENTS.md at project root
+- ✅ **All tools symlink to AGENTS.md** - no copies, no fallbacks
+- ✅ **Single source of truth** - edit once, applies everywhere
+- ⚠️ **Required workflow** - tool commands fail if AGENTS.md doesn't exist
 
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
+See [AGENTS.md Compatibility Matrix](KNOWLEDGE_BASE/AGENTS-MD-COMPATIBILITY.md) for full details.
 
-## ᐴ NITAM-AABAJICHIGANAN ᔔ [Prerequisites] ◈──◆──◇──◆──◈
+## Capabilities
 
-Before installation, ensure you have:
+- **AGENTS.md Standard**: Deploy universal AI agent instructions
+- **Modular Architecture**: Clean Atom → Molecule → Matter structure
+- **Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code
+- **Simple Deployment**: One command to deploy configurations
+- **Smart Symlinks**: Unified configuration across tools
+- **Shell Integration**: Convenient `ainish-coder` command
 
-### **Required:**
+## Installation
 
-- **Git** - Version control system
-- **Terminal/Command Line Interface** - Built into your operating system
+### Prerequisites
+- Git
+- Terminal (zsh, bash, or PowerShell)
 
-### **Recommended:**
-
-- **Cursor AI** (~1GB, download from [cursor.so](https://cursor.so)) - Recommended for optimal experience
-- **VSCode** - Alternative code editor with Copilot support
-
-### **Operating System Support:**
-
-- **macOS** - Fully supported with zsh/bash
-- **Linux** - Fully supported with bash/zsh/fish
-- **Windows** - Supported via PowerShell, Command Prompt, or WSL (Windows Subsystem for Linux)
-
-The script will automatically detect your system and configure accordingly.
-
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
-
-## ᐴ AABAJITOOWINAN ᔔ [Installation] ◈──◆──◇──◆──◈
-
-### **Step 1: Install Prerequisites**
-
-#### **Git Installation:**
-
-- **Windows:** Download from [git-scm.com](https://git-scm.com/download/win)
-- **macOS:** Install via [Homebrew](https://brew.sh) with `brew install git` or download from git-scm.com
-- **Linux:** Use your package manager:
-
-  ```bash
-  # Ubuntu/Debian
-  sudo apt update && sudo apt install git
-  
-  # Fedora/RHEL
-  sudo dnf install git
-  
-  # Arch Linux
-  sudo pacman -S git
-  ```
-
-#### **Verify Git Installation:**
-
-```bash
-git --version
-```
-
-You should see something like `git version 2.39.0`
-
-### **Step 2: Clone the Repository**
-
-Open your terminal/command prompt and run:
+### Quick Install
 
 ```bash
 # Clone the repository
 git clone https://github.com/nbiish/ainish-coder
-
-# Navigate into the directory
 cd ainish-coder
-```
 
-### **Step 3: Platform-Specific Installation**
-
-#### **macOS Installation:**
-
-```bash
-# Make the setup script executable
+# Run setup
 chmod +x ainish-setup.sh
-
-# Run the setup script
 ./ainish-setup.sh
-```
 
-#### **Linux Installation:**
-
-```bash
-# Make the setup script executable
-chmod +x ainish-setup.sh
-
-# Run the setup script
-./ainish-setup.sh
-```
-
-#### **Windows Installation:**
-
-**Option A: PowerShell (Recommended)**
-
-```powershell
-# Navigate to the directory
-cd ainish-coder
-
-# Run the setup script
-.\ainish-setup.sh
-```
-
-**Option B: Command Prompt**
-
-```cmd
-# Navigate to the directory
-cd ainish-coder
-
-# Run the setup script
-ainish-setup.sh
-```
-
-**Option C: WSL (Windows Subsystem for Linux)**
-
-```bash
-# Navigate to the directory
-cd ainish-coder
-
-# Make the setup script executable
-chmod +x ainish-setup.sh
-
-# Run the setup script
-./ainish-setup.sh
-```
-
-### **Step 4: Activate the Installation**
-
-After running the setup script, you need to reload your shell configuration:
-
-**macOS/Linux:**
-
-```bash
-source ~/.zshrc    # If using zsh
-source ~/.bashrc   # If using bash
-source ~/.config/fish/config.fish  # If using fish
+# Reload shell (macOS/Linux)
+source ~/.zshrc  # or ~/.bashrc
 ```
 
 **Windows PowerShell:**
-
 ```powershell
+.\ainish-setup.sh
 . $PROFILE
 ```
 
-**Windows Command Prompt:**
+## Usage
 
-```cmd
-# Restart your command prompt
-```
+### Recommended Workflow (AGENTS.md Standard)
 
-### **Step 5: Verify Installation**
-
-Test that the installation worked:
+⚠️ **IMPORTANT:** Always run `--agents` first to create AGENTS.md before using any tool commands.
 
 ```bash
-# Check if the command is available
+# Step 1: Deploy AGENTS.md (REQUIRED FIRST)
+ainish-coder --agents /path/to/project
+
+# Step 2: Deploy tool-specific symlinks (these will fail without AGENTS.md)
+ainish-coder --copilot /path/to/project   # Creates .github/copilot-instructions.md → AGENTS.md
+ainish-coder --cline /path/to/project     # Creates .clinerules/AGENTS.md → AGENTS.md
+ainish-coder --windsurf /path/to/project  # Creates .windsurf/rules/rules.md → AGENTS.md
+ainish-coder --cn /path/to/project        # Creates .continue/rules/AGENTS.md → AGENTS.md
+ainish-coder --gemini /path/to/project    # Creates GEMINI.md → AGENTS.md
+ainish-coder --qwen /path/to/project      # Creates QWEN.md → AGENTS.md
+ainish-coder --roocode /path/to/project   # Creates .roo/AGENTS.md → AGENTS.md + .rooignore
+
+# Step 3 (Optional): Deploy supplementary MAIRULES.md
+ainish-coder --mairules /path/to/project  # Creates .mai-rules/MAIRULES.md
+
+# Step 4 (Optional): Symlink critical.md to project root
+ainish-coder --critical /path/to/project  # Creates critical.md → TIER_0/critical.md
+```
+
+**Result:** All tools now use a single `AGENTS.md` file! Changes to AGENTS.md automatically propagate to all tools.
+
+**What happens if you skip --agents?**
+```bash
+$ ainish-coder --copilot /path/to/project
+❌ Error: AGENTS.md not found
+💡 Run first: ainish-coder --agents /path/to/project
+```
+
+### Quick Reference
+
+```bash
+# Universal standard
+ainish-coder --agents        # Deploy AGENTS.md (recommended first)
+ainish-coder --mairules      # Alternative: Deploy MAIRULES.md
+
+# Tool-specific deployments
+ainish-coder --copilot       # GitHub Copilot (→ AGENTS.md)
+ainish-coder --cn            # Continue Dev (→ AGENTS.md)
+ainish-coder --cline         # Cline (→ AGENTS.md)
+ainish-coder --windsurf      # Windsurf (→ AGENTS.md)
+ainish-coder --gemini        # Gemini (→ AGENTS.md)
+ainish-coder --roocode       # Roo Code (proprietary format)
+ainish-coder --qwen          # Qwen AI (custom format)
+
+# Show all options
+ainish-coder --help
+```
+
+### Global Installation (User Home Directory)
+
+Install rules globally for system-wide access:
+
+```bash
+# Install all global rules
+ainish-coder --install-global
+
+# Or install specific tools
+ainish-coder --install-global-mai       # Install MAI RULES to ~/.mai-rules/
+ainish-coder --install-global-qwen      # Install Qwen rules to ~/.qwen/
+ainish-coder --install-global-gemini    # Install Gemini rules to ~/.gemini/
+ainish-coder --install-global-continue  # Install Continue reference to ~/.continue/
+```
+
+**Configuration Hierarchy:**
+1. `AGENTS.md` (working directory) - **universal standard, highest priority**
+2. `MAIRULES.md` (working directory) - alternative format
+3. `.mai-rules/MAIRULES.md` (project config)
+4. `~/.mai-rules/MAIRULES.md` (global fallback)
+5. Default AI tool behavior
+
+**Note:** Global installations are for tool-specific configuration files in their global spaces. For project-level rules deployment (including Cline and Roo Code), use the project-level commands below.
+
+### Project-Level Deployment
+
+Deploy configurations to your project directory:
+
+```bash
+# Show all options
 ainish-coder --help
 
-# Or try the basic command
-ainish-coder
+# Deploy MAI RULES (Universal rules for all AI tools)
+ainish-coder --mairules /path/to/project
+
+# Deploy for GitHub Copilot
+ainish-coder --copilot /path/to/project
+
+# Deploy for Continue Dev
+ainish-coder --cn /path/to/project
+
+# Deploy for Qwen AI
+ainish-coder --qwen /path/to/project
+
+# Deploy for Google Gemini
+ainish-coder --gemini /path/to/project
+
+# Deploy for Cline
+ainish-coder --cline /path/to/project
+
+# Deploy for Roo Code
+ainish-coder --roocode /path/to/project
+
+# Deploy specific tier rules to current working directory
+ainish-coder --tier0   # TIER_0: Critical rules (LICENSE, CONTRIBUTING, etc.)
+ainish-coder --tier1   # TIER_1: Core rules (structure, code-judge, PRD, etc.)
+ainish-coder --tier2   # TIER_2: Security rules (code-security, prompt-security)
+ainish-coder --tier3   # TIER_3: Style & advanced rules (anishinaabe-cyberpunk, modern-prompting)
+
+# Deploy all tiers at once
+ainish-coder --all-tiers /path/to/project
+
+# Clear all deployed rules (useful for batch testing)
+ainish-coder --clear-all-rules /path/to/project
 ```
 
-You should see deployment messages and files being created in your current directory.
+## What Gets Deployed
 
-### **Quick Start for Experienced Users**
+### AGENTS.md (`--agents`) **⭐ Required First**
 
-If you're familiar with command line tools, you can use this simplified installation:
+Copies `TIER_1_RULES/MAIRULES.md` → `AGENTS.md` at project root:
+- ✅ Creates the single source of truth for all AI tools
+- ✅ Must be run before any tool commands
+- ✅ All other tools symlink to this file
 
-```bash
-# Clone and setup in one go
-git clone https://github.com/nbiish/ainish-coder && cd ainish-coder && chmod +x ainish-setup.sh && ./ainish-setup.sh
+### MAIRULES.md (`--mairules`)
 
-# Reload shell (choose your shell)
-source ~/.zshrc  # zsh
-source ~/.bashrc  # bash
-source ~/.config/fish/config.fish  # fish
-. $PROFILE        # PowerShell
+Copies `TIER_1_RULES/MAIRULES.md` → `.mai-rules/MAIRULES.md`:
+- 📋 Supplementary resource (AGENTS.md points to this location)
+- 📋 Additional context for tools that support multiple rule files
+
+### Critical.md (`--critical`)
+
+Creates symlink: `critical.md` → `TIER_0/critical.md`
+- 🔒 Project-critical rules and constraints
+- 🔒 Always visible at project root
+
+### GitHub Copilot (`--copilot`)
+
+Creates symlink: `.github/copilot-instructions.md` → `../AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- ✅ Native AGENTS.md support
+
+### Continue Dev (`--cn`)
+
+Creates symlink: `.continue/rules/AGENTS.md` → `../../AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- ✅ Native AGENTS.md support
+
+### Cline (`--cline`)
+
+Creates symlink: `.clinerules/AGENTS.md` → `../AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- 🔗 Symlink-based AGENTS.md support
+
+### Windsurf (`--windsurf`)
+
+Creates symlink: `.windsurf/rules/rules.md` → `../../AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- 🔗 Reads `rules.md` which points to AGENTS.md
+
+### Gemini (`--gemini`)
+
+Creates symlink: `GEMINI.md` → `AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- ✅ Native AGENTS.md support (reads GEMINI.md)
+
+### Qwen AI (`--qwen`)
+
+Creates symlink: `QWEN.md` → `AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- ✅ Native AGENTS.md support (reads QWEN.md)
+
+### Roo Code (`--roocode`)
+
+Creates symlink: `.roo/AGENTS.md` → `../AGENTS.md` + `.rooignore`
+- ⚠️ Requires AGENTS.md to exist first
+- ✅ Native AGENTS.md support
+
+### Tier-Based Deployments
+
+Deploy specific rule tiers to your current working directory:
+
+- **`--tier0`**: TIER_0 Critical rules → `.mai-rules/*.md`
+  - LICENSE, CONTRIBUTING.md, README.md requirements
+  - Always-apply critical guidelines
+
+- **`--tier1`**: TIER_1 Core rules → `.mai-rules/*.md`
+  - MAIRULES.md (universal rules)
+  - Core foundation rules
+
+- **`--tier2`**: TIER_2 Documentation & PRD → `.mai-rules/*.md`
+  - Documentation usage guidelines
+  - PRD templates
+
+- **`--tier3`**: TIER_3 Security rules → `.mai-rules/*.md`
+  - Code security best practices
+  - Prompt security guidelines
+
+- **`--tier4`**: TIER_4 Style & Advanced → `.mai-rules/*.md`
+  - Anishinaabe-Cyberpunk styling (optional)
+  - Modern prompting techniques (OOReDAct)
+
+- **`--all-tiers`**: Deploy all tiers at once
+
+- **`deploy_markdown`**: Deploy all tiers (same as --all-tiers, all files already .md)
+
+### Maintenance Commands
+
+- **`--clear-all-rules`**: Remove all deployed AINISH-Coder rules from a directory
+  - **Local workspace files:**
+    - Removes `.github/copilot-instructions.md`
+    - Removes `.continue/rules/MAIRULES.md` and empty directories
+    - Removes `QWEN.md`, `GEMINI.md`, `MAIRULES.md`
+    - Removes entire `.mai-rules/` directory with all tier files
+  - **Global configuration files:**
+    - Removes `~/.gemini/` directory (Gemini AI global settings)
+    - Removes `~/.qwen/` directory (Qwen AI global settings)
+  - Safe to run multiple times - only removes AINISH-Coder files
+  - Useful for batch testing different configurations across multiple AI tools
+
+## Directory Structure
+
 ```
-
-### Using Wrapper Functions
-
-After installation, you'll have access to this convenient wrapper command:
-
-```bash
-# Deploy all configurations to current directory
-ainish-coder
-
-# Deploy all configurations as .md files to current directory
-ainish-coder --markdown
-
-# Deploy VSCode/Copilot configurations to .github directory
-ainish-coder --vscode
-```
-
-This wrapper function automatically ensures the latest configuration files are deployed to your current directory.
-
-### Updating
-
-To update later, simply pull the latest changes into the repository directory and re-run `./ainish-setup.sh`.
-
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
-
-## ᐴ WAAWIINDAMAAGEWIN ᔔ [Overview] ◈──◆──◇──◆──◈
-
-```text
 ainish-coder/
-├── ainish-setup.sh              # Main setup and distribution script
-├── .copilotignore               # Copilot ignore rules
-├── .copilotindexignore          # Copilot index ignore rules
-├── .gitignore                   # Standard Git ignore rules
-├── .cursorignore                # Cursor AI ignore rules
-├── .cursorindexignore           # Cursor AI index ignore rules
-├── .github/                     # GitHub configuration
-│   └── FUNDING.yml             # Funding configuration for Sponsor button and donation links
-├── .cursor/                     # Cursor AI configuration
-│   └── rules/                  # Cursor rules directory
-│       ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-│       ├── code-judge.mdc       # Code judge and reasoning framework
-│       ├── code-security.mdc    # Code security and cybersecurity framework
-│       ├── critical.mdc         # Core AINISH configuration file
-│       ├── docs-use.mdc         # Documentation usage guidelines
-│       ├── KNOWLEDGE_BASE.mdc   # Knowledge base management rules
-│       ├── modern-prompting.mdc # Advanced cognitive framework for LLM interactions
-│       ├── PRD.mdc              # Universal Product Requirements Document template
-│       ├── prompt-security.mdc  # LLM security and prompt injection protection framework
-│       ├── python-package-mgmt.mdc  # Python package management rules
-│       ├── structure.mdc        # Code structure and architecture guidelines
-│       └── verify-date-and-time.mdc  # Date and time verification rules
-├── AINISH-DATA/                 # Data storage directory
-│   ├── good-mcp-use.csv        # MCP usage tracking data
-│   └── mcp_data.db             # MCP database
-├── RULES_WE_WANT/              # Source configuration files directory
-│   ├── anishinaabe-cyberpunk-style.mdc  # Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-│   ├── code-judge.mdc          # Code judge and reasoning framework
-│   ├── code-security.mdc       # Code security and cybersecurity framework
-│   ├── critical.mdc            # Core AINISH configuration file
-│   ├── docs-use.mdc            # Documentation usage guidelines
-│   ├── KNOWLEDGE_BASE.mdc      # Knowledge base management rules
-│   ├── modern-prompting.mdc    # Advanced cognitive framework for LLM interactions
-│   ├── PRD.mdc                 # Universal Product Requirements Document template
-│   ├── prompt-security.mdc     # LLM security and prompt injection protection framework
-│   ├── python-package-mgmt.mdc # Python package management rules
-│   ├── structure.mdc           # Code structure and architecture guidelines
-│   └── verify-date-and-time.mdc  # Date and time verification rules
-├── PRD.md                       # Product Requirements Document (current version)
-├── LICENSE                      # Comprehensive restricted use license
-├── CONTRIBUTING.md              # Contributing guidelines
-├── qr-stripe-donation.png       # Stripe donation QR code
-└── buymeacoffee-button.svg      # Buy me a coffee button
+├── ainish-setup.sh          # Main entry point (Matter)
+├── TIER_0/                  # Critical rules (highest priority)
+│   └── critical.md
+├── TIER_1_RULES/            # Core rules (foundation)
+│   ├── MAIRULES.md          # Universal rules (consolidated)
+│   └── ... (other core rules moved here)
+├── TIER_2_RULES/            # Documentation & PRD
+│   ├── docs-use.md
+│   └── PRD.md
+├── TIER_3_RULES/            # Security rules
+│   ├── code-security.md
+│   └── prompt-security.md
+├── TIER_4_RULES/            # Style & advanced rules
+│   ├── anishinaabe-cyberpunk-style.md
+│   └── modern-prompting.md
+└── lib/
+    ├── atoms/               # Core functions
+    │   ├── colors.sh
+    │   ├── paths.sh
+    │   ├── file_operations.sh
+    │   ├── validation.sh
+    │   └── backup.sh
+    └── molecules/           # Feature modules
+        ├── help.sh
+        ├── deploy_copilot.sh
+        ├── deploy_continue.sh
+        ├── deploy_qwen.sh
+        ├── deploy_gemini.sh
+        ├── deploy_mairules.sh
+        ├── deploy_tiers.sh
+        └── ...
 ```
 
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
+## Configuration Files
 
-## ᐴ GASHKITOONAN ᔔ [Capabilities] ◈──◆──◇──◆──◈
+Rules are organized into tiers for different priority levels:
 
-### Triple Deployment System
+### TIER_0 (Critical - Highest Priority)
 
-The `ainish-coder` command provides three distinct deployment modes:
+- **critical.md**: LICENSE, CONTRIBUTING.md, README.md requirements
+- Always-apply guidelines for all projects
 
-#### **Core AINISH Configurations** (`ainish-coder`)
+### TIER_1 (Core - Foundation Rules)
 
-Deploys essential AINISH configuration files to `./ainish-coder/` directory:
+- **MAIRULES.md**: Universal rules (consolidated)
+- Core foundation rules for all AI tools
 
-- `critical.mdc`: Core AINISH configuration file
-- `modern-prompting.mdc`: Advanced cognitive framework for LLM interactions
-- `code-security.mdc`: Code security and cybersecurity framework
-- `prompt-security.mdc`: LLM security and prompt injection protection framework
-- `code-judge.mdc`: Code judge and reasoning framework
-- `docs-use.mdc`: Documentation usage guidelines
-- `KNOWLEDGE_BASE.mdc`: Knowledge base management rules
-- `PRD.mdc`: Universal Product Requirements Document template
-- `anishinaabe-cyberpunk-style.mdc`: Styling guide combining Anishinaabe elements with cyberpunk aesthetics
-- `python-package-mgmt.mdc`: Python package management rules
-- `verify-date-and-time.mdc`: Date and time verification rules
-- `structure.mdc`: Code structure and architecture guidelines
-- `.gitignore`: Standard Git ignore rules
-- `.github/FUNDING.yml`: GitHub funding configuration for Sponsor button and donation links
+### TIER_2 (Documentation & PRD - High Priority)
 
-#### **Core AINISH Configurations (Markdown Format)** (`ainish-coder --markdown`)
+- **docs-use.md**: Documentation usage best practices
+- **PRD.md**: Product Requirements Document templates
 
-Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/` directory:
+### TIER_3 (Security - Medium-High Priority)
 
-- All core configuration files converted from `.mdc` to `.md` format
-- Same content and functionality as standard deployment
-- Better compatibility with standard markdown tools and GitHub
-- **Total: 15 configuration files (as .md)**
+- **code-security.md**: Code security best practices
+- **prompt-security.md**: Prompt injection & AI security
 
-#### **VSCode/Copilot Configurations** (`ainish-coder --vscode`)
+### TIER_4 (Style & Advanced - Medium Priority)
 
-Deploys editor-specific configurations with structured distribution:
+- **anishinaabe-cyberpunk-style.md**: Optional cultural styling
+- **modern-prompting.md**: OOReDAct framework & advanced prompting
 
-- `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
-- `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
-- `copilot-instructions.md`: Consolidated instructions from all .mdc files
-- `.gitignore`, `.copilotignore`, `.copilotindexignore`: Configuration files
-- `.github/FUNDING.yml`: GitHub funding configuration
-- Files sourced from `.cursor/rules/` directory for Cursor AI integration
+### File Format
 
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
+All configuration files are now `.md` (Markdown) format for better compatibility with all AI coding assistants.
 
-## ᐴ INAABAJICHIGAN ᔔ [Usage] ◈──◆──◇──◆──◈
+## Troubleshooting
 
-The `ainish-setup.sh` script:
-
-1. Creates a `~/.ainish-coder` directory with symbolic links to repository configuration files.
-2. Adds convenient wrapper functions (`ainish-coder`) to your shell configuration (`.zshrc`).
-3. Cleans up potentially conflicting older configuration files.
-4. Verifies tool paths.
-
-### Wrapper Functions
-
-After installation, you'll have access to these convenient wrapper commands:
-
-#### **`ainish-coder`** - Core AINISH Configurations
-
-Deploys essential AINISH configuration files to `./ainish-coder/` directory in your current location:
-
-- Core configuration files (`.mdc` files)
-- `.gitignore` file
-- `.github/FUNDING.yml` file
-- **Total: 15 configuration files**
-
-#### **`ainish-coder --markdown`** - Core AINISH Configurations (Markdown Format)
-
-Deploys essential AINISH configuration files as `.md` files to `./ainish-coder/` directory in your current location:
-
-- Core configuration files (`.md` files converted from .mdc)
-- `.gitignore` file
-- `.github/FUNDING.yml` file
-- **Total: 15 configuration files (as .md)**
-
-#### **`ainish-coder --vscode`** - VSCode/Copilot Configurations
-
-Deploys editor-specific configurations with structured distribution:
-
-- `.github/instructions/modern-prompting.instructions.md`: Separate modern prompting framework
-- `.github/instructions/anishinaabe-cyberpunk-style.instructions.md`: Separate styling guide
-- `copilot-instructions.md`: Consolidated instructions from all other .mdc files
-- `.gitignore`, `.copilotignore`, `.copilotindexignore`: Configuration files
-- `.github/FUNDING.yml`: GitHub funding configuration
-- **Total: 7 structured configuration files**
-
-### Updating
-
-To update later, simply pull the latest changes into the repository directory and re-run `./ainish-setup.sh`.
-
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
-
-## ᐴ ONAAKONIGE ᔔ [Configuration] ◈──◆──◇──◆──◈
-
-### Structured VSCode Distribution
-
-The project now features a structured distribution system for VSCode/Copilot configurations that separates key instruction files for better organization and accessibility:
-
-#### **Separate Instruction Files:**
-- **`modern-prompting.instructions.md`**: Advanced cognitive framework for LLM interactions, available as a standalone file for easy reference and integration
-- **`anishinaabe-cyberpunk-style.instructions.md`**: Cultural styling guide combining Anishinaabe elements with cyberpunk aesthetics, available as a separate file for design consistency
-
-#### **Consolidated Instructions:**
-- **`copilot-instructions.md`**: Combines all other development guidelines, security protocols, and best practices into a single, professionally organized reference
-
-This structured approach provides GitHub Copilot with:
-
-- **Security & Cybersecurity Framework** (Highest Priority) - Available in consolidated file
-- **Modern Prompting & Context Engineering** (Core Methodology) - Available as separate file
-- **Code Judge & Reasoning Framework** (Cognitive Development) - Available in consolidated file
-- **Code Structure & Architecture** (Development Standards) - Available in consolidated file
-- **Package Management Rules** (Technology-Specific) - Available in consolidated file
-- **Documentation & Context Rules** (Project Alignment) - Available in consolidated file
-- **Time & Information Gathering** (Current Data Protocol) - Available in consolidated file
-- **Critical Operations** (Essential Procedures) - Available in consolidated file
-- **Anishinaabe-Cyberpunk Styling** (Cultural Integration) - Available as separate file
-
-### Flexible File Formats
-
-The project now supports multiple file format options to meet different needs:
-
-- **`.mdc` Format** (Default): Custom markdown format with enhanced metadata and structure
-- **`.md` Format** (`--markdown` flag): Standard markdown format for better compatibility with:
-  - Standard markdown editors and tools
-  - GitHub markdown rendering
-  - Universal markdown processors
-  - Better integration with existing workflows
-
-### Product Requirements Documentation
-
-The project includes a comprehensive **Product Requirements Document (PRD.md)** that serves as the foundation for all development decisions. The PRD includes:
-
-- **Objective and Purpose**: Clear definition of project goals and cultural integration
-- **Scope and Features**: Detailed in-scope and out-of-scope feature definitions
-- **User Experience Flow**: Complete user journey from installation to usage
-- **QAMMML Structure**: Quanta-Atoms-Molecules-Matter-Matter-Phase-Lifeform architecture
-- **Functional Requirements**: Core features and security implementations
-- **Non-Functional Requirements**: Performance, reliability, and cultural sensitivity standards
-- **Success Metrics**: Key performance indicators and acceptance criteria
-- **Knowledge Base**: Comprehensive documentation and cultural context
-
-The PRD embodies Indigenous intellectual property principles while maintaining technical excellence and serves as a living document for project development.
-
-### Anishinaabe-Cyberpunk Styling
-
-This project uses a unique **Anishinaabe-Cyberpunk** styling approach that combines elements from Anishinaabe culture with cyberpunk aesthetics. This is documented in `anishinaabe-cyberpunk-style.mdc`, which provides detailed guidelines on:
-
-- Cultural context for symbol usage
-- Markdown styling elements (headers, dividers, banners)
-- Shell script styling patterns
-- Standard Anishinaabe terms with translations
-- Cyberpunk symbol reference guide
-
-This styling creates a distinctive visual identity that:
-- Honors Anishinaabe language and cultural elements
-- Incorporates modern cyberpunk aesthetics for technical documentation
-- Creates a visually compelling and cohesive project appearance
-
-The style guide is automatically distributed to all tool directories, ensuring consistent formatting across documentation.
-
-For examples of this styling, see the **Standard Anishinaabe Terms** section in `anishinaabe-cyberpunk-style.mdc`.
-
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
-
-## ᐴ WIIDOOKAAZOWIN ᔔ [Contributing] ◈──◆──◇──◆──◈
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute to this project.
-
-**Note**: This project operates under a dual management system:
-- **AINISH-Coder**: Manages core configuration and rule files through local deployment, including comprehensive Copilot instructions
-- **Licensing System**: Handles LICENSE, CONTRIBUTING.md, README.md, and funding through centralized repository management
-
-**Important**: The current [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md) files have been updated through the centralized licensing system and should not be modified locally.
-
-<div align="center">
-◈──◆──◇─────────────────◇──◆──◈
-</div>
-
-## ᐴ GIGWEJIWEWIN ᔔ [Troubleshooting] ◈──◆──◇──◆──◈
-
-### **Common Installation Issues**
-
-#### **Git Not Found:**
+### Command not found
 ```bash
-git: command not found
-```
-**Solution:** Install Git using the instructions in the Prerequisites section above.
+# Reload your shell configuration
+source ~/.zshrc  # or ~/.bashrc
 
-#### **Permission Denied:**
+# Or restart your terminal
+```
+
+### Permission denied
 ```bash
-Permission denied (publickey)
+# Make script executable
+chmod +x ainish-setup.sh
 ```
-**Solution:** This is normal for public repositories. The clone should still work.
 
-#### **Script Not Executable (Linux/macOS):**
+### Shell wrapper issues
 ```bash
-bash: ./ainish-setup.sh: Permission denied
+# Re-run setup to recreate wrappers
+./ainish-setup.sh
 ```
-**Solution:** Run `chmod +x ainish-setup.sh` to make the script executable.
 
-#### **Script Won't Run (Windows):**
-```cmd
-'ainish-setup.sh' is not recognized as an internal or external command
-```
-**Solution:** Use PowerShell instead of Command Prompt, or run `bash ainish-setup.sh` if you have Git Bash installed.
+## Architecture
 
-### **Common Usage Issues**
+This project follows the **Atom → Molecule → Matter** pattern from `structure.mdc`:
 
-**Q: The wrapper functions aren't working after installation.**  
-A: Try reloading your shell configuration:
-- **macOS/Linux:** `source ~/.zshrc` or `source ~/.bashrc`
-- **Windows PowerShell:** `. $PROFILE`
-- **Windows Command Prompt:** Restart your command prompt
+- **Atoms** (`lib/atoms/`): Basic functions (colors, paths, file operations)
+- **Molecules** (`lib/molecules/`): Feature modules (deployment logic)
+- **Matter** (`ainish-setup.sh`): Main orchestrator
 
-**Q: I'm using a shell other than zsh, how do I set up the wrapper functions?**  
-A: The script automatically detects your shell and configures accordingly. If you have issues, manually copy the wrapper functions from `~/.zshrc` to your shell's configuration file.
+## Contributing
 
-**Q: Path validation fails during setup.**  
-A: Edit the `ainish-setup.sh` file to update the `CURSOR_PATH` variable to match your system's Cursor installation path.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-**Q: Files aren't being distributed to the tool directories.**  
-A: Make sure you have the correct file structure in your repository. All root files (`critical.mdc`, etc.) should be in the main repository directory.
+## License
 
-**Q: My changes to configuration files aren't taking effect.**  
-A: The script uses symlinks to ensure changes to repository files are immediately available. If a file was modified directly in `~/.ainish-coder`, make sure to update the original file in the repository.
+See [LICENSE](LICENSE) for details.
 
-### **Cross-Platform Considerations**
-
-#### **Windows:**
-- **PowerShell (Recommended):** Full support with automatic shell detection
-- **Command Prompt:** Basic support, some features may be limited
-- **WSL:** Full Linux compatibility, recommended for advanced users
-- **Git Bash:** Full bash compatibility, good alternative to PowerShell
-
-#### **Linux:**
-- **Bash:** Full support, default on most distributions
-- **Zsh:** Full support, popular alternative shell
-- **Fish:** Full support, modern shell with enhanced features
-- **Other shells:** May require manual configuration
-
-#### **macOS:**
-- **Zsh:** Full support, default shell since macOS Catalina
-- **Bash:** Full support, available as alternative
-- **Homebrew:** Recommended for easy package management
-
-### **Platform-Specific Issues**
-
-#### **Windows Issues:**
-- **PowerShell Execution Policy:** If you get execution policy errors, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
-- **Line Endings:** If you see strange characters, ensure Git is configured with `git config --global core.autocrlf true`
-
-#### **Linux Issues:**
-- **Shell Detection:** If the script doesn't detect your shell correctly, manually specify it in the setup script
-- **Permissions:** Ensure you have write permissions to your home directory
-
-#### **macOS Issues:**
-- **Gatekeeper:** If you get security warnings, right-click the script and select "Open"
-- **Shell Version:** Ensure you're using a modern version of zsh or bash
+---
 
 <div align="center">
-◈──◆──◇─────────────────◇──◆──◈
+  <p>◈──◆──◇ Made with ♥ by the AINISH community ◇──◆──◈</p>
 </div>
-
-## 📝 License and Copyright
-
-Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
-
-This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS. See the [LICENSE](LICENSE) file for complete details.
-
-## 📚 Citation
-
-```bibtex
-@misc{ainish-coder2025,
-  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians},
-  title/description = {ainish-coder},
-  type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},
-  year = {2025},
-  publisher/source/event = {GitHub repository under tribal sovereignty protections},
-  howpublished = {\url{https://github.com/nbiish/ainish-coder}},
-  note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
-}
-```
-
-## 📄 License and Contributing
-
-This project is protected under the COMPREHENSIVE RESTRICTED USE LICENSE WITH TRIBAL SOVEREIGNTY PROTECTIONS. See the [LICENSE](LICENSE) file for complete details.
-
-For contribution guidelines, please see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,6 +1,3 @@
----
-alwaysApply: false
----
 # LLM Security Operating Contract & Prompt Security Framework
 
 ## MANDATORY LLM SECURITY OPERATING CONTRACT

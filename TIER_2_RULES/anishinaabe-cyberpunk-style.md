@@ -1,6 +1,3 @@
----
-alwaysApply: false
----
 # Anishinaabe-Inspired Cyberpunk Styling Guide
 
 This guide documents the project's unified styling approach that combines Anishinaabe cultural elements with cyberpunk aesthetics for documentation and script files.

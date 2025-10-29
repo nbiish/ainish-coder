@@ -1,9 +1,0 @@
----
-alwaysApply: true
----
-# KNOWLEDGE_BASE/* structure
-
-- /PRD.md
-- /FACTS.md
-- /TASKS.md
-- /DOCS/*

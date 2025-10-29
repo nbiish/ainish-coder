@@ -1,9 +1,0 @@
----
-alwaysApply: true
----
-# ERROR HANDLING PROTOCOL
-
-1. websearch → General knowledge and current information  
-2. mcp tools (brave/tavily) → Additional context verification
-3. fetch → Highly specific information for knowledge base
-4. mcp tools → Anything else

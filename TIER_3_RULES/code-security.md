@@ -1,6 +1,3 @@
----
-alwaysApply: false
----
 # General Cybersecurity Framework & Secure Coding Practices
 
 ## MANDATORY SECURITY OPERATING CONTRACT

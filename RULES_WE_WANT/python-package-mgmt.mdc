@@ -1,8 +1,0 @@
----
-alwaysApply: true
----
-# CRITICAL: ```uv``` MUST be used for all Python tasks
-
-- ```uv venv``` -> Creates ```.venv``` in the current directory
-- ```uv pip install some-package``` -> Installs packages into the current directory's ```.venv```
-- ```uv run needs-some-package.py``` -> Runs python files with the current directory's ```.venv``` dependencies
