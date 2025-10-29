@@ -1,3 +1,14 @@
+# ```bibtex
+@misc{ainish-coder2025,
+  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians},
+  title/description = {ainish-coder},
+  type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},
+  year = {2025},
+  publisher/source/event = {GitHub repository under tribal sovereignty protections},
+  howpublished = {\url{https://github.com/nbiish/ainish-coder}},
+  note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
+```
+
 # ◈──◆──◇ ainish-coder ◇──◆──◈
 
 <div align="center">
@@ -8,7 +19,16 @@
   <hr width="50%">
   
   <h3>Support This Project</h3>
-  <a href="https://www.buymeacoffee.com/nbiish"><img src="buymeacoffee-button.svg" alt="Buy me a coffee" /></a>
+  <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
+    <div>
+      <h4>Stripe</h4>
+      <img src="qr-stripe-donation.png" alt="Scan to donate" width="180"/>
+      <p><a href="https://raw.githubusercontent.com/nbiish/license-for-all-works/8e9b73b269add9161dc04bbdd79f818c40fca14e/qr-stripe-donation.png">Donate via Stripe</a></p>
+    </div>
+    <div style="display: flex; align-items: center;">
+      <a href="https://www.buymeacoffee.com/nbiish"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=&slug=nbiish&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
+    </div>
+  </div>
   
   <hr width="50%">
 </div>
@@ -72,6 +92,7 @@ ainish-coder --agents /path/to/project
 
 # Step 2: Deploy tool-specific symlinks (these will fail without AGENTS.md)
 ainish-coder --copilot /path/to/project   # Creates .github/copilot-instructions.md → AGENTS.md
+ainish-coder --cursor /path/to/project    # Creates .cursor/rules/AGENTS.md → AGENTS.md
 ainish-coder --cline /path/to/project     # Creates .clinerules/AGENTS.md → AGENTS.md
 ainish-coder --windsurf /path/to/project  # Creates .windsurf/rules/rules.md → AGENTS.md
 ainish-coder --cn /path/to/project        # Creates .continue/rules/AGENTS.md → AGENTS.md
@@ -84,6 +105,9 @@ ainish-coder --mairules /path/to/project  # Creates .mai-rules/MAIRULES.md
 
 # Step 4 (Optional): Symlink critical.md to project root
 ainish-coder --critical /path/to/project  # Creates critical.md → TIER_0/critical.md
+
+# Step 5 (Optional): Deploy comprehensive .gitignore
+ainish-coder --gitignore /path/to/project # Creates .gitignore with AI tool patterns
 ```
 
 **Result:** All tools now use a single `AGENTS.md` file! Changes to AGENTS.md automatically propagate to all tools.
@@ -101,6 +125,8 @@ $ ainish-coder --copilot /path/to/project
 # Universal standard
 ainish-coder --agents        # Deploy AGENTS.md (recommended first)
 ainish-coder --mairules      # Alternative: Deploy MAIRULES.md
+ainish-coder --critical      # Symlink critical.md to project root
+ainish-coder --gitignore     # Deploy comprehensive .gitignore
 
 # Tool-specific deployments
 ainish-coder --copilot       # GitHub Copilot (→ AGENTS.md)
@@ -202,9 +228,27 @@ Creates symlink: `critical.md` → `TIER_0/critical.md`
 - 🔒 Project-critical rules and constraints
 - 🔒 Always visible at project root
 
+### Gitignore (`--gitignore`)
+
+Creates comprehensive `.gitignore` file with:
+- 🤖 AI pair programmer tool exclusions (.cursor/, .continue/, etc.)
+- 🔐 Environment variables and secrets
+- 🐍 Python virtual environments and cache
+- 📦 Node.js dependencies
+- 💻 IDE/editor files
+- 🗂️ OS-generated files
+- 📝 Backup and temporary files
+- ⚠️ Backs up existing .gitignore before replacement
+
 ### GitHub Copilot (`--copilot`)
 
 Creates symlink: `.github/copilot-instructions.md` → `../AGENTS.md`
+- ⚠️ Requires AGENTS.md to exist first
+- ✅ Native AGENTS.md support
+
+### Cursor (`--cursor`)
+
+Creates symlink: `.cursor/rules/AGENTS.md` → `../../AGENTS.md`
 - ⚠️ Requires AGENTS.md to exist first
 - ✅ Native AGENTS.md support
 
@@ -391,10 +435,11 @@ This project follows the **Atom → Molecule → Matter** pattern from `structur
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
-
 See [LICENSE](LICENSE) for details.
 
 ---
+
+Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
 
 <div align="center">
   <p>◈──◆──◇ Made with ♥ by the AINISH community ◇──◆──◈</p>

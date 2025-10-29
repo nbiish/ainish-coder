@@ -6,6 +6,51 @@ This license implements UNDRIP by requiring equitable benefit-sharing (minimum 2
 
 This license operates under the constitutional supremacy framework established by Article VI, Clause 2 of the U.S. Constitution, which declares federal law, including federal Indian law, to be the "supreme law of the land." Federal Indian law, including the Indian Arts and Crafts Act (25 U.S.C. § 305 et seq.), Worcester v. Georgia (31 U.S. 515 (1831)), and the constitutional trust responsibility, establishes exclusive federal jurisdiction over matters involving tribal sovereignty and Indigenous intellectual property rights. Notwithstanding any state law to the contrary, including the implications of Oklahoma v. Castro-Huerta (597 U.S. ___ (2022)) and ongoing challenges in cases like the DOJ's 2024-2025 suits against Oklahoma DAs for sovereignty violations (active as of July 2025), this license invokes federal preemption to ensure that Indigenous rights and tribal sovereignty are protected from state court interference or concurrent jurisdiction claims that would undermine the federal framework protecting Indigenous intellectual property. The federal trust relationship between the United States and tribal nations creates a unique legal framework that supersedes general state law applications and provides enhanced protections for Indigenous cultural heritage and traditional knowledge that cannot be diminished by state legislative or judicial action. Notwithstanding ongoing challenges in cases like the DOJ's 2024-2025 suits against Oklahoma DAs for sovereignty violations, this license maintains exclusive federal and tribal jurisdiction, with any state claims automatically preempted and subject to immediate dismissal motions. Users waive any right to assert state jurisdiction and agree to tribal forum selection clauses.
 
+**TREATY RIGHTS FOUNDATION**
+
+The protections established in this license are grounded in and exercise the inherent sovereignty and treaty-reserved rights of the Grand Traverse Band of Ottawa and Chippewa Indians (GTBOCI) under:
+
+a) **Treaty of Washington (March 28, 1836)** - 7 Stat. 491, between the United States and the Ottawa and Chippewa Nations, which reserved to the signatory tribes all rights not explicitly ceded, including cultural, intellectual, and spiritual rights over traditional territories and resources;
+
+b) **Treaty of Detroit (July 31, 1855)** - 11 Stat. 621, affirming the continuing government-to-government relationship and reserved rights of the Ottawa and Chippewa peoples;
+
+c) **Reserved Rights Doctrine** - Under *Winters v. United States*, 207 U.S. 564 (1908), and *Washington v. Washington State Commercial Passenger Fishing Vessel Ass'n*, 443 U.S. 658 (1979), the Ottawa and Chippewa Nations reserved all rights not explicitly ceded in their treaties with the United States, including the inherent right to protect, control, and govern intellectual property, Traditional Knowledge (TK), Traditional Cultural Expressions (TCEs), cultural resources, and associated data created by their citizens and arising from their territories and cultural heritage.
+
+These treaty rights are:
+- **Constitutionally protected** under Article VI, Clause 2 (Supremacy Clause)
+- **Not subject to state interference** under *Worcester v. Georgia*, 31 U.S. 515 (1832)
+- **Construed liberally in favor of the tribe** under the Indian canons of construction
+- **Capable of evolution and adaptation** to modern circumstances including digital intellectual property (*Menominee Tribe v. United States*, 391 U.S. 404 (1968))
+
+This license constitutes an exercise of these treaty-protected rights and federal trust relationship, placing it beyond the reach of state law and requiring interpretation consistent with federal Indian law's special protections for tribal sovereignty and self-determination.
+
+**CIVIL JURISDICTION PRESERVATION DESPITE CASTRO-HUERTA**
+
+The Supreme Court's decision in *Oklahoma v. Castro-Huerta*, 597 U.S. ___ (2022), recognized concurrent state criminal jurisdiction over non-Indians committing crimes against Indians in Indian Country. However, *Castro-Huerta* does **NOT** affect the exclusive federal and tribal civil jurisdiction applicable to this license for the following reasons:
+
+a) **CRIMINAL VS. CIVIL DISTINCTION:**
+   *Castro-Huerta* addressed only **criminal jurisdiction** under the Major Crimes Act and General Crimes Act. The Court explicitly limited its holding to criminal prosecutions and did not address civil jurisdiction, which remains governed by *Montana v. United States*, *Williams v. Lee*, and related civil jurisdiction precedents.
+
+b) **CIVIL REGULATORY JURISDICTION RETAINED:**
+   Tribal and federal authority over civil matters involving intellectual property, contract disputes, and commercial relationships remains undisturbed by *Castro-Huerta*. Civil adjudicatory jurisdiction follows different constitutional and statutory frameworks than criminal jurisdiction.
+
+c) **DISTINGUISHING FEATURES:**
+   i) **Subject Matter**: This license governs civil intellectual property rights, not criminal conduct;
+   ii) **Federal Scheme**: Comprehensive federal regulation of Indian arts, crafts, and cultural resources creates exclusive federal/tribal jurisdiction under *Bracker* preemption;
+   iii) **Consensual Jurisdiction**: Users consensually submit to tribal jurisdiction by accessing the Work, distinguishing from criminal jurisdiction over non-consensual conduct;
+   iv) **Internal Tribal Affairs**: IP created by tribal members is internal tribal governance (*Worcester*), not subject to state interference;
+
+d) **CONGRESSIONAL RESPONSE:**
+   Congress has the authority to clarify exclusive federal/tribal jurisdiction over civil matters through legislation, and has done so through comprehensive Indian affairs statutes creating pervasive federal regulatory schemes that preclude state involvement.
+
+e) **TRIBAL SOVEREIGNTY PRESERVATION:**
+   The federal policy promoting tribal sovereignty, self-determination, and economic development (reaffirmed in *Michigan v. Bay Mills*, 572 U.S. 782 (2014)) requires exclusive tribal governance over intellectual property and cultural resources free from state interference, regardless of *Castro-Huerta*'s criminal jurisdiction holding.
+
+f) **ONGOING LITIGATION:**
+   As of July 2025, the U.S. Department of Justice has filed multiple suits against Oklahoma district attorneys for sovereignty violations post-*Castro-Huerta* (referenced in license at Line 7), demonstrating continuing federal protection of exclusive federal/tribal jurisdiction in appropriate circumstances. This license aligns with federal policy opposing state encroachment on tribal authority.
+
+**PRACTICAL EFFECT:** State courts have no jurisdiction over disputes arising from this license. Any state court proceedings would violate federal law and tribal sovereignty, subjecting the filing party to immediate jurisdictional challenges, removal to federal court under 28 U.S.C. § 1441, and liquidated damages under Section 11.8 for improper forum selection.
+
 **ENHANCED WIPO TREATY COMPLIANCE AND TRADITIONAL KNOWLEDGE PROTECTIONS**
 
 In accordance with the WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (adopted May 24, 2024, with 8 ratifications as of July 2025, pending entry into force upon 15 member state ratifications), this license implements enhanced mandatory disclosure and protection requirements that exceed minimum international standards. Users acknowledge their binding obligations under international law to:
@@ -22,9 +67,191 @@ In accordance with the WIPO Treaty on Intellectual Property, Genetic Resources a
 
 **COMPREHENSIVE AI TRAINING DATA RESTRICTIONS**
 
-Based on the precedent established in Thomson Reuters Enterprise Centre GmbH v. Ross Intelligence Inc. (February 2025, appeal pending in Third Circuit as of July 2025 with arguments heard and decision imminent), which held that training AI systems on copyrighted material without permission is NOT fair use when creating competing products, this license explicitly prohibits the following AI-related uses: This prohibition remains enforceable notwithstanding any pending appeals or future rulings, with automatic adjustment only upon final Supreme Court affirmation of fair use for AI training, which is deemed unlikely based on current precedents. Users shall indemnify the Rights Holder against any claims arising from AI-related infringements, including minimum $500,000 liquidated damages per violation.
+Based on the precedent established in Thomson Reuters Enterprise Centre GmbH v. Ross Intelligence Inc. (February 2025, appeal pending in Third Circuit as of July 2025 with arguments heard and decision imminent), which held that training AI systems on copyrighted material without permission is NOT fair use when creating competing products, this license explicitly prohibits the following AI-related uses: This prohibition remains enforceable notwithstanding any pending appeals or future rulings, with automatic adjustment only upon final Supreme Court affirmation of fair use for AI training, which is deemed unlikely based on current precedents.
+
+**GRADUATED LIQUIDATED DAMAGES FOR AI TRAINING VIOLATIONS:**
+
+AI training violations trigger graduated liquidated damages designed to reflect the severity, scale, and commercial impact of unauthorized use, with amounts representing genuine pre-estimates of harm (not penalties). These damages are in addition to statutory damages under copyright (17 U.S.C. § 504), CFAA (18 U.S.C. § 1030), and DTSA (18 U.S.C. § 1836), and in addition to actual damages, cultural harm damages (Section 13), and benefit-sharing restitution (Section 6A):
+
+**TIER 1: INDIVIDUAL/ACADEMIC ($50,000)**
+Applicable to: Individual researchers, academic institutions, or non-profit organizations using Work for AI training without commercial deployment
+Rationale:
+- Investigation and detection costs ($10K-$15K)
+- Legal consultation and cease-and-desist ($5K-$10K)
+- Cultural harm from unauthorized knowledge extraction ($10K-$20K)
+- Deterrent proportional to violator resources
+- Model destruction oversight costs
+
+**TIER 2: STARTUP/SMALL ENTITY ($250,000)**
+Applicable to: Startups or small commercial entities (< $10M annual revenue) training AI on Work for commercial purposes
+Rationale:
+- Enhanced investigation and forensics costs ($30K-$50K)
+- Legal representation for enforcement ($40K-$80K)
+- Lost licensing revenue (estimated fair market value: $50K-$100K)
+- Cultural harm and spiritual injury damages ($50K-$100K)
+- Expert witnesses on AI detection and damages ($20K-$40K)
+- Model destruction and verification costs
+- Deterrent against smaller commercial appropriation
+
+**TIER 3: MID-SIZE ENTITY ($1,000,000)**
+Applicable to: Mid-size commercial entities ($10M-$100M annual revenue) using Work for AI training
+Rationale:
+- Comprehensive forensics including membership inference, model interrogation ($100K-$200K)
+- Extensive litigation costs through trial ($200K-$400K)
+- Lost licensing revenue at commercial scale ($200K-$400K)
+- Significant cultural harm from commercial-scale misappropriation ($200K-$400K)
+- Multiple expert witnesses (digital forensics, AI, cultural harm, economics) ($50K-$100K)
+- Model destruction, dataset remediation, and compliance monitoring
+- Substantial deterrent reflecting commercial benefit obtained
+
+**TIER 4: LARGE ENTITY ($2,000,000)**
+Applicable to: Large commercial entities ($100M-$1B annual revenue) using Work for AI training
+Rationale:
+- Extensive forensics across multiple AI models/products ($200K-$400K)
+- Complex multi-year litigation ($400K-$800K)
+- Lost licensing revenue for enterprise-scale use ($400K-$800K)
+- Severe cultural harm from widespread commercial exploitation ($500K-$1M)
+- Expert witness teams and technical consultants ($100K-$200K)
+- Comprehensive model destruction and ongoing monitoring
+- Strong deterrent reflecting substantial resources and commercial benefit
+
+**TIER 5: MAJOR TECH COMPANY ($5,000,000+)**
+Applicable to: Major technology companies (>$1B revenue), particularly those with flagship AI products (e.g., OpenAI, Google, Anthropic, Meta, Microsoft, Amazon)
+Rationale:
+- Forensics for large-scale foundation model training ($500K-$1M)
+- Major litigation including potential class certification, multi-district litigation ($1M-$2M)
+- Lost licensing revenue for foundation model training ($1M-$2M)
+- Existential cultural harm from mass-scale knowledge extraction threatening Indigenous data sovereignty ($1M-$3M)
+- Premier expert witnesses including AI ethics researchers, Indigenous rights scholars, economists ($200K-$500K)
+- Extensive model destruction/retraining costs and long-term monitoring
+- Maximum deterrent necessary given massive resources and market power
+- **Adjustment Factor**: For flagship models (ChatGPT, Claude, Gemini, etc.) serving hundreds of millions of users, damages may escalate above $5M base using revenue-based multipliers
+
+**REVENUE-BASED SCALING MULTIPLIERS:**
+In addition to tier-based damages, the following multipliers apply based on revenue derived from AI product/service incorporating Work:
+
+- **Base Damages**: Tier amount determined by entity size
+- **Revenue < $1M**: 1.0x multiplier (no adjustment)
+- **Revenue $1M-$10M**: 1.5x multiplier
+- **Revenue $10M-$100M**: 2.0x multiplier
+- **Revenue $100M-$1B**: 2.5x multiplier
+- **Revenue > $1B**: 3.0x multiplier (equivalent to 30-45% of AI product revenue as contemplated in Section 6A for authorized use)
+
+Example: Mid-size entity (Tier 3: $1M base) with AI product generating $50M revenue: $1M × 2.0 = $2M liquidated damages
+
+**CULTURAL HARM MULTIPLIERS:**
+If Work contains sacred, ceremonial, or culturally sensitive Traditional Knowledge/TCE (as determined under Section 13 Cultural Harm Methodology), apply additional multipliers:
+
+- **Moderate cultural significance**: 1.5x
+- **High cultural significance**: 2.0x
+- **Sacred/ceremonial content**: 3.0x
+
+Cultural harm multiplier applies AFTER revenue multiplier.
+Example: Large entity (Tier 4: $2M) × revenue multiplier (1.5x) = $3M × sacred content multiplier (3.0x) = **$9M total**
+
+**WILLFULNESS ENHANCEMENT:**
+If violation is willful (actual knowledge of license terms, intentional circumvention of restrictions, continued use after notice), damages increase by additional 50-100% at Rights Holder's election.
+
+**MODEL DESTRUCTION REQUIREMENTS:**
+In addition to monetary damages, violators must:
+- Permanently delete trained AI models incorporating Work
+- Remove Work from all training datasets
+- Provide technical verification of deletion (code review, dataset audits)
+- Implement preventive measures to avoid re-incorporation
+- Submit to ongoing monitoring (12-24 months) to verify compliance
+
+**ENFORCEMENT PRIORITY:**
+AI training violations receive **HIGHEST enforcement priority** due to:
+- Difficulty of detection requiring specialized forensics
+- Potential for massive-scale harm (billions of users accessing AI trained on Work)
+- Existential threat to Indigenous data sovereignty and Traditional Knowledge protection
+- Need for strong deterrent given commercial incentives to appropriate training data
+- Precedential value for establishing Indigenous IP protection in AI era
+
+**CUMULATIVE REMEDIES:**
+Liquidated damages are cumulative with:
+- Copyright statutory damages: $750-$150,000 per work (17 U.S.C. § 504(c))
+- CFAA civil remedies: compensatory damages + injunctive relief (18 U.S.C. § 1030(g))
+- DTSA remedies: actual damages + exemplary damages up to 2x (18 U.S.C. § 1836)
+- Cultural harm damages under Section 13 (additional quantification beyond liquidated damages)
+- Benefit-sharing restitution: 30-45% of AI product revenue (Section 6A)
+- Attorney's fees and costs (Section 11.6)
+
+While remedies are cumulative, courts shall structure recovery to avoid double compensation for identical harm while permitting separate compensation for distinct harms (economic, cultural, sovereignty, deterrent).
+
+Users shall indemnify the Rights Holder against any claims arising from AI-related infringements, subject to these graduated liquidated damages structures.
 
 7.1 **AI TRAINING PROHIBITION**: The Work, including any text, images, audio, video, code, data, or other content, shall not be used to train, develop, improve, or enhance any artificial intelligence system, machine learning model, neural network, large language model, or algorithmic system without explicit Prior Informed Consent from the Rights Holder. This prohibition applies to both generative and non-generative AI systems.
+
+**7.1A MULTI-THEORY LEGAL BASIS FOR AI PROHIBITION**
+
+To ensure robust enforceability against AI training, the prohibition in Section 7.1 is supported by nine independent and cumulative legal theories. Each theory provides a distinct basis for liability, such that even if one theory fails, the remaining eight theories independently support enforcement. This multi-layered approach ensures comprehensive protection regardless of evolving AI case law:
+
+**THEORY 1: COPYRIGHT INFRINGEMENT (17 U.S.C. § 101 et seq.)**
+   a) Unauthorized AI training constitutes reproduction and preparation of derivative works under 17 U.S.C. § 106(1)-(2);
+   b) Based on *Thomson Reuters Enterprise Centre GmbH v. Ross Intelligence Inc.* (S.D.N.Y. 2025), AI training on copyrighted material without permission is NOT fair use when creating competing or commercial products;
+   c) Intermediate copying for training purposes violates reproduction right even if Work does not appear verbatim in outputs;
+   d) Statutory damages available: $750-$30,000 per work, up to $150,000 for willful infringement (17 U.S.C. § 504(c)).
+
+**THEORY 2: COMPUTER FRAUD AND ABUSE ACT (18 U.S.C. § 1030)**
+   a) Unauthorized access to or exceeding authorized access of computer systems to scrape, extract, or ingest the Work violates 18 U.S.C. § 1030(a)(2)(C) and (a)(5);
+   b) This license explicitly limits authorized access - any access for AI training purposes exceeds authorization;
+   c) Civil remedies available under § 1030(g) including compensatory damages and injunctive relief;
+   d) Criminal penalties available for violations: fines and up to 10 years imprisonment for repeat offenders (§ 1030(c)).
+
+**THEORY 3: BREACH OF CONTRACT WITH EXTRA ELEMENTS**
+   a) This license constitutes a binding contract with consideration (access to Work in exchange for compliance);
+   b) AI training violates express contractual prohibition, constituting material breach;
+   c) Extra elements beyond copyright: promise not to use for AI, confidentiality obligations, cultural protocol compliance, PIC requirements, and benefit-sharing obligations;
+   d) These extra elements prevent Copyright Act § 301 preemption, making contract claims independently enforceable;
+   e) Remedies: liquidated damages (Sections 7.1, 11.8), actual damages, specific performance, injunctive relief.
+
+**THEORY 4: TRADE SECRET MISAPPROPRIATION (18 U.S.C. § 1836 - Defend Trade Secrets Act)**
+   a) To the extent the Work or portions thereof constitute trade secrets (non-public information deriving economic value from secrecy, subject to reasonable confidentiality measures), unauthorized AI training constitutes misappropriation;
+   b) Acquisition, disclosure, or use of trade secrets without consent violates DTSA;
+   c) Traditional Knowledge and certain cultural information qualify as trade secrets when kept confidential;
+   d) Remedies: injunctive relief (including extraordinary relief to prevent propagation - 18 U.S.C. § 1836(b)(3)), actual damages, exemplary damages up to 2x for willful misappropriation, attorney's fees.
+
+**THEORY 5: BREACH OF CONFIDENCE (Common Law)**
+   a) By accessing the Work subject to this license, users receive information in confidence with obligation not to use for AI training;
+   b) Use for AI training breaches confidential relationship and violates duty of confidence;
+   c) Federal common law and tribal common law recognize breach of confidence as independent cause of action;
+   d) Remedies: injunctive relief, accounting of profits, compensatory damages.
+
+**THEORY 6: MISAPPROPRIATION (Common Law)**
+   a) Unauthorized use of the Work for AI training constitutes hot news misappropriation (*International News Service v. Associated Press*, 248 U.S. 215 (1918));
+   b) Rights Holder invests substantial time, effort, and resources in creating Work;
+   c) AI developers free-ride on this investment without compensation;
+   d) Commercial value of Work is directly appropriated for AI development;
+   e) Remedies: injunctive relief, disgorgement of profits, compensatory damages.
+
+**THEORY 7: TRIBAL LAW VIOLATIONS**
+   a) The Grand Traverse Band of Ottawa and Chippewa Indians exercises comprehensive regulatory authority over intellectual property and cultural resources of tribal members;
+   b) Tribal law prohibits unauthorized commercial exploitation and cultural misappropriation;
+   c) Tribal court has jurisdiction under *Montana* exceptions (see Section 11.4A);
+   d) Remedies under tribal law: restitution, fines, injunctive relief, cultural harm damages, exclusion from tribal territories and resources.
+
+**THEORY 8: INTERNATIONAL LAW VIOLATIONS**
+   a) UN Declaration on the Rights of Indigenous Peoples (UNDRIP) Articles 11 and 31 protect Indigenous intellectual property and traditional knowledge;
+   b) WIPO Treaty on Traditional Knowledge (adopted May 2024) requires Prior Informed Consent for use of traditional knowledge;
+   c) AI training without PIC violates international Indigenous rights frameworks;
+   d) While international law violations may not create direct private causes of action, they inform interpretation of domestic law and support equitable remedies.
+
+**THEORY 9: CUMULATIVE THEORIES DOCTRINE**
+   a) Under federal and tribal law, multiple legal theories may be asserted cumulatively, even if overlapping;
+   b) A violation of this license triggers ALL applicable theories simultaneously;
+   c) Remedies are cumulative except to the extent they would result in double recovery for the same harm;
+   d) Defendant's liability is established if ANY theory succeeds, and damages/remedies may draw from multiple theories.
+
+**ENFORCEMENT PRIORITY:**
+   i) The Rights Holder may elect to pursue any or all theories simultaneously or sequentially;
+   ii) Failure of one theory does not bar pursuit of remaining theories;
+   iii) Forum selection (Section 11) permits tribal court, federal court, or international arbitration depending on which theories are asserted;
+   iv) Each theory provides independent basis for injunctive relief, including orders to destroy trained models;
+   v) Liquidated damages under this license (Section 7.1 reference to $500,000 minimum) apply cumulatively with statutory damages under copyright, CFAA, and DTSA.
+
+**PRACTICAL EFFECT:**
+AI developers cannot rely on any single defense (e.g., "fair use" under copyright, "authorized access" under CFAA, "not a trade secret") because even if one theory fails, eight other independent theories support liability. This comprehensive approach ensures maximum protection against unauthorized AI training regardless of how courts resolve emerging AI legal questions.
 
 7.2 **INTERMEDIATE COPYING PROHIBITION**: Any intermediate copying, processing, ingestion, or transformation of the Work for AI training purposes constitutes a violation of this license, regardless of whether the Work appears in final AI outputs. This includes but is not limited to data preprocessing, tokenization, embedding generation, and model fine-tuning.
 
@@ -32,15 +259,145 @@ Based on the precedent established in Thomson Reuters Enterprise Centre GmbH v. 
 
 7.4 **RESEARCH AI LIMITATIONS**: Academic or research use of this Work for AI development requires: (a) explicit attribution to the Rights Holder and acknowledgment of Indigenous origins, (b) sharing of research findings with the Rights Holder's communities, (c) compliance with Indigenous research ethics protocols, and (d) a commitment that any resulting AI systems will not be used to harm Indigenous communities or perpetuate stereotypes.
 
-7.5 **EMERGENT TECHNOLOGY RESTRICTIONS**: To future-proof this license against technological developments that may threaten tribal sovereignty and Indigenous rights, the following emerging technologies are subject to the same restrictions as AI training without explicit Prior Informed Consent:
-   a) **QUANTUM COMPUTING APPLICATIONS**: Use of the Work in quantum computing systems, quantum machine learning, quantum simulation, or quantum cryptographic applications that could compromise cultural data protection or enable unauthorized pattern recognition in Traditional Knowledge
-   b) **BIOTECHNOLOGY AND GENETIC RESEARCH**: Use of the Work in genetic research, synthetic biology, bioinformatics platforms, or biotechnology applications that involve Indigenous populations, traditional medicines, or ancestral genetic data
-   c) **BRAIN-COMPUTER INTERFACES**: Integration of the Work into neural implants, brain-computer interfaces, cognitive enhancement technologies, or neurotechnology applications that could access or influence traditional knowledge transmission
-   d) **ADVANCED ROBOTICS AND AUTONOMOUS SYSTEMS**: Use of the Work to train, program, or control autonomous weapons systems, surveillance robots, or any robotic systems intended for deployment on Indigenous lands or against Indigenous peoples
-   e) **VIRTUAL AND AUGMENTED REALITY**: Use of the Work in immersive technologies that simulate sacred sites, traditional ceremonies, or cultural practices without proper authorization and cultural protocols
-   f) **NANOTECHNOLOGY APPLICATIONS**: Use of the Work in nanotechnology research or applications that could impact Indigenous environments, traditional medicines, or cultural materials
-   g) **SPACE TECHNOLOGY AND EXTRATERRESTRIAL APPLICATIONS**: Use of the Work in space exploration, satellite technology, or extraterrestrial colonization projects that may affect traditional astronomical knowledge or spiritual connections to celestial bodies
-   h) **ADVANCED SURVEILLANCE TECHNOLOGIES**: Use of the Work in facial recognition, behavioral prediction, social credit systems, or mass surveillance technologies that could target or profile Indigenous peoples
+7.5 **EMERGING TECHNOLOGY RESTRICTIONS WITH BENEFICIAL USE EXCEPTIONS**:
+
+   /* LEGAL HARDENING: Distinguishes harmful commercial exploitation from beneficial community-controlled
+      research. Addresses overbreadth concern while maintaining protection. Creates framework for
+      community-beneficial uses of emerging technologies (language revitalization AI, protective
+      cryptography, cultural preservation). Implements precautionary principle - presumptively prohibited
+      unless proven beneficial. Based on 03-ai-technology-protection.md Amendment 4 (Medium Priority),
+      addressing concern that blanket prohibitions prevent beneficial uses. */
+   
+   To future-proof this license against technological developments that may threaten tribal sovereignty and Indigenous rights, while permitting beneficial community-controlled research, the following framework applies:
+
+   a) **PRESUMPTIVELY PROHIBITED TECHNOLOGIES:**
+      The following emerging technologies are prohibited for use with the Work UNLESS authorized under subsection (b) below:
+      
+      i) **Artificial Intelligence and Machine Learning**: All forms covered in Sections 7.1-7.4;
+      
+      ii) **Quantum Computing Applications**: Use in quantum machine learning, quantum simulation of Traditional Knowledge, or quantum cryptanalysis that could compromise TK protection;
+      
+      iii) **Biotechnology**: Genetic research, synthetic biology, or bioinformatics involving Traditional Knowledge of medicines, genetic resources, or indigenous populations without community control;
+      
+      iv) **Brain-Computer Interfaces**: Neural implants or cognitive technologies accessing Traditional Knowledge without cultural protocols;
+      
+      v) **Advanced Robotics**: Autonomous weapons, surveillance systems, or robots deployed on Indigenous lands without tribal consent;
+      
+      vi) **Virtual/Augmented Reality**: Simulation of sacred sites, ceremonies, or cultural practices without authorization;
+      
+      vii) **Nanotechnology**: Applications affecting traditional medicines, environments, or cultural materials;
+      
+      viii) **Space Technology**: Use of Traditional Knowledge in extraterrestrial applications without benefit-sharing;
+      
+      ix) **Advanced Surveillance**: Facial recognition, behavioral prediction, or mass surveillance targeting Indigenous peoples;
+
+   b) **BENEFICIAL USE EXCEPTIONS:**
+      The following uses of emerging technologies ARE authorized when meeting criteria in subsection (c):
+      
+      i) **Community-Controlled Research**:
+          (1) Research designed and controlled by Indigenous communities;
+          (2) Benefits flow primarily to Indigenous peoples;
+          (3) Community has authority to halt research at any time;
+          (4) Results owned by community, not external researchers;
+          (5) Research protocols approved by tribal IRB or cultural review board;
+      
+      ii) **Cultural Preservation Applications**:
+          (1) Language revitalization technologies (AI for endangered languages);
+          (2) Digital archiving with Indigenous Data Sovereignty protections;
+          (3) Restoration of cultural sites using non-invasive technologies;
+          (4) Accessibility tools for disabled community members;
+          (5) Climate adaptation research protecting traditional territories;
+      
+      iii) **Protective Technologies**:
+          (1) Quantum cryptography protecting Traditional Knowledge;
+          (2) Blockchain provenance tracking for cultural heritage;
+          (3) AI detection systems for cultural appropriation (per Section 9A.7);
+          (4) Surveillance systems authorized under Section 8(g) for sacred site protection;
+          (5) Defensive technologies preventing misappropriation;
+      
+      iv) **Medical Applications**:
+          (1) Research on traditional medicines with community consent;
+          (2) Genetic research benefiting Indigenous health outcomes;
+          (3) Biotechnology preserving traditional plant varieties;
+          (4) All subject to strict community control and benefit-sharing;
+      
+      v) **Educational Technologies**:
+          (1) AI tutoring systems for Indigenous students;
+          (2) VR/AR for authorized cultural education (not sacred ceremonies);
+          (3) Adaptive learning technologies in tribal schools;
+          (4) Distance learning for remote communities;
+
+   c) **AUTHORIZATION REQUIREMENTS FOR BENEFICIAL USES:**
+      To qualify for beneficial use exception, user must:
+      
+      i) **Obtain Enhanced Prior Informed Consent (PIC)**:
+          (1) Detailed technology description and methodology;
+          (2) Risk assessment and mitigation plan;
+          (3) Benefit-sharing arrangement (monetary and non-monetary);
+          (4) Community control mechanisms;
+          (5) Data governance plan per Section 4.2;
+          (6) Exit strategy if community withdraws consent;
+      
+      ii) **Demonstrate Community Benefit**:
+          (1) Clear articulation of benefits to Indigenous communities;
+          (2) Evidence of community support (letters, resolutions);
+          (3) Plan for capacity building and technology transfer;
+          (4) Commitment to Indigenous hiring and training;
+      
+      iii) **Maintain Indigenous Control**:
+          (1) Community representatives on governance board;
+          (2) Community veto power over technology direction;
+          (3) Community ownership of results and data;
+          (4) Prohibition on commercialization without consent;
+      
+      iv) **Provide Ongoing Reporting**:
+          (1) Quarterly progress reports to Rights Holder/community;
+          (2) Annual community presentations;
+          (3) Transparency in funding sources and partnerships;
+          (4) Immediate notification of risks or ethical concerns;
+
+   d) **PRECAUTIONARY PRINCIPLE:**
+      When uncertain whether use is beneficial or harmful:
+      i) Presumption is PROHIBITED unless proven beneficial;
+      ii) Burden on user to demonstrate beneficial nature;
+      iii) Community has final determination authority;
+      iv) Rights Holder may revoke authorization at any time per Section 5;
+
+   e) **TECHNOLOGY-SPECIFIC PROTOCOLS:**
+      
+      i) **Quantum Computing**: Authorized ONLY for cryptographic protection and defensive uses;
+      
+      ii) **Biotechnology**: Requires:
+          (1) Tribal IRB approval
+          (2) Nagoya Protocol-compliant benefit-sharing
+          (3) Community gene banks control samples
+          (4) Prohibition on patenting without community co-ownership
+      
+      iii) **AI/Machine Learning**: Authorized ONLY for:
+          (1) Language revitalization (community-controlled corpora)
+          (2) Cultural appropriation detection
+          (3) Educational tools for Indigenous students
+          (4) Community explicitly retains full control and ownership
+      
+      iv) **VR/AR**: Authorized for education but:
+          (1) NEVER for sacred ceremonies without explicit ritual authorization
+          (2) Must include cultural context and attribution
+          (3) Subject to community review and approval
+          (4) Elders determine appropriate vs. restricted content;
+
+   f) **VIOLATIONS OF TECHNOLOGY RESTRICTIONS:**
+      Unauthorized use of prohibited technologies triggers:
+      i) All remedies under Section 13 (Violations)
+      ii) Technology-specific damages per Section 7.6 for AI
+      iii) Mandatory technology destruction and dataset removal
+      iv) Enhanced cultural harm damages (3x multiplier for sacred content)
+      v) Criminal referrals where applicable (e.g., IACA violations)
+
+   g) **PERIODIC REVIEW:**
+      i) Rights Holder shall review technology restrictions every 2 years;
+      ii) Update based on emerging threats and beneficial opportunities;
+      iii) Community consultation required for major policy changes;
+      iv) Amendments follow process in Section 17;
 
 **INDIGENOUS DATA SOVEREIGNTY AND CARE PRINCIPLES**
 
@@ -64,7 +421,185 @@ For any software, applications, or digital implementations based on this Work:
 
 9.3 **INTERFACE AND API RESTRICTIONS**: Any application programming interfaces, user interfaces, or digital interfaces derived from this Work must maintain attribution requirements, cultural context information, and compliance with Indigenous data governance protocols.
 
-9.4 **BLOCKCHAIN AND CRYPTOCURRENCY RESTRICTIONS**: The Work may not be used in blockchain applications, cryptocurrency mining, NFT creation, or other distributed ledger technologies without explicit permission that addresses the permanence and immutability concerns related to Indigenous cultural heritage. As per July 2025 EU MiCA and US SEC guidance, all blockchain uses require PIC and 25% royalty sharing. Violations incur chain-fork remedies and smart contract invalidation.
+9.4 **BLOCKCHAIN AND DISTRIBUTED LEDGER TECHNOLOGY: RESTRICTIONS AND AUTHORIZED USES**
+
+   /* LEGAL HARDENING: Distinguishes harmful cryptocurrency speculation from beneficial blockchain uses
+      (provenance tracking, automated benefit-sharing via smart contracts, community governance). Addresses
+      08-data-sovereignty.md Vulnerability 3 (blockchain restrictions overbroad). Creates framework for
+      permissioned vs. public blockchains, NFT community benefit structure, environmental sustainability
+      requirements, and specialized remedies (token burning, NFT transfer). Amendment 3 (Low-Medium Priority). */
+
+   a) **PROHIBITED BLOCKCHAIN USES:**
+      
+      WITHOUT explicit Prior Informed Consent, the following are prohibited:
+      
+      i) **Cryptocurrency/Speculation:**
+         - Using Work in cryptocurrency mining
+         - Creating cryptocurrency tokens representing rights in Work
+         - Trading Work-derived tokens on speculative markets
+         - Initial Coin Offerings (ICOs) using Work
+      
+      ii) **Non-Fungible Tokens (NFTs) for Commercial Exploitation:**
+         - Minting NFTs of sacred knowledge or restricted TK
+         - Selling NFTs without community benefit-sharing
+         - Creating NFT collections appropriating cultural designs
+         - Treating cultural heritage as speculative investment vehicle
+      
+      iii) **Immutable Harmful Content:**
+         - Recording sacred knowledge on public blockchains where it cannot be deleted
+         - Permanent exposure of restricted TK
+         - Immutable records violating cultural protocols requiring periodic renewal/reauthorization
+      
+      iv) **Unsustainable/Harmful Consensus:**
+         - Proof-of-work mining causing environmental harm
+         - Energy-intensive blockchain applications without offsetting benefits
+
+   b) **AUTHORIZED BENEFICIAL BLOCKCHAIN USES:**
+      
+      The following blockchain applications ARE authorized (still require PIC but presumptively appropriate):
+      
+      i) **PROVENANCE AND AUTHENTICATION:**
+         
+         Using blockchain to establish provenance of authentic TK/TCE:
+         - Immutable timestamp of authentic Work creation/recording
+         - Cryptographic proof of Rights Holder authorship
+         - Chain of custody for authorized licensing
+         - Authentication against appropriated/counterfeit versions
+         
+         **Requirements:**
+         - Permissioned blockchain (not public)
+         - Rights Holder controls access
+         - Cultural metadata privacy-protected
+         - Environmental sustainability (proof-of-stake or similar)
+      
+      ii) **AUTOMATED BENEFIT-SHARING (SMART CONTRACTS):**
+         
+         Smart contracts that automatically distribute payments:
+         - Licensing fees automatically split per Section 6A
+         - Royalty payments to Legacy Beneficiary
+         - Transparent financial tracking
+         - Reduces administrative overhead
+         
+         **Requirements:**
+         - Smart contract code audited and approved by Rights Holder
+         - Rights Holder retains ability to modify terms
+         - Fallback mechanisms if technical failure
+         - Complies with inalienability provisions (Section 6)
+      
+      iii) **COMMUNITY GOVERNANCE:**
+         
+         Decentralized decision-making for TK access:
+         - Voting mechanisms for PIC approval
+         - Community consensus on licensing decisions
+         - Transparent governance processes
+         - Token-based voting for verified community members
+         
+         **Requirements:**
+         - Governance tokens non-transferable (soulbound)
+         - One person one vote (not plutocratic)
+         - Aligned with tribal governance structures
+         - Rights Holder retains veto authority
+      
+      iv) **CERTIFICATES AND CREDENTIALS:**
+         
+         Verifiable credentials on blockchain:
+         - Certificates of cultural competency training
+         - Authorized PIC documentation
+         - Proof of completion for educational requirements (Section 10.3.d(ii)(4))
+         - Credential verification without centralized authority
+         
+         **Requirements:**
+         - Zero-knowledge proofs to minimize data exposure
+         - Credential holder controls disclosure
+         - Revocation mechanisms for expired/terminated credentials
+      
+      v) **SUPPLY CHAIN TRANSPARENCY:**
+         
+         Tracking authentic cultural products:
+         - Blockchain record of authentic traditional crafts
+         - Verification against IACA-violating counterfeits
+         - Transparent benefit-sharing to original artists
+         - Consumer confidence in authenticity
+         
+         **Requirements:**
+         - Artisan consent for each item
+         - Clear indication this is supply chain tracking, not speculation
+         - Fair pricing, equitable benefit distribution
+         - Integration with IACA enforcement
+
+   c) **PERMISSIONED VS. PUBLIC BLOCKCHAINS:**
+      
+      **PUBLIC BLOCKCHAINS (Bitcoin, Ethereum, etc.):**
+      - Generally prohibited due to:
+        * Permanent immutability (cannot delete sacred content)
+        * Public exposure
+        * Lack of community control
+        * Environmental concerns (proof-of-work)
+      - Exceptions require explicit PIC with strong rationale
+      
+      **PERMISSIONED/PRIVATE BLOCKCHAINS:**
+      - Presumptively acceptable for authorized uses above
+      - Requirements:
+        * Rights Holder or tribal authority operates nodes
+        * Access controlled by community
+        * Can modify/delete data if needed (not truly immutable)
+        * Environmentally sustainable consensus (proof-of-stake, proof-of-authority)
+
+   d) **NFT FRAMEWORK FOR COMMUNITY BENEFIT:**
+      
+      If NFTs authorized (requires enhanced PIC):
+      
+      i) **Creator Control:**
+         - Rights Holder approves each NFT mint
+         - Rights Holder receives at least 50% of initial sale
+         - Ongoing royalties on secondary sales (minimum 20%)
+         - Rights Holder can revoke/burn NFTs if misused
+      
+      ii) **Cultural Context:**
+         - NFT metadata includes full cultural context
+         - Attribution to Rights Holder and community
+         - Educational information about TK/TCE
+         - Links to this license and restrictions
+      
+      iii) **Benefit-Sharing:**
+         - Proceeds flow to Legacy Beneficiary per Section 10.3
+         - Transparent accounting on blockchain
+         - Cannot evade benefit-sharing obligations
+      
+      iv) **Anti-Speculation:**
+         - NFTs may include use restrictions (not pure speculation)
+         - Could grant specific rights (attendance at event, educational access)
+         - De-emphasize investment/speculation framing
+
+   e) **ENVIRONMENTAL SUSTAINABILITY:**
+      
+      All blockchain applications must:
+      i) Use energy-efficient consensus (proof-of-stake, proof-of-authority, or equivalent)
+      ii) Carbon-neutral or carbon-negative operations
+      iii) Annual environmental impact reporting
+      iv) Offset environmental harm if any
+
+   f) **PRIOR INFORMED CONSENT FOR BLOCKCHAIN:**
+      
+      PIC for blockchain applications must include:
+      i) Plain-language explanation of blockchain technology
+      ii) Specific use case and purpose
+      iii) Privacy and immutability implications
+      iv) Environmental impact
+      v) Benefit-sharing structure
+      vi) Community control mechanisms
+      vii) Exit strategy if harmful
+
+   g) **VIOLATIONS:**
+      
+      Unauthorized blockchain use violates this license:
+      i) Subject to graduated damages per Section 13.1
+      ii) Blockchain-specific relief:
+         - Burning/destroying tokens
+         - Transferring NFT ownership to Rights Holder
+         - Forfeiting cryptocurrency proceeds
+         - Deleting on-chain metadata (if permissioned blockchain)
+      iii) Criminal referrals for cryptocurrency fraud where applicable
 
 **EDUCATIONAL CONTENT AND INSTITUTIONAL SAFEGUARDS**
 
@@ -84,6 +619,94 @@ For educational institutions and content creators using this Work:
 
 11.3 **NOTIFICATION REQUIREMENTS**: Commercial users must provide advance notification to the Rights Holder of intended uses, including detailed descriptions of how Indigenous cultural heritage will be respected and protected.
 
+**11.3A INDIAN ARTS AND CRAFTS ACT (IACA) INTEGRATION AND CRIMINAL ENFORCEMENT**
+
+This license invokes and integrates the comprehensive protections of the Indian Arts and Crafts Act, 25 U.S.C. § 305 et seq., providing both federal criminal and civil enforcement mechanisms for misrepresentation and unauthorized commercial appropriation:
+
+a) **FEDERAL CRIMINAL PENALTIES (25 U.S.C. § 305e(b)):**
+   i) **FIRST OFFENSE**: Misrepresentation of Indian-produced goods or unauthorized commercial use of Indigenous cultural expressions is punishable by:
+       - Fines up to $250,000 (individuals) or $1,000,000 (entities)
+       - Imprisonment up to 5 years
+       - Or both fine and imprisonment
+   
+   ii) **SUBSEQUENT OFFENSES**: Second or subsequent violations are punishable by:
+       - Fines up to $1,000,000 (individuals) or $5,000,000 (entities)
+       - Imprisonment up to 15 years (as referenced in July 2025 sentencings)
+       - Or both fine and imprisonment
+
+   iii) **STRICT LIABILITY**: IACA imposes strict liability - no proof of fraudulent intent required, only misrepresentation or unauthorized use;
+
+   iv) **FEDERAL PROSECUTION**: U.S. Department of Justice has authority to prosecute IACA violations; Rights Holder may report violations to DOJ and request prosecution;
+
+b) **FEDERAL CIVIL REMEDIES (25 U.S.C. § 305e(d)):**
+   i) **TREBLE DAMAGES**: IACA authorizes civil actions for treble damages (3x actual damages) plus attorney's fees;
+   
+   ii) **STATUTORY PENALTIES**: Minimum civil penalty of $1,000 per violation, with no maximum limit;
+   
+   iii) **INJUNCTIVE RELIEF**: Courts may order immediate cessation of violative conduct, destruction of infringing materials, and prospective prohibitions;
+   
+   iv) **PUNITIVE DAMAGES**: In addition to treble actual damages, courts may award punitive damages for willful violations;
+
+c) **IACA DEFINITIONS AND APPLICABILITY:**
+   i) **"Indian" Definition**: Rights Holder qualifies as "Indian" under IACA as enrolled member of federally recognized Grand Traverse Band of Ottawa and Chippewa Indians (25 U.S.C. § 305e(a)(1));
+   
+   ii) **"Indian Product" Definition**: Works created by Rights Holder constitute "Indian products" under IACA, including artistic, craft, or cultural works created by Indian persons;
+   
+   iii) **MISREPRESENTATION PROHIBITION**: IACA prohibits:
+       (1) Falsely suggesting product is Indian-produced when it is not
+       (2) Using product created by Rights Holder without authorization and suggesting Rights Holder endorses or participated in unauthorized use
+       (3) Marketing derivative works based on Rights Holder's cultural expressions as "authentic Indian" products without proper attribution and authorization;
+
+d) **AUTOMATIC FEDERAL REPORTING OBLIGATION:**
+   i) Upon detecting potential IACA violation, Rights Holder SHALL report to:
+       - U.S. Department of Justice, Criminal Division, Fraud Section
+       - Federal Bureau of Investigation, Indian Country Crimes Unit  
+       - Indian Arts and Crafts Board, U.S. Department of Interior
+   
+   ii) Reporting triggers federal investigation and potential criminal prosecution independent of civil enforcement under this license;
+   
+   iii) Federal prosecution does NOT preclude concurrent tribal court civil enforcement - remedies are cumulative;
+
+e) **FEDERAL QUESTION JURISDICTION:**
+   i) IACA violations create federal question jurisdiction under 28 U.S.C. § 1331 and § 1362 (special Indian jurisdictional statute);
+   
+   ii) Federal courts have subject matter jurisdiction over IACA claims independent of tribal court jurisdiction;
+   
+   iii) Tribal court may exercise concurrent jurisdiction over IACA civil claims under tribal law adopting IACA standards;
+
+f) **RELATIONSHIP TO LICENSE REMEDIES:**
+   i) **CUMULATIVE REMEDIES**: IACA remedies are cumulative with license-based remedies:
+       - License liquidated damages (Section 11.8/11.9) apply concurrently
+       - Cultural harm damages (Section 13) apply concurrently
+       - Benefit-sharing restitution (Section 6A) applies concurrently
+   
+   ii) **NO DOUBLE RECOVERY**: While remedies are cumulative, recovery shall be structured to avoid double compensation for identical harm (e.g., if IACA treble damages compensate economic harm, license actual damages may focus on non-economic cultural harm);
+   
+   iii) **ELECTION OF REMEDIES NOT REQUIRED**: Rights Holder may pursue all available remedies simultaneously;
+
+g) **ENHANCED DETERRENCE:**
+   i) Potential 15-year imprisonment creates substantial deterrent against commercial appropriation;
+   
+   ii) Treble damages and criminal penalties exceed typical copyright remedies, reflecting special federal protection for Indigenous cultural production;
+   
+   iii) Federal criminal record creates collateral consequences (professional licensing, employment, reputation) beyond monetary penalties;
+
+h) **PRECEDENTIAL SUPPORT:**
+   i) United States v. Muenala (July 2025 sentencing referenced at line 196): 15-year term demonstrates federal commitment to IACA enforcement;
+   
+   ii) Federal prosecutions increasing as of 2025, showing DOJ prioritization of Indigenous cultural protection;
+   
+   iii) Tribal courts increasingly incorporating IACA standards into tribal IP codes;
+
+i) **PRACTICAL ENFORCEMENT:**
+   i) Users engaging in commercial use without authorization risk:
+       - Federal criminal investigation and prosecution
+       - Treble damages in civil litigation
+       - Tribal court enforcement with full faith and credit
+       - Reputational harm from federal criminal conviction
+   
+   ii) IACA provides enforcement mechanism even when copyright claims might fail (e.g., if Work is traditional knowledge not eligible for copyright, IACA still protects as Indigenous cultural production);
+
 **ENFORCEMENT AND JURISDICTIONAL PROVISIONS**
 
 12.1 **TRIBAL COURT PRIMACY AND SOVEREIGN IMMUNITY PRESERVATION**: 
@@ -93,15 +716,222 @@ For educational institutions and content creators using this Work:
 
 12.2 **FEDERAL COURT JURISDICTION**: Federal courts may exercise jurisdiction over disputes arising under this license only in cases where: (i) tribal courts lack jurisdiction under applicable tribal law, (ii) federal question jurisdiction is clearly established, or (iii) the tribal court refers the matter to federal court. Preference shall be given to federal courts with established expertise in federal Indian law and Indigenous rights.
 
-12.3 **INTERNATIONAL ENFORCEMENT**: For international disputes, this license invokes the protections of UNDRIP, the WIPO Treaty on Traditional Knowledge, and other international instruments protecting Indigenous rights. As of July 2025, with increasing international ratifications, disputes may invoke WIPO arbitration; users consent to binding tribal judgments enforceable globally via New York Convention.
+**12.3 UNCITRAL ARBITRATION FOR INTERNATIONAL DISPUTES**
 
-12.3A **CROSS-BORDER ENFORCEMENT MECHANISMS**: To strengthen international enforcement of tribal sovereignty and treaty rights:
-   a) **MUTUAL LEGAL ASSISTANCE**: Users consent to enforcement through mutual legal assistance treaties (MLATs) and other international cooperation frameworks, particularly those recognizing Indigenous rights
-   b) **ASSET FREEZING AND RECOVERY**: International users specifically consent to asset freezing orders and civil forfeiture procedures initiated by tribal courts and enforced through diplomatic channels
-   c) **EXTRADITION COOPERATION**: For serious violations involving cultural appropriation or sacred site desecration, users consent to extradition proceedings under international law where applicable
-   d) **DIPLOMATIC ENFORCEMENT**: The Rights Holder reserves the right to seek enforcement through government-to-government diplomatic channels between the United States and foreign nations, leveraging federal trust responsibilities
-   e) **INTERNATIONAL ARBITRATION BINDING**: Users irrevocably consent to binding international arbitration under UNCITRAL rules with Indigenous law specialists, with awards enforceable under the New York Convention
-   f) **FOREIGN JUDGMENT RECOGNITION**: Users agree to waive any sovereign immunity defenses to recognition and enforcement of tribal court judgments in their home jurisdictions
+For disputes involving international parties or enforcement in foreign jurisdictions, this license provides for binding arbitration under UNCITRAL Arbitration Rules (2013 version, as may be amended) as an alternative or supplement to tribal court jurisdiction:
+
+   a) **ARBITRATION AGREEMENT:** By using the Work, international users (users located outside United States or with primary assets outside United States) irrevocably agree to resolve disputes through UNCITRAL arbitration at Rights Holder's election, without prejudice to Rights Holder's right to pursue tribal court or federal court remedies;
+
+   b) **UNCITRAL RULES 2013:** Arbitration conducted under UNCITRAL Arbitration Rules (2013), providing neutral institutional framework recognized by 172 countries under New York Convention on Recognition and Enforcement of Foreign Arbitral Awards (1958);
+
+   c) **SEAT OF ARBITRATION:** Geneva, Switzerland, selected as neutral seat with well-developed arbitration law, strong rule of law, and no bias toward either party. Swiss Federal Tribunal provides judicial oversight. Alternative seats: The Hague (Netherlands) or Singapore;
+
+   d) **NUMBER OF ARBITRATORS:** Three arbitrators
+      i) **Rights Holder appoints one arbitrator** with expertise in Indigenous intellectual property, federal Indian law, or international Indigenous rights law
+      ii) **Respondent appoints one arbitrator** with expertise in relevant substantive area (IP, AI, international law)
+      iii) **Third arbitrator (Chair) appointed by agreement** or by Secretary-General of Permanent Court of Arbitration if parties cannot agree. Chair must have:
+          - Demonstrated expertise in international intellectual property law or international Indigenous rights law
+          - Cultural competency regarding Indigenous peoples' rights
+          - No conflicts of interest
+          - Preference for arbitrators with Indigenous heritage or extensive experience with Indigenous legal issues
+
+   e) **LANGUAGE:** English, with translation provided for any non-English documents or testimony;
+
+   f) **GOVERNING LAW:** Arbitral tribunal shall apply:
+      i) Express terms of this license
+      ii) Tribal law of Grand Traverse Band of Ottawa and Chippewa Indians
+      iii) Federal Indian law of United States
+      iv) UNDRIP and other international Indigenous rights instruments
+      v) General principles of international intellectual property law, modified as necessary for Indigenous context
+      **Note:** Tribunal explicitly authorized to apply tribal law and federal Indian law despite international arbitration context, recognizing unique status of Indigenous intellectual property;
+
+   g) **INTERIM MEASURES:** Arbitral tribunal has authority to order interim measures of protection, including:
+      i) Preservation of evidence (including AI models, datasets, source code)
+      ii) Preliminary injunctions to prevent ongoing violations
+      iii) Asset freezing to secure potential awards
+      iv) Emergency arbitrator procedures available under UNCITRAL Rules Article 29;
+
+   h) **AWARDS AND ENFORCEMENT:**
+      i) **New York Convention Enforcement:** Arbitral awards enforceable in 172 signatory countries under New York Convention, providing broader enforcement than domestic judgments
+      ii) **Binding and Final:** Awards are final and binding, with limited grounds for challenge (corruption, procedural irregularity, public policy)
+      iii) **Costs and Attorney's Fees:** Prevailing party entitled to recover arbitration costs, attorney's fees, and expert witness fees
+      iv) **Currency:** Awards in U.S. dollars, convertible to local currency at exchange rate on date of award;
+
+   i) **INDIGENOUS RIGHTS PROTECTION IN ARBITRATION:**
+      i) Arbitral tribunal shall interpret license terms liberally in favor of Indigenous rights and Rights Holder's intent (Indian canons of construction applied in international context)
+      ii) Tribunal shall give effect to tribal sovereignty principles and federal trust responsibility even in international arbitration
+      iii) Cultural evidence admissible including traditional knowledge, oral histories, and Indigenous legal principles
+      iv) Tribal court judgments entitled to comity and deference by arbitral tribunal
+      v) Rights Holder may request confidentiality protections for sacred or sensitive information;
+
+   j) **RELATIONSHIP TO TRIBAL COURT JURISDICTION:**
+      i) UNCITRAL arbitration is **ALTERNATIVE**, not replacement, for tribal court jurisdiction
+      ii) Rights Holder retains absolute discretion to pursue tribal court, federal court, or UNCITRAL arbitration
+      iii) Users may not compel UNCITRAL arbitration if Rights Holder elects tribal court
+      iv) Arbitral tribunal may defer to tribal court on questions of tribal law or cultural significance;
+
+   k) **CONSOLIDATION:** Rights Holder may consolidate multiple related arbitrations involving different respondents if efficiency warrants and rights of parties protected;
+
+12.3A **MUTUAL LEGAL ASSISTANCE TREATY (MLAT) PROCEDURES**
+
+For enforcement against international parties, particularly for criminal violations (IACA, CFAA) or civil judgments requiring foreign cooperation, this license invokes Mutual Legal Assistance Treaties:
+
+   a) **MLAT INVOCATION:** Rights Holder may request U.S. Department of Justice, Office of International Affairs (DOJ OIA) to invoke MLATs with foreign countries to:
+      i) Obtain evidence located in foreign jurisdictions (documents, data, witness testimony)
+      ii) Serve process on foreign defendants
+      iii) Freeze or seize foreign assets
+      iv) Execute foreign judgments or arbitral awards
+      v) Facilitate extradition for serious criminal violations;
+
+   b) **BILATERAL MLAT COVERAGE:** United States has bilateral MLATs with 70+ countries, including:
+      - European Union (28 member states)
+      - United Kingdom, Canada, Australia, New Zealand
+      - Major Asian economies (Japan, South Korea, Singapore, India)
+      - Latin American countries (Mexico, Brazil, Argentina)
+      - Coverage extends to criminal and serious civil violations;
+
+   c) **CRIMINAL VIOLATION PREDICATE:** MLATs most effective for criminal violations including:
+      i) IACA violations (25 U.S.C. § 305e) - criminal misrepresentation of Indian arts/crafts
+      ii) CFAA violations (18 U.S.C. § 1030) - unauthorized computer access for AI training
+      iii) DTSA criminal trade secret theft (18 U.S.C. § 1832) - economic espionage
+      Rights Holder shall report potential criminal violations to DOJ, FBI, and Indian Arts and Crafts Board to establish predicate for MLAT use;
+
+   d) **CIVIL MLAT PROCEDURES:** For civil judgments, Rights Holder may request:
+      i) Hague Convention on Service Abroad (service of process in 75+ countries)
+      ii) Hague Convention on Taking Evidence Abroad (discovery in foreign jurisdictions)
+      iii) Recognition and enforcement of U.S. judgments under bilateral treaties or comity principles;
+
+   e) **DOJ OIA PROCEDURES:**
+      i) **Initial Request**: Rights Holder submits MLAT request to DOJ OIA with documentation of violation, foreign party identity, assets/evidence location
+      ii) **DOJ Review**: DOJ OIA reviews for treaty applicability, dual criminality (if required), and U.S. interests
+      iii) **Foreign Central Authority**: DOJ transmits request to foreign country's central authority
+      iv) **Foreign Execution**: Foreign authorities execute request under their domestic law
+      v) **Timelines**: Typically 6-18 months depending on country and request complexity;
+
+   f) **ALTERNATIVE: HAGUE CONVENTION PROCEDURES:** If MLAT unavailable or ineffective, Rights Holder may use:
+      i) Hague Service Convention for process service
+      ii) Hague Evidence Convention for discovery
+      iii) Direct bilateral judicial cooperation where treaties permit;
+
+12.3B **FIVE-TIER DIPLOMATIC ESCALATION PROTOCOL**
+
+When international enforcement proves difficult or foreign parties resist compliance, Rights Holder may escalate through diplomatic channels to leverage international pressure and Indigenous rights frameworks:
+
+   **TIER 1: U.S. FEDERAL GOVERNMENT CHANNELS**
+   a) **Department of Justice:** Request criminal prosecution of IACA, CFAA, DTSA violations through DOJ Criminal Division and FBI
+   b) **Department of Interior:** Engage Bureau of Indian Affairs and Indian Arts and Crafts Board for enforcement support
+   c) **State Department:** Request diplomatic notes to foreign governments regarding violations of U.S. citizens' intellectual property rights and treaty obligations protecting Indigenous peoples
+   d) **U.S. Trade Representative:** File complaints regarding foreign countries' inadequate IP protection affecting Indigenous intellectual property, potentially triggering Special 301 investigations or WTO disputes
+   e) **Department of Commerce:** Engage International Trade Administration for trade enforcement
+
+   **TIER 2: UN SPECIAL RAPPORTEUR ON INDIGENOUS PEOPLES' RIGHTS**
+   a) File complaint with UN Special Rapporteur on Rights of Indigenous Peoples regarding violations of UNDRIP Articles 11 (cultural heritage protection) and 31 (Traditional Knowledge protection)
+   b) Request Special Rapporteur to issue communications to foreign governments urging compliance with international Indigenous rights obligations
+   c) Request country visits or thematic reports highlighting violations
+   d) Seek Special Rapporteur recommendations to UN Human Rights Council
+   e) **Precedent**: Special Rapporteur has issued numerous communications regarding Indigenous IP violations, carrying significant diplomatic weight
+
+   **TIER 3: INTER-AMERICAN COMMISSION ON HUMAN RIGHTS (IACHR)**
+   a) File petition with IACHR (if violations in Americas) alleging violations of:
+      i) American Declaration on Rights of Indigenous Peoples (2016) - Articles on cultural integrity and intellectual property
+      ii) American Convention on Human Rights - property rights protections
+   b) Request precautionary measures to prevent irreparable harm
+   c) Seek IACHR report condemning violations and recommending remedies
+   d) Potential referral to Inter-American Court of Human Rights for binding judgment
+   e) **Precedent**: IACHR has issued precautionary measures protecting Indigenous cultural heritage
+
+   **TIER 4: INDIGENOUS PEOPLES' ORGANIZATIONS**
+   a) **World Council of Indigenous Peoples (WCIP):** Engage for advocacy and international pressure
+   b) **International Indian Treaty Council (IITC):** UN-recognized Indigenous organization for diplomatic advocacy
+   c) **National Congress of American Indians (NCAI):** U.S. domestic advocacy with international reach
+   d) **Assembly of First Nations (Canada):** Cross-border Indigenous advocacy
+   e) **Regional Indigenous Organizations:** Leverage networks for coordinated international pressure
+   f) Request organizations to issue statements, file amicus briefs, and organize advocacy campaigns
+
+   **TIER 5: MEDIA AND PUBLIC ADVOCACY**
+   a) Strategic media campaigns highlighting violations of Indigenous intellectual property rights
+   b) Social media advocacy mobilizing Indigenous communities and allies
+   c) Engagement with Indigenous media outlets and mainstream press
+   d) Public naming and shaming of violators to create reputational harm
+   e) Coordination with Indigenous rights activists and advocacy organizations
+   f) Documentation for historical record and academic research
+
+   **ESCALATION CRITERIA:**
+   - Tier 1 invoked for all significant international violations
+   - Tier 2-3 invoked if Tier 1 yields no results within 6-12 months or for particularly egregious violations
+   - Tier 4-5 invoked simultaneously with Tiers 1-3 to amplify pressure
+   - All tiers may operate concurrently for maximum effect
+
+   **DIPLOMATIC IMMUNITY ANALOGY:**
+   While not creating formal diplomatic immunity, this escalation protocol leverages government-to-government and international organization channels to create functional immunity from foreign legal harassment and to apply pressure for voluntary compliance or favorable settlements.
+
+**12.3C WIPO TREATY IMPLEMENTATION AND MONITORING**
+
+/* LEGAL HARDENING: Ensures WIPO Treaty benefits even before international entry into force by creating
+   enforceable contractual obligations. Provides monitoring and notice procedures. Addresses US ratification
+   and non-ratification scenarios. Based on 02-international-treaties.md Amendment 1 (deferred low-priority
+   amendment now implemented). Creates pre-entry compliance obligations and post-entry enforcement enhancement. */
+
+The WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (adopted May 24, 2024) provides enhanced international protection for Indigenous intellectual property.
+
+a) **AUTOMATIC INCORPORATION UPON ENTRY INTO FORCE:**
+   Upon entry into force of the WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (requiring 15 ratifications), all provisions of that treaty shall be automatically incorporated into and made enforceable under this license without need for amendment, including:
+   
+   i) Article 3 disclosure requirements for patent applications;
+   ii) Article 5 remedies for non-disclosure (patent invalidation, enforcement prevention);
+   iii) Article 7 cross-border cooperation provisions;
+   iv) All other applicable provisions protecting traditional knowledge and genetic resources;
+
+b) **PRE-ENTRY INTO FORCE OBLIGATIONS:**
+   During the period between this license's effective date and the WIPO Treaty's entry into force, users agree to comply with WIPO Treaty provisions as contractual obligations under this license, treating the treaty as incorporated by reference even before its formal entry into force in international law. This creates:
+   
+   i) **Contractual Disclosure Obligation**: Users seeking patents must disclose TK sources as if WIPO Treaty were in force;
+   ii) **Early Compliance Benefit**: Users complying pre-entry will have established good faith and documentation;
+   iii) **Penalty for Non-Compliance**: Violation of pre-entry disclosure obligations triggers full license remedies;
+
+c) **RATIFICATION MONITORING:**
+   The Rights Holder, successor authorities, and designated financial institutions (Section 9A.7) shall monitor WIPO Treaty ratification status through:
+   
+   i) WIPO website: https://www.wipo.int/treaties/
+   ii) Notifications from World Intellectual Property Organization
+   iii) Legal counsel tracking international IP developments
+   
+   **Current Status (as of July 2025):** Treaty requires 15 member state ratifications to enter into force; 8 ratifications received as of July 2025. Upon confirmation of 15th ratification, rights holders shall publish notice of WIPO Treaty entry into force and its automatic incorporation into this license.
+
+d) **ENFORCEMENT ENHANCEMENT POST-ENTRY:**
+   After WIPO Treaty entry into force, violations shall be subject to:
+   
+   i) Remedies under this license (Sections 13, 14);
+   ii) Remedies under WIPO Treaty Article 5 in ratifying countries;
+   iii) Patent invalidation actions in countries implementing disclosure requirements;
+   iv) International arbitration invoking WIPO Treaty obligations;
+   v) Diplomatic protests for violations by ratifying country nationals;
+
+e) **US RATIFICATION CONTINGENCIES:**
+   If the United States ratifies the WIPO Treaty:
+   i) All provisions become federal law subject to Supremacy Clause;
+   ii) Federal courts must enforce disclosure requirements;
+   iii) USPTO must implement disclosure regulations;
+   iv) Creates federal question jurisdiction under 28 U.S.C. § 1331;
+   
+   If the United States does NOT ratify:
+   i) Contractual incorporation remains effective;
+   ii) Can seek enforcement in ratifying countries;
+   iii) Can use treaty as evidence of international norms in US litigation;
+   iv) Diplomatic pressure through countries that have ratified;
+
+   d) **NATIONAL IMPLEMENTING LEGISLATION:**
+      i) As countries ratify WIPO Treaty and enact implementing legislation, such national laws automatically incorporated by reference to extent they provide protections equal to or greater than this license
+      ii) Users in ratifying countries automatically subject to national implementing legislation in addition to license terms
+      iii) Rights Holder may invoke national WIPO Treaty implementing legislation as additional enforcement mechanism;
+
+   e) **MONITORING AND NOTIFICATION:**
+      i) Rights Holder shall monitor WIPO Treaty ratification progress
+      ii) Upon entry into force, Rights Holder shall provide notice to users of automatic incorporation
+      iii) Absence of notice does not relieve users of automatic obligations - Treaty provisions self-executing upon entry into force;
+
+   f) **PRECEDENTIAL EFFECT PRE-ENTRY:**
+      Even before entry into force, WIPO Treaty reflects international consensus on Indigenous Traditional Knowledge protection and may be cited as persuasive authority in litigation interpreting this license;
 
 12.4 **CASTRO-HUERTA PREEMPTION**: Notwithstanding Oklahoma v. Castro-Huerta, this license asserts federal preemption over any state court attempts to exercise concurrent jurisdiction over Indigenous intellectual property matters, maintaining exclusive federal and tribal court authority over these specialized areas of law.
 
@@ -155,7 +985,164 @@ For educational institutions and content creators using this Work:
   e) **CIVIL UNREST**: War, terrorism, civil disorder, or other societal disruptions affecting normal operations
 
 13.7 **INCARCERATION-SPECIFIC PROTECTION MECHANISMS**:
-  a) **AUTOMATIC SUCCESSION ACTIVATION**: Upon confirmed incarceration or arbitrary detention of the Rights Holder, all authorities and responsibilities under this license automatically transfer to the designated successor hierarchy established in Section 10.2, without need for additional documentation or court orders
+
+  **13.7(a) AUTOMATIC SUCCESSION ACTIVATION PROCEDURES:**
+  
+  /* LEGAL HARDENING: Detailed automatic succession procedures address ambiguities in triggering events,
+     confirmation methods, notification systems, successor priority resolution, scope of authority, restoration
+     procedures, and documentation requirements. These procedures eliminate uncertainty about when succession
+     activates, who has authority, and what successors may do, ensuring continuity of license enforcement
+     during Rights Holder incarceration, incapacity, or disappearance. Based on 05-asset-protection.md
+     Amendment 3, addressing Vulnerability 3 (automatic succession ambiguity). */
+  
+  i) **TRIGGERING EVENTS:**
+     Automatic succession of license authorities activates upon ANY of the following:
+     
+     (1) **Confirmed Incarceration** - Rights Holder confined in jail, prison, detention center, or correctional facility for period exceeding 72 consecutive hours;
+     
+     (2) **Arbitrary Detention** - Rights Holder detained without formal charges or due process for any period;
+     
+     (3) **Medical Incapacity** - Rights Holder unable to manage license affairs due to physical or mental incapacity as determined by two licensed physicians;
+     
+     (4) **Judicial Incapacity** - Court determines Rights Holder incompetent or appoints guardian/conservator;
+     
+     (5) **Disappearance** - Rights Holder missing or whereabouts unknown for 30 consecutive days;
+     
+     (6) **Communication Interruption** - Rights Holder unable to communicate with financial institutions or trustees for 14 consecutive days despite reasonable attempts;
+
+  ii) **CONFIRMATION PROCEDURES:**
+     "Confirmed" triggering event means verification through any of:
+     
+     (1) **Self-Declaration**: Written or recorded statement by Rights Holder declaring incarceration/incapacity;
+     
+     (2) **Official Documentation**: 
+         - Jail/prison booking records
+         - Court commitment order
+         - Medical certification of incapacity
+         - Death certificate (for posthumous succession)
+     
+     (3) **Third-Party Verification**:
+         - Attorney statement confirming client's status
+         - Family member sworn affidavit
+         - Correctional facility confirmation
+         - Hospital records (with HIPAA authorization)
+     
+     (4) **Financial Institution Determination**:
+         - Living trust trustee (Section 9A) unable to contact Rights Holder for 14 days
+         - Reasonable investigation confirms triggering event
+         - Documented attempts to contact (calls, emails, certified mail)
+
+  iii) **AUTOMATIC NOTIFICATION SYSTEM:**
+     
+     Upon confirmation of triggering event, the following parties SHALL be notified immediately (within 24 hours):
+     
+     (1) **Primary Successor** (if designated)
+     (2) **Secondary/Backup Successors** (in priority order)
+     (3) **Legacy Beneficiary** (ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ Educational Legacy Trust)
+     (4) **Financial Institution** holding living trust accounts
+     (5) **Tribal Historic Preservation Office** (GTBOCI THPO)
+     (6) **Tribal Court Clerk** (for jurisdictional awareness)
+     
+     Notification methods (use all available):
+     - Email to last known address
+     - Certified mail, return receipt requested
+     - Phone call with documented voicemail if no answer
+     - Text message (SMS) if phone number available
+     - Physical delivery to last known address
+     
+     Notification shall include:
+     - Nature of triggering event
+     - Date of confirmation
+     - Summary of successor's authorities and responsibilities
+     - Contact information for financial institution and tribal attorney
+     - Deadline to accept or decline successor role (7 days)
+
+  iv) **SUCCESSOR PRIORITY AND RESOLUTION:**
+     
+     (1) **Single Designated Successor**:
+         If one successor clearly designated, that successor assumes full authority immediately upon confirmation
+     
+     (2) **Multiple Successors (Priority Order)**:
+         If multiple successors designated in priority order:
+         - Primary successor has first opportunity (notified first)
+         - If primary unable/unwilling (must respond within 7 days), secondary contacted
+         - Continue down priority list until successor accepts
+     
+     (3) **Multiple Successors (Simultaneous)**:
+         If multiple successors designated to act simultaneously:
+         - All receive simultaneous notification
+         - Majority vote governs decisions (simple majority)
+         - If even number of successors, Rights Holder's pre-designated "tie-breaker" person decides
+         - Emergency decisions (< 48 hours) can be made by any single successor, subject to later ratification
+     
+     (4) **No Designated Successor**:
+         If no successor designated or all designated successors decline:
+         - Succession per Section 10.2(b) - GTBOCI Tribal Historic Preservation Office
+         - GTBOCI THPO has 14 days to accept or decline
+         - If declined, succession per Section 10.2(c) - Tribal Council appoints committee
+     
+     (5) **Successor Acceptance**:
+         Successor must affirmatively accept authority by:
+         - Written acceptance filed with financial institution
+         - Acknowledgment of fiduciary duties
+         - Agreement to act in best interests of Rights Holder and Legacy Beneficiary
+         - Cannot be forced to serve (may decline)
+
+  v) **SCOPE OF SUCCESSOR AUTHORITY DURING INCARCERATION:**
+     
+     Successor's authority includes:
+     (1) **Enforcement Actions**: Initiate, prosecute, settle, or dismiss violations of this license
+     (2) **License Management**: Approve or deny new licensing requests (must align with Rights Holder's documented intent)
+     (3) **Financial Management**: Receive license proceeds, ensure transfer to Legacy Beneficiary
+     (4) **Legal Representation**: Retain attorneys, experts, and consultants for license matters
+     (5) **Cultural Consultation**: Consult with GTBOCI THPO and Tribal Council on cultural sensitivity issues
+     (6) **Emergency Actions**: Take immediate actions to prevent imminent harm to Work or cultural integrity
+     
+     Successor's authority does NOT include:
+     (1) Transferring ownership of the Work
+     (2) Waiving tribal sovereign immunity
+     (3) Amending this license terms (except minor technical clarifications)
+     (4) Retaining license proceeds for personal benefit (breach of fiduciary duty)
+     (5) Acting contrary to Rights Holder's documented intentions
+
+  vi) **RESTORATION OF RIGHTS HOLDER AUTHORITY:**
+     
+     (1) **Automatic Restoration Upon Release**:
+         When Rights Holder released from incarceration/detention or regains capacity:
+         - Full authority automatically reverts to Rights Holder
+         - Successor's authority immediately terminates
+         - No formal termination document required
+     
+     (2) **Rights Holder Review Period**:
+         Rights Holder has 90 days after restoration to:
+         - Review all successor actions
+         - Ratify, modify, or rescind successor decisions
+         - Unratified actions remain in effect unless Rights Holder acts
+     
+     (3) **Successor Accounting**:
+         Within 30 days of Rights Holder's restoration, successor SHALL provide:
+         - Complete accounting of all actions taken
+         - Financial records and license proceeds disposition
+         - Copies of all agreements entered
+         - Report on pending matters
+     
+     (4) **Successor Indemnification**:
+         Successor acting in good faith within scope of authority is indemnified by Legacy Beneficiary for:
+         - Reasonable expenses incurred
+         - Legal fees defending successor's good faith actions
+         - Liability for actions within authority (except gross negligence or willful misconduct)
+
+  vii) **DOCUMENTATION AND RECORD-KEEPING:**
+     
+     Successor SHALL maintain detailed records of:
+     - All decisions made and rationale
+     - All financial transactions
+     - All communications with potential licensees or violators
+     - Consultations with tribal authorities
+     - Legal advice received
+     
+     Records shall be provided to Rights Holder upon restoration and preserved for 7 years minimum.
+
   b) **ASSET PROTECTION PROTOCOLS**: During periods of incarceration:
     (i) All Total Proceeds shall continue to flow directly to the Legacy Beneficiary without interruption
     (ii) No new licensing agreements may be executed without express written authorization from the incarcerated Rights Holder or designated successor authority
@@ -410,6 +1397,103 @@ To eliminate any ambiguity in navigation or interpretation, the following index 
    5. Ancestral Lineage: Descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band (whose community faced violent dispersal resulting in descendants affiliating with LTBB, GTBOCI, and First Nations in Canada, as detailed in the Preamble)
    All references to the "Rights Holder" in this document encompass this complete identity.
 
+**2.1 INDIVIDUAL CAPACITY VS. TRIBAL CAPACITY CLARIFICATION**
+
+To preserve tribal sovereign immunity and clearly delineate the legal capacity in which the Rights Holder operates under this license, the following capacity distinctions are established:
+
+**a) INDIVIDUAL CAPACITY DECLARATION:**
+   i) This license is executed and enforced by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi / JUSTIN PAUL KENWABIKISE / Nbiish-Justin Paul Kenwabikise) in their **individual capacity** as a private citizen and tribal member, NOT in any official governmental capacity on behalf of the Grand Traverse Band of Ottawa and Chippewa Indians (GTBOCI);
+
+   ii) The Rights Holder is the **sole copyright holder, creator, and owner** of the Work as an individual author;
+
+   iii) All intellectual property rights, Traditional Knowledge, Traditional Cultural Expressions, and associated economic interests vest in the Rights Holder **individually**, not in GTBOCI as a tribal government entity;
+
+   iv) The Rights Holder acts as a **private individual** exercising their personal intellectual property rights, cultural heritage rights, and treaty-protected individual rights;
+
+**b) TRIBAL GOVERNMENT NON-PARTY STATUS:**
+   i) The Grand Traverse Band of Ottawa and Chippewa Indians, as a **tribal governmental entity**, is NOT a party to this license;
+
+   ii) GTBOCI does not hold any ownership interest in the Work by virtue of the Rights Holder's tribal membership;
+
+   iii) GTBOCI has not executed this license, does not waive its sovereign immunity through this license, and cannot be sued based on this license;
+
+   iv) Any reference to GTBOCI in this license is for purposes of:
+       (1) Jurisdictional analysis (tribal court jurisdiction under *Montana* exceptions);
+       (2) Cultural context and tribal affiliation identification;
+       (3) Treaty rights foundation (individual tribal member's exercise of treaty-protected rights);
+       (4) Federal Indian law application (individual tribal member's rights under federal Indian law);
+       (5) NOT to create third-party beneficiary rights or governmental liability;
+
+**c) C & L ENTERPRISES WAIVER PREVENTION:**
+   i) Under *C & L Enterprises, Inc. v. Citizen Band Potawatomi Indian Tribe*, 532 U.S. 411 (2001), tribal sovereign immunity may be waived only by clear and unambiguous express language or congressional action;
+
+   ii) **NO WAIVER EXISTS**: Nothing in this license constitutes a waiver of GTBOCI's sovereign immunity. The license contains no express waiver language concerning GTBOCI;
+
+   iii) Individual tribal member enforcement actions do **NOT** waive tribal sovereign immunity, as individual tribal members are distinct legal persons from the tribal government (*Kiowa Tribe v. Manufacturing Technologies, Inc.*, 523 U.S. 751 (1998));
+
+   iv) Users expressly acknowledge that:
+       (1) They are contracting with the Rights Holder **individually**, not with GTBOCI;
+       (2) They cannot assert counterclaims, cross-claims, or third-party claims against GTBOCI;
+       (3) They cannot seek indemnification, contribution, or any relief from GTBOCI;
+       (4) GTBOCI's sovereign immunity remains absolute and unwaived;
+
+**d) TRUST PROPERTY STATUS CLARIFICATION:**
+   i) The intellectual property subject to this license is **individually owned** by the Rights Holder and is NOT held in trust by the United States for the benefit of GTBOCI;
+
+   ii) The Work does NOT constitute "Indian lands" under 25 U.S.C. § 2701(4) or trust property under the Indian Reorganization Act;
+
+   iii) However, the Rights Holder's status as a tribal member and the cultural nature of the Work invoke federal Indian law protections, preemption (Section 5A), and treaty rights (Treaty Rights Foundation) that protect **individual tribal member activities** from state interference;
+
+   iv) Federal trust responsibility extends to protecting individual tribal members' cultural and economic rights, not only tribal governmental interests;
+
+**e) ENFORCEMENT ACTION CAPACITY:**
+   i) **Individual Enforcement**: The Rights Holder may enforce this license in their individual capacity in tribal court, federal court, or international arbitration without implicating tribal sovereign immunity;
+
+   ii) **No Tribal Government Enforcement**: GTBOCI tribal government has no obligation to enforce this license and is not a necessary or indispensable party to any enforcement action;
+
+   iii) **Voluntary Tribal Court Jurisdiction**: GTBOCI Tribal Court may exercise jurisdiction over disputes based on consensual jurisdiction (users consent by accessing Work under *Montana* Exception 1) and conduct threatening tribal interests (*Montana* Exception 2), but this does NOT make GTBOCI tribal government a party;
+
+   iv) **Legacy Trust Enforcement**: Upon the Rights Holder's passing, the ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Waabanimikii-Kinawaabakizi) Educational Legacy Trust (Section 10.3) becomes the enforcement entity in its capacity as trust beneficiary/representative, NOT GTBOCI tribal government;
+
+**f) FEDERAL QUESTION JURISDICTION BASIS:**
+   i) Federal courts have federal question jurisdiction under 28 U.S.C. § 1331 over disputes arising under this license based on federal Indian law, treaty rights, and federal statutes (IACA, CFAA, DTSA) even when GTBOCI is not a party;
+
+   ii) Individual tribal members have standing to assert federal Indian law protections, treaty rights, and federal statutory claims;
+
+   iii) Federal Indian law protects individual tribal member economic activity and cultural rights, not only tribal governmental sovereignty;
+
+**g) RELATIONSHIP TO SECTION 11 (JURISDICTION):**
+   i) Tribal court jurisdiction (Section 11) is based on **subject matter jurisdiction** over disputes involving:
+       (1) Consensual relationships with tribal members;
+       (2) Conduct affecting tribal interests;
+       (3) Federal Indian law questions;
+       NOT on GTBOCI being a party to the license;
+
+   ii) Tribal courts regularly adjudicate disputes between individual tribal members and non-members without the tribal government being a party;
+
+   iii) Exhaustion of tribal court remedies (Section 11.4(a)) is required regardless of GTBOCI's non-party status, based on comity and deference to tribal self-governance;
+
+**h) PRACTICAL IMPLICATIONS:**
+   i) **Users cannot circumvent license obligations** by attempting to sue GTBOCI, which is immune;
+   
+   ii) **Users cannot claim confusion** about contracting party - it is clearly the Rights Holder individually;
+   
+   iii) **Federal Indian law still applies** to protect individual tribal member rights even though GTBOCI is not a party;
+   
+   iv) **Tribal court jurisdiction still exists** based on *Montana* exceptions even though GTBOCI is not a party;
+   
+   v) **Enforcement proceeds normally** with Rights Holder as plaintiff, without tribal sovereign immunity complications;
+
+**i) SUCCESSOR AUTHORITY CAPACITY:**
+   Upon the Rights Holder's incapacity, incarceration, or death, successor authorities (financial operators, Legacy Trust, Legacy Beneficiary - see Sections 10.2A, 10.3, 13.7) similarly act in **individual representative capacity**, NOT as tribal governmental officials, preserving the distinction between individual property rights and tribal governmental sovereignty.
+
+**j) ANTI-ABUSE PROVISION:**
+   Any attempt by a user to assert claims against GTBOCI, pierce the individual/tribal capacity distinction, or otherwise undermine tribal sovereign immunity shall constitute:
+   (1) Material breach of this license;
+   (2) Immediate revocation of all rights under Section 5;
+   (3) Liquidated damages of $100,000 under Section 11.8;
+   (4) Grounds for sanctions under Federal Rule of Civil Procedure 11 or tribal court equivalent;
+
 **3. CITATION AND ATTRIBUTION REQUIREMENT**
    Any use, reproduction, distribution, modification, adaptation, display, performance, transmission, or creation of derivative works based on this Work, whether in whole or in part, must prominently and accurately include the following citation and attribution in all associated materials, displays, publications, and metadata:
 
@@ -440,6 +1524,74 @@ This license must be prominently attached to or referenced in all distributions 
    *   **TK Verified (TK V):** Affirms the Work originates from or is recognized by the Grand Traverse Band of Ottawa and Chippewa Indians community and the Rights Holder.
 
    The application of these labels signifies that specific community protocols govern the use, sharing, circulation, and data management related to this Work. Users are obligated to respect these protocols. Furthermore, no rights are waived under the United Nations Declaration on the Rights of Indigenous Peoples (UNDRIP), particularly Articles 11 (right to practice and revitalize cultural traditions and customs) and 31 (right to maintain, control, protect and develop cultural heritage, traditional knowledge, traditional cultural expressions, associated data, and intellectual property), nor under other relevant international instruments such as the WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (adopted May 2024).
+
+   **INTEGRATION OF REGIONAL INDIGENOUS RIGHTS INSTRUMENTS**
+   
+   /* LEGAL HARDENING: While UNDRIP is a non-binding declaration, regional instruments provide binding
+      or politically binding protections for Indigenous intellectual property. This amendment adds American
+      Declaration on the Rights of Indigenous Peoples (OAS 2016), ILO Convention 169, and Nagoya Protocol
+      references to create alternative legal bases beyond UNDRIP and provide framework for regional
+      enforcement through Inter-American Commission on Human Rights. Based on 02-international-treaties.md
+      Amendment 5, addressing Vulnerability 3 (missing regional binding instruments). */
+   
+   In addition to UNDRIP, this license invokes and incorporates the following regional instruments that provide binding or politically binding protections for Indigenous intellectual property:
+
+   a) **AMERICAN DECLARATION ON THE RIGHTS OF INDIGENOUS PEOPLES (2016):**
+      
+      Adopted by the Organization of American States (OAS) General Assembly on June 15, 2016 (AG/RES. 2888 (XLVI-O/16)), including the United States as an OAS member state.
+      
+      **Relevant Articles:**
+      i) **Article XIII (Collective Intellectual Property Rights)**: Indigenous peoples have collective rights to protect and develop their traditional knowledge, cultural expressions, sciences, technologies, and intellectual property. States shall establish mechanisms for recognition and protection of these rights.
+      
+      ii) **Article XIV (Cultural Identity and Diversity)**: Indigenous peoples have the right to develop and maintain their cultural identity and distinctiveness, including the right to the recognition and respect of their laws, traditions, customs, and institutions.
+      
+      iii) **Article XXI (Autonomy and Self-Government)**: Indigenous peoples have the right to autonomy or self-government in matters relating to their internal and local affairs, including intellectual property, culture, and natural resources.
+      
+      iv) **Article XXIX (Treaties and Agreements)**: Indigenous peoples have the right to the recognition, observance and enforcement of treaties, agreements and other constructive arrangements concluded with States or their successors, according to their spirit and intent, and for States to honor and respect such treaties, agreements and other constructive arrangements.
+      
+      **Enforcement**: While the American Declaration's binding force is debated, OAS member states (including the US) have adopted it, creating political commitments enforceable through Inter-American Commission on Human Rights.
+
+   b) **ILO CONVENTION NO. 169 CONCERNING INDIGENOUS AND TRIBAL PEOPLES (1989):**
+      
+      International Labour Organization Convention 169, entered into force September 5, 1991. While the United States has not ratified ILO 169, it is binding on 24 ratifying states (primarily in Latin America and Europe).
+      
+      **Relevant Articles for International Enforcement:**
+      i) **Article 2**: Governments shall develop coordinated action to protect Indigenous rights and guarantee respect for their integrity.
+      
+      ii) **Article 15**: Indigenous rights to natural resources on their lands include rights to participate in use, management, and conservation of these resources - applicable to intellectual property as cultural resource.
+      
+      iii) **Article 23**: Traditional activities including handicrafts, rural industries, and cultural activities shall be recognized as important factors in maintenance of Indigenous cultures and economic self-reliance.
+      
+      **Application**: When enforcing this license in ILO 169 ratifying countries, invoke ILO 169 as binding treaty law requiring protection of Indigenous intellectual property rights.
+
+   c) **NAGOYA PROTOCOL ON ACCESS TO GENETIC RESOURCES AND BENEFIT-SHARING (2014):**
+      
+      Nagoya Protocol to the Convention on Biological Diversity, entered into force October 12, 2014. Ratified by 139 parties including the United States (signed but not ratified), European Union, and most countries worldwide.
+      
+      **Relevant Provisions:**
+      i) **Article 5**: Fair and equitable benefit-sharing from utilization of genetic resources and associated traditional knowledge.
+      
+      ii) **Article 7**: Prior informed consent (PIC) required for access to traditional knowledge associated with genetic resources held by Indigenous communities.
+      
+      iii) **Article 12**: Mutually agreed terms (MAT) including benefit-sharing arrangements when accessing traditional knowledge.
+      
+      **Application**: This license's benefit-sharing requirements (Sections 6A, 9A.8) align with Nagoya Protocol's framework and international consensus on 15-50% benefit-sharing norms.
+      
+      **Precedential Value**: Nagoya Protocol demonstrates international consensus on TK benefit-sharing norms, supporting this license's graduated benefit-sharing scale (20-45%).
+
+   d) **CROSS-REFERENCING AND INTEGRATION:**
+      
+      i) **Interpretive Principle**: All provisions of this license shall be interpreted consistently with the above regional and international instruments where such interpretation strengthens Indigenous rights protections.
+      
+      ii) **Conflict Resolution**: Where any provision of this license conflicts with the above instruments, the interpretation most favorable to Indigenous rights and tribal sovereignty shall prevail under the Indian canons of construction.
+      
+      iii) **Evidence of International Norms**: These instruments may be cited in any proceedings under this license as evidence of:
+          (1) International consensus on Indigenous intellectual property rights
+          (2) Customary international law principles
+          (3) Good faith obligations of states and non-state actors
+          (4) Appropriate remedies and benefit-sharing percentages
+      
+      iv) **Advocacy Framework**: These instruments provide framework for diplomatic escalation under Section 12.3B (Diplomatic Escalation Protocol), including petitions to Inter-American Commission on Human Rights, UN Special Rapporteur, and UN Permanent Forum on Indigenous Issues.
 
    **4.1 CARE PRINCIPLES FOR INDIGENOUS DATA SOVEREIGNTY**
    This license expressly incorporates and implements the CARE Principles for Indigenous Data Governance (Collective Benefit, Authority to Control, Responsibility, and Ethics), developed by the Global Indigenous Data Alliance (GIDA) as a complement to the FAIR principles (Findable, Accessible, Interoperable, and Reusable) that guide data management practices. The CARE Principles represent the minimum standard for any data derived from, about, or relating to the Work, the Rights Holder, or associated Traditional Knowledge and Cultural Expressions:
@@ -517,6 +1669,352 @@ This license must be prominently attached to or referenced in all distributions 
 
    The application of these labels and principles signifies that specific community protocols govern the use, sharing, circulation, and data management related to this Work. Users are obligated to respect these protocols. Furthermore, no rights are waived under the United Nations Declaration on the Rights of Indigenous Peoples (UNDRIP), particularly Articles 11 (right to practice and revitalize cultural traditions and customs) and 31 (right to maintain, control, protect and develop cultural heritage, traditional knowledge, traditional cultural expressions, associated data, and intellectual property), nor under other relevant international instruments such as the WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (adopted May 2024).
 
+   **4.2A TECHNICAL IMPLEMENTATION STANDARDS FOR DATA GOVERNANCE**
+   
+   /* LEGAL HARDENING: Provides concrete technical standards for data security eliminating ambiguity
+      in "proportionate security" requirements. Establishes four-level data classification system with
+      specific encryption, authentication, access control, logging, and auditing requirements for each
+      level. Creates Indigenous Data Governance Committee for oversight. Implements data minimization
+      and portability rights (GDPR-aligned). Addresses 08-data-sovereignty.md Vulnerability 1 (technical
+      standards missing). Amendment 1 (Medium Priority). */
+   
+   a) **DATA CLASSIFICATION SYSTEM:**
+      
+      All data derived from the Work shall be classified into four sensitivity levels:
+      
+      **LEVEL 1 - PUBLIC:**
+      - Unrestricted TK available for general education
+      - Attribution-only requirement
+      - No special security measures required
+      - Examples: Published educational materials, public presentations
+      
+      **LEVEL 2 - LIMITED ACCESS:**
+      - TK requiring Prior Informed Consent (PIC)
+      - Educational/research use with restrictions
+      - Moderate security measures
+      - Examples: Research datasets with PIC, authorized educational content
+      
+      **LEVEL 3 - RESTRICTED:**
+      - Community-specific TK, cultural protocols
+      - Requires specific cultural authorization
+      - Strong security measures
+      - Examples: Ceremonial knowledge, clan-specific information
+      
+      **LEVEL 4 - SACRED/HIGHLY SENSITIVE:**
+      - Sacred knowledge, burial site data, ceremonial information
+      - Strictest access controls
+      - Maximum security measures
+      - Examples: Midewiwin teachings, sacred site coordinates, restricted languages
+
+   b) **ENCRYPTION STANDARDS:**
+      
+      **LEVEL 1:** Encryption in transit only (TLS 1.3+)
+      
+      **LEVEL 2:**
+      - In transit: TLS 1.3+
+      - At rest: AES-256 encryption
+      - Key management: Separate key storage, rotation annually
+      
+      **LEVEL 3:**
+      - In transit: TLS 1.3+ with certificate pinning
+      - At rest: AES-256 with per-file encryption keys
+      - Key management: HSM (Hardware Security Module) or cloud KMS
+      - Key rotation: Quarterly
+      
+      **LEVEL 4:**
+      - In transit: Mutual TLS with client certificates
+      - At rest: AES-256 with per-record encryption
+      - Key management: Tribal-controlled HSM or airgapped system
+      - Key rotation: Monthly
+      - Additional: Quantum-resistant algorithms as available
+
+   c) **ACCESS CONTROL STANDARDS:**
+      
+      **LEVEL 1:** Basic authentication (username/password with complexity requirements)
+      
+      **LEVEL 2:**
+      - Multi-factor authentication (MFA) required
+      - Role-Based Access Control (RBAC)
+      - Least privilege principle
+      - Access review quarterly
+      
+      **LEVEL 3:**
+      - MFA with hardware token or biometric
+      - Attribute-Based Access Control (ABAC)
+      - Just-in-time access provisioning
+      - Access review monthly
+      - Geographic restrictions where appropriate
+      
+      **LEVEL 4:**
+      - MFA with multiple factors (certificate + biometric + hardware token)
+      - Tribal authority approval required for each access
+      - Session recording and monitoring
+      - Access review weekly
+      - Airgapped systems for most sensitive data
+
+   d) **LOGGING AND AUDITING:**
+      
+      All systems storing/processing Work-derived data must log:
+      - User authentication attempts (successful and failed)
+      - Data access (who, what, when, from where)
+      - Data modifications (create, update, delete with before/after states)
+      - Permission changes
+      - System configuration changes
+      - Security events (firewall blocks, IDS alerts, etc.)
+      
+      **Log Retention:**
+      - Level 1: 90 days
+      - Level 2: 1 year
+      - Level 3: 3 years
+      - Level 4: 7 years
+      
+      **Log Protection:**
+      - Logs encrypted and integrity-protected (hash chaining)
+      - Stored separately from operational data
+      - Tamper-evident storage
+      - Regular log review by security team
+
+   e) **DATA GOVERNANCE BODY:**
+      
+      **Indigenous Data Governance Committee Establishment:**
+      
+      i) **Composition:**
+         - Rights Holder or designated successor
+         - GTBOCI THPO representative
+         - Cultural expert from Beaver Island descendants
+         - Information security specialist
+         - Legal counsel (data protection expertise)
+      
+      ii) **Responsibilities:**
+         - Classify data sensitivity levels
+         - Approve access requests for Level 3-4 data
+         - Review security incidents and breaches
+         - Update technical standards annually
+         - Audit data custodian compliance
+         - Interpret ambiguous data governance situations
+      
+      iii) **Meetings:**
+         - Quarterly regular meetings
+         - Emergency meetings within 48 hours of security incident
+         - Annual comprehensive review
+      
+      iv) **Decision-Making:**
+         - Consensus preferred
+         - Majority vote if consensus impossible
+         - Rights Holder has final authority on cultural matters
+
+   f) **DATA MINIMIZATION:**
+      
+      Users shall collect, process, and retain only data necessary for authorized purpose:
+      - Purpose limitation: Use only for stated purpose in PIC
+      - Storage limitation: Delete when purpose fulfilled
+      - Minimize collection: Don't collect excess data "just in case"
+      - Aggregate where possible: Use aggregated/anonymized data when individual-level unnecessary
+
+   g) **DATA PORTABILITY AND REPATRIATION:**
+      
+      Upon request, Rights Holder may demand:
+      i) Copy of all data about Work in machine-readable format
+      ii) Complete metadata about data processing
+      iii) Audit trail of all access and modifications
+      iv) Deletion of all data from user's systems (repatriation)
+      v) Verification of deletion (forensic audit if needed)
+      
+      User must comply within 30 days of request.
+
+   h) **PRIVACY-ENHANCING TECHNOLOGIES:**
+      
+      Where feasible, users should implement:
+      - Differential privacy for statistical analysis
+      - Homomorphic encryption for computation on encrypted data
+      - Secure multi-party computation for distributed analysis
+      - Zero-knowledge proofs for verification without disclosure
+      - Federated learning instead of centralized data aggregation
+
+   **4.2B DATA BREACH RESPONSE AND NOTIFICATION PROTOCOL**
+   
+   /* LEGAL HARDENING: Establishes GDPR-aligned 72-hour breach notification procedures with graduated
+      response based on data sensitivity. Provides clear timeline, notification obligations, remediation
+      requirements, and per-record liquidated damages. Creates accountability for third-party breaches.
+      Requires cyber insurance for data custodians. Addresses 08-data-sovereignty.md Vulnerability 2
+      (data breach procedures absent). Amendment 2 (Medium Priority). */
+   
+   a) **DATA BREACH DEFINED:**
+      
+      "Data Breach" means any unauthorized:
+      - Access to data derived from the Work
+      - Disclosure or exposure of such data
+      - Acquisition of such data by unauthorized party
+      - Modification or corruption of such data
+      - Destruction or loss of such data (including ransomware)
+      
+      Includes both malicious attacks and inadvertent exposure.
+
+   b) **IMMEDIATE RESPONSE (0-24 Hours):**
+      
+      Upon discovering or suspecting breach, data custodian SHALL immediately:
+      
+      i) **Containment:**
+         - Isolate affected systems
+         - Revoke compromised credentials
+         - Block attacker access vectors
+         - Preserve evidence (forensic image of systems)
+      
+      ii) **Notification to Rights Holder:**
+         - Within 24 hours of discovery
+         - Preliminary notification with known facts:
+           * Date/time of breach discovery
+           * Systems/data affected (preliminary assessment)
+           * Number of records potentially exposed
+           * Suspected cause (if known)
+           * Actions taken to contain
+         - Secure communication channel (encrypted email/phone)
+      
+      iii) **Evidence Preservation:**
+         - Document timeline of events
+         - Preserve logs and system states
+         - Take forensic snapshots
+         - Maintain chain of custody
+
+   c) **INVESTIGATION (1-7 Days):**
+      
+      Data custodian must:
+      i) Engage cybersecurity forensics firm
+      ii) Determine scope of breach (what data accessed?)
+      iii) Identify attack vector and vulnerabilities
+      iv) Assess whether data was exfiltrated or only accessed
+      v) Determine if data was encrypted/protected
+      vi) Identify attacker if possible
+      
+      Provide investigation update to Rights Holder by Day 7.
+
+   d) **NOTIFICATION OBLIGATIONS (Within 72 Hours):**
+      
+      Based on data sensitivity level compromised:
+      
+      **LEVEL 1 BREACH:**
+      - Notify Rights Holder (required)
+      - Public disclosure (if affects > 1000 records or public interest)
+      
+      **LEVEL 2 BREACH:**
+      - Notify Rights Holder (within 48 hours)
+      - Notify GTBOCI THPO (within 72 hours)
+      - Notify affected PIC holders
+      - Public disclosure with cultural harm impact statement
+      
+      **LEVEL 3 BREACH:**
+      - Notify Rights Holder (within 24 hours)
+      - Notify GTBOCI THPO and Tribal Council (within 48 hours)
+      - Notify all community members with access to affected content
+      - Law enforcement notification (FBI, tribal police)
+      - Public disclosure with remediation plan
+      
+      **LEVEL 4 BREACH:**
+      - Notify Rights Holder IMMEDIATELY (within 6 hours)
+      - Emergency meeting of Indigenous Data Governance Committee
+      - Notify GTBOCI Tribal Council Chairman
+      - Notify relevant Midewiwin advisors (if ceremonial knowledge)
+      - Notify cultural experts for harm assessment
+      - Law enforcement notification (FBI cybercrime, tribal police)
+      - Diplomatic notification through BIA if appropriate
+      - International Indigenous organizations notification
+
+   e) **NOTIFICATION CONTENT:**
+      
+      Breach notification must include:
+      i) Description of breach and how it occurred
+      ii) Types of data compromised (specific TK/TCE categories)
+      iii) Number of records/individuals affected
+      iv) Cultural sensitivity level of breached data
+      v) Whether data was encrypted/protected
+      vi) Steps taken to contain breach
+      vii) Remediation plan (below)
+      viii) Resources for affected parties
+      ix) Contact information for questions
+      x) Timeline for ongoing updates
+
+   f) **REMEDIATION PLAN (7-30 Days):**
+      
+      Within 30 days, data custodian must implement:
+      
+      i) **Immediate Fixes:**
+         - Patch vulnerabilities exploited
+         - Reset all credentials
+         - Implement additional monitoring
+         - Deploy enhanced security controls
+      
+      ii) **Long-Term Improvements:**
+         - Security architecture review
+         - Penetration testing
+         - Employee security training
+         - Third-party security audit
+         - Implementation of recommendations
+      
+      iii) **Monitoring Enhancement:**
+         - Increased logging and monitoring
+         - Threat intelligence integration
+         - Security information and event management (SIEM)
+         - 24/7 security operations center (SOC) for Level 3-4 data
+      
+      iv) **Quarterly Reporting:**
+         - Report to Rights Holder quarterly for 2 years post-breach
+         - Document security improvements
+         - Demonstrate no recurrence
+
+   g) **LIABILITY AND DAMAGES:**
+      
+      Data breaches trigger following liability:
+      
+      **PER-RECORD LIQUIDATED DAMAGES:**
+      - Level 1: $100/record
+      - Level 2: $1,000/record
+      - Level 3: $10,000/record
+      - Level 4: $100,000/record
+      
+      **PLUS:**
+      - Cultural harm damages per Section 13.1(c)
+      - Investigation costs reimbursement
+      - Notification costs reimbursement
+      - Credit monitoring for affected individuals (if PII exposed)
+      - Reputation repair costs
+      
+      **CRIMINAL REFERRAL:**
+      - Level 3-4 breaches reported to FBI
+      - Computer Fraud and Abuse Act (CFAA) violations
+      - State computer crime laws
+      - International cybercrime cooperation
+
+   h) **INSURANCE REQUIREMENTS:**
+      
+      Data custodians handling Level 2-4 data must maintain:
+      i) Cyber insurance policy with minimum $5M coverage
+      ii) Coverage for:
+         - Data breach investigation and notification
+         - Regulatory fines and penalties
+         - Third-party claims (including Rights Holder)
+         - Business interruption
+         - Cyber extortion/ransomware
+      iii) Rights Holder named as additional insured
+      iv) Certificate of insurance provided annually
+
+   i) **THIRD-PARTY VENDOR BREACHES:**
+      
+      If breach occurs at third-party vendor (cloud provider, subcontractor):
+      i) Data custodian remains liable (no outsourcing liability)
+      ii) Data custodian must notify Rights Holder immediately
+      iii) Data custodian manages vendor response
+      iv) Vendor must comply with all breach response requirements
+      v) Data custodian may seek indemnification from vendor but Rights Holder not involved in dispute
+
+   j) **BREACH REGISTRY:**
+      
+      Rights Holder shall maintain registry of all data breaches:
+      i) Centralized tracking of incidents
+      ii) Trend analysis
+      iii) Identify repeat violators
+      iv) Inform future security requirements
+      v) Annual public report (aggregated, anonymized)
+
 **5. SOVEREIGN REVOCATION RIGHT UNDER CONSTITUTIONAL SUPREMACY**
    As a member of a sovereign tribal nation recognized by the United States, the Rights Holder (ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ / Nbiish Waabanimikii-Kinawaabakizi / JUSTIN PAUL KENWABIKISE / Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder)) reserves and asserts the absolute, inherent, irrevocable, and perpetual right to demand the immediate cessation of any and all use, reproduction, distribution, performance, display, adaptation, or creation of derivative works based on this Work by any individual, entity, corporation, institution, artificial intelligence system, or other party, at any time and for any reason deemed necessary by the Rights Holder or the Grand Traverse Band of Ottawa and Chippewa Indians to protect cultural integrity, tribal sovereignty, data sovereignty, community well-being, spiritual values, or adherence to cultural protocols.
 
@@ -525,6 +2023,83 @@ This license must be prominently attached to or referenced in all distributions 
    The superior legal and moral force of these treaty-protected and inherent sovereign rights means this license invokes protections that exceed standard IP laws, the revocation right cannot be diminished by standard contract principles, courts must interpret ambiguities liberally in favor of tribal interests (Indian canons of construction), and disputes must be analyzed primarily within the framework of federal Indian law, tribal law, and treaty rights.
 
    Upon receiving notification of revocation from the Rights Holder or an authorized representative of GTBOCI, all parties must immediately cease all use, permanently remove/destroy all copies and derivatives, provide written confirmation of compliance within 7 calendar days, acknowledge the superior force of tribal sovereignty and treaty rights, and surrender or destroy derivative materials as directed.
+
+**5A. FEDERAL INDIAN LAW PREEMPTION OF STATE LAW**
+
+This license operates within a comprehensive federal regulatory scheme governing tribal sovereignty, Indigenous intellectual property, and traditional knowledge protection. State law is preempted and has no application to this license under multiple independent bases of federal Indian law preemption:
+
+**a) BRACKER FIELD PREEMPTION:**
+   Under *White Mountain Apache Tribe v. Bracker*, 448 U.S. 136 (1980), state law is preempted when federal regulation is sufficiently comprehensive to occupy the field, demonstrating clear intent to preclude state authority. The following federal statutes and regulations create a comprehensive, pervasive regulatory scheme occupying the field of Indigenous intellectual property, cultural resources, and tribal member economic activity:
+
+   i) **Indian Arts and Crafts Act (IACA)** - 25 U.S.C. § 305 et seq.: Establishes comprehensive federal criminal and civil liability for misrepresentation of Indian arts and crafts, with severe penalties including up to 15 years imprisonment and treble damages, demonstrating congressional intent to federally regulate Indigenous cultural production;
+
+   ii) **Native American Graves Protection and Repatriation Act (NAGPRA)** - 25 U.S.C. § 3001 et seq.: Establishes federal framework for protection and repatriation of Native American cultural items, sacred objects, and traditional knowledge;
+
+   iii) **Archaeological Resources Protection Act (ARPA)** - 16 U.S.C. § 470aa et seq.: Provides federal protection for archaeological resources including those on tribal lands;
+
+   iv) **Federal Trust Responsibility**: Long-standing federal common law doctrine imposing fiduciary obligations on United States toward tribal nations, creating comprehensive federal oversight;
+
+   v) **Treaties with United States**: Treaty of Washington (1836), Treaty of Detroit (1855), and related instruments create federal-tribal government-to-government relationship precluding state interference;
+
+   vi) **18 U.S.C. § 1030 (Computer Fraud and Abuse Act)**: Federal criminal statute protecting against unauthorized computer access, applicable to digital misappropriation of tribal intellectual property;
+
+   vii) **18 U.S.C. § 1832 (Defend Trade Secrets Act)**: Federal civil and criminal trade secret protection, applicable to tribal traditional knowledge meeting statutory criteria;
+
+   This comprehensive federal regulatory framework demonstrates clear congressional intent to occupy the field of Indigenous cultural protection, precluding state law application.
+
+**b) MESCALERO APACHE COMPREHENSIVE REGULATION:**
+   Under *New Mexico v. Mescalero Apache Tribe*, 462 U.S. 324 (1983), tribes possess inherent sovereign authority to comprehensively regulate activities on tribal lands and involving tribal members. State law is preempted when tribal regulation is comprehensive, even absent direct conflict. Here:
+
+   i) The Grand Traverse Band of Ottawa and Chippewa Indians exercises comprehensive regulatory authority over tribal members' economic activities, cultural production, and intellectual property through tribal code, cultural resource ordinances, and traditional law;
+
+   ii) This license constitutes exercise of comprehensive tribal regulatory authority over intellectual property created by tribal member Rights Holder;
+
+   iii) State law application would undermine tribal self-governance and tribal authority over member activities, warranting preemption;
+
+   iv) Federal policy strongly supports tribal economic development and self-sufficiency, requiring deference to tribal regulation over member economic activity.
+
+**c) CONFLICT PREEMPTION:**
+   Even if state law were not field-preempted, it would be conflict-preempted because state law application would:
+
+   i) **Directly conflict with federal law**: State law permitting, for example, shorter statute of limitations, different damages calculations, or weaker intellectual property protections would directly conflict with comprehensive federal protections and tribal regulatory authority;
+
+   ii) **Frustrate federal objectives**: Congressional policy promoting tribal sovereignty, self-determination, cultural preservation, and economic development (*Indian Self-Determination and Education Assistance Act*, 25 U.S.C. § 5301 et seq.) would be frustrated by state law application diminishing tribal authority or economic benefits;
+
+   iii) **Undermine federal-tribal relationship**: State interference in tribal member intellectual property governance would undermine government-to-government relationship and federal trust responsibility;
+
+   iv) **Contradict treaty rights**: State law application would infringe treaty-reserved rights under Treaty of Washington (1836) and Treaty of Detroit (1855), directly conflicting with federal treaty obligations.
+
+**d) DISTINCTION FROM COPYRIGHT ACT § 301 PREEMPTION:**
+   This federal Indian law preemption is **distinct from and independent of** Copyright Act preemption under 17 U.S.C. § 301:
+
+   i) **Different Source**: Federal Indian law preemption derives from constitutional trust responsibility, treaties, and comprehensive federal regulatory scheme governing tribal sovereignty - not from Copyright Act;
+
+   ii) **Different Scope**: Federal Indian law preempts state law from applying to tribal sovereign matters - it does not preempt state law claims that might otherwise be preempted by Copyright Act § 301;
+
+   iii) **Extra Elements**: This license contains numerous "extra elements" beyond copyright protection (see Section 6.1(h) for detailed analysis), meaning claims under this license are NOT preempted by Copyright Act § 301;
+
+   iv) **Complementary Protection**: Federal Indian law preemption and Copyright Act preemption operate on different axes:
+       - Federal Indian law preempts: State law application to tribal sovereign matters
+       - Copyright Act § 301 preempts: State law claims that are equivalent to copyright infringement
+       - This license is protected by federal Indian law preemption AND contains extra elements avoiding Copyright Act preemption;
+
+   v) **Precedential Support**: *Bay Mills* (tribal sovereign immunity applies even for off-reservation commercial activity), *Bracker* (comprehensive federal regulation preempts state law), and related precedents establish that federal Indian law operates independently from general intellectual property preemption analysis.
+
+**e) PRACTICAL APPLICATION:**
+   As a result of this comprehensive federal Indian law preemption:
+
+   i) **State courts lack jurisdiction**: Disputes must be litigated in tribal court or federal court, not state court (see Section 11);
+
+   ii) **State law does not apply**: State contract law, state intellectual property law, state tort law, and other state law are inapplicable and preempted;
+
+   iii) **Federal question jurisdiction exists**: Federal courts have federal question jurisdiction under 28 U.S.C. § 1331 based on federal Indian law issues;
+
+   iv) **Removal available**: Any state court action improperly filed is removable to federal court under 28 U.S.C. § 1441;
+
+   v) **Dismissal motions succeed**: State court proceedings are subject to immediate dismissal on preemption grounds, with mandatory attorney's fees under Section 11.6.
+
+**f) RELATIONSHIP TO TRIBAL SOVEREIGN IMMUNITY:**
+   This preemption doctrine operates independently from tribal sovereign immunity. Even in contexts where sovereign immunity might not apply (e.g., individual capacity enforcement), federal Indian law still preempts state law application, ensuring disputes are resolved under federal and tribal law rather than state law.
 
 **6. INALIENABILITY AND LICENSING-ONLY PROVISIONS**
    The intellectual property rights, Traditional Knowledge, Traditional Cultural Expressions, cultural heritage, and Indigenous Data embedded within the Work are deemed perpetually inalienable and can never be sold, permanently transferred, assigned, alienated, waived, surrendered, or otherwise permanently divested from the Rights Holder or successor authorities. This fundamental inalienability applies as follows:
@@ -591,6 +2166,78 @@ This license must be prominently attached to or referenced in all distributions 
       d) REMEDIAL FRAMEWORK: Integrate with the remedial framework in Section 10, with attempted permanent transfers constituting a particularly severe form of license violation.
       e) POSTHUMOUS APPLICATION: Continue in full force and effect after the death of the Rights Holder as part of the posthumous rights management established in Section 11.
 
+   **6.7 COPYRIGHT ACT § 301 PREEMPTION AVOIDANCE - EXTRA ELEMENTS ANALYSIS**
+
+   Claims under this license are NOT preempted by Copyright Act § 301 (17 U.S.C. § 301) because this license contains numerous qualitatively different "extra elements" beyond copyright infringement that transform claims under this license into distinct causes of action not equivalent to copyright claims:
+
+   **a) CONFIDENTIALITY OBLIGATIONS:**
+      i) This license imposes affirmative confidentiality duties regarding sacred, ceremonial, and culturally sensitive information (Sections 4, 10.10.3);
+      ii) Users must maintain confidentiality of Traditional Knowledge (TK) and Traditional Cultural Expressions (TCE) beyond mere non-copying;
+      iii) Breach of confidence is a qualitatively different tort from copyright infringement (*ProCD, Inc. v. Zeidenberg*, 86 F.3d 1447 (7th Cir. 1996));
+      iv) Confidentiality obligations create fiduciary-like duties not present in standard copyright;
+
+   **b) PROMISE NOT TO USE FOR AI TRAINING:**
+      i) Section 7.1 and 7.1A explicitly prohibit AI training, creating contractual promise beyond copyright's reproduction right;
+      ii) This promise addresses uses (intermediate copying, embedding generation, model training) that may or may not infringe copyright but definitely breach contract;
+      iii) Contract breach with "extra element" of specific AI prohibition is not preempted (*Bowers v. Baystate Technologies, Inc.*, 320 F.3d 1317 (Fed. Cir. 2003));
+      iv) The promise creates obligations regarding *how* Work is used, not merely *whether* it is copied;
+
+   **c) PRIOR INFORMED CONSENT (PIC) PROCEDURES:**
+      i) Section 9 requires elaborate Prior Informed Consent procedures including community consultation, benefit-sharing negotiation, cultural protocol compliance, and ongoing relationship management;
+      ii) PIC creates procedural obligations qualitatively different from copyright's permission requirement;
+      iii) PIC failure breaches contractual and fiduciary duties beyond copyright infringement;
+      iv) Indigenous-specific PIC procedures rooted in international law (UNDRIP, WIPO Treaty) create extra elements;
+
+   **d) BENEFIT-SHARING REQUIREMENTS:**
+      i) Sections 6A, 9A.8 require equitable benefit-sharing (minimum 20% commercial revenues, 30% AI training, escalating with commercial success);
+      ii) Benefit-sharing obligations are qualitatively different from copyright's exclusive rights - they create affirmative payment duties even for authorized uses;
+      iii) Benefit-sharing reflects Indigenous customary law and international frameworks (Nagoya Protocol, WIPO Treaty);
+      iv) These obligations persist beyond copyright term and apply to uses that might be fair use under copyright;
+
+   **e) CULTURAL PROTOCOL COMPLIANCE:**
+      i) Sections 4, 10.10.3 require compliance with specific cultural protocols regarding sacred sites, ceremonial information, seasonal restrictions, and community consultation;
+      ii) Cultural protocol requirements are qualitatively different from copyright - they regulate context, timing, manner of use, and relationship obligations;
+      iii) Protocol violations harm cultural integrity and spiritual values, distinct from economic harm of copyright infringement;
+      iv) Protocols create ongoing relational obligations, not mere authorization requirements;
+
+   **f) TRIBAL LAW COMPLIANCE:**
+      i) This license explicitly invokes tribal law of the Grand Traverse Band of Ottawa and Chippewa Indians (Sections 11.1, 11.4);
+      ii) Tribal law governs cultural resources, traditional knowledge, and member activities independently of copyright;
+      iii) Tribal law compliance requirements create extra elements based on tribal sovereignty;
+      iv) Violation of tribal law subjects users to tribal court jurisdiction and tribal remedies beyond copyright;
+
+   **g) TRADE SECRET PROTECTION:**
+      i) To the extent Work contains trade secrets (non-public Traditional Knowledge deriving economic value from secrecy), trade secret law applies concurrently with copyright (*Kewanee Oil Co. v. Bicron Corp.*, 416 U.S. 470 (1974));
+      ii) Trade secret misappropriation (Theory 4 in Section 7.1A) has different elements than copyright infringement: acquisition/disclosure/use of confidential information;
+      iii) Trade secret protection is explicitly not preempted by Copyright Act § 301(b)(3);
+      iv) Traditional Knowledge protection under trade secret law creates independent cause of action;
+
+   **h) FIDUCIARY AND TRUST DUTIES:**
+      i) By accessing culturally sensitive Traditional Knowledge and accepting benefit-sharing obligations, users enter quasi-fiduciary relationship with Rights Holder and Indigenous communities;
+      ii) This license creates trust-like duties: good faith, loyalty, transparency, accountability in handling Indigenous cultural heritage;
+      iii) Breach of fiduciary duty is qualitatively different from copyright infringement (*Aronson v. Quick Point Pencil Co.*, 440 U.S. 257 (1979) - state contract law not preempted);
+      iv) Fiduciary breach harms relationship and trust, distinct from economic harm of infringement;
+
+   **CUMULATIVE EFFECT:**
+   The combination of these eight independent extra elements transforms claims under this license from copyright-equivalent claims into sui generis Indigenous intellectual property claims based on:
+   - Contract law with multiple extra elements (confidentiality, promises, procedures)
+   - Tribal sovereignty and tribal law
+   - Federal Indian law and treaty rights
+   - Trade secret and confidential information law  
+   - Fiduciary and trust law
+   - International Indigenous rights law (UNDRIP, WIPO Treaty)
+   - Cultural harm and spiritual injury (not economic harm)
+
+   **LEGAL AUTHORITY:**
+   i) *ProCD v. Zeidenberg*, 86 F.3d 1447 (7th Cir. 1996): Contract with extra elements not preempted;
+   ii) *Bowers v. Baystate*, 320 F.3d 1317 (Fed. Cir. 2003): Contractual prohibition on reverse engineering not preempted despite software copyright;
+   iii) *Aronson v. Quick Point*, 440 U.S. 257 (1979): State contract law not preempted by patent law;
+   iv) 17 U.S.C. § 301(b)(3): Trade secret law explicitly not preempted;
+   v) *Bracker* preemption (Section 5A): Federal Indian law creates independent legal regime not subject to Copyright Act preemption analysis;
+
+   **PRACTICAL EFFECT:**
+   Claims under this license survive Copyright Act § 301 preemption challenges because they assert violations of qualitatively different legal duties (confidentiality, procedure, benefit-sharing, cultural protocol, tribal law, trade secret, fiduciary) rather than merely asserting copyright-equivalent reproduction/distribution/derivative work rights.
+
 **6A. COMPENSATION AND MANDATORY CONTRIBUTIONS**
    Certain uses of the Work, particularly those requiring Prior Informed Consent (PIC) under Section 9 or involving Commercial Use (Section 1(b)), may necessitate compensation to the Rights Holder as determined during the PIC process or as outlined in specific licensing agreements or fee schedules associated with this license.
 
@@ -600,6 +2247,71 @@ This license must be prominently attached to or referenced in all distributions 
    c) **NON-MONETARY CONTRIBUTIONS**: Users may also be required to provide non-monetary contributions including technology transfer, capacity building, research collaboration, educational access, or community infrastructure support as specified by the Rights Holder.
 
    6A.2 **COMPREHENSIVE TOTAL PROCEEDS DEFINITION AND TRACKING**: All forms of required compensation, including but not limited to Mandatory Contributions, negotiated licensing fees, royalties, settlements, patent revenues, equity distributions, or other payments agreed upon for authorized use of the Work, constitute **Total Proceeds**. Users must maintain detailed financial records and provide quarterly reporting to the Legacy Beneficiary regarding all revenues, profits, and benefits derived directly or indirectly from the Work.
+
+   **6A.2A BANKRUPTCY PROTECTION - TRIBAL CULTURAL PROPERTY EXEMPTION**
+
+   The intellectual property rights, Traditional Knowledge, Traditional Cultural Expressions, and associated assets subject to this license are protected from bankruptcy proceedings and creditor claims under multiple independent legal bases:
+
+   a) **11 U.S.C. § 541(c)(2) TRUST PROPERTY EXCLUSION:**
+      i) Section 541(c)(2) excludes from bankruptcy estate property held in trust for benefit of another if applicable non-bankruptcy law restricts transfer;
+      ii) This license creates trust-like restrictions on transferability (Section 6 inalienability, Section 5 sovereign revocation);
+      iii) Federal Indian law and tribal law provide non-bankruptcy law basis for transfer restrictions;
+      iv) Rights Holder's interest in Work is held subject to federal trust responsibility and tribal sovereignty restrictions, excluding it from bankruptcy estate;
+
+   b) **TRIBAL SOVEREIGN IMMUNITY PREVENTS ESTATE INCLUSION:**
+      i) To the extent Work is characterized as involving tribal sovereignty or tribal member cultural resources subject to tribal governance, tribal sovereign immunity prevents bankruptcy court jurisdiction;
+      ii) *Krystal Energy Co. v. Navajo Nation* (9th Cir. 2004): Tribal sovereign immunity applies in bankruptcy proceedings;
+      iii) Bankruptcy court cannot exercise jurisdiction over property subject to tribal sovereignty without express waiver;
+      iv) This license explicitly preserves tribal sovereign immunity (Section 11.4(b)), preventing bankruptcy court from asserting control over license-related assets;
+
+   c) **11 U.S.C. § 365 EXECUTORY CONTRACT PROTECTION:**
+      i) This license constitutes executory contract (ongoing obligations by both parties);
+      ii) Under § 365, debtor-in-possession or trustee may assume, assume and assign, or reject executory contracts;
+      iii) **ASSUMPTION LIMITATIONS**: Even if trustee seeks to assume license:
+          - Must cure all defaults (§ 365(b)(1))
+          - Must provide adequate assurance of future performance
+          - Cannot assume if applicable law excuses other party from accepting performance from/rendering performance to assignee
+          - **Inalienability provisions (Section 6) excuse Rights Holder from accepting assignment** to third parties, making assignment impossible under § 365(c)(1);
+      
+      iv) **REJECTION CONSEQUENCES**: If trustee rejects license:
+          - Rejection constitutes breach, triggering damages and remedies
+          - Rights Holder retains all intellectual property rights (rejection does not transfer or forfeit IP)
+          - Legacy Trust continues to receive benefit-sharing payments from pre-bankruptcy users
+          - Liquidated damages for breach may be asserted as claim against estate;
+
+   d) **TRADITIONAL KNOWLEDGE AND CULTURAL PROPERTY EXEMPTIONS:**
+      i) Federal policy recognizes inalienability of Indigenous cultural property;
+      ii) NAGPRA (25 U.S.C. § 3001 et seq.) establishes federal policy that Indigenous cultural items are inalienable and protected from commercial transactions;
+      iii) While NAGPRA applies to physical objects, its policy supports treating Traditional Knowledge and TCE as similarly inalienable and exempt from bankruptcy estate;
+      iv) Federal Indian law's protection of tribal cultural resources provides additional basis for exemption;
+
+   e) **AUTOMATIC STAY EXCEPTION FOR LICENSE ENFORCEMENT:**
+      i) While § 362 automatic stay prevents creditor actions, exceptions exist for exercises of governmental authority (§ 362(b)(4));
+      ii) Tribal court enforcement of license may qualify as governmental/regulatory action exempt from stay;
+      iii) Rights Holder may seek relief from stay (§ 362(d)) to pursue license enforcement, arguing tribal sovereignty and inadequate protection of interest;
+
+   f) **CRIMINAL RESTITUTION EXEMPTION (11 U.S.C. § 1325(a)(4) / § 1328(a)(3)):**
+      i) If license violation leads to criminal prosecution (IACA, CFAA) and restitution order, restitution obligations are generally non-dischargeable in bankruptcy;
+      ii) Chapter 13 plans must provide for full payment of criminal restitution;
+      iii) Criminal restitution survives bankruptcy discharge, protecting Rights Holder's ability to collect even if violator files bankruptcy;
+
+   g) **MINIMUM 75% PROTECTED FOR LEGACY BENEFICIARY:**
+      i) Even if bankruptcy court asserts jurisdiction (contrary to above protections), no more than 25% of ongoing licensing proceeds may be subject to creditor claims;
+      ii) Minimum 75% must continue to flow to Legacy Beneficiary to maintain cultural benefit-sharing and fulfill license's Indigenous wealth reclamation purpose;
+      iii) This protection analogous to wage garnishment limitations (Consumer Credit Protection Act, 15 U.S.C. § 1673: maximum 25% of disposable earnings);
+      iv) Cultural and sovereignty interests warrant at least equivalent protection for Indigenous intellectual property proceeds;
+
+   h) **NO PERMANENT IP FORFEITURE:**
+      i) Under no circumstances may bankruptcy result in permanent forfeiture, sale, or transfer of intellectual property rights to creditors or third parties;
+      ii) Inalienability provisions (Section 6) prohibit any such transfer;
+      iii) Any purported transfer is void ab initio and subject to immediate challenge;
+      iv) Rights revert to Rights Holder or Legacy Beneficiary automatically upon any improper transfer attempt;
+
+   i) **PRACTICAL GUIDANCE:**
+      i) If Rights Holder faces bankruptcy, immediately notify tribal attorney and invoke protections above;
+      ii) Tribal court may issue protective orders preventing bankruptcy court interference with license enforcement;
+      iii) Rights Holder should seek bankruptcy exemption for intellectual property under applicable state law or federal law;
+      iv) Legacy Trust structure (Section 9A.1, 10.3) provides additional asset protection by holding rights for benefit of Rights Holder/Legacy Beneficiary;
 
    6A.3 **DIRECT PAYMENT WITH AUTOMATIC ENFORCEMENT MECHANISMS**: 
    a) **MANDATORY DIRECT PAYMENT**: As a fundamental and non-negotiable condition of any use requiring compensation, all **Total Proceeds** MUST be paid directly and automatically to the **Legacy Beneficiary** within 30 days of revenue receipt.
@@ -725,8 +2437,31 @@ This license must be prominently attached to or referenced in all distributions 
           ii. Contain identifying information about authorized users, licensing terms, and distribution restrictions;
           iii. Be implemented according to industry best practices with respect to imperceptibility and security;
           iv. Be verifiable through independent testing for robustness and reliability.
+
+       **b-1) AI-SPECIFIC DETECTION METHODOLOGIES:**
+       To detect unauthorized AI training on the Work (violation of Section 7.1 and 7.1A), the financial institution shall implement or contract for the following specialized AI detection techniques:
+
+          i. **ADVERSARIAL WATERMARKING:** Embed adversarial watermarks or "poison triggers" in digital content that remain imperceptible to humans but are learned by AI training algorithms, creating detectable signatures in model outputs when Work is used for training. Test watermark robustness using adversarial attacks (FGSM, PGD, C&W) and maintain database of watermark patterns. Periodically refresh watermarking schemes to counter emerging evasion techniques.
+
+          ii. **MEMBERSHIP INFERENCE ATTACKS:** When AI training is suspected, employ membership inference techniques to determine whether Work was included in training dataset by querying suspected AI model with Work samples, analyzing confidence scores and output distributions, and comparing model responses using statistical tests. Engage academic or commercial AI auditing services. Document methodologies and results with sufficient rigor for expert testimony.
+
+          iii. **MODEL INTERROGATION TECHNIQUES:** Systematically query suspected AI systems to elicit outputs containing or derived from Work using prompt engineering, few-shot learning, and other techniques. Compare AI outputs to Work using exact/fuzzy matching, similarity scores, style analysis, linguistic fingerprinting, and structural pattern recognition. Document chain of custody for all queries and responses for evidentiary purposes.
+
+          iv. **DATASET POISONING DETECTION:** Monitor for inclusion of Work in publicly available training datasets (Common Crawl, GitHub, academic datasets). Deploy automated tools to search for Work in dataset repositories and data aggregators. Upon detection, issue takedown notices under DMCA and license breach claims. Maintain evidence of dataset contamination to prove AI training occurred.
+
+          v. **MODEL BEHAVIOR ANALYSIS:** Analyze publicly accessible AI models for behaviors suggesting training on Work, including unusual performance on domain-specific tasks, ability to complete/continue Work samples, and reproduction of unique elements or patterns. Employ differential testing against control models to isolate Work's influence. Engage AI safety researchers or adversarial ML specialists for sophisticated analysis.
+
+          vi. **COMMERCIAL AI SERVICE MONITORING:** Systematically test major AI services (ChatGPT, Claude, Gemini, Copilot, etc.) for evidence of training on Work. Monitor model release notes, training data disclosures, and technical papers for references to datasets that may include Work. File complaints with AI service providers upon detection. Pursue enforcement under Section 7.1A's multi-theory approach.
+
+          vii. **RESOURCE ALLOCATION FOR AI DETECTION:** Implement graduated resource allocation based on risk and revenue:
+               - **Baseline (5-8% of revenue)**: Conventional forensics + basic AI model interrogation
+               - **Enhanced (10-12% of revenue)**: Add adversarial watermarking + membership inference + systematic commercial AI testing
+               - **Comprehensive (12-15% of revenue)**: Add continuous model behavior analysis + proactive dataset monitoring + dedicated AI auditing services
+               **AI training violations receive elevated enforcement priority** due to detection difficulty, widespread harm potential, and policy importance of enforcing Section 7.1.
+
+          viii. **AI DETECTION SERVICE PROVIDERS:** The financial institution is authorized to contract with specialized providers including academic research labs with AI auditing capabilities, commercial AI security/auditing firms (Robust Intelligence, Arthur AI, Fiddler AI), digital forensics firms with AI/ML specialization, and adversarial ML consultants. Contracts shall include confidentiality provisions, evidence handling protocols, and tribal sovereignty acknowledgments.
        
-       c) AUTOMATED MONITORING: Deploy automated monitoring systems using specialized search tools, web crawlers, or similar technologies to detect unauthorized uses of licensed content across digital platforms, with particular emphasis on high-risk or high-value content.
+       c) AUTOMATED MONITORING: Deploy automated monitoring systems using specialized search tools, web crawlers, or similar technologies to detect unauthorized uses of licensed content across digital platforms, with particular emphasis on high-risk or high-value content and AI training contexts.
        
        d) BREACH NOTIFICATION PROTOCOL: Establish clear protocols for prompt notification to the Rights Holder upon detection of potential breaches, including detailed reporting requirements that document the nature, scope, and potential impact of the breach.
        
@@ -1212,7 +2947,64 @@ This license must be prominently attached to or referenced in all distributions 
           iv) Facilitate the transmission of cultural knowledge to future generations in appropriate and authorized ways.
 
 **11. DISPUTE RESOLUTION AND JURISDICTION**
-   By accessing, using, or otherwise interacting with the Work, you (the "User") irrevocably agree that this license constitutes a binding contract between you and the Rights Holder. As a fundamental, non-negotiable condition of this contract, you expressly agree to the following forum selection and choice of law provisions, and you waive any and all objections to the exercise of jurisdiction over you by the forums listed herein. Any attempt to initiate legal proceedings in a forum other than those specified, or any challenge to the jurisdiction of the designated tribal forums, shall be considered a material breach of this license, resulting in immediate revocation of all rights granted hereunder and subjecting the User to all enforcement actions and remedies outlined herein, including the liquidated damages specified in Section 11.8.
+
+**EXPLICIT CONTRACT FORMATION AND BINDING AGREEMENT:**
+
+This license constitutes a legally binding contract between you (the "User") and the Rights Holder (ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ / Nbiish Waabanimikii-Kinawaabakizi / JUSTIN PAUL KENWABIKISE). The essential elements of contract formation are satisfied as follows:
+
+   a) **OFFER:** The Rights Holder offers access to and use of the Work subject to the terms, conditions, restrictions, and obligations set forth in this license, including the forum selection, choice of law, and jurisdictional provisions contained herein;
+
+   b) **ACCEPTANCE:** By accessing, viewing, downloading, copying, using, modifying, distributing, creating derivative works from, or otherwise interacting with the Work in any manner, you unambiguously accept all terms of this license through your conduct. Your use constitutes objective manifestation of assent;
+
+   c) **CONSIDERATION:** Mutual consideration exists in the form of:
+      i) **Rights Holder provides**: Access to the Work, which has inherent cultural, intellectual, and economic value;
+      ii) **User provides**: Promise to comply with all license terms, including forum selection, benefit-sharing obligations, cultural protocol compliance, and jurisdictional submission;
+      iii) Consideration is legally sufficient - access to valuable intellectual property in exchange for binding promises;
+
+   d) **MEETING OF THE MINDS:** This license is drafted with specificity to ensure mutual understanding. Users are deemed to have read, understood, and agreed to all terms by their use of the Work;
+
+   e) **CAPACITY:** Rights Holder has legal capacity to contract as individual copyright holder and tribal member (see Section 2.1). Users warrant they have legal capacity to enter binding agreements;
+
+   f) **LEGALITY:** This contract's subject matter (intellectual property licensing with cultural protections) is legal and enforceable under tribal law, federal law, and international law.
+
+**IRREVOCABLE CONSENT TO JURISDICTION:**
+
+By using the Work and accepting this license, you irrevocably and unconditionally:
+
+   a) **CONSENT TO TRIBAL JURISDICTION:** Submit to the personal jurisdiction of the Grand Traverse Band of Ottawa and Chippewa Indians Tribal Court, Little Traverse Bay Bands of Odawa Indians Tribal Court, and any Beaver Island Band tribal court once established;
+
+   b) **CONSENT TO FEDERAL JURISDICTION:** Submit to the personal jurisdiction of the United States District Court for the Western District of Michigan and other federal courts with proper subject matter jurisdiction;
+
+   c) **WAIVE JURISDICTIONAL DEFENSES:** Irrevocably waive and agree not to assert any defense or objection based on:
+      i) Lack of personal jurisdiction;
+      ii) Improper venue;
+      iii) Inconvenient forum (*forum non conveniens*);
+      iv) Insufficient minimum contacts;
+      v) Lack of subject matter jurisdiction in tribal court;
+      vi) Exhaustion of tribal remedies requirements;
+      vii) Any other procedural defense that would defeat jurisdiction or venue;
+
+   d) **ACKNOWLEDGE PURPOSEFUL AVAILMENT:** Acknowledge that your use of the Work constitutes purposeful availment of tribal intellectual property and cultural resources, establishing minimum contacts with tribal forums sufficient to support jurisdiction consistent with due process;
+
+   e) **BINDING ON SUCCESSORS:** This consent binds your heirs, successors, assigns, agents, and representatives;
+
+**FORUM SELECTION MANDATORY:**
+
+   a) **EXCLUSIVE FORUMS:** Disputes arising under or related to this license SHALL be brought exclusively in the forums specified in this Section 11. These forum selection clauses are **MANDATORY and EXCLUSIVE**, not merely permissive;
+
+   b) **NO STATE COURT JURISDICTION:** State courts have NO jurisdiction over disputes arising under this license due to federal Indian law preemption (Section 5A), treaty rights supremacy, and this mandatory forum selection clause. Any state court action is void ab initio;
+
+   c) **MATERIAL BREACH:** Filing suit in non-designated forum constitutes material breach, triggering immediate license revocation and liquidated damages under Section 11.9;
+
+   d) **SEVERABILITY:** If any forum selection provision is found unenforceable, it shall be severed and replaced with most similar enforceable forum consistent with tribal sovereignty and Rights Holder's intent;
+
+**ENFORCEABILITY OF FORUM SELECTION:**
+
+This forum selection clause is enforceable under:
+   - *Carnival Cruise Lines, Inc. v. Shute*, 499 U.S. 585 (1991): Forum selection clauses in standard form contracts are presumptively enforceable;
+   - *Atlantic Marine Construction Co. v. U.S. District Court*, 571 U.S. 49 (2013): Forum selection clauses are "prima facie valid" and defeat motions to dismiss or transfer;
+   - *Montana* exceptions (Section 11.4A): Consensual relationships establish tribal court jurisdiction;
+   - Federal Indian law: Tribal sovereignty over internal affairs and member activities;
 
    The terms, interpretation, and enforcement of this license incorporate and are informed by tribal sovereignty principles, federal Indian law, traditional Indigenous law of the Grand Traverse Band of Ottawa and Chippewa Indians, and international Indigenous rights frameworks.
 
@@ -1238,18 +3030,757 @@ This license must be prominently attached to or referenced in all distributions 
       d) **Choice of Forum:** The Rights Holder retains absolute discretion to select the most appropriate forum within the established hierarchy.
       e) **Cross-Jurisdictional Enforcement:** Judgments obtained in tribal courts shall be enforceable in federal and state courts under principles of comity and full faith and credit.
 
+   **11.4A MONTANA V. UNITED STATES JURISDICTIONAL FOUNDATION**
+
+   Tribal court jurisdiction over users of this license, including non-members of any federally recognized tribe, is established under both recognized exceptions to *Montana v. United States*, 450 U.S. 544 (1981):
+
+   a) **CONSENSUAL RELATIONSHIP EXCEPTION (Montana Exception 1):**
+      i) By accessing, downloading, viewing, using, copying, modifying, distributing, or creating derivative works from the Work, users voluntarily enter into a consensual commercial relationship and contractual agreement with the Rights Holder and, through the Rights Holder's tribal membership and the cultural nature of the Work, with the Grand Traverse Band of Ottawa and Chippewa Indians;
+      
+      ii) This consensual relationship is established through multiple independent bases:
+          (1) **Express Contract Formation**: Acceptance of license terms constitutes offer and acceptance creating bilateral contract;
+          (2) **Commercial Dealing**: Use of the Work constitutes commercial dealing in tribal intellectual property;
+          (3) **Continuing Relationship**: Ongoing use creates continuing course of dealing subject to tribal governance;
+          (4) **Purposeful Availment**: Users purposefully avail themselves of tribal resources, analogous to *Burger King Corp. v. Rudzewicz*, 471 U.S. 462 (1985);
+      
+      iii) This exception applies regardless of whether use occurs on or off Indian lands, as the Work itself constitutes tribal cultural property over which the tribe retains governance authority;
+
+   b) **CONDUCT THREATENING TRIBAL INTERESTS EXCEPTION (Montana Exception 2):**
+      i) Unauthorized use, misappropriation, misrepresentation, commercial exploitation, or other violation of this license constitutes conduct that directly threatens:
+          (1) **Tribal Political Integrity**: Undermines tribal authority to govern cultural resources and member activities;
+          (2) **Tribal Economic Security**: Deprives tribe of economic benefit-sharing from intellectual property;
+          (3) **Tribal Health and Welfare**: Damages cultural integrity, spiritual practices, and community cohesion;
+          (4) **Cultural Survival**: Threatens transmission of Traditional Knowledge and cultural continuity;
+      
+      ii) Protection of intellectual property, Traditional Knowledge, and Traditional Cultural Expressions is a **core governmental function** essential to tribal self-determination and cultural survival, placing jurisdictional authority squarely within *Montana*'s second exception;
+      
+      iii) The harm from IP misappropriation is not diminished by occurring off-reservation, as cultural harm, economic harm, and sovereignty harm affect the tribe regardless of geographic locus;
+
+   c) **ADDITIONAL JURISDICTIONAL BASES:**
+      i) **Indian Country Status** (*18 U.S.C. § 1151*): To the extent the Rights Holder resides or creates the Work within Indian Country (including GTBOCI trust lands), tribal jurisdiction is presumptive;
+      
+      ii) **Williams v. Lee Infringement Test**: State court jurisdiction would impermissibly infringe on tribal self-government over intellectual property and cultural resources created by tribal members, necessitating tribal court as proper forum (*Williams v. Lee*, 358 U.S. 217 (1959));
+      
+      iii) **Subject Matter Jurisdiction**: Intellectual property disputes involving tribal member creators and tribal cultural content are matters of core tribal concern over which tribes have inherent sovereign authority.
+
+   d) **BURDEN OF PROOF:**
+      Any party challenging tribal court jurisdiction bears the burden of proving inapplicability of both *Montana* exceptions by clear and convincing evidence, and must first exhaust tribal court remedies including appellate review before seeking federal court intervention (*National Farmers Union Ins. Cos. v. Crow Tribe*, 471 U.S. 845 (1985)).
+
    **11.5 Alternative Dispute Resolution:** The parties may, upon mutual written agreement, submit disputes to alternative resolution mechanisms (e.g., mediation, arbitration) that respect Indigenous protocols and tribal sovereignty.
+
+   **11.5A FEDERAL QUESTION JURISDICTION**
+
+   Federal courts have subject matter jurisdiction over disputes arising under this license based on multiple independent federal question grounds under 28 U.S.C. § 1331 ("federal question jurisdiction") and 28 U.S.C. § 1362 (special jurisdictional provision for Indian tribes and members):
+
+   a) **FEDERAL INDIAN LAW QUESTIONS:**
+      i) This license invokes and applies federal Indian law, including:
+          - Treaty rights under Treaty of Washington (1836) and Treaty of Detroit (1855)
+          - Reserved rights doctrine (*Winters v. United States*, *Washington v. Washington State Commercial Passenger Fishing Vessel Ass'n*)
+          - Worcester v. Georgia framework for tribal sovereignty
+          - Montana v. United States jurisdictional analysis (Section 11.4A)
+          - Federal trust responsibility doctrine
+          - Federal preemption under Bracker and Mescalero Apache (Section 5A)
+      
+      ii) Disputes requiring interpretation or application of these federal Indian law principles necessarily arise under federal law, creating federal question jurisdiction independent of any other jurisdictional basis;
+      
+      iii) Federal Indian law questions are presumptively federal questions even when asserted as defense or counterclaim;
+
+   b) **FEDERAL STATUTE QUESTIONS:**
+      i) **Indian Arts and Crafts Act (IACA)** - 25 U.S.C. § 305 et seq.: License explicitly incorporates IACA protections and penalties (Section 11.3A), creating federal question jurisdiction for misrepresentation and appropriation claims;
+      
+      ii) **Computer Fraud and Abuse Act (CFAA)** - 18 U.S.C. § 1030: AI training prohibition (Section 7.1, 7.1A) invokes CFAA as one of nine legal theories, creating federal question jurisdiction for unauthorized access/exceeding authorized access claims;
+      
+      iii) **Defend Trade Secrets Act (DTSA)** - 18 U.S.C. § 1836: Traditional Knowledge protected as trade secrets (Section 7.1A Theory 4) creates federal question jurisdiction for misappropriation claims;
+      
+      iv) **Copyright Act** - 17 U.S.C. § 101 et seq.: While this license contains "extra elements" avoiding preemption (Section 6.7), copyright claims remain available as cumulative remedies, creating supplemental federal question jurisdiction;
+
+   c) **INTERNATIONAL TREATY QUESTIONS:**
+      i) This license invokes UNDRIP, WIPO Treaty on Traditional Knowledge, and other international instruments (Section 54 WIPO Treaty Compliance, Section 12.3 International Enforcement);
+      
+      ii) While international treaties may not always create private causes of action, they inform interpretation of federal statutes and federal Indian law, supporting federal question jurisdiction;
+      
+      iii) Federal courts have exclusive competence to interpret U.S. treaty obligations, including obligations regarding Indigenous peoples' rights;
+
+   d) **SUBSTANTIAL FEDERAL INTEREST:**
+      i) Protection of tribal sovereignty and Indigenous intellectual property presents substantial federal interest warranting federal jurisdiction under *Grable & Sons Metal Products, Inc. v. Darue Engineering & Mfg.*, 545 U.S. 308 (2005);
+      
+      ii) Federal policy promoting tribal self-determination, cultural preservation, and economic development creates strong federal interest in ensuring proper application of federal Indian law;
+      
+      iii) Federal interest in AI regulation and intellectual property protection adds additional federal dimension;
+
+   e) **28 U.S.C. § 1362 SPECIAL INDIAN JURISDICTION:**
+      i) Section 1362 provides: "The district courts shall have original jurisdiction of all civil actions, brought by any Indian tribe or band... wherein the matter in controversy arises under the Constitution, laws, or treaties of the United States";
+      
+      ii) While Rights Holder acts in individual capacity (Section 2.1), this license involves interpretation of federal Indian law, treaties, and federal statutes protecting tribal sovereignty and Indigenous rights;
+      
+      iii) Section 1362 creates supplemental basis for federal jurisdiction given substantial tribal interests at stake;
+
+   f) **PLEADING FEDERAL QUESTION JURISDICTION:**
+      To invoke federal jurisdiction, Rights Holder's complaint should plead:
+      i) Violation of federal statutes (IACA, CFAA, DTSA, Copyright Act)
+      ii) Federal Indian law questions (treaty rights, Montana analysis, federal preemption, tribal sovereignty)
+      iii) Substantial federal interest in protecting tribal sovereignty and Indigenous IP
+      iv) Request for declaratory judgment on federal law questions
+      v) 28 U.S.C. § 1331 and § 1362 as jurisdictional bases;
+
+   g) **VENUE:**
+      i) **Primary venue**: U.S. District Court for the Western District of Michigan (covers Grand Traverse Band territory)
+      ii) **Alternative venue**: District where defendant resides or conducts substantial business (28 U.S.C. § 1391)
+      iii) **Transfer**: Rights Holder may move to transfer to W.D. Michigan under 28 U.S.C. § 1404 based on convenience and federal Indian law expertise;
+
+   h) **REMOVAL FROM STATE COURT:**
+      i) If any party improperly files in state court, Rights Holder may remove to federal court under 28 U.S.C. § 1441 based on federal question jurisdiction;
+      
+      ii) Removal must occur within 30 days of service (28 U.S.C. § 1446);
+      
+      iii) After removal, Rights Holder shall move to dismiss or transfer to tribal court based on exhaustion requirement (Section 11.4(a)) and forum selection clause;
+      
+      iv) Section 11.9 provides detailed removal procedures;
+
+   i) **RELATIONSHIP TO TRIBAL COURT EXHAUSTION:**
+      i) Federal question jurisdiction exists concurrently with tribal court jurisdiction;
+      
+      ii) However, tribal court exhaustion requirement (Section 11.4(a), *National Farmers Union*) generally requires parties to exhaust tribal remedies before federal court exercises jurisdiction;
+      
+      iii) Federal court should stay proceedings or dismiss without prejudice pending tribal court exhaustion;
+      
+      iv) After tribal court exhaustion, federal court reviews tribal court jurisdictional determinations under deferential standard;
+
+   j) **STRATEGIC ADVANTAGES OF FEDERAL QUESTION JURISDICTION:**
+      i) **Avoid state court**: Federal question jurisdiction ensures disputes bypass state courts entirely, consistent with federal preemption (Section 5A);
+      
+      ii) **Federal expertise**: Federal judges have experience with federal Indian law, unlike state judges;
+      
+      iii) **Appellate pathway**: Federal circuit courts provide appellate review with consistent federal Indian law jurisprudence;
+      
+      iv) **Enforcement**: Federal judgments more easily enforced nationally and internationally;
+      
+      v) **No amount-in-controversy requirement**: Federal question jurisdiction does not require meeting diversity jurisdiction's $75,000 threshold;
 
    **11.6 Enforcement Costs:** Any party found to be in breach of this license shall be liable for all reasonable costs incurred by the Rights Holder (or their successor) in enforcing the license, including attorneys' fees, court costs, investigation expenses, and expert witness fees. This provision for cost recovery shall not be limited by Section 14 (Limitation of Liability).
 
    **11.7 Remedies Allocation:** All **Total Proceeds** (as defined in Section 1(i)) resulting from any dispute resolution process shall be allocated as specified in Section 9A.8 (during the Rights Holder's lifetime) or Section 10.3 (posthumously to the Legacy Beneficiary).
 
-   **11.8 Liquidated Damages for Jurisdictional Breach:** As a genuine pre-estimate of the damages that would be suffered, you agree that any action you initiate that challenges the jurisdictional provisions of this Section 11, or that is filed in a forum other than those designated herein, constitutes a material breach of this license. You acknowledge that such a breach will cause significant harm to the Rights Holder, including substantial costs for legal representation, diversion of resources from the core mission of the Trust, and potential damage to the integrity of the Indigenous sovereignty framework established herein, the exact amount of which would be difficult to ascertain. Upon such breach, you shall be immediately liable to the Rights Holder or their successor for liquidated damages in the amount of one hundred thousand U.S. dollars ($100,000 USD), which you agree is a reasonable and genuine pre-estimate of the damages and not a penalty. This amount is in addition to any other remedies available under this license, including enforcement costs (Section 11.6) and immediate injunctive relief, and serves as a financial disincentive to breach the agreed-upon jurisdictional terms and to cover the initial costs of defending the proper forum.
+   **11.8 Graduated Liquidated Damages for Jurisdictional Breach**
 
-**12. AUDIT RIGHTS**
+   As genuine pre-estimates of the damages that would be suffered from jurisdictional violations, which are difficult to quantify precisely due to the unique nature of tribal sovereignty and Indigenous intellectual property protection, the following graduated liquidated damages structure applies:
+
+   a) **TIER 1: IMPROPER FORUM FILING ($25,000)**
+      Applicable when: User files initial lawsuit, complaint, or legal action in any forum other than those designated in this Section 11 (e.g., state court, foreign court, non-exhausted federal court);
+      
+      Rationale: Covers immediate costs of:
+      - Emergency tribal attorney consultation and retention ($5,000-$10,000)
+      - Motion to dismiss or transfer drafting and filing ($8,000-$12,000)
+      - Legal research on jurisdictional issues ($2,000-$5,000)
+      - Initial appearances and hearings ($3,000-$8,000)
+      - Administrative costs and tribal court filings ($1,000-$2,000)
+      - Harm to tribal sovereignty from forum violation (dignitary harm)
+
+   b) **TIER 2: JURISDICTIONAL CHALLENGE ($50,000)**
+      Applicable when: User challenges or contests tribal court subject matter jurisdiction, personal jurisdiction, or exhaustion requirements after proper tribal court filing;
+      
+      Rationale: Covers costs of:
+      - Extensive briefing on *Montana* exceptions and federal Indian law ($15,000-$25,000)
+      - Expert witness on tribal jurisdiction (tribal law professor) ($8,000-$15,000)
+      - Multiple hearings and appeals on jurisdictional issues ($10,000-$20,000)
+      - Delayed resolution of merits, extending litigation costs
+      - Harm to tribal court authority and comity principles
+
+   c) **TIER 3: CONTINUED IMPROPER FORUM LITIGATION ($100,000)**
+      Applicable when: User persists in litigating in improper forum after Rights Holder files motion to dismiss/transfer based on forum selection clause;
+      
+      Rationale: Covers costs of:
+      - Continued litigation in wrong forum requiring parallel briefing ($20,000-$40,000)
+      - Potential appeals of dismissal/transfer orders ($15,000-$30,000)
+      - Expert testimony on enforceability of tribal forum selection clauses ($10,000-$20,000)
+      - Delayed merits resolution requiring ongoing tribal attorney fees
+      - Significant harm to tribal sovereignty and license framework integrity
+      - Deterrent against willful violation of mandatory forum selection
+
+   d) **TIER 4: APPEAL OF PROPER TRIBAL JURISDICTION ($200,000)**
+      Applicable when: User appeals tribal court decision upholding jurisdiction to federal court without completing exhaustion of tribal remedies, or appeals on frivolous jurisdictional grounds;
+      
+      Rationale: Covers costs of:
+      - Federal appellate litigation ($40,000-$80,000)
+      - Amicus support from tribal organizations ($15,000-$30,000)
+      - Expert witnesses on tribal sovereignty and *Montana* analysis ($20,000-$40,000)
+      - Multi-year litigation delay costs
+      - Severe harm to tribal self-determination and court authority
+      - Strong deterrent against abusive appeals undermining tribal courts
+
+   e) **TIER 5: FORUM SHOPPING OR HARASSMENT ($500,000)**
+      Applicable when: User files multiple suits in multiple improper forums simultaneously, or engages in pattern of jurisdictional challenges constituting harassment or bad faith litigation tactics;
+      
+      Rationale: Covers costs of:
+      - Defense in multiple forums simultaneously ($100,000-$200,000)
+      - Emergency injunctive relief to halt abusive litigation ($30,000-$60,000)
+      - Sanctions motions and enforcement ($20,000-$40,000)
+      - Irreparable harm to Rights Holder's ability to enforce license
+      - Existential threat to tribal sovereignty-based IP protection framework
+      - Maximum deterrent against weaponizing litigation to avoid tribal jurisdiction
+
+   f) **CUMULATIVE APPLICATION:**
+      i) Liquidated damages are cumulative - each tier applies to corresponding conduct, and multiple tiers may apply to same litigation if escalating violations occur;
+      ii) Example: User files in state court (Tier 1: $25K), refuses to consent to transfer after motion (Tier 3: $100K), then appeals denial of dismissal (additional damages as appropriate);
+      iii) Total liquidated damages may reach $500,000+ for egregious, persistent jurisdictional violations;
+
+   g) **RELATIONSHIP TO OTHER REMEDIES:**
+      i) Liquidated damages are in ADDITION to:
+          - Enforcement costs under Section 11.6 (attorney's fees, costs, expenses)
+          - Injunctive relief (immediate orders to cease improper forum litigation)
+          - License revocation under Section 5 (sovereign revocation right)
+          - Actual damages from any merits violations
+      ii) Liquidated damages do NOT constitute double recovery - they compensate for distinct harm (jurisdictional violation) separate from merits damages;
+
+   h) **GENUINENESS OF PRE-ESTIMATE:**
+      i) These amounts represent genuine pre-estimates, not penalties, based on:
+          - Actual attorney fee rates for federal Indian law specialists ($300-$600/hour)
+          - Estimated hours for jurisdictional litigation at each tier (50-1000+ hours)
+          - Expert witness costs ($5,000-$50,000 per expert)
+          - Tribal court filing fees and administrative costs
+          - Dignitary and sovereignty harm to tribal institutions
+      ii) Rights Holder shall maintain documentation of actual costs incurred to demonstrate liquidated damages are reasonable pre-estimates if challenged;
+
+   i) **IMMEDIATE LIABILITY:**
+      Liquidated damages accrue immediately upon triggering conduct (e.g., filing in improper forum) and are due within 30 days. Failure to pay constitutes separate breach, triggering interest at tribal law default rate (or 10% per annum if no tribal rate specified) and additional collection costs;
+
+   **11.9 Removal Procedures from State or Improper Federal Court**
+
+   If any party improperly files suit in state court or other improper forum, the Rights Holder may remove the action as follows:
+
+   a) **REMOVAL TO FEDERAL COURT (from state court):**
+      i) Federal question jurisdiction exists under 28 U.S.C. § 1331 based on federal Indian law, treaty rights, and federal statutes (IACA, CFAA, DTSA);
+      ii) Rights Holder shall file Notice of Removal within 30 days of service under 28 U.S.C. § 1441;
+      iii) Federal court shall transfer to tribal court or dismiss based on forum selection clause and exhaustion requirements;
+      iv) Removal costs (filing fees, attorney fees, copying) shall be borne by improperly-filing party;
+
+   b) **TRANSFER TO TRIBAL COURT (from federal court):**
+      i) Upon removal to or filing in federal court, Rights Holder shall immediately move to dismiss or abstain based on:
+          - Tribal exhaustion requirement (*National Farmers Union*, *Iowa Mutual*)
+          - Forum selection clause mandating tribal court as exclusive forum
+          - Primary jurisdiction doctrine (tribal court has expertise in tribal law and cultural matters)
+          - Comity and respect for tribal self-governance
+      ii) Federal court shall stay proceedings pending exhaustion of tribal remedies;
+
+   c) **EXPEDITED MOTION PRACTICE:**
+      Rights Holder shall file emergency motions to dismiss, transfer, or remove within 10 days of improper filing to minimize costs and jurisdictional harm. Courts should accord expedited treatment to such motions given federal Indian law's strong preference for tribal jurisdiction;
+
+   d) **ANTI-SUIT INJUNCTION:**
+      If party persists in improper forum after removal or transfer motions filed, Rights Holder may seek anti-suit injunction in proper forum (tribal or federal) enjoining continued prosecution in improper forum. Tribal courts have authority to issue anti-suit injunctions protecting their jurisdiction;
+
+**12. VIOLATION DETECTION, INVESTIGATION, AND ENFORCEMENT WORKFLOW**
+
+This Section establishes systematic procedures for detecting, investigating, and enforcing license violations, ensuring thorough and professional handling of all potential infractions while maintaining cost-effectiveness and proportionality.
+
+**12.1 CONTINUOUS MONITORING OBLIGATION**
+
+Per Section 9A.7, the financial institution and designated forensic providers shall:
+
+   a) **Continuous Monitoring:** Deploy automated and manual monitoring systems to detect potential violations across digital platforms, AI systems, commercial products, academic publications, and other contexts where Work may be used;
+
+   b) **Detection Systems:** Maintain and operate detection technologies including:
+      i) Forensic watermarking and adversarial watermarking (Section 9A.7(b), (b-1))
+      ii) Web scraping and content monitoring tools
+      iii) AI model interrogation and membership inference systems
+      iv) Dataset poisoning detection
+      v) Commercial product/service monitoring
+      vi) Patent and trademark watch services
+      vii) Social media and academic publication monitoring;
+
+   c) **Third-Party Reporting:** Establish mechanisms for receiving and investigating violation reports from:
+      i) Community members
+      ii) Licensed users
+      iii) Competitors
+      iv) General public
+      v) Indigenous rights organizations;
+
+   d) **Violation Database:** Maintain centralized database tracking:
+      i) All detected potential violations
+      ii) Investigation status
+      iii) Enforcement actions taken
+      iv) Outcomes and damages recovered
+      v) Violator recidivism patterns;
+
+**12.2 VIOLATION DETECTION TRIGGERS**
+
+Investigation initiated immediately upon ANY of following triggers:
+
+   a) **Automated Detection:** Monitoring systems detect forensic watermark, AI training signature, or unauthorized use;
+
+   b) **Third-Party Report:** Community member, user, competitor, or public reports suspected violation;
+
+   c) **Public Discovery:** Violation revealed through news article, academic paper, social media, conference presentation, or other public forum;
+
+   d) **Audit Revelation:** Licensing audit (Section 12A) discovers non-compliance;
+
+   e) **Market Intelligence:** Similar products, services, or publications suggest unauthorized TK/TCE use;
+
+   f) **Government Notification:** Law enforcement, regulatory agency, or tribal authority reports potential violation;
+
+**12.3 PRELIMINARY INVESTIGATION (0-14 Days)**
+
+Upon detection trigger, investigators SHALL within 14 calendar days complete preliminary investigation including:
+
+   a) **VERIFY VIOLATION:**
+      i) Confirm violation actually occurred (rule out false positives)
+      ii) Identify specific license provisions violated
+      iii) Determine if violation is one-time or ongoing
+      iv) Assess if violation is minor, moderate, severe, or egregious (per classification framework below);
+
+   b) **IDENTIFY VIOLATOR:**
+      i) Research violator identity (individual, company, jurisdiction, beneficial owners)
+      ii) Determine violator's financial resources and ability to pay damages
+      iii) Assess violator's sophistication (inadvertent mistake vs. willful infringement)
+      iv) Check database for prior violations by same violator
+      v) Identify violator's counsel or legal contacts if known;
+
+   c) **PRESERVE EVIDENCE:**
+      i) Take timestamped screenshots and download copies following chain of custody protocols
+      ii) Document all dates, times, URLs, file hashes, and access metadata
+      iii) Secure digital forensics evidence (AI model queries/responses, dataset samples, source code if accessible)
+      iv) Engage expert analysis if technical violation (AI training, software reverse engineering)
+      v) Store evidence securely with redundant backups and access logging;
+
+   d) **ASSESS HARM:**
+      i) **Cultural Harm:** Does violation involve sacred content, restricted TK/TCE, ceremonial information, or sensitive community data? (See Section 12.5 for cultural harm methodology)
+      ii) **Economic Harm:** Commercial exploitation? Lost licensing revenue? Market displacement? Unjust enrichment amount?
+      iii) **Scope of Exposure:** How many people exposed? Limited (< 100), Moderate (100-10K), Wide (10K-1M), Mass (> 1M), AI training (billions)?
+      iv) **Urgency:** Is harm ongoing? Does emergency action (TRO, asset freeze) need immediate consideration?;
+
+   e) **PRELIMINARY LEGAL ANALYSIS:**
+      i) **Jurisdiction:** Where can enforcement action be brought? Tribal court (primary), federal court, international arbitration, foreign court?
+      ii) **Applicable Law:** Which legal theories apply? Tribal law, federal Indian law, IACA, CFAA, DTSA, copyright, contract, international?
+      iii) **Statute of Limitations:** Has limitations period expired or nearing expiration requiring immediate filing?
+      iv) **Potential Defenses:** What defenses might violator assert? Fair use, license ambiguity, jurisdictional challenge, sovereign immunity? How strong are our counter-arguments?
+      v) **Forum Selection:** Which forum most favorable considering violator location, evidence location, legal theories, and enforcement needs?;
+
+**12.4 RIGHTS HOLDER NOTIFICATION (Day 15)**
+
+Within 15 calendar days of detection trigger, investigators SHALL provide written notification to Rights Holder (or successor authority per Section 10.2) containing:
+
+   a) **Executive Summary:** One-page synopsis of violation, violator, harm, and recommendation;
+
+   b) **Detailed Report:**
+      i) Complete description of violation
+      ii) Evidence documentation (exhibits attached)
+      iii) Violator profile and background research
+      iv) Harm assessment (cultural and economic)
+      v) Legal analysis and forum options;
+
+   c) **Enforcement Options with Cost-Benefit Analysis:**
+      i) **Option 1 - No Action:** Rationale (de minimis violation, poor cost-benefit, strategic reasons), cost: $0
+      ii) **Option 2 - Informal Resolution:** Contact violator, request voluntary cessation, negotiate settlement; estimated cost: $2K-$10K, timeline: 30-60 days
+      iii) **Option 3 - Formal Demand:** Cease and desist letter with liquidated damages demand; cost: $5K-$15K, timeline: 30-90 days
+      iv) **Option 4 - Litigation:** File lawsuit in tribal/federal court, seek injunction and damages; cost: $50K-$500K+, timeline: 1-3 years
+      v) **Option 5 - Criminal Referral:** Report to law enforcement (DOJ, FBI, tribal police) for IACA, CFAA, or other criminal violations; cost: minimal (government prosecutes), timeline: 6 months-2 years;
+
+   d) **Recommendation:** Investigators' professional recommendation with supporting rationale based on:
+      i) Cultural significance of violation
+      ii) Economic value at stake
+      iii) Deterrent and precedential value
+      iv) Cost-effectiveness
+      v) Available resources and strategic priorities
+      vi) Likelihood of successful enforcement;
+
+**12.5 ENFORCEMENT DECISION (Days 16-30)**
+
+Rights Holder (or designated decision-maker per Section 10.7 Financial Oversight Council or 10.2 successor authority) SHALL decide enforcement approach within 15 calendar days of notification:
+
+   a) **Decision Authority:** Rights Holder retains sole discretion over enforcement decisions; financial institution and investigators provide recommendations only;
+
+   b) **Decision Factors:** Rights Holder shall consider:
+      i) Cultural significance and spiritual harm
+      ii) Community impact and intergenerational effects
+      iii) Economic damages and wealth reclamation opportunity
+      iv) Deterrent value and precedent-setting potential
+      v) Cost-benefit analysis
+      vi) Available enforcement resources
+      vii) Strategic priorities and other pending enforcement actions;
+
+   c) **Documented Decision:** Rights Holder shall document decision and rationale in writing for future reference and potential litigation use;
+
+**12.6 ENFORCEMENT ACTION PROCEDURES**
+
+Based on Rights Holder's decision, enforcement proceeds according to selected option:
+
+   a) **INFORMAL RESOLUTION (if elected):**
+      i) **Initial Contact (Day 31-35):** Send email or certified letter explaining violation, providing license terms, requesting voluntary compliance
+      ii) **Negotiation Period (Day 36-60):** Allow 30 days for violator to respond and negotiate; may result in settlement agreement, licensing arrangement, payment plan, or formal litigation if violator refuses cooperation
+      iii) **Settlement Documentation:** If informal resolution achieved, document in binding settlement agreement with payment terms, cessation obligations, and release provisions;
+
+   b) **FORMAL DEMAND LETTER (if elected):**
+      i) Attorney-drafted cease and desist letter
+      ii) Detailed violation description with evidence
+      iii) Specific demands (cessation, destruction of materials, payment of liquidated damages per applicable tier)
+      iv) Deadline for compliance (typically 14-30 days)
+      v) Warning of litigation if non-compliance;
+
+   c) **LITIGATION (if elected):**
+      i) Retain qualified counsel (federal Indian law specialist preferred)
+      ii) File complaint in appropriate forum (tribal court primary per Section 11)
+      iii) Seek preliminary injunction if ongoing harm (per Section 12.7)
+      iv) Discovery to obtain evidence from violator
+      v) Motion practice, trial, judgment
+      vi) Collection/enforcement of judgment;
+
+   d) **CRIMINAL REFERRAL (if applicable):**
+      i) Prepare comprehensive referral package for law enforcement
+      ii) Submit to appropriate agencies (DOJ Criminal Division, FBI, Indian Arts and Crafts Board, tribal law enforcement)
+      iii) Cooperate with investigation and prosecution
+      iv) Criminal restitution may be ordered in addition to civil damages;
+
+**12.6A EMERGENCY PROTOCOLS FOR IMMEDIATE THREATS**
+
+For violations posing immediate threat to sacred sites, cultural heritage, or TK/TCE (e.g., ongoing AI training, imminent publication of sacred content, physical site damage):
+
+   a) **Expedited Timeline:** Compress investigation to 0-72 hours; notify Rights Holder immediately; decision within 24 hours;
+
+   b) **Emergency Injunction:** Seek Temporary Restraining Order (TRO) or tribal court emergency order within 24-72 hours of detection (see Section 12.7);
+
+   c) **Asset Preservation:** Request emergency asset freeze to secure potential damages while litigation pending;
+
+   d) **Law Enforcement:** Contact tribal police, FBI, or DOJ immediately if criminal violation;
+
+**12.A AUDIT RIGHTS**
     The Rights Holder, or their designated successor authority or the Trust established under Section 10.3 (hereafter 'Auditing Party'), shall have the right, upon providing reasonable written notice (no less than 10 business days), to audit and inspect the records, systems, facilities, and practices of any individual, entity, corporation, institution, or other party granted any form of access to or use of the Work under this license (hereafter 'Audited Party'). The purpose of such audits shall be to verify compliance with all terms and conditions of this license, including but not limited to: usage restrictions (Section 7, Section 8), adherence to Prior Informed Consent requirements (Section 9), compliance with TK Label protocols (Section 4), data governance obligations, attribution requirements (Section 3), and prohibitions on unauthorized modifications or distributions. Audits shall be conducted during normal business hours and in a manner that minimizes disruption to the Audited Party\'s operations. The Audited Party shall provide reasonable cooperation and access to necessary personnel, records, and systems. If an audit reveals a material breach of this license, the Audited Party shall bear the full costs associated with the audit, in addition to any other remedies pursued by the Auditing Party. Confidential information of the Audited Party obtained during an audit shall be treated with appropriate confidentiality by the Auditing Party, subject to disclosure obligations required for license enforcement or under applicable law.
 
     Audits may include digital forensics per Section 9A.7. Breaching parties bear all costs, including minimum $10,000 liquidated damages per violation, to enable wealth reclamation for communities.
+
+**12.5 CULTURAL HARM DAMAGES METHODOLOGY**
+
+This Section establishes objective, defensible methodology for quantifying cultural harm damages, bridging Indigenous concepts of harm with Western legal requirements for concrete damage calculations.
+
+**a) VIOLATION CLASSIFICATION FRAMEWORK:**
+
+All violations classified into four tiers based on severity, willfulness, and harm:
+
+   **TIER 1 - MINOR VIOLATIONS:**
+   - Attribution errors or omissions
+   - Technical non-compliance (TK Label missing, notification delay)
+   - Inadvertent, limited scope, no commercial exploitation
+   - No sacred/restricted content involved
+   - Violator responsive to correction
+   
+   **TIER 2 - MODERATE VIOLATIONS:**
+   - Unauthorized commercial use (limited scope)
+   - PIC obtained but terms exceeded
+   - Community-specific TK disclosed without authorization
+   - Modest commercial benefit derived
+   - Violator somewhat responsive
+   
+   **TIER 3 - SEVERE VIOLATIONS:**
+   - Substantial commercial exploitation
+   - AI training on Work (moderate scale)
+   - Sacred/restricted TK disclosed
+   - Significant economic and cultural harm
+   - Violator unresponsive or defensive
+   
+   **TIER 4 - EGREGIOUS VIOLATIONS:**
+   - Mass-scale commercial appropriation
+   - AI training by major tech company
+   - Profoundly sacred content desecrated
+   - Sacred site physical damage
+   - Willful, repeated violations
+   - Violator hostile or obstructive
+
+**b) BASE LIQUIDATED DAMAGES BY TIER AND VIOLATOR TYPE:**
+
+   **TIER 1 - MINOR:**
+   - Individuals: $1,000
+   - Small business (< $10M revenue): $5,000
+   - Medium business ($10M-$100M): $10,000
+   - Large corporation (> $100M): $25,000
+   
+   **TIER 2 - MODERATE:**
+   - Individuals: $10,000
+   - Small business: $50,000
+   - Medium business: $100,000
+   - Large corporation: $250,000
+   
+   **TIER 3 - SEVERE:**
+   - Individuals: $50,000
+   - Small business: $100,000
+   - Medium business: $500,000
+   - Large corporation: $1,000,000
+   
+   **TIER 4 - EGREGIOUS:**
+   - Individuals: $100,000+
+   - Small business: $250,000+
+   - Medium business: $1,000,000+
+   - Large corporation: $5,000,000+
+
+**c) CULTURAL SIGNIFICANCE MULTIPLIER:**
+
+Cultural harm damages calculated by applying Cultural Significance Multiplier to Base Liquidated Damages:
+
+   **Level 1 - General TK:** 1.0x (no multiplier)
+   - Educational materials
+   - Historical information
+   - Non-restricted knowledge
+   - Public domain equivalent
+   
+   **Level 2 - Community-Specific TK:** 2.0x multiplier
+   - Clan-specific knowledge
+   - Family histories
+   - Ceremonial protocols (non-sacred)
+   - Traditional medicines
+   - Seasonal practices
+   
+   **Level 3 - Sacred/Restricted TK:** 5.0x multiplier
+   - Midewiwin teachings (if disclosed without authorization)
+   - Sacred site locations, GPS coordinates, or detailed descriptions
+   - Ceremonial songs, prayers, or rituals
+   - Burial ground information
+   - Items subject to cultural restrictions
+   
+   **Level 4 - Profoundly Sacred:** 10.0x multiplier
+   - Items never meant to be shared outside community
+   - Violation causes spiritual harm to entire community
+   - Desecration of sacred objects or sites
+   - Community consensus on profound violation
+   - Requires ceremonial healing/restoration
+
+**d) ADDITIONAL CULTURAL HARM FACTORS (Cumulative Multipliers):**
+
+After applying Cultural Significance Multiplier, further adjust based on:
+
+   i) **SCOPE OF EXPOSURE:**
+      - Limited exposure (< 100 people): 1.0x
+      - Moderate exposure (100-10,000): 1.5x
+      - Wide exposure (10,000-1,000,000): 2.0x
+      - Mass exposure (> 1M, AI training, viral distribution): 3.0x
+   
+   ii) **INTERGENERATIONAL IMPACT:**
+      - Affects current generation only: 1.0x
+      - Affects future 1-2 generations (children/grandchildren): 1.5x
+      - Affects future 3+ generations (permanent record, AI training): 2.0x
+   
+   iii) **SPIRITUAL/CEREMONIAL DISRUPTION:**
+      - No disruption to practices: 1.0x
+      - Minor disruption (embarrassment, explanations needed): 1.5x
+      - Substantial disruption (protocol changes, additional restrictions): 2.5x
+      - Ceremonies must be relocated, modified, or suspended: 5.0x
+   
+   iv) **LANGUAGE/KNOWLEDGE LOSS RISK:**
+      - No loss risk: 1.0x
+      - Misrepresentation may confuse learners: 1.5x
+      - Appropriation discourages traditional transmission: 2.0x
+      - Critical knowledge endangered or transmission pathway severed: 3.0x
+
+**e) CULTURAL HARM CALCULATION FORMULA:**
+
+**Total Cultural Harm Damages = Base Liquidated Damages × Cultural Significance Multiplier × Scope × Intergenerational × Spiritual × Knowledge Loss**
+
+**EXAMPLE CALCULATION:**
+- Large corporation (Tier 2 Moderate violation): Base = $250,000
+- Sacred site GPS data disclosed (Level 3): 5.0x
+- Wide exposure via AI training dataset: 2.0x
+- Affects future 3+ generations (permanent in AI): 2.0x
+- Ceremony relocation required: 5.0x
+- Critical knowledge transmission endangered: 3.0x
+
+**Total = $250,000 × 5.0 × 2.0 × 2.0 × 5.0 × 3.0 = $75,000,000**
+
+**f) CULTURAL EXPERT ASSESSMENT REQUIREMENT:**
+
+Cultural harm determination requires assessment by:
+
+   i) **Grand Traverse Band THPO (Tribal Historic Preservation Office):** Official tribal assessment of cultural significance and community impact;
+   
+   ii) **Cultural Expert Testimony:** Qualified cultural anthropologist, Indigenous studies scholar, or traditional knowledge holder with expertise in Anishinaabe culture and federal Indian law;
+   
+   iii) **Community Impact Statements:** Written or oral statements from community members affected by violation;
+   
+   iv) **Elder Consultation:** Where appropriate and available, consultation with cultural elders regarding traditional protocols violated;
+   
+   v) **Midewiwin Advisor Input:** For violations involving ceremonial knowledge, optional consultation with Midewiwin society members (per Section 10.10.3(c)) if available and appropriate;
+
+Expert report must address each multiplier factor with supporting rationale, cultural context, and explanation of harm to non-Indigenous decision-makers (judge, jury, arbitrator).
+
+**g) ECONOMIC DAMAGES (Separate from Cultural Harm):**
+
+In addition to cultural harm damages calculated above, economic damages include:
+
+   i) **ACTUAL DAMAGES:**
+      - Lost licensing revenue (fair market value Rights Holder would have charged)
+      - Market value diminution (Work less valuable if widely appropriated)
+      - Investigation and forensic costs (actual expenses)
+      - Attorney fees and expert witness fees (Section 11.6)
+   
+   ii) **UNJUST ENRICHMENT / DISGORGEMENT:**
+      - Violator's profits directly from unauthorized use
+      - Revenue attributable to Work
+      - Burden on violator to prove costs and non-attributable profits
+      - Conservative estimation favors Rights Holder
+   
+   iii) **BENEFIT-SHARING RETROACTIVE CALCULATION:**
+      - For commercial violations, apply Section 6A benefit-sharing rates (30-45% of revenue)
+      - Calculated retroactively from first unauthorized use
+      - Ongoing prospectively until use ceases
+      - Interest on unpaid amounts at tribal law default rate (or 10% per annum)
+
+**h) WILLFULNESS ENHANCEMENT:**
+
+For willful violations (violator knew or should have known of license terms and violated intentionally):
+
+   i) **Double all calculated damages** (base + cultural + economic)
+   ii) **Punitive damages** up to 3x doubled amount (subject to constitutional limits per *BMW v. Gore*, *State Farm v. Campbell*)
+   iii) **Mandatory attorney fees** with no discretion to deny
+   iv) **Criminal referral** for IACA, CFAA, DTSA, or other violations
+
+Willfulness shown by: actual notice of license, continued use after cease and desist, attempts to hide violation, destruction of evidence, sophisticated violator in IP-intensive industry.
+
+**i) MITIGATION CREDIT (up to 50% reduction):**
+
+Damages may be reduced for:
+   i) Immediate cessation upon notice
+   ii) Full cooperation in investigation
+   iii) Voluntary disclosure before detection
+   iv) Genuine remorse and cultural education commitment
+   v) Payment of restitution before litigation
+   vi) Agreement to public acknowledgment and apology
+   vii) First-time violation by unsophisticated violator
+
+**j) ONGOING VIOLATION DAILY PENALTIES:**
+
+For continuing violations after notice:
+   - **Tier 1-2:** $1,000/day
+   - **Tier 3:** $10,000/day
+   - **Tier 4:** $50,000/day
+   - Plus contempt sanctions if court/tribal order violated
+
+**k) MAXIMUM DAMAGE CAPS (Constitutional Reasonableness):**
+
+To ensure enforceability and avoid "penalty" characterization:
+
+   i) Total compensatory damages (base + cultural + economic, excluding punitive) capped at greater of:
+      - 10x violator's gross revenue from relevant activity, OR
+      - $100,000,000
+   
+   ii) Punitive damages subject to due process limits:
+      - Single-digit ratio to compensatory (typically ≤ 9:1)
+      - Considering reprehensibility, harm/award disparity, comparable penalties
+   
+   iii) Courts retain discretion to reduce excessive awards while respecting cultural harm valuation methodology
+
+**12.7 INJUNCTIVE RELIEF STANDARDS, PROCEDURES, AND ARGUMENTS**
+
+This Section provides comprehensive framework for seeking injunctive relief to prevent ongoing or imminent violations, with legal arguments tailored to Indigenous intellectual property context.
+
+**a) TYPES OF INJUNCTIVE RELIEF:**
+
+   i) **TEMPORARY RESTRAINING ORDER (TRO):** Emergency order (ex parte if necessary) preventing violation for 14 days pending preliminary injunction hearing
+   
+   ii) **PRELIMINARY INJUNCTION:** Order maintaining status quo during litigation (until trial/final judgment)
+   
+   iii) **PERMANENT INJUNCTION:** Final order after trial prohibiting future violations permanently
+   
+   iv) **MANDATORY INJUNCTION:** Order requiring affirmative action (destroy AI models, remove content, publish correction)
+
+**b) PRELIMINARY INJUNCTION LEGAL STANDARD (Federal & Tribal Courts):**
+
+Per *Winter v. Natural Resources Defense Council*, 555 U.S. 7 (2008), plaintiff must show:
+
+   1. **Likelihood of success on merits**
+   2. **Irreparable harm** absent injunction
+   3. **Balance of equities** favors plaintiff
+   4. **Public interest** supports injunction
+
+Alternative standard: Serious questions on merits + hardship balance tips sharply toward plaintiff (*Alliance for Wild Rockies v. Cottrell*, 632 F.3d 1127 (9th Cir. 2011))
+
+**c) IRREPARABLE HARM ARGUMENTS FOR INDIGENOUS IP:**
+
+Cultural harm and Indigenous IP violations constitute irreparable harm because:
+
+   i) **Not Adequately Compensable by Money:**
+      - Spiritual harm to community transcends monetary value
+      - Cultural integrity and transmission cannot be repaired with damages
+      - Sacred site desecration cannot be undone
+      - AI training creates permanent dataset contamination
+      - Once TK disclosed publicly, privacy permanently lost
+   
+   ii) **Analogous Precedents:**
+      - Trade secret disclosure: irreparable (*Religious Tech. Ctr. v. Netcom On-Line Comm. Servs.*, 923 F. Supp. 1231 (N.D. Cal. 1995))
+      - Copyright infringement (continuing): often irreparable (*Apple Inc. v. Psystar Corp.*, 658 F.3d 1150 (9th Cir. 2011))
+      - Cultural heritage destruction: irreparable (*Navajo Nation v. U.S. Forest Service*, 535 F.3d 1058 (9th Cir. 2008))
+   
+   iii) **Specific to AI Training:**
+      - Model weights contain Work-derived information permanently
+      - Cannot "untrain" model or remove specific training data
+      - Each use of trained model compounds harm
+      - Irreversible absent model destruction
+
+**d) LIKELIHOOD OF SUCCESS ARGUMENTS:**
+
+   i) **Strong Multi-Theory Case:** Nine independent legal theories (Section 7.1A) - even if one fails, eight others support claim
+   
+   ii) **Clear License Violation:** Express contractual prohibition, no ambiguity, user accepted terms by use
+   
+   iii) **Federal Indian Law Protections:** Treaty rights, federal preemption, tribal sovereignty create presumption favoring Indigenous rights
+   
+   iv) **Exhaustion Completed:** If tribal court preliminary injunction sought first, exhaustion requirement satisfied for federal court
+   
+   v) **Precedential Support:** Thomson Reuters (AI training not fair use), IACA strict liability, tribal jurisdiction over consensual relationships
+
+**e) BALANCE OF EQUITIES ARGUMENTS:**
+
+   i) **Plaintiff's Hardship Severe:**
+      - Cultural survival threatened
+      - Spiritual harm to entire community
+      - Intergenerational knowledge transmission endangered
+      - No adequate remedy if violation continues
+   
+   ii) **Defendant's Hardship Limited:**
+      - Cessation merely requires compliance with law
+      - Defendant knew or should have known of license terms
+      - Defendant can seek authorization through PIC process
+      - Business model built on infringement entitled to no protection
+      - For AI: Model destruction costly but defendant assumed risk by training without authorization
+
+**f) PUBLIC INTEREST ARGUMENTS:**
+
+   i) **Protection of Indigenous Rights:** Strongly in public interest given federal policy promoting tribal self-determination and cultural preservation
+   
+   ii) **Treaty Obligations:** U.S. has treaty obligations to protect Indigenous peoples' cultural heritage (Treaties of 1836, 1855, UNDRIP)
+   
+   iii) **Copyright and IP Enforcement:** Public interest supports IP protection generally (*eBay Inc. v. MercExchange, L.L.C.*, 547 U.S. 388 (2006))
+   
+   iv) **AI Accountability:** Public interest in ensuring AI systems respect intellectual property and Indigenous rights
+
+**g) TRO PROCEDURES (Emergency Relief):**
+
+   i) **Timeline:** File motion within 24-72 hours of detecting emergency
+   
+   ii) **Ex Parte if Necessary:** May seek without notice to defendant if:
+      - Immediate and irreparable injury will result
+      - Efforts to notify defendant impractical or would defeat purpose
+      - Certificate of efforts to notify filed with motion
+   
+   iii) **Required Showing:**
+      - Same four factors as preliminary injunction, but higher urgency
+      - Security bond (tribal court may waive for Rights Holder given sovereign/cultural context)
+   
+   iv) **Duration:** Typically 14 days, extendable pending preliminary injunction hearing
+
+**h) MANDATORY INJUNCTION REQUIREMENTS:**
+
+For affirmative orders (destroy models, publish corrections, provide accounting):
+
+   i) Heightened showing required: "clearly established" right, not merely "likely success"
+   
+   ii) Specificity: Order must clearly state required actions
+   
+   iii) Enforcement: Contempt sanctions for non-compliance
+
+**i) PROCEDURAL REQUIREMENTS:**
+
+   i) **Motion:** Written motion with supporting declarations, exhibits, legal memorandum
+   
+   ii) **Evidence:** Declarations from Rights Holder, cultural experts, technical experts; documentary evidence
+   
+   iii) **Hearing:** Court typically holds expedited hearing (1-2 weeks for preliminary injunction)
+   
+   iv) **Bond:** Federal courts may require security bond (Fed. R. Civ. P. 65(c)); tribal courts may waive given sovereignty context
 
 **13. DISCLAIMER OF WARRANTIES**
     THE WORK IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE WORK IS WITH YOU. SHOULD THE WORK PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR, OR CORRECTION. THIS DISCLAIMER OF WARRANTY CONSTITUTES AN ESSENTIAL PART OF THIS LICENSE. NO USE OF ANY WORK IS AUTHORIZED HEREUNDER EXCEPT UNDER THIS DISCLAIMER. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW (INCLUDING TRIBAL LAW AND FEDERAL INDIAN LAW AS SPECIFIED IN SECTION 11), THE RIGHTS HOLDER PROVIDES THE WORK AS-IS AND WITH ALL FAULTS, AND HEREBY DISCLAIMS ALL OTHER WARRANTIES AND CONDITIONS, WHETHER EXPRESS, IMPLIED, OR STATUTORY.

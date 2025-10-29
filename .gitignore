@@ -8,6 +8,14 @@
 .gemini/
 .qwen/
 .claude/
+.continue/
+.clinerules/
+.windsurf/
+.aider*
+
+# LICENSE and CONTRIBUTING enforcement
+LICENSE
+CONTRIBUTING.md
 
 # Environment and configuration files
 .env
@@ -203,9 +211,3 @@ ainish-coder/
 *.msi
 *.dmg
 *.pkg
-
-# AINISH-Coder specific
-ainish-coder/
-KNOWLEDGE_BASE/
-AINISH-DATA/
-.aider*
