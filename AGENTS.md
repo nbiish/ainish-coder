@@ -8,16 +8,16 @@
 
 IF EXISTS:  
 
-- MAIRULES.md THEN [Apply to all requests]
+MAIRULES.md THEN: Apply to all requests
 
 ELSE IF EXISTS:
 
-- .mai-rules/MAIRULES.md THEN [Apply to all requests]
-  - .mai-rules/*.md THEN [user requested rules ONLY]
+.mai-rules/MAIRULES.md THEN: Apply to all requests
+.mai-rules/*.md THEN: user requested rules ONLY
 
 ELSE:
 
-- proceed with default agentic coding behavior
+proceed with default agentic coding behavior
 
 ---
 
