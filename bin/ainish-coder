@@ -1,0 +1,170 @@
+#!/bin/bash
+
+# ainish-coder - Command-line tool for deploying AI coding configurations
+# Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)
+
+set -eo pipefail
+
+# Get the root directory of ainish-coder
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIGURATIONS_DIR="${ROOT_DIR}/CONFIGURATIONS"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to get target subdirectory for a tool
+get_target_subdir() {
+    local tool="$1"
+    case "$tool" in
+        cursor) echo "commands" ;;
+        continue) echo "commands" ;;
+        windsurf) echo "workflows" ;;  # Windsurf uses .windsurf/workflows/ for slash commands
+        cline) echo "commands" ;;
+        roo) echo "commands" ;;
+        copilot) echo "commands" ;;
+        gemini) echo "commands" ;;
+        qwen) echo "commands" ;;
+        claude) echo "commands" ;;  # Claude Code uses .claude/commands/
+        *) echo "commands" ;; # default
+    esac
+}
+
+# Function to display usage
+usage() {
+    cat << EOF
+${BLUE}ainish-coder${NC} - AI Coding Configuration Deployment Tool
+
+${YELLOW}USAGE:${NC}
+    ainish-coder --commands {arg}
+
+${YELLOW}DESCRIPTION:${NC}
+    Deploys AI coding tool commands/configurations from CONFIGURATIONS/.{arg}/commands/
+    to the current working directory. Target location varies by tool.
+
+${YELLOW}ARGUMENTS:${NC}
+    {arg}    The name of the AI coding tool (e.g., cursor, continue, windsurf, roo, etc.)
+
+${YELLOW}EXAMPLES:${NC}
+    ainish-coder --commands cursor      # Deploys to .cursor/commands/
+    ainish-coder --commands continue    # Deploys to .continue/commands/
+    ainish-coder --commands windsurf    # Deploys to .windsurf/workflows/
+    ainish-coder --commands cline       # Deploys to .cline/commands/
+    ainish-coder --commands roo         # Deploys to .roo/commands/
+    ainish-coder --commands claude      # Deploys to .claude/commands/
+
+${YELLOW}TOOL-SPECIFIC TARGET DIRECTORIES:${NC}
+    claude       → .claude/commands/
+    cline        → .cline/commands/
+    continue     → .continue/commands/
+    copilot      → .copilot/commands/
+    cursor       → .cursor/commands/
+    gemini       → .gemini/commands/
+    qwen         → .qwen/commands/
+    roo          → .roo/commands/
+    windsurf     → .windsurf/workflows/
+
+${YELLOW}AVAILABLE CONFIGURATIONS:${NC}
+EOF
+    
+    # List available configurations
+    if [[ -d "$CONFIGURATIONS_DIR" ]]; then
+        for config_dir in "$CONFIGURATIONS_DIR"/.* "$CONFIGURATIONS_DIR"/*; do
+            if [[ -d "$config_dir" ]] && [[ ! "$(basename "$config_dir")" =~ ^\.\.?$ ]]; then
+                basename "$config_dir" | sed 's/^/    /'
+            fi
+        done
+    fi
+    
+    echo ""
+}
+
+# Function to deploy commands
+deploy_commands() {
+    local arg="$1"
+    
+    # Get the target subdirectory for this tool
+    local target_subdir="$(get_target_subdir "$arg")"
+    
+    local source_dir="${CONFIGURATIONS_DIR}/.${arg}/commands"
+    local target_dir="$(pwd)/.${arg}/${target_subdir}"
+    
+    # Check if source directory exists
+    if [[ ! -d "$source_dir" ]]; then
+        echo -e "${RED}Error:${NC} Configuration directory not found: ${source_dir}"
+        echo -e "${YELLOW}Available configurations:${NC}"
+        ls -1d "${CONFIGURATIONS_DIR}"/.[!.]* "${CONFIGURATIONS_DIR}"/* 2>/dev/null | xargs -n1 basename | grep -v "^\." | sed 's/^/    /'
+        exit 1
+    fi
+    
+    # Check if source directory has any files
+    if [[ -z "$(ls -A "$source_dir" 2>/dev/null)" ]]; then
+        echo -e "${YELLOW}Warning:${NC} Source directory is empty: ${source_dir}"
+        echo -e "${YELLOW}Info:${NC} No commands to deploy."
+        exit 0
+    fi
+    
+    # Create target directory if it doesn't exist
+    mkdir -p "$target_dir"
+    
+    echo -e "${BLUE}Deploying commands for:${NC} ${arg}"
+    echo -e "${BLUE}Source:${NC} ${source_dir}"
+    echo -e "${BLUE}Target:${NC} ${target_dir}"
+    echo ""
+    
+    # Copy files
+    local file_count=0
+    for file in "$source_dir"/*; do
+        if [[ -f "$file" ]]; then
+            local filename="$(basename "$file")"
+            cp "$file" "$target_dir/$filename"
+            echo -e "${GREEN}✓${NC} Deployed: ${filename}"
+            ((file_count++))
+        fi
+    done
+    
+    if [[ $file_count -eq 0 ]]; then
+        echo -e "${YELLOW}Warning:${NC} No files found to deploy."
+    else
+        echo ""
+        echo -e "${GREEN}Success:${NC} Deployed ${file_count} file(s) to ${target_dir}"
+    fi
+}
+
+# Main script logic
+main() {
+    # Check if no arguments provided
+    if [[ $# -eq 0 ]]; then
+        usage
+        exit 0
+    fi
+    
+    # Parse arguments
+    case "$1" in
+        --commands)
+            if [[ $# -lt 2 ]]; then
+                echo -e "${RED}Error:${NC} --commands requires an argument"
+                echo ""
+                usage
+                exit 1
+            fi
+            deploy_commands "$2"
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Error:${NC} Unknown option: $1"
+            echo ""
+            usage
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
+

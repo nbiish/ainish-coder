@@ -235,39 +235,4 @@ Plan execution steps
 
 ---
 
-## 📜 License & Attribution
-
-### Always Include
-
-**Copyright Notice:**
-
-```markdown
-Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)
-Also known legally as JUSTIN PAUL KENWABIKISE
-Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder)
-Descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band
-Enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians
-```
-
-**Citation Format:**
-
-```bibtex
-@misc{repo_title2025,
-  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)},
-  title/description = {[Project Title]},
-  type_of_work = {Indigenous digital creation/software incorporating traditional knowledge},
-  year = {2025},
-  publisher/source/event = {GitHub repository under tribal sovereignty protections},
-  howpublished = {\url{https://github.com/nbiish/[repo_name]}},
-  note = {Protected under tribal sovereignty and Indigenous intellectual property rights.}
-}
-```
-
----
-
 **Remember:** These rules are designed to ensure consistency, security, and quality across all AI-assisted coding work. Adapt as needed for specific projects while maintaining core principles.
-
----
-
-**Maintained By:** ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)  
-**License:** https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/working-LICENSE

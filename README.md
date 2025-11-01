@@ -64,6 +64,10 @@ ainish-coder --cursor /path/to/project    # Cursor AI
 ainish-coder --copilot /path/to/project   # GitHub Copilot
 ainish-coder --cline /path/to/project     # Cline
 ainish-coder --windsurf /path/to/project  # Windsurf
+
+# Step 3: Deploy custom commands (NEW!)
+ainish-coder --commands cursor           # Deploy slash commands to .cursor/commands/
+ainish-coder --commands windsurf         # Deploy workflows to .windsurf/workflows/
 ```
 
 ## 🎯 What's New: AGENTS.md Single Source of Truth
@@ -115,6 +119,12 @@ ainish-coder --roocode /path/to/project   # Creates .roo/AGENTS.md → ../AGENTS
 ainish-coder --mairules /path/to/project  # Creates .mai-rules/MAIRULES.md
 ainish-coder --critical /path/to/project  # Creates critical.md → TIER_0/critical.md
 ainish-coder --gitignore /path/to/project # Creates comprehensive .gitignore
+
+# Step 3: Deploy custom commands (NEW!)
+ainish-coder --commands cursor           # Deploy slash commands to .cursor/commands/
+ainish-coder --commands windsurf         # Deploy workflows to .windsurf/workflows/
+ainish-coder --commands roo              # Deploy slash commands to .roo/commands/
+ainish-coder --commands claude           # Deploy Claude Code commands to .claude/commands/
 ```
 
 **Result:** All tools now use a single `AGENTS.md` file! Changes to AGENTS.md automatically propagate to all tools.
@@ -132,6 +142,54 @@ ainish-coder --install-global-mai       # Install MAI RULES to ~/.mai-rules/
 ainish-coder --install-global-qwen      # Install Qwen rules to ~/.qwen/
 ainish-coder --install-global-gemini    # Install Gemini rules to ~/.gemini/
 ainish-coder --install-global-continue  # Install Continue reference to ~/.continue/
+```
+
+### Custom Commands Deployment
+
+Deploy tool-specific custom commands to your current project:
+
+```bash
+# Deploy commands for specific AI tools
+ainish-coder --commands cursor      # Deploys to .cursor/commands/
+ainish-coder --commands continue    # Deploys to .continue/commands/
+ainish-coder --commands windsurf    # Deploys to .windsurf/workflows/
+ainish-coder --commands cline       # Deploys to .cline/commands/
+ainish-coder --commands roo         # Deploys to .roo/commands/
+ainish-coder --commands claude      # Deploys to .claude/commands/
+```
+
+**What it does:**
+- Copies all files from `CONFIGURATIONS/.{arg}/commands/` to tool-specific target directories
+- Target directory varies by tool (see table below)
+- Preserves existing files (doesn't overwrite by default)
+- Creates the target directory structure if it doesn't exist
+- Provides clear feedback on what was deployed
+
+**Tool-Specific Target Directories:**
+
+| Tool | Source | Target Directory | Notes |
+|------|--------|-----------------|-------|
+| cursor | `.cursor/commands/` | `.cursor/commands/` | Slash commands |
+| continue | `.continue/commands/` | `.continue/commands/` | Custom commands |
+| windsurf | `.windsurf/commands/` | `.windsurf/workflows/` | Workflow files (slash commands) |
+| cline | `.cline/commands/` | `.cline/commands/` | Slash commands |
+| roo | `.roo/commands/` | `.roo/commands/` | Slash commands |
+| claude | `.claude/commands/` | `.claude/commands/` | Claude Code slash commands |
+| copilot | `.copilot/commands/` | `.copilot/commands/` | Custom commands |
+| gemini | `.gemini/commands/` | `.gemini/commands/` | Custom commands |
+| qwen | `.qwen/commands/` | `.qwen/commands/` | Custom commands |
+
+**Example:**
+```bash
+cd /path/to/your/project
+ainish-coder --commands cursor
+# Result: Creates .cursor/commands/ with all slash command files
+
+ainish-coder --commands windsurf
+# Result: Creates .windsurf/workflows/ with all workflow files
+
+ainish-coder --commands claude
+# Result: Creates .claude/commands/ with all Claude Code slash commands
 ```
 
 ### Configuration Hierarchy
