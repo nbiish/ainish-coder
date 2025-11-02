@@ -8,6 +8,7 @@ set -eo pipefail
 # Get the root directory of ainish-coder
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATIONS_DIR="${ROOT_DIR}/CONFIGURATIONS"
+TIER_RULES_DIR="${ROOT_DIR}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -40,21 +41,31 @@ ${BLUE}ainish-coder${NC} - AI Coding Configuration Deployment Tool
 
 ${YELLOW}USAGE:${NC}
     ainish-coder --commands {arg}
+    ainish-coder --tier {arg}
+    ainish-coder --rules
 
 ${YELLOW}DESCRIPTION:${NC}
-    Deploys AI coding tool commands/configurations from CONFIGURATIONS/.{arg}/commands/
-    to the current working directory. Target location varies by tool.
+    Deploys AI coding tool commands/configurations or tier-specific rules
+    to the current working directory.
 
-${YELLOW}ARGUMENTS:${NC}
-    {arg}    The name of the AI coding tool (e.g., cursor, continue, windsurf, roo, etc.)
+${YELLOW}OPTIONS:${NC}
+    --commands {arg}    Deploy AI tool commands from CONFIGURATIONS/.{arg}/commands/
+                        Target location varies by tool (see below)
+    
+    --tier {arg}        Deploy tier rules from TIER_{arg}_RULES/ to .mai-rules/
+                        Example: --tier 1 deploys TIER_1_RULES/* to .mai-rules/
+    
+    --rules             Deploy AGENTS.md and MAIRULES.md to current directory
+                        Core rules files for AI coding assistants
 
 ${YELLOW}EXAMPLES:${NC}
     ainish-coder --commands cursor      # Deploys to .cursor/commands/
     ainish-coder --commands continue    # Deploys to .continue/commands/
     ainish-coder --commands windsurf    # Deploys to .windsurf/workflows/
-    ainish-coder --commands cline       # Deploys to .cline/commands/
-    ainish-coder --commands roo         # Deploys to .roo/commands/
-    ainish-coder --commands claude      # Deploys to .claude/commands/
+    ainish-coder --tier 0               # Deploys TIER_0_RULES to .mai-rules/
+    ainish-coder --tier 1               # Deploys TIER_1_RULES to .mai-rules/
+    ainish-coder --tier 3               # Deploys TIER_3_RULES to .mai-rules/
+    ainish-coder --rules                # Deploys AGENTS.md and MAIRULES.md
 
 ${YELLOW}TOOL-SPECIFIC TARGET DIRECTORIES:${NC}
     claude       → .claude/commands/
@@ -134,6 +145,92 @@ deploy_commands() {
     fi
 }
 
+# Function to deploy tier rules
+deploy_tier() {
+    local tier_num="$1"
+    
+    local source_dir="${TIER_RULES_DIR}/TIER_${tier_num}_RULES"
+    local target_dir="$(pwd)/.mai-rules"
+    
+    # Check if source directory exists
+    if [[ ! -d "$source_dir" ]]; then
+        echo -e "${RED}Error:${NC} Tier directory not found: ${source_dir}"
+        echo -e "${YELLOW}Available tiers:${NC}"
+        for tier_dir in "${TIER_RULES_DIR}"/TIER_*_RULES; do
+            if [[ -d "$tier_dir" ]]; then
+                basename "$tier_dir" | sed 's/TIER_\(.*\)_RULES/    \1/'
+            fi
+        done
+        exit 1
+    fi
+    
+    # Check if source directory has any markdown files
+    if [[ -z "$(ls -A "$source_dir"/*.md 2>/dev/null)" ]]; then
+        echo -e "${YELLOW}Warning:${NC} No markdown files found in: ${source_dir}"
+        echo -e "${YELLOW}Info:${NC} No rules to deploy."
+        exit 0
+    fi
+    
+    # Create target directory if it doesn't exist
+    mkdir -p "$target_dir"
+    
+    echo -e "${BLUE}Deploying Tier ${tier_num} rules:${NC}"
+    echo -e "${BLUE}Source:${NC} ${source_dir}"
+    echo -e "${BLUE}Target:${NC} ${target_dir}"
+    echo ""
+    
+    # Copy markdown files
+    local file_count=0
+    for file in "$source_dir"/*.md; do
+        if [[ -f "$file" ]]; then
+            local filename="$(basename "$file")"
+            cp "$file" "$target_dir/$filename"
+            echo -e "${GREEN}✓${NC} Deployed: ${filename}"
+            ((file_count++))
+        fi
+    done
+    
+    if [[ $file_count -eq 0 ]]; then
+        echo -e "${YELLOW}Warning:${NC} No markdown files found to deploy."
+    else
+        echo ""
+        echo -e "${GREEN}Success:${NC} Deployed ${file_count} rule file(s) to ${target_dir}"
+    fi
+}
+
+# Function to deploy core rules files
+deploy_rules() {
+    local source_agents="${ROOT_DIR}/AGENTS.md"
+    local source_mairules="${ROOT_DIR}/MAIRULES.md"
+    local target_dir="$(pwd)"
+    
+    # Check if source files exist
+    local missing_files=()
+    [[ ! -f "$source_agents" ]] && missing_files+=("AGENTS.md")
+    [[ ! -f "$source_mairules" ]] && missing_files+=("MAIRULES.md")
+    
+    if [[ ${#missing_files[@]} -gt 0 ]]; then
+        echo -e "${RED}Error:${NC} Missing source files: ${missing_files[*]}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Deploying core rules files:${NC}"
+    echo -e "${BLUE}Source:${NC} ${ROOT_DIR}"
+    echo -e "${BLUE}Target:${NC} ${target_dir}"
+    echo ""
+    
+    # Copy AGENTS.md
+    cp "$source_agents" "$target_dir/AGENTS.md"
+    echo -e "${GREEN}✓${NC} Deployed: AGENTS.md"
+    
+    # Copy MAIRULES.md
+    cp "$source_mairules" "$target_dir/MAIRULES.md"
+    echo -e "${GREEN}✓${NC} Deployed: MAIRULES.md"
+    
+    echo ""
+    echo -e "${GREEN}Success:${NC} Deployed 2 core rules files to ${target_dir}"
+}
+
 # Main script logic
 main() {
     # Check if no arguments provided
@@ -152,6 +249,25 @@ main() {
                 exit 1
             fi
             deploy_commands "$2"
+            ;;
+        --tier)
+            if [[ $# -lt 2 ]]; then
+                echo -e "${RED}Error:${NC} --tier requires an argument (tier number)"
+                echo ""
+                usage
+                exit 1
+            fi
+            # Validate that the argument is a number
+            if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                echo -e "${RED}Error:${NC} Tier argument must be a number (e.g., 0, 1, 2, 3, 4)"
+                echo ""
+                usage
+                exit 1
+            fi
+            deploy_tier "$2"
+            ;;
+        --rules)
+            deploy_rules
             ;;
         --help|-h)
             usage
