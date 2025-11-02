@@ -36,50 +36,53 @@ get_target_subdir() {
 
 # Function to display usage
 usage() {
-    cat << EOF
-${BLUE}ainish-coder${NC} - AI Coding Configuration Deployment Tool
-
-${YELLOW}USAGE:${NC}
-    ainish-coder --commands {arg}
-    ainish-coder --tier {arg}
-    ainish-coder --rules
-
-${YELLOW}DESCRIPTION:${NC}
-    Deploys AI coding tool commands/configurations or tier-specific rules
-    to the current working directory.
-
-${YELLOW}OPTIONS:${NC}
-    --commands {arg}    Deploy AI tool commands from CONFIGURATIONS/.{arg}/commands/
-                        Target location varies by tool (see below)
-    
-    --tier {arg}        Deploy tier rules from TIER_{arg}_RULES/ to .mai-rules/
-                        Example: --tier 1 deploys TIER_1_RULES/* to .mai-rules/
-    
-    --rules             Deploy AGENTS.md and MAIRULES.md to current directory
-                        Core rules files for AI coding assistants
-
-${YELLOW}EXAMPLES:${NC}
-    ainish-coder --commands cursor      # Deploys to .cursor/commands/
-    ainish-coder --commands continue    # Deploys to .continue/commands/
-    ainish-coder --commands windsurf    # Deploys to .windsurf/workflows/
-    ainish-coder --tier 0               # Deploys TIER_0_RULES to .mai-rules/
-    ainish-coder --tier 1               # Deploys TIER_1_RULES to .mai-rules/
-    ainish-coder --tier 3               # Deploys TIER_3_RULES to .mai-rules/
-    ainish-coder --rules                # Deploys AGENTS.md and MAIRULES.md
-
-${YELLOW}TOOL-SPECIFIC TARGET DIRECTORIES:${NC}
-    claude       → .claude/commands/
-    cline        → .cline/commands/
-    continue     → .continue/commands/
-    copilot      → .copilot/commands/
-    cursor       → .cursor/commands/
-    gemini       → .gemini/commands/
-    qwen         → .qwen/commands/
-    roo          → .roo/commands/
-    windsurf     → .windsurf/workflows/
-
-${YELLOW}AVAILABLE CONFIGURATIONS:${NC}
-EOF
+    echo -e "${BLUE}ainish-coder${NC} - AI Coding Configuration Deployment Tool"
+    echo ""
+    echo -e "${YELLOW}USAGE:${NC}"
+    echo "    ainish-coder --commands {arg}"
+    echo "    ainish-coder --tier {arg}"
+    echo "    ainish-coder --rules"
+    echo ""
+    echo -e "${YELLOW}DESCRIPTION:${NC}"
+    echo "    Deploys AI coding tool commands/configurations or tier-specific rules"
+    echo "    to the current working directory."
+    echo ""
+    echo -e "${YELLOW}OPTIONS:${NC}"
+    echo "    --commands {arg}    Deploy AI tool commands from CONFIGURATIONS/.{arg}/commands/"
+    echo "                        Target location varies by tool (see below)"
+    echo ""
+    echo "    --tier {arg}        Deploy tier rules from TIER_{arg}_RULES/ to .mai-rules/"
+    echo "                        Example: --tier 1 deploys TIER_1_RULES/* to .mai-rules/"
+    echo ""
+    echo "    --rules             Deploy AGENTS.md and MAIRULES.md to current directory"
+    echo "                        Core rules files for AI coding assistants"
+    echo ""
+    echo "    --goose             Setup Goose CLI tool context with .goosehints file"
+    echo "                        Copies AGENTS.md and sets CONTEXT_FILE_NAMES env var"
+    echo ""
+    echo -e "${YELLOW}EXAMPLES:${NC}"
+    echo "    ainish-coder --commands cursor      # Deploys to .cursor/commands/"
+    echo "    ainish-coder --commands continue    # Deploys to .continue/commands/"
+    echo "    ainish-coder --commands windsurf    # Deploys to .windsurf/workflows/"
+    echo "    ainish-coder --tier 0               # Deploys TIER_0_RULES to .mai-rules/"
+    echo "    ainish-coder --tier 1               # Deploys TIER_1_RULES to .mai-rules/"
+    echo "    ainish-coder --tier 3               # Deploys TIER_3_RULES to .mai-rules/"
+    echo "    ainish-coder --rules                # Deploys AGENTS.md and MAIRULES.md"
+    echo "    ainish-coder --goose                # Setup for Goose CLI"
+    echo ""
+    echo -e "${YELLOW}TOOL-SPECIFIC TARGET DIRECTORIES:${NC}"
+    echo "    claude       → .claude/commands/"
+    echo "    cline        → .cline/commands/"
+    echo "    continue     → .continue/commands/"
+    echo "    copilot      → .copilot/commands/"
+    echo "    cursor       → .cursor/commands/"
+    echo "    gemini       → .gemini/commands/"
+    echo "    qwen         → .qwen/commands/"
+    echo "    roo          → .roo/commands/"
+    echo "    goose        → Current directory (.goosehints)"
+    echo "    windsurf     → .windsurf/workflows/"
+    echo ""
+    echo -e "${YELLOW}AVAILABLE CONFIGURATIONS:${NC}"
     
     # List available configurations
     if [[ -d "$CONFIGURATIONS_DIR" ]]; then
@@ -231,6 +234,58 @@ deploy_rules() {
     echo -e "${GREEN}Success:${NC} Deployed 2 core rules files to ${target_dir}"
 }
 
+# Function to setup Goose CLI tool
+deploy_goose() {
+    local source_agents="${ROOT_DIR}/AGENTS.md"
+    local target_dir="$(pwd)"
+    local goosehints_file="${target_dir}/.goosehints"
+    
+    # Check if AGENTS.md exists
+    if [[ ! -f "$source_agents" ]]; then
+        echo -e "${RED}Error:${NC} Missing source file: AGENTS.md"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Setting up Goose CLI tool:${NC}"
+    echo -e "${BLUE}Source:${NC} ${ROOT_DIR}"
+    echo -e "${BLUE}Target:${NC} ${target_dir}"
+    echo ""
+    
+    # Copy AGENTS.md to current directory
+    cp "$source_agents" "$target_dir/AGENTS.md"
+    echo -e "${GREEN}✓${NC} Deployed: AGENTS.md"
+    
+    # Create .goosehints file
+    cat > "$goosehints_file" << 'EOF'
+# Goose Hints Configuration
+# This file provides context to the Goose CLI tool
+
+# Core Rules and Guidelines
+See AGENTS.md for complete coding rules and principles.
+See MAIRULES.md for project-specific MAI rules.
+
+# Context Files
+The following files provide essential context:
+- AGENTS.md: Core AI coding principles and security guidelines
+- MAIRULES.md: Project-level rules and standards
+- .goosehints: This file (Goose-specific configuration)
+EOF
+    
+    echo -e "${GREEN}✓${NC} Created: .goosehints"
+    
+    # Set up the environment variable export command
+    local env_export='export CONTEXT_FILE_NAMES='"'"'["AGENTS.md", "MAIRULES.md", ".goosehints"]'"'"''
+    
+    echo ""
+    echo -e "${GREEN}Success:${NC} Goose setup complete!"
+    echo ""
+    echo -e "${YELLOW}Important:${NC} Run the following command to set context files:"
+    echo -e "${BLUE}${env_export}${NC}"
+    echo ""
+    echo -e "${YELLOW}Tip:${NC} Add this to your shell profile (~/.zshrc or ~/.bashrc) to make it permanent:"
+    echo -e "${BLUE}echo '${env_export}' >> ~/.zshrc${NC}"
+}
+
 # Main script logic
 main() {
     # Check if no arguments provided
@@ -268,6 +323,9 @@ main() {
             ;;
         --rules)
             deploy_rules
+            ;;
+        --goose)
+            deploy_goose
             ;;
         --help|-h)
             usage

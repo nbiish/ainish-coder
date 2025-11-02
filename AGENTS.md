@@ -1,38 +1,57 @@
-# MAIRULES - Universal AI Coding Assistant Rules  
+# AGENTS.md: RULES LOCATION HIERARCHY
 
----
-
-## 📋 Overview
-
-**Rules Location Hierarchy:**  
+## RULES LOCATION HIERARCHY
 
 IF EXISTS:  
 
-MAIRULES.md THEN: Apply to all requests
-
-ELSE IF EXISTS:
-
-.mai-rules/MAIRULES.md THEN: Apply to all requests
-.mai-rules/*.md THEN: user requested rules ONLY
+- MAIRULES.md → {Apply to all requests} (highest priority)
+- .mai-rules/MAIRULES.md → {Apply to all requests} (second highest priority)
+- .mai-rules/*.md → {Apply to all requests} (third highest priority)
 
 ELSE:
 
-proceed with default agentic coding behavior
+- {Proceed with default agentic coding behavior}
 
----
+## CODE STRUCTURE & ARCHITECTURE: ../{root-of-repository}/population/[Atoms -> Molecules -> Organisms]
 
-## 🎯 Core Principles
+**Atoms:**
 
-### 1. Fact-Based Decision Making
+- **Core Components**: foundational UI pieces such as BaseButton, InputField, TextDisplay, Icon, Label, Checkbox, RadioButton
+- **Data Types**: primitive carriers including StringAtom, NumberAtom, BooleanAtom, DateAtom, FileAtom
+- **State Management**: single-unit state tools like AtomState, AtomEffect, AtomSelector, AtomFamily
+- **Utility Functions**: shared helpers covering Formatter, Validator, Parser, Logger, ErrorHandler
+
+**Molecules:**
+
+- **Form Components**: composite input clusters—FormGroup, InputWithLabel, ButtonGroup, SearchBar, FilterPanel
+- **Data Display**: presentation blocks including DataTable, Card, ListItem, ChartContainer, Modal
+- **Navigation**: wayfinding elements such as NavBar, Sidebar, Breadcrumb, Pagination, TabGroup
+- **State Molecules**: scoped state bundles like FormState, TableState, AuthState, ConfigState, CacheState
+
+**Organisms:** higher-order flows spanning main entry, setup, install, test, deploy, and beyond
+
+- **Application Entry**: orchestration layers MainApp, AppRouter, AppProvider, ErrorBoundary
+- **Setup & Configuration**: environment bootstrap pieces—EnvConfig, DependencyInjector, ServiceRegistry
+- **Build & Deployment**: delivery tooling such as BuildScript, Dockerfile, CI/CD Pipeline, DeploymentConfig
+- **Testing & Quality**: assurance assets including TestRunner, CoverageReport, LintConfig, AuditScript
+
+## KNOWLEDGE_BASE/* Structure
+
+- KNOWLEDGE_BASE/PRD.md
+- KNOWLEDGE_BASE/TODO.md
+- KNOWLEDGE_BASE/DOCS/*
+
+## Fact-Based Decision Making
 
 **All code decisions must be supported by verified facts.**
 
 - Gather verified facts from documentation
 - Base decisions on evidence, not assumptions
-- Maintain KNOWLEDGE_BASE/* for reference
+- Create and maintain KNOWLEDGE_BASE/*
+- KNOWLEDGE_BASE/DOCS/* for known verified facts which are timestamped and sourced from the internet or mcp tools
 - No valid conclusion without supporting facts
 
-### 2. Critical Thinking Framework
+## Critical Thinking Framework
 
 **Code Judge Constitution:**
 
@@ -51,7 +70,18 @@ proceed with default agentic coding behavior
 - ✓ Alternative causes → Consider other explanations
 - ✓ Fact requirement → Support with evidence
 
-### 3. Modern Prompting & Context Engineering
+## Modern Prompting & Context Engineering
+
+**REASONING STRATEGIES:**
+
+Strategy Name | Description
+|---|---|
+| Chain-of-Draft (CoD) | ≤5 words draft mimicking human note processing |
+| Chain-of-Thought (CoT) | Break down complex problems |
+| Tree-of-Thought (ToT) | Explore multiple reasoning paths |
+| Chain-of-Context (CoC) | Leverage context engineering techniques |
+| Self-Consistency | Cross-verify conclusions |
+| Reflection | Review and improve responses |
 
 **OOReDAct Framework:** Deep deliberation before action
 
@@ -77,18 +107,7 @@ Plan execution steps
 </act-plan>
 ```
 
-**Reasoning Strategies:**
-
-- Chain-of-Thought (CoT) - Break down complex problems
-- Tree-of-Thought (ToT) - Explore multiple reasoning paths
-- Chain-of-Context (CoC) - Leverage context engineering techniques
-- Self-Consistency - Cross-verify conclusions
-- Reflection - Review and improve responses
-- Chain-of-Draft (CoD) - ≤5 words draft mimicking human note processing
-
----
-
-## 🔒 Security & Safety
+## SECURITY & SAFETY
 
 ### Code Security
 
@@ -124,31 +143,7 @@ Plan execution steps
 - Monitor for suspicious patterns
 - Maintain context boundaries
 
----
-
-## 📐 Code Structure & Architecture
-
-### Component Structure (Atom → Molecule → Physical-Entity)
-
-**Atoms:** functions | variables | constants | packages
-
-- [[...]]
-
-**Molecules:** classes | modules
-
-- [[...]]
-
-**Physical-Entity:** main entry point | setup | install | etc
-
-- [[...]]
-
-### KNOWLEDGE_BASE/* Documentation Structure
-
-- KNOWLEDGE_BASE/PRD.md
-- KNOWLEDGE_BASE/TODO.md
-- KNOWLEDGE_BASE/DOCS/*
-
-### Code Quality Standards
+## Code Quality Standards
 
 **Must follow:**
 
@@ -158,10 +153,10 @@ Plan execution steps
 - Proper error handling
 - Comprehensive logging
 - Clear naming conventions
-- Documented complex logic
+- Commented logic flow summary for complex code
 - Type safety where applicable
 
-### Documentation Requirements
+## Documentation Requirements
 
 **Every module/function should have:**
 
@@ -171,8 +166,6 @@ Plan execution steps
 - Example usage
 - Edge cases
 - Error conditions
-
----
 
 ## 🐍 Python Package Management
 
@@ -191,11 +184,7 @@ Plan execution steps
 - ```uv tool install some-package``` → Installs packages as isolated tools (not in the current directory's ```.venv```)
 ```
 
----
-
-## 📚 Documentation Usage
-
-### When to Use Documentation
+## Documentation Usage
 
 **Always search documentation for:**
 
@@ -206,7 +195,7 @@ Plan execution steps
 - Best practices
 - Breaking changes
 
-### Preferred Documentation Sources
+**Preferred Documentation Sources:**
 
 1. **Official documentation** (highest priority)
 2. **GitHub repositories** (source of truth)
@@ -214,9 +203,7 @@ Plan execution steps
 4. **Technical blogs** (implementation guides)
 5. **API references** (detailed specifications)
 
----
-
-## ⏰ Date & Time Verification
+## Date & Time Verification
 
 **Always verify current date/time context when:**
 
@@ -232,7 +219,5 @@ Plan execution steps
 - AI models have training data cutoffs
 - Without current time data, responses may contain outdated information
 - Always establish current date/time before providing time-sensitive answers
-
----
 
 **Remember:** These rules are designed to ensure consistency, security, and quality across all AI-assisted coding work. Adapt as needed for specific projects while maintaining core principles.

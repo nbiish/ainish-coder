@@ -64,6 +64,12 @@ ainish-coder --commands windsurf         # Deploy workflows to .windsurf/workflo
 ainish-coder --tier 0                    # Deploy TIER_0_RULES to .mai-rules/
 ainish-coder --tier 1                    # Deploy TIER_1_RULES to .mai-rules/
 ainish-coder --tier 3                    # Deploy TIER_3_RULES to .mai-rules/
+
+# Deploy core rules files
+ainish-coder --rules                     # Deploy AGENTS.md and MAIRULES.md
+
+# Setup Goose CLI tool
+ainish-coder --goose                     # Setup Goose with context files
 ```
 
 ## 🎯 What's New
@@ -96,6 +102,7 @@ Deploy tool-specific slash commands and workflows directly from the `CONFIGURATI
 | **Cline** | `--commands cline` | ✅ Commands in `.cline/commands/` |
 | **Roo Code** | `--commands roo` | ✅ Commands in `.roo/commands/` |
 | **Claude Code** | `--commands claude` | ✅ Commands in `.claude/commands/` |
+| **Goose CLI** | `--goose` | ✅ Context files with `.goosehints` |
 | **GitHub Copilot** | `--commands copilot` | 📦 Commands structure ready |
 | **Gemini** | `--commands gemini` | 📦 Commands structure ready |
 | **Qwen AI** | `--commands qwen` | 📦 Commands structure ready |
@@ -121,6 +128,7 @@ ainish-coder --commands windsurf         # Windsurf workflows
 ainish-coder --commands roo              # Roo Code commands
 ainish-coder --commands claude           # Claude Code commands
 ainish-coder --commands cline            # Cline commands
+ainish-coder --goose                     # Goose CLI (if using)
 ```
 
 ### What Gets Deployed
@@ -136,6 +144,12 @@ ainish-coder --commands cline            # Cline commands
 - Deploys tool-specific commands/workflows from `CONFIGURATIONS/.{tool}/commands/`
 - Creates appropriate directory structure (varies by tool)
 - Preserves any existing commands in the target directory
+
+**Goose CLI Setup** (`--goose`):
+
+- Copies `AGENTS.md` to current directory
+- Creates `.goosehints` context file
+- Provides instructions for setting `CONTEXT_FILE_NAMES` environment variable
 
 ### Available Tier Rules
 
@@ -157,9 +171,15 @@ ainish-coder --commands cline            # Cline commands
 | **cline** | `CONFIGURATIONS/.cline/commands/` | `.cline/commands/` | Slash commands |
 | **roo** | `CONFIGURATIONS/.roo/commands/` | `.roo/commands/` | Slash commands |
 | **claude** | `CONFIGURATIONS/.claude/commands/` | `.claude/commands/` | Claude Code slash commands |
+| **goose** | N/A - uses `--goose` flag | Current directory | Creates `.goosehints` and copies `AGENTS.md` |
 | **copilot** | `CONFIGURATIONS/.copilot/commands/` | `.copilot/commands/` | Custom commands |
 | **gemini** | `CONFIGURATIONS/.gemini/commands/` | `.gemini/commands/` | Custom commands |
 | **qwen** | `CONFIGURATIONS/.qwen/commands/` | `.qwen/commands/` | Custom commands |
+
+**Note:** Goose CLI setup uses `ainish-coder --goose` to deploy context files. After running, set the environment variable:
+```bash
+export CONTEXT_FILE_NAMES='["AGENTS.md", "MAIRULES.md", ".goosehints"]'
+```
 
 ### Configuration Hierarchy
 
