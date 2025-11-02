@@ -1,10 +1,11 @@
 #!/bin/bash
 # MOLECULE: GitHub Copilot deployment
-# Symlinks .github/copilot-instructions.md to AGENTS.md
+# Deploys copilot-instructions.md and command prompts
 # Requires AGENTS.md to exist first
 
 deploy_copilot() {
     local target_dir="${1:-.}"  # Default to current directory if not provided
+    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
     
     validate_target_dir "$target_dir" || return 1
     require_agents_md "$target_dir" || return 1
@@ -14,22 +15,27 @@ deploy_copilot() {
     local github_dir="$target_dir/.github"
     safe_mkdir "$github_dir" || return 1
     
+    # Deploy copilot-instructions.md
     local copilot_instructions="$github_dir/copilot-instructions.md"
+    local source_instructions="$source_dir/.github/copilot-instructions.md"
     
-    # Remove existing
-    if [[ -L "$copilot_instructions" ]]; then
-        rm "$copilot_instructions"
-    elif [[ -f "$copilot_instructions" ]]; then
-        mv "$copilot_instructions" "$copilot_instructions.backup"
-        echo -e "${YELLOW}Backed up existing copilot-instructions.md${RESET}"
+    if [[ -f "$source_instructions" ]]; then
+        cp "$source_instructions" "$copilot_instructions"
+        echo -e "${GREEN}✓ Deployed: copilot-instructions.md${RESET}"
+    else
+        echo -e "${YELLOW}⚠ Warning: copilot-instructions.md not found in source${RESET}"
     fi
     
-    # Create symlink
-    if ln -s "../AGENTS.md" "$copilot_instructions" 2>/dev/null; then
-        echo -e "${GREEN}✓ Symlinked: .github/copilot-instructions.md → AGENTS.md${RESET}"
-    else
-        echo -e "${BRIGHT_RED}Error: Failed to create symlink${RESET}"
-        return 1
+    # Deploy command prompts
+    local prompts_dir="$github_dir/prompts"
+    safe_mkdir "$prompts_dir" || return 1
+    
+    if [[ -d "$source_dir/.github/prompts" ]]; then
+        cp "$source_dir/.github/prompts"/*.prompt.md "$prompts_dir/" 2>/dev/null
+        local prompt_count=$(ls -1 "$prompts_dir"/*.prompt.md 2>/dev/null | wc -l)
+        if [[ $prompt_count -gt 0 ]]; then
+            echo -e "${GREEN}✓ Deployed: $prompt_count command prompt(s)${RESET}"
+        fi
     fi
     
     echo -e "${BRIGHT_GREEN}✅ GitHub Copilot configured${RESET}"

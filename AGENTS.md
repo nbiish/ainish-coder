@@ -12,28 +12,11 @@ ELSE:
 
 - {Proceed with default agentic coding behavior}
 
-## CODE STRUCTURE & ARCHITECTURE: ../{root-of-repository}/population/[Atoms -> Molecules -> Organisms]
+## Create and follow the **Atomic Design** pattern in `population/`
 
-**Atoms:**
-
-- **Core Components**: foundational UI pieces such as BaseButton, InputField, TextDisplay, Icon, Label, Checkbox, RadioButton
-- **Data Types**: primitive carriers including StringAtom, NumberAtom, BooleanAtom, DateAtom, FileAtom
-- **State Management**: single-unit state tools like AtomState, AtomEffect, AtomSelector, AtomFamily
-- **Utility Functions**: shared helpers covering Formatter, Validator, Parser, Logger, ErrorHandler
-
-**Molecules:**
-
-- **Form Components**: composite input clusters—FormGroup, InputWithLabel, ButtonGroup, SearchBar, FilterPanel
-- **Data Display**: presentation blocks including DataTable, Card, ListItem, ChartContainer, Modal
-- **Navigation**: wayfinding elements such as NavBar, Sidebar, Breadcrumb, Pagination, TabGroup
-- **State Molecules**: scoped state bundles like FormState, TableState, AuthState, ConfigState, CacheState
-
-**Organisms:** higher-order flows spanning main entry, setup, install, test, deploy, and beyond
-
-- **Application Entry**: orchestration layers MainApp, AppRouter, AppProvider, ErrorBoundary
-- **Setup & Configuration**: environment bootstrap pieces—EnvConfig, DependencyInjector, ServiceRegistry
-- **Build & Deployment**: delivery tooling such as BuildScript, Dockerfile, CI/CD Pipeline, DeploymentConfig
-- **Testing & Quality**: assurance assets including TestRunner, CoverageReport, LintConfig, AuditScript
+- **Atoms** (`population/atoms/`) - Core utilities, data types, state management
+- **Molecules** (`population/molecules/`) - Composite components, deployment scripts
+- **Organisms** (`population/organisms/`) - High-level flows and orchestration
 
 ## KNOWLEDGE_BASE/* Structure
 
@@ -76,10 +59,10 @@ ELSE:
 
 Strategy Name | Description
 |---|---|
-| Chain-of-Draft (CoD) | ≤5 words draft mimicking human note processing |
+| Chain-of-Draft (CoD) | ≤5 words draft mimicking human notes |
 | Chain-of-Thought (CoT) | Break down complex problems |
 | Tree-of-Thought (ToT) | Explore multiple reasoning paths |
-| Chain-of-Context (CoC) | Leverage context engineering techniques |
+| Chain-of-Context (CoC) | Perfect context = Perfect output |
 | Self-Consistency | Cross-verify conclusions |
 | Reflection | Review and improve responses |
 
