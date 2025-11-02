@@ -9,7 +9,7 @@ deploy_critical() {
     
     echo -e "${BRIGHT_BLUE}Deploying critical.md${RESET}"
     
-    local source="${REPO_DIR}/TIER_0/critical.md"
+    local source="${REPO_DIR}/TIER_0_RULES/docs-protocol.md"
     local dest="$target_dir/critical.md"
     
     if [[ ! -f "$source" ]]; then

@@ -1,6 +1,14 @@
 #!/bin/bash
 # Path utilities and constants
 
+# Repository root directory (ainish-coder installation)
+# This should be set by the main script that sources this file
+if [[ -z "${REPO_DIR:-}" ]]; then
+    # Try to detect it from the script location
+    REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+export REPO_DIR
+
 # Get the absolute path of the script directory
 get_script_dir() {
     echo "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

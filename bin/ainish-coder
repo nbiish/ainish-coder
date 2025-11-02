@@ -1,344 +1,165 @@
 #!/bin/bash
+# Main ainish-coder CLI tool
+# Comprehensive configuration manager for AI coding assistants
 
-# ainish-coder - Command-line tool for deploying AI coding configurations
-# Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)
+set -euo pipefail
 
-set -eo pipefail
+# Get script directory and load atoms
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POPULATION_DIR="${SCRIPT_DIR}/../population"
 
-# Get the root directory of ainish-coder
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIGURATIONS_DIR="${ROOT_DIR}/CONFIGURATIONS"
-TIER_RULES_DIR="${ROOT_DIR}"
+# Load atoms (core utilities)
+source "${POPULATION_DIR}/atoms/colors.sh"
+source "${POPULATION_DIR}/atoms/paths.sh"
+source "${POPULATION_DIR}/atoms/file_operations.sh"
+source "${POPULATION_DIR}/atoms/validation.sh"
+source "${POPULATION_DIR}/atoms/backup.sh"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Load molecules (deployment functions)
+source "${POPULATION_DIR}/molecules/help.sh"
+source "${POPULATION_DIR}/molecules/deploy_commands.sh"
+source "${POPULATION_DIR}/molecules/deploy_agents.sh"
+source "${POPULATION_DIR}/molecules/deploy_mairules.sh"
+source "${POPULATION_DIR}/molecules/deploy_tiers.sh"
+source "${POPULATION_DIR}/molecules/deploy_cursor.sh"
+source "${POPULATION_DIR}/molecules/deploy_windsurf.sh"
+source "${POPULATION_DIR}/molecules/deploy_cline.sh"
+source "${POPULATION_DIR}/molecules/deploy_copilot.sh"
+source "${POPULATION_DIR}/molecules/deploy_continue.sh"
+source "${POPULATION_DIR}/molecules/deploy_gemini.sh"
+source "${POPULATION_DIR}/molecules/deploy_qwen.sh"
+source "${POPULATION_DIR}/molecules/deploy_roocode.sh"
+source "${POPULATION_DIR}/molecules/deploy_critical.sh"
+source "${POPULATION_DIR}/molecules/deploy_gitignore.sh"
 
-# Function to get target subdirectory for a tool
-get_target_subdir() {
-    local tool="$1"
-    case "$tool" in
-        cursor) echo "commands" ;;
-        continue) echo "commands" ;;
-        windsurf) echo "workflows" ;;  # Windsurf uses .windsurf/workflows/ for slash commands
-        cline) echo "commands" ;;
-        roo) echo "commands" ;;
-        copilot) echo "commands" ;;
-        gemini) echo "commands" ;;
-        qwen) echo "commands" ;;
-        claude) echo "commands" ;;  # Claude Code uses .claude/commands/
-        *) echo "commands" ;; # default
-    esac
-}
-
-# Function to display usage
-usage() {
-    echo -e "${BLUE}ainish-coder${NC} - AI Coding Configuration Deployment Tool"
-    echo ""
-    echo -e "${YELLOW}USAGE:${NC}"
-    echo "    ainish-coder --commands {arg}"
-    echo "    ainish-coder --tier {arg}"
-    echo "    ainish-coder --rules"
-    echo ""
-    echo -e "${YELLOW}DESCRIPTION:${NC}"
-    echo "    Deploys AI coding tool commands/configurations or tier-specific rules"
-    echo "    to the current working directory."
-    echo ""
-    echo -e "${YELLOW}OPTIONS:${NC}"
-    echo "    --commands {arg}    Deploy AI tool commands from CONFIGURATIONS/.{arg}/commands/"
-    echo "                        Target location varies by tool (see below)"
-    echo ""
-    echo "    --tier {arg}        Deploy tier rules from TIER_{arg}_RULES/ to .mai-rules/"
-    echo "                        Example: --tier 1 deploys TIER_1_RULES/* to .mai-rules/"
-    echo ""
-    echo "    --rules             Deploy AGENTS.md and MAIRULES.md to current directory"
-    echo "                        Core rules files for AI coding assistants"
-    echo ""
-    echo "    --goose             Setup Goose CLI tool context with .goosehints file"
-    echo "                        Copies AGENTS.md and sets CONTEXT_FILE_NAMES env var"
-    echo ""
-    echo -e "${YELLOW}EXAMPLES:${NC}"
-    echo "    ainish-coder --commands cursor      # Deploys to .cursor/commands/"
-    echo "    ainish-coder --commands continue    # Deploys to .continue/commands/"
-    echo "    ainish-coder --commands windsurf    # Deploys to .windsurf/workflows/"
-    echo "    ainish-coder --tier 0               # Deploys TIER_0_RULES to .mai-rules/"
-    echo "    ainish-coder --tier 1               # Deploys TIER_1_RULES to .mai-rules/"
-    echo "    ainish-coder --tier 3               # Deploys TIER_3_RULES to .mai-rules/"
-    echo "    ainish-coder --rules                # Deploys AGENTS.md and MAIRULES.md"
-    echo "    ainish-coder --goose                # Setup for Goose CLI"
-    echo ""
-    echo -e "${YELLOW}TOOL-SPECIFIC TARGET DIRECTORIES:${NC}"
-    echo "    claude       → .claude/commands/"
-    echo "    cline        → .cline/commands/"
-    echo "    continue     → .continue/commands/"
-    echo "    copilot      → .copilot/commands/"
-    echo "    cursor       → .cursor/commands/"
-    echo "    gemini       → .gemini/commands/"
-    echo "    qwen         → .qwen/commands/"
-    echo "    roo          → .roo/commands/"
-    echo "    goose        → Current directory (.goosehints)"
-    echo "    windsurf     → .windsurf/workflows/"
-    echo ""
-    echo -e "${YELLOW}AVAILABLE CONFIGURATIONS:${NC}"
-    
-    # List available configurations
-    if [[ -d "$CONFIGURATIONS_DIR" ]]; then
-        for config_dir in "$CONFIGURATIONS_DIR"/.* "$CONFIGURATIONS_DIR"/*; do
-            if [[ -d "$config_dir" ]] && [[ ! "$(basename "$config_dir")" =~ ^\.\.?$ ]]; then
-                basename "$config_dir" | sed 's/^/    /'
-            fi
-        done
-    fi
-    
-    echo ""
-}
-
-# Function to deploy commands
-deploy_commands() {
-    local arg="$1"
-    
-    # Get the target subdirectory for this tool
-    local target_subdir="$(get_target_subdir "$arg")"
-    
-    local source_dir="${CONFIGURATIONS_DIR}/.${arg}/commands"
-    local target_dir="$(pwd)/.${arg}/${target_subdir}"
-    
-    # Check if source directory exists
-    if [[ ! -d "$source_dir" ]]; then
-        echo -e "${RED}Error:${NC} Configuration directory not found: ${source_dir}"
-        echo -e "${YELLOW}Available configurations:${NC}"
-        ls -1d "${CONFIGURATIONS_DIR}"/.[!.]* "${CONFIGURATIONS_DIR}"/* 2>/dev/null | xargs -n1 basename | grep -v "^\." | sed 's/^/    /'
-        exit 1
-    fi
-    
-    # Check if source directory has any files
-    if [[ -z "$(ls -A "$source_dir" 2>/dev/null)" ]]; then
-        echo -e "${YELLOW}Warning:${NC} Source directory is empty: ${source_dir}"
-        echo -e "${YELLOW}Info:${NC} No commands to deploy."
-        exit 0
-    fi
-    
-    # Create target directory if it doesn't exist
-    mkdir -p "$target_dir"
-    
-    echo -e "${BLUE}Deploying commands for:${NC} ${arg}"
-    echo -e "${BLUE}Source:${NC} ${source_dir}"
-    echo -e "${BLUE}Target:${NC} ${target_dir}"
-    echo ""
-    
-    # Copy files
-    local file_count=0
-    for file in "$source_dir"/*; do
-        if [[ -f "$file" ]]; then
-            local filename="$(basename "$file")"
-            cp "$file" "$target_dir/$filename"
-            echo -e "${GREEN}✓${NC} Deployed: ${filename}"
-            ((file_count++))
-        fi
-    done
-    
-    if [[ $file_count -eq 0 ]]; then
-        echo -e "${YELLOW}Warning:${NC} No files found to deploy."
-    else
-        echo ""
-        echo -e "${GREEN}Success:${NC} Deployed ${file_count} file(s) to ${target_dir}"
-    fi
-}
-
-# Function to deploy tier rules
-deploy_tier() {
-    local tier_num="$1"
-    
-    local source_dir="${TIER_RULES_DIR}/TIER_${tier_num}_RULES"
-    local target_dir="$(pwd)/.mai-rules"
-    
-    # Check if source directory exists
-    if [[ ! -d "$source_dir" ]]; then
-        echo -e "${RED}Error:${NC} Tier directory not found: ${source_dir}"
-        echo -e "${YELLOW}Available tiers:${NC}"
-        for tier_dir in "${TIER_RULES_DIR}"/TIER_*_RULES; do
-            if [[ -d "$tier_dir" ]]; then
-                basename "$tier_dir" | sed 's/TIER_\(.*\)_RULES/    \1/'
-            fi
-        done
-        exit 1
-    fi
-    
-    # Check if source directory has any markdown files
-    if [[ -z "$(ls -A "$source_dir"/*.md 2>/dev/null)" ]]; then
-        echo -e "${YELLOW}Warning:${NC} No markdown files found in: ${source_dir}"
-        echo -e "${YELLOW}Info:${NC} No rules to deploy."
-        exit 0
-    fi
-    
-    # Create target directory if it doesn't exist
-    mkdir -p "$target_dir"
-    
-    echo -e "${BLUE}Deploying Tier ${tier_num} rules:${NC}"
-    echo -e "${BLUE}Source:${NC} ${source_dir}"
-    echo -e "${BLUE}Target:${NC} ${target_dir}"
-    echo ""
-    
-    # Copy markdown files
-    local file_count=0
-    for file in "$source_dir"/*.md; do
-        if [[ -f "$file" ]]; then
-            local filename="$(basename "$file")"
-            cp "$file" "$target_dir/$filename"
-            echo -e "${GREEN}✓${NC} Deployed: ${filename}"
-            ((file_count++))
-        fi
-    done
-    
-    if [[ $file_count -eq 0 ]]; then
-        echo -e "${YELLOW}Warning:${NC} No markdown files found to deploy."
-    else
-        echo ""
-        echo -e "${GREEN}Success:${NC} Deployed ${file_count} rule file(s) to ${target_dir}"
-    fi
-}
-
-# Function to deploy core rules files
-deploy_rules() {
-    local source_agents="${ROOT_DIR}/AGENTS.md"
-    local source_mairules="${ROOT_DIR}/MAIRULES.md"
-    local target_dir="$(pwd)"
-    
-    # Check if source files exist
-    local missing_files=()
-    [[ ! -f "$source_agents" ]] && missing_files+=("AGENTS.md")
-    [[ ! -f "$source_mairules" ]] && missing_files+=("MAIRULES.md")
-    
-    if [[ ${#missing_files[@]} -gt 0 ]]; then
-        echo -e "${RED}Error:${NC} Missing source files: ${missing_files[*]}"
-        exit 1
-    fi
-    
-    echo -e "${BLUE}Deploying core rules files:${NC}"
-    echo -e "${BLUE}Source:${NC} ${ROOT_DIR}"
-    echo -e "${BLUE}Target:${NC} ${target_dir}"
-    echo ""
-    
-    # Copy AGENTS.md
-    cp "$source_agents" "$target_dir/AGENTS.md"
-    echo -e "${GREEN}✓${NC} Deployed: AGENTS.md"
-    
-    # Copy MAIRULES.md
-    cp "$source_mairules" "$target_dir/MAIRULES.md"
-    echo -e "${GREEN}✓${NC} Deployed: MAIRULES.md"
-    
-    echo ""
-    echo -e "${GREEN}Success:${NC} Deployed 2 core rules files to ${target_dir}"
-}
-
-# Function to setup Goose CLI tool
-deploy_goose() {
-    local source_agents="${ROOT_DIR}/AGENTS.md"
-    local target_dir="$(pwd)"
-    local goosehints_file="${target_dir}/.goosehints"
-    
-    # Check if AGENTS.md exists
-    if [[ ! -f "$source_agents" ]]; then
-        echo -e "${RED}Error:${NC} Missing source file: AGENTS.md"
-        exit 1
-    fi
-    
-    echo -e "${BLUE}Setting up Goose CLI tool:${NC}"
-    echo -e "${BLUE}Source:${NC} ${ROOT_DIR}"
-    echo -e "${BLUE}Target:${NC} ${target_dir}"
-    echo ""
-    
-    # Copy AGENTS.md to current directory
-    cp "$source_agents" "$target_dir/AGENTS.md"
-    echo -e "${GREEN}✓${NC} Deployed: AGENTS.md"
-    
-    # Create .goosehints file
-    cat > "$goosehints_file" << 'EOF'
-# Goose Hints Configuration
-# This file provides context to the Goose CLI tool
-
-# Core Rules and Guidelines
-See AGENTS.md for complete coding rules and principles.
-See MAIRULES.md for project-specific MAI rules.
-
-# Context Files
-The following files provide essential context:
-- AGENTS.md: Core AI coding principles and security guidelines
-- MAIRULES.md: Project-level rules and standards
-- .goosehints: This file (Goose-specific configuration)
-EOF
-    
-    echo -e "${GREEN}✓${NC} Created: .goosehints"
-    
-    # Set up the environment variable export command
-    local env_export='export CONTEXT_FILE_NAMES='"'"'["AGENTS.md", "MAIRULES.md", ".goosehints"]'"'"''
-    
-    echo ""
-    echo -e "${GREEN}Success:${NC} Goose setup complete!"
-    echo ""
-    echo -e "${YELLOW}Important:${NC} Run the following command to set context files:"
-    echo -e "${BLUE}${env_export}${NC}"
-    echo ""
-    echo -e "${YELLOW}Tip:${NC} Add this to your shell profile (~/.zshrc or ~/.bashrc) to make it permanent:"
-    echo -e "${BLUE}echo '${env_export}' >> ~/.zshrc${NC}"
-}
-
-# Main script logic
+# Main function
 main() {
-    # Check if no arguments provided
-    if [[ $# -eq 0 ]]; then
-        usage
-        exit 0
-    fi
+    local command="$1"
+    shift
     
-    # Parse arguments
-    case "$1" in
-        --commands)
-            if [[ $# -lt 2 ]]; then
-                echo -e "${RED}Error:${NC} --commands requires an argument"
-                echo ""
-                usage
-                exit 1
-            fi
-            deploy_commands "$2"
-            ;;
-        --tier)
-            if [[ $# -lt 2 ]]; then
-                echo -e "${RED}Error:${NC} --tier requires an argument (tier number)"
-                echo ""
-                usage
-                exit 1
-            fi
-            # Validate that the argument is a number
-            if ! [[ "$2" =~ ^[0-9]+$ ]]; then
-                echo -e "${RED}Error:${NC} Tier argument must be a number (e.g., 0, 1, 2, 3, 4)"
-                echo ""
-                usage
-                exit 1
-            fi
-            deploy_tier "$2"
-            ;;
-        --rules)
-            deploy_rules
-            ;;
-        --goose)
-            deploy_goose
-            ;;
+    # Get target directory (default to current directory)
+    local target_dir="${1:-$(pwd)}"
+    
+    case "$command" in
         --help|-h)
-            usage
-            exit 0
+            show_help
             ;;
+        --version|-v)
+            show_version
+            ;;
+            
+        # Commands deployment
+        --commands)
+            if [[ $# -eq 0 ]]; then
+                print_error "Missing argument for --commands"
+                echo "Usage: ainish-coder --commands {tool}" >&2
+                echo "Example: ainish-coder --commands cursor" >&2
+                exit 1
+            fi
+            deploy_commands "$1"
+            ;;
+            
+        # Tier deployment (with argument)
+        --tier)
+            if [[ $# -eq 0 ]]; then
+                print_error "Missing tier number"
+                echo "Usage: ainish-coder --tier {0-4} [TARGET_DIR]" >&2
+                echo "Example: ainish-coder --tier 1" >&2
+                exit 1
+            fi
+            local tier_num="$1"
+            shift
+            local tier_target="${1:-$(pwd)}"
+            
+            case "$tier_num" in
+                0) deploy_tier0 "$tier_target" ;;
+                1) deploy_tier1 "$tier_target" ;;
+                2) deploy_tier2 "$tier_target" ;;
+                3) deploy_tier3 "$tier_target" ;;
+                4) deploy_tier4 "$tier_target" ;;
+                all) deploy_all_tiers "$tier_target" ;;
+                *)
+                    print_error "Invalid tier number: $tier_num"
+                    echo "Valid tiers: 0, 1, 2, 3, 4, all" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+            
+        # Individual tier flags (backward compatibility)
+        --tier0) deploy_tier0 "$target_dir" ;;
+        --tier1) deploy_tier1 "$target_dir" ;;
+        --tier2) deploy_tier2 "$target_dir" ;;
+        --tier3) deploy_tier3 "$target_dir" ;;
+        --tier4) deploy_tier4 "$target_dir" ;;
+        
+        # Core rules deployment
+        --rules)
+            # Deploy both AGENTS.md and MAIRULES.md
+            deploy_agents "$target_dir" && deploy_mairules "$target_dir"
+            ;;
+        --agents)
+            deploy_agents "$target_dir"
+            ;;
+        --mairules)
+            deploy_mairules "$target_dir"
+            ;;
+            
+        # Tool-specific deployments
+        --cursor)
+            deploy_cursor "$target_dir"
+            ;;
+        --windsurf)
+            deploy_windsurf "$target_dir"
+            ;;
+        --cline)
+            deploy_cline "$target_dir"
+            ;;
+        --copilot)
+            deploy_copilot "$target_dir"
+            ;;
+        --continue|--cn)
+            deploy_continue "$target_dir"
+            ;;
+        --gemini)
+            deploy_gemini "$target_dir"
+            ;;
+        --qwen)
+            deploy_qwen "$target_dir"
+            ;;
+        --roocode|--roo)
+            deploy_roocode "$target_dir"
+            ;;
+            
+        # Utility deployments
+        --critical)
+            deploy_critical "$target_dir"
+            ;;
+        --gitignore)
+            deploy_gitignore "$target_dir"
+            ;;
+            
+        # Goose support (placeholder for now)
+        --goose)
+            print_error "Goose CLI support is not yet implemented"
+            echo "Coming soon: .goosehints and context file deployment" >&2
+            exit 1
+            ;;
+            
         *)
-            echo -e "${RED}Error:${NC} Unknown option: $1"
-            echo ""
-            usage
+            print_error "Unknown command: $command"
+            echo "Use 'ainish-coder --help' for usage information" >&2
             exit 1
             ;;
     esac
 }
 
-main "$@"
+# Check if at least one argument provided
+if [[ $# -eq 0 ]]; then
+    print_error "No command specified"
+    echo "Use 'ainish-coder --help' for usage information" >&2
+    exit 1
+fi
 
+# Run main function
+main "$@"

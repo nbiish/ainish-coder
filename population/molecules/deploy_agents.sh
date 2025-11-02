@@ -10,15 +10,15 @@ deploy_agents() {
     
     echo -e "${BRIGHT_BLUE}Deploying AGENTS.md${RESET}"
     
-    local source="${REPO_DIR}/MAIRULES.md"
+    local source="${REPO_DIR}/AGENTS.md"
     local dest="$target_dir/AGENTS.md"
     
     if [[ ! -f "$source" ]]; then
-        echo -e "${BRIGHT_RED}Error: MAIRULES.md not found at $source${RESET}"
+        echo -e "${BRIGHT_RED}Error: AGENTS.md not found at $source${RESET}"
         return 1
     fi
     
-    # Copy MAIRULES.md to AGENTS.md
+    # Copy AGENTS.md to target directory
     if ! cp "$source" "$dest" 2>/dev/null; then
         echo -e "${BRIGHT_RED}Error: Failed to create AGENTS.md${RESET}"
         return 1

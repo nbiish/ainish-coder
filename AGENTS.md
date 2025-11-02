@@ -94,7 +94,7 @@ Synthesize facts and observations
 Understand knowledge and context
 </orient>
 
-<reason strategy="[Strategy Name]">
+<reason strategy="[Strategy Name]"> # Applied strategy should change based on CURRENT prompt needs,.ai
 Apply appropriate reasoning strategy
 </reason>
 
