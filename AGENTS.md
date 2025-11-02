@@ -83,30 +83,6 @@ Strategy Name | Description
 | Self-Consistency | Cross-verify conclusions |
 | Reflection | Review and improve responses |
 
-**OOReDAct Framework:** Deep deliberation before action
-
-```markdown
-<observe>
-Synthesize facts and observations
-</observe>
-
-<orient>
-Understand knowledge and context
-</orient>
-
-<reason strategy="[Strategy Name]"> # Applied strategy should change based on CURRENT prompt needs,.ai
-Apply appropriate reasoning strategy
-</reason>
-
-<decide>
-State next action or final response
-</decide>
-
-<act-plan>
-Plan execution steps
-</act-plan>
-```
-
 ## SECURITY & SAFETY
 
 ### Code Security

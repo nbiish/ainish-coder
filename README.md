@@ -56,36 +56,42 @@ source ~/.zshrc  # or ~/.bashrc
 ### Basic Usage
 
 ```bash
+# Deploy core rules files (RECOMMENDED FIRST STEP)
+ainish-coder --rules                     # Deploy AGENTS.md and MAIRULES.md (both files)
+
+# Deploy tier-specific rules (appends to MAIRULES.md)
+ainish-coder --tier 0                    # Append TIER_0 to MAIRULES.md (Documentation protocols)
+ainish-coder --tier 1                    # Append TIER_1 to MAIRULES.md (Code security)
+ainish-coder --tier all                  # Append all tiers (0-4) to MAIRULES.md
+
+# Deploy tool-specific configurations
+ainish-coder --cursor                    # Deploy to .cursor/rules/
+ainish-coder --windsurf                  # Deploy to .windsurf/rules/
+
 # Deploy custom commands to current directory
-ainish-coder --commands cursor           # Deploy slash commands to .cursor/commands/
-ainish-coder --commands windsurf         # Deploy workflows to .windsurf/workflows/
+ainish-coder --commands cursor           # Deploy slash commands from CONFIGURATIONS
+ainish-coder --commands windsurf         # Deploy workflow commands
 
-# Deploy tier-specific rules to current directory (NEW!)
-ainish-coder --tier 0                    # Deploy TIER_0_RULES to .mai-rules/
-ainish-coder --tier 1                    # Deploy TIER_1_RULES to .mai-rules/
-ainish-coder --tier 3                    # Deploy TIER_3_RULES to .mai-rules/
-
-# Deploy core rules files
-ainish-coder --rules                     # Deploy AGENTS.md and MAIRULES.md
-
-# Setup Goose CLI tool
-ainish-coder --goose                     # Setup Goose with context files
+# Utility commands
+ainish-coder --gitignore                 # Create comprehensive .gitignore
+ainish-coder --critical                  # Create symlink to critical documentation
 ```
 
 ## 🎯 What's New
 
 ### 🆕 Tier-Based Rule Deployment
 
-Deploy modular rule sets organized by priority and purpose:
+Deploy modular rule sets organized by priority and purpose. **Tiers append to MAIRULES.md** for consolidated rule management:
 
-- **TIER_0_RULES**: Documentation protocols (docs-protocol.md)
-- **TIER_1_RULES**: Code security best practices (code-security.md)
-- **TIER_2_RULES**: Prompt security guidelines (prompt-security.md)
-- **TIER_3_RULES**: Cultural styling preferences (anishinaabe-cyberpunk-style.md)
-- **TIER_4_RULES**: Advanced prompting techniques (modern-prompting.md)
+- **TIER_0**: Documentation protocols (docs-protocol.md)
+- **TIER_1**: Code security best practices (code-security.md)
+- **TIER_2**: Prompt security guidelines (prompt-security.md)
+- **TIER_3**: Cultural styling preferences (anishinaabe-cyberpunk-style.md)
+- **TIER_4**: Advanced prompting techniques (modern-prompting.md)
 
 ```bash
-ainish-coder --tier 1  # Deploys TIER_1_RULES/* to .mai-rules/
+ainish-coder --tier 1    # Appends TIER_1 to MAIRULES.md
+ainish-coder --tier all  # Appends all 5 tiers to MAIRULES.md
 ```
 
 ### Custom Commands Deployment
@@ -94,18 +100,17 @@ Deploy tool-specific slash commands and workflows directly from the `CONFIGURATI
 
 ## 🛠️ Supported AI Tools
 
-| Tool | Commands Flag | Configurations Available |
-|------|---------------|--------------------------|
-| **Cursor** | `--commands cursor` | ✅ Slash commands in `.cursor/commands/` |
-| **Windsurf** | `--commands windsurf` | ✅ Workflows in `.windsurf/commands/` |
-| **Continue Dev** | `--commands continue` | ✅ Commands in `.continue/commands/` |
-| **Cline** | `--commands cline` | ✅ Commands in `.cline/commands/` |
-| **Roo Code** | `--commands roo` | ✅ Commands in `.roo/commands/` |
-| **Claude Code** | `--commands claude` | ✅ Commands in `.claude/commands/` |
-| **Goose CLI** | `--goose` | ✅ Context files with `.goosehints` |
-| **GitHub Copilot** | `--commands copilot` | 📦 Commands structure ready |
-| **Gemini** | `--commands gemini` | 📦 Commands structure ready |
-| **Qwen AI** | `--commands qwen` | 📦 Commands structure ready |
+| Tool | Configuration Flag | Commands Flag | Target |
+|------|-------------------|---------------|--------|
+| **Cursor** | `--cursor` | `--commands cursor` | `.cursor/rules/` + `cursor/commands/` |
+| **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` + `windsurf/commands/` |
+| **Cline** | `--cline` | N/A | `.clinerules/` |
+| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` (symlink) |
+| **Continue Dev** | `--continue` | N/A | `.continue/rules/` (symlink) |
+| **Gemini CLI** | `--gemini` | N/A | `.gemini/` |
+| **Qwen Code** | `--qwen` | N/A | `QWEN.md` (symlink) |
+| **Roo Code** | `--roocode` | N/A | `.roo/rules/` |
+| **Goose CLI** | `--goose` | N/A | � Coming soon |
 
 ## 📋 Complete Usage Guide
 
@@ -115,81 +120,94 @@ Deploy tool-specific slash commands and workflows directly from the `CONFIGURATI
 # Navigate to your project directory
 cd /path/to/your/project
 
-# Step 1: Deploy tier-specific rules to .mai-rules/
-ainish-coder --tier 0                    # Documentation protocols
-ainish-coder --tier 1                    # Code security
-ainish-coder --tier 2                    # Prompt security
-ainish-coder --tier 3                    # Cultural styling (optional)
-ainish-coder --tier 4                    # Advanced prompting (optional)
+# Step 1: Deploy core rules (RECOMMENDED FIRST)
+ainish-coder --rules                     # Deploys AGENTS.md + MAIRULES.md (both files)
 
-# Step 2: Deploy custom commands for your AI tools
-ainish-coder --commands cursor           # Cursor slash commands
-ainish-coder --commands windsurf         # Windsurf workflows
-ainish-coder --commands roo              # Roo Code commands
-ainish-coder --commands claude           # Claude Code commands
-ainish-coder --commands cline            # Cline commands
-ainish-coder --goose                     # Goose CLI (if using)
+# Step 2: Deploy specific tiers to MAIRULES.md (optional)
+ainish-coder --tier 1                    # Append code security rules
+ainish-coder --tier 2                    # Append prompt security rules
+# OR deploy all tiers at once:
+ainish-coder --tier all                  # Append all 5 tiers to MAIRULES.md
+
+# Step 3: Deploy tool-specific configurations
+ainish-coder --cursor                    # Configure Cursor AI
+ainish-coder --windsurf                  # Configure Windsurf
+ainish-coder --copilot                   # Configure GitHub Copilot
+
+# Step 4: Deploy custom commands (optional)
+ainish-coder --commands cursor           # Deploy Cursor slash commands
+ainish-coder --commands windsurf         # Deploy Windsurf workflows
+
+# Step 5: Add utilities (optional)
+ainish-coder --gitignore                 # Create comprehensive .gitignore
+ainish-coder --critical                  # Symlink to critical documentation
 ```
 
 ### What Gets Deployed
 
-**Tier Rules** (`--tier {0-4}`):
+**Core Rules** (`--rules`):
+- Deploys `AGENTS.md` (223 lines, 6.8KB) - Universal AI agent standard
+- Deploys `MAIRULES.md` (1632 lines, 56KB) - Consolidated rules from all 5 tiers
+- Both files are created in the target directory
 
-- Deploys markdown files from `TIER_{N}_RULES/` to `.mai-rules/` in current directory
-- All tier rules can coexist in `.mai-rules/` for comprehensive coverage
-- Rules are automatically recognized by AI tools supporting the MAI RULES standard
+**Individual Files** (`--agents` or `--mairules`):
+- Deploy files individually if you only need one
+
+**Tier Rules** (`--tier {0-4|all}`):
+- **Appends** tier content to `MAIRULES.md` in the target directory
+- Does NOT create `.mai-rules/` directory (consolidated approach)
+- Use `--tier all` to append all 5 tiers in one command
+
+**Tool Configurations** (`--cursor`, `--windsurf`, etc.):
+- Deploys AGENTS.md and MAIRULES.md to tool-specific directories
+- Some use symlinks (Copilot, Continue, Qwen), others copy files
+- Requires AGENTS.md/MAIRULES.md to exist first (run `--rules` first)
 
 **Custom Commands** (`--commands {tool}`):
+- Deploys tool-specific commands from `CONFIGURATIONS/.{tool}/commands/`
+- Creates `{tool}/commands/` directory structure
+- Currently available: cursor, windsurf
 
-- Deploys tool-specific commands/workflows from `CONFIGURATIONS/.{tool}/commands/`
-- Creates appropriate directory structure (varies by tool)
-- Preserves any existing commands in the target directory
-
-**Goose CLI Setup** (`--goose`):
-
-- Copies `AGENTS.md` to current directory
-- Creates `.goosehints` context file
-- Provides instructions for setting `CONTEXT_FILE_NAMES` environment variable
+**Utilities**:
+- `--gitignore`: Creates comprehensive .gitignore (225 lines)
+- `--critical`: Creates symlink to TIER_0 documentation protocol
 
 ### Available Tier Rules
 
-| Tier | Focus Area | Files | Priority |
-|------|-----------|-------|----------|
-| **0** | Documentation | `docs-protocol.md` | Critical |
-| **1** | Code Security | `code-security.md` | High |
-| **2** | Prompt Security | `prompt-security.md` | High |
-| **3** | Cultural Style | `anishinaabe-cyberpunk-style.md` | Medium |
-| **4** | Advanced Prompting | `modern-prompting.md` | Medium |
+| Tier | Focus Area | Files | Priority | Lines |
+|------|-----------|-------|----------|-------|
+| **0** | Documentation | `docs-protocol.md` | Critical | 13 |
+| **1** | Code Security | `code-security.md` | High | 279 |
+| **2** | Prompt Security | `prompt-security.md` | High | 291 |
+| **3** | Cultural Style | `anishinaabe-cyberpunk-style.md` | Medium | 147 |
+| **4** | Advanced Prompting | `modern-prompting.md` | Medium | 887 |
+| **all** | All Tiers Combined | All 5 tier files | - | 1617 |
 
 ### Tool-Specific Target Directories
 
-| Tool | Source | Target Directory | Notes |
-|------|--------|-----------------|-------|
-| **cursor** | `CONFIGURATIONS/.cursor/commands/` | `.cursor/commands/` | Slash commands |
-| **continue** | `CONFIGURATIONS/.continue/commands/` | `.continue/commands/` | Custom commands |
-| **windsurf** | `CONFIGURATIONS/.windsurf/commands/` | `.windsurf/workflows/` | Workflow files (slash commands) |
-| **cline** | `CONFIGURATIONS/.cline/commands/` | `.cline/commands/` | Slash commands |
-| **roo** | `CONFIGURATIONS/.roo/commands/` | `.roo/commands/` | Slash commands |
-| **claude** | `CONFIGURATIONS/.claude/commands/` | `.claude/commands/` | Claude Code slash commands |
-| **goose** | N/A - uses `--goose` flag | Current directory | Creates `.goosehints` and copies `AGENTS.md` |
-| **copilot** | `CONFIGURATIONS/.copilot/commands/` | `.copilot/commands/` | Custom commands |
-| **gemini** | `CONFIGURATIONS/.gemini/commands/` | `.gemini/commands/` | Custom commands |
-| **qwen** | `CONFIGURATIONS/.qwen/commands/` | `.qwen/commands/` | Custom commands |
+| Tool | Configuration Command | Commands Deployment | Notes |
+|------|----------------------|---------------------|-------|
+| **Cursor** | `--cursor` | `--commands cursor` | Copies to `.cursor/rules/` + deploys commands |
+| **Windsurf** | `--windsurf` | `--commands windsurf` | Copies to `.windsurf/rules/` + deploys workflows |
+| **Cline** | `--cline` | N/A | Copies to `.clinerules/` |
+| **GitHub Copilot** | `--copilot` | N/A | Symlinks `.github/copilot-instructions.md` |
+| **Continue Dev** | `--continue` | N/A | Symlinks `.continue/rules/AGENTS.md` |
+| **Gemini CLI** | `--gemini` | N/A | Copies to `.gemini/` |
+| **Qwen Code** | `--qwen` | N/A | Symlinks `QWEN.md` to AGENTS.md |
+| **Roo Code** | `--roocode` | N/A | Copies to `.roo/rules/` |
 
-**Note:** Goose CLI setup uses `ainish-coder --goose` to deploy context files. After running, set the environment variable:
-```bash
-export CONTEXT_FILE_NAMES='["AGENTS.md", "MAIRULES.md", ".goosehints"]'
-```
+**Important:** Tool-specific configurations require `AGENTS.md` and `MAIRULES.md` to exist first. Run `ainish-coder --rules` before tool-specific deployments.
 
 ### Configuration Hierarchy
 
 The tool follows a hierarchical configuration approach:
 
-1. `.mai-rules/*.md` (project-specific) - **highest priority**
-2. `MAIRULES.md` (project root) - traditional format
-3. `AGENTS.md` (project root) - universal AI agent standard
-4. Tool-specific configurations
-5. Default AI tool behavior
+1. `MAIRULES.md` (project root) - Consolidated rules from all tiers
+2. `AGENTS.md` (project root) - Universal AI agent standard
+3. Tool-specific configurations (`.cursor/rules/`, `.windsurf/rules/`, etc.)
+4. Default AI tool behavior
+
+**Note:** The `--tier` commands append content to MAIRULES.md, consolidating all rules in a single file for easier management.
 
 ## 📁 Project Structure
 
@@ -199,20 +217,19 @@ ainish-coder/
 │   └── ainish-coder           # Main CLI tool
 ├── CONFIGURATIONS/            # Tool-specific configurations
 │   ├── .cursor/
-│   │   ├── commands/          # Cursor slash commands
-│   │   └── rules/             # Cursor rules
+│   │   ├── commands/          # Cursor slash commands source
+│   │   └── rules/             # Cursor rules (not used by CLI)
 │   ├── .windsurf/
 │   │   ├── commands/          # Windsurf workflows source
-│   │   └── rules/             # Windsurf rules
-│   ├── .continue/
-│   │   └── rules/             # Continue Dev rules
-│   ├── .cline/                # Cline configurations
-│   ├── .roo/                  # Roo Code configurations
-│   ├── .github/               # GitHub Copilot configs
+│   │   └── rules/             # Windsurf rules (not used by CLI)
 │   ├── .gemini/               # Gemini configs
 │   ├── .qwen/                 # Qwen configs
 │   └── MCP/                   # Model Context Protocol configs
-├── TIER_0_RULES/              # Documentation protocols
+├── population/                # Modular architecture
+│   ├── atoms/                 # Core utilities (colors, paths, validation)
+│   ├── molecules/             # Deployment functions (deploy_*.sh)
+│   └── organisms/             # Future: higher-level orchestration
+├── TIER_0_RULES/              # Critical documentation protocols
 │   └── docs-protocol.md
 ├── TIER_1_RULES/              # Code security
 │   └── code-security.md
@@ -222,14 +239,13 @@ ainish-coder/
 │   └── anishinaabe-cyberpunk-style.md
 ├── TIER_4_RULES/              # Advanced prompting
 │   └── modern-prompting.md
-├── .mai-rules/
-│   └── MAIRULES.md            # Core MAI rules
-├── AGENTS.md                  # Universal AI agent instructions
-├── MAIRULES.md                # Root-level rules
+├── AGENTS.md                  # Universal AI agent instructions (223 lines)
+├── MAIRULES.md                # Empty template (populated by deployment)
 ├── ainish-setup.sh            # Setup script
-├── KNOWLEDGE_BASE/            # Documentation
-│   └── TODO.md
-└── lib/                       # Future modular architecture
+└── KNOWLEDGE_BASE/            # Documentation
+    ├── TODO.md
+    ├── TEST_RESULTS.md        # Comprehensive test documentation
+    └── DEVELOPMENT.md         # Developer workflow guide
 ```
 
 ## 🎨 Tier Rules Explained
@@ -263,19 +279,22 @@ Rules are organized into tiers by priority and purpose:
 
 ## 🏗️ Architecture
 
-The tool is built with a modular, extensible design:
+The tool is built with a modular, extensible design following the Atomic Design pattern:
 
-- **CLI Tool** (`bin/ainish-coder`): Main command-line interface written in Bash
-- **CONFIGURATIONS** (`CONFIGURATIONS/`): Centralized storage for tool-specific configs
+- **CLI Tool** (`bin/ainish-coder`): Main command-line interface
+- **Atoms** (`population/atoms/`): Core utilities (colors, paths, validation, file operations)
+- **Molecules** (`population/molecules/`): Deployment functions (deploy_*.sh)
+- **Organisms** (`population/organisms/`): Future: higher-level orchestration
+- **CONFIGURATIONS** (`CONFIGURATIONS/`): Centralized tool-specific configs
 - **TIER_RULES** (`TIER_*_RULES/`): Modular rule sets organized by priority
-- **Setup Script** (`ainish-setup.sh`): Installation and PATH configuration
 
 ### Design Principles
 
-1. **Modularity**: Rules and configs are separated by tool and priority
+1. **Modularity**: Rules and configs separated by tool and priority
 2. **Simplicity**: Single bash script CLI with clear command structure
 3. **Extensibility**: Easy to add new tiers or tool configurations
 4. **Portability**: Works across Unix-like systems (macOS, Linux)
+5. **No Reinstall**: Changes take effect immediately (scripts in PATH)
 
 ## 🤝 Contributing
 

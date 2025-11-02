@@ -14,9 +14,9 @@ get_script_dir() {
     echo "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 }
 
-# Get the project root directory (parent of lib/)
+# Get the project root directory (ainish-coder repository root)
 get_project_root() {
-    echo "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../" && pwd)"
+    echo "$REPO_DIR"
 }
 
 # Check if a path is absolute

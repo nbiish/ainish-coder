@@ -29,8 +29,8 @@ deploy_commands() {
     local success_count=0
     local total_count=0
     
-    # Deploy files from CONFIGURATIONS/commands/
-    local commands_dir="${project_root}/CONFIGURATIONS/commands"
+    # Deploy files from CONFIGURATIONS/.{target_arg}/commands/
+    local commands_dir="${project_root}/CONFIGURATIONS/.${target_arg}/commands"
     
     if [[ -d "$commands_dir" ]]; then
         # Find all files in commands directory

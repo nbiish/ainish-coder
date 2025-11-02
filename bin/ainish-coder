@@ -95,14 +95,19 @@ main() {
         
         # Core rules deployment
         --rules)
-            # Deploy both AGENTS.md and MAIRULES.md
-            deploy_agents "$target_dir" && deploy_mairules "$target_dir"
+            # Deploy AGENTS.md and MAIRULES.md (with TIER_0 only)
+            deploy_agents "$target_dir" && deploy_mairules_tier0 "$target_dir"
             ;;
         --agents)
             deploy_agents "$target_dir"
             ;;
         --mairules)
+            # Deploy MAIRULES.md with all tiers (for backward compatibility)
             deploy_mairules "$target_dir"
+            ;;
+        --mairules-tier0)
+            # Deploy MAIRULES.md with only TIER_0
+            deploy_mairules_tier0 "$target_dir"
             ;;
             
         # Tool-specific deployments

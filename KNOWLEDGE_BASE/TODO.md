@@ -241,6 +241,34 @@ ainish-coder --tier0 TARGET_DIR    # Tier number in flag name
 
 ---
 
+## COMPREHENSIVE TESTING COMPLETED - 2025-11-02
+
+### Test Summary
+**Status:** ✅ ALL TESTS PASSED (20+ tests, 100% success rate)
+**Bugs Fixed:** 2 critical path resolution issues
+**Documentation:** TEST_RESULTS.md created with full test suite results
+
+### Tests Completed
+1. ✅ Core commands (--help, --version, --rules, --agents, --mairules) - 5/5 PASSED
+2. ✅ Tier deployments (--tier 0-4, --tier all) - 6/6 PASSED  
+3. ✅ Tool-specific deployments (8 tools) - 8/8 PASSED
+4. ✅ Commands deployment (cursor, windsurf) - 2/2 PASSED
+5. ✅ Source file verification - ALL FILES VERIFIED
+6. ✅ Utility commands (--critical, --gitignore) - 2/2 PASSED
+
+### Bugs Fixed During Testing
+1. **deploy_commands.sh path resolution** - Fixed to use tool-specific paths
+2. **get_project_root() incorrect path** - Fixed to use REPO_DIR
+
+### Verified Behavior
+- Tiers append to MAIRULES.md (not .mai-rules/ directory)
+- --rules deploys BOTH AGENTS.md and MAIRULES.md
+- Some tools use symlinks (copilot, continue, qwen)
+- Some tools copy files (cursor, windsurf, cline, gemini, roocode)
+- Commands deploy from CONFIGURATIONS/.{tool}/commands/
+
+---
+
 ## IMPLEMENTATION DECISIONS MADE
 
 ### Core Architecture Decisions (Phase 1 - COMPLETED)
