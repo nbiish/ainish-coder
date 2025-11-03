@@ -35,6 +35,7 @@
 - **⚡ Simple Deployment**: One command to deploy configurations
 - **🔗 Smart Symlinks**: Unified configuration across tools
 - **💻 Shell Integration**: Convenient `ainish-coder` command
+- **🎭 Template Agent System**: Craft custom system prompts with expert guidance
 
 ## 📦 Quick Start
 
@@ -206,6 +207,45 @@ ainish-coder --critical                  # Symlink to critical documentation
 **Utilities**:
 - `--gitignore`: Creates comprehensive .gitignore (225 lines)
 - `--critical`: Creates symlink to TIER_0 documentation protocol
+- `--template-agent`: Deploy customizable agent system prompt template
+
+### Template Agent System
+
+**🆕 Create Custom System Prompts** (`--template-agent`):
+
+The Template Agent System provides a comprehensive framework for crafting your AI agent's "constitution" - the core instructions that guide every interaction.
+
+```bash
+# Deploy template to current directory
+ainish-coder --template-agent
+
+# Deploy to specific project
+ainish-coder --template-agent ~/my-project
+```
+
+**Creates:** `.mai-rules/template-agent.md`
+
+**Features:**
+- 🎭 **Persona and Goals** - Define agent identity and objectives
+- 🛠️ **Tool Instructions** - Specify tool usage with examples
+- 📋 **Output Format** - Structure consistent responses
+- 🎯 **Miscellaneous** - Edge cases and refinement guidance
+- 📚 **Iteration Log** - Track improvements and changes
+- ✅ **Best Practices** - Built-in prompt engineering tips
+
+**Philosophy:** Start simple, iterate based on real behavior. No A/B testing needed on day one.
+
+**Includes:**
+- Clearly marked `[FILL_IN: ...]` sections for customization
+- Real-world examples and use cases
+- Quality assurance checklist
+- Version history tracking
+- Common refinement patterns
+
+**Documentation:**
+- Quick Start: `.mai-rules/TEMPLATE_AGENT_QUICKSTART.md`
+- Complete Guide: `KNOWLEDGE_BASE/TEMPLATE_AGENT_SYSTEM.md`
+- Example (Python Security): `.mai-rules/template-agent-example-python-security.md`
 
 ### Available Tier Rules
 

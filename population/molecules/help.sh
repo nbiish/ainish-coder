@@ -34,6 +34,25 @@ TOOL-SPECIFIC CONFIGURATION:
     --roocode [TARGET_DIR]    Deploy Roo Code configuration to .roo/rules/
     --roo [TARGET_DIR]        Alias for --roocode
 
+AGENT CUSTOMIZATION:
+    --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
+                              
+                              Creates: .mai-rules/template-agent.md
+                              
+                              Features:
+                              - Comprehensive system prompt framework
+                              - Persona and goals section
+                              - Tool instructions with examples
+                              - Output format standards
+                              - Iteration and refinement guidance
+                              - Clearly marked [FILL_IN] sections
+                              
+                              Use this to create your agent's "constitution" - the core
+                              instructions that guide every interaction. Start simple,
+                              iterate based on behavior. No A/B testing needed on day one.
+                              
+                              Example: ainish-coder --template-agent ~/my-project
+
 CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
                               

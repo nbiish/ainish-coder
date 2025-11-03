@@ -50,6 +50,7 @@ source "${POPULATION_DIR}/molecules/deploy_continue_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_copilot_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_roocode_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_github_actions.sh"
+source "${POPULATION_DIR}/molecules/deploy_template_agent.sh"
 
 # Main function
 main() {
@@ -153,6 +154,11 @@ main() {
             ;;
         --roocode|--roo)
             deploy_roocode "$target_dir"
+            ;;
+            
+        # Template Agent System
+        --template-agent)
+            deploy_template_agent "$target_dir"
             ;;
             
         # Utility deployments
