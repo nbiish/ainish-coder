@@ -53,6 +53,24 @@ AGENT CUSTOMIZATION:
                               
                               Example: ainish-coder --template-agent ~/my-project
 
+    --OSAA [DIR]              Deploy OSAA.md framework for orchestrated agent actions
+                              
+                              Creates: OSAA.md (Orchestrator Sub-Agent Action)
+                              
+                              Features:
+                              - Task decomposition patterns
+                              - Agent orchestration guidelines
+                              - Sub-agent specialization (Code, Test, Doc, Deploy)
+                              - Execution patterns (Sequential, Parallel, Pipeline)
+                              - Communication protocols
+                              - Error handling strategies
+                              - Monitoring and metrics
+                              
+                              Use this for complex tasks requiring multiple specialized
+                              agents working together under a master orchestrator.
+                              
+                              Example: ainish-coder --OSAA ~/my-project
+
 CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
                               

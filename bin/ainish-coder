@@ -51,6 +51,7 @@ source "${POPULATION_DIR}/molecules/deploy_copilot_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_roocode_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_github_actions.sh"
 source "${POPULATION_DIR}/molecules/deploy_template_agent.sh"
+source "${POPULATION_DIR}/molecules/deploy_osaa.sh"
 
 # Main function
 main() {
@@ -159,6 +160,11 @@ main() {
         # Template Agent System
         --template-agent)
             deploy_template_agent "$target_dir"
+            ;;
+            
+        # OSAA Framework
+        --OSAA)
+            deploy_osaa "$target_dir"
             ;;
             
         # Utility deployments

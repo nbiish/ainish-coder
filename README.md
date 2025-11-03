@@ -36,6 +36,7 @@
 - **🔗 Smart Symlinks**: Unified configuration across tools
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
+- **🤝 OSAA Framework**: Orchestrate complex multi-agent workflows
 
 ## 📦 Quick Start
 
@@ -247,6 +248,48 @@ ainish-coder --template-agent ~/my-project
 - Complete Guide: `KNOWLEDGE_BASE/TEMPLATE_AGENT_SYSTEM.md`
 - Example (Python Security): `.mai-rules/template-agent-example-python-security.md`
 
+### OSAA Framework
+
+**🆕 Orchestrate Complex Multi-Agent Workflows** (`--OSAA`):
+
+The OSAA (Orchestrator Sub-Agent Action) framework enables AI agents to break down complex tasks into specialized sub-actions with systematic orchestration patterns.
+
+```bash
+# Deploy OSAA framework to current directory
+ainish-coder --OSAA
+
+# Deploy to specific project
+ainish-coder --OSAA ~/my-project
+```
+
+**Creates:** `OSAA.md` at project root
+
+**Features:**
+- 🎯 **Task Decomposition** - Break complex tasks into manageable sub-tasks
+- 🤖 **Agent Orchestration** - Coordinate primary and specialized sub-agents
+- 🔄 **Execution Patterns** - Sequential, parallel, pipeline, and feedback loops
+- 📡 **Communication Protocol** - Standardized message formats and status codes
+- ⚠️ **Error Handling** - Retry, fallback, graceful degradation, escalation strategies
+- 📊 **Monitoring & Metrics** - Track performance, quality, and operational KPIs
+
+**Sub-Agent Specializations:**
+- **Code Analysis** - Pattern detection, dependency mapping, security scanning
+- **Code Generation** - Boilerplate, API implementation, test creation
+- **Testing** - Unit tests, integration tests, performance benchmarks
+- **Documentation** - API docs, README, tutorials, code comments
+- **Deployment** - Configuration, environment setup, service orchestration
+
+**Use Cases:**
+- Complex refactoring projects with multiple code changes
+- Multi-module implementations requiring coordination
+- End-to-end feature development (code + tests + docs)
+- Security audits with automated fixes
+- Performance optimization across multiple components
+
+**Documentation:**
+- Complete Framework: `OSAA.md` (deployed to project root)
+- Guide: `KNOWLEDGE_BASE/OSAA_FRAMEWORK.md`
+
 ### Available Tier Rules
 
 | Tier | Focus Area | Files | Priority | Lines |
@@ -399,3 +442,387 @@ Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimi
 <div align="center">
   <p>◈──◆──◇ Made with ♥ by the AINISH community ◇──◆──◈</p>
 </div>
+
+---
+
+## Repository snapshot (eza --all --tree --level=2)
+
+Generated: 2025-11-03
+
+Command run: `eza --all --tree --level=2` (fallback to a Python-generated tree if `eza` not available)
+
+```text
+.
+  .claude
+  .clinerules
+  .continue
+  .cursor
+  .gemini
+  .git
+  .github
+  .goose
+  .mai-rules
+  .qwen
+  .roo
+  .windsurf
+  CONFIGURATIONS
+  KNOWLEDGE_BASE
+  TIER_0_RULES
+  TIER_1_RULES
+  TIER_2_RULES
+  TIER_3_RULES
+  TIER_4_RULES
+  bin
+  population
+  CONFIGURATIONS
+    .clinerules
+    .continue
+    .cursor
+    .gemini
+    .github
+    .qwen
+    .roo
+    .windsurf
+    MCP
+    .qwen
+    .cursor
+      commands
+      rules
+    .gemini
+    .windsurf
+      commands
+      rules
+    .roo
+      rules
+    .continue
+      rules
+    MCP
+      TIER_1
+      TIER_2
+      TIER_3
+    .clinerules
+    .github
+      instructions
+  .qwen
+    commands
+    commands
+  .cursor
+    commands
+    rules
+    rules
+    commands
+  .gemini
+    commands
+    commands
+  .windsurf
+    workflows
+    workflows
+  .roo
+    commands
+    commands
+  bin
+  .goose
+    recipes
+    recipes
+  .continue
+    prompts
+    prompts
+  .mai-rules
+  .claude
+    commands
+    commands
+  population
+    atoms
+    molecules
+    organisms
+    molecules
+    atoms
+    organisms
+  TIER_1_RULES
+  TIER_3_RULES
+  .clinerules
+    workflows
+    workflows
+  .github
+    prompts
+    workflows
+    workflows
+    prompts
+  KNOWLEDGE_BASE
+  TIER_2_RULES
+  .git
+    hooks
+    info
+    logs
+    objects
+    refs
+    objects
+      00
+      01
+      02
+      03
+      04
+      05
+      06
+      07
+      08
+      09
+      0a
+      0b
+      0c
+      0d
+      0e
+      0f
+      10
+      11
+      12
+      13
+      14
+      15
+      16
+      17
+      18
+      19
+      1a
+      1b
+      1c
+      1d
+      1e
+      1f
+      20
+      21
+      22
+      23
+      24
+      25
+      26
+      27
+      28
+      29
+      2a
+      2b
+      2c
+      2d
+      2e
+      2f
+      30
+      31
+      32
+      33
+      34
+      35
+      36
+      37
+      38
+      39
+      3a
+      3b
+      3c
+      3d
+      3e
+      3f
+      40
+      41
+      42
+      43
+      44
+      45
+      46
+      47
+      48
+      49
+      4a
+      4b
+      4c
+      4d
+      4e
+      4f
+      50
+      51
+      52
+      53
+      54
+      55
+      56
+      57
+      58
+      59
+      5a
+      5b
+      5c
+      5d
+      5e
+      5f
+      60
+      61
+      62
+      63
+      64
+      65
+      66
+      67
+      68
+      69
+      6a
+      6b
+      6c
+      6d
+      6e
+      6f
+      70
+      71
+      72
+      73
+      74
+      75
+      76
+      77
+      78
+      79
+      7a
+      7b
+      7c
+      7d
+      7e
+      7f
+      80
+      81
+      82
+      83
+      84
+      85
+      86
+      87
+      88
+      89
+      8a
+      8b
+      8c
+      8d
+      8e
+      8f
+      90
+      91
+      92
+      93
+      94
+      95
+      96
+      97
+      98
+      99
+      9a
+      9b
+      9c
+      9d
+      9e
+      9f
+      a0
+      a1
+      a2
+      a3
+      a4
+      a5
+      a6
+      a7
+      a8
+      a9
+      aa
+      ab
+      ac
+      ad
+      ae
+      af
+      b0
+      b1
+      b2
+      b3
+      b4
+      b5
+      b6
+      b7
+      b8
+      b9
+      ba
+      bb
+      bc
+      bd
+      be
+      bf
+      c0
+      c1
+      c2
+      c3
+      c4
+      c5
+      c6
+      c7
+      c8
+      c9
+      ca
+      cb
+      cc
+      cd
+      ce
+      cf
+      d0
+      d1
+      d2
+      d3
+      d4
+      d5
+      d6
+      d7
+      d8
+      d9
+      da
+      db
+      dc
+      dd
+      de
+      df
+      e0
+      e1
+      e2
+      e3
+      e4
+      e5
+      e6
+      e7
+      e8
+      e9
+      ea
+      eb
+      ec
+      ed
+      ee
+      ef
+      f0
+      f1
+      f2
+      f3
+      f4
+      f5
+      f6
+      f7
+      f8
+      f9
+      fa
+      fb
+      fc
+      fd
+      fe
+      ff
+      info
+      pack
+    info
+    logs
+      refs
+    hooks
+    refs
+      heads
+      remotes
+      tags
+  TIER_0_RULES
+  TIER_4_RULES
+```
