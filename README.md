@@ -96,21 +96,51 @@ ainish-coder --tier all  # Appends all 5 tiers to MAIRULES.md
 
 ### Custom Commands Deployment
 
-Deploy tool-specific slash commands and workflows directly from the `CONFIGURATIONS/` directory to your current project.
+Deploy tool-specific slash commands, workflows, and recipes directly to your current project.
+
+**Available Command Types:**
+
+- **File-Based Commands** (Cursor, Roo): Markdown files with slash command definitions
+- **Workflows** (Windsurf, Cline): Workflow markdown files for task automation
+- **Config-Based** (Continue): Prompts defined in config.yaml
+- **TOML Commands** (Gemini CLI, Qwen): TOML configuration files
+- **Recipes** (Goose): YAML recipe files with instructions
+
+```bash
+# Deploy to specific tools
+ainish-coder --commands cursor       # Plain markdown to .cursor/commands/
+ainish-coder --commands roocode      # Markdown + frontmatter to .roo/commands/
+ainish-coder --commands windsurf     # Workflows to .windsurf/workflows/
+ainish-coder --commands cline        # Workflows to .clinerules/workflows/
+ainish-coder --commands continue     # Creates setup guide for config.yaml
+ainish-coder --commands gemini-cli   # TOML files to .gemini/commands/
+ainish-coder --commands qwen         # TOML files to .qwen/commands/
+ainish-coder --commands goose        # YAML recipes to .goose/recipes/
+
+# Deploy to all tools at once
+ainish-coder --commands all
+```
 
 ## 🛠️ Supported AI Tools
 
-| Tool | Configuration Flag | Commands Flag | Target |
-|------|-------------------|---------------|--------|
-| **Cursor** | `--cursor` | `--commands cursor` | `.cursor/rules/` + `cursor/commands/` |
-| **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` + `windsurf/commands/` |
-| **Cline** | `--cline` | N/A | `.clinerules/` |
-| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` (symlink) |
-| **Continue Dev** | `--continue` | N/A | `.continue/rules/` (symlink) |
-| **Gemini CLI** | `--gemini` | N/A | `.gemini/` |
-| **Qwen Code** | `--qwen` | N/A | `QWEN.md` (symlink) |
-| **Roo Code** | `--roocode` | N/A | `.roo/rules/` |
-| **Goose CLI** | `--goose` | N/A | � Coming soon |
+### IDE Extensions
+
+| Tool | Config Flag | Commands Flag | Rules Target | Commands Target | Format |
+|------|------------|---------------|--------------|-----------------|--------|
+| **Cursor** | `--cursor` | `--commands cursor` | `.cursor/rules/` | `.cursor/commands/*.md` | Plain markdown |
+| **Roo Code** | `--roocode` | `--commands roocode` | `.roo/rules/` | `.roo/commands/*.md` | Markdown + frontmatter |
+| **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` | `.windsurf/workflows/*.md` | Workflows |
+| **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/workflows/*.md` | Workflows |
+| **Continue Dev** | `--continue` | `--commands continue` | `.continue/rules/` | Config guide | config.yaml setup |
+| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` | N/A | Symlink |
+
+### CLI Tools
+
+| Tool | Config Flag | Commands Flag | Rules Target | Commands Target | Format |
+|------|------------|---------------|--------------|-----------------|--------|
+| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | `.gemini/` | `.gemini/commands/*.toml` | TOML |
+| **Qwen Code** | `--qwen` | `--commands qwen` | `QWEN.md` | `.qwen/commands/*.toml` | TOML |
+| **Goose** | N/A | `--commands goose` | N/A | `.goose/recipes/*.yaml` | YAML recipes |
 
 ## 📋 Complete Usage Guide
 
@@ -137,6 +167,7 @@ ainish-coder --copilot                   # Configure GitHub Copilot
 # Step 4: Deploy custom commands (optional)
 ainish-coder --commands cursor           # Deploy Cursor slash commands
 ainish-coder --commands windsurf         # Deploy Windsurf workflows
+ainish-coder --commands all              # Deploy to all 8 tools at once
 
 # Step 5: Add utilities (optional)
 ainish-coder --gitignore                 # Create comprehensive .gitignore
@@ -164,9 +195,10 @@ ainish-coder --critical                  # Symlink to critical documentation
 - Requires AGENTS.md/MAIRULES.md to exist first (run `--rules` first)
 
 **Custom Commands** (`--commands {tool}`):
-- Deploys tool-specific commands from `CONFIGURATIONS/.{tool}/commands/`
-- Creates `{tool}/commands/` directory structure
-- Currently available: cursor, windsurf
+- Deploys tool-specific commands from source prompts in `.github/prompts/`
+- Creates appropriate directory structure per tool
+- Converts formats as needed (markdown, TOML, YAML)
+- Currently available: cursor, roocode, windsurf, cline, continue, gemini-cli, qwen, goose, all
 
 **Utilities**:
 - `--gitignore`: Creates comprehensive .gitignore (225 lines)
@@ -185,16 +217,17 @@ ainish-coder --critical                  # Symlink to critical documentation
 
 ### Tool-Specific Target Directories
 
-| Tool | Configuration Command | Commands Deployment | Notes |
-|------|----------------------|---------------------|-------|
-| **Cursor** | `--cursor` | `--commands cursor` | Copies to `.cursor/rules/` + deploys commands |
-| **Windsurf** | `--windsurf` | `--commands windsurf` | Copies to `.windsurf/rules/` + deploys workflows |
-| **Cline** | `--cline` | N/A | Copies to `.clinerules/` |
-| **GitHub Copilot** | `--copilot` | N/A | Symlinks `.github/copilot-instructions.md` |
-| **Continue Dev** | `--continue` | N/A | Symlinks `.continue/rules/AGENTS.md` |
-| **Gemini CLI** | `--gemini` | N/A | Copies to `.gemini/` |
-| **Qwen Code** | `--qwen` | N/A | Symlinks `QWEN.md` to AGENTS.md |
-| **Roo Code** | `--roocode` | N/A | Copies to `.roo/rules/` |
+| Tool | Configuration Command | Commands Deployment | Format | Notes |
+|------|----------------------|---------------------|--------|-------|
+| **Cursor** | `--cursor` | `--commands cursor` | Plain markdown | `.cursor/rules/` + `.cursor/commands/*.md` |
+| **Roo Code** | `--roocode` | `--commands roocode` | Markdown + frontmatter | `.roo/rules/` + `.roo/commands/*.md` |
+| **Windsurf** | `--windsurf` | `--commands windsurf` | Workflows | `.windsurf/rules/` + `.windsurf/workflows/*.md` |
+| **Cline** | `--cline` | `--commands cline` | Workflows | `.clinerules/` + `.clinerules/workflows/*.md` |
+| **Continue Dev** | `--continue` | `--commands continue` | Config guide | `.continue/rules/` + setup guide for config.yaml |
+| **GitHub Copilot** | `--copilot` | N/A | Symlink | `.github/copilot-instructions.md` → AGENTS.md |
+| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | TOML | `.gemini/` + `.gemini/commands/*.toml` |
+| **Qwen Code** | `--qwen` | `--commands qwen` | TOML | `QWEN.md` symlink + `.qwen/commands/*.toml` |
+| **Goose** | N/A | `--commands goose` | YAML recipes | `.goose/recipes/*.yaml` |
 
 **Important:** Tool-specific configurations require `AGENTS.md` and `MAIRULES.md` to exist first. Run `ainish-coder --rules` before tool-specific deployments.
 

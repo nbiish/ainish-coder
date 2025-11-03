@@ -2,15 +2,11 @@
 
 ## RULES LOCATION HIERARCHY
 
-IF EXISTS:  
+READ:
 
 - MAIRULES.md → {Apply to all requests} (highest priority)
 - .mai-rules/MAIRULES.md → {Apply to all requests} (second highest priority)
 - .mai-rules/*.md → {Apply to all requests} (third highest priority)
-
-ELSE:
-
-- {Proceed with default agentic coding behavior}
 
 ## Create and follow the **Atomic Design** pattern in `population/`
 
@@ -52,19 +48,6 @@ ELSE:
 - ✓ Missing information → Identify gaps
 - ✓ Alternative causes → Consider other explanations
 - ✓ Fact requirement → Support with evidence
-
-## Modern Prompting & Context Engineering
-
-**REASONING STRATEGIES:**
-
-Strategy Name | Description
-|---|---|
-| Chain-of-Draft (CoD) | ≤5 words draft mimicking human notes |
-| Chain-of-Thought (CoT) | Break down complex problems |
-| Tree-of-Thought (ToT) | Explore multiple reasoning paths |
-| Chain-of-Context (CoC) | Perfect context = Perfect output |
-| Self-Consistency | Cross-verify conclusions |
-| Reflection | Review and improve responses |
 
 ## SECURITY & SAFETY
 

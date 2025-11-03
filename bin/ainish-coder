@@ -14,6 +14,7 @@ source "${POPULATION_DIR}/atoms/paths.sh"
 source "${POPULATION_DIR}/atoms/file_operations.sh"
 source "${POPULATION_DIR}/atoms/validation.sh"
 source "${POPULATION_DIR}/atoms/backup.sh"
+source "${POPULATION_DIR}/atoms/ignore_patterns.sh"
 
 # Load molecules (deployment functions)
 source "${POPULATION_DIR}/molecules/help.sh"
@@ -31,6 +32,23 @@ source "${POPULATION_DIR}/molecules/deploy_qwen.sh"
 source "${POPULATION_DIR}/molecules/deploy_roocode.sh"
 source "${POPULATION_DIR}/molecules/deploy_critical.sh"
 source "${POPULATION_DIR}/molecules/deploy_gitignore.sh"
+# Load prompt deployment molecules
+source "${POPULATION_DIR}/molecules/deploy_cursor_commands.sh"
+source "${POPULATION_DIR}/molecules/deploy_claude_commands.sh"
+source "${POPULATION_DIR}/molecules/deploy_continue_prompts.sh"
+source "${POPULATION_DIR}/molecules/deploy_windsurf_prompts.sh"
+source "${POPULATION_DIR}/molecules/deploy_cline_prompts.sh"
+source "${POPULATION_DIR}/molecules/deploy_roocode_prompts.sh"
+# CLI tool prompt deployment
+source "${POPULATION_DIR}/molecules/deploy_gemini_cli_prompts.sh"
+source "${POPULATION_DIR}/molecules/deploy_goose_prompts.sh"
+source "${POPULATION_DIR}/molecules/deploy_qwen_cli_prompts.sh"
+# Load ignore file deployment molecules
+source "${POPULATION_DIR}/molecules/deploy_cursor_ignore.sh"
+source "${POPULATION_DIR}/molecules/deploy_cline_ignore.sh"
+source "${POPULATION_DIR}/molecules/deploy_continue_ignore.sh"
+source "${POPULATION_DIR}/molecules/deploy_copilot_ignore.sh"
+source "${POPULATION_DIR}/molecules/deploy_roocode_ignore.sh"
 
 # Main function
 main() {
@@ -144,9 +162,35 @@ main() {
             deploy_gitignore "$target_dir"
             ;;
             
+        # Ignore file deployments
+        --cursor-ignore)
+            deploy_cursor_ignore "$target_dir"
+            ;;
+        --cline-ignore)
+            deploy_cline_ignore "$target_dir"
+            ;;
+        --continue-ignore)
+            deploy_continue_ignore "$target_dir"
+            ;;
+        --copilot-ignore)
+            deploy_copilot_ignore "$target_dir"
+            ;;
+        --roocode-ignore|--roo-ignore)
+            deploy_roocode_ignore "$target_dir"
+            ;;
+        --all-ignores)
+            echo -e "${BRIGHT_BLUE}Deploying All Ignore Files${RESET}"
+            deploy_cursor_ignore "$target_dir"
+            deploy_cline_ignore "$target_dir"
+            deploy_continue_ignore "$target_dir"
+            deploy_copilot_ignore "$target_dir"
+            deploy_roocode_ignore "$target_dir"
+            echo -e "${BRIGHT_GREEN}✅ All ignore files deployed${RESET}"
+            ;;
+            
         # Goose support (placeholder for now)
         --goose)
-            print_error "Goose CLI support is not yet implemented"
+            echo -e "${BRIGHT_RED}Goose CLI support is not yet implemented${RESET}"
             echo "Coming soon: .goosehints and context file deployment" >&2
             exit 1
             ;;

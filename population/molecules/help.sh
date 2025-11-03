@@ -35,13 +35,47 @@ TOOL-SPECIFIC CONFIGURATION:
     --roo [TARGET_DIR]        Alias for --roocode
 
 CUSTOM COMMANDS DEPLOYMENT:
-    --commands {tool}         Deploy tool-specific commands/workflows
-                              Available: cursor, windsurf, cline, roo, continue
-                              Example: ainish-coder --commands cursor
+    --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
+                              
+                              IDE Extensions (File-Based):
+                              - cursor      (.cursor/commands/*.md - plain markdown)
+                              - roocode     (.roo/commands/*.md - with frontmatter)
+                              
+                              IDE Extensions (Workflows):
+                              - windsurf    (.windsurf/workflows/*.md)
+                              - cline       (.clinerules/workflows/*.md)
+                              
+                              IDE Extensions (Config-Based):
+                              - continue    (provides config.yaml setup guide)
+                              
+                              CLI Tools (TOML Commands):
+                              - gemini-cli  (.gemini/commands/*.toml)
+                              - qwen        (.qwen/commands/*.toml)
+                              
+                              CLI Tools (Recipes):
+                              - goose       (.goose/recipes/*.yaml)
+                              
+                              Other:
+                              - copilot     (use --copilot flag instead)
+                              - all         (deploy to all applicable tools)
+                              
+                              Example: ainish-coder --commands all
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md from TIER_0
     --gitignore [TARGET_DIR]  Deploy comprehensive .gitignore
+
+IGNORE FILE DEPLOYMENT:
+    --cursor-ignore [DIR]     Deploy .cursorignore for Cursor AI
+    --cline-ignore [DIR]      Deploy .clineignore for Cline VSCode extension
+    --continue-ignore [DIR]   Deploy .continueignore for Continue.dev
+    --copilot-ignore [DIR]    Deploy .copilotignore for GitHub Copilot
+    --roocode-ignore [DIR]    Deploy .rooignore for Roo Code
+    --roo-ignore [DIR]        Alias for --roocode-ignore
+    --all-ignores [DIR]       Deploy all ignore files at once
+                              
+                              Ignore files help AI tools focus on relevant code by
+                              excluding dependencies, build artifacts, and sensitive files.
 
 OTHER:
     --goose                   [NOT YET IMPLEMENTED] Goose CLI setup
@@ -81,6 +115,11 @@ EXAMPLES:
 
     # Utility deployments
     ainish-coder --gitignore                # Create comprehensive .gitignore
+    
+    # Deploy ignore files for AI tools
+    ainish-coder --cursor-ignore            # Deploy .cursorignore
+    ainish-coder --all-ignores              # Deploy all ignore files
+    ainish-coder --continue-ignore ~/project # Deploy to specific directory
 
 For more information, see: https://github.com/nbiish/ainish-coder
 EOF
