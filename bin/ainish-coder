@@ -52,6 +52,7 @@ source "${POPULATION_DIR}/molecules/deploy_roocode_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_github_actions.sh"
 source "${POPULATION_DIR}/molecules/deploy_template_agent.sh"
 source "${POPULATION_DIR}/molecules/deploy_osaa.sh"
+source "${POPULATION_DIR}/molecules/deploy_trae.sh"
 
 # Main function
 main() {
@@ -209,6 +210,17 @@ main() {
             echo -e "${BRIGHT_RED}Goose CLI support is not yet implemented${RESET}"
             echo "Coming soon: .goosehints and context file deployment" >&2
             exit 1
+            ;;
+        --trae)
+            # Usage: ainish-coder --trae [TARGET_DIR]
+            # Copies AGENTS.md from repository root into TARGET_DIR/.trae/rules/AGENTS.md
+            if [[ $# -ge 1 && ! -d "$1" ]]; then
+                # If first arg is a directory path but does not exist, show error
+                print_error "Target directory does not exist: $1"
+                exit 1
+            fi
+            local trae_target="${1:-$target_dir}"
+            deploy_trae "$trae_target"
             ;;
             
         *)

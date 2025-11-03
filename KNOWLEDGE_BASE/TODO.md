@@ -1,7 +1,46 @@
 # ainish-coder TODO - Fix Documentation & Implementation Alignment
 
 **Date:** 2025-11-02  
+**Last Updated:** 2025-11-03  
 **Status:** Needs Review & Implementation
+
+---
+
+## NEW ADDITIONS
+
+### TRAE AI IDE Integration Research - COMPLETED ✅
+
+**Date Completed:** November 3, 2025  
+**Document:** `KNOWLEDGE_BASE/TRAE_INTEGRATION.md`
+
+**Status:** Comprehensive research compiled including:
+- Complete feature analysis and comparison with competitors
+- Security analysis with ByteDance telemetry details (Unit 221B research)
+- MCP server integration guide
+- Custom agent creation for Ainish-Coder framework
+- Deployment molecule template (`deploy_trae.sh`)
+- Network monitoring and detection strategies
+- Best practices for secure usage
+
+**Next Steps:**
+1. Review `KNOWLEDGE_BASE/TRAE_INTEGRATION.md` for accuracy
+2. Decide on deployment strategy (Tier 3-4 only recommended)
+3. Implemented: `population/molecules/deploy_trae.sh` (see `population/molecules/deploy_trae.sh`)
+4. Implemented: CLI support for `--trae` (usage examples below)
+5. Create custom OSAA-aligned agents for TRAE
+6. Security audit before any deployment
+
+**CLI Usage Examples:**
+
+```bash
+# Deploy TRAE rules (copy AGENTS.md into current directory)
+./bin/ainish-coder --trae
+
+# Deploy TRAE rules to a specific project
+./bin/ainish-coder --trae /path/to/project
+```
+
+**Security Warning:** ByteDance telemetry - DO NOT use for proprietary/sensitive code
 
 ---
 

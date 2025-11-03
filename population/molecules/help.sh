@@ -33,6 +33,9 @@ TOOL-SPECIFIC CONFIGURATION:
     --qwen [TARGET_DIR]       Deploy Qwen AI configuration to .qwen/
     --roocode [TARGET_DIR]    Deploy Roo Code configuration to .roo/rules/
     --roo [TARGET_DIR]        Alias for --roocode
+    --trae [TARGET_DIR]       Deploy TRAE rules by copying repository AGENTS.md into
+                              TARGET_DIR/.trae/rules/AGENTS.md (defaults to current dir)
+                              Example: --trae ./my-project
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
