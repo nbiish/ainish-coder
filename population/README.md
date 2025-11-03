@@ -1,35 +1,35 @@
-# lib/ - AINISH-Coder Library
+# population/ - AINISH-Coder Implementation Library
 
-This directory contains the modular components of the AINISH-Coder system, organized following the **Atom → Molecule → Matter** architecture pattern defined in `structure.mdc`.
+This directory contains the modular components of the AINISH-Coder system, organized following the **Atomic Design** pattern (Atoms → Molecules → Organisms).
 
 ## Directory Structure
 
 ```
-lib/
-├── atoms/              # Core functions and constants
+population/
+├── atoms/              # Core utilities and functions (no dependencies)
+│   ├── backup.sh       # Backup/restore operations
 │   ├── colors.sh       # ANSI color definitions
-│   ├── paths.sh        # Path configuration and constants
+│   ├── config.sh       # Configuration utilities
 │   ├── file_operations.sh  # File/directory manipulation
-│   ├── validation.sh   # Validation functions
-│   └── backup.sh       # Backup/restore operations
+│   ├── file_utils.sh   # File utility helpers
+│   ├── ignore_patterns.sh  # Ignore pattern management
+│   ├── paths.sh        # Path configuration and constants
+│   ├── sanitize-settings.sh # Secret sanitization utility
+│   ├── secret-protection-help.sh # Secret protection help text
+│   └── validation.sh   # Validation functions
 │
 ├── molecules/          # Feature modules (depend on atoms)
-│   ├── deploy_core.sh         # Core .mdc deployment
-│   ├── deploy_markdown.sh     # Markdown (.md) deployment
-│   ├── deploy_vscode.sh       # VSCode/Copilot deployment
-│   ├── deploy_consolidated.sh # Shared consolidation logic
-│   ├── deploy_gemini.sh       # Gemini AI deployment
-│   ├── deploy_qwen.sh         # Qwen AI deployment
-│   ├── deploy_continue.sh     # Continue Dev deployment
-│   ├── deploy_mairules.sh     # MAI RULES deployment
-│   ├── deploy_style.sh        # Style guide deployment
-│   ├── deploy_security.sh     # Security files deployment
-│   ├── deploy_instructions.sh # Instructions deployment
-│   ├── deploy_license.sh      # License deployment
-│   ├── setup_shell.sh         # Shell wrapper setup
-│   └── help.sh                # Help display
+│   ├── clear_all_rules.sh  # Clear existing rules
+│   ├── deploy_agents.sh    # Deploy agent configurations
+│   ├── deploy_*.sh         # Tool-specific deployments (cursor, windsurf, etc.)
+│   ├── github-settings-guide.sh  # GitHub Actions setup guide
+│   ├── setup-secret-protection.sh # Secret protection setup
+│   ├── test-github-actions.sh    # GitHub Actions testing
+│   ├── setup_shell.sh      # Shell wrapper setup
+│   └── help.sh             # Help display
 │
-└── matter/             # (Reserved for future main orchestrators)
+└── organisms/          # High-level orchestration
+    └── install.sh      # System-wide installation wrapper
 ```
 
 ## Architecture
@@ -42,4 +42,9 @@ lib/
 - **file_operations.sh**: Core file/directory operations (copy, mkdir, file discovery)
 - **validation.sh**: Validation functions for paths, directories, configurations
 - **backup.sh**: Backup creation, listing, and restoration
+- **sanitize-settings.sh**: Remove API keys and secrets from configuration files
+- **secret-protection-help.sh**: Display secret protection quick reference
+
+
+````
 

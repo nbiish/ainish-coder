@@ -122,7 +122,7 @@ If you prefer to clean locally before pushing:
 
 ```bash
 # Run the sanitize script
-./sanitize-settings.sh
+bash population/atoms/sanitize-settings.sh
 
 # Review changes
 git diff
@@ -225,4 +225,4 @@ Add to `auto-sanitize.yml`:
 Questions or issues? Check:
 1. `KNOWLEDGE_BASE/SECRET_PROTECTION_SETUP.md` - Implementation details
 2. `CONFIGURATIONS/MCP/README.md` - Configuration guide
-3. Run `./secret-protection-help.sh` - Quick reference
+3. Run `bash population/atoms/secret-protection-help.sh` - Quick reference

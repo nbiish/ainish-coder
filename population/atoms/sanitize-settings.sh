@@ -1,13 +1,16 @@
 #!/bin/bash
 # Sanitize settings.json files by removing API keys and local paths
-# Usage: ./sanitize-settings.sh
+# Usage: bash population/atoms/sanitize-settings.sh [path/to/configurations]
 
 set -e
 
-# Source colors for pretty output
+# Get script directory and root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/population/atoms/colors.sh" ]; then
-    source "$SCRIPT_DIR/population/atoms/colors.sh"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source colors for pretty output
+if [ -f "$SCRIPT_DIR/colors.sh" ]; then
+    source "$SCRIPT_DIR/colors.sh"
 else
     # Fallback colors
     GREEN='\033[0;32m'
@@ -19,8 +22,11 @@ fi
 
 echo -e "${BLUE}🧹 Sanitizing settings.json files...${NC}"
 
+# Use provided path or default to CONFIGURATIONS in root
+CONFIG_PATH="${1:-$ROOT_DIR/CONFIGURATIONS}"
+
 # Find all settings.json files in CONFIGURATIONS
-find CONFIGURATIONS -name "settings.json" -type f | while read -r file; do
+find "$CONFIG_PATH" -name "settings.json" -type f | while read -r file; do
     echo -e "${YELLOW}Processing: ${file}${NC}"
     
     # Create backup

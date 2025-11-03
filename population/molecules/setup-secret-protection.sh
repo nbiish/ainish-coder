@@ -3,12 +3,12 @@
 
 set -e
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-NC='\033[0m'
+# Get script directory and root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source colors from atoms
+source "$SCRIPT_DIR/../atoms/colors.sh"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     Secret Protection Setup for ainish-coder              ║${NC}"
@@ -22,12 +22,12 @@ do
     case $opt in
         "git-secrets (Recommended - Local Protection)")
             echo -e "${GREEN}Installing git-secrets...${NC}"
-            ./.git-secrets-setup.sh
+            bash "$ROOT_DIR/.git-secrets-setup.sh"
             break
             ;;
         "Manual Sanitization Script")
             echo -e "${GREEN}Manual sanitization ready!${NC}"
-            echo -e "${YELLOW}Run './sanitize-settings.sh' before each commit${NC}"
+            echo -e "${YELLOW}Run 'bash population/atoms/sanitize-settings.sh' before each commit${NC}"
             break
             ;;
         "GitHub Actions Only")
@@ -37,7 +37,7 @@ do
             ;;
         "All of the Above")
             echo -e "${GREEN}Installing complete protection...${NC}"
-            ./.git-secrets-setup.sh
+            bash "$ROOT_DIR/.git-secrets-setup.sh"
             echo -e "${GREEN}✅ All protection methods enabled!${NC}"
             break
             ;;
@@ -54,7 +54,7 @@ echo -e "${BLUE}═════════════════════�
 echo -e "${GREEN}📋 Next Steps:${NC}"
 echo ""
 echo -e "1. Review your current settings.json files for secrets"
-echo -e "2. If they contain secrets, run: ${YELLOW}./sanitize-settings.sh${NC}"
+echo -e "2. If they contain secrets, run: ${YELLOW}bash population/atoms/sanitize-settings.sh${NC}"
 echo -e "3. Use the template at: ${YELLOW}CONFIGURATIONS/MCP/settings.json.template${NC}"
 echo -e "4. Read the README: ${YELLOW}CONFIGURATIONS/MCP/README.md${NC}"
 echo ""

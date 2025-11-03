@@ -153,11 +153,11 @@ brew install act
 
 - **Full guide:** `.github/workflows/README.md`
 - **Setup details:** `KNOWLEDGE_BASE/SECRET_PROTECTION_SETUP.md`
-- **Quick reference:** Run `./secret-protection-help.sh`
+- **Quick reference:** Run `bash population/atoms/secret-protection-help.sh`
 
 ### 🔄 What Changed:
 
-1. **Old way:** You had to manually run `./sanitize-settings.sh` before each commit
+1. **Old way:** You had to manually run `bash population/atoms/sanitize-settings.sh` before each commit
 2. **New way:** GitHub Actions does it automatically on push!
 3. **Best way:** Use both! Local git-secrets for immediate feedback + GitHub Actions as safety net
 

@@ -43,8 +43,7 @@ This will:
 
 ```bash
 # Before committing, run:
-chmod +x sanitize-settings.sh
-./sanitize-settings.sh
+bash population/atoms/sanitize-settings.sh
 
 # Review changes
 git diff

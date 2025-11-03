@@ -1,8 +1,10 @@
 #!/bin/bash
 # Wrapper script to execute the main ainish-coder command
+# This can be symlinked to /usr/local/bin for system-wide access
 
 # Get the directory of this wrapper script
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Path to the main script
 MAIN_SCRIPT="${ROOT_DIR}/bin/ainish-coder"
