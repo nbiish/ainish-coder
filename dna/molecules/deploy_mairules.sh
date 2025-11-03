@@ -18,12 +18,12 @@ deploy_mairules_tier0() {
         echo -e "${YELLOW}⚠️  MAIRULES.md already exists - will be overwritten${RESET}"
     fi
     
-    # Only process TIER_0_RULES
-    local tier_path="${REPO_DIR}/TIER_0_RULES"
+    # Only process TIER_RULES
+    local tier_path="${REPO_DIR}/TIER_RULES"
     local files_found=0
     
     if [[ -d "$tier_path" ]]; then
-        echo -e "${BRIGHT_BLUE}Processing TIER_0_RULES (Critical)...${RESET}"
+        echo -e "${BRIGHT_BLUE}Processing TIER_RULES (Critical)...${RESET}"
         
         # Add tier header
         echo "## TIER_0: Critical Rules" >> "$temp_file"
@@ -42,7 +42,7 @@ deploy_mairules_tier0() {
             fi
         done < <(find "$tier_path" -maxdepth 1 -name "*.md" -type f -print0 | sort -z)
     else
-        echo -e "${BRIGHT_RED}Error: TIER_0_RULES directory not found${RESET}"
+        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
         rm -f "$temp_file"
         return 1
     fi
@@ -51,11 +51,11 @@ deploy_mairules_tier0() {
     if [[ $files_found -gt 0 ]]; then
         mv "$temp_file" "$dest"
         echo -e "${GREEN}✓ Deployed MAIRULES.md to $target_dir${RESET}"
-        echo -e "${BRIGHT_GREEN}✅ MAIRULES.md created with TIER_0 (critical rules)${RESET}"
+        echo -e "${BRIGHT_GREEN}✅ MAIRULES.md created with TIER_RULES (critical rules)${RESET}"
         echo -e "${CYAN}💡 Use 'ainish-coder --tier {1-4}' to add more tiers as needed${RESET}"
         return 0
     else
-        echo -e "${BRIGHT_RED}Error: No files found in TIER_0_RULES${RESET}"
+        echo -e "${BRIGHT_RED}Error: No files found in TIER_RULES${RESET}"
         rm -f "$temp_file"
         return 1
     fi
@@ -82,12 +82,21 @@ deploy_mairules() {
     fi
     
     # Concatenate all tier files in order
-    local tier_dirs=("TIER_0_RULES" "TIER_1_RULES" "TIER_2_RULES" "TIER_3_RULES" "TIER_4_RULES")
+    local tier_files=("docs-protocol.md" "uv-python.md" "code-security.md" "prompt-security.md" "anishinaabe-cyberpunk-style.md" "modern-prompting.md")
     local files_found=0
+    local tier_path="${REPO_DIR}/TIER_RULES"
     
-    for tier_dir in "${tier_dirs[@]}"; do
-        local tier_path="${REPO_DIR}/${tier_dir}"
-        if [[ -d "$tier_path" ]]; then
+    if [[ ! -d "$tier_path" ]]; then
+        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    echo -e "${BRIGHT_BLUE}Processing TIER_RULES...${RESET}"
+    
+    for tier_file in "${tier_files[@]}"; do
+        local file_path="${tier_path}/${tier_file}"
+        if [[ -f "$file_path" ]]; then
             echo -e "${BRIGHT_BLUE}Processing ${tier_dir}...${RESET}"
             
             # Add tier header

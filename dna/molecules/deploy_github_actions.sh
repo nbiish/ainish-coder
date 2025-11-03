@@ -81,27 +81,27 @@ deploy_github_actions() {
         print_success "Deployed CHECKLIST.md"
     fi
     
-    # Deploy CONFIGURATIONS template and docs
+    # Deploy .configs template and docs
     echo -e "${BLUE}Deploying configuration templates...${RESET}"
     
-    mkdir -p "${target_dir}/CONFIGURATIONS/MCP"
+    mkdir -p "${target_dir}/.configs/MCP"
     
-    if [[ -f "${source_root}/CONFIGURATIONS/MCP/settings.json.template" ]]; then
-        cp "${source_root}/CONFIGURATIONS/MCP/settings.json.template" \
-           "${target_dir}/CONFIGURATIONS/MCP/settings.json.template" && \
+    if [[ -f "${source_root}/.configs/MCP/settings.json.template" ]]; then
+        cp "${source_root}/.configs/MCP/settings.json.template" \
+           "${target_dir}/.configs/MCP/settings.json.template" && \
         print_success "Deployed settings.json.template"
     fi
     
-    if [[ -f "${source_root}/CONFIGURATIONS/MCP/README.md" ]]; then
-        cp "${source_root}/CONFIGURATIONS/MCP/README.md" \
-           "${target_dir}/CONFIGURATIONS/MCP/README.md" && \
-        print_success "Deployed CONFIGURATIONS/MCP/README.md"
+    if [[ -f "${source_root}/.configs/MCP/README.md" ]]; then
+        cp "${source_root}/.configs/MCP/README.md" \
+           "${target_dir}/.configs/MCP/README.md" && \
+        print_success "Deployed .configs/MCP/README.md"
     fi
     
-    if [[ -f "${source_root}/CONFIGURATIONS/.gitignore" ]]; then
-        cp "${source_root}/CONFIGURATIONS/.gitignore" \
-           "${target_dir}/CONFIGURATIONS/.gitignore" && \
-        print_success "Deployed CONFIGURATIONS/.gitignore"
+    if [[ -f "${source_root}/.configs/.gitignore" ]]; then
+        cp "${source_root}/.configs/.gitignore" \
+           "${target_dir}/.configs/.gitignore" && \
+        print_success "Deployed .configs/.gitignore"
     fi
     
     # Deploy to KNOWLEDGE_BASE if it exists

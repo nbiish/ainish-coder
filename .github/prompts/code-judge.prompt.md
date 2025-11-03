@@ -1,8 +1,7 @@
 ---
 description: Critical thinking analysis applying the Code Judge Constitution
 mode: agent
-model: GPT-5 mini
-tools: ['search/codebase', 'fetch', 'usages']
+tools: ['search/codebase', 'usages', 'fetch']
 ---
 
 # Code Judge Critical Analysis

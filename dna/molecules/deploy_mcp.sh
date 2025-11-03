@@ -12,7 +12,7 @@ deploy_mcp() {
     fi
     
     local tier_dir_name="TIER_${tier_num}"
-    local source_dir="${REPO_DIR}/CONFIGURATIONS/MCP/${tier_dir_name}"
+    local source_dir="${REPO_DIR}/.configs/MCP/${tier_dir_name}"
     
     if [[ ! -d "$source_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: Source directory not found at $source_dir${RESET}"

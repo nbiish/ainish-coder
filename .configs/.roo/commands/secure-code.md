@@ -1,7 +1,6 @@
 ---
 description: Security review analyzing code for vulnerabilities and compliance
 mode: agent
-model: GPT-5 mini
 tools: ['search/codebase', 'fetch', 'usages']
 ---
 # General Cybersecurity Framework & Secure Coding Practices

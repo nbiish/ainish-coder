@@ -11,10 +11,10 @@ deploy_tier0() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_0 (Critical) rules to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_0_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
-        echo -e "${BRIGHT_RED}Error: TIER_0 directory not found${RESET}"
+        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
         return 1
     fi
     
@@ -50,10 +50,10 @@ deploy_tier1() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_1 (Core) rules to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_1_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
-        echo -e "${BRIGHT_RED}Error: TIER_1_RULES directory not found${RESET}"
+        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
         return 1
     fi
     
@@ -87,12 +87,12 @@ deploy_tier2() {
     
     validate_target_dir "$target_dir" || return 1
     
-    echo -e "${BRIGHT_BLUE}Deploying TIER_2 (Security) rules to $mairules_file${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying TIER_4 (Advanced) rules to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_2_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
-        echo -e "${BRIGHT_RED}Error: TIER_2_RULES directory not found${RESET}"
+        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
         return 1
     fi
     
@@ -126,12 +126,12 @@ deploy_tier3() {
     
     validate_target_dir "$target_dir" || return 1
     
-    echo -e "${BRIGHT_BLUE}Deploying TIER_3 (Style & Advanced) rules to $mairules_file${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying TIER_3 (Cultural/Stylistic) rules to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_3_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
-        echo -e "${BRIGHT_RED}Error: TIER_3_RULES directory not found${RESET}"
+        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
         return 1
     fi
     

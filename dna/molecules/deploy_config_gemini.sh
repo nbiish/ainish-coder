@@ -1,12 +1,12 @@
 #!/bin/bash
-# MOLECULE: deploy_config_qwen
-# Deploys qwen configuration
+# MOLECULE: deploy_config_gemini
+# Deploys gemini configuration
 
-deploy_config_qwen() {
-    echo "Deploying qwen configuration..."
+deploy_config_gemini() {
+    echo "Deploying gemini configuration..."
     
-    local source_file="${REPO_DIR}/CONFIGURATIONS/.qwen/setting.json"
-    local dest_dir="$HOME/.qwen"
+    local source_file="${REPO_DIR}/.configs/.gemini/settings.json"
+    local dest_dir="$HOME/.gemini"
     local dest_file="$dest_dir/settings.json"
     
     if [[ ! -f "$source_file" ]]; then
@@ -22,9 +22,9 @@ deploy_config_qwen() {
     cp "$source_file" "$dest_file"
     
     if [[ $? -eq 0 ]]; then
-        echo -e "${GREEN}Successfully deployed qwen configuration to $dest_file${RESET}"
+        echo -e "${GREEN}Successfully deployed gemini configuration to $dest_file${RESET}"
     else
-        echo -e "${BRIGHT_RED}Failed to deploy qwen configuration.${RESET}"
+        echo -e "${BRIGHT_RED}Failed to deploy gemini configuration.${RESET}"
         return 1
     fi
     

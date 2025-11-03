@@ -31,7 +31,7 @@
 
 - **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
 - **🏗️ Modular Architecture**: Clean Atom → Molecule → Matter structure
-- **🤖 Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code
+- **🤖 Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code, and Trae
 - **⚡ Simple Deployment**: One command to deploy configurations
 - **🔗 Smart Symlinks**: Unified configuration across tools
 - **💻 Shell Integration**: Convenient `ainish-coder` command
@@ -67,11 +67,12 @@ ainish-coder --tier 1                    # Append TIER_1 to MAIRULES.md (Code se
 ainish-coder --tier all                  # Append all tiers (0-4) to MAIRULES.md
 
 # Deploy tool-specific configurations
-ainish-coder --cursor                    # Deploy to .cursor/rules/
-ainish-coder --windsurf                  # Deploy to .windsurf/rules/
+ainish-coder --cursor                    # Deploy to .configs/.cursor/rules/
+ainish-coder --windsurf                  # Deploy to .configs/.windsurf/rules/
+ainish-coder --trae                      # Deploy to .configs/.trae/rules/
 
 # Deploy custom commands to current directory
-ainish-coder --commands cursor           # Deploy slash commands from CONFIGURATIONS
+ainish-coder --commands cursor           # Deploy slash commands from .configs
 ainish-coder --commands windsurf         # Deploy workflow commands
 
 # Utility commands
@@ -83,7 +84,7 @@ ainish-coder --critical                  # Create symlink to critical documentat
 
 ### 🆕 Tier-Based Rule Deployment
 
-Deploy modular rule sets organized by priority and purpose. **Tiers append to MAIRULES.md** for consolidated rule management:
+Deploy modular rule sets organized by priority and purpose. **Tiers append to MAIRULES.md** for consolidated rule management. All tier rules are now located in the `TIER_RULES/` directory.
 
 - **TIER_0**: Documentation protocols (docs-protocol.md)
 - **TIER_1**: Code security best practices (code-security.md)
