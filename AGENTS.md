@@ -20,6 +20,15 @@ READ:
 - KNOWLEDGE_BASE/TODO.md
 - KNOWLEDGE_BASE/DOCS/*
 
+**Package Management Commands:**
+
+```bash
+- ```uv venv``` → Creates ```.venv``` in the current directory
+- ```uv pip install some-package``` → Installs packages into the current directory's ```.venv```
+- ```uv run needs-some-package.py``` → Runs python files with the current directory's ```.venv``` dependencies
+- ```uv tool install some-package``` → Installs packages as isolated tools (not in the current directory's ```.venv```)
+```
+
 ## Fact-Based Decision Making
 
 **All code decisions must be supported by verified facts.**
@@ -116,15 +125,6 @@ READ:
 - Virtual environments to isolate component dependencies
 - Requirements files with pinned versions
 - Type hints for better code clarity
-
-**Package Management Commands:**
-
-```bash
-- ```uv venv``` → Creates ```.venv``` in the current directory
-- ```uv pip install some-package``` → Installs packages into the current directory's ```.venv```
-- ```uv run needs-some-package.py``` → Runs python files with the current directory's ```.venv``` dependencies
-- ```uv tool install some-package``` → Installs packages as isolated tools (not in the current directory's ```.venv```)
-```
 
 ## Documentation Usage
 
