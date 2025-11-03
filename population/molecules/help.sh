@@ -43,7 +43,10 @@ CUSTOM COMMANDS DEPLOYMENT:
                               
                               IDE Extensions (Workflows):
                               - windsurf    (.windsurf/workflows/*.md)
-                              - cline       (.clinerules/workflows/*.md)
+                              
+                              IDE Extensions (Rules - NOT Slash Commands):
+                              - cline       (.clinerules/*.md - rules files, NOT slash commands!)
+                                            Note: Cline only has /newtask and /newrule (built-in)
                               
                               IDE Extensions (Config-Based):
                               - continue    (provides config.yaml setup guide)
@@ -112,6 +115,7 @@ EXAMPLES:
     # Deploy custom commands
     ainish-coder --commands cursor          # Deploy slash commands
     ainish-coder --commands windsurf        # Deploy workflows
+    ainish-coder --commands cline           # Deploy rules files (NOT slash commands)
 
     # Utility deployments
     ainish-coder --gitignore                # Create comprehensive .gitignore
@@ -120,6 +124,11 @@ EXAMPLES:
     ainish-coder --cursor-ignore            # Deploy .cursorignore
     ainish-coder --all-ignores              # Deploy all ignore files
     ainish-coder --continue-ignore ~/project # Deploy to specific directory
+
+IMPORTANT NOTES:
+    ⚠️  Cline does NOT support custom slash commands! It only has /newtask and /newrule
+        built-in. The --commands cline deployment creates .clinerules files with MANDATORY
+        instructions, not slash commands. See KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md
 
 For more information, see: https://github.com/nbiish/ainish-coder
 EOF

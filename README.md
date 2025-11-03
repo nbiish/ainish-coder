@@ -101,17 +101,20 @@ Deploy tool-specific slash commands, workflows, and recipes directly to your cur
 **Available Command Types:**
 
 - **File-Based Commands** (Cursor, Roo): Markdown files with slash command definitions
-- **Workflows** (Windsurf, Cline): Workflow markdown files for task automation
+- **Workflows** (Windsurf): Workflow markdown files for task automation
+- **Rules Files** (Cline): Markdown rules (NOT slash commands - see note below)
 - **Config-Based** (Continue): Prompts defined in config.yaml
 - **TOML Commands** (Gemini CLI, Qwen): TOML configuration files
 - **Recipes** (Goose): YAML recipe files with instructions
+
+> **⚠️ Important Note about Cline**: Cline does **NOT** support custom slash commands. It only has two built-in commands (`/newtask` and `/newrule`). The `--commands cline` deployment creates `.clinerules` files with MANDATORY instructions, not slash commands. See [KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md](KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md) for details.
 
 ```bash
 # Deploy to specific tools
 ainish-coder --commands cursor       # Plain markdown to .cursor/commands/
 ainish-coder --commands roocode      # Markdown + frontmatter to .roo/commands/
 ainish-coder --commands windsurf     # Workflows to .windsurf/workflows/
-ainish-coder --commands cline        # Workflows to .clinerules/workflows/
+ainish-coder --commands cline        # Rules files to .clinerules/ (NOT slash commands!)
 ainish-coder --commands continue     # Creates setup guide for config.yaml
 ainish-coder --commands gemini-cli   # TOML files to .gemini/commands/
 ainish-coder --commands qwen         # TOML files to .qwen/commands/
@@ -130,7 +133,7 @@ ainish-coder --commands all
 | **Cursor** | `--cursor` | `--commands cursor` | `.cursor/rules/` | `.cursor/commands/*.md` | Plain markdown |
 | **Roo Code** | `--roocode` | `--commands roocode` | `.roo/rules/` | `.roo/commands/*.md` | Markdown + frontmatter |
 | **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` | `.windsurf/workflows/*.md` | Workflows |
-| **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/workflows/*.md` | Workflows |
+| **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/*.md` | Rules files (not slash commands) |
 | **Continue Dev** | `--continue` | `--commands continue` | `.continue/rules/` | Config guide | config.yaml setup |
 | **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` | N/A | Symlink |
 
