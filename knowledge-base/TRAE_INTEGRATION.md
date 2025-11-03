@@ -820,7 +820,7 @@ Given the security concerns with TRAE, we recommend a **tiered deployment approa
 
 ### Recommended Deployment Molecule
 
-Create a new deployment script: `population/molecules/deploy_trae.sh`
+Create a new deployment script: `dna/molecules/deploy_trae.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -1103,7 +1103,7 @@ Create custom agents aligned with Ainish-Coder principles:
 case "$tool" in
     # ... existing cases ...
     trae)
-        source "${POPULATION_DIR}/molecules/deploy_trae.sh"
+        source "${DNA_DIR}/molecules/deploy_trae.sh"
         deploy_trae "$target_dir"
         ;;
 esac

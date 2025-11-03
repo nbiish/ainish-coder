@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: Qwen deployment
-# Symlinks QWEN.md to AGENTS.md
+# Copies AGENTS.md to QWEN.md
 # Requires AGENTS.md to exist first
 
 deploy_qwen() {
@@ -11,21 +11,20 @@ deploy_qwen() {
     
     echo -e "${BRIGHT_BLUE}Deploying Qwen Code CLI configuration${RESET}"
     
+    local agents_file="$target_dir/AGENTS.md"
     local qwen_file="$target_dir/QWEN.md"
     
-    # Remove existing
-    if [[ -L "$qwen_file" ]]; then
-        rm "$qwen_file"
-    elif [[ -f "$qwen_file" ]]; then
+    # Backup existing file
+    if [[ -f "$qwen_file" ]]; then
         mv "$qwen_file" "$qwen_file.backup"
         echo -e "${YELLOW}Backed up existing QWEN.md${RESET}"
     fi
     
-    # Create symlink
-    if ln -s "AGENTS.md" "$qwen_file" 2>/dev/null; then
-        echo -e "${GREEN}✓ Symlinked: QWEN.md → AGENTS.md${RESET}"
+    # Copy AGENTS.md to QWEN.md
+    if cp "$agents_file" "$qwen_file" 2>/dev/null; then
+        echo -e "${GREEN}✓ Copied: QWEN.md from AGENTS.md${RESET}"
     else
-        echo -e "${BRIGHT_RED}Error: Failed to create symlink${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to copy to QWEN.md${RESET}"
         return 1
     fi
     

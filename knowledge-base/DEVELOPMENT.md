@@ -51,10 +51,10 @@ Since `ainish-coder` is accessed directly from your repository via PATH, **any c
    vim bin/ainish-coder
    
    # Edit molecule scripts
-   vim population/molecules/deploy_*.sh
+   vim dna/molecules/deploy_*.sh
    
    # Edit atom utilities
-   vim population/atoms/*.sh
+   vim dna/atoms/*.sh
    ```
 
 2. **Test immediately**:
@@ -98,8 +98,8 @@ If you get "Permission denied":
 chmod +x /Users/nbiish/code/ainish-coder/bin/ainish-coder
 
 # Make all molecule scripts executable
-chmod +x /Users/nbiish/code/ainish-coder/population/molecules/*.sh
-chmod +x /Users/nbiish/code/ainish-coder/population/atoms/*.sh
+chmod +x /Users/nbiish/code/ainish-coder/dna/molecules/*.sh
+chmod +x /Users/nbiish/code/ainish-coder/dna/atoms/*.sh
 ```
 
 ---
@@ -145,8 +145,8 @@ cat MAIRULES.md
 ```bash
 # Source and test individual functions
 cd /Users/nbiish/code/ainish-coder
-source population/atoms/colors.sh
-source population/molecules/deploy_cursor.sh
+source dna/atoms/colors.sh
+source dna/molecules/deploy_cursor.sh
 
 # Test the function directly
 deploy_cursor /tmp/test-dir
@@ -173,7 +173,7 @@ set -x  # Enable debug mode
 bash -n bin/ainish-coder
 
 # Check all scripts
-for script in population/molecules/*.sh; do
+for script in dna/molecules/*.sh; do
     echo "Checking $script..."
     bash -n "$script" || echo "❌ Syntax error in $script"
 done
@@ -220,7 +220,7 @@ bin/ainish-coder              # Main CLI entry point
 
 1. **Create molecule** (if needed):
    ```bash
-   vim population/molecules/deploy_newtool.sh
+   vim dna/molecules/deploy_newtool.sh
    ```
 
 2. **Add function**:
@@ -235,7 +235,7 @@ bin/ainish-coder              # Main CLI entry point
 3. **Source in main CLI**:
    ```bash
    # Add to bin/ainish-coder
-   source "${POPULATION_DIR}/molecules/deploy_newtool.sh"
+   source "${DNA_DIR}/molecules/deploy_newtool.sh"
    ```
 
 4. **Add command handler**:
@@ -268,7 +268,7 @@ ainish-coder --cursor
 bash -n bin/ainish-coder
 
 # Verify no debug code left
-grep -r "set -x" bin/ population/
+grep -r "set -x" bin/ dna/
 ```
 
 ### Commit Changes
@@ -276,7 +276,7 @@ grep -r "set -x" bin/ population/
 ```bash
 cd /Users/nbiish/code/ainish-coder
 git status
-git add bin/ainish-coder population/molecules/deploy_*.sh
+git add bin/ainish-coder dna/molecules/deploy_*.sh
 git commit -m "feat: Add new deployment function"
 git push
 ```

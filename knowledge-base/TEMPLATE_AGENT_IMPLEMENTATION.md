@@ -23,7 +23,7 @@
 - 🚀 **Quick Start Guide** - Deployment walkthrough
 
 ### 2. Deployment Script
-**Location:** `population/molecules/deploy_template_agent.sh`  
+**Location:** `dna/molecules/deploy_template_agent.sh`  
 **Function:** `deploy_template_agent()`  
 **Dependencies:** Requires `AGENTS.md` (enforced by validation)
 
@@ -31,7 +31,7 @@
 **Command:** `ainish-coder --template-agent [TARGET_DIR]`  
 **Updated Files:**
 - `bin/ainish-coder` - Added command handler
-- `population/molecules/help.sh` - Added help documentation
+- `dna/molecules/help.sh` - Added help documentation
 
 ### 4. Documentation
 **Created Files:**
@@ -104,12 +104,12 @@ ainish-coder/
 │   └── template-agent-example-python-security.md  [NEW - Example]
 ├── KNOWLEDGE_BASE/
 │   └── TEMPLATE_AGENT_SYSTEM.md            [NEW - Full documentation]
-├── population/
+├── dna/
 │   └── molecules/
 │       └── deploy_template_agent.sh        [NEW - Deployment script]
 ├── bin/
 │   └── ainish-coder                        [MODIFIED - Added command]
-├── population/molecules/
+├── dna/molecules/
 │   └── help.sh                             [MODIFIED - Added help text]
 └── README.md                                [MODIFIED - Added section]
 ```

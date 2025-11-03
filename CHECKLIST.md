@@ -24,8 +24,8 @@ Visual location: Settings → Actions (left sidebar) → General → Workflow pe
 ```bash
 git add .github/workflows/
 git add GITHUB_ACTIONS_SETUP.md
-git add population/molecules/test-github-actions.sh
-git add population/atoms/secret-protection-help.sh
+git add dna/molecules/test-github-actions.sh
+git add dna/atoms/secret-protection-help.sh
 git add KNOWLEDGE_BASE/SECRET_PROTECTION_SETUP.md
 git commit -m "feat: add automatic secret sanitization with GitHub Actions"
 git push
@@ -43,7 +43,7 @@ git push
 For the best security, also setup local protection:
 
 ```bash
-bash population/molecules/setup-secret-protection.sh
+bash dna/molecules/setup-secret-protection.sh
 # Choose option 1: git-secrets
 ```
 
@@ -59,8 +59,8 @@ This gives you **three layers** of protection:
 ✅ `.github/workflows/README.md` - Workflow documentation
 ✅ `.github/workflows/secret-scan.yml` - Legacy (disabled)
 ✅ `GITHUB_ACTIONS_SETUP.md` - Setup guide with visuals
-✅ `population/molecules/test-github-actions.sh` - Test workflows locally
-✅ Updated `population/atoms/secret-protection-help.sh` - Quick reference
+✅ `dna/molecules/test-github-actions.sh` - Test workflows locally
+✅ Updated `dna/atoms/secret-protection-help.sh` - Quick reference
 ✅ Updated `KNOWLEDGE_BASE/SECRET_PROTECTION_SETUP.md` - Full docs
 
 ## What Gets Auto-Cleaned
@@ -73,7 +73,7 @@ This gives you **three layers** of protection:
 
 ## Quick Reference
 
-Run anytime: `bash population/atoms/secret-protection-help.sh`
+Run anytime: `bash dna/atoms/secret-protection-help.sh`
 
 ## Troubleshooting
 
@@ -84,13 +84,13 @@ Run anytime: `bash population/atoms/secret-protection-help.sh`
 **Want to test locally first?**
 ```bash
 brew install act
-bash population/molecules/test-github-actions.sh
+bash dna/molecules/test-github-actions.sh
 ```
 
 **Need help?**
 - Read `.github/workflows/README.md`
 - Check `GITHUB_ACTIONS_SETUP.md`
-- Run `bash population/atoms/secret-protection-help.sh`
+- Run `bash dna/atoms/secret-protection-help.sh`
 
 ---
 

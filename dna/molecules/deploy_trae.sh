@@ -6,14 +6,14 @@ set -euo pipefail
 
 # Load atoms if available (colors, file ops)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-POPULATION_DIR="${SCRIPT_DIR}/.."
-if [[ -f "${POPULATION_DIR}/atoms/colors.sh" ]]; then
+DNA_DIR="${SCRIPT_DIR}/.."
+if [[ -f "${DNA_DIR}/atoms/colors.sh" ]]; then
     # shellcheck source=/dev/null
-    source "${POPULATION_DIR}/atoms/colors.sh" || true
+    source "${DNA_DIR}/atoms/colors.sh" || true
 fi
-if [[ -f "${POPULATION_DIR}/atoms/file_operations.sh" ]]; then
+if [[ -f "${DNA_DIR}/atoms/file_operations.sh" ]]; then
     # shellcheck source=/dev/null
-    source "${POPULATION_DIR}/atoms/file_operations.sh" || true
+    source "${DNA_DIR}/atoms/file_operations.sh" || true
 fi
 
 echo_info() { printf "\e[36m%s\e[0m\n" "[TRAe] $*"; }

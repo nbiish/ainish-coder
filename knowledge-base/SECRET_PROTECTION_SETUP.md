@@ -11,7 +11,7 @@ I've implemented **3 layers of protection** to prevent API keys and local paths 
    - Detects Brave API keys, Tavily keys, and your local paths
    - No CI/CD needed
 
-2. **`population/atoms/sanitize-settings.sh`** - Manual cleaning script
+2. **`dna/atoms/sanitize-settings.sh`** - Manual cleaning script
    - Strips secrets from all settings.json files
    - Creates backups automatically
    - Uses `jq` for safe JSON manipulation
@@ -38,7 +38,7 @@ I've implemented **3 layers of protection** to prevent API keys and local paths 
 Run the interactive setup:
 
 ```bash
-bash population/molecules/setup-secret-protection.sh
+bash dna/molecules/setup-secret-protection.sh
 ```
 
 **Or manually choose git-secrets (recommended):**
@@ -83,7 +83,7 @@ See `.github/workflows/README.md` for full documentation.
 
 1. **Enable GitHub Actions** (see `.github/workflows/README.md` for setup)
 2. **Choose local protection** (I recommend git-secrets for immediate feedback)
-3. **Clean existing files**: `bash population/atoms/sanitize-settings.sh`
+3. **Clean existing files**: `bash dna/atoms/sanitize-settings.sh`
 4. **Test it works**: Try pushing a file with a test API key
 5. **Update .gitignore**: Already done in `CONFIGURATIONS/.gitignore`
 
@@ -97,7 +97,7 @@ See `.github/workflows/README.md` for full documentation.
 
 ```bash
 # Setup local protection
-bash population/molecules/setup-secret-protection.sh  # Choose option 1
+bash dna/molecules/setup-secret-protection.sh  # Choose option 1
 
 # Then push knowing GitHub Actions will catch anything missed
 git add .
@@ -112,7 +112,7 @@ I detected these in your files:
 - Tavily API Key: `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`
 - Local Path: `/Volumes/1tb-sandisk/MCP/...`
 
-**⚠️ IMPORTANT:** Before pushing to GitHub, run `bash population/atoms/sanitize-settings.sh` to clean these!
+**⚠️ IMPORTANT:** Before pushing to GitHub, run `bash dna/atoms/sanitize-settings.sh` to clean these!
 
 ### 💡 Pro Tips
 

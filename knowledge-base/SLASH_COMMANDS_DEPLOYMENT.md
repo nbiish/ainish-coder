@@ -39,7 +39,7 @@ Successfully implemented deployment of `.github/prompts/*.prompt.md` files to sl
 
 ### Created Deployment Molecules
 
-All scripts follow the Atomic Design pattern and are located in `population/molecules/`:
+All scripts follow the Atomic Design pattern and are located in `dna/molecules/`:
 
 1. **deploy_cursor_commands.sh**
    - Strips YAML frontmatter from source prompts

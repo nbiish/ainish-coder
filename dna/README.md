@@ -1,11 +1,11 @@
-# population/ - AINISH-Coder Implementation Library
+# dna/ - AINISH-Coder Implementation Library
 
-This directory contains the modular components of the AINISH-Coder system, organized following the **Atomic Design** pattern (Atoms → Molecules → Organisms).
+This directory contains the modular components of the AINISH-Coder system, organized following the **DNA Design** pattern (Atoms → Molecules → Proteins).
 
 ## Directory Structure
 
 ```
-population/
+dna/
 ├── atoms/              # Core utilities and functions (no dependencies)
 │   ├── backup.sh       # Backup/restore operations
 │   ├── colors.sh       # ANSI color definitions
@@ -28,7 +28,7 @@ population/
 │   ├── setup_shell.sh      # Shell wrapper setup
 │   └── help.sh             # Help display
 │
-└── organisms/          # High-level orchestration
+└── proteins/           # High-level orchestration
     └── install.sh      # System-wide installation wrapper
 ```
 

@@ -25,7 +25,7 @@
 **Next Steps:**
 1. Review `KNOWLEDGE_BASE/TRAE_INTEGRATION.md` for accuracy
 2. Decide on deployment strategy (Tier 3-4 only recommended)
-3. Implemented: `population/molecules/deploy_trae.sh` (see `population/molecules/deploy_trae.sh`)
+3. Implemented: `dna/molecules/deploy_trae.sh` (see `dna/molecules/deploy_trae.sh`)
 4. Implemented: CLI support for `--trae` (usage examples below)
 5. Create custom OSAA-aligned agents for TRAE
 6. Security audit before any deployment
@@ -105,7 +105,7 @@ USAGE:
     ainish-coder --rules
 ```
 
-**Version 2: `population/molecules/help.sh`**
+**Version 2: `dna/molecules/help.sh`**
 ```
 USAGE:
     ainish-coder [COMMAND] [TARGET_DIR]
@@ -171,7 +171,7 @@ ainish-coder --goose  # Setup Goose with context files
 - README says: "Copies AGENTS.md to current directory"
 
 **Action Required:**
-- Create `population/molecules/deploy_goose.sh`
+- Create `dna/molecules/deploy_goose.sh`
 - Implement .goosehints creation
 - Copy AGENTS.md to target directory
 - Document CONTEXT_FILE_NAMES env var setup
@@ -201,14 +201,14 @@ ainish-coder --goose  # Setup Goose with context files
 
 **Expected structure (per AGENTS.md):**
 ```
-population/
+dna/
 ├── atoms/        # ✅ Implemented (colors, paths, validation, etc.)
 ├── molecules/    # ✅ Implemented (deploy scripts, help, etc.)
 └── organisms/    # ❌ EMPTY - should contain ainish-setup.sh
 ```
 
 **Current Reality:**
-- `population/organisms/` directory exists but is EMPTY
+- `dna/organisms/` directory exists but is EMPTY
 - `ainish-setup.sh` is in ROOT, not in organisms/
 - README mentions "lib/" directory that doesn't exist
 - Unclear if organism layer is needed or if this is intentional
@@ -379,15 +379,15 @@ ainish-coder --tier0 TARGET_DIR    # Tier number in flag name
 
 #### ✅ Core Implementation:
 - `bin/ainish-coder` - Complete CLI with all commands
-- `population/molecules/deploy_tiers.sh` - Fixed duplicates, correct paths
-- `population/molecules/deploy_agents.sh` - Fixed source path
-- `population/molecules/deploy_critical.sh` - Fixed source path
-- `population/molecules/help.sh` - Comprehensive, accurate help
+- `dna/molecules/deploy_tiers.sh` - Fixed duplicates, correct paths
+- `dna/molecules/deploy_agents.sh` - Fixed source path
+- `dna/molecules/deploy_critical.sh` - Fixed source path
+- `dna/molecules/help.sh` - Comprehensive, accurate help
 
 #### ✅ Infrastructure:
-- `population/atoms/colors.sh` - Added missing BRIGHT_* colors
-- `population/atoms/paths.sh` - Added REPO_DIR detection
-- `population/atoms/validation.sh` - Added missing utility functions
+- `dna/atoms/colors.sh` - Added missing BRIGHT_* colors
+- `dna/atoms/paths.sh` - Added REPO_DIR detection
+- `dna/atoms/validation.sh` - Added missing utility functions
 
 ### Remaining Tasks
 
@@ -398,7 +398,7 @@ ainish-coder --tier0 TARGET_DIR    # Tier number in flag name
 - Clarify that --rules deploys both AGENTS.md and MAIRULES.md
 
 #### 📋 Phase 8: Goose CLI Support (OPTIONAL)
-- Create `population/molecules/deploy_goose.sh`
+- Create `dna/molecules/deploy_goose.sh`
 - Implement .goosehints creation
 - Copy AGENTS.md to target directory
 - Document CONTEXT_FILE_NAMES environment variable setup

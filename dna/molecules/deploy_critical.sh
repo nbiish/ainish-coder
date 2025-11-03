@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: Critical rules deployment
-# Symlinks critical.md from TIER_0 to project root
+# Copies critical.md from repo root to project root
 
 deploy_critical() {
     local target_dir="${1:-.}"  # Default to current directory if not provided
@@ -9,7 +9,7 @@ deploy_critical() {
     
     echo -e "${BRIGHT_BLUE}Deploying critical.md${RESET}"
     
-    local source="${REPO_DIR}/TIER_RULES/docs-protocol.md"
+    local source="${REPO_DIR}/critical.md"
     local dest="$target_dir/critical.md"
     
     if [[ ! -f "$source" ]]; then
@@ -17,19 +17,17 @@ deploy_critical() {
         return 1
     fi
     
-    # Remove existing symlink or file
-    if [[ -L "$dest" ]]; then
-        rm "$dest"
-    elif [[ -f "$dest" ]]; then
+    # Backup existing file if it exists
+    if [[ -f "$dest" ]]; then
         mv "$dest" "$dest.backup"
         echo -e "${YELLOW}Backed up existing critical.md${RESET}"
     fi
     
-    # Create symlink
-    if ln -s "$source" "$dest" 2>/dev/null; then
-        echo -e "${GREEN}✓ Created symlink: critical.md → TIER_0/critical.md${RESET}"
+    # Copy file
+    if cp "$source" "$dest" 2>/dev/null; then
+        echo -e "${GREEN}✓ Copied: critical.md${RESET}"
     else
-        echo -e "${BRIGHT_RED}Error: Failed to create symlink${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to copy critical.md${RESET}"
         return 1
     fi
     

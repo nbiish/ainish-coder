@@ -1,0 +1,458 @@
+# ainish-coder Command Arguments Reference
+
+This document provides visual diagrams of all ainish-coder commands, arguments, and their relationships.
+
+## Command Structure Overview
+
+```mermaid
+graph TB
+    CLI[ainish-coder]
+    
+    CLI --> CORE[Core Commands]
+    CLI --> TIER[Tier Deployment]
+    CLI --> TOOLS[Tool-Specific Config]
+    CLI --> CUSTOM[Custom Commands]
+    CLI --> UTIL[Utilities]
+    CLI --> SYS[System/Help]
+    
+    CORE --> rules[--rules]
+    CORE --> agents[--agents]
+    CORE --> mairules[--mairules]
+    CORE --> mairules0[--mairules-tier0]
+    
+    TIER --> tier[--tier N]
+    TIER --> tier0[--tier0]
+    TIER --> tier1[--tier1]
+    TIER --> tier2[--tier2]
+    TIER --> tier3[--tier3]
+    TIER --> tier4[--tier4]
+    
+    TOOLS --> cursor[--cursor]
+    TOOLS --> windsurf[--windsurf]
+    TOOLS --> cline[--cline]
+    TOOLS --> copilot[--copilot]
+    TOOLS --> continue[--continue / --cn]
+    TOOLS --> gemini[--gemini]
+    TOOLS --> qwen[--qwen]
+    TOOLS --> roocode[--roocode / --roo]
+    TOOLS --> trae[--trae]
+    
+    CUSTOM --> commands[--commands TOOL]
+    
+    UTIL --> critical[--critical]
+    UTIL --> gitignore[--gitignore]
+    UTIL --> github_actions[--github-actions]
+    UTIL --> template[--template-agent]
+    UTIL --> osaa[--OSAA]
+    UTIL --> ignores[Ignore Files]
+    
+    ignores --> cursor_ignore[--cursor-ignore]
+    ignores --> cline_ignore[--cline-ignore]
+    ignores --> continue_ignore[--continue-ignore]
+    ignores --> copilot_ignore[--copilot-ignore]
+    ignores --> roocode_ignore[--roocode-ignore / --roo-ignore]
+    ignores --> all_ignores[--all-ignores]
+    
+    SYS --> help[--help / -h]
+    SYS --> version[--version / -v]
+    
+    style CLI fill:#4a9eff,stroke:#2d5f99,stroke-width:3px,color:#fff
+    style CORE fill:#66bb6a,stroke:#43a047,stroke-width:2px,color:#fff
+    style TIER fill:#ffa726,stroke:#f57c00,stroke-width:2px,color:#fff
+    style TOOLS fill:#ab47bc,stroke:#8e24aa,stroke-width:2px,color:#fff
+    style CUSTOM fill:#ec407a,stroke:#c2185b,stroke-width:2px,color:#fff
+    style UTIL fill:#26c6da,stroke:#00acc1,stroke-width:2px,color:#fff
+    style SYS fill:#78909c,stroke:#546e7a,stroke-width:2px,color:#fff
+```
+
+## Recommended Workflow
+
+```mermaid
+flowchart TD
+    START([Start New Project])
+    
+    START --> STEP1[Step 1: Deploy Core Rules]
+    STEP1 --> rules_cmd["ainish-coder --rules"]
+    rules_cmd --> rules_result[Creates AGENTS.md + MAIRULES.md]
+    
+    rules_result --> STEP2{Need Additional Tiers?}
+    STEP2 -->|Yes| tier_choice[Choose Tier]
+    STEP2 -->|No| STEP3
+    
+    tier_choice --> tier1_cmd["--tier 1 (Code Security)"]
+    tier_choice --> tier2_cmd["--tier 2 (Prompt Security)"]
+    tier_choice --> tier_all["--tier all (All Tiers)"]
+    
+    tier1_cmd --> STEP3[Step 3: Deploy Tool Configs]
+    tier2_cmd --> STEP3
+    tier_all --> STEP3
+    
+    STEP3 --> tool_choice[Choose Your Tools]
+    tool_choice --> cursor_cmd["--cursor"]
+    tool_choice --> windsurf_cmd["--windsurf"]
+    tool_choice --> copilot_cmd["--copilot"]
+    
+    cursor_cmd --> STEP4{Need Custom Commands?}
+    windsurf_cmd --> STEP4
+    copilot_cmd --> STEP4
+    
+    STEP4 -->|Yes| cmd_deploy["--commands {tool}"]
+    STEP4 -->|No| STEP5
+    
+    cmd_deploy --> STEP5[Step 5: Add Utilities]
+    
+    STEP5 --> util_critical["--critical"]
+    STEP5 --> util_gitignore["--gitignore"]
+    STEP5 --> util_template["--template-agent"]
+    
+    util_critical --> DONE([✅ Setup Complete])
+    util_gitignore --> DONE
+    util_template --> DONE
+    
+    style START fill:#4caf50,stroke:#388e3c,stroke-width:3px,color:#fff
+    style DONE fill:#4caf50,stroke:#388e3c,stroke-width:3px,color:#fff
+    style STEP1 fill:#2196f3,stroke:#1976d2,stroke-width:2px,color:#fff
+    style STEP2 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style STEP3 fill:#9c27b0,stroke:#7b1fa2,stroke-width:2px,color:#fff
+    style STEP4 fill:#e91e63,stroke:#c2185b,stroke-width:2px,color:#fff
+    style STEP5 fill:#00bcd4,stroke:#0097a7,stroke-width:2px,color:#fff
+```
+
+## Command Arguments Detail
+
+```mermaid
+graph LR
+    subgraph "Core Rules"
+        rules["--rules [DIR]"]
+        agents["--agents [DIR]"]
+        mairules["--mairules [DIR]"]
+        mairules0["--mairules-tier0 [DIR]"]
+    end
+    
+    subgraph "Tier System"
+        tier["--tier {0-4|all} [DIR]"]
+        tier0["--tier0 [DIR]"]
+        tier1["--tier1 [DIR]"]
+        tier2["--tier2 [DIR]"]
+        tier3["--tier3 [DIR]"]
+        tier4["--tier4 [DIR]"]
+    end
+    
+    subgraph "Tool Configs"
+        cursor["--cursor [DIR]"]
+        windsurf["--windsurf [DIR]"]
+        cline["--cline [DIR]"]
+        copilot["--copilot [DIR]"]
+        continue["--continue [DIR]"]
+        gemini["--gemini [DIR]"]
+        qwen["--qwen [DIR]"]
+        roocode["--roocode [DIR]"]
+        trae["--trae [DIR]"]
+    end
+    
+    subgraph "Custom Commands"
+        cmd_cursor["--commands cursor"]
+        cmd_roocode["--commands roocode"]
+        cmd_windsurf["--commands windsurf"]
+        cmd_cline["--commands cline"]
+        cmd_continue["--commands continue"]
+        cmd_gemini["--commands gemini-cli"]
+        cmd_qwen["--commands qwen"]
+        cmd_goose["--commands goose"]
+        cmd_all["--commands all"]
+    end
+    
+    subgraph "Utilities"
+        critical["--critical [DIR]"]
+        gitignore["--gitignore [DIR]"]
+        github["--github-actions [DIR]"]
+        template["--template-agent [DIR]"]
+        osaa["--OSAA [DIR]"]
+    end
+    
+    style rules fill:#66bb6a
+    style tier fill:#ffa726
+    style cursor fill:#ab47bc
+    style cmd_cursor fill:#ec407a
+    style critical fill:#26c6da
+```
+
+## Tier Rules Hierarchy
+
+```mermaid
+graph TD
+    MAIRULES[MAIRULES.md]
+    
+    MAIRULES --> T0[TIER 0: Documentation]
+    MAIRULES --> T1[TIER 1: Code Security]
+    MAIRULES --> T2[TIER 2: Prompt Security]
+    MAIRULES --> T3[TIER 3: Cultural Style]
+    MAIRULES --> T4[TIER 4: Advanced Prompting]
+    
+    T0 --> T0_FILE["docs-protocol.md<br/>13 lines<br/>Critical Priority"]
+    T1 --> T1_FILE["code-security.md<br/>279 lines<br/>High Priority"]
+    T2 --> T2_FILE["prompt-security.md<br/>291 lines<br/>High Priority"]
+    T3 --> T3_FILE["anishinaabe-cyberpunk-style.md<br/>147 lines<br/>Medium Priority"]
+    T4 --> T4_FILE["modern-prompting.md<br/>887 lines<br/>Medium Priority"]
+    
+    T0_FILE --> APPEND[Appended to MAIRULES.md]
+    T1_FILE --> APPEND
+    T2_FILE --> APPEND
+    T3_FILE --> APPEND
+    T4_FILE --> APPEND
+    
+    style MAIRULES fill:#4a9eff,stroke:#2d5f99,stroke-width:3px,color:#fff
+    style T0 fill:#f44336,stroke:#c62828,stroke-width:2px,color:#fff
+    style T1 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style T2 fill:#ff9800,stroke:#f57c00,stroke-width:2px,color:#fff
+    style T3 fill:#fdd835,stroke:#f9a825,stroke-width:2px
+    style T4 fill:#fdd835,stroke:#f9a825,stroke-width:2px
+    style APPEND fill:#66bb6a,stroke:#43a047,stroke-width:2px,color:#fff
+```
+
+## Tool Deployment Targets
+
+```mermaid
+graph TD
+    subgraph "IDE Extensions"
+        cursor_target["Cursor<br/>.cursor/rules/<br/>.cursor/commands/"]
+        roocode_target["Roo Code<br/>.roo/rules/<br/>.roo/commands/"]
+        windsurf_target["Windsurf<br/>.windsurf/rules/<br/>.windsurf/workflows/"]
+        cline_target["Cline<br/>.clinerules/<br/>.clinerules/workflows/"]
+        continue_target["Continue Dev<br/>.continue/rules/<br/>.continue/prompts/"]
+        copilot_target["GitHub Copilot<br/>.github/copilot-instructions.md"]
+    end
+    
+    subgraph "CLI Tools"
+        gemini_target["Gemini CLI<br/>.gemini/<br/>.gemini/commands/"]
+        qwen_target["Qwen Code<br/>QWEN.md symlink<br/>.qwen/commands/"]
+        goose_target["Goose<br/>.goose/recipes/"]
+    end
+    
+    subgraph "Orchestration"
+        trae_target["TRAE<br/>.trae/rules/AGENTS.md"]
+    end
+    
+    style cursor_target fill:#ab47bc,stroke:#8e24aa,color:#fff
+    style roocode_target fill:#ab47bc,stroke:#8e24aa,color:#fff
+    style windsurf_target fill:#ab47bc,stroke:#8e24aa,color:#fff
+    style cline_target fill:#ab47bc,stroke:#8e24aa,color:#fff
+    style continue_target fill:#ab47bc,stroke:#8e24aa,color:#fff
+    style copilot_target fill:#ab47bc,stroke:#8e24aa,color:#fff
+    style gemini_target fill:#26c6da,stroke:#00acc1,color:#fff
+    style qwen_target fill:#26c6da,stroke:#00acc1,color:#fff
+    style goose_target fill:#26c6da,stroke:#00acc1,color:#fff
+    style trae_target fill:#ec407a,stroke:#c2185b,color:#fff
+```
+
+## Command Format Types
+
+```mermaid
+graph TB
+    subgraph "File-Based Commands"
+        cursor_fmt["Cursor<br/>Plain Markdown<br/>.md files"]
+        roocode_fmt["Roo Code<br/>Markdown + Frontmatter<br/>.md files"]
+        windsurf_fmt["Windsurf<br/>Workflow Files<br/>.md files"]
+        cline_fmt["Cline<br/>Rules Files (NOT commands)<br/>.md files"]
+    end
+    
+    subgraph "Config-Based"
+        continue_fmt["Continue<br/>config.yaml<br/>Manual Setup"]
+    end
+    
+    subgraph "TOML Commands"
+        gemini_fmt["Gemini CLI<br/>.toml files"]
+        qwen_fmt["Qwen<br/>.toml files"]
+    end
+    
+    subgraph "YAML Recipes"
+        goose_fmt["Goose<br/>.yaml files"]
+    end
+    
+    style cursor_fmt fill:#90caf9
+    style roocode_fmt fill:#90caf9
+    style windsurf_fmt fill:#90caf9
+    style cline_fmt fill:#ef5350
+    style continue_fmt fill:#ffd54f
+    style gemini_fmt fill:#81c784
+    style qwen_fmt fill:#81c784
+    style goose_fmt fill:#ba68c8
+```
+
+## DNA Architecture Integration
+
+```mermaid
+graph TD
+    CLI[bin/ainish-coder]
+    
+    CLI --> DNA[dna/]
+    
+    DNA --> ATOMS[atoms/<br/>Core Utilities]
+    DNA --> MOLECULES[molecules/<br/>Deployment Functions]
+    DNA --> PROTEINS[proteins/<br/>Orchestration]
+    
+    ATOMS --> colors["colors.sh<br/>ANSI colors"]
+    ATOMS --> paths["paths.sh<br/>Path config"]
+    ATOMS --> validation["validation.sh<br/>Validation"]
+    ATOMS --> file_ops["file_operations.sh<br/>File ops"]
+    ATOMS --> backup["backup.sh<br/>Backups"]
+    ATOMS --> ignore["ignore_patterns.sh<br/>Ignore patterns"]
+    
+    MOLECULES --> help["help.sh<br/>Help display"]
+    MOLECULES --> deploy_agents["deploy_agents.sh"]
+    MOLECULES --> deploy_mairules["deploy_mairules.sh"]
+    MOLECULES --> deploy_tiers["deploy_tiers.sh"]
+    MOLECULES --> deploy_tools["deploy_*.sh<br/>(tool-specific)"]
+    MOLECULES --> deploy_commands["deploy_commands.sh"]
+    MOLECULES --> deploy_prompts["deploy_*_prompts.sh"]
+    
+    PROTEINS --> install["install.sh<br/>System-wide install"]
+    
+    style CLI fill:#4a9eff,stroke:#2d5f99,stroke-width:3px,color:#fff
+    style DNA fill:#66bb6a,stroke:#43a047,stroke-width:2px,color:#fff
+    style ATOMS fill:#ffa726,stroke:#f57c00,stroke-width:2px,color:#fff
+    style MOLECULES fill:#ab47bc,stroke:#8e24aa,stroke-width:2px,color:#fff
+    style PROTEINS fill:#ec407a,stroke:#c2185b,stroke-width:2px,color:#fff
+```
+
+## Quick Reference Table
+
+| Command | Description | Target | Format |
+|---------|-------------|--------|--------|
+| `--rules` | Deploy AGENTS.md + MAIRULES.md (TIER_0) | Project root | Markdown |
+| `--agents` | Deploy AGENTS.md only | Project root | Markdown |
+| `--mairules` | Deploy MAIRULES.md with all tiers | Project root | Markdown |
+| `--tier {0-4\|all}` | Append specific tier(s) to MAIRULES.md | Project root | Markdown |
+| `--cursor` | Deploy to Cursor | `.cursor/rules/` | Markdown |
+| `--windsurf` | Deploy to Windsurf | `.windsurf/rules/` | Markdown |
+| `--cline` | Deploy to Cline | `.clinerules/` | Markdown |
+| `--copilot` | Deploy to GitHub Copilot | `.github/` | Symlink |
+| `--continue` | Deploy to Continue Dev | `.continue/rules/` | Markdown |
+| `--gemini` | Deploy to Gemini CLI | `.gemini/` | Config |
+| `--qwen` | Deploy to Qwen | `QWEN.md` | Symlink |
+| `--roocode` | Deploy to Roo Code | `.roo/rules/` | Markdown |
+| `--trae` | Deploy to TRAE | `.trae/rules/` | Markdown |
+| `--commands {tool}` | Deploy custom commands | Tool-specific | Tool-specific |
+| `--critical` | Deploy critical.md | Project root | Symlink |
+| `--gitignore` | Deploy .gitignore | Project root | File |
+| `--github-actions` | Deploy GitHub Actions | `.github/workflows/` | YAML |
+| `--template-agent` | Deploy template agent system | `.mai-rules/` | Markdown |
+| `--OSAA` | Deploy OSAA framework | Project root | Markdown |
+| `--help` | Show help information | - | - |
+| `--version` | Show version | - | - |
+
+## File Relationships
+
+```mermaid
+graph TD
+    REPO[ainish-coder Repository]
+    
+    REPO --> AGENTS_SRC[AGENTS.md<br/>223 lines]
+    REPO --> MAIRULES_SRC[MAIRULES.md<br/>Empty template]
+    REPO --> CRITICAL_SRC[critical.md<br/>License & Contributing]
+    REPO --> TIER_RULES[TIER_RULES/<br/>5 tier files]
+    
+    AGENTS_SRC --> DEPLOY{Deployment}
+    MAIRULES_SRC --> DEPLOY
+    CRITICAL_SRC --> DEPLOY
+    TIER_RULES --> DEPLOY
+    
+    DEPLOY --> TARGET_AGENTS[Target: AGENTS.md]
+    DEPLOY --> TARGET_MAIRULES[Target: MAIRULES.md<br/>+ appended tiers]
+    DEPLOY --> TARGET_CRITICAL[Target: critical.md<br/>symlink]
+    
+    TARGET_AGENTS --> TOOL_DIRS[Tool-Specific Directories]
+    TARGET_MAIRULES --> TOOL_DIRS
+    
+    TOOL_DIRS --> CURSOR_DIR[.cursor/rules/]
+    TOOL_DIRS --> WINDSURF_DIR[.windsurf/rules/]
+    TOOL_DIRS --> CLINE_DIR[.clinerules/]
+    TOOL_DIRS --> COPILOT_DIR[.github/copilot-instructions.md]
+    
+    style REPO fill:#4a9eff,stroke:#2d5f99,stroke-width:3px,color:#fff
+    style DEPLOY fill:#66bb6a,stroke:#43a047,stroke-width:2px,color:#fff
+    style TOOL_DIRS fill:#ab47bc,stroke:#8e24aa,stroke-width:2px,color:#fff
+```
+
+## Usage Examples
+
+### Example 1: Basic Setup
+```bash
+# Navigate to project
+cd /path/to/project
+
+# Deploy core rules
+ainish-coder --rules
+
+# Deploy to Cursor
+ainish-coder --cursor
+
+# Add custom commands
+ainish-coder --commands cursor
+```
+
+### Example 2: Full Security Setup
+```bash
+# Deploy core rules
+ainish-coder --rules
+
+# Add security tiers
+ainish-coder --tier 1  # Code security
+ainish-coder --tier 2  # Prompt security
+
+# Deploy to multiple tools
+ainish-coder --cursor
+ainish-coder --copilot
+ainish-coder --windsurf
+
+# Add utilities
+ainish-coder --critical
+ainish-coder --gitignore
+```
+
+### Example 3: All Tiers, All Tools
+```bash
+# One-command tier deployment
+ainish-coder --tier all
+
+# Deploy to all tools
+ainish-coder --cursor
+ainish-coder --windsurf
+ainish-coder --cline
+ainish-coder --copilot
+ainish-coder --continue
+ainish-coder --roocode
+
+# Deploy all custom commands
+ainish-coder --commands all
+
+# Add all utilities
+ainish-coder --critical
+ainish-coder --gitignore
+ainish-coder --github-actions
+ainish-coder --template-agent
+ainish-coder --OSAA
+```
+
+### Example 4: Specific Directory
+```bash
+# Deploy to specific directory
+ainish-coder --rules ~/my-project
+ainish-coder --tier 1 ~/my-project
+ainish-coder --cursor ~/my-project
+```
+
+---
+
+## Notes
+
+- **[DIR]** = Optional target directory (defaults to current directory)
+- **{0-4|all}** = Choose tier number 0-4 or "all"
+- **{tool}** = Tool name (cursor, roocode, windsurf, cline, continue, gemini-cli, qwen, goose, all)
+- All commands support optional target directory as last argument
+- Commands are idempotent (safe to run multiple times)
+- Symlinks are preferred over copies where possible for easier updates
+
+---
+
+Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)

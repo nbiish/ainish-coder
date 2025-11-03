@@ -51,7 +51,7 @@ Successfully implemented VS Code GitHub Copilot slash commands and custom chat m
   - Deployment script architecture
   - Multi-tool AI assistant deployment
   - Error handling and validation patterns
-  - References population/ structure
+  - References dna/ structure
 
 ### Reusable Prompts (3 slash commands)
 
@@ -81,7 +81,7 @@ Successfully implemented VS Code GitHub Copilot slash commands and custom chat m
   - Continue (.continue/config.json)
   - Windsurf (.windsurfrules)
   - Roo Code (.roo/rules/)
-- **Integration**: Uses population/molecules/deploy_*.sh scripts
+- **Integration**: Uses dna/molecules/deploy_*.sh scripts
 
 #### 3. `/tier-deployment`
 - **File**: `.github/prompts/tier-deployment.prompt.md`
@@ -93,7 +93,7 @@ Successfully implemented VS Code GitHub Copilot slash commands and custom chat m
   - TIER_2: Prompt Security
   - TIER_3: Anishinaabe Cyberpunk Style
   - TIER_4: Modern Prompting
-- **Integration**: Uses population/molecules/deploy_tiers.sh
+- **Integration**: Uses dna/molecules/deploy_tiers.sh
 
 ### Documentation
 - **File**: `.github/README.md`
@@ -142,7 +142,7 @@ In Chat view input field:
 - **MAIRULES.md**: Referenced in global instructions
 - **TIER_1_RULES/code-security.md**: Referenced in Security Reviewer mode
 - **TIER_2_RULES/prompt-security.md**: Referenced in Security Reviewer mode
-- **population/**: Referenced in Deployment Architect mode and prompts
+- **dna/**: Referenced in Deployment Architect mode and prompts
 - **.cursor/commands/critical.md**: Source for critical-setup prompt
 
 ### With Other AI Tools

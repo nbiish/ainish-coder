@@ -27,7 +27,7 @@
 - Future Enhancements
 
 ### 2. Deployment Script
-**Location:** `population/molecules/deploy_osaa.sh`  
+**Location:** `dna/molecules/deploy_osaa.sh`  
 **Function:** `deploy_osaa()`  
 **Dependencies:** Requires `AGENTS.md` (enforced by validation)
 
@@ -35,7 +35,7 @@
 **Command:** `ainish-coder --OSAA [TARGET_DIR]`  
 **Updated Files:**
 - `bin/ainish-coder` - Added source and command handler
-- `population/molecules/help.sh` - Added comprehensive help text
+- `dna/molecules/help.sh` - Added comprehensive help text
 
 ### 4. Documentation
 **Created Files:**
@@ -164,12 +164,12 @@ ainish-coder/
 ├── OSAA.md                                      [NEW - Framework spec]
 ├── KNOWLEDGE_BASE/
 │   └── OSAA_FRAMEWORK.md                       [NEW - Usage guide]
-├── population/
+├── dna/
 │   └── molecules/
 │       └── deploy_osaa.sh                      [NEW - Deployment script]
 ├── bin/
 │   └── ainish-coder                            [MODIFIED - Added command]
-├── population/molecules/
+├── dna/molecules/
 │   └── help.sh                                 [MODIFIED - Added help text]
 └── README.md                                    [MODIFIED - Added section]
 ```

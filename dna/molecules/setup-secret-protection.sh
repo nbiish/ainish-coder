@@ -27,7 +27,7 @@ do
             ;;
         "Manual Sanitization Script")
             echo -e "${GREEN}Manual sanitization ready!${NC}"
-            echo -e "${YELLOW}Run 'bash population/atoms/sanitize-settings.sh' before each commit${NC}"
+            echo -e "${YELLOW}Run 'bash dna/atoms/sanitize-settings.sh' before each commit${NC}"
             break
             ;;
         "GitHub Actions Only")
@@ -54,7 +54,7 @@ echo -e "${BLUE}═════════════════════�
 echo -e "${GREEN}📋 Next Steps:${NC}"
 echo ""
 echo -e "1. Review your current settings.json files for secrets"
-echo -e "2. If they contain secrets, run: ${YELLOW}bash population/atoms/sanitize-settings.sh${NC}"
+echo -e "2. If they contain secrets, run: ${YELLOW}bash dna/atoms/sanitize-settings.sh${NC}"
 echo -e "3. Use the template at: ${YELLOW}.configs/MCP/settings.json.template${NC}"
 echo -e "4. Read the README: ${YELLOW}.configs/MCP/README.md${NC}"
 echo ""

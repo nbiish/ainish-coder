@@ -345,20 +345,16 @@ ainish-coder/
 │   ├── .gemini/               # Gemini configs
 │   ├── .qwen/                 # Qwen configs
 │   └── MCP/                   # Model Context Protocol configs
-├── population/                # Modular architecture
+├── dna/                       # Modular architecture
 │   ├── atoms/                 # Core utilities (colors, paths, validation)
 │   ├── molecules/             # Deployment functions (deploy_*.sh)
-│   └── organisms/             # Future: higher-level orchestration
-├── TIER_0_RULES/              # Critical documentation protocols
-│   └── docs-protocol.md
-├── TIER_1_RULES/              # Code security
-│   └── code-security.md
-├── TIER_2_RULES/              # Prompt security
-│   └── prompt-security.md
-├── TIER_3_RULES/              # Cultural styling
-│   └── anishinaabe-cyberpunk-style.md
-├── TIER_4_RULES/              # Advanced prompting
-│   └── modern-prompting.md
+│   └── proteins/              # Higher-level orchestration
+├── TIER_RULES/                # Tier-based rule files
+│   ├── docs-protocol.md       # TIER_0: Documentation protocols
+│   ├── code-security.md       # TIER_1: Code security
+│   ├── prompt-security.md     # TIER_2: Prompt security
+│   ├── anishinaabe-cyberpunk-style.md  # TIER_3: Cultural styling
+│   └── modern-prompting.md    # TIER_4: Advanced prompting
 ├── AGENTS.md                  # Universal AI agent instructions (223 lines)
 ├── MAIRULES.md                # Empty template (populated by deployment)
 ├── ainish-setup.sh            # Setup script
@@ -402,11 +398,11 @@ Rules are organized into tiers by priority and purpose:
 The tool is built with a modular, extensible design following the Atomic Design pattern:
 
 - **CLI Tool** (`bin/ainish-coder`): Main command-line interface
-- **Atoms** (`population/atoms/`): Core utilities (colors, paths, validation, file operations)
-- **Molecules** (`population/molecules/`): Deployment functions (deploy_*.sh)
-- **Organisms** (`population/organisms/`): Future: higher-level orchestration
+- **Atoms** (`dna/atoms/`): Core utilities (colors, paths, validation, file operations)
+- **Molecules** (`dna/molecules/`): Deployment functions (deploy_*.sh)
+- **Proteins** (`dna/proteins/`): Higher-level orchestration
 - **CONFIGURATIONS** (`CONFIGURATIONS/`): Centralized tool-specific configs
-- **TIER_RULES** (`TIER_*_RULES/`): Modular rule sets organized by priority
+- **TIER_RULES** (`TIER_RULES/`): Modular rule sets organized by priority
 
 ### Design Principles
 

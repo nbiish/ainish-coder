@@ -158,7 +158,7 @@ local commands_dir="${project_root}/CONFIGURATIONS/commands"
 local commands_dir="${project_root}/CONFIGURATIONS/.${target_arg}/commands"
 ```
 
-**File:** `population/molecules/deploy_commands.sh` line 33
+**File:** `dna/molecules/deploy_commands.sh` line 33
 
 **Status:** ✅ FIXED & VERIFIED
 
@@ -183,7 +183,7 @@ get_project_root() {
 }
 ```
 
-**File:** `population/atoms/paths.sh` line 19-21
+**File:** `dna/atoms/paths.sh` line 19-21
 
 **Status:** ✅ FIXED & VERIFIED
 
