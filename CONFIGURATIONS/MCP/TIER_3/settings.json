@@ -1,4 +1,3 @@
-
 {
   "mcpServers": {
     "brave-search": {
@@ -8,7 +7,7 @@
         "@modelcontextprotocol/server-brave-search"
       ],
       "env": {
-        "BRAVE_API_KEY": "BSAy4eZlxTp4GCgEalXtR9GwKME1shS"
+        "BRAVE_API_KEY": "YOUR_BRAVE_API_KEY_HERE"
       }
     },
     "tavily-remote-mcp": {
@@ -16,7 +15,7 @@
       "args": [
         "-y",
         "mcp-remote",
-        "https://mcp.tavily.com/mcp/?tavilyApiKey=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"
+        "https://mcp.tavily.com/mcp/?tavilyApiKey=YOUR_TAVILY_API_KEY_HERE"
       ]
     },
     "context7": {
@@ -35,14 +34,14 @@
         "mcp-server-time",
         "--local-timezone=America/New_York"
       ],
-      "cwd": "/Volumes/1tb-sandisk/MCP/servers/src/time"
+      "cwd": "/path/to/your/mcp/servers"
     },
     "fetch": {
       "command": "uvx",
       "args": [
         "mcp-server-fetch"
       ],
-      "cwd": "/Volumes/1tb-sandisk/MCP/servers/src/fetch"
+      "cwd": "/path/to/your/mcp/servers"
     },
     "calculator": {
       "command": "uvx",
@@ -57,8 +56,18 @@
         "@modelcontextprotocol/server-memory"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/Volumes/1tb-sandisk/MCP/MEMORY/memories.jsonl"
+        "MEMORY_FILE_PATH": "/path/to/your/memory/memories.jsonl"
       }
+    },
+    "Snyk": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "snyk@latest",
+        "mcp",
+        "-t",
+        "stdio"
+      ]
     }
   }
 }

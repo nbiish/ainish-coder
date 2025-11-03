@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "brave-search": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "npx",
@@ -14,7 +14,7 @@
       }
     },
     "tavily-remote-mcp": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "npx",
@@ -25,7 +25,7 @@
       ]
     },
     "context7": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "npx",
@@ -35,13 +35,13 @@
       ]
     },
     "deepwiki": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "sse",
       "url": "https://mcp.deepwiki.com/sse"
     },
     "time": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "uvx",
@@ -49,20 +49,20 @@
         "mcp-server-time",
         "--local-timezone=America/New_York"
       ],
-      "cwd": "/path/to/your/mcp/servers"
+      "cwd": "/path/to/your/mcp/servers/time"
     },
     "fetch": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "uvx",
       "args": [
         "mcp-server-fetch"
       ],
-      "cwd": "/path/to/your/mcp/servers"
+      "cwd": "/path/to/your/mcp/servers/fetch"
     },
     "calculator": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "uvx",
@@ -71,7 +71,7 @@
       ]
     },
     "memory": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "npx",
@@ -84,7 +84,7 @@
       }
     },
     "Snyk": {
-      "disabled": false,
+      "disabled": true,
       "timeout": 300,
       "type": "stdio",
       "command": "npx",
