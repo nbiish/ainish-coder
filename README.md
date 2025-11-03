@@ -30,10 +30,10 @@
 ## 🔥 Key Features
 
 - **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
-- **🏗️ Modular Architecture**: Clean Atom → Molecule → Matter structure
+- **🏗️ Modular Architecture**: Clean Atom → Molecule → Protein structure
 - **🤖 Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code, and Trae
 - **⚡ Simple Deployment**: One command to deploy configurations
-- **🔗 Smart Symlinks**: Unified configuration across tools
+- **🔗 Smart File Management**: Copies configurations to ensure tool-specific customization
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
 - **🤝 OSAA Framework**: Orchestrate complex multi-agent workflows
@@ -77,7 +77,7 @@ ainish-coder --commands windsurf         # Deploy workflow commands
 
 # Utility commands
 ainish-coder --gitignore                 # Create comprehensive .gitignore
-ainish-coder --critical                  # Create symlink to critical documentation
+ainish-coder --critical                  # Copy critical.md (license & contributing)
 ```
 
 ## 🎯 What's New
@@ -138,7 +138,7 @@ ainish-coder --commands all
 | **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` | `.windsurf/workflows/*.md` | Workflows |
 | **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/*.md` | Rules files (not slash commands) |
 | **Continue Dev** | `--continue` | `--commands continue` | `.continue/rules/` | Config guide | config.yaml setup |
-| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` | N/A | Symlink |
+| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` | N/A | Copied |
 
 ### CLI Tools
 
@@ -177,7 +177,7 @@ ainish-coder --commands all              # Deploy to all 8 tools at once
 
 # Step 5: Add utilities (optional)
 ainish-coder --gitignore                 # Create comprehensive .gitignore
-ainish-coder --critical                  # Symlink to critical documentation
+ainish-coder --critical                  # Copy critical.md
 ```
 
 ### What Gets Deployed
@@ -196,8 +196,8 @@ ainish-coder --critical                  # Symlink to critical documentation
 - Use `--tier all` to append all 5 tiers in one command
 
 **Tool Configurations** (`--cursor`, `--windsurf`, etc.):
-- Deploys AGENTS.md and MAIRULES.md to tool-specific directories
-- Some use symlinks (Copilot, Continue, Qwen), others copy files
+- Copies AGENTS.md and MAIRULES.md to tool-specific directories
+- All files are copied (not symlinked) for tool-specific customization
 - Requires AGENTS.md/MAIRULES.md to exist first (run `--rules` first)
 
 **Custom Commands** (`--commands {tool}`):
@@ -208,7 +208,7 @@ ainish-coder --critical                  # Symlink to critical documentation
 
 **Utilities**:
 - `--gitignore`: Creates comprehensive .gitignore (225 lines)
-- `--critical`: Creates symlink to TIER_0 documentation protocol
+- `--critical`: Copies critical.md (license & contributing guidelines)
 - `--template-agent`: Deploy customizable agent system prompt template
 
 ### Template Agent System
@@ -311,9 +311,9 @@ ainish-coder --OSAA ~/my-project
 | **Windsurf** | `--windsurf` | `--commands windsurf` | Workflows | `.windsurf/rules/` + `.windsurf/workflows/*.md` |
 | **Cline** | `--cline` | `--commands cline` | Workflows | `.clinerules/` + `.clinerules/workflows/*.md` |
 | **Continue Dev** | `--continue` | `--commands continue` | Config guide | `.continue/rules/` + setup guide for config.yaml |
-| **GitHub Copilot** | `--copilot` | N/A | Symlink | `.github/copilot-instructions.md` → AGENTS.md |
-| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | TOML | `.gemini/` + `.gemini/commands/*.toml` |
-| **Qwen Code** | `--qwen` | `--commands qwen` | TOML | `QWEN.md` symlink + `.qwen/commands/*.toml` |
+| **GitHub Copilot** | `--copilot` | N/A | Copied | `.github/copilot-instructions.md` |
+| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | TOML | Copied + `.gemini/commands/*.toml` |
+| **Qwen Code** | `--qwen` | `--commands qwen` | TOML | `QWEN.md` copied from AGENTS.md + `.qwen/commands/*.toml` |
 | **Goose** | N/A | `--commands goose` | YAML recipes | `.goose/recipes/*.yaml` |
 
 **Important:** Tool-specific configurations require `AGENTS.md` and `MAIRULES.md` to exist first. Run `ainish-coder --rules` before tool-specific deployments.

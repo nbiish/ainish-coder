@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: Continue Dev deployment
-# Symlinks .continue/rules/AGENTS.md to AGENTS.md
+# Copies AGENTS.md and MAIRULES.md to .continue/rules/
 # Requires AGENTS.md to exist first
 
 deploy_continue() {
@@ -14,21 +14,32 @@ deploy_continue() {
     local continue_dir="$target_dir/.continue/rules"
     safe_mkdir "$continue_dir" || return 1
     
-    local continue_agents="$continue_dir/AGENTS.md"
+    local agents_source="$target_dir/AGENTS.md"
+    local agents_dest="$continue_dir/AGENTS.md"
     
-    # Remove existing
-    if [[ -L "$continue_agents" ]]; then
-        rm "$continue_agents"
-    elif [[ -f "$continue_agents" ]]; then
-        mv "$continue_agents" "$continue_agents.backup"
+    # Backup existing file
+    if [[ -f "$agents_dest" ]]; then
+        mv "$agents_dest" "$agents_dest.backup"
+        echo -e "${YELLOW}Backed up existing .continue/rules/AGENTS.md${RESET}"
     fi
     
-    # Create symlink
-    if ln -s "../../AGENTS.md" "$continue_agents" 2>/dev/null; then
-        echo -e "${GREEN}✓ Symlinked: .continue/rules/AGENTS.md → AGENTS.md${RESET}"
+    # Copy AGENTS.md
+    if cp "$agents_source" "$agents_dest" 2>/dev/null; then
+        echo -e "${GREEN}✓ Copied: .continue/rules/AGENTS.md${RESET}"
     else
-        echo -e "${BRIGHT_RED}Error: Failed to create symlink${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to copy AGENTS.md${RESET}"
         return 1
+    fi
+    
+    # Copy MAIRULES.md if it exists
+    if [[ -f "$target_dir/MAIRULES.md" ]]; then
+        local mairules_dest="$continue_dir/MAIRULES.md"
+        if [[ -f "$mairules_dest" ]]; then
+            mv "$mairules_dest" "$mairules_dest.backup"
+        fi
+        if cp "$target_dir/MAIRULES.md" "$mairules_dest" 2>/dev/null; then
+            echo -e "${GREEN}✓ Copied: .continue/rules/MAIRULES.md${RESET}"
+        fi
     fi
     
     echo -e "${BRIGHT_GREEN}✅ Continue.dev configured${RESET}"

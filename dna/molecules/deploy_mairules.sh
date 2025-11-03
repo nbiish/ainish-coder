@@ -18,44 +18,44 @@ deploy_mairules_tier0() {
         echo -e "${YELLOW}⚠️  MAIRULES.md already exists - will be overwritten${RESET}"
     fi
     
-    # Only process TIER_RULES
-    local tier_path="${REPO_DIR}/TIER_RULES"
+    # Only process TIER_0_RULES
+    local tier_path="${REPO_DIR}/TIER_0_RULES"
     local files_found=0
     
-    if [[ -d "$tier_path" ]]; then
-        echo -e "${BRIGHT_BLUE}Processing TIER_RULES (Critical)...${RESET}"
-        
-        # Add tier header
-        echo "## TIER_0: Critical Rules" >> "$temp_file"
-        echo "" >> "$temp_file"
-        
-        # Find all .md files in tier directory and concatenate them
-        while IFS= read -r -d '' md_file; do
-            if [[ -f "$md_file" ]]; then
-                echo -e "${GREEN}  ✓ Adding $(basename "$md_file")${RESET}"
-                echo "# $(basename "$md_file" .md)" >> "$temp_file"
-                echo "" >> "$temp_file"
-                cat "$md_file" >> "$temp_file"
-                echo "" >> "$temp_file"
-                echo "" >> "$temp_file"
-                ((files_found++))
-            fi
-        done < <(find "$tier_path" -maxdepth 1 -name "*.md" -type f -print0 | sort -z)
-    else
-        echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
+    if [[ ! -d "$tier_path" ]]; then
+        echo -e "${BRIGHT_RED}Error: TIER_0_RULES directory not found${RESET}"
         rm -f "$temp_file"
         return 1
     fi
+    
+    echo -e "${BRIGHT_BLUE}Processing TIER_0 (Critical)...${RESET}"
+    
+    # Add tier header
+    echo "## TIER_0: Critical Documentation Protocol" >> "$temp_file"
+    echo "" >> "$temp_file"
+    
+    # Find all .md files in TIER_0_RULES directory and concatenate them
+    while IFS= read -r -d '' md_file; do
+        if [[ -f "$md_file" ]]; then
+            echo -e "${GREEN}  ✓ Adding $(basename "$md_file")${RESET}"
+            echo "# $(basename "$md_file" .md)" >> "$temp_file"
+            echo "" >> "$temp_file"
+            cat "$md_file" >> "$temp_file"
+            echo "" >> "$temp_file"
+            echo "" >> "$temp_file"
+            ((files_found++))
+        fi
+    done < <(find "$tier_path" -maxdepth 1 -name "*.md" -type f -print0 | sort -z)
     
     # Move temp file to destination
     if [[ $files_found -gt 0 ]]; then
         mv "$temp_file" "$dest"
         echo -e "${GREEN}✓ Deployed MAIRULES.md to $target_dir${RESET}"
-        echo -e "${BRIGHT_GREEN}✅ MAIRULES.md created with TIER_RULES (critical rules)${RESET}"
+        echo -e "${BRIGHT_GREEN}✅ MAIRULES.md created with TIER_0 ($files_found file(s))${RESET}"
         echo -e "${CYAN}💡 Use 'ainish-coder --tier {1-4}' to add more tiers as needed${RESET}"
         return 0
     else
-        echo -e "${BRIGHT_RED}Error: No files found in TIER_RULES${RESET}"
+        echo -e "${BRIGHT_RED}Error: No files found in TIER_0_RULES${RESET}"
         rm -f "$temp_file"
         return 1
     fi

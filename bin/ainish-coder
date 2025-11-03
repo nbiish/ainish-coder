@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+# Ensure we have a minimal PATH for basic commands
+# This prevents issues if PATH is corrupted in the calling environment
+if [[ ":$PATH:" != *":/usr/bin:"* ]] || [[ ":$PATH:" != *":/bin:"* ]]; then
+    export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+fi
+
 # Get script directory and load atoms
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DNA_DIR="${SCRIPT_DIR}/../dna"

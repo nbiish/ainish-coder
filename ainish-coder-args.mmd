@@ -329,11 +329,11 @@ graph TD
 | `--copilot` | Deploy to GitHub Copilot | `.github/` | Symlink |
 | `--continue` | Deploy to Continue Dev | `.continue/rules/` | Markdown |
 | `--gemini` | Deploy to Gemini CLI | `.gemini/` | Config |
-| `--qwen` | Deploy to Qwen | `QWEN.md` | Symlink |
+| `--qwen` | Deploy to Qwen | `QWEN.md` | Copied |
 | `--roocode` | Deploy to Roo Code | `.roo/rules/` | Markdown |
 | `--trae` | Deploy to TRAE | `.trae/rules/` | Markdown |
 | `--commands {tool}` | Deploy custom commands | Tool-specific | Tool-specific |
-| `--critical` | Deploy critical.md | Project root | Symlink |
+| `--critical` | Deploy critical.md | Project root | Copied |
 | `--gitignore` | Deploy .gitignore | Project root | File |
 | `--github-actions` | Deploy GitHub Actions | `.github/workflows/` | YAML |
 | `--template-agent` | Deploy template agent system | `.mai-rules/` | Markdown |
@@ -451,7 +451,7 @@ ainish-coder --cursor ~/my-project
 - **{tool}** = Tool name (cursor, roocode, windsurf, cline, continue, gemini-cli, qwen, goose, all)
 - All commands support optional target directory as last argument
 - Commands are idempotent (safe to run multiple times)
-- Symlinks are preferred over copies where possible for easier updates
+- Files are copied (not symlinked) to ensure tool-specific customization
 
 ---
 
