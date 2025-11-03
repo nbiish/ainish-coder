@@ -4,9 +4,9 @@
 
 READ:
 
-- MAIRULES.md → {Apply to all requests} (highest priority)
-- .mai-rules/MAIRULES.md → {Apply to all requests} (second highest priority)
-- .mai-rules/*.md → {Apply to all requests} (third highest priority)
+- MAIRULES.md → {Apply to all requests}
+- .mai-rules/MAIRULES.md → {Apply to all requests}
+- .mai-rules/*.md → {Apply to all requests !.mai-rules/critical.md}
 
 ## Create and follow the **Atomic Design** pattern in `population/`
 
