@@ -8,11 +8,11 @@ READ:
 - .mai-rules/MAIRULES.md → {Apply to all requests}
 - .mai-rules/*.md → {Apply to all requests !.mai-rules/critical.md}
 
-## Create and follow the **Atomic Design** pattern in `population/`
+## Create and follow the **Atomic Design** pattern in `bin/`
 
-- **Atoms** (`population/atoms/`) - Core utilities, data types, state management
-- **Molecules** (`population/molecules/`) - Composite components, deployment scripts
-- **Organisms** (`population/organisms/`) - High-level flows and orchestration
+- **Atoms** (`bin/atoms/`) - Core utilities, data types, state management
+- **Molecules** (`bin/molecules/`) - Composite components, deployment scripts
+- **Organisms** (`bin/organisms/`) - High-level orchestration, install, setup, etc
 
 ## KNOWLEDGE_BASE/* Structure
 

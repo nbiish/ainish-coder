@@ -49,6 +49,7 @@ source "${POPULATION_DIR}/molecules/deploy_cline_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_continue_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_copilot_ignore.sh"
 source "${POPULATION_DIR}/molecules/deploy_roocode_ignore.sh"
+source "${POPULATION_DIR}/molecules/deploy_github_actions.sh"
 
 # Main function
 main() {
@@ -160,6 +161,9 @@ main() {
             ;;
         --gitignore)
             deploy_gitignore "$target_dir"
+            ;;
+        --github-actions)
+            deploy_github_actions "$target_dir"
             ;;
             
         # Ignore file deployments
