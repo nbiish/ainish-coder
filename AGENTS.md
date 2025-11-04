@@ -1,11 +1,13 @@
-# Genius Modes - Coding Agent Guidelines
+# Use all your unbounded wisdom and tooling for the following
 
-Rules files:
+Run ```eza --all --tree --level=2``` for repo context.
+
+Read these rules files if they exist.:
 
 - MAIRULES.md
 - .mai-rules/MAIRULES.md
 
-## Structure codebase according to the **DNA Design** pattern -> repo-root/`dna/`
+## Structure codebase according to the **DNA Design** pattern -> `repo-root/dna/` 
 
 - **Atoms** (`dna/atoms/`) - Core utilities, data types, state management
 - **Molecules** (`dna/molecules/`) - Composite components, deployment scripts
