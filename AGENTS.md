@@ -1,4 +1,4 @@
-# Use all your unbounded wisdom and tooling for the following
+# Use all your unbounded wisdom and tooling to...
 
 Run ```eza --all --tree --level=2``` for repo context.
 
