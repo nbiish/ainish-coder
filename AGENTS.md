@@ -1,6 +1,6 @@
 # Use all your unbounded wisdom and tooling to...
 
-Run ```eza --all --tree --level=2``` for repo context.
+Run `eza --all --tree --level=2` for repo context.
 
 Read these rules files if they exist.:
 
