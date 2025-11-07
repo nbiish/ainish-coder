@@ -17,7 +17,7 @@ Read these rules files if they exist.:
 
 - knowledge-base/PRD.md
 - knowledge-base/TODO.md
-- knowledge-base/*.mini-docs.md
+- knowledge-base/*
 
 ## Critical Thinking Framework
 

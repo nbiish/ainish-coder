@@ -31,11 +31,13 @@ source "${DNA_DIR}/molecules/deploy_tiers.sh"
 source "${DNA_DIR}/molecules/deploy_cursor.sh"
 source "${DNA_DIR}/molecules/deploy_windsurf.sh"
 source "${DNA_DIR}/molecules/deploy_cline.sh"
+source "${DNA_DIR}/molecules/deploy_claude.sh"
 source "${DNA_DIR}/molecules/deploy_copilot.sh"
 source "${DNA_DIR}/molecules/deploy_continue.sh"
 source "${DNA_DIR}/molecules/deploy_gemini.sh"
 source "${DNA_DIR}/molecules/deploy_qwen.sh"
 source "${DNA_DIR}/molecules/deploy_roocode.sh"
+source "${DNA_DIR}/molecules/deploy_goose.sh"
 source "${DNA_DIR}/molecules/deploy_critical.sh"
 source "${DNA_DIR}/molecules/deploy_gitignore.sh"
 # Load prompt deployment molecules
@@ -148,6 +150,9 @@ main() {
         --cline)
             deploy_cline "$target_dir"
             ;;
+        --claude)
+            deploy_claude "$target_dir"
+            ;;
         --copilot)
             deploy_copilot "$target_dir"
             ;;
@@ -162,6 +167,11 @@ main() {
             ;;
         --roocode|--roo)
             deploy_roocode "$target_dir"
+            ;;
+            
+        # Goose support
+        --goose)
+            deploy_goose "$target_dir"
             ;;
             
         # Template Agent System
@@ -211,12 +221,6 @@ main() {
             echo -e "${BRIGHT_GREEN}✅ All ignore files deployed${RESET}"
             ;;
             
-        # Goose support (placeholder for now)
-        --goose)
-            echo -e "${BRIGHT_RED}Goose CLI support is not yet implemented${RESET}"
-            echo "Coming soon: .goosehints and context file deployment" >&2
-            exit 1
-            ;;
         --trae)
             # Usage: ainish-coder --trae [TARGET_DIR]
             # Copies AGENTS.md from repository root into TARGET_DIR/.trae/rules/AGENTS.md

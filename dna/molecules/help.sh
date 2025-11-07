@@ -23,16 +23,23 @@ TIER DEPLOYMENT:
     --tier4 [TARGET_DIR]      Append TIER_4 (Advanced prompting)
 
 TOOL-SPECIFIC CONFIGURATION:
-    --cursor [TARGET_DIR]     Deploy Cursor AI configuration to .cursor/rules/
-    --windsurf [TARGET_DIR]   Deploy Windsurf configuration to .windsurf/rules/
-    --cline [TARGET_DIR]      Deploy Cline configuration to .clinerules/
+    Each tool deployment now includes:
+    • AGENTS.md and MAIRULES.md (core rules)
+    • Tool-specific commands/workflows/recipes
+    • Ignore files for context optimization
+    
+    --cursor [TARGET_DIR]     Deploy Cursor AI - rules, commands, ignore files
+    --windsurf [TARGET_DIR]   Deploy Windsurf - rules, workflows
+    --cline [TARGET_DIR]      Deploy Cline - single .clinerules file (merged rules), ignore files
+    --claude [TARGET_DIR]     Deploy Claude Code - rules, commands
     --copilot [TARGET_DIR]    Deploy GitHub Copilot to .github/instructions/
-    --continue [TARGET_DIR]   Deploy Continue Dev to .continue/rules/
+    --continue [TARGET_DIR]   Deploy Continue.dev - rules, prompts, ignore files
     --cn [TARGET_DIR]         Alias for --continue
-    --gemini [TARGET_DIR]     Deploy Gemini configuration to .gemini/
-    --qwen [TARGET_DIR]       Deploy Qwen AI configuration to .qwen/
-    --roocode [TARGET_DIR]    Deploy Roo Code configuration to .roo/rules/
+    --gemini [TARGET_DIR]     Deploy Gemini CLI - rules, commands (TOML)
+    --qwen [TARGET_DIR]       Deploy Qwen AI - rules, commands (TOML), QWEN.md
+    --roocode [TARGET_DIR]    Deploy Roo Code - rules, commands, ignore files
     --roo [TARGET_DIR]        Alias for --roocode
+    --goose [TARGET_DIR]      Deploy Goose CLI - rules, recipes (YAML)
     --trae [TARGET_DIR]       Deploy TRAE rules by copying repository AGENTS.md into
                               TARGET_DIR/.trae/rules/AGENTS.md (defaults to current dir)
                               Example: --trae ./my-project
@@ -136,7 +143,6 @@ IGNORE FILE DEPLOYMENT:
                               excluding dependencies, build artifacts, and sensitive files.
 
 OTHER:
-    --goose                   [NOT YET IMPLEMENTED] Goose CLI setup
     --help, -h                Show this help message
     --version, -v             Show version information
 
@@ -144,6 +150,7 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Tier deployments APPEND to MAIRULES.md (they don't deploy to .mai-rules/)
     - --rules deploys BOTH AGENTS.md and MAIRULES.md for comprehensive coverage
+    - Tool deployments now include ALL configurations (rules + commands/recipes + ignores)
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Tier deployments APPEND to MAIRULES.md (they don't overwrite)
