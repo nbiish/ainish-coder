@@ -12,6 +12,9 @@
 .clinerules/
 .windsurf/
 .aider*
+MEMORY-BANK/
+docs/
+
 
 # LICENSE and CONTRIBUTING enforcement
 LICENSE
