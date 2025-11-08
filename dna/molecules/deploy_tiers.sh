@@ -27,9 +27,6 @@ deploy_tier0() {
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             
-            echo "# $(basename "$source_file" .md)" >> "$mairules_file"
-            echo "" >> "$mairules_file"
-            
             if ! cat "$source_file" >> "$mairules_file"; then
                 echo -e "${BRIGHT_RED}Error: Failed to append $filename${RESET}"
                 return 1
@@ -68,9 +65,6 @@ deploy_tier1() {
     while IFS= read -r -d '' source_file; do
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
-            
-            echo "# $(basename "$source_file" .md)" >> "$mairules_file"
-            echo "" >> "$mairules_file"
             
             if ! cat "$source_file" >> "$mairules_file"; then
                 echo -e "${BRIGHT_RED}Error: Failed to append $filename${RESET}"
@@ -111,9 +105,6 @@ deploy_tier2() {
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             
-            echo "# $(basename "$source_file" .md)" >> "$mairules_file"
-            echo "" >> "$mairules_file"
-            
             if ! cat "$source_file" >> "$mairules_file"; then
                 echo -e "${BRIGHT_RED}Error: Failed to append $filename${RESET}"
                 return 1
@@ -153,9 +144,6 @@ deploy_tier3() {
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
             
-            echo "# $(basename "$source_file" .md)" >> "$mairules_file"
-            echo "" >> "$mairules_file"
-            
             if ! cat "$source_file" >> "$mairules_file"; then
                 echo -e "${BRIGHT_RED}Error: Failed to append $filename${RESET}"
                 return 1
@@ -194,9 +182,6 @@ deploy_tier4() {
     while IFS= read -r -d '' source_file; do
         if [[ -f "$source_file" ]]; then
             local filename=$(basename "$source_file")
-            
-            echo "# $(basename "$source_file" .md)" >> "$mairules_file"
-            echo "" >> "$mairules_file"
             
             if ! cat "$source_file" >> "$mairules_file"; then
                 echo -e "${BRIGHT_RED}Error: Failed to append $filename${RESET}"
