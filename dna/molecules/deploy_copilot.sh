@@ -15,15 +15,14 @@ deploy_copilot() {
     local github_dir="$target_dir/.github"
     safe_mkdir "$github_dir" || return 1
     
-    # Deploy copilot-instructions.md
+    # Create empty copilot-instructions.md (VS Code/Copilot reads AGENTS.md directly)
     local copilot_instructions="$github_dir/copilot-instructions.md"
-    local source_instructions="$source_dir/.github/copilot-instructions.md"
     
-    if [[ -f "$source_instructions" ]]; then
-        cp "$source_instructions" "$copilot_instructions"
-        echo -e "${GREEN}✓ Deployed: copilot-instructions.md${RESET}"
+    if [[ ! -f "$copilot_instructions" ]]; then
+        touch "$copilot_instructions"
+        echo -e "${GREEN}✓ Created: copilot-instructions.md${RESET}"
     else
-        echo -e "${YELLOW}⚠ Warning: copilot-instructions.md not found in source${RESET}"
+        echo -e "${GREEN}✓ Already exists: copilot-instructions.md${RESET}"
     fi
     
     # Deploy MAIRULES.md as MAIRULES.instructions.md
