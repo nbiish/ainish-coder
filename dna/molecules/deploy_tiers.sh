@@ -18,10 +18,6 @@ deploy_tier0() {
         return 1
     fi
     
-    echo -e "
-## TIER 0: Documentation Protocol
-" >> "$mairules_file"
-    
     local count=0
     while IFS= read -r -d '' source_file; do
         if [[ -f "$source_file" ]]; then
@@ -56,10 +52,6 @@ deploy_tier1() {
         echo -e "${BRIGHT_RED}Error: TIER_1_RULES directory not found${RESET}"
         return 1
     fi
-    
-    echo -e "
-## TIER 1: Code Security
-" >> "$mairules_file"
     
     local count=0
     while IFS= read -r -d '' source_file; do
@@ -96,10 +88,6 @@ deploy_tier2() {
         return 1
     fi
     
-    echo -e "
-## TIER 2: Prompt Security
-" >> "$mairules_file"
-    
     local count=0
     while IFS= read -r -d '' source_file; do
         if [[ -f "$source_file" ]]; then
@@ -135,10 +123,6 @@ deploy_tier3() {
         return 1
     fi
     
-    echo -e "
-## TIER 3: Cultural & Stylistic Preferences
-" >> "$mairules_file"
-    
     local count=0
     while IFS= read -r -d '' source_file; do
         if [[ -f "$source_file" ]]; then
@@ -173,10 +157,6 @@ deploy_tier4() {
         echo -e "${BRIGHT_RED}Error: TIER_4_RULES directory not found${RESET}"
         return 1
     fi
-    
-    echo -e "
-## TIER 4: Advanced Prompting Techniques
-" >> "$mairules_file"
     
     local count=0
     while IFS= read -r -d '' source_file; do
@@ -221,7 +201,5 @@ deploy_all_tiers() {
     deploy_tier4 "$target_dir" || return 1
     echo ""
     
-    echo -e "${BRIGHT_MAGENTA}╔══════════════════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${BRIGHT_MAGENTA}║${RESET}               ${BRIGHT_GREEN}ALL TIERS DEPLOYED${RESET}                                         ${BRIGHT_MAGENTA}║${RESET}"
-    echo -e "${BRIGHT_MAGENTA}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ All tiers deployed successfully${RESET}"
 }
