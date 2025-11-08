@@ -6,4 +6,4 @@
 3. brave → general MCP based websearch
 4. tavily → specific MCP based websearch
 5. fetch → highly specific webpage retrieval
-6. retrieved content → KNOWLEDGE_BASE/*
+6. retrieved content → knowledge-base/*
