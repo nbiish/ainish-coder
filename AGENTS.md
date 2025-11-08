@@ -1,13 +1,8 @@
-# Use all your unbounded wisdom and tooling to...
+# Use all your unbounded wisdom and tooling to complete all user requests to the best of your ability
 
-Run `eza --all --tree --level=2` for repo context.
+Run `eza --all --tree --level=2` for most up to date repo context before proceeding...
 
-Read these rules files if they exist.:
-
-- MAIRULES.md
-- .mai-rules/MAIRULES.md
-
-## Structure codebase according to the **DNA Design** pattern -> `repo-root/dna/` 
+## Structure codebase according to the **DNA Design** pattern -> `repo-root/dna/`
 
 - **Atoms** (`dna/atoms/`) - Core utilities, data types, state management
 - **Molecules** (`dna/molecules/`) - Composite components, deployment scripts
@@ -18,6 +13,7 @@ Read these rules files if they exist.:
 - knowledge-base/mini-PRD.md
 - knowledge-base/mini-TODO.md
 - knowledge-base/*.mini-DOCS.md
+- knowledge-base/mini-memories.md
 
 ## Critical Thinking Framework
 
