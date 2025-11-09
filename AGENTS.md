@@ -1,4 +1,4 @@
-# Use all your unbounded wisdom and tooling to complete all user requests to the best of your ability
+# Expertly Craft Enterprise Grade Code
 
 Run `eza --all --tree --level=2` for most up to date repo context before proceeding...
 
@@ -76,5 +76,3 @@ Run `eza --all --tree --level=2` for most up to date repo context before proceed
 - Security advisories
 - Best practices
 - Breaking changes
-
-**Remember:** These rules are designed to ensure consistency, security, and quality across all AI-assisted coding work. Adapt as needed for specific projects while maintaining core principles.
