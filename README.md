@@ -59,7 +59,7 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md and MAIRULES.md (both files)
+ainish-coder --rules                     # Deploy AGENTS.md, MAIRULES.md, critical.md and .gitignore (all files)
 
 # Deploy tier-specific rules (appends to MAIRULES.md)
 ainish-coder --tier 0                    # Append TIER_0 to MAIRULES.md (Documentation protocols)
@@ -157,7 +157,7 @@ ainish-coder --commands all
 cd /path/to/your/project
 
 # Step 1: Deploy core rules (RECOMMENDED FIRST)
-ainish-coder --rules                     # Deploys AGENTS.md + MAIRULES.md (both files)
+ainish-coder --rules                     # Deploys AGENTS.md, MAIRULES.md, critical.md and .gitignore (all files)
 
 # Step 2: Deploy specific tiers to MAIRULES.md (optional)
 ainish-coder --tier 1                    # Append code security rules

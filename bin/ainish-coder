@@ -125,8 +125,8 @@ main() {
         
         # Core rules deployment
         --rules)
-            # Deploy AGENTS.md, MAIRULES.md (with TIER_0 only), and .gitignore
-            deploy_agents "$target_dir" && deploy_mairules_tier0 "$target_dir" && deploy_gitignore "$target_dir"
+            # Deploy AGENTS.md, MAIRULES.md (with TIER_0 only), critical.md, and .gitignore
+            deploy_agents "$target_dir" && deploy_mairules_tier0 "$target_dir" && deploy_critical "$target_dir" && deploy_gitignore "$target_dir"
             ;;
         --agents)
             deploy_agents "$target_dir"
