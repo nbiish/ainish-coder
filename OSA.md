@@ -57,4 +57,3 @@ Task:
 [Goose] -> `echo "{prompt}" | goose`
 [Opencode] -> `opencode run "{prompt}"`
 [Crush] -> `crush run "{prompt}"`
-[Continue] -> `cn --auto "{prompt}"`

@@ -184,6 +184,11 @@ main() {
         --OSAA)
             deploy_osaa "$target_dir"
             ;;
+
+        # OSA Orchestrator Patterns (distribute OSA.md)
+        --osa)
+            deploy_osa "$target_dir"
+            ;;
             
         # Utility deployments
         --critical)

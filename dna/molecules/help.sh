@@ -81,6 +81,20 @@ AGENT CUSTOMIZATION:
                               
                               Example: ainish-coder --OSAA ~/my-project
 
+    --osa [DIR]               Distribute OSA.md orchestrator execution patterns
+                              
+                              Creates: OSA.md (Orchestrator Strategy & Agents)
+                              
+                              Features:
+                              - Execution patterns (Sequential, Parallel, Pipeline, Feedback Loop)
+                              - Compile Prompt schema (Role, Context, Task)
+                              - Agent tool mappings for CLI and IDE
+                              
+                              Use this to provide teams and tools with a concise,
+                              standardized reference for orchestration patterns.
+                              
+                              Example: ainish-coder --osa ~/my-project
+
 CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
                               

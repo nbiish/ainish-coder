@@ -32,3 +32,30 @@ deploy_osaa() {
     echo -e "${CYAN}  3. Apply sub-agent specialization when appropriate${RESET}"
     return 0
 }
+
+deploy_osa() {
+    local target_dir="${1:-.}"
+    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+    validate_target_dir "$target_dir" || return 1
+
+    echo -e "${BRIGHT_BLUE}Deploying OSA Orchestrator Patterns${RESET}"
+
+    local osa_file="$target_dir/OSA.md"
+    local source_osa="$source_dir/OSA.md"
+
+    if [[ -f "$source_osa" ]]; then
+        cp "$source_osa" "$osa_file"
+        echo -e "${GREEN}✓ Deployed: OSA.md${RESET}"
+        echo -e "${CYAN}  └─ Location: $osa_file${RESET}"
+    else
+        echo -e "${YELLOW}⚠ Warning: OSA.md not found in source${RESET}"
+        return 1
+    fi
+
+    echo -e "${BRIGHT_GREEN}✅ OSA orchestrator patterns deployed${RESET}"
+    echo -e "${CYAN}Next steps:${RESET}"
+    echo -e "${CYAN}  1. Use OSA.md to guide execution patterns (Sequential, Parallel, Pipeline, Feedback)${RESET}"
+    echo -e "${CYAN}  2. Reference compile prompt schema and agent tool mappings${RESET}"
+    return 0
+}

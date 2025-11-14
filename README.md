@@ -37,6 +37,7 @@
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
 - **🤝 OSAA Framework**: Orchestrate complex multi-agent workflows
+- **📘 OSA Orchestrator Patterns**: Distribute execution patterns and agent mappings
 
 ## 📦 Quick Start
 
@@ -78,6 +79,7 @@ ainish-coder --commands windsurf         # Deploy workflow commands
 # Utility commands
 ainish-coder --gitignore                 # Create comprehensive .gitignore
 ainish-coder --critical                  # Copy critical.md (license & contributing)
+ainish-coder --osa                       # Distribute OSA.md orchestration guide to target
 ```
 
 ## 🎯 What's New
@@ -189,6 +191,10 @@ ainish-coder --critical                  # Copy critical.md
 
 **Individual Files** (`--agents` or `--mairules`):
 - Deploy files individually if you only need one
+
+**Orchestrator Guide** (`--osa`):
+- Copies `OSA.md` (execution patterns and agent tool mappings) to the target directory
+- Use alongside `--OSAA` for full orchestrator + sub-agent workflows
 
 **Tier Rules** (`--tier {0-4|all}`):
 - **Appends** tier content to `MAIRULES.md` in the target directory
