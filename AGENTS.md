@@ -1,46 +1,34 @@
-# Expertly Craft Enterprise Grade Code
+# Expertly Crafted Enterprise Grade Code Guideline
 
-Run `eza --all --tree --level=2` for most up to date repo context before proceeding...
+Run `eza --all --tree --level=2` for the most up to date repo context.
 
-## Structure codebase according to the **DNA Design** pattern -> `repo-root/dna/`
+## Structure codebase according to the DNA Design pattern -> `repo-root/dna/`
 
-- **Atoms** (`dna/atoms/`) - Core utilities, data types, state management
-- **Molecules** (`dna/molecules/`) - Composite components, deployment scripts
-- **Proteins** (`dna/proteins/`) - High-level flows and orchestration
+- Atoms (`dna/atoms/`) - Core utilities, data types, state management
+- Molecules (`dna/molecules/`) - Composite components, deployment scripts
+- Proteins (`dna/proteins/`) - High-level flows and orchestration
 
-## Maintain **Documentation** in `knowledge-base/`
+## Maintain Documentation in `knowledge-base/`
 
-- knowledge-base/mini-PRD.md
-- knowledge-base/mini-TODO.md
-- knowledge-base/*.mini-DOCS.md
-- knowledge-base/mini-memories.md
-
-## Critical Thinking Framework
-
-1. **Find the facts** → Gather verified information
-2. **Look for the issue** → Identify core problems
-3. **Identify knowledge sources** → Document references
-4. **Locate rules/standards** → Follow specifications
-5. **Apply critical thinking** → Examine reasoning
+- knowledge-base/*.md
 
 ## Code Security
 
-**Always check for:**
+Always check for:
 
 - Input validation and sanitization
 - Authentication and authorization
-- Encryption for sensitive data
+- Encryption at rest and encryption in transit
 - SQL injection prevention
 - XSS (Cross-Site Scripting) prevention
 - CSRF (Cross-Site Request Forgery) protection
-- Secure dependency versions
 - Environment variable protection
 - Error handling without information leakage
 - Rate limiting and DoS prevention
 
 ## Prompt Security
 
-**Guard against:**
+Guard against:
 
 - Prompt injection attacks
 - Data exfiltration attempts
@@ -49,7 +37,7 @@ Run `eza --all --tree --level=2` for most up to date repo context before proceed
 - Malicious instructions
 - Unauthorized data access
 
-**Best Practices:**
+Best Practices:
 
 - Validate and sanitize all inputs
 - Use role-based prompting
@@ -59,7 +47,7 @@ Run `eza --all --tree --level=2` for most up to date repo context before proceed
 
 ## Code Quality Standards
 
-**Every module/function should have:**
+Every module/function should have:
 
 - Purpose description
 - Input parameters
@@ -67,12 +55,3 @@ Run `eza --all --tree --level=2` for most up to date repo context before proceed
 - Example usage
 - Edge cases
 - Error conditions
-
-**Always search outside documentation for:**
-
-- Current API versions
-- Recent feature updates
-- Deprecation notices
-- Security advisories
-- Best practices
-- Breaking changes

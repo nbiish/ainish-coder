@@ -61,6 +61,7 @@ source "${DNA_DIR}/molecules/deploy_github_actions.sh"
 source "${DNA_DIR}/molecules/deploy_template_agent.sh"
 source "${DNA_DIR}/molecules/deploy_osaa.sh"
 source "${DNA_DIR}/molecules/deploy_trae.sh"
+source "${DNA_DIR}/molecules/deploy_mcp.sh"
 
 # Main function
 main() {
@@ -231,6 +232,10 @@ main() {
             fi
             local trae_target="${1:-$target_dir}"
             deploy_trae "$trae_target"
+            ;;
+        
+        --mcp)
+            deploy_mcp "$target_dir"
             ;;
             
         *)

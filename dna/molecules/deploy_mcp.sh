@@ -1,37 +1,56 @@
-#!/bin/bash
-# MOLECULE: deploy_mcp
-# Deploys MCP configuration files
+#!/usr/bin/env bash
+# deploy_mcp.sh - Deploys the mcp.json file to the .trae directory
+
+set -euo pipefail
+
+# Load atoms if available (colors, file ops)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DNA_DIR="${SCRIPT_DIR}/.."
+if [[ -f "${DNA_DIR}/atoms/colors.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${DNA_DIR}/atoms/colors.sh" || true
+fi
+if [[ -f "${DNA_DIR}/atoms/file_operations.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${DNA_DIR}/atoms/file_operations.sh" || true
+fi
+
+echo_info() { printf "\e[36m%s\e[0m\n" "[MCP] $*"; }
+echo_error() { printf "\e[31m%s\e[0m\n" "[MCP] $*"; }
+echo_success() { printf "\e[32m%s\e[0m\n" "[MCP] $*"; }
 
 deploy_mcp() {
-    local tier_num=$1
-    local target_dir="${2:-$(pwd)}"
-    
-    if [[ -z "$tier_num" ]]; then
-        echo -e "${BRIGHT_RED}Error: MCP tier number not specified.${RESET}"
+    # deploy_mcp [TARGET_DIR]
+    local target_dir="${1:-$(pwd)}"
+
+    echo_info "Deploying MCP configuration to: $target_dir"
+
+    if [[ ! -d "$target_dir" ]]; then
+        echo_error "Target directory does not exist: $target_dir"
         return 1
     fi
-    
-    local tier_dir_name="TIER_${tier_num}"
-    local source_dir="${REPO_DIR}/.configs/MCP/${tier_dir_name}"
-    
-    if [[ ! -d "$source_dir" ]]; then
-        echo -e "${BRIGHT_RED}Error: Source directory not found at $source_dir${RESET}"
+
+    # Locate repository root and mcp.json
+    local repo_root
+    repo_root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    local mcp_src="$repo_root/.configs/MCP/mcp.json"
+
+    if [[ ! -f "$mcp_src" ]]; then
+        echo_error "mcp.json not found in repository root: $mcp_src"
         return 1
     fi
-    
-    echo "Deploying MCP TIER $tier_num configurations to $target_dir"
-    
-    find "$source_dir" -type f -name "*.json" -print0 | while IFS= read -r -d $'\0' source_file; do
-        local filename=$(basename "$source_file")
-        local dest_file="$target_dir/$filename"
-        
-        if cp "$source_file" "$dest_file"; then
-            echo -e "${GREEN}✓ Deployed $filename to $target_dir${RESET}"
-        else
-            echo -e "${BRIGHT_RED}Failed to deploy $filename.${RESET}"
-        fi
-    done
-    
-    echo -e "${BRIGHT_GREEN}✅ MCP TIER $tier_num deployment complete.${RESET}"
-    return 0
+
+    # Destination path inside target project for MCP configuration
+    local dest_dir="$target_dir/.trae"
+    mkdir -p "$dest_dir"
+
+    cp "$mcp_src" "$dest_dir/mcp.json"
+    echo_success "Copied mcp.json → $dest_dir/mcp.json"
+
+    echo_success "MCP configuration deployment complete for: $target_dir"
 }
+
+# If script executed directly, run deploy_mcp with args
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    deploy_mcp "$@"
+fi
