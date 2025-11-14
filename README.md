@@ -36,7 +36,6 @@
 - **🔗 Smart File Management**: Copies configurations to ensure tool-specific customization
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
-- **🤝 OSAA Framework**: Orchestrate complex multi-agent workflows
 - **📘 OSA Orchestrator Patterns**: Distribute execution patterns and agent mappings
 
 ## 📦 Quick Start
@@ -194,7 +193,7 @@ ainish-coder --critical                  # Copy critical.md
 
 **Orchestrator Guide** (`--osa`):
 - Copies `OSA.md` (execution patterns and agent tool mappings) to the target directory
-- Use alongside `--OSAA` for full orchestrator + sub-agent workflows
+- Use for orchestrator and sub-agent workflows
 
 **Tier Rules** (`--tier {0-4|all}`):
 - **Appends** tier content to `MAIRULES.md` in the target directory
@@ -255,47 +254,9 @@ ainish-coder --template-agent ~/my-project
 - Complete Guide: `KNOWLEDGE_BASE/TEMPLATE_AGENT_SYSTEM.md`
 - Example (Python Security): `.mai-rules/template-agent-example-python-security.md`
 
-### OSAA Framework
+### Orchestrator Patterns (OSA)
 
-**🆕 Orchestrate Complex Multi-Agent Workflows** (`--OSAA`):
-
-The OSAA (Orchestrator Sub-Agent Action) framework enables AI agents to break down complex tasks into specialized sub-actions with systematic orchestration patterns.
-
-```bash
-# Deploy OSAA framework to current directory
-ainish-coder --OSAA
-
-# Deploy to specific project
-ainish-coder --OSAA ~/my-project
-```
-
-**Creates:** `OSAA.md` at project root
-
-**Features:**
-- 🎯 **Task Decomposition** - Break complex tasks into manageable sub-tasks
-- 🤖 **Agent Orchestration** - Coordinate primary and specialized sub-agents
-- 🔄 **Execution Patterns** - Sequential, parallel, pipeline, and feedback loops
-- 📡 **Communication Protocol** - Standardized message formats and status codes
-- ⚠️ **Error Handling** - Retry, fallback, graceful degradation, escalation strategies
-- 📊 **Monitoring & Metrics** - Track performance, quality, and operational KPIs
-
-**Sub-Agent Specializations:**
-- **Code Analysis** - Pattern detection, dependency mapping, security scanning
-- **Code Generation** - Boilerplate, API implementation, test creation
-- **Testing** - Unit tests, integration tests, performance benchmarks
-- **Documentation** - API docs, README, tutorials, code comments
-- **Deployment** - Configuration, environment setup, service orchestration
-
-**Use Cases:**
-- Complex refactoring projects with multiple code changes
-- Multi-module implementations requiring coordination
-- End-to-end feature development (code + tests + docs)
-- Security audits with automated fixes
-- Performance optimization across multiple components
-
-**Documentation:**
-- Complete Framework: `OSAA.md` (deployed to project root)
-- Guide: `KNOWLEDGE_BASE/OSAA_FRAMEWORK.md`
+Use `ainish-coder --osa` to distribute `OSA.md` to your project root. This guide covers execution patterns (Sequential, Parallel, Pipeline, Feedback Loop), compile prompt schema, and agent tool mappings to coordinate orchestrator and sub-agent workflows.
 
 ### Available Tier Rules
 
