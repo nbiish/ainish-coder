@@ -128,7 +128,6 @@ main() {
         --rules)
             # Deploy AGENTS.md, MAIRULES.md (with TIER_0 only), critical.md, and .gitignore
             deploy_agents "$target_dir" && deploy_mairules_tier0 "$target_dir" && deploy_critical "$target_dir" && deploy_gitignore "$target_dir"
-            # Include llms.txt if present in repository
             if [[ -f "${REPO_DIR}/llms.txt" ]]; then
                 if cp "${REPO_DIR}/llms.txt" "$target_dir/llms.txt" 2>/dev/null; then
                     echo -e "${GREEN}✓ Deployed llms.txt to $target_dir${RESET}"
