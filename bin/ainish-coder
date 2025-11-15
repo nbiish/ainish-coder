@@ -126,8 +126,7 @@ main() {
         
         # Core rules deployment
         --rules)
-            # Deploy AGENTS.md, MAIRULES.md (with TIER_0 only), critical.md, and .gitignore
-            deploy_agents "$target_dir" && deploy_mairules_tier0 "$target_dir" && deploy_critical "$target_dir" && deploy_gitignore "$target_dir"
+            deploy_agents "$target_dir" && : > "$target_dir/MAIRULES.md" && echo -e "${GREEN}✓ Created empty MAIRULES.md at $target_dir${RESET}" && deploy_critical "$target_dir" && deploy_gitignore "$target_dir"
             if [[ -f "${REPO_DIR}/llms.txt" ]]; then
                 if cp "${REPO_DIR}/llms.txt" "$target_dir/llms.txt" 2>/dev/null; then
                     echo -e "${GREEN}✓ Deployed llms.txt to $target_dir${RESET}"

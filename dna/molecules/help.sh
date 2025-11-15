@@ -9,7 +9,7 @@ USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md + MAIRULES.md + critical.md + .gitignore (TIER_0 - recommended)
+    --rules [TARGET_DIR]      Deploy AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
     
@@ -163,12 +163,12 @@ OTHER:
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Tier deployments APPEND to MAIRULES.md (they don't deploy to .mai-rules/)
-    - --rules deploys AGENTS.md + MAIRULES.md + critical.md + .gitignore for comprehensive coverage
+    - --rules deploys AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
     - Tool deployments now include ALL configurations (rules + commands/recipes + ignores)
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Tier deployments APPEND to MAIRULES.md (they don't overwrite)
-    - --rules deploys AGENTS.md + MAIRULES.md + critical.md + .gitignore with TIER_0 only (essential)
+    - --rules deploys AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
     - Use --mairules for ALL tiers or --tier {1-4} to add specific tiers
     - Run --rules first before tool-specific deployments
 
@@ -182,7 +182,7 @@ EXAMPLES:
     ainish-coder --github-actions ~/repo    # Deploy to specific repository
     
     # Tool-specific deployments
-    ainish-coder --rules                    # Deploy AGENTS.md + MAIRULES.md + critical.md + .gitignore (TIER_0)
+    ainish-coder --rules                    # Deploy AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
 
     # Add more tiers as needed
     ainish-coder --tier 1                   # Append code security

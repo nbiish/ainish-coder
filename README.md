@@ -59,7 +59,7 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md, MAIRULES.md, critical.md, .gitignore, and llms.txt
+ainish-coder --rules                     # Deploy AGENTS.md, empty MAIRULES.md, critical.md, .gitignore, and llms.txt
 
 # Deploy tier-specific rules (appends to MAIRULES.md)
 ainish-coder --tier 0                    # Append TIER_0 to MAIRULES.md (Documentation protocols)
@@ -158,7 +158,7 @@ ainish-coder --commands all
 cd /path/to/your/project
 
 # Step 1: Deploy core rules (RECOMMENDED FIRST)
-ainish-coder --rules                     # Deploys AGENTS.md, MAIRULES.md, critical.md, .gitignore, and llms.txt
+ainish-coder --rules                     # Deploys AGENTS.md, empty MAIRULES.md, critical.md, .gitignore, and llms.txt
 
 # Step 2: Deploy specific tiers to MAIRULES.md (optional)
 ainish-coder --tier 1                    # Append code security rules
@@ -184,10 +184,10 @@ ainish-coder --critical                  # Copy critical.md
 ### What Gets Deployed
 
 **Core Rules** (`--rules`):
-- Deploys `AGENTS.md` (223 lines, 6.8KB) - Universal AI agent standard
-- Deploys `MAIRULES.md` (1632 lines, 56KB) - Consolidated rules from all 5 tiers
+- Deploys `AGENTS.md` - Universal AI agent standard
+- Creates empty `MAIRULES.md` (append tiers later via `--tier` or `--mairules`)
 - Deploys `llms.txt` - Reference list of LLMs used
-- Both files are created in the target directory
+- Files are created in the target directory
 
 **Individual Files** (`--agents` or `--mairules`):
 - Deploy files individually if you only need one
