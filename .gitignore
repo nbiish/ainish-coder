@@ -47,17 +47,6 @@ env/
 .DS_Store
 .DS_Store?
 
-# Logs and temporary files
-*.log
-*.tmp
-*.temp
-logs/
-temp/
-tmp/
-*.pid
-*.seed
-*.pid.lock
-
 # Security and secrets
 *.key
 *.pem
