@@ -52,7 +52,6 @@ Task:
 
 [Qwen] -> `qwen -y "{prompt/files/directory}"`
 [Gemini] -> `gemini -y "{prompt/files/directory}"`
-[Copilot] -> `copilot --allow-all-tools "{prompt/files/directory}"`
 [Cursor] -> `cursor agent --print --approve-mcps "{prompt/files/directory}"`
 [Goose] -> `echo "{prompt/files/directory}" | goose`
 [Opencode] -> `opencode run "{prompt/files/directory}"`
