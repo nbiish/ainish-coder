@@ -36,6 +36,18 @@ deploy_github_actions() {
         print_success "Deployed detect-secrets.yml"
     fi
     
+    # Reusable Secret Scan workflow
+    if [[ -f "${source_workflows}/reusable-secret-scan.yml" ]]; then
+        cp "${source_workflows}/reusable-secret-scan.yml" "${target_workflows}/reusable-secret-scan.yml" && \
+        print_success "Deployed reusable-secret-scan.yml"
+    fi
+    
+    # Reusable Sanitize workflow
+    if [[ -f "${source_workflows}/reusable-sanitize.yml" ]]; then
+        cp "${source_workflows}/reusable-sanitize.yml" "${target_workflows}/reusable-sanitize.yml" && \
+        print_success "Deployed reusable-sanitize.yml"
+    fi
+    
     # Secret scan workflow (legacy)
     if [[ -f "${source_workflows}/secret-scan.yml" ]]; then
         cp "${source_workflows}/secret-scan.yml" "${target_workflows}/secret-scan.yml" && \
@@ -50,6 +62,17 @@ deploy_github_actions() {
     
     # Deploy support scripts
     echo -e "${BLUE}Deploying support scripts...${RESET}"
+    
+    # Create .github/scripts directory
+    local target_scripts="${target_dir}/.github/scripts"
+    mkdir -p "${target_scripts}"
+    
+    # Deploy sanitize.py
+    if [[ -f "${ainish_root}/.github/scripts/sanitize.py" ]]; then
+        cp "${ainish_root}/.github/scripts/sanitize.py" "${target_scripts}/sanitize.py" && \
+        chmod +x "${target_scripts}/sanitize.py" && \
+        print_success "Deployed .github/scripts/sanitize.py"
+    fi
     
     local scripts=(
         "sanitize-settings.sh"
