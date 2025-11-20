@@ -1,4 +1,5 @@
 # GitHub Actions - Security & Secret Protection
+<!-- markdownlint-disable MD004 MD009 MD030 MD031 MD032 MD046 -->
 
 This directory contains automated workflows to protect against committing secrets and enforce enterprise security standards.
 
@@ -14,6 +15,11 @@ This directory contains automated workflows to protect against committing secret
 3.  **Reference**: For deep implementation details, read `knowledge-base/SECURITY_IMPLEMENTATION.md`.
 
 ## Workflows
+
+> **Operational Checklist**
+> 1. Re-run `Pre-Commit Secret Detection`, `PQC Readiness Audit`, and `CodeQL` from the Actions tab whenever this folder changes so you immediately validate secrets, CBOM, and SAST.
+> 2. After reruns finish, check their annotations before merging; these three jobs are the gating signals for repository health.
+> 3. Document any workflow updates below so future contributors (human or AI) follow the same process.
 
 ### 1. `auto-sanitize.yml` - **Automatic Secret Removal** 🧹
 
@@ -253,6 +259,38 @@ Add to `auto-sanitize.yml`:
         assignees: ['username1', 'username2']
       })
 ```
+
+    ## Language Coverage & Extensions
+
+    | Stack | Status | Notes |
+    | --- | --- | --- |
+    | Python | ✅ Enabled | Covered by `codeql.yml` matrix entry. |
+    | JavaScript / TypeScript | ✅ Enabled | Use the `javascript` analyzer (includes TS/TSX).
+    | Rust | ✅ Enabled | Automatically builds with `cargo` via CodeQL autobuild.
+    | Shell | ⚠️ Manual review | No CodeQL support. Rely on secret scans + scripting best practices.
+    | Other (Go, Java, C/C++, etc.) | ➕ Add as needed | Follow the instructions below.
+
+    ### How to add another language to CodeQL
+
+    1. Edit `.github/workflows/codeql.yml`.
+    2. Append a new object under `strategy.matrix.include` with:
+       - `language`: the CodeQL language identifier (e.g., `go`, `java`, `csharp`).
+       - `display`: friendly name for logs.
+       - `patterns`: newline-separated glob(s) that indicate files for that stack.
+    3. The helper step automatically skips languages whose patterns match no tracked files, so it is safe to keep future-ready entries.
+    4. If the new language requires a custom build, replace the `Autobuild` step with explicit build commands guarded by `if: steps.detect-sources.outputs.has-code == 'true'`.
+
+    ### Extending secret scanning
+
+    - Update `.github/workflows/reusable-secret-scan.yml` if you need different base/head logic (e.g., scanning an entire history). The `Determine diff range` step already handles single-commit pushes by falling back to the default branch.
+    - For domain-specific tokens, edit the `PATTERNS` array inside `.github/workflows/detect-secrets.yml` and add deterministic regular expressions.
+    - To scan binary artifacts or large files, pass `extra_args` through the TruffleHog step (e.g., `--since-time` or `--include-path`).
+
+    ### Guidance for AI Agents
+
+    - Always consult this README plus `knowledge-base/SECURITY_IMPLEMENTATION.md` before modifying workflows.
+    - When adding a new language or tool, document the change here so future agents know how to extend it safely.
+    - Prefer defense-in-depth: keep both the reusable secret scan and CodeQL matrix entries even if the repository currently lacks certain filetypes so single-commit pushes with sensitive material are still examined.
 
 ## Best Practices
 
