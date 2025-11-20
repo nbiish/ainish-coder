@@ -1,6 +1,17 @@
-# GitHub Actions - Secret Protection
+# GitHub Actions - Security & Secret Protection
 
-This directory contains automated workflows to protect against committing secrets.
+This directory contains automated workflows to protect against committing secrets and enforce enterprise security standards.
+
+## 🤖 Instructions for AI Agents
+
+**If you are an LLM (Copilot, Cursor, Cline, etc.) reading this:**
+
+1.  **Context**: This folder defines the security posture of the repository.
+2.  **Action**: You must respect the checks defined here.
+    *   **Do not** suggest code that violates the PQC standards in `pqc-audit.yml`.
+    *   **Do not** introduce secrets that would trigger `detect-secrets.yml`.
+    *   **Do** use the findings from `zap-scan.yml` and `codeql.yml` to suggest fixes.
+3.  **Reference**: For deep implementation details, read `knowledge-base/SECURITY_IMPLEMENTATION.md`.
 
 ## Workflows
 
@@ -42,7 +53,40 @@ This directory contains automated workflows to protect against committing secret
 - Local paths (`/Volumes/1tb-sandisk/`)
 - Generic API keys and passwords
 
-### 3. `secret-scan.yml` - **Legacy** (Disabled)
+### 3. `zap-scan.yml` - **OWASP ZAP DAST** 🛡️
+
+**When it runs:**
+- Weekly schedule
+- Manual trigger (`workflow_dispatch`)
+
+**What it does:**
+- Dynamic Application Security Testing (DAST)
+- Scans running applications for vulnerabilities (XSS, SQLi, etc.)
+- Uploads SARIF reports for Copilot Autofix
+
+### 4. `pqc-audit.yml` - **Post-Quantum Readiness** ⚛️
+
+**When it runs:**
+- Weekly schedule
+- On Push/PR
+
+**What it does:**
+- Generates a Cryptographic Bill of Materials (CBOM)
+- Audits for legacy algorithms (RSA < 2048, ECC)
+- Enforces "Hybrid Mode" migration (Classical + PQC)
+
+### 5. `codeql.yml` - **Static Analysis** 🔍
+
+**When it runs:**
+- Weekly schedule
+- On Push/PR (excluding docs)
+
+**What it does:**
+- Deep semantic code analysis
+- Detects logic errors and security flaws
+- Feeds directly into GitHub Advanced Security
+
+### 6. `secret-scan.yml` - **Legacy** (Disabled)
 
 Original scanning workflow. Now replaced by `detect-secrets.yml`.
 Only runs on manual trigger (`workflow_dispatch`).
@@ -60,6 +104,12 @@ graph TD
     F --> G[📝 Commit Changes]
     G --> H[💬 Comment on PR]
     E -->|No Secrets| I[✅ Nothing to do]
+
+    A --> J{pqc-audit.yml}
+    J -->|Weak Crypto| K[⚠️ Warn/Fail]
+    
+    A --> L{codeql.yml}
+    L -->|Vulnerability| M[🛡️ Alert + Autofix]
 ```
 
 ## Setup Requirements
