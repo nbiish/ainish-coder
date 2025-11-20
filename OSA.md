@@ -50,10 +50,11 @@ Task:
 
 ## Agents (Listed in order of skill)
 
-[Qwen] -> `qwen -y "{prompt}"`
-[Gemini] -> `gemini -y "{prompt}"`
-[Copilot] -> `copilot --allow-all-tools "{prompt}"`
-[Cursor] -> `cursor agent --print --approve-mcps "{prompt}"`
-[Goose] -> `echo "{prompt}" | goose`
-[Opencode] -> `opencode run "{prompt}"`
-[Crush] -> `crush run "{prompt}"`
+[Qwen] -> `qwen -y "{prompt/files/directory}"`
+[Gemini] -> `gemini -y "{prompt/files/directory}"`
+[Copilot] -> `copilot --allow-all-tools "{prompt/files/directory}"`
+[Cursor] -> `cursor agent --print --approve-mcps "{prompt/files/directory}"`
+[Goose] -> `echo "{prompt/files/directory}" | goose`
+[Opencode] -> `opencode run "{prompt/files/directory}"`
+[Crush] -> `crush run "{prompt/files/directory}"`
+[claude] -> `claude --dangerously-skip-permissions --yes --recursive {prompt/files/directory}`
