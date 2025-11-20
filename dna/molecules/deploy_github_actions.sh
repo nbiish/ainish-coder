@@ -53,6 +53,24 @@ deploy_github_actions() {
         cp "${source_workflows}/secret-scan.yml" "${target_workflows}/secret-scan.yml" && \
         print_success "Deployed secret-scan.yml"
     fi
+
+    # OWASP ZAP Scan workflow
+    if [[ -f "${source_workflows}/zap-scan.yml" ]]; then
+        cp "${source_workflows}/zap-scan.yml" "${target_workflows}/zap-scan.yml" && \
+        print_success "Deployed zap-scan.yml"
+    fi
+
+    # PQC Audit workflow
+    if [[ -f "${source_workflows}/pqc-audit.yml" ]]; then
+        cp "${source_workflows}/pqc-audit.yml" "${target_workflows}/pqc-audit.yml" && \
+        print_success "Deployed pqc-audit.yml"
+    fi
+
+    # CodeQL workflow
+    if [[ -f "${source_workflows}/codeql.yml" ]]; then
+        cp "${source_workflows}/codeql.yml" "${target_workflows}/codeql.yml" && \
+        print_success "Deployed codeql.yml"
+    fi
     
     # Workflow documentation
     if [[ -f "${source_workflows}/README.md" ]]; then
@@ -97,6 +115,13 @@ deploy_github_actions() {
     if [[ -f "${source_root}/GITHUB_ACTIONS_SETUP.md" ]]; then
         cp "${source_root}/GITHUB_ACTIONS_SETUP.md" "${target_dir}/GITHUB_ACTIONS_SETUP.md" && \
         print_success "Deployed GITHUB_ACTIONS_SETUP.md"
+    fi
+
+    # Deploy Security Knowledge Base
+    if [[ -f "${source_root}/knowledge-base/SECURITY_IMPLEMENTATION.md" ]]; then
+        mkdir -p "${target_dir}/knowledge-base"
+        cp "${source_root}/knowledge-base/SECURITY_IMPLEMENTATION.md" "${target_dir}/knowledge-base/SECURITY_IMPLEMENTATION.md" && \
+        print_success "Deployed knowledge-base/SECURITY_IMPLEMENTATION.md"
     fi
     
     if [[ -f "${source_root}/CHECKLIST.md" ]]; then
@@ -176,6 +201,21 @@ deploy_github_actions() {
     echo -e "  🥈 Local: Pre-commit hook (✓ deployed)"
     echo -e "  🥉 Cloud: GitHub Actions (✓ deployed)"
     echo ""
+
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${GREEN}  Security Deployment Complete!${RESET}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "View your Security Dashboard here:"
+    echo -e "${CYAN}https://github.com/${GITHUB_REPOSITORY:-<OWNER>/<REPO>}/security${RESET}"
+    echo -e ""
+
+    echo -e "${MAGENTA}🤖 AI Agent Instructions:${RESET}"
+    echo -e "  I have deployed a master security guide optimized for LLMs."
+    echo -e "  File: ${CYAN}knowledge-base/SECURITY_IMPLEMENTATION.md${RESET}"
+    echo -e ""
+    echo -e "  To activate AI Security Expert mode, tell your agent:"
+    echo -e "  \"Read knowledge-base/SECURITY_IMPLEMENTATION.md and audit this repository for PQC compliance.\""
+    echo -e ""
     
     return 0
 }
