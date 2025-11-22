@@ -1,0 +1,42 @@
+name: Snyk Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 1' # Weekly scan
+
+permissions:
+  contents: read
+
+jobs:
+  snyk-scan:
+    runs-on: ubuntu-latest
+    name: Snyk (Code & Dependencies)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Snyk Security Scan
+        uses: snyk/actions/setup@master
+      
+      # 1. Scan Dependencies (SCA)
+      - name: Snyk Open Source (Dependencies)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --all-projects || echo "::warning::Snyk found vulnerabilities in dependencies"
+
+      # 2. Scan Code (SAST) - Optional, Snyk Code must be enabled in Snyk UI
+      - name: Snyk Code (Source Analysis)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk code test || echo "::warning::Snyk found vulnerabilities in source code"
+
+      # 3. Monitor (Upload results to Snyk dashboard)
+      - name: Snyk Monitor
+        if: github.ref == 'refs/heads/main'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk monitor --all-projects

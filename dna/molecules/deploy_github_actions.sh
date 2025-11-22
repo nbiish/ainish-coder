@@ -73,9 +73,9 @@ deploy_github_actions() {
     fi
     
     # Workflow documentation
-    if [[ -f "${source_workflows}/README.md" ]]; then
-        cp "${source_workflows}/README.md" "${target_workflows}/README.md" && \
-        print_success "Deployed workflows README.md"
+    if [[ -f "${source_workflows}/llms.txt" ]]; then
+        cp "${source_workflows}/llms.txt" "${target_workflows}/llms.txt" && \
+        print_success "Deployed workflows llms.txt"
     fi
     
     # Deploy support scripts

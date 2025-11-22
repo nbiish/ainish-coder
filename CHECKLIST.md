@@ -3,7 +3,7 @@
 ## Before You Push
 
 - [ ] Read `GITHUB_ACTIONS_SETUP.md` for full details
-- [ ] Review `.github/workflows/README.md` for workflow documentation
+- [ ] Review `.github/workflows/llms.txt` for workflow documentation
 
 ## Enable GitHub Actions (Required)
 

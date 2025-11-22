@@ -15,7 +15,7 @@ cat << 'EOF'
 🆕 GITHUB ACTIONS (Automatic!)
   auto-sanitize.yml                     # Auto-cleans on every push!
   detect-secrets.yml                    # Blocks PRs with secrets
-  See: .github/workflows/README.md      # Full setup guide
+  See: .github/workflows/llms.txt       # Full setup guide
 
 🧹 BEFORE COMMITTING
   ./sanitize-settings.sh                # Clean all settings.json files

@@ -3,6 +3,14 @@
 > **TOON Format** (Token-Oriented Object Notation) - Compact, human-readable encoding optimized for LLM prompts.
 > Specification: [TOON v2.0](https://github.com/toon-format/toon)
 
+### TOON v2.0 Syntax Reference
+- **Hierarchy**: Indentation-based nesting (YAML-style).
+- **Arrays**:
+  - Objects: `key[count]{col1,col2}:` followed by CSV rows.
+  - Primitives: `key[count]:` followed by values.
+- **Values**: Comma-separated. Unquoted strings allowed (quote only if containing `,`).
+- **Efficiency**: Explicit counts `[N]` help LLM parsing.
+
 ```toon
 project_setup[2]{type,requirement}:
   python,uv venv .venv

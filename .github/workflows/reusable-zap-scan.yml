@@ -1,0 +1,94 @@
+name: Web Security Scan (ZAP + AI Analysis)
+
+on:
+  workflow_call:
+    inputs:
+      target-url:
+        description: 'Target URL to scan'
+        required: true
+        type: string
+      ai-provider:
+        description: 'AI Provider for analysis (openai, anthropic)'
+        required: false
+        default: 'openai'
+        type: string
+    secrets:
+      AI_API_KEY:
+        required: true
+
+jobs:
+  zap-scan-analyze:
+    name: ZAP Scan & AI Remediation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Target Availability
+        run: |
+          echo "Checking availability of ${{ inputs.target-url }}..."
+          if curl --output /dev/null --silent --head --fail "${{ inputs.target-url }}"; then
+            echo "✅ Target is up!"
+          else
+            echo "⚠️ Target is not reachable. ZAP scan might fail."
+          fi
+
+      - name: ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ inputs.target-url }}
+          cmd_options: '-a -J zap-report.json' # Generate JSON report
+          allow_issue_writing: false
+          fail_action: false
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: AI Security Analysis
+        env:
+          AI_PROVIDER: ${{ inputs.ai-provider }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          ZAP_REPORT_PATH: zap-report.json
+        run: python3 .github/scripts/ai_security_analyst.py
+
+      - name: Create Remediation PR
+        if: hashFiles('pr_body.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create a new branch for fixes
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          BRANCH_NAME="security/zap-fixes-$TIMESTAMP"
+          
+          git config --global user.name "AI Security Bot"
+          git config --global user.email "security-bot@example.com"
+          
+          git checkout -b $BRANCH_NAME
+          
+          # Create a placeholder file for the PR to have content (if no actual code changes yet)
+          # In a real scenario, the AI might output a patch file to apply.
+          # For now, we just create a report file.
+          cp pr_body.md SECURITY_REPORT.md
+          git add SECURITY_REPORT.md
+          git commit -m "Add ZAP Security Report and Remediation Plan"
+          git push origin $BRANCH_NAME
+          
+          # Create PR
+          gh pr create \
+            --title "🛡️ ZAP Security Remediation [$TIMESTAMP]" \
+            --body-file pr_body.md \
+            --base main \
+            --head $BRANCH_NAME
+
+
+

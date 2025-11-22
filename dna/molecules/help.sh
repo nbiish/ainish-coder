@@ -112,18 +112,30 @@ CUSTOM COMMANDS DEPLOYMENT:
                               IDE Extensions (Config-Based):
                               - continue    (provides config.yaml setup guide)
                               
-                              CLI Tools (TOML Commands):
-                              - gemini-cli  (.gemini/commands/*.toml)
-                              - qwen        (.qwen/commands/*.toml)
+                              Example: ainish-coder --github-actions ~/my-project
+
+    --gpg                     Interactive GPG Setup Wizard for Hugging Face & GitHub
                               
-                              CLI Tools (Recipes):
-                              - goose       (.goose/recipes/*.yaml)
+                              Guides you through:
+                              - Generating or selecting a GPG key
+                              - Exporting public key for Hugging Face and GitHub
+                              - Configuring git to sign commits automatically
                               
-                              Other:
-                              - copilot     (use --copilot flag instead)
-                              - all         (deploy to all applicable tools)
+                              Example: ainish-coder --gpg
+
+    --mcp [TARGET_DIR]        Deploy MCP server configuration for Claude Desktop
                               
-                              Example: ainish-coder --commands all
+                              Creates/Updates:
+                              - ~/Library/Application Support/Claude/claude_desktop_config.json
+                              - .vscode/mcp.json (for Roo Code / Cline)
+                              
+                              Configures:
+                              - Memory (sqlite)
+                              - Filesystem (allowed directories)
+                              - Search (grep, find)
+                              - Fetch (curl)
+                              
+                              Example: ainish-coder --mcp
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md from TIER_0

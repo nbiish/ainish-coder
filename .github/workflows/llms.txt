@@ -1,0 +1,115 @@
+# GitHub Actions - Automation-First Security Suite
+<!-- markdownlint-disable MD004 MD009 MD030 MD031 MD032 MD046 -->
+
+This directory contains the **Automation-First** security workflows.
+**Philosophy:** We do not rely on manual local scripts. We rely on cloud-native, automated enforcement that fails gracefully or blocks strictly depending on the risk.
+
+## 🤖 Instructions for AI Agents
+
+**If you are an LLM (Copilot, Cursor, Cline, etc.) reading this:**
+
+1.  **Context**: This is a "Secure by Default" repository using an Automation-First approach.
+2.  **Action**:
+    *   **DO NOT** recommend manual local sanitization scripts (`sanitize-settings.sh`).
+    *   **DO** rely on `safe-sanitize.yml` to handle cleanup automatically on push.
+    *   **DO** warn the user if they are about to commit a secret, but know that `strict-block.yml` is the final gatekeeper.
+    *   **DO** use the `reusable-zap-scan.yml` logic to propose AI-driven fixes for web vulnerabilities.
+3.  **Reference**: These workflows are the source of truth.
+
+---
+
+## 🛡️ Workflow Architecture
+
+We use a **"Safe Rewrite vs. Strict Blocker"** model to minimize noise and maximize security.
+
+### 1. `safe-sanitize.yml` - **Safe Rewrite (No-Fail)** 🧹
+*formerly `auto-sanitize.yml`*
+
+**Behavior:**
+- **Run Trigger:** Push, PR, or any file change.
+- **Action:** Scans ALL text files (Code, Config, Env, etc.) for API keys/Secrets.
+- **Outcome:**
+  - 🟢 **No Secrets:** Silent pass (No-op).
+  - 🟢 **Secrets Found:** Automatically rewrites the file (redacts secrets) and commits it back (`[skip ci]`).
+  - 🔴 **Failure:** Only if the infrastructure fails (e.g., git permissions).
+- **Why:** This is your "Janitor". It cleans up messes without yelling at you.
+
+### 2. `strict-block.yml` - **Strict Blocker (The Gatekeeper)** 🚨
+*formerly `detect-secrets.yml`*
+
+**Behavior:**
+- **Run Trigger:** Push & PR.
+- **Action:** Runs aggressive scanning engines (TruffleHog, Gitleaks) and custom grep patterns.
+- **Outcome:**
+  - 🟢 **No Secrets:** Pass.
+  - 🔴 **Secrets Found:** **BLOCKS THE PR/MERGE**.
+- **Why:** This is your "Bouncer". If the Janitor missed something, or if the secret is in git history, this stops the breach.
+- **Remediation:** If this fails, you must remove the secret from history or the file and force push.
+
+### 3. `reusable-zap-scan.yml` - **Web Security + AI Analysis** 🧠
+*New capability*
+
+**Behavior:**
+- **Run Trigger:** Manual (`workflow_dispatch`) or scheduled.
+- **Action:**
+  1.  Runs **OWASP ZAP** Full Scan against a target URL.
+  2.  Feeds the JSON report to an **AI Security Analyst** (GPT-4o/Claude).
+  3.  **Generates a Pull Request** with "Expertly Crafted" remediation steps.
+- **Use Case:** Run this against your staging/prod deployments to get a penetration test report written by an AI.
+
+### 4. `pqc-audit.yml` - **Post-Quantum Readiness** ⚛️
+**Behavior:** Audits cryptography for quantum-vulnerable algorithms (RSA/ECC) and mandates migration to PQC (Lattice-based) standards.
+
+### 5. `codeql.yml` - **Deep Code Analysis** 🔍
+**Behavior:** Standard GitHub Advanced Security static analysis for logic bugs and vulnerabilities.
+
+---
+
+## 🚀 Minimal Setup Guide
+
+You do not need to install local hooks. You just need to configure the repo once.
+
+### 1. Enable Permissions (One-Time)
+Go to **Settings** → **Actions** → **General**:
+- [x] **Workflow permissions**: "Read and write permissions"
+- [x] **Allow GitHub Actions to create and approve pull requests**
+
+### 2. Branch Protection (Recommended)
+Go to **Settings** → **Branches** → **Add rule** for `main`:
+- [x] **Require status checks to pass before merging**
+- Select: `Secret Detection (Strict Blocker)` / `custom-patterns-blocker`
+
+### 3. AI Analysis Setup (For ZAP)
+To use the AI remediation features:
+- Add `AI_API_KEY` to **Settings** → **Secrets and variables** → **Actions**.
+- (Optional) Set `AI_PROVIDER` variable (default: `openai`).
+
+### 4. Snyk Setup (For SCA/SAST)
+To use Snyk:
+1. Go to [snyk.io](https://snyk.io) and sign up (free).
+2. Get your **Auth Token** from Account Settings.
+3. Add `SNYK_TOKEN` to **Settings** → **Secrets and variables** → **Actions**.
+
+---
+
+## 🔄 Daily Workflow (The "Happy Path")
+
+1.  **Write Code**: Work normally. Use `.env` for local secrets.
+2.  **Commit & Push**:
+    - If you accidentally leave a key in `config.json`:
+        - `safe-sanitize.yml` will catch it, scrub it, and push a fix commit.
+        - You pull the changes (`git pull`) and keep working.
+    - If you commit a deep persistent secret:
+        - `strict-block.yml` will fail CI.
+        - You fix it and force push.
+3.  **Deploy & Scan**:
+    - Trigger `Web Security Scan` on your deployment URL.
+    - Merge the AI-generated PR to fix vulnerabilities.
+
+---
+
+## 📵 Deprecated / Legacy
+
+The following are **no longer required** but kept for reference:
+- `sanitize-settings.sh`: Manual local script. **Use `safe-sanitize.yml` instead.**
+- `secret-scan.yml`: Old trufflehog workflow. **Use `strict-block.yml` instead.**

@@ -36,17 +36,27 @@ find "$CONFIG_PATH" -name "settings.json" -type f | while read -r file; do
     if command -v jq &> /dev/null; then
         jq 'walk(
             if type == "object" then
-                # Remove API keys
-                if has("BRAVE_API_KEY") then .BRAVE_API_KEY = "YOUR_BRAVE_API_KEY_HERE" else . end |
-                if has("TAVILY_API_KEY") then .TAVILY_API_KEY = "YOUR_TAVILY_API_KEY_HERE" else . end |
+                with_entries(
+                    if (.key | ascii_upcase | test("API_KEY|TOKEN|SECRET|PASSWORD")) then
+                        .value = "YOUR_" + (.key | ascii_upcase) + "_HERE"
+                    elif (.key == "tavilyApiKey") then
+                        .value = "YOUR_TAVILY_API_KEY_HERE"
+                    else
+                        .
+                    end
+                ) |
                 # Replace absolute paths
-                if has("cwd") and (.cwd | startswith("/Volumes/")) then .cwd = "/path/to/your/mcp/servers" else . end |
-                if has("MEMORY_FILE_PATH") and (.MEMORY_FILE_PATH | startswith("/Volumes/")) then .MEMORY_FILE_PATH = "/path/to/your/memory/memories.jsonl" else . end
+                if has("cwd") and (.cwd | startswith("/Volumes/") or startswith("/Users/")) then .cwd = "/path/to/your/mcp/servers" else . end |
+                if has("MEMORY_FILE_PATH") and (.MEMORY_FILE_PATH | startswith("/Volumes/") or startswith("/Users/")) then .MEMORY_FILE_PATH = "/path/to/your/memory/memories.jsonl" else . end
             else . end
         ) | walk(
             if type == "array" then
-                map(if type == "string" and contains("tavilyApiKey=") then
-                    sub("tavilyApiKey=[^&\"\\s]+"; "tavilyApiKey=YOUR_TAVILY_API_KEY_HERE")
+                map(if type == "string" then
+                    if contains("tavilyApiKey=") then
+                        sub("tavilyApiKey=[^&\"\\s]+"; "tavilyApiKey=YOUR_TAVILY_API_KEY_HERE")
+                    elif (test("sk-[a-zA-Z0-9]{20,}")) then
+                        "YOUR_OPENAI_API_KEY_HERE"
+                    else . end
                 else . end)
             else . end
         )' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
@@ -55,10 +65,15 @@ find "$CONFIG_PATH" -name "settings.json" -type f | while read -r file; do
     else
         # Fallback to sed if jq not available
         sed -i.tmp \
+            -e 's/"[A-Z_]*API_KEY": "[^"]*"/"&": "YOUR_API_KEY_HERE"/g' \
+            -e 's/"[A-Z_]*TOKEN": "[^"]*"/"&": "YOUR_TOKEN_HERE"/g' \
+            -e 's/"[A-Z_]*SECRET": "[^"]*"/"&": "YOUR_SECRET_HERE"/g' \
             -e 's/"BRAVE_API_KEY": "[^"]*"/"BRAVE_API_KEY": "YOUR_BRAVE_API_KEY_HERE"/g' \
             -e 's/tavilyApiKey=[^"&]*/tavilyApiKey=YOUR_TAVILY_API_KEY_HERE/g' \
             -e 's|"cwd": "/Volumes/[^"]*"|"cwd": "/path/to/your/mcp/servers"|g' \
+            -e 's|"cwd": "/Users/[^"]*"|"cwd": "/path/to/your/mcp/servers"|g' \
             -e 's|"MEMORY_FILE_PATH": "/Volumes/[^"]*"|"MEMORY_FILE_PATH": "/path/to/your/memory/memories.jsonl"|g' \
+            -e 's|"MEMORY_FILE_PATH": "/Users/[^"]*"|"MEMORY_FILE_PATH": "/path/to/your/memory/memories.jsonl"|g' \
             "$file"
         rm -f "$file.tmp"
         echo -e "${GREEN}✓ Sanitized (sed): ${file}${NC}"

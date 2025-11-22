@@ -16,7 +16,7 @@
    - 🔍 Custom pattern matching for your specific secrets
    - 💬 Helpful PR comments with remediation steps
 
-3. **`.github/workflows/README.md`**
+3. **`.github/workflows/llms.txt`**
    - 📚 Complete documentation
    - 🎨 Visual workflow diagram
    - 🔧 Customization guide
@@ -131,10 +131,36 @@ git push
 
 ### 🎯 What Gets Auto-Cleaned:
 
-- ✅ Brave API keys → `YOUR_BRAVE_API_KEY_HERE`
-- ✅ Tavily API keys → `YOUR_TAVILY_API_KEY_HERE`
-- ✅ Local paths → `/path/to/your/mcp/servers`
-- ✅ Memory paths → `/path/to/your/memory/memories.jsonl`
+- ✅ **AI & LLM Keys**:
+  - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`
+  - `GOOGLE_API_KEY`, `MISTRAL_API_KEY`, `COHERE_API_KEY`
+  - Hugging Face: `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN`, `HUGGINGFACE_API_KEY`, `HF_TOKEN`
+  - ElevenLabs: `ELEVENLABS_API_KEY`, `ELEVEN_API_KEY`
+  - Nebius Token Factory: `NEBIUS_API_KEY`, `NEBIUS_TOKEN`
+  - Modal: `MODAL_API_KEY`
+  - Blaxel: `BLAXEL_API_KEY`
+  - SambaNova: `SAMBANOVA_API_KEY`, `SAMBANOVA_TOKEN`
+  - `REPLICATE_API_TOKEN`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `TOGETHER_API_KEY`, `DEEPSEEK_API_KEY`
+  - `PERPLEXITY_API_KEY`, `ZENMUX_API_KEY`, `QWEN_API_KEY`
+  - `GITHUB_TOKEN`, `AZURE_OPENAI_API_KEY`
+  - *And generic `*_API_KEY`, `*_TOKEN`, `*_SECRET` patterns*
+
+- ✅ **Database & Cloud Keys**:
+  - `SUPABASE_KEY`, `FIREBASE_API_KEY`, `MONGODB_URI`
+  - `PINECONE_API_KEY`, `WEAVIATE_API_KEY`, `QDRANT_API_KEY`
+  - `REDIS_URL`, `DATABASE_URL`, `POSTGRES_PASSWORD`
+  - `ALGOLIA_API_KEY`, `STRIPE_SECRET_KEY`, `VERCEL_TOKEN`
+  - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+- ✅ **Specific Patterns**:
+  - OpenAI `sk-...` keys
+  - Google `AIza...` keys
+  - Brave `BSA...` keys
+  - Tavily `tvly-...` keys
+
+- ✅ **Local Environment**:
+  - Local paths (`/Volumes/...`, `/Users/...`) → `/path/to/your/...`
+  - Memory file paths → `/path/to/your/memory/memories.jsonl`
 
 ### 💡 Best Practice Workflow:
 
@@ -165,7 +191,7 @@ brew install act
 
 ### 📖 Documentation:
 
-- **Full guide:** `.github/workflows/README.md`
+- **Full guide:** `.github/workflows/llms.txt`
 - **Setup details:** `KNOWLEDGE_BASE/SECRET_PROTECTION_SETUP.md`
 - **Quick reference:** Run `bash dna/atoms/secret-protection-help.sh`
 

@@ -1,14 +1,14 @@
-name: Auto-Sanitize Secrets
+name: Auto-Sanitize Secrets (Safe Rewrite)
 
 on:
   push:
     branches: [ main, dev, staging ]
     paths:
-      - 'CONFIGURATIONS/**/*.json'
+      - '**/*'
   pull_request:
     branches: [ main ]
     paths:
-      - 'CONFIGURATIONS/**/*.json'
+      - '**/*'
 
 permissions:
   contents: write
@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   sanitize:
+    name: Safe Rewrite (No-Fail)
     uses: ./.github/workflows/reusable-sanitize.yml
     with:
-      target-paths: 'CONFIGURATIONS/**/*.json'
+      target-paths: '.'

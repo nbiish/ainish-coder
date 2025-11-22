@@ -1,4 +1,4 @@
-name: Pre-Commit Secret Detection
+name: Secret Detection (Strict Blocker)
 
 on:
   push:
@@ -7,13 +7,15 @@ on:
     branches: [ main ]
 
 jobs:
-  detect-secrets:
+  scanner-engines:
+    name: Scanner Engines (TruffleHog/Gitleaks)
     uses: ./.github/workflows/reusable-secret-scan.yml
     with:
       scan-depth: '0'
       fail-on-error: true
 
-  custom-patterns:
+  custom-patterns-blocker:
+    name: Custom Patterns Blocker
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -35,7 +37,8 @@ jobs:
           FOUND=0
           
           for pattern in "${PATTERNS[@]}"; do
-            if grep -rE "$pattern" CONFIGURATIONS/ 2>/dev/null; then
+            # Grep recursively in current dir, excluding .git and this workflow file
+            if grep -rE --exclude-dir=.git --exclude="strict-block.yml" "$pattern" . 2>/dev/null; then
               echo "❌ Found pattern: $pattern"
               FOUND=1
             fi
@@ -43,10 +46,12 @@ jobs:
           
           if [ $FOUND -eq 1 ]; then
             echo ""
-            echo "⚠️ SECRETS DETECTED! Please run './sanitize-settings.sh' locally"
+            echo "🛑 BLOCKING: Secrets detected!"
+            echo "Please check the logs and remove the secrets."
+            echo "If this is a false positive, update strict-block.yml exclusions."
             exit 1
           else
-            echo "✅ No secrets detected"
+            echo "✅ No custom patterns detected"
           fi
 
       - name: Comment on PR if secrets found
@@ -58,12 +63,9 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🚨 **Secrets Detected in PR**\n\n' +
-                    'This PR contains API keys or sensitive paths.\n\n' +
-                    '**Please:**\n' +
-                    '1. Run `./sanitize-settings.sh` locally\n' +
-                    '2. Review and commit the changes\n' +
-                    '3. Push to update this PR\n\n' +
-                    '**Or use the template:**\n' +
-                    '`CONFIGURATIONS/MCP/settings.json.template`'
+              body: '🛑 **Strict Secret Block**\n\n' +
+                    'This PR was blocked because secrets were detected by the custom patterns scanner.\n\n' +
+                    '**Action Required:**\n' +
+                    '1. Remove the sensitive data.\n' +
+                    '2. Force push the clean branch.'
             })
