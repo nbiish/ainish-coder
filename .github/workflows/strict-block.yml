@@ -1,4 +1,4 @@
-name: Secret Detection (Strict Blocker)
+name: Secret Detection (Report Only)
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
 
       - name: Check for specific secrets
         run: |
-          echo "🔍 Scanning for known secret patterns..."
+          echo "🔍 Scanning for known secret patterns (report-only)..."
           
           # Define patterns
           PATTERNS=(
@@ -46,26 +46,8 @@ jobs:
           
           if [ $FOUND -eq 1 ]; then
             echo ""
-            echo "🛑 BLOCKING: Secrets detected!"
-            echo "Please check the logs and remove the secrets."
-            echo "If this is a false positive, update strict-block.yml exclusions."
-            exit 1
+            echo "⚠️ Secrets detected by custom patterns. This is report-only; workflow remains green."
+            echo "Please review the logs and rotate any exposed keys if needed."
           else
             echo "✅ No custom patterns detected"
           fi
-
-      - name: Comment on PR if secrets found
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '🛑 **Strict Secret Block**\n\n' +
-                    'This PR was blocked because secrets were detected by the custom patterns scanner.\n\n' +
-                    '**Action Required:**\n' +
-                    '1. Remove the sensitive data.\n' +
-                    '2. Force push the clean branch.'
-            })

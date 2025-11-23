@@ -19,50 +19,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run Semgrep
+      - name: Run Semgrep (report-only)
         run: |
-          # Install semgrep CLI via pip to run in ubuntu env
           python3 -m pip install semgrep
-          semgrep scan --config=p/security-audit --config=p/secrets --error --verbose --json > semgrep-results.json
-        continue-on-error: true
+          semgrep scan --config=p/security-audit --config=p/secrets --error --verbose --json > semgrep-results.json || \
+            echo "::warning::Semgrep reported findings or errors. See semgrep-results.json for details."
 
       - name: Show Results
+        if: always()
         run: |
           if [ -f semgrep-results.json ]; then
             cat semgrep-results.json
+          else
+            echo "No Semgrep results file generated."
           fi
-
-      # AI Analysis Step
-      - name: Install Python Deps
-        run: pip install requests
-
-      - name: AI Security Analysis
-        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
-        env:
-          AI_PROVIDER: 'openai'
-          AI_API_KEY: ${{ secrets.AI_API_KEY }} # Must be set in repo
-          SEMGREP_REPORT_PATH: semgrep-results.json
-        run: python3 .github/scripts/ai_security_analyst.py
-
-      - name: Create Remediation PR
-        if: hashFiles('pr_body.md') != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          BRANCH_NAME="security/semgrep-fixes-$TIMESTAMP"
-          
-          git config --global user.name "AI Security Bot"
-          git config --global user.email "security-bot@example.com"
-          git checkout -b $BRANCH_NAME
-          
-          cp pr_body.md SECURITY_REPORT.md
-          git add SECURITY_REPORT.md
-          git commit -m "Add Semgrep Security Report"
-          git push origin $BRANCH_NAME
-          
-          gh pr create \
-            --title "🛡️ Semgrep Security Fixes [$TIMESTAMP]" \
-            --body-file pr_body.md \
-            --base main \
-            --head $BRANCH_NAME
