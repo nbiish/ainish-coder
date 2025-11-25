@@ -33,6 +33,23 @@ deploy_gitignore() {
     # Copy .gitignore from repository root
     if cp "$source_gitignore" "$gitignore_file" 2>/dev/null; then
         echo -e "${GREEN}✓ Deployed .gitignore to $target_dir${RESET}"
+        
+        # Merge any entries from backup that aren't in the new .gitignore
+        if [[ -n "${backup_file:-}" && -f "$backup_file" ]]; then
+            echo -e "${BRIGHT_BLUE}Merging unique entries from backup...${RESET}"
+            # Find lines in backup that aren't in the new .gitignore and append them
+            local unique_entries
+            unique_entries=$(comm -13 <(grep -v '^$' "$gitignore_file" | sort) <(grep -v '^$' "$backup_file" | sort) 2>/dev/null || true)
+            if [[ -n "$unique_entries" ]]; then
+                echo "" >> "$gitignore_file"
+                echo "# Preserved from previous .gitignore" >> "$gitignore_file"
+                echo "$unique_entries" >> "$gitignore_file"
+                echo -e "${GREEN}✓ Merged $(echo "$unique_entries" | wc -l | tr -d ' ') unique entries from backup${RESET}"
+            else
+                echo -e "${YELLOW}No unique entries to merge from backup${RESET}"
+            fi
+        fi
+        
         echo -e "${BRIGHT_GREEN}✅ Gitignore configured${RESET}"
         return 0
     else

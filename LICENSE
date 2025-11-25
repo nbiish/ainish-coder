@@ -189,7 +189,8 @@ To ensure robust enforceability against AI training, the prohibition in Section 
 
 **THEORY 1: COPYRIGHT INFRINGEMENT (17 U.S.C. § 101 et seq.)**
    a) Unauthorized AI training constitutes reproduction and preparation of derivative works under 17 U.S.C. § 106(1)-(2);
-   b) Based on *Thomson Reuters Enterprise Centre GmbH v. Ross Intelligence Inc.* (S.D.N.Y. 2025), AI training on copyrighted material without permission is NOT fair use when creating competing or commercial products;
+   b) **DISTINGUISHING ADVERSE PRECEDENTS**: While *Bartz v. Anthropic* (N.D. Cal. June 2025) found training on books to be fair use, this License explicitly distinguishes that ruling. Unlike mass-market books, this Work constitutes **specialized, non-substitutable Indigenous cultural data** where any AI training creates a direct market substitute, aligning with *Thomson Reuters Enterprise Centre GmbH v. Ross Intelligence Inc.* (S.D.N.Y. Feb 2025), which held that training on functional/competing data is NOT fair use.
+   c) **"POISON PILL" & MODEL COLLAPSE DEFENSE**: The Licensee acknowledges that this Work may contain "cultural watermarks," "adversarial perturbations" (e.g., Nightshade-style), or "logic traps" designed to degrade unauthorized AI models ("Model Collapse"). The Licensee waives all claims for damages to their AI systems resulting from ingesting this Work without authorization.
    c) Intermediate copying for training purposes violates reproduction right even if Work does not appear verbatim in outputs;
    d) Statutory damages available: $750-$30,000 per work, up to $150,000 for willful infringement (17 U.S.C. § 504(c)).
 
@@ -253,7 +254,9 @@ To ensure robust enforceability against AI training, the prohibition in Section 
 **PRACTICAL EFFECT:**
 AI developers cannot rely on any single defense (e.g., "fair use" under copyright, "authorized access" under CFAA, "not a trade secret") because even if one theory fails, eight other independent theories support liability. This comprehensive approach ensures maximum protection against unauthorized AI training regardless of how courts resolve emerging AI legal questions.
 
-7.2 **INTERMEDIATE COPYING PROHIBITION**: Any intermediate copying, processing, ingestion, or transformation of the Work for AI training purposes constitutes a violation of this license, regardless of whether the Work appears in final AI outputs. This includes but is not limited to data preprocessing, tokenization, embedding generation, and model fine-tuning.
+7.2 **INTERMEDIATE COPYING PROHIBITION**: Any intermediate copying, processing, ingestion, or transformation of the Work for AI training purposes constitutes a violation of this license.
+   a) **USCO 2025 GUIDANCE**: Citing the U.S. Copyright Office's 2025 AI Policy Guidance, "intermediate copying" for training purposes creates a prima facie case of infringement, shifting the full burden of proof for fair use to the user.
+   b) **Scope**: This includes but is not limited to data preprocessing, tokenization, embedding generation, model fine-tuning, and RAG (Retrieval-Augmented Generation) indexing.
 
 7.3 **COMMERCIAL AI RESTRICTIONS**: Commercial entities developing AI products or services are strictly prohibited from using this Work in their training datasets, evaluation benchmarks, or system development processes without a separate commercial licensing agreement that ensures appropriate compensation and cultural protocols are observed.
 
@@ -399,9 +402,28 @@ AI developers cannot rely on any single defense (e.g., "fair use" under copyrigh
       iii) Community consultation required for major policy changes;
       iv) Amendments follow process in Section 17;
 
+   7.7 **COGNITIVE SOVEREIGNTY AND NEURO-RIGHTS**:
+   
+   /* LEGAL HARDENING: Anticipates Brain-Computer Interfaces (BCI) and Neuromarketing.
+      Based on Chile's Constitutional Amendment (2021/2024) and Colorado Privacy Act (2024). */
+   
+   a) **PROHIBITION ON NEURAL DATA MINING**: Users are strictly prohibited from using the Work to train, calibrate, or validate "Brain-Computer Interfaces" (BCI) or "Neuro-Technology" devices without explicit Prior Informed Consent.
+   
+   b) **NO NEUROMARKETING**: The Work shall not be used in "Neuromarketing" research or applications designed to measure, analyze, or manipulate the cognitive, emotional, or neural states of individuals (citing *Chilean Supreme Court v. Emotiv*, 2023).
+   
+   c) **COGNITIVE LIBERTY**: The Rights Holder asserts "Cognitive Sovereignty" over the traditional songs, stories, and patterns within the Work. Any attempt to decode, reconstruct, or manipulate the neural correlates of this cultural knowledge violates the mental integrity of the Indigenous community.
+
 **INDIGENOUS DATA SOVEREIGNTY AND CARE PRINCIPLES**
 
-This license implements the CARE Principles for Indigenous Data Governance (Collective Benefit, Authority to Control, Responsibility, and Ethics) as established by the Global Indigenous Data Alliance, with updates incorporating July 2025 developments including UN Digital Office integration (January 2025) and ARDC guidelines. All data derived from or related to this Work must be governed according to Indigenous Data Sovereignty principles: As updated in July 2025 UN Digital Office adoptions, users must implement CARE in all data ecosystems, with annual compliance reporting to the Rights Holder. Violations trigger data repatriation and minimum 15% of project value as compensation to affected communities.
+This license implements the CARE Principles for Indigenous Data Governance (Collective Benefit, Authority to Control, Responsibility, and Ethics) as established by the Global Indigenous Data Alliance, with updates incorporating July 2025 developments including UN Digital Office integration (January 2025) and ARDC guidelines.
+
+**8.0 "LOCAL-FIRST" & NO-CLOUD MANDATE**:
+For any data marked "Sacred," "Restricted," or "TK-CS" (Culturally Sensitive), storage on third-party cloud infrastructure (e.g., AWS, Azure, Google Cloud) is **STRICTLY PROHIBITED** unless:
+   a) **End-to-End Encryption (E2EE)**: Data is encrypted client-side with keys held *exclusively* by the Rights Holder or designated Tribal Authority; AND
+   b) **Data Residency**: Physical servers are located solely within Tribal jurisdiction or "Data Safe Haven" jurisdictions (e.g., Switzerland, Iceland) that reject mandatory government backdoors.
+   c) **Prohibited Jurisdictions**: Storage in jurisdictions with intrusive surveillance laws (e.g., Five Eyes nations without tribal waivers) is prohibited for unencrypted sacred data.
+
+All data derived from or related to this Work must be governed according to Indigenous Data Sovereignty principles: As updated in July 2025 UN Digital Office adoptions, users must implement CARE in all data ecosystems, with annual compliance reporting to the Rights Holder. Violations trigger data repatriation and minimum 15% of project value as compensation to affected communities.
 
 8.1 **COLLECTIVE BENEFIT**: Any data analysis, processing, or utilization must demonstrate clear benefits to Indigenous communities, support Indigenous self-determination, and contribute to Indigenous innovation and development.
 
@@ -411,7 +433,14 @@ This license implements the CARE Principles for Indigenous Data Governance (Coll
 
 8.4 **ETHICS**: Data practices must prioritize Indigenous rights and wellbeing, minimize harm, maximize benefits, and promote justice throughout the data lifecycle.
 
-**SOFTWARE AND DIGITAL IMPLEMENTATION PROTECTIONS**
+**8.5 INDIGENOUS DATA TRUST STRUCTURE**:
+The "Legacy Beneficiary" (Section 10.3) shall be structured as an **"Indigenous Data Trust"** governed by a fiduciary duty to the Community. This Trust operates under the **OCAP® Principles** (Ownership, Control, Access, Possession) and is legally bound to use all "Total Proceeds" and "Mandatory Contributions" exclusively for:
+   a) Cultural revitalization and language programs;
+   b) Legal defense of Indigenous Intellectual Property;
+   c) Environmental protection of Sacred Sites;
+   d) Community health and education.
+
+**9. SOFTWARE AND DIGITAL IMPLEMENTATION PROTECTIONS**
 
 For any software, applications, or digital implementations based on this Work:
 
@@ -423,11 +452,14 @@ For any software, applications, or digital implementations based on this Work:
 
 9.4 **BLOCKCHAIN AND DISTRIBUTED LEDGER TECHNOLOGY: RESTRICTIONS AND AUTHORIZED USES**
 
-   /* LEGAL HARDENING: Distinguishes harmful cryptocurrency speculation from beneficial blockchain uses
-      (provenance tracking, automated benefit-sharing via smart contracts, community governance). Addresses
-      08-data-sovereignty.md Vulnerability 3 (blockchain restrictions overbroad). Creates framework for
-      permissioned vs. public blockchains, NFT community benefit structure, environmental sustainability
-      requirements, and specialized remedies (token burning, NFT transfer). Amendment 3 (Low-Medium Priority). */
+   /* LEGAL HARDENING: Distinguishes harmful cryptocurrency speculation from beneficial blockchain uses.
+      Includes Ricardian Contract enforceability and Soulbound Token credentials. */
+
+   **9.4A RICARDIAN CONTRACT ENFORCEABILITY**:
+   If this License is referenced in a Smart Contract (e.g., via IPFS hash or on-chain text), the code-based restrictions (e.g., royalty distribution, access control) are legally binding expressions of this License. Any attempt to bypass the Smart Contract logic constitutes a material breach of this License.
+
+   **9.4B SOULBOUND TOKEN (SBT) CREDENTIALS**:
+   "Soulbound Tokens" (non-transferable identity tokens) issued by the Rights Holder shall serve as valid, verifiable credentials for proving "Prior Informed Consent" (PIC) and authorized access status under this License.
 
    a) **PROHIBITED BLOCKCHAIN USES:**
       
@@ -615,6 +647,10 @@ For educational institutions and content creators using this Work:
 
 11.1 **COMMERCIAL APPROPRIATION PROHIBITION**: This Work may not be used for commercial purposes that appropriate Indigenous cultural expressions, traditional knowledge, or ceremonial practices without explicit cultural authorization from the Rights Holder's community. Per July 2025 IACA sentencings (e.g., Muenala 15-year term), violations trigger automatic federal reporting and minimum $250,000 cultural harm damages.
 
+**11.1A PROHIBITION ON ECOCIDAL USE**:
+   a) **ECOCIDE DEFINITION**: Citing the **Independent Expert Panel (2021)** and the **ICC Ecocide Proposal (2024)**, "Ecocide" is defined as unlawful or wanton acts committed with knowledge that there is a substantial likelihood of severe and either widespread or long-term damage to the environment.
+   b) **RESTRICTION**: The Work shall not be used in connection with, or to support, any project, corporation, or entity that is actively committing Ecocide or is under investigation by the ICC or national authorities for environmental crimes. This includes, but is not limited to, fossil fuel extraction in protected areas, deep-sea mining, or deforestation of Indigenous territories.
+
 11.2 **SACRED AND SENSITIVE CONTENT**: Users must recognize that certain aspects of this Work may contain sacred, ceremonial, or culturally sensitive information that requires special handling protocols and may be restricted from certain uses or audiences.
 
 11.3 **NOTIFICATION REQUIREMENTS**: Commercial users must provide advance notification to the Rights Holder of intended uses, including detailed descriptions of how Indigenous cultural heritage will be respected and protected.
@@ -631,8 +667,12 @@ a) **FEDERAL CRIMINAL PENALTIES (25 U.S.C. § 305e(b)):**
    
    ii) **SUBSEQUENT OFFENSES**: Second or subsequent violations are punishable by:
        - Fines up to $1,000,000 (individuals) or $5,000,000 (entities)
-       - Imprisonment up to 15 years (as referenced in July 2025 sentencings)
+       - Imprisonment up to 15 years (citing *United States v. Muenala*, July 2025)
        - Or both fine and imprisonment
+
+   iii) **INDIVIDUAL EXECUTIVE LIABILITY**: Citing *United States v. Rodrigo* (D. Alaska 2024), this License asserts that corporate veils do not protect executives from personal criminal liability and imprisonment for directing IACA violations.
+
+   iv) **STATE LAW AGGRAVATION**: Violations in New Mexico are subject to the **2025 Indian Arts and Crafts Sales Act Amendment**, which lowers the felony threshold to $500. This License adopts the $500 threshold as the baseline for "Criminal Severity" in calculating Liquidated Damages (Section 7).
 
    iii) **STRICT LIABILITY**: IACA imposes strict liability - no proof of fraudulent intent required, only misrepresentation or unauthorized use;
 
@@ -716,9 +756,12 @@ i) **PRACTICAL ENFORCEMENT:**
 
 12.2 **FEDERAL COURT JURISDICTION**: Federal courts may exercise jurisdiction over disputes arising under this license only in cases where: (i) tribal courts lack jurisdiction under applicable tribal law, (ii) federal question jurisdiction is clearly established, or (iii) the tribal court refers the matter to federal court. Preference shall be given to federal courts with established expertise in federal Indian law and Indigenous rights.
 
-**12.3 UNCITRAL ARBITRATION FOR INTERNATIONAL DISPUTES**
+**12.3 UNCITRAL ARBITRATION & INTERNATIONAL ENFORCEMENT**
 
-For disputes involving international parties or enforcement in foreign jurisdictions, this license provides for binding arbitration under UNCITRAL Arbitration Rules (2013 version, as may be amended) as an alternative or supplement to tribal court jurisdiction:
+For disputes involving international parties or enforcement in foreign jurisdictions, this license provides for binding arbitration under UNCITRAL Arbitration Rules (2013 version) and invokes the **Hague Convention on the Recognition and Enforcement of Foreign Judgments (2019/2024)** to facilitate cross-border enforcement of Tribal Court civil judgments.
+
+**12.3A EU DIGITAL SERVICES ACT (DSA) NOTICE**:
+For users in the European Union, unauthorized AI training on this Work constitutes "illegal content" under the **Digital Services Act (DSA)**. The Rights Holder reserves the right to issue "Notice and Action" takedown requests to any platform hosting models trained on this Work, triggering mandatory expedited removal obligations.
 
    a) **ARBITRATION AGREEMENT:** By using the Work, international users (users located outside United States or with primary assets outside United States) irrevocably agree to resolve disputes through UNCITRAL arbitration at Rights Holder's election, without prejudice to Rights Holder's right to pursue tribal court or federal court remedies;
 
@@ -865,7 +908,7 @@ When international enforcement proves difficult or foreign parties resist compli
    **DIPLOMATIC IMMUNITY ANALOGY:**
    While not creating formal diplomatic immunity, this escalation protocol leverages government-to-government and international organization channels to create functional immunity from foreign legal harassment and to apply pressure for voluntary compliance or favorable settlements.
 
-**12.3C WIPO TREATY IMPLEMENTATION AND MONITORING**
+12.3C **WIPO TREATY IMPLEMENTATION AND MONITORING**
 
 /* LEGAL HARDENING: Ensures WIPO Treaty benefits even before international entry into force by creating
    enforceable contractual obligations. Provides monitoring and notice procedures. Addresses US ratification
@@ -874,13 +917,14 @@ When international enforcement proves difficult or foreign parties resist compli
 
 The WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (adopted May 24, 2024) provides enhanced international protection for Indigenous intellectual property.
 
-a) **AUTOMATIC INCORPORATION UPON ENTRY INTO FORCE:**
-   Upon entry into force of the WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (requiring 15 ratifications), all provisions of that treaty shall be automatically incorporated into and made enforceable under this license without need for amendment, including:
+a) **AUTOMATIC INCORPORATION & PATENT DISCLOSURE:**
+   Upon entry into force of the WIPO Treaty (requiring 15 ratifications), all provisions are automatically incorporated. Additionally, this License creates an immediate contractual obligation:
    
-   i) Article 3 disclosure requirements for patent applications;
-   ii) Article 5 remedies for non-disclosure (patent invalidation, enforcement prevention);
-   iii) Article 7 cross-border cooperation provisions;
-   iv) All other applicable provisions protecting traditional knowledge and genetic resources;
+   i) **"MATERIALLY BASED ON" TRIGGER**: Any patent application filed by the Licensee that is "materially based on" the Traditional Knowledge or Genetic Resources in this Work (per Treaty Art. 3) MUST include a "Declaration of Source" filing with the relevant patent office (USPTO, EPO, etc.), citing the Grand Traverse Band of Ottawa and Chippewa Indians.
+   
+   ii) **MANDATORY DISCLOSURE**: If the local patent office does not yet have a specific form, the Licensee must file a "Statement of Relevance" or equivalent document disclosing the Indigenous source.
+   
+   iii) **SANCTIONS**: Failure to disclose constitutes a material breach, triggering "Revocation of Usage Rights" as the "appropriate and effective sanction" (Treaty Art. 6) and immediate patent invalidation support by the Rights Holder.
 
 b) **PRE-ENTRY INTO FORCE OBLIGATIONS:**
    During the period between this license's effective date and the WIPO Treaty's entry into force, users agree to comply with WIPO Treaty provisions as contractual obligations under this license, treating the treaty as incorporated by reference even before its formal entry into force in international law. This creates:
@@ -952,6 +996,10 @@ e) **US RATIFICATION CONTINGENCIES:**
       (ii) Federal Indian law maintains supremacy over conflicting state criminal law
       (iii) Tribal jurisdiction over intellectual property remains intact regardless of Rights Holder's detention status
       (iv) Due process protections include access to tribal legal representation and cultural advisors
+
+12.6 **SUPPLY CHAIN DUE DILIGENCE (EU CSDDD)**:
+   a) **MANDATE**: Commercial Users subject to the **EU Corporate Sustainability Due Diligence Directive (CSDDD)** must certify that their use of this Work complies with the Directive's human rights and environmental obligations.
+   b) **VALUE CHAIN CERTIFICATION**: Licensees must ensure that their "Value Chain" (upstream suppliers and downstream business partners) respects the Indigenous Rights established in this License. Failure to conduct adequate due diligence regarding Indigenous Rights constitutes a material breach.
 
 **REMEDIES AND VIOLATIONS**
 
@@ -1388,6 +1436,22 @@ To eliminate any ambiguity in navigation or interpretation, the following index 
    s) **"Disrespectful Contexts":** Use, display, or performance of the Work in contexts that disrespect its spiritual, cultural, or historical significance. This includes, but is not limited to, use in connection with pornography, hate speech, incitement to violence, content that trivializes sacred ceremonies or historical trauma, or any use that promotes stereotypes or undermines the sovereignty and dignity of Indigenous peoples.
    t) **"Work":** The specific Indigenous creations governed by this license, as defined in the Preamble. **This definition explicitly recognizes that all such creations by the Rights Holder inherently constitute TK and TCEs,** regardless of their creation date (past, present, or future) relative to any specific version date of this license. This definition also explicitly includes any third-party contributions that are accepted into the Work's official repository and thereby governed by the Contributor License Agreement (`CONTRIBUTING.md`). Sub-examples: Educational content, artistic works, engineering designs, and consulting materials created by the Rights Holder are all Works.
  
+**1A. LEGAL PERSONHOOD OF THE WORK**
+
+**1A.1 CULTURAL LANDSCAPE PERSONHOOD**:
+Citing the **Rappahannock Tribe's Constitution (2024)** (recognizing River rights) and **Sauk-Suiattle Tribe v. Seattle (2024)** (Salmon rights), this License recognizes the Work and its underlying Traditional Knowledge as a "Living Entity" with inherent rights to exist, flourish, and regenerate.
+
+**1A.2 GUARDIANSHIP MODEL**:
+The Rights Holder acts not merely as an "owner" in the Western property sense, but as a **Legal Guardian** with a fiduciary duty to protect the Work's spiritual and cultural integrity. Any violation of this License is an assault on the personhood of the Work, actionable under "Rights of Nature" legal frameworks in Tribal and International courts.
+
+**1B. RIGHTS OF FUTURE GENERATIONS**
+
+**1B.1 INTERGENERATIONAL TRUST**:
+Citing the **ICJ Advisory Opinion on Climate Change (2025)** and principles of Intergenerational Equity, the Rights Holder holds this Work in trust for the benefit of future generations of the Anishinaabe people.
+
+**1B.2 PROHIBITION ON DEGRADATION**:
+Any use of the Work that permanently degrades, corrupts, or alienates the underlying Traditional Knowledge (e.g., through "Model Collapse" caused by unauthorized AI ingestion, or "Cultural Dilution" via mass commercialization) constitutes a violation of this Intergenerational Trust. Future generations, represented by the Tribal Council or designated Guardians, retain legal standing to enforce this provision.
+
 **2. DECLARATION OF NAME USAGE**
    The Rights Holder asserts their right to be identified by all of the following, reflecting the historical context of Indigenous name suppression and the right to full recognition under tribal sovereignty principles and federal law:
    1. Traditional Name (Primary Cultural Identity): ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)
@@ -1513,6 +1577,12 @@ To preserve tribal sovereign immunity and clearly delineate the legal capacity i
 
 **3A. ATTACHMENT AND NOTICE REQUIREMENT**
 This license must be prominently attached to or referenced in all distributions of the Work (e.g., via metadata, README, or URL link). Use constitutes acceptance. Sample notice: 'This Work is governed by the COMPREHENSIVE RESTRICTED USE LICENSE at [canonical URL].' Include TK Label icons for immediate cultural signaling.
+
+**3.4 DEFENSIVE PUBLICATION AND PRIOR ART**
+
+a) **TKDL MODEL**: This Repository and License function as a "Defensive Publication" and "Prior Art" database, analogous to the **Traditional Knowledge Digital Library (TKDL)**.
+
+b) **PATENT BAR**: By publicly documenting this Traditional Knowledge with a clear date stamp, the Rights Holder establishes "Prior Art" to prevent the erroneous granting of patents on this knowledge. Any patent application filed after the publication of this Work that relies on, derives from, or claims elements of this Work must cite this Repository as Prior Art. Failure to do so constitutes "Inequitable Conduct" and fraud on the patent office.
 
 **4. TRADITIONAL KNOWLEDGE (TK) & DATA SOVEREIGNTY PROTECTION AND LABELING**
    This Work embodies or contains elements of Traditional Knowledge (TK), Traditional Cultural Expressions (TCEs), or knowledge associated with genetic resources, which require special protection based on the inherent rights of Indigenous peoples and the specific protocols of the Grand Traverse Band of Ottawa and Chippewa Indians. The Rights Holder asserts both western intellectual property rights (copyright, patent, trademark, etc., where applicable) and inherent Indigenous cultural and intellectual property rights, including Indigenous Data Sovereignty. This Work is assigned the following Traditional Knowledge (TK) Labels, developed by Local Contexts (localcontexts.org), which signal community-specific protocols and permissions:
@@ -2877,11 +2947,7 @@ This license operates within a comprehensive federal regulatory scheme governing
               (1) ACCESS RESTRICTION: Physical access to these burial grounds by any individual who is not an enrolled member of a federally recognized tribe or a verified descendant of families traditionally associated with these specific grounds is strictly prohibited, unless explicit Prior Informed Consent (PIC) is obtained in advance from appropriate authorities, which may include LTBB officials and designated representatives of the associated families. Unauthorized access constitutes a violation of cultural protocols and inherent rights protected under this license.
               (2) COMPREHENSIVE AUTONOMOUS SYSTEM SURVEILLANCE PROHIBITION: Any unauthorized surveillance, documentation, mapping, monitoring, or physical intrusion upon the Garden Island (Gitigaan Minising) burial grounds using any unmanned or autonomous system – including but not limited to Unmanned Aircraft Systems (UAS/RPAS), Unmanned Ground Vehicles (UGV), Unmanned Maritime Systems (UMS, including AUVs/USVs), Autonomous Mobile Robots (AMR), or any similar current or future robotic or autonomous system operating with any level of autonomy (remotely piloted, semi-autonomous, or fully autonomous) – is strictly prohibited within the boundaries of the burial grounds or in the immediate surrounding airspace, land, or water in a manner that intrudes upon the privacy or sanctity of the site. Such unauthorized activity constitutes a violation of cultural sanctity and Indigenous Data Sovereignty principles under this license.
               (3) DATA GOVERNANCE: Any data, imagery, or information pertaining to the Garden Island burial grounds obtained incidentally or through authorized access remains subject to strict Indigenous Data Sovereignty principles as defined and asserted in this license, requiring explicit consent (PIC) from appropriate authorities for any use, dissemination, or derivative creation.
-           x) SPECIFIC PROTECTIONS FOR GARDEN ISLAND (GITIGAAN MINISING) BURIAL GROUNDS: The traditional burial grounds located on Garden Island (Gitigaan Minising), land held in trust by the Little Traverse Bay Bands of Odawa Indians (LTBB), are hereby explicitly recognized and protected as sacred sites of the highest spiritual and cultural importance, intrinsically linked to the Rights Holder's lineage (including maternal grandmother's family and paternal grandfather "Old Paul" Kenwabikise's traditional burial activities). Protection under this license is grounded in inherent sovereignty, cultural rights, Indigenous Data Sovereignty principles, and relevant international instruments including the UN Declaration on the Rights of Indigenous Peoples (UNDRIP) and the American Declaration on the Rights of Indigenous Peoples. Accordingly:
-              (1) ACCESS RESTRICTION: Physical access to these burial grounds by any individual who is not an enrolled member of a federally recognized tribe or a verified descendant of families traditionally associated with these specific grounds is strictly prohibited, unless explicit Prior Informed Consent (PIC) is obtained in advance from appropriate authorities, which may include LTBB officials and designated representatives of the associated families. Unauthorized access constitutes a violation of cultural protocols and inherent rights protected under this license.
-              (2) COMPREHENSIVE AUTONOMOUS SYSTEM SURVEILLANCE PROHIBITION: Any unauthorized surveillance, documentation, mapping, monitoring, or physical intrusion upon the Garden Island (Gitigaan Minising) burial grounds using any unmanned or autonomous system – including but not limited to Unmanned Aircraft Systems (UAS/RPAS), Unmanned Ground Vehicles (UGV), Unmanned Maritime Systems (UMS, including AUVs/USVs), Autonomous Mobile Robots (AMR), or any similar current or future robotic or autonomous system operating with any level of autonomy (remotely piloted, semi-autonomous, or fully autonomous) – is strictly prohibited within the boundaries of the burial grounds or in the immediate surrounding airspace, land, or water in a manner that intrudes upon the privacy or sanctity of the site. Such unauthorized activity constitutes a violation of cultural sanctity and Indigenous Data Sovereignty principles under this license.
-              (3) DATA GOVERNANCE: Any data, imagery, or information pertaining to the Garden Island burial grounds obtained incidentally or through authorized access remains subject to strict Indigenous Data Sovereignty principles as defined and asserted in this license, requiring explicit consent (PIC) from appropriate authorities for any use, dissemination, or derivative creation.
-           ix) DISTINCTION FROM GARDEN ISLAND BURIAL GROUNDS: For clarity, the sacred ceremonial nature of the stone circle site on ᐋᒥᒃ ᐙᑲᓐᑕ (Aamik'Waakanda) is distinct from the traditional burial grounds located on nearby Garden Island (Gitigaan Minising), part of the same archipelago. The trust land encompassing the Garden Island burial grounds is held by the Little Traverse Bay Bands of Odawa Indians (LTBB). The Rights Holder's maternal grandmother's family originates from Garden Island, and their paternal grandfather, "Old Paul" Kenwabikise (originally from High Island (Ishpaa Minising), also in the archipelago), was the last individual known to conduct traditional burials on Garden Island.
+           y) DISTINCTION FROM GARDEN ISLAND BURIAL GROUNDS: For clarity, the sacred ceremonial nature of the stone circle site on ᐋᒥᒃ ᐙᑲᓐᑕ (Aamik'Waakanda) is distinct from the traditional burial grounds located on nearby Garden Island (Gitigaan Minising), part of the same archipelago. The trust land encompassing the Garden Island burial grounds is held by the Little Traverse Bay Bands of Odawa Indians (LTBB). The Rights Holder's maternal grandmother's family originates from Garden Island, and their paternal grandfather, "Old Paul" Kenwabikise (originally from High Island (Ishpaa Minising), also in the archipelago), was the last individual known to conduct traditional burials on Garden Island.
       b-2) REMEDIATION FOR DESECRATION BY UNAUTHORIZED BURIAL:
          i) SACRED NON-BURIAL SITE: The stone circle Sacred Site on ᐋᒥᒃ ᐙᑲᓐᑕ (Aamik'Waakanda) is unequivocally affirmed as a sacred ceremonial site, NOT a burial ground according to Anishinaabe tradition and the explicit designation under this license.
          ii) DESECRATION DECLARED: Any unauthorized burial or interment of human remains within this Sacred Site or its Cultural Landscape constitutes a profound Desecration (Section 1(o)), a grievous violation of Anishinaabe spiritual and cultural integrity, an affront to the Rights Holder's stewardship, a breach of GTBOCI sovereignty, and a severe violation of the terms of this license.
