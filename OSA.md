@@ -21,7 +21,7 @@
 
 ## Sandbox Mode
 
-Use sandbox (`-s`) for untrusted code, destructive operations, or sensitive systems. Only Gemini and Qwen support native sandbox mode.
+Use sandbox (`-s`) to isolate work from your main codebase. Keeps experiments, research, and risky operations contained.
 
 | Agent | Sandbox Flag |
 |-------|--------------|
@@ -29,9 +29,92 @@ Use sandbox (`-s`) for untrusted code, destructive operations, or sensitive syst
 | Qwen | `-s` or `--sandbox` |
 
 ```bash
-# Sandbox example
+# Basic sandbox execution
 gemini -s "{prompt}"
 qwen -s "{prompt}"
+```
+
+### When to Use Sandbox
+
+| Use Case | Why Sandbox |
+|----------|-------------|
+| Research & exploration | Avoid polluting working directory with temp files |
+| Untrusted code execution | Isolate potentially harmful operations |
+| Destructive operations | Test `rm`, migrations, schema changes safely |
+| Dependency experiments | Try new packages without affecting project |
+| Prototype iterations | Rapid experimentation without git noise |
+| Security testing | Run vulnerability scans in isolation |
+| Data transformations | Process sensitive data without leaking to main repo |
+
+### Sandbox Patterns
+
+#### Research Sandbox
+```bash
+# Offload research to sandbox, pull only final artifacts
+qwen -s "Research OAuth2 implementations, create comparison matrix, output to ./research/oauth2.md"
+# Review in sandbox, then copy approved content
+cp ~/.sandbox/research/oauth2.md ./docs/research/
+```
+
+#### Experimentation Sandbox
+```bash
+# Test breaking changes in isolation
+gemini -s "Refactor auth module to use JWT, test all edge cases, output to ./src/auth/"
+# Validate before promoting
+qwen -s "Run test suite on ./src/auth/, output results to ./test-results.md"
+# If passing, merge to main codebase
+```
+
+#### Prototype Pipeline
+```bash
+# Build prototype in sandbox
+gemini -s "Create REST API prototype for user service, output to ./prototype/"
+# Iterate without cluttering main repo
+for i in {1..5}; do
+  qwen -s "Review ./prototype/ for improvements, apply fixes"
+done
+# Promote validated code
+rsync -av ~/.sandbox/prototype/ ./src/services/user/
+```
+
+#### Parallel Sandbox Research
+```bash
+# Multiple research tracks in isolation
+qwen -s "Research GraphQL patterns, output to ./research/graphql.md" &
+gemini -s "Research gRPC patterns, output to ./research/grpc.md" &
+wait
+# Synthesize in sandbox, export summary
+qwen -s "Compare ./research/*.md, create recommendation in ./research/api-decision.md"
+```
+
+### Sandbox Directory Structure
+
+```
+~/.sandbox/           # Default sandbox root (isolated from project)
+├── research/         # Research outputs
+├── experiments/      # Code experiments
+├── prototypes/       # Rapid prototypes
+├── test-runs/        # Test execution artifacts
+└── tmp/              # Ephemeral scratch space
+```
+
+### Sandbox Workflow
+
+```
+1. Offload → Execute in sandbox
+2. Validate → Review outputs in isolation
+3. Promote → Copy approved artifacts to main codebase
+4. Cleanup → Purge sandbox periodically
+```
+
+### Cleanup
+
+```bash
+# Clear sandbox after promoting artifacts
+rm -rf ~/.sandbox/*
+
+# Or selective cleanup
+rm -rf ~/.sandbox/experiments/
 ```
 
 ---
