@@ -9,7 +9,7 @@
 | Agent | Command | Best For |
 |-------|---------|----------|
 | Qwen | `qwen -y "{prompt}"` | Fast tasks, summarization, analysis |
-| Gemini | `gemini -y --model gemini-3-pro-preview -p "{prompt}"` | Design, docs, complex code, multimodal |
+| Gemini | `gemini -y -p "{prompt}"` | Design, docs, complex code, multimodal |
 | Claude | `claude --dangerously-skip-permissions -p "{prompt}"` | Deep reasoning, security, architecture |
 | Goose | `echo "{prompt}" \| goose run` | Lightweight automation, chaining |
 | Opencode | `opencode "{prompt}"` | Pure coding tasks |
@@ -51,7 +51,7 @@ qwen -s "{prompt}"
 #### Research Sandbox
 ```bash
 # Offload research to sandbox, pull only final artifacts
-qwen -s "Research OAuth2 implementations, create comparison matrix, output to ./research/oauth2.md"
+gemini -s "Research OAuth2 implementations, create comparison matrix, output to ./research/oauth2.md"
 # Review in sandbox, then copy approved content
 cp ~/.sandbox/research/oauth2.md ./docs/research/
 ```
@@ -183,4 +183,4 @@ Needs iteration?            → Feedback Loop
 Simple single task?         → Direct execution
 ```
 
-**Default:** Parallelize independent work, use Claude/Gemini for complex tasks, Qwen for speed.
+**Default:** Parallelize independent work, use Gemini for complex tasks, Qwen for speed, and Crush or Opencode as addiitonal resources for Gemini and Qwen rate limits.
