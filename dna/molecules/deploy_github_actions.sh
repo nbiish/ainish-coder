@@ -86,6 +86,13 @@ deploy_github_actions() {
         print_success "Deployed .github/scripts/sanitize.py"
     fi
     
+    # Deploy scan_secrets.sh
+    if [[ -f "${ainish_root}/.github/scripts/scan_secrets.sh" ]]; then
+        cp "${ainish_root}/.github/scripts/scan_secrets.sh" "${target_scripts}/scan_secrets.sh" && \
+        chmod +x "${target_scripts}/scan_secrets.sh" && \
+        print_success "Deployed .github/scripts/scan_secrets.sh"
+    fi
+    
     local scripts=(
         "sanitize-settings.sh"
         ".git-secrets-setup.sh"
@@ -141,9 +148,19 @@ deploy_github_actions() {
     fi
     
     if [[ -f "${source_root}/.configs/.gitignore" ]]; then
-        cp "${source_root}/.configs/.gitignore" \
-           "${target_dir}/.configs/.gitignore" && \
+        mkdir -p "${target_dir}/.configs"
+        cp "${source_root}/.configs/.gitignore" "${target_dir}/.configs/.gitignore" && \
         print_success "Deployed .configs/.gitignore"
+    fi
+    
+    # Update root .gitignore to include SECURITY_REPORT.md
+    if [[ -f "${target_dir}/.gitignore" ]]; then
+        if ! grep -q "SECURITY_REPORT.md" "${target_dir}/.gitignore"; then
+            echo "" >> "${target_dir}/.gitignore"
+            echo "# Security reports" >> "${target_dir}/.gitignore"
+            echo "SECURITY_REPORT.md" >> "${target_dir}/.gitignore"
+            print_success "Added SECURITY_REPORT.md to .gitignore"
+        fi
     fi
     
     # Deploy to KNOWLEDGE_BASE if it exists
@@ -239,55 +256,65 @@ install_local_git_hooks() {
 # Redirect output to stderr.
 exec 1>&2
 
-# Path to sanitizer (relative to repo root)
+# Paths (relative to repo root)
 SANITIZER=".github/scripts/sanitize.py"
+SCANNER=".github/scripts/scan_secrets.sh"
 
 # Get repo root
 REPO_ROOT=$(git rev-parse --show-toplevel)
 SANITIZER_PATH="${REPO_ROOT}/${SANITIZER}"
+SCANNER_PATH="${REPO_ROOT}/${SCANNER}"
 
+# Check for scripts
 if [ ! -f "$SANITIZER_PATH" ]; then
-    echo "⚠️  Sanitizer script not found at $SANITIZER. Skipping."
-    exit 0
+    echo "⚠️  Sanitizer script not found at $SANITIZER. Skipping sanitization."
+fi
+
+if [ ! -f "$SCANNER_PATH" ]; then
+    echo "⚠️  Scanner script not found at $SCANNER. Skipping scan."
 fi
 
 # Get list of staged files that are JSON or ENV
 # We use --diff-filter=ACM to only check Added, Copied, Modified files (not Deleted)
 files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(json|env.*)$')
 
-if [ -z "$files" ]; then
-    exit 0
+# Step 1: Auto-sanitize (if files match and script exists)
+if [ -n "$files" ] && [ -f "$SANITIZER_PATH" ]; then
+    echo "🧹 Running auto-sanitizer on staged files..."
+    cd "$REPO_ROOT"
+    echo "$files" | tr '\n' '\0' | xargs -0 python3 "$SANITIZER"
+    
+    # Check if files were modified
+    diffs=$(git diff --name-only $files)
+    if [ -n "$diffs" ]; then
+        echo ""
+        echo "✨ Secrets were detected and removed by auto-sanitizer!"
+        echo "   Files modified:"
+        echo "$diffs"
+        echo ""
+        echo "⚠️  Please run 'git add' on these files and commit again."
+        exit 1
+    fi
 fi
 
-echo "🔍 Scanning staged files for secrets..."
-
-# Run sanitizer on the staged files
-# We pass the full paths to the python script
-cd "$REPO_ROOT"
-# Convert files to space separated string, ensuring we handle spaces if possible (simple for now)
-# Python script takes list of files.
-# We'll use xargs to be safer with filenames
-echo "$files" | tr '\n' '\0' | xargs -0 python3 "$SANITIZER"
-
-# Check if any of the staged files were modified by the sanitizer in the working directory
-# sanitize.py modifies the file in place.
-# If it did, the file in the working directory is now different from the index (staged version)
-# AND different from the original version.
-# Actually, we just need to check if the file in working directory matches what is staged.
-# If they differ, it means either user modified it OR sanitizer modified it.
-# But we specifically want to know if sanitizer modified it to remove secrets.
-
-# Simple approach: Check if git diff shows changes for these files
-diffs=$(git diff --name-only $files)
-
-if [ -n "$diffs" ]; then
-    echo ""
-    echo "❌ Secrets detected and removed from:"
-    echo "$diffs"
-    echo ""
-    echo "⚠️  Files have been sanitized in your working directory."
-    echo "👉 Please run 'git add' on these files and commit again."
-    exit 1
+# Step 2: Security Scan (Full scan or staged scan)
+# User requested "content output locally for the working LLM to intake"
+# We run the scanner script which generates SECURITY_REPORT.md
+if [ -f "$SCANNER_PATH" ]; then
+    echo "🔍 Running security scan..."
+    cd "$REPO_ROOT"
+    
+    # Run scanner. It returns 1 if secrets found.
+    # We capture output to avoid noise, but the script generates SECURITY_REPORT.md
+    if ! bash "$SCANNER"; then
+        echo ""
+        echo "❌ Security Issues Detected!"
+        echo "   A report has been generated at: SECURITY_REPORT.md"
+        echo ""
+        echo "👉 Please ask your LLM agent to: 'Read SECURITY_REPORT.md and fix the issues'"
+        echo "   Or review the file manually."
+        exit 1
+    fi
 fi
 
 exit 0
