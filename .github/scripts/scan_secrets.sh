@@ -28,7 +28,17 @@ echo "🔍 Scanning for secrets..."
 for pattern in "${PATTERNS[@]}"; do
     # Grep recursively, exclude .git, exclude the report itself, exclude ignored dirs
     # Use -n for line numbers, -I to ignore binary files
-    matches=$(grep -rInE --exclude-dir={.git,node_modules,venv,.venv,target,dist,build} --exclude="$OUTPUT_FILE" "$pattern" . 2>/dev/null)
+    # We explicitly exclude the scanner scripts and configuration files that define these patterns
+    matches=$(grep -rInE \
+        --exclude-dir={.git,node_modules,venv,.venv,target,dist,build} \
+        --exclude="$OUTPUT_FILE" \
+        --exclude="scan_secrets.sh" \
+        --exclude="detect-secrets.yml" \
+        --exclude=".git-secrets-setup.sh" \
+        --exclude="sanitize-settings.sh" \
+        --exclude="secret-protection-help.sh" \
+        --exclude="*.md" \
+        "$pattern" . 2>/dev/null | grep -vE "YOUR_[A-Z_]+_HERE|BSAtestkey|example|template|your-key-here|\$\{BRAVE_API_KEY\}")
     
     if [ -n "$matches" ]; then
         FOUND=1
