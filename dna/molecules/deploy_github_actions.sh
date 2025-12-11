@@ -24,10 +24,10 @@ deploy_github_actions() {
     # Deploy workflow files
     echo -e "${BLUE}Deploying workflow files...${RESET}"
     
-    # Auto-sanitize workflow
+    # Auto-sanitize workflow (Deployed as disabled by default to avoid permission errors)
     if [[ -f "${source_workflows}/auto-sanitize.yml" ]]; then
-        cp "${source_workflows}/auto-sanitize.yml" "${target_workflows}/auto-sanitize.yml" && \
-        print_success "Deployed auto-sanitize.yml"
+        cp "${source_workflows}/auto-sanitize.yml" "${target_workflows}/auto-sanitize.yml.disabled" && \
+        print_success "Deployed auto-sanitize.yml.disabled (Enable if you set repo permissions)"
     fi
     
     # Detect secrets workflow
@@ -211,5 +211,88 @@ deploy_github_actions() {
     echo -e "  \"Read knowledge-base/SECURITY_IMPLEMENTATION.md and audit this repository for PQC compliance.\""
     echo -e ""
     
+    # Install local git hooks for "lazy" protection
+    install_local_git_hooks "$target_dir"
+    
     return 0
+}
+
+install_local_git_hooks() {
+    local target_dir="$1"
+    local hooks_dir="${target_dir}/.git/hooks"
+    
+    echo -e "${BLUE}Installing local git hooks...${RESET}"
+    
+    if [[ ! -d "${target_dir}/.git" ]]; then
+        echo -e "${YELLOW}Not a git repository (no .git directory). Skipping hook installation.${RESET}"
+        return 0
+    fi
+    
+    mkdir -p "$hooks_dir"
+    
+    # Create pre-commit hook
+    cat > "${hooks_dir}/pre-commit" << 'EOF'
+#!/bin/sh
+# Pre-commit hook to auto-sanitize secrets
+# Installed by ainish-coder
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Path to sanitizer (relative to repo root)
+SANITIZER=".github/scripts/sanitize.py"
+
+# Get repo root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+SANITIZER_PATH="${REPO_ROOT}/${SANITIZER}"
+
+if [ ! -f "$SANITIZER_PATH" ]; then
+    echo "⚠️  Sanitizer script not found at $SANITIZER. Skipping."
+    exit 0
+fi
+
+# Get list of staged files that are JSON or ENV
+# We use --diff-filter=ACM to only check Added, Copied, Modified files (not Deleted)
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(json|env.*)$')
+
+if [ -z "$files" ]; then
+    exit 0
+fi
+
+echo "🔍 Scanning staged files for secrets..."
+
+# Run sanitizer on the staged files
+# We pass the full paths to the python script
+cd "$REPO_ROOT"
+# Convert files to space separated string, ensuring we handle spaces if possible (simple for now)
+# Python script takes list of files.
+# We'll use xargs to be safer with filenames
+echo "$files" | tr '\n' '\0' | xargs -0 python3 "$SANITIZER"
+
+# Check if any of the staged files were modified by the sanitizer in the working directory
+# sanitize.py modifies the file in place.
+# If it did, the file in the working directory is now different from the index (staged version)
+# AND different from the original version.
+# Actually, we just need to check if the file in working directory matches what is staged.
+# If they differ, it means either user modified it OR sanitizer modified it.
+# But we specifically want to know if sanitizer modified it to remove secrets.
+
+# Simple approach: Check if git diff shows changes for these files
+diffs=$(git diff --name-only $files)
+
+if [ -n "$diffs" ]; then
+    echo ""
+    echo "❌ Secrets detected and removed from:"
+    echo "$diffs"
+    echo ""
+    echo "⚠️  Files have been sanitized in your working directory."
+    echo "👉 Please run 'git add' on these files and commit again."
+    exit 1
+fi
+
+exit 0
+EOF
+
+    chmod +x "${hooks_dir}/pre-commit"
+    print_success "Installed local pre-commit hook (auto-sanitizes on commit)"
 }
