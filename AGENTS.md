@@ -61,7 +61,11 @@ This project follows a strict hierarchical structure inspired by biology:
     - Scan for secrets before committing.
 3.  **Post-Quantum Cryptography (PQC)**:
     - *Strategy*: Hybrid Mode (Classical + PQC) for defense-in-depth.
-    - *Standards*: Implement NIST FIPS-203 (ML-KEM) and FIPS-204 (ML-DSA) where cryptographic primitives are required.
+    - *Standards*:
+        - **FIPS 203 (ML-KEM)**: Primary Key Encapsulation (Encryption). Formerly CRYSTALS-Kyber.
+        - **FIPS 204 (ML-DSA)**: Primary Digital Signatures. Formerly CRYSTALS-Dilithium.
+        - **FIPS 205 (SLH-DSA)**: Stateless Hash-Based Signatures (SPHINCS+). *Preferred for high-value code signing due to conservative security assumptions.*
+    - *Tooling*: Prefer OpenSSH >9.0 (default `sntrup761x25519`) and libraries supporting these FIPS standards (e.g., `liboqs`).
     - *Goal*: Crypto-agility and future-proofing against quantum threats.
 4.  **OWASP Top 10**: Actively mitigate Injection, Broken Access Control, and Security Misconfiguration.
 </security_protocol>
