@@ -51,7 +51,7 @@ Task:
 ## Agents (Listed in order of skill)
 
 [Qwen] -> `qwen -y "{prompt}"`
-[Gemini] -> `gemini -y "{prompt}"`
+[Gemini] -> `gemini -y -p "{prompt}"`
 [Copilot] -> `copilot --allow-all-tools "{prompt}"`
 [Cursor] -> `cursor agent --print --approve-mcps "{prompt}"`
 [Goose] -> `echo "{prompt}" | goose`
