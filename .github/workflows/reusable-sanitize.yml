@@ -35,7 +35,7 @@ jobs:
           # Note: Using python glob in the script would be better but for now we use find/glob expansion in shell
           # We need to handle the glob pattern carefully
           
-          find . -path "${{ inputs.target-paths }}" -type f -name "*.json" -print0 | xargs -0 python3 .github/scripts/sanitize.py
+          find . -path "${{ inputs.target-paths }}" -type f \( -name "*.json" -o -name "*.env*" \) -print0 | xargs -0 python3 .github/scripts/sanitize.py
           
       - name: Check for changes
         id: check_changes

@@ -48,12 +48,6 @@ deploy_github_actions() {
         print_success "Deployed reusable-sanitize.yml"
     fi
     
-    # Secret scan workflow (legacy)
-    if [[ -f "${source_workflows}/secret-scan.yml" ]]; then
-        cp "${source_workflows}/secret-scan.yml" "${target_workflows}/secret-scan.yml" && \
-        print_success "Deployed secret-scan.yml"
-    fi
-
     # OWASP ZAP Scan workflow
     if [[ -f "${source_workflows}/zap-scan.yml" ]]; then
         cp "${source_workflows}/zap-scan.yml" "${target_workflows}/zap-scan.yml" && \

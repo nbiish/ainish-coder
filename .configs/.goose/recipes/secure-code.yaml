@@ -4,6 +4,8 @@ description: "Security review analyzing code for vulnerabilities and compliance"
 instructions: |
 # General Cybersecurity Framework & Secure Coding Practices
 
+Identifier: secure-code
+
 ## MANDATORY SECURITY OPERATING CONTRACT
 
 ### Core Security Principles

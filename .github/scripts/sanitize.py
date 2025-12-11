@@ -45,7 +45,57 @@ def sanitize_structure(data: Any, key_context: str = "") -> Any:
     else:
         return sanitize_value(key_context, data)
 
+def process_env_file(file_path: str) -> bool:
+    """Process a single .env file."""
+    try:
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+        
+        new_lines = []
+        changed = False
+        
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                new_lines.append(line)
+                continue
+                
+            if '=' in line:
+                key, value = line.split('=', 1)
+                sanitized_value = sanitize_value(key, value)
+                if sanitized_value != value:
+                    new_lines.append(f"{key}={sanitized_value}")
+                    changed = True
+                else:
+                    new_lines.append(line)
+            else:
+                new_lines.append(line)
+                
+        if not changed:
+            return False
+            
+        with open(file_path, 'w') as f:
+            f.write('\n'.join(new_lines))
+            f.write('\n')
+            
+        return True
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}", file=sys.stderr)
+        return False
+
 def process_file(file_path: str) -> bool:
+    """Process a single file based on extension."""
+    if file_path.endswith('.json'):
+        return process_json_file(file_path)
+    elif file_path.endswith('.env') or file_path.endswith('.env.local') or file_path.endswith('.env.development') or file_path.endswith('.env.production'):
+        return process_env_file(file_path)
+    else:
+        # Default to JSON if unknown, or skip? 
+        # For safety, let's try JSON if it looks like JSON, but better to be explicit.
+        # Given the previous code only handled JSON, let's rename the original logic to process_json_file
+        return process_json_file(file_path)
+
+def process_json_file(file_path: str) -> bool:
     """Process a single JSON file."""
     try:
         with open(file_path, 'r') as f:

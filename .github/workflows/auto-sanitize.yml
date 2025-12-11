@@ -4,11 +4,11 @@ on:
   push:
     branches: [ main, dev, staging ]
     paths:
-      - 'CONFIGURATIONS/**/*.json'
+      - 'CONFIGURATIONS/**'
   pull_request:
     branches: [ main ]
     paths:
-      - 'CONFIGURATIONS/**/*.json'
+      - 'CONFIGURATIONS/**'
 
 permissions:
   contents: write
@@ -18,4 +18,4 @@ jobs:
   sanitize:
     uses: ./.github/workflows/reusable-sanitize.yml
     with:
-      target-paths: 'CONFIGURATIONS/**/*.json'
+      target-paths: 'CONFIGURATIONS/**'

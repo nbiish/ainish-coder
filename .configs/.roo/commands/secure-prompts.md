@@ -6,6 +6,8 @@ description: 'Execute critical repository security review'
 ---
 # LLM Security Operating Contract & Prompt Security Framework
 
+Identifier: secure-prompts
+
 ## MANDATORY LLM SECURITY OPERATING CONTRACT
 
 ### Core LLM Security Principles

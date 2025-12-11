@@ -7,6 +7,8 @@ tools: ['search/codebase', 'fetch', 'usages']
 
 # Code Judge Critical Analysis
 
+Identifier: code-judge
+
 Apply the Code Judge Constitution from [AGENTS.md](../../AGENTS.md) to analyze code decisions:
 
 1. **Find the facts** → Gather verified information
