@@ -44,9 +44,18 @@ for pattern in "${PATTERNS[@]}"; do
         FOUND=1
         echo "### ⚠️ Pattern Match: \`$pattern\`" >> "$OUTPUT_FILE"
         echo "" >> "$OUTPUT_FILE"
-        echo "\`\`\`" >> "$OUTPUT_FILE"
-        echo "$matches" >> "$OUTPUT_FILE"
-        echo "\`\`\`" >> "$OUTPUT_FILE"
+        echo "**SECURITY NOTE:** This report shows file locations and line numbers only - no actual secrets are displayed." >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo "| File | Line |" >> "$OUTPUT_FILE"
+        echo "|------|------|" >> "$OUTPUT_FILE"
+        
+        # Extract only file path and line number (safe - no secret content)
+        echo "$matches" | while IFS= read -r line; do
+            file_path=$(echo "$line" | cut -d: -f1)
+            line_num=$(echo "$line" | cut -d: -f2)
+            echo "| \`${file_path}\` | ${line_num} |" >> "$OUTPUT_FILE"
+        done
+        
         echo "" >> "$OUTPUT_FILE"
         echo "Found match for: $pattern"
     fi
@@ -55,11 +64,13 @@ done
 if [ $FOUND -eq 1 ]; then
     echo "" >> "$OUTPUT_FILE"
     echo "## Recommended Actions" >> "$OUTPUT_FILE"
-    echo "1. Run \`python3 .github/scripts/sanitize.py <file>\` to auto-sanitize known keys." >> "$OUTPUT_FILE"
-    echo "2. Manually replace the secret with a placeholder (e.g., \`YOUR_API_KEY_HERE\`)." >> "$OUTPUT_FILE"
-    echo "3. Add the file to \`.gitignore\` if it should not be committed." >> "$OUTPUT_FILE"
+    echo "1. **Auto-cleanse:** Run \`ainish-coder --security-scan --cleanse\` to automatically remove secrets" >> "$OUTPUT_FILE"
+    echo "2. **Manual:** Run \`python3 .github/scripts/sanitize.py <file>\` to auto-sanitize known keys." >> "$OUTPUT_FILE"
+    echo "3. **Manual:** Replace the secret with a placeholder (e.g., \`YOUR_API_KEY_HERE\`)." >> "$OUTPUT_FILE"
+    echo "4. **Ignore:** Add the file to \`.gitignore\` if it should not be committed." >> "$OUTPUT_FILE"
     
     echo "❌ Secrets detected! Report generated at: $OUTPUT_FILE"
+    echo "   (Safe report - no actual secrets included)"
     exit 1
 else
     echo "✅ No secrets detected."

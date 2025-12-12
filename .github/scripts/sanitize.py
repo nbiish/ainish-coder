@@ -83,17 +83,58 @@ def process_env_file(file_path: str) -> bool:
         print(f"Error processing {file_path}: {e}", file=sys.stderr)
         return False
 
+def process_text_file(file_path: str) -> bool:
+    """Process any text file using pattern-based replacement."""
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        original_content = content
+        changed = False
+        
+        # Pattern-based replacements (works for any file type)
+        patterns = [
+            (r'tvly-[a-zA-Z0-9-]{30,}', 'YOUR_TAVILY_API_KEY_HERE'),
+            (r'tavilyApiKey=[^&"\s]{10,}', 'tavilyApiKey=YOUR_TAVILY_API_KEY_HERE'),
+            (r'BSA[a-zA-Z0-9]{27}', 'YOUR_BRAVE_API_KEY_HERE'),
+            (r'/Volumes/1tb-sandisk/[^\s"\'`]*', '/path/to/your/mcp/servers'),
+        ]
+        
+        for pattern, replacement in patterns:
+            # Skip if already contains placeholder
+            if 'YOUR_' in content and 'HERE' in content:
+                continue
+            new_content = re.sub(pattern, replacement, content)
+            if new_content != content:
+                content = new_content
+                changed = True
+        
+        if not changed:
+            return False
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        return True
+    except Exception as e:
+        # If text processing fails, try JSON as fallback
+        if file_path.endswith('.json') or file_path.endswith('.jsonc'):
+            return process_json_file(file_path)
+        return False
+
 def process_file(file_path: str) -> bool:
     """Process a single file based on extension."""
-    if file_path.endswith('.json'):
-        return process_json_file(file_path)
+    if file_path.endswith('.json') or file_path.endswith('.jsonc'):
+        # Try JSON first, fallback to text processing
+        try:
+            return process_json_file(file_path)
+        except:
+            return process_text_file(file_path)
     elif file_path.endswith('.env') or file_path.endswith('.env.local') or file_path.endswith('.env.development') or file_path.endswith('.env.production'):
         return process_env_file(file_path)
     else:
-        # Default to JSON if unknown, or skip? 
-        # For safety, let's try JSON if it looks like JSON, but better to be explicit.
-        # Given the previous code only handled JSON, let's rename the original logic to process_json_file
-        return process_json_file(file_path)
+        # For all other file types, use pattern-based text processing
+        return process_text_file(file_path)
 
 def process_json_file(file_path: str) -> bool:
     """Process a single JSON file."""
@@ -126,14 +167,20 @@ def main():
     changed_files = []
 
     for file_path in files:
-        if process_file(file_path):
-            changed_files.append(file_path)
-            print(f"Sanitized: {file_path}")
+        try:
+            if process_file(file_path):
+                changed_files.append(file_path)
+                # Don't print to stdout (silent mode for hooks)
+                # print(f"Sanitized: {file_path}", file=sys.stderr)
+        except Exception as e:
+            # Silently skip files that can't be processed
+            pass
 
-    if changed_files:
-        print(f"Modified {len(changed_files)} files.")
-    else:
-        print("No files needed sanitization.")
+    # Silent mode - don't print unless explicitly needed
+    # if changed_files:
+    #     print(f"Modified {len(changed_files)} files.")
+    # else:
+    #     print("No files needed sanitization.")
 
 if __name__ == "__main__":
     main()
