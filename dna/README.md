@@ -22,9 +22,7 @@ dna/
 │   ├── clear_all_rules.sh  # Clear existing rules
 │   ├── deploy_agents.sh    # Deploy agent configurations
 │   ├── deploy_*.sh         # Tool-specific deployments (cursor, windsurf, etc.)
-│   ├── github-settings-guide.sh  # GitHub Actions setup guide
 │   ├── setup-secret-protection.sh # Secret protection setup
-│   ├── test-github-actions.sh    # GitHub Actions testing
 │   ├── setup_shell.sh      # Shell wrapper setup
 │   └── help.sh             # Help display
 │

@@ -57,7 +57,6 @@ source "${DNA_DIR}/molecules/deploy_cline_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_continue_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_copilot_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_roocode_ignore.sh"
-source "${DNA_DIR}/molecules/deploy_github_actions.sh"
 source "${DNA_DIR}/molecules/deploy_template_agent.sh"
 source "${DNA_DIR}/molecules/deploy_osaa.sh"
 source "${DNA_DIR}/molecules/deploy_trae.sh"
@@ -204,9 +203,6 @@ main() {
             ;;
         --gitignore)
             deploy_gitignore "$target_dir"
-            ;;
-        --github-actions)
-            deploy_github_actions "$target_dir"
             ;;
             
         # Ignore file deployments

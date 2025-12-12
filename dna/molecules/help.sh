@@ -128,21 +128,6 @@ CUSTOM COMMANDS DEPLOYMENT:
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md from TIER_0
     --gitignore [TARGET_DIR]  Deploy comprehensive .gitignore
-    --github-actions [DIR]    Deploy GitHub Actions secret protection workflows
-                              
-                              Includes:
-                              - Auto-sanitize workflow (removes secrets on push)
-                              - Secret detection workflow (scans & blocks)
-                              - Support scripts (sanitize, git-secrets, etc.)
-                              - Documentation and setup guides
-                              - Pre-commit hooks for local protection
-                              
-                              Provides 3 layers of protection:
-                              🥇 Local: git-secrets (optional)
-                              🥈 Local: Pre-commit hook
-                              🥉 Cloud: GitHub Actions (auto-clean)
-                              
-                              Example: ainish-coder --github-actions ~/my-project
 
 IGNORE FILE DEPLOYMENT:
     --cursor-ignore [DIR]     Deploy .cursorignore for Cursor AI
@@ -176,10 +161,6 @@ EXAMPLES:
     # Recommended workflow - deploy core rules first
     ainish-coder --rules                    # Deploy to current directory
     ainish-coder --rules ~/my-project       # Deploy to specific directory
-    
-    # Deploy GitHub Actions secret protection
-    ainish-coder --github-actions           # Deploy to current directory
-    ainish-coder --github-actions ~/repo    # Deploy to specific repository
     
     # Tool-specific deployments
     ainish-coder --rules                    # Deploy AGENTS.md + empty MAIRULES.md + critical.md + .gitignore

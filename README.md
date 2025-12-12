@@ -37,7 +37,7 @@
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
 - **📘 OSA Orchestrator Patterns**: Distribute execution patterns and agent mappings
-- **🛡️ GitHub Actions Secret Protection**: Auto-sanitize secrets and scan for leaks
+- **🛡️ Local Secret Protection**: Auto-sanitize known keys and generate a local security report for remediation
 
 
 ## 📦 Quick Start
@@ -81,7 +81,6 @@ ainish-coder --commands windsurf         # Deploy workflow commands
 ainish-coder --gitignore                 # Create comprehensive .gitignore
 ainish-coder --critical                  # Copy critical.md (license & contributing)
 ainish-coder --osa                       # Distribute OSA.md orchestration guide to target
-ainish-coder --github-actions            # Deploy secret protection workflows
 
 ```
 
@@ -183,7 +182,6 @@ ainish-coder --commands all              # Deploy to all 8 tools at once
 # Step 5: Add utilities (optional)
 ainish-coder --gitignore                 # Create comprehensive .gitignore
 ainish-coder --critical                  # Copy critical.md
-ainish-coder --github-actions            # Deploy secret protection
 
 ```
 
@@ -265,19 +263,12 @@ ainish-coder --template-agent ~/my-project
 
 Use `ainish-coder --osa` to distribute `OSA.md` to your project root. This guide covers execution patterns (Sequential, Parallel, Pipeline, Feedback Loop), compile prompt schema, and agent tool mappings to coordinate orchestrator and sub-agent workflows.
 
-### GitHub Actions Secret Protection
+### Local Secret Protection
 
-Deploy a robust secret protection system with `ainish-coder --github-actions`. This sets up three layers of defense against accidental secret leaks:
+This repo is designed to be **local-first**:
 
-1.  **🥇 Local Protection (git-secrets)**: Prevents committing secrets locally (optional setup).
-2.  **🥈 Pre-Commit Hook**: Scans staged files for secrets before commit.
-3.  **🥉 Cloud Protection (GitHub Actions)**:
-    *   **Secret Scanning**: Scans every push and PR with TruffleHog and Gitleaks.
-    *   **Auto-Sanitization**: Automatically removes API keys and sensitive paths from `settings.json` files and pushes the clean version.
-
-```bash
-ainish-coder --github-actions            # Deploy to current directory
-```
+1. **Auto-sanitization** (known key patterns and sensitive paths)
+2. **Local scanning** that generates `SECURITY_REPORT.md` with recommendations for what to fix
 
 
 ### Available Tier Rules

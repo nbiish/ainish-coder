@@ -1,25 +1,24 @@
 #!/bin/bash
 # Quick Reference - Secret Protection Commands
 
+set -euo pipefail
+
 cat << 'EOF'
 
 ╔═══════════════════════════════════════════════════════════════╗
 ║            🔒 SECRET PROTECTION - QUICK REFERENCE             ║
-║                   🆕 NOW WITH GITHUB ACTIONS!                 ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📦 SETUP (Run Once)
   ./setup-secret-protection.sh          # Interactive setup
   ./.git-secrets-setup.sh               # Just install git-secrets
-  
-🆕 GITHUB ACTIONS (Automatic!)
-  auto-sanitize.yml                     # Auto-cleans on every push!
-  detect-secrets.yml                    # Blocks PRs with secrets
-  See: .github/workflows/README.md      # Full setup guide
 
 🧹 BEFORE COMMITTING
-  ./sanitize-settings.sh                # Clean all settings.json files
+  ./sanitize-settings.sh                # Clean all settings.json files (always safe to run)
   git secrets --scan                    # Test if secrets would be caught
+
+🔍 LOCAL SCAN (Generates a report for your LLM)
+  bash .github/scripts/scan_secrets.sh  # Generates SECURITY_REPORT.md if issues are found
 
 🔍 SCANNING
   git secrets --scan <file>             # Scan specific file
@@ -61,17 +60,5 @@ cat << 'EOF'
   • Local paths (/Volumes/1tb-sandisk/)
   • Generic API_KEY patterns
   • Passwords and secrets
-
-╔═══════════════════════════════════════════════════════════════╗
-║  🆕 TIP: GitHub Actions now auto-clean secrets on push!      ║
-║  💡 But still use git-secrets locally for instant feedback!  ║
-╚═══════════════════════════════════════════════════════════════╝
-
-🎯 PROTECTION LAYERS:
-  1️⃣ git-secrets (local)      → Blocks commits with secrets
-  2️⃣ Pre-commit hook (local)  → Double-checks before push
-  3️⃣ GitHub Actions (cloud)   → Auto-sanitizes after push
-  
-  = Three layers of protection! 🛡️🛡️🛡️
 
 EOF

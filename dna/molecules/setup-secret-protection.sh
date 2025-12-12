@@ -1,7 +1,7 @@
 #!/bin/bash
 # Quick Setup - Choose your preferred secret protection method
 
-set -e
+set -euo pipefail
 
 # Get script directory and root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +16,7 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 PS3='Select your preferred method: '
-options=("git-secrets (Recommended - Local Protection)" "Manual Sanitization Script" "GitHub Actions Only" "All of the Above" "Skip Setup")
+options=("git-secrets (Recommended - Local Protection)" "Manual Sanitization + Local Scan (No Hooks)" "Skip Setup")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -25,20 +25,11 @@ do
             bash "$ROOT_DIR/.git-secrets-setup.sh"
             break
             ;;
-        "Manual Sanitization Script")
-            echo -e "${GREEN}Manual sanitization ready!${NC}"
-            echo -e "${YELLOW}Run 'bash dna/atoms/sanitize-settings.sh' before each commit${NC}"
-            break
-            ;;
-        "GitHub Actions Only")
-            echo -e "${GREEN}GitHub Actions already configured in .github/workflows/secret-scan.yml${NC}"
-            echo -e "${YELLOW}Will scan on push/PR to GitHub${NC}"
-            break
-            ;;
-        "All of the Above")
-            echo -e "${GREEN}Installing complete protection...${NC}"
-            bash "$ROOT_DIR/.git-secrets-setup.sh"
-            echo -e "${GREEN}✅ All protection methods enabled!${NC}"
+        "Manual Sanitization + Local Scan (No Hooks)")
+            echo -e "${GREEN}Manual sanitization + local scanning ready!${NC}"
+            echo -e "${YELLOW}Before committing, run:${NC}"
+            echo -e "  - ${CYAN}bash dna/atoms/sanitize-settings.sh${NC}"
+            echo -e "  - ${CYAN}bash .github/scripts/scan_secrets.sh${NC}  ${YELLOW}(generates SECURITY_REPORT.md if issues found)${NC}"
             break
             ;;
         "Skip Setup")
