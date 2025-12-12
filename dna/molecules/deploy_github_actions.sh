@@ -272,14 +272,16 @@ done
 
 # Step 3: Final passive scan (report only, don't block)
 # This is just for auditing - we don't block the commit
+# Note: We've already auto-cleansed above, so this is just for reference
 SCANNER="${REPO_ROOT}/.github/scripts/scan_secrets.sh"
 if [ -f "$SCANNER" ]; then
-    # Run scanner in background or silently - don't let it block
-    bash "$SCANNER" >/dev/null 2>&1 || true
-    # If report was generated, it's there for reference but commit proceeds
+    # Run scanner silently in background - don't let it block commit
+    (bash "$SCANNER" >/dev/null 2>&1 || true) &
+    # Don't wait for it - commit proceeds immediately
 fi
 
-# Always allow commit to proceed (secrets have been auto-cleansed)
+# Always allow commit to proceed (secrets have been auto-cleansed above)
+# Exit with success code to ensure commit is never blocked
 exit 0
 EOF
 
