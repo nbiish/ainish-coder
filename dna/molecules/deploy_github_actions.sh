@@ -135,8 +135,9 @@ deploy_github_actions() {
     echo -e "  3. Check: 'Allow GitHub Actions to create and approve pull requests'"
     echo ""
     echo -e "${BRIGHT_GREEN}🛡️ Protection Layers:${RESET}"
-    echo -e "  🥇 Local: Pre-commit hook (✓ deployed) - sanitizes & scans before commit"
-    echo -e "  🥈 CI (optional): GitHub Actions - scans on push/PR"
+    echo -e "  🥇 Local: Pre-commit hook (✓ deployed) - auto-cleanses & scans before commit"
+    echo -e "  🥈 Local: Pre-push hook (✓ deployed) - scans before push"
+    echo -e "  🥉 CI (optional): GitHub Actions - scans on push/PR"
     echo ""
 
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
@@ -270,23 +271,138 @@ git diff --cached --name-only --diff-filter=ACM 2>/dev/null | while IFS= read -r
         fi
 done
 
-# Step 3: Final passive scan (report only, don't block)
-# This is just for auditing - we don't block the commit
-# Note: We've already auto-cleansed above, so this is just for reference
+# Step 3: Final scan and cleanse of entire codebase (synchronous)
+# Run comprehensive scan and auto-cleansing before allowing commit
 SCANNER="${REPO_ROOT}/.github/scripts/scan_secrets.sh"
 if [ -f "$SCANNER" ]; then
-    # Run scanner silently in background - don't let it block commit
-    (bash "$SCANNER" >/dev/null 2>&1 || true) &
-    # Don't wait for it - commit proceeds immediately
+    # Run scanner - it will generate a report if secrets are found
+    # Then auto-cleansing any remaining secrets using sanitize.py
+    if bash "$SCANNER" 2>/dev/null; then
+        # No secrets found, proceed with commit
+        exit 0
+    else
+        # Secrets were detected - auto-cleansed them using sanitize.py
+        # Scan all files (not just staged) to catch any missed secrets
+        find . -type f \
+            ! -path './.git/*' \
+            ! -path './node_modules/*' \
+            ! -path './venv/*' \
+            ! -path './.venv/*' \
+            ! -path './target/*' \
+            ! -path './dist/*' \
+            ! -path './build/*' \
+            ! -name '*.md' \
+            ! -name '*.log' \
+            ! -name '*.bak' \
+            ! -name 'SECURITY_REPORT.md' \
+            ! -name 'scan_secrets.sh' \
+            ! -name '.gitignore' \
+            -exec grep -lE "tvly-[a-zA-Z0-9-]{30,}|BSA[a-zA-Z0-9]{27}|/Volumes/1tb-sandisk/" {} \; 2>/dev/null | \
+            while IFS= read -r file; do
+                # Skip if already has placeholders
+                if ! grep -qE "YOUR_[A-Z_]+_HERE" "$file" 2>/dev/null; then
+                    if [ -f "$SANITIZER" ]; then
+                        python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
+                        # Stage cleansed files
+                        git add "$file" 2>/dev/null || true
+                    fi
+                fi
+            done
+        
+        # Re-run scan to verify cleansing
+        if bash "$SCANNER" >/dev/null 2>&1; then
+            echo "✅ All secrets auto-cleansed - proceeding with commit"
+            exit 0
+        else
+            echo "⚠️  Some secrets may remain. Review SECURITY_REPORT.md and commit again."
+            echo "   Secrets have been auto-cleansed where possible."
+            exit 0  # Still allow commit - we've done our best to cleanse
+        fi
+    fi
 fi
 
 # Always allow commit to proceed (secrets have been auto-cleansed above)
-# Exit with success code to ensure commit is never blocked
 exit 0
 EOF
 
     chmod +x "${hooks_dir}/pre-commit"
     print_success "Installed local pre-commit hook (auto-sanitizes on commit)"
+    
+    # Create pre-push hook
+    cat > "${hooks_dir}/pre-push" << 'EOF'
+#!/bin/sh
+# Pre-push hook to scan for secrets before pushing
+# Installed by ainish-coder - Scans codebase before allowing push
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Get repo root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+# Paths (relative to repo root)
+SCANNER="${REPO_ROOT}/.github/scripts/scan_secrets.sh"
+SANITIZER="${REPO_ROOT}/.github/scripts/sanitize.py"
+
+# Run comprehensive security scan
+if [ -f "$SCANNER" ]; then
+    echo "🔍 Running security scan before push..."
+    
+    if bash "$SCANNER" 2>/dev/null; then
+        echo "✅ Security scan passed - no secrets detected"
+        exit 0
+    else
+        echo "❌ Security scan detected secrets!"
+        echo "   Review SECURITY_REPORT.md for details"
+        echo ""
+        echo "   Attempting auto-cleansing..."
+        
+        # Auto-cleansed any detected secrets
+        if [ -f "$SANITIZER" ]; then
+            find . -type f \
+                ! -path './.git/*' \
+                ! -path './node_modules/*' \
+                ! -path './venv/*' \
+                ! -path './.venv/*' \
+                ! -path './target/*' \
+                ! -path './dist/*' \
+                ! -path './build/*' \
+                ! -name '*.md' \
+                ! -name '*.log' \
+                ! -name '*.bak' \
+                ! -name 'SECURITY_REPORT.md' \
+                ! -name 'scan_secrets.sh' \
+                ! -name '.gitignore' \
+                -exec grep -lE "tvly-[a-zA-Z0-9-]{30,}|BSA[a-zA-Z0-9]{27}|/Volumes/1tb-sandisk/" {} \; 2>/dev/null | \
+                while IFS= read -r file; do
+                    if ! grep -qE "YOUR_[A-Z_]+_HERE" "$file" 2>/dev/null; then
+                        python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
+                        echo "   🔒 Auto-cleansed: $file"
+                    fi
+                done
+            
+            # Re-run scan to verify
+            if bash "$SCANNER" >/dev/null 2>&1; then
+                echo "✅ All secrets auto-cleansed - proceeding with push"
+                exit 0
+            fi
+        fi
+        
+        echo ""
+        echo "⚠️  Please review and fix remaining secrets before pushing."
+        echo "   See SECURITY_REPORT.md for details"
+        echo "   Run: python3 .github/scripts/sanitize.py <file> to auto-cleansed specific files"
+        exit 1
+    fi
+fi
+
+# If scanner doesn't exist, allow push (hook not fully configured)
+exit 0
+EOF
+
+    chmod +x "${hooks_dir}/pre-push"
+    print_success "Installed local pre-push hook (scans before push)"
 }
 
 

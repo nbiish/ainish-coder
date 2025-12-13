@@ -214,7 +214,7 @@ EOF
 EOF
         else
             cat >> "$REPORT_FILE" << EOF
-1. Run with auto-cleansing: \`ainish-coder --security-scan --cleanse\`
+1. Secrets will be automatically cleansed on commit via pre-commit hook
 2. Or manually replace secrets with placeholders
 3. Add files to \`.gitignore\` if they should not be committed
 

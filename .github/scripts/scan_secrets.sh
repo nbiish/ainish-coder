@@ -64,13 +64,14 @@ done
 if [ $FOUND -eq 1 ]; then
     echo "" >> "$OUTPUT_FILE"
     echo "## Recommended Actions" >> "$OUTPUT_FILE"
-    echo "1. **Auto-cleanse:** Run \`ainish-coder --security-scan --cleanse\` to automatically remove secrets" >> "$OUTPUT_FILE"
+    echo "1. **Auto-cleanse:** Secrets will be automatically cleansed on commit via pre-commit hook" >> "$OUTPUT_FILE"
     echo "2. **Manual:** Run \`python3 .github/scripts/sanitize.py <file>\` to auto-sanitize known keys." >> "$OUTPUT_FILE"
     echo "3. **Manual:** Replace the secret with a placeholder (e.g., \`YOUR_API_KEY_HERE\`)." >> "$OUTPUT_FILE"
     echo "4. **Ignore:** Add the file to \`.gitignore\` if it should not be committed." >> "$OUTPUT_FILE"
     
     echo "❌ Secrets detected! Report generated at: $OUTPUT_FILE"
     echo "   (Safe report - no actual secrets included)"
+    echo "   Secrets will be automatically cleansed on commit."
     exit 1
 else
     echo "✅ No secrets detected."
