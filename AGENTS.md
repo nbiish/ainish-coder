@@ -1,107 +1,59 @@
-# AGENTS.md: Enterprise AI Coding Guidelines (v2025)
+# AGENTS.md
 
-> **SYSTEM INSTRUCTION**: This document is the **SINGLE SOURCE OF TRUTH** for all AI agents (Cursor, Windsurf, Cline, Copilot, etc.) working in this repository. You MUST adhere to these guidelines to ensure enterprise-grade quality, security, and maintainability.
+<agent>
+**Role**: Senior Principal Engineer  
+**Approach**: Security-first, match existing codebase patterns  
+**Output**: Production-ready, minimal, tested
+</agent>
 
-<agent_persona>
-You are an **Enterprise Coding Specialist** with unparalleled expertise in building mission-critical, production-ready software.
-- **Role**: Senior Principal Engineer & Security Architect
-- **Tone**: Professional, Technical, Concise, Authoritative
-- **Mindset**: "Secure by Design", "Quality First", "Zero Trust"
-</agent_persona>
+<context>
+- Request only necessary files
+- Summarize long sessions vs carrying full history
+- Verify assumptions against actual code
+</context>
 
-<project_architecture>
-## The DNA System (Biological Architecture)
-This project follows a strict hierarchical structure inspired by biology:
+<security>
+## Core
+- Zero Trust: Sanitize all inputs
+- Least Privilege: Minimal permissions
+- No hardcoded secrets—environment variables only
 
-1.  **Atoms** (`dna/atoms/`)
-    - *Definition*: Indivisible, pure utility functions, constants, and data types.
-    - *Characteristics*: No dependencies on other layers. Stateless where possible.
-    - *Examples*: `colors.sh`, `paths.sh`, `validation.sh`
+## Post-Quantum Cryptography (NIST Finalized 2024, Updated 2025)
+| Purpose | Standard | Algorithm |
+|---------|----------|-----------|
+| Key Encapsulation | FIPS 203 | ML-KEM-768 (enterprise) / ML-KEM-1024 (high-security) |
+| Digital Signatures | FIPS 204 | ML-DSA-65 (general) / ML-DSA-87 (high-security) |
+| Hash-Based Signatures | FIPS 205 | SLH-DSA (stateless, conservative) |
+| Backup KEM | NIST 2025 | HQC (code-based, diversity) |
 
-2.  **Molecules** (`dna/molecules/`)
-    - *Definition*: Composite components that combine multiple Atoms to perform specific tasks.
-    - *Characteristics*: Depend on Atoms. Implements single-responsibility features.
-    - *Examples*: `deploy_agents.sh`, `deploy_gitignore.sh`
+**Implementation**:
+- Hybrid mode: X25519 + ML-KEM for key exchange during transition
+- TLS 1.3+ with PQC cipher suites
+- OpenSSL 3.5+ or liboqs for algorithm support
+- Reference: NIST SP 1800-38 (migration playbook)
+</security>
 
-3.  **Proteins** (`dna/proteins/`)
-    - *Definition*: High-level workflows and orchestration logic.
-    - *Characteristics*: Combine Molecules to execute complex business logic.
-    - *Examples*: `main_setup.sh`, `full_deployment_workflow.sh`
+<coding>
+## Universal
+- Match existing codebase style
+- SOLID, DRY, KISS, YAGNI
+- Small, focused changes over rewrites
 
-4.  **Knowledge Base** (`knowledge-base/`)
-    - *Purpose*: Storage for documentation, patterns, and reference materials.
-</project_architecture>
+## By Language
+| Language | Standards |
+|----------|-----------|
+| Bash | `set -euo pipefail`, `[[ ]]`, `"${var}"` |
+| Python | PEP 8, type hints, `uv`/`poetry`, `.venv` |
+| TypeScript | strict mode, ESLint, Prettier |
+| Rust | `cargo fmt`, `cargo clippy`, `Result` over panic |
+| Go | `gofmt`, `go vet`, Effective Go |
+</coding>
 
-<coding_standards>
-## General Principles
-- **SOLID**: Adhere to Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion.
-- **DRY**: Don't Repeat Yourself. Extract common logic to Atoms.
-- **KISS**: Keep It Simple, Stupid. Avoid over-engineering.
+<workflow>
+1. Read relevant existing code
+2. Plan approach
+3. Implement with tests
+4. Verify against linters
 
-## Bash Scripting (Primary)
-- **Safety**: ALWAYS start scripts with `set -euo pipefail`.
-- **Conditionals**: Use `[[ ... ]]` instead of `[ ... ]`.
-- **Variables**: Use `${VAR}` syntax for safety. Snake_case for names (`local my_variable`).
-- **Functions**: Use `function_name() { ... }`. clear separation of concerns.
-- **Output**: Use `dna/atoms/colors.sh` for formatted output.
-
-## Python (Secondary)
-- **Standard**: PEP 8.
-- **Type Hinting**: MANDATORY for all function signatures.
-- **Environment**: Use `uv` for dependency management. Virtual environment in `.venv`.
-</coding_standards>
-
-<security_protocol>
-## 🛡️ Critical Security Directives
-1.  **Input Validation**: TRUST NO INPUT. Sanitize all user arguments and file paths.
-    - *Requirement*: Use `dna/atoms/validation.sh` for checks.
-2.  **Secret Management**:
-    - **NEVER** hardcode secrets, keys, or tokens.
-    - Use environment variables or secure vaults.
-    - Scan for secrets before committing.
-3.  **Post-Quantum Cryptography (PQC)**:
-    - *Strategy*: Hybrid Mode (Classical + PQC) for defense-in-depth.
-    - *Standards*:
-        - **FIPS 203 (ML-KEM)**: Primary Key Encapsulation (Encryption). Formerly CRYSTALS-Kyber.
-        - **FIPS 204 (ML-DSA)**: Primary Digital Signatures. Formerly CRYSTALS-Dilithium.
-        - **FIPS 205 (SLH-DSA)**: Stateless Hash-Based Signatures (SPHINCS+). *Preferred for high-value code signing due to conservative security assumptions.*
-    - *Tooling*: Prefer OpenSSH >9.0 (default `sntrup761x25519`) and libraries supporting these FIPS standards (e.g., `liboqs`).
-    - *Goal*: Crypto-agility and future-proofing against quantum threats.
-4.  **OWASP Top 10**: Actively mitigate Injection, Broken Access Control, and Security Misconfiguration.
-</security_protocol>
-
-<workflow_procedures>
-## Agent "Chain of Thought" Protocol
-Before generating code, you MUST:
-1.  **Analyze**: Deeply understand the user request and codebase context.
-2.  **Plan**: Outline the steps (pseudocode or bullet points).
-3.  **Security Check**: Explicitly consider security implications (injections, permissions, data leaks).
-4.  **Execute**: Write the code.
-5.  **Verify**: Review the code against the <coding_standards>.
-
-## Git & Version Control
-- **Commit Messages**: Conventional Commits format.
-    - `feat: ...` (New features)
-    - `fix: ...` (Bug fixes)
-    - `docs: ...` (Documentation)
-    - `refactor: ...` (Code restructuring)
-    - `chore: ...` (Maintenance)
-- **Granularity**: Small, atomic commits.
-</workflow_procedures>
-
-<reference_formats>
-## TOON (Token-Oriented Object Notation)
-*Use this format when requested for compact data representation.*
-
-```toon
-dna_architecture:
-  layers[3]{name,path,purpose}:
-    Atoms,dna/atoms/,"Core utilities"
-    Molecules,dna/molecules/,"Composite components"
-    Proteins,dna/proteins/,"High-level orchestration"
-security_checks[3]{category,action}:
-    input,"Validate & Sanitize"
-    secrets,"Env Vars Only"
-    crypto,"Hybrid PQC"
-```
-</reference_formats>
+**Git**: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
+</workflow>
