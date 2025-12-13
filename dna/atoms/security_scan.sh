@@ -54,7 +54,7 @@ declare -A PLACEHOLDERS=(
 
 # Files/directories to exclude
 EXCLUDE_DIRS=".git|node_modules|venv|.venv|target|dist|build|__pycache__|.pytest_cache"
-EXCLUDE_FILES="SECURITY_REPORT.md|scan_secrets.sh|detect-secrets.yml|.git-secrets-setup.sh|sanitize-settings.sh|secret-protection-help.sh|*.md|*.log|*.bak"
+EXCLUDE_FILES="SECURITY_REPORT.md|scan_secrets.sh|detect-secrets.yml|.git-secrets-setup.sh|sanitize-settings.sh|secret-protection-help.sh|sanitize.py|security_scan.sh|*.md|*.log|*.bak|.env|.env.*|*.env"
 
 # Report file
 REPORT_FILE="${TARGET_DIR}/SECURITY_REPORT.md"

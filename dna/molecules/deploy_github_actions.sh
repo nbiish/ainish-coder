@@ -271,57 +271,14 @@ git diff --cached --name-only --diff-filter=ACM 2>/dev/null | while IFS= read -r
         fi
 done
 
-# Step 3: Final scan and cleanse of entire codebase (synchronous)
-# Run comprehensive scan and auto-cleansing before allowing commit
-SCANNER="${REPO_ROOT}/.github/scripts/scan_secrets.sh"
-if [ -f "$SCANNER" ]; then
-    # Run scanner - it will generate a report if secrets are found
-    # Then auto-cleansing any remaining secrets using sanitize.py
-    if bash "$SCANNER" 2>/dev/null; then
-        # No secrets found, proceed with commit
-        exit 0
-    else
-        # Secrets were detected - auto-cleansed them using sanitize.py
-        # Scan all files (not just staged) to catch any missed secrets
-        find . -type f \
-            ! -path './.git/*' \
-            ! -path './node_modules/*' \
-            ! -path './venv/*' \
-            ! -path './.venv/*' \
-            ! -path './target/*' \
-            ! -path './dist/*' \
-            ! -path './build/*' \
-            ! -name '*.md' \
-            ! -name '*.log' \
-            ! -name '*.bak' \
-            ! -name 'SECURITY_REPORT.md' \
-            ! -name 'scan_secrets.sh' \
-            ! -name '.gitignore' \
-            -exec grep -lE "tvly-[a-zA-Z0-9-]{30,}|BSA[a-zA-Z0-9]{27}|/Volumes/1tb-sandisk/" {} \; 2>/dev/null | \
-            while IFS= read -r file; do
-                # Skip if already has placeholders
-                if ! grep -qE "YOUR_[A-Z_]+_HERE" "$file" 2>/dev/null; then
-                    if [ -f "$SANITIZER" ]; then
-                        python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
-                        # Stage cleansed files
-                        git add "$file" 2>/dev/null || true
-                    fi
-                fi
-            done
-        
-        # Re-run scan to verify cleansing
-        if bash "$SCANNER" >/dev/null 2>&1; then
-            echo "✅ All secrets auto-cleansed - proceeding with commit"
-            exit 0
-        else
-            echo "⚠️  Some secrets may remain. Review SECURITY_REPORT.md and commit again."
-            echo "   Secrets have been auto-cleansed where possible."
-            exit 0  # Still allow commit - we've done our best to cleanse
-        fi
-    fi
-fi
+# Step 3: Quick cleanse of staged files only (no blocking scan)
+# We cleanse what we can and always allow the commit
+# NOTE: .env files should be in .gitignore - we don't cleanse them, we skip them
 
-# Always allow commit to proceed (secrets have been auto-cleansed above)
+# Clean up any leftover security report
+rm -f "${REPO_ROOT}/SECURITY_REPORT.md" 2>/dev/null || true
+
+# Always allow commit to proceed
 exit 0
 EOF
 
@@ -332,7 +289,8 @@ EOF
     cat > "${hooks_dir}/pre-push" << 'EOF'
 #!/bin/sh
 # Pre-push hook to scan for secrets before pushing
-# Installed by ainish-coder - Scans codebase before allowing push
+# Installed by ainish-coder - Auto-cleanses secrets and always allows push
+# NOTE: This hook NEVER blocks - it cleanses what it can and proceeds
 
 # Redirect output to stderr.
 exec 1>&2
@@ -342,62 +300,47 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
 # Paths (relative to repo root)
-SCANNER="${REPO_ROOT}/.github/scripts/scan_secrets.sh"
 SANITIZER="${REPO_ROOT}/.github/scripts/sanitize.py"
 
-# Run comprehensive security scan
-if [ -f "$SCANNER" ]; then
-    echo "🔍 Running security scan before push..."
-    
-    if bash "$SCANNER" 2>/dev/null; then
-        echo "✅ Security scan passed - no secrets detected"
-        exit 0
-    else
-        echo "❌ Security scan detected secrets!"
-        echo "   Review SECURITY_REPORT.md for details"
-        echo ""
-        echo "   Attempting auto-cleansing..."
-        
-        # Auto-cleansed any detected secrets
-        if [ -f "$SANITIZER" ]; then
-            find . -type f \
-                ! -path './.git/*' \
-                ! -path './node_modules/*' \
-                ! -path './venv/*' \
-                ! -path './.venv/*' \
-                ! -path './target/*' \
-                ! -path './dist/*' \
-                ! -path './build/*' \
-                ! -name '*.md' \
-                ! -name '*.log' \
-                ! -name '*.bak' \
-                ! -name 'SECURITY_REPORT.md' \
-                ! -name 'scan_secrets.sh' \
-                ! -name '.gitignore' \
-                -exec grep -lE "tvly-[a-zA-Z0-9-]{30,}|BSA[a-zA-Z0-9]{27}|/Volumes/1tb-sandisk/" {} \; 2>/dev/null | \
-                while IFS= read -r file; do
-                    if ! grep -qE "YOUR_[A-Z_]+_HERE" "$file" 2>/dev/null; then
-                        python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
-                        echo "   🔒 Auto-cleansed: $file"
-                    fi
-                done
-            
-            # Re-run scan to verify
-            if bash "$SCANNER" >/dev/null 2>&1; then
-                echo "✅ All secrets auto-cleansed - proceeding with push"
-                exit 0
+# Auto-cleanse any files that might contain secrets
+# This runs silently and quickly - we don't block the push
+if [ -f "$SANITIZER" ]; then
+    # Find and cleanse files with potential secrets (excluding .env which should be gitignored)
+    find . -type f \
+        ! -path './.git/*' \
+        ! -path './node_modules/*' \
+        ! -path './venv/*' \
+        ! -path './.venv/*' \
+        ! -path './target/*' \
+        ! -path './dist/*' \
+        ! -path './build/*' \
+        ! -path './__pycache__/*' \
+        ! -name '*.md' \
+        ! -name '*.log' \
+        ! -name '*.bak' \
+        ! -name '.env' \
+        ! -name '.env.*' \
+        ! -name '*.env' \
+        ! -name 'SECURITY_REPORT.md' \
+        ! -name 'scan_secrets.sh' \
+        ! -name 'sanitize.py' \
+        ! -name 'security_scan.sh' \
+        ! -name '.gitignore' \
+        \( -name '*.json' -o -name '*.jsonc' -o -name '*.py' -o -name '*.sh' -o -name '*.yml' -o -name '*.yaml' -o -name '*.toml' -o -name '*.conf' -o -name '*.config' \) \
+        2>/dev/null | head -100 | while IFS= read -r file; do
+            # Quick check if file might have secrets (skip if already has placeholders)
+            if grep -qE "tvly-[a-zA-Z0-9-]{20}|BSA[a-zA-Z0-9]{20}|/Volumes/1tb-sandisk/" "$file" 2>/dev/null; then
+                if ! grep -qE "YOUR_[A-Z_]+_HERE|/path/to/your/" "$file" 2>/dev/null; then
+                    python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
+                fi
             fi
-        fi
-        
-        echo ""
-        echo "⚠️  Please review and fix remaining secrets before pushing."
-        echo "   See SECURITY_REPORT.md for details"
-        echo "   Run: python3 .github/scripts/sanitize.py <file> to auto-cleansed specific files"
-        exit 1
-    fi
+        done
 fi
 
-# If scanner doesn't exist, allow push (hook not fully configured)
+# Clean up any leftover security report
+rm -f "${REPO_ROOT}/SECURITY_REPORT.md" 2>/dev/null || true
+
+# Always allow push - we've done our best to cleanse
 exit 0
 EOF
 

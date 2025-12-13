@@ -29,16 +29,23 @@ for pattern in "${PATTERNS[@]}"; do
     # Grep recursively, exclude .git, exclude the report itself, exclude ignored dirs
     # Use -n for line numbers, -I to ignore binary files
     # We explicitly exclude the scanner scripts and configuration files that define these patterns
+    # Also exclude .env files (should be in .gitignore, not committed)
     matches=$(grep -rInE \
-        --exclude-dir={.git,node_modules,venv,.venv,target,dist,build} \
+        --exclude-dir={.git,node_modules,venv,.venv,target,dist,build,__pycache__} \
         --exclude="$OUTPUT_FILE" \
         --exclude="scan_secrets.sh" \
         --exclude="detect-secrets.yml" \
         --exclude=".git-secrets-setup.sh" \
         --exclude="sanitize-settings.sh" \
         --exclude="secret-protection-help.sh" \
+        --exclude="sanitize.py" \
+        --exclude="security_scan.sh" \
         --exclude="*.md" \
-        "$pattern" . 2>/dev/null | grep -vE "YOUR_[A-Z_]+_HERE|BSAtestkey|example|template|your-key-here|\$\{BRAVE_API_KEY\}")
+        --exclude=".env" \
+        --exclude=".env.*" \
+        --exclude="*.env" \
+        --exclude="*.bak" \
+        "$pattern" . 2>/dev/null | grep -vE "YOUR_[A-Z_]+_HERE|BSAtestkey|example|template|your-key-here|\$\{BRAVE_API_KEY\}|/path/to/your/")
     
     if [ -n "$matches" ]; then
         FOUND=1
