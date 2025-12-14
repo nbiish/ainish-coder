@@ -97,6 +97,8 @@ dist/
 
 # General
 *.log
+*.tmp
+*.new
 tmp/
 
 # Node.js
