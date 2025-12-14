@@ -71,6 +71,7 @@ secrets/
 # Backup files
 *.bak
 *.backup
+*.backup.*
 *.old
 *.orig
 *.rej
