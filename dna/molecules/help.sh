@@ -127,6 +127,7 @@ CUSTOM COMMANDS DEPLOYMENT:
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md from TIER_0
+    --license [TARGET_DIR]    Deploy LICENSE file
     --gitignore [TARGET_DIR]  Deploy comprehensive .gitignore
     --github-actions [DIR]    Deploy GitHub Actions workflows and local secret protection
                               
