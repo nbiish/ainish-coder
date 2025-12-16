@@ -2,13 +2,7 @@ name: Auto-Sanitize Secrets
 
 on:
   push:
-    branches: [ main, dev, staging ]
-    paths:
-      - 'CONFIGURATIONS/**'
   pull_request:
-    branches: [ main ]
-    paths:
-      - 'CONFIGURATIONS/**'
 
 permissions:
   contents: write
@@ -18,4 +12,4 @@ jobs:
   sanitize:
     uses: ./.github/workflows/reusable-sanitize.yml
     with:
-      target-paths: 'CONFIGURATIONS/**'
+      target-paths: '.'

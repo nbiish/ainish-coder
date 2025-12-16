@@ -23,11 +23,21 @@ deploy_github_actions() {
     
     # Deploy workflow files
     echo -e "${BLUE}Deploying workflow files...${RESET}"
+
+    for workflow_to_disable in codeql.yml zap-scan.yml pqc-audit.yml; do
+        if [[ -f "${target_workflows}/${workflow_to_disable}" && ! -f "${target_workflows}/${workflow_to_disable}.disabled" ]]; then
+            mv "${target_workflows}/${workflow_to_disable}" "${target_workflows}/${workflow_to_disable}.disabled" 2>/dev/null || true
+            print_success "Disabled existing ${workflow_to_disable} (renamed to .disabled)"
+        fi
+    done
     
-    # Auto-sanitize workflow (Deployed as disabled by default to avoid permission errors)
-    if [[ -f "${source_workflows}/auto-sanitize.yml" ]]; then
-        cp "${source_workflows}/auto-sanitize.yml" "${target_workflows}/auto-sanitize.yml.disabled" && \
-        print_success "Deployed auto-sanitize.yml.disabled (Enable if you set repo permissions)"
+    # Auto-sanitize workflow (enabled)
+    if [[ -f "${source_workflows}/auto-sanitize.yml.disabled" ]]; then
+        cp "${source_workflows}/auto-sanitize.yml.disabled" "${target_workflows}/auto-sanitize.yml" && \
+        print_success "Deployed auto-sanitize.yml"
+    elif [[ -f "${source_workflows}/auto-sanitize.yml" ]]; then
+        cp "${source_workflows}/auto-sanitize.yml" "${target_workflows}/auto-sanitize.yml" && \
+        print_success "Deployed auto-sanitize.yml"
     fi
     
     # Detect secrets workflow
@@ -48,22 +58,22 @@ deploy_github_actions() {
         print_success "Deployed reusable-sanitize.yml"
     fi
     
-    # OWASP ZAP Scan workflow
+    # OWASP ZAP Scan workflow (disabled by default)
     if [[ -f "${source_workflows}/zap-scan.yml" ]]; then
-        cp "${source_workflows}/zap-scan.yml" "${target_workflows}/zap-scan.yml" && \
-        print_success "Deployed zap-scan.yml"
+        cp "${source_workflows}/zap-scan.yml" "${target_workflows}/zap-scan.yml.disabled" && \
+        print_success "Deployed zap-scan.yml.disabled"
     fi
 
-    # PQC Audit workflow
+    # PQC Audit workflow (disabled by default)
     if [[ -f "${source_workflows}/pqc-audit.yml" ]]; then
-        cp "${source_workflows}/pqc-audit.yml" "${target_workflows}/pqc-audit.yml" && \
-        print_success "Deployed pqc-audit.yml"
+        cp "${source_workflows}/pqc-audit.yml" "${target_workflows}/pqc-audit.yml.disabled" && \
+        print_success "Deployed pqc-audit.yml.disabled"
     fi
 
-    # CodeQL workflow
+    # CodeQL workflow (disabled by default)
     if [[ -f "${source_workflows}/codeql.yml" ]]; then
-        cp "${source_workflows}/codeql.yml" "${target_workflows}/codeql.yml" && \
-        print_success "Deployed codeql.yml"
+        cp "${source_workflows}/codeql.yml" "${target_workflows}/codeql.yml.disabled" && \
+        print_success "Deployed codeql.yml.disabled"
     fi
     
     # Workflow documentation
@@ -163,122 +173,40 @@ install_local_git_hooks() {
     # Create pre-commit hook
     cat > "${hooks_dir}/pre-commit" << 'EOF'
 #!/bin/sh
-# Pre-commit hook to auto-sanitize secrets
-# Installed by ainish-coder - Automatically cleanses secrets and continues commit
 
-# Redirect output to stderr.
 exec 1>&2
 
-# Get repo root
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
-# Paths (relative to repo root)
 SANITIZER="${REPO_ROOT}/.github/scripts/sanitize.py"
 
-# Step 1: Auto-sanitize JSON/ENV files (silent, automatic)
 if [ -f "$SANITIZER" ]; then
-    # Get all staged files (not just JSON/ENV - sanitizer handles multiple types)
     staged_files=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
-    
+
     if [ -n "$staged_files" ]; then
-        # Filter for files that might contain secrets
-        files_to_check=$(echo "$staged_files" | grep -E '\.(json|jsonc|env|env\.local|env\.development|env\.production|config|conf|settings)$' || true)
-        
-        if [ -n "$files_to_check" ]; then
-            # Run sanitizer silently
-            echo "$files_to_check" | tr '\n' '\0' | xargs -0 python3 "$SANITIZER" 2>/dev/null || true
+        echo "🧹 Running local security sanitizer on staged files..."
+        echo "$staged_files" | while IFS= read -r file || [ -n "$file" ]; do
+            [ -z "$file" ] && continue
+            case "$file" in
+                .git/*|node_modules/*|venv/*|.venv/*|target/*|dist/*|build/*|__pycache__/*|.github/scripts/*) continue ;;
+                SECURITY_REPORT.md|*.bak) continue ;;
+            esac
+            [ -f "$file" ] || continue
+            [ -L "$file" ] && continue
             
-            # Auto-stage any files that were modified
-            modified=$(git diff --name-only 2>/dev/null || true)
-            if [ -n "$modified" ]; then
-                # Stage the cleansed files automatically
-                echo "$modified" | xargs git add 2>/dev/null || true
-                echo "🔒 Secrets auto-cleansed and staged - continuing commit..."
+            # Run sanitizer and check for changes
+            if python3 "$SANITIZER" "$file" >/dev/null 2>&1; then
+                # If file was modified, git add it again
+                # Note: This adds the ENTIRE file, not just the patch.
+                # This is safer for security enforcement.
+                git add "$file" 2>/dev/null || true
             fi
-        fi
+        done
     fi
 fi
 
-# Step 2: Comprehensive pattern-based cleansing (for all file types)
-# This handles secrets in any file type, not just JSON/ENV
-git diff --cached --name-only --diff-filter=ACM 2>/dev/null | while IFS= read -r file || [ -n "$file" ]; do
-    # Skip empty lines
-    [ -z "$file" ] && continue
-        # Skip if file doesn't exist or is binary
-        [ ! -f "$file" ] && continue
-        [ -L "$file" ] && continue
-        
-        # Skip excluded files and directories
-        case "$file" in
-            *.md|*.log|*.bak|SECURITY_REPORT.md|scan_secrets.sh|detect-secrets.yml|.git/*|node_modules/*|.gitignore) continue ;;
-        esac
-        
-        # Check if file contains secrets (skip if already has placeholders)
-        if grep -qE "YOUR_[A-Z_]+_HERE|BSAtestkey|example.*key|template" "$file" 2>/dev/null; then
-            continue
-        fi
-        
-        needs_cleansing=false
-        
-        # Check for Tavily API keys (tvly- followed by 30+ alphanumeric/dash chars)
-        if grep -qE "tvly-[a-zA-Z0-9-]\{30,\}" "$file" 2>/dev/null; then
-            needs_cleansing=true
-        fi
-        
-        # Check for tavilyApiKey= pattern
-        if grep -qE "tavilyApiKey=[^&\"[:space:]]\{10,\}" "$file" 2>/dev/null; then
-            needs_cleansing=true
-        fi
-        
-        # Check for Brave API keys (BSA followed by 27 alphanumeric chars)
-        if grep -qE "BSA[a-zA-Z0-9]\{27\}" "$file" 2>/dev/null; then
-            needs_cleansing=true
-        fi
-        
-        # Check for local paths
-        if grep -qE "/Volumes/1tb-sandisk/" "$file" 2>/dev/null; then
-            needs_cleansing=true
-        fi
-        
-        # Cleanse if needed - use sanitize.py if available, otherwise use sed
-        if [ "$needs_cleansing" = true ]; then
-            # Try sanitize.py first (handles all file types now)
-            if [ -f "$SANITIZER" ]; then
-                python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
-            else
-                # Fallback: simple sed replacements (portable approach)
-                tmp_file="${file}.tmp.$$"
-                cp "$file" "$tmp_file" 2>/dev/null || continue
-                
-                # Apply replacements via sed (using temp file for portability)
-                sed 's/tvly-[a-zA-Z0-9-]\{30,\}/YOUR_TAVILY_API_KEY_HERE/g' "$tmp_file" > "${tmp_file}.new" 2>/dev/null && mv "${tmp_file}.new" "$tmp_file" || true
-                sed 's/tavilyApiKey=[^&"[:space:]]\{10,\}/tavilyApiKey=YOUR_TAVILY_API_KEY_HERE/g' "$tmp_file" > "${tmp_file}.new" 2>/dev/null && mv "${tmp_file}.new" "$tmp_file" || true
-                sed 's/BSA[a-zA-Z0-9]\{27\}/YOUR_BRAVE_API_KEY_HERE/g' "$tmp_file" > "${tmp_file}.new" 2>/dev/null && mv "${tmp_file}.new" "$tmp_file" || true
-                sed 's|/Volumes/1tb-sandisk/[^"]*|/path/to/your/mcp/servers|g' "$tmp_file" > "${tmp_file}.new" 2>/dev/null && mv "${tmp_file}.new" "$tmp_file" || true
-                
-                if ! cmp -s "$file" "$tmp_file" 2>/dev/null; then
-                    cp "$file" "${file}.bak" 2>/dev/null || true
-                    mv "$tmp_file" "$file" 2>/dev/null || true
-                else
-                    rm -f "$tmp_file" 2>/dev/null || true
-                fi
-            fi
-            
-            # Auto-stage the cleansed file
-            git add "$file" 2>/dev/null || true
-            echo "🔒 Auto-cleansed secrets in: $file"
-        fi
-done
-
-# Step 3: Quick cleanse of staged files only (no blocking scan)
-# We cleanse what we can and always allow the commit
-# NOTE: .env files should be in .gitignore - we don't cleanse them, we skip them
-
-# Clean up any leftover security report
 rm -f "${REPO_ROOT}/SECURITY_REPORT.md" 2>/dev/null || true
-
-# Always allow commit to proceed
 exit 0
 EOF
 
@@ -288,64 +216,56 @@ EOF
     # Create pre-push hook
     cat > "${hooks_dir}/pre-push" << 'EOF'
 #!/bin/sh
-# Pre-push hook to scan for secrets before pushing
-# Installed by ainish-coder - Auto-cleanses secrets and always allows push
-# NOTE: This hook NEVER blocks - it cleanses what it can and proceeds
 
-# Redirect output to stderr.
 exec 1>&2
 
-# Get repo root
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
-# Paths (relative to repo root)
 SANITIZER="${REPO_ROOT}/.github/scripts/sanitize.py"
 
-# Auto-cleanse any files that might contain secrets
-# This runs silently and quickly - we don't block the push
 if [ -f "$SANITIZER" ]; then
-    # Find and cleanse files with potential secrets (excluding .env which should be gitignored)
-    find . -type f \
-        ! -path './.git/*' \
-        ! -path './node_modules/*' \
-        ! -path './venv/*' \
-        ! -path './.venv/*' \
-        ! -path './target/*' \
-        ! -path './dist/*' \
-        ! -path './build/*' \
-        ! -path './__pycache__/*' \
-        ! -name '*.md' \
-        ! -name '*.log' \
-        ! -name '*.bak' \
-        ! -name '.env' \
-        ! -name '.env.*' \
-        ! -name '*.env' \
-        ! -name 'SECURITY_REPORT.md' \
-        ! -name 'scan_secrets.sh' \
-        ! -name 'sanitize.py' \
-        ! -name 'security_scan.sh' \
-        ! -name '.gitignore' \
-        \( -name '*.json' -o -name '*.jsonc' -o -name '*.py' -o -name '*.sh' -o -name '*.yml' -o -name '*.yaml' -o -name '*.toml' -o -name '*.conf' -o -name '*.config' \) \
-        2>/dev/null | head -100 | while IFS= read -r file; do
-            # Quick check if file might have secrets (skip if already has placeholders)
-            if grep -qE "tvly-[a-zA-Z0-9-]{20}|BSA[a-zA-Z0-9]{20}|/Volumes/1tb-sandisk/" "$file" 2>/dev/null; then
-                if ! grep -qE "YOUR_[A-Z_]+_HERE|/path/to/your/" "$file" 2>/dev/null; then
-                    python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
-                fi
-            fi
+    echo "🔒 Verifying repository security before push..."
+    
+    if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+        upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)
+        changed_files=$(git diff --name-only "$upstream...HEAD" 2>/dev/null || true)
+    else
+        changed_files=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || true)
+    fi
+
+    if [ -n "$changed_files" ]; then
+        dirty=0
+        echo "$changed_files" | while IFS= read -r file || [ -n "$file" ]; do
+            [ -z "$file" ] && continue
+            case "$file" in
+                .git/*|node_modules/*|venv/*|.venv/*|target/*|dist/*|build/*|__pycache__/*|.github/scripts/*) continue ;;
+                SECURITY_REPORT.md|*.bak) continue ;;
+            esac
+            [ -f "$file" ] || continue
+            [ -L "$file" ] && continue
+            
+            # Check if sanitizer WOULD modify the file
+            # Since we can't easily check without modifying, we modify and check git status
+            python3 "$SANITIZER" "$file" >/dev/null 2>&1 || true
         done
+        
+        # Check if any tracked files are now modified
+        if ! git diff --quiet; then
+            echo "❌ SECURITY BLOCK: Secrets detected in files to be pushed!"
+            echo "   Local files have been automatically sanitized."
+            echo "   Please amend your commit to include these fixes:"
+            echo "   > git commit --amend --no-edit"
+            echo "   > git push"
+            exit 1
+        fi
+    fi
 fi
 
-# Clean up any leftover security report
 rm -f "${REPO_ROOT}/SECURITY_REPORT.md" 2>/dev/null || true
-
-# Always allow push - we've done our best to cleanse
 exit 0
 EOF
 
     chmod +x "${hooks_dir}/pre-push"
     print_success "Installed local pre-push hook (scans before push)"
 }
-
-

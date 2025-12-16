@@ -25,16 +25,47 @@ def sanitize_value(key: str, value: Any) -> Any:
         if key == "MEMORY_FILE_PATH":
             return "/path/to/your/memory/memories.jsonl"
             
-    # Sanitize specific patterns in values
-    # Brave API Key pattern
-    if re.search(r"BSA[a-zA-Z0-9]{27}", value):
-        return "YOUR_BRAVE_API_KEY_HERE"
-    
-    # Tavily API Key pattern
-    if re.search(r"tvly-[a-zA-Z0-9-]{30,}", value):
-        return "YOUR_TAVILY_API_KEY_HERE"
+    value = sanitize_text(value)
 
     return value
+
+
+def sanitize_text(text: str) -> str:
+    if not text:
+        return text
+
+    patterns: List[tuple[str, str, int]] = [
+        (r"tvly-[a-zA-Z0-9-]{30,}", "YOUR_TAVILY_API_KEY_HERE", 0),
+        (r"tavilyApiKey=[^&\"\s]{10,}", "tavilyApiKey=YOUR_TAVILY_API_KEY_HERE", 0),
+        (r"BSA[a-zA-Z0-9]{27}", "YOUR_BRAVE_API_KEY_HERE", 0),
+        (r"\bsk-ant-[a-zA-Z0-9_-]{20,}\b", "YOUR_ANTHROPIC_API_KEY_HERE", 0),
+        (r"\bsk-[a-zA-Z0-9]{20,}\b", "YOUR_OPENAI_API_KEY_HERE", 0),
+        (r"\bghp_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
+        (r"\bgho_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
+        (r"\bghu_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
+        (r"\bghs_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
+        (r"\bghr_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
+        (r"\bgithub_pat_[A-Za-z0-9_]{50,}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
+        (r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", "YOUR_SLACK_TOKEN_HERE", 0),
+        (r"\bAKIA[0-9A-Z]{16}\b", "YOUR_AWS_ACCESS_KEY_ID_HERE", 0),
+        (r"(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", "YOUR_PRIVATE_KEY_HERE", re.DOTALL),
+        (r"/Volumes/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/volume", 0),
+        (r"/Users/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/home", 0),
+    ]
+
+    out = text
+    for pattern, replacement, flags in patterns:
+        out = re.sub(pattern, replacement, out, flags=flags)
+    return out
+
+
+def is_binary_file(file_path: str) -> bool:
+    try:
+        with open(file_path, "rb") as f:
+            chunk = f.read(8192)
+        return b"\x00" in chunk
+    except Exception:
+        return True
 
 def sanitize_structure(data: Any, key_context: str = "") -> Any:
     """Recursively sanitize a JSON structure."""
@@ -48,6 +79,9 @@ def sanitize_structure(data: Any, key_context: str = "") -> Any:
 def process_env_file(file_path: str) -> bool:
     """Process a single .env file."""
     try:
+        if is_binary_file(file_path):
+            return False
+
         with open(file_path, 'r') as f:
             lines = f.readlines()
         
@@ -86,34 +120,19 @@ def process_env_file(file_path: str) -> bool:
 def process_text_file(file_path: str) -> bool:
     """Process any text file using pattern-based replacement."""
     try:
+        if is_binary_file(file_path):
+            return False
+
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
         
-        original_content = content
-        changed = False
-        
-        # Pattern-based replacements (works for any file type)
-        patterns = [
-            (r'tvly-[a-zA-Z0-9-]{30,}', 'YOUR_TAVILY_API_KEY_HERE'),
-            (r'tavilyApiKey=[^&"\s]{10,}', 'tavilyApiKey=YOUR_TAVILY_API_KEY_HERE'),
-            (r'BSA[a-zA-Z0-9]{27}', 'YOUR_BRAVE_API_KEY_HERE'),
-            (r'/Volumes/1tb-sandisk/[^\s"\'`]*', '/path/to/your/mcp/servers'),
-        ]
-        
-        for pattern, replacement in patterns:
-            # Skip if already contains placeholder
-            if 'YOUR_' in content and 'HERE' in content:
-                continue
-            new_content = re.sub(pattern, replacement, content)
-            if new_content != content:
-                content = new_content
-                changed = True
-        
-        if not changed:
+        sanitized = sanitize_text(content)
+
+        if sanitized == content:
             return False
         
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
+            f.write(sanitized)
         
         return True
     except Exception as e:
@@ -139,6 +158,9 @@ def process_file(file_path: str) -> bool:
 def process_json_file(file_path: str) -> bool:
     """Process a single JSON file."""
     try:
+        if is_binary_file(file_path):
+            return False
+
         with open(file_path, 'r') as f:
             data = json.load(f)
         

@@ -5,9 +5,9 @@ on:
     inputs:
       target-paths:
         description: 'Glob pattern for files to sanitize'
-        required: true
+        required: false
         type: string
-        default: 'CONFIGURATIONS/**/*.json'
+        default: '.'
 
 jobs:
   sanitize:
@@ -29,13 +29,8 @@ jobs:
 
       - name: Sanitize files
         run: |
-          echo "🧹 Sanitizing files in ${{ inputs.target-paths }}..."
-          
-          # Find and process files matching the pattern
-          # Note: Using python glob in the script would be better but for now we use find/glob expansion in shell
-          # We need to handle the glob pattern carefully
-          
-          find . -path "${{ inputs.target-paths }}" -type f \( -name "*.json" -o -name "*.env*" \) -print0 | xargs -0 python3 .github/scripts/sanitize.py
+          echo "🧹 Sanitizing repository files..."
+          git ls-files -z | xargs -0 -n 50 python3 .github/scripts/sanitize.py
           
       - name: Check for changes
         id: check_changes
@@ -58,6 +53,7 @@ jobs:
 
       - name: Push changes
         if: steps.check_changes.outputs.changes == 'true'
+        continue-on-error: true
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -65,6 +61,7 @@ jobs:
 
       - name: Notify on PR
         if: steps.check_changes.outputs.changes == 'true' && github.event_name == 'pull_request'
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |

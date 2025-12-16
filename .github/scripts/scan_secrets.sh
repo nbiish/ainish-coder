@@ -8,9 +8,20 @@ OUTPUT_FILE="SECURITY_REPORT.md"
 PATTERNS=(
     "BSA[a-zA-Z0-9]{27}"
     "tvly-[a-zA-Z0-9-]{30,}"
-    "/Volumes/1tb-sandisk/"
     "BRAVE_API_KEY.*[\"'][^\"']{10,}[\"']"
     "tavilyApiKey=[^&\"\\s]{10,}"
+    "ghp_[A-Za-z0-9]{36}"
+    "gho_[A-Za-z0-9]{36}"
+    "ghu_[A-Za-z0-9]{36}"
+    "ghs_[A-Za-z0-9]{36}"
+    "ghr_[A-Za-z0-9]{36}"
+    "github_pat_[A-Za-z0-9_]{50,}"
+    "sk-ant-[A-Za-z0-9_-]{20,}"
+    "sk-[A-Za-z0-9]{20,}"
+    "AKIA[0-9A-Z]{16}"
+    "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    "/Volumes/[A-Za-z0-9._-]+/"
+    "/Users/[A-Za-z0-9._-]+/"
 )
 
 # Start report
