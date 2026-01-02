@@ -1,0 +1,15 @@
+# .traeignore - Specify files and directories for Trae to ignore.
+
+# Ignore common directories
+.git/
+.vscode/
+.idea/
+node_modules/
+dist/
+build/
+
+# Ignore specific file types
+*.log
+*.lock
+*.bak
+*.tmp
