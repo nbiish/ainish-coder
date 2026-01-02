@@ -1,0 +1,21 @@
+# SOTA Agent-Tree Trunk (llms.txt)
+# Protocol: INIT | BRANCH | SYNC | MERGE
+# Ref: OSA.md (Patterns) | TODO.md (Checklist)
+
+[PROTOCOL]
+INIT: Load llms.txt + OSA.md. Create TODO.md + OSAVARS.md if null.
+BRANCH: Spawn sub-agents per OSA.md pattern. Pass context via OSAVARS.md [VARS].
+SYNC: Updates in OSAVARS.md or TODO.md MUST be atomic.
+MERGE: Branches return results to Trunk; update OSAVARS.md [LOG].
+
+[STATE]
+# Variable Store (See OSAVARS.md for dynamic values)
+VERSION: 2.1.0-SOTA
+VARS_STORE: OSAVARS.md
+TODO_TRACKER: TODO.md
+
+
+[DIRECTIVES]
+- Minimal verbiage; use symbols/shorthand.
+- Every branch updates TODO.md status.
+- Security-first (PQC/Zero-Trust) in all code.

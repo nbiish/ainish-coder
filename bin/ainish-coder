@@ -1,0 +1,284 @@
+#!/bin/bash
+# Main ainish-coder CLI tool
+# Comprehensive configuration manager for AI coding assistants
+
+set -euo pipefail
+
+# Ensure we have a minimal PATH for basic commands
+# This prevents issues if PATH is corrupted in the calling environment
+if [[ ":$PATH:" != *":/usr/bin:"* ]] || [[ ":$PATH:" != *":/bin:"* ]]; then
+    export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+fi
+
+# Get script directory and load atoms
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DNA_DIR="${SCRIPT_DIR}/../dna"
+
+# Load atoms (core utilities)
+source "${DNA_DIR}/atoms/colors.sh"
+source "${DNA_DIR}/atoms/paths.sh"
+source "${DNA_DIR}/atoms/file_operations.sh"
+source "${DNA_DIR}/atoms/validation.sh"
+source "${DNA_DIR}/atoms/backup.sh"
+source "${DNA_DIR}/atoms/ignore_patterns.sh"
+
+# Load molecules (deployment functions)
+source "${DNA_DIR}/molecules/help.sh"
+source "${DNA_DIR}/molecules/deploy_commands.sh"
+source "${DNA_DIR}/molecules/deploy_agents.sh"
+source "${DNA_DIR}/molecules/deploy_mairules.sh"
+source "${DNA_DIR}/molecules/deploy_tiers.sh"
+source "${DNA_DIR}/molecules/deploy_cursor.sh"
+source "${DNA_DIR}/molecules/deploy_windsurf.sh"
+source "${DNA_DIR}/molecules/deploy_cline.sh"
+source "${DNA_DIR}/molecules/deploy_claude.sh"
+source "${DNA_DIR}/molecules/deploy_copilot.sh"
+source "${DNA_DIR}/molecules/deploy_continue.sh"
+source "${DNA_DIR}/molecules/deploy_gemini.sh"
+source "${DNA_DIR}/molecules/deploy_qwen.sh"
+source "${DNA_DIR}/molecules/deploy_roocode.sh"
+source "${DNA_DIR}/molecules/deploy_goose.sh"
+source "${DNA_DIR}/molecules/deploy_critical.sh"
+source "${DNA_DIR}/molecules/deploy_gitignore.sh"
+# Load prompt deployment molecules
+source "${DNA_DIR}/molecules/deploy_cursor_commands.sh"
+source "${DNA_DIR}/molecules/deploy_claude_commands.sh"
+source "${DNA_DIR}/molecules/deploy_continue_prompts.sh"
+source "${DNA_DIR}/molecules/deploy_windsurf_prompts.sh"
+source "${DNA_DIR}/molecules/deploy_cline_prompts.sh"
+source "${DNA_DIR}/molecules/deploy_roocode_prompts.sh"
+# CLI tool prompt deployment
+source "${DNA_DIR}/molecules/deploy_gemini_cli_prompts.sh"
+source "${DNA_DIR}/molecules/deploy_goose_prompts.sh"
+source "${DNA_DIR}/molecules/deploy_qwen_cli_prompts.sh"
+# Load ignore file deployment molecules
+source "${DNA_DIR}/molecules/deploy_cursor_ignore.sh"
+source "${DNA_DIR}/molecules/deploy_cline_ignore.sh"
+source "${DNA_DIR}/molecules/deploy_continue_ignore.sh"
+source "${DNA_DIR}/molecules/deploy_copilot_ignore.sh"
+source "${DNA_DIR}/molecules/deploy_roocode_ignore.sh"
+source "${DNA_DIR}/molecules/deploy_github_actions.sh"
+source "${DNA_DIR}/molecules/deploy_local_security.sh"
+source "${DNA_DIR}/molecules/deploy_template_agent.sh"
+source "${DNA_DIR}/molecules/deploy_osaa.sh"
+source "${DNA_DIR}/molecules/deploy_trae.sh"
+source "${DNA_DIR}/molecules/deploy_mcp.sh"
+source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
+source "${DNA_DIR}/molecules/deploy_license.sh"
+
+# Main function
+main() {
+    local command="$1"
+    shift
+    
+    # Get target directory (default to current directory)
+    local target_dir="${1:-$(pwd)}"
+    
+    case "$command" in
+        --help|-h)
+            show_help
+            ;;
+        --version|-v)
+            show_version
+            ;;
+            
+        # Commands deployment
+        --commands)
+            if [[ $# -eq 0 ]]; then
+                print_error "Missing argument for --commands"
+                echo "Usage: ainish-coder --commands {tool}" >&2
+                echo "Example: ainish-coder --commands cursor" >&2
+                exit 1
+            fi
+            deploy_commands "$1"
+            ;;
+            
+        # Tier deployment (with argument)
+        --tier)
+            if [[ $# -eq 0 ]]; then
+                print_error "Missing tier number"
+                echo "Usage: ainish-coder --tier {0-4} [TARGET_DIR]" >&2
+                echo "Example: ainish-coder --tier 1" >&2
+                exit 1
+            fi
+            local tier_num="$1"
+            shift
+            local tier_target="${1:-$(pwd)}"
+            
+            case "$tier_num" in
+                0) deploy_tier0 "$tier_target" ;;
+                1) deploy_tier1 "$tier_target" ;;
+                2) deploy_tier2 "$tier_target" ;;
+                3) deploy_tier3 "$tier_target" ;;
+                4) deploy_tier4 "$tier_target" ;;
+                all) deploy_all_tiers "$tier_target" ;;
+                *)
+                    print_error "Invalid tier number: $tier_num"
+                    echo "Valid tiers: 0, 1, 2, 3, 4, all" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+            
+        # Individual tier flags (backward compatibility)
+        --tier0) deploy_tier0 "$target_dir" ;;
+        --tier1) deploy_tier1 "$target_dir" ;;
+        --tier2) deploy_tier2 "$target_dir" ;;
+        --tier3) deploy_tier3 "$target_dir" ;;
+        --tier4) deploy_tier4 "$target_dir" ;;
+        
+        # Core rules deployment
+        --rules)
+            deploy_agents "$target_dir" && : > "$target_dir/MAIRULES.md" && echo -e "${GREEN}✓ Created empty MAIRULES.md at $target_dir${RESET}" && deploy_critical "$target_dir" && deploy_gitignore "$target_dir"
+            if [[ -f "${REPO_DIR}/llms.txt" ]]; then
+                if cp "${REPO_DIR}/llms.txt" "$target_dir/llms.txt" 2>/dev/null; then
+                    echo -e "${GREEN}✓ Deployed llms.txt to $target_dir${RESET}"
+                else
+                    echo -e "${BRIGHT_RED}Error: Failed to deploy llms.txt${RESET}"
+                fi
+            else
+                echo -e "${YELLOW}⚠️  llms.txt not found at ${REPO_DIR}/llms.txt${RESET}"
+            fi
+            ;;
+        --agents)
+            deploy_agents "$target_dir"
+            ;;
+        --mairules)
+            # Deploy MAIRULES.md with all tiers (for backward compatibility)
+            deploy_mairules "$target_dir"
+            ;;
+        --mairules-tier0)
+            # Deploy MAIRULES.md with only TIER_0
+            deploy_mairules_tier0 "$target_dir"
+            ;;
+            
+        # Tool-specific deployments
+        --cursor)
+            deploy_cursor "$target_dir"
+            ;;
+        --windsurf)
+            deploy_windsurf "$target_dir"
+            ;;
+        --cline)
+            deploy_cline "$target_dir"
+            ;;
+        --claude)
+            deploy_claude "$target_dir"
+            ;;
+        --copilot)
+            deploy_copilot "$target_dir"
+            ;;
+        --continue|--cn)
+            deploy_continue "$target_dir"
+            ;;
+        --gemini)
+            deploy_gemini "$target_dir"
+            ;;
+        --qwen)
+            deploy_qwen "$target_dir"
+            ;;
+        --roocode|--roo)
+            deploy_roocode "$target_dir"
+            ;;
+            
+        # Goose support
+        --goose)
+            deploy_goose "$target_dir"
+            ;;
+            
+        # Template Agent System
+        --template-agent)
+            deploy_template_agent "$target_dir"
+            ;;
+            
+        # OSAA Framework
+        --OSAA)
+            deploy_osaa "$target_dir"
+            ;;
+
+        # OSA Orchestrator Patterns (distribute OSA.md)
+        --osa)
+            deploy_osa "$target_dir"
+            ;;
+            
+        # Utility deployments
+        --critical)
+            deploy_critical "$target_dir"
+            ;;
+        --gitignore)
+            deploy_gitignore "$target_dir"
+            ;;
+        --github-actions)
+            deploy_github_actions "$target_dir"
+            ;;
+        --local-security)
+            deploy_local_security "$target_dir"
+            ;;
+            
+        # Ignore file deployments
+        --cursor-ignore)
+            deploy_cursor_ignore "$target_dir"
+            ;;
+        --cline-ignore)
+            deploy_cline_ignore "$target_dir"
+            ;;
+        --continue-ignore)
+            deploy_continue_ignore "$target_dir"
+            ;;
+        --copilot-ignore)
+            deploy_copilot_ignore "$target_dir"
+            ;;
+        --roocode-ignore|--roo-ignore)
+            deploy_roocode_ignore "$target_dir"
+            ;;
+        --all-ignores)
+            echo -e "${BRIGHT_BLUE}Deploying All Ignore Files${RESET}"
+            deploy_cursor_ignore "$target_dir"
+            deploy_cline_ignore "$target_dir"
+            deploy_continue_ignore "$target_dir"
+            deploy_copilot_ignore "$target_dir"
+            deploy_roocode_ignore "$target_dir"
+            echo -e "${BRIGHT_GREEN}✅ All ignore files deployed${RESET}"
+            ;;
+            
+        --trae)
+            # Usage: ainish-coder --trae [TARGET_DIR]
+            # Copies AGENTS.md from repository root into TARGET_DIR/.trae/rules/AGENTS.md
+            if [[ $# -ge 1 && ! -d "$1" ]]; then
+                # If first arg is a directory path but does not exist, show error
+                print_error "Target directory does not exist: $1"
+                exit 1
+            fi
+            local trae_target="${1:-$target_dir}"
+            deploy_trae "$trae_target"
+            ;;
+        
+        --mcp)
+            deploy_mcp "$target_dir"
+            ;;
+
+        --mcp-recipes)
+            deploy_mcp_recipes "$target_dir"
+            ;;
+
+        --license)
+            deploy_license "$target_dir"
+            ;;
+            
+        *)
+            print_error "Unknown command: $command"
+            echo "Use 'ainish-coder --help' for usage information" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# Check if at least one argument provided
+if [[ $# -eq 0 ]]; then
+    print_error "No command specified"
+    echo "Use 'ainish-coder --help' for usage information" >&2
+    exit 1
+fi
+
+# Run main function
+main "$@"

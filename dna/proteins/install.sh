@@ -1,0 +1,18 @@
+#!/bin/bash
+# Wrapper script to execute the main ainish-coder command
+# This can be symlinked to /usr/local/bin for system-wide access
+
+# Get the directory of this wrapper script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Path to the main script
+MAIN_SCRIPT="${ROOT_DIR}/bin/ainish-coder"
+
+# Execute the main script, passing all arguments
+if [[ -f "$MAIN_SCRIPT" ]]; then
+    bash "$MAIN_SCRIPT" "$@"
+else
+    echo "Error: Main script not found at $MAIN_SCRIPT"
+    exit 1
+fi

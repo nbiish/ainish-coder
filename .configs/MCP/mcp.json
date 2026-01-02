@@ -1,0 +1,27 @@
+{
+  "agents": {
+    "ainish-coder": {
+      "name": "AINISH-CODER",
+      "description": "An AI-powered coding assistant that helps you write better code, faster.",
+      "goals": [
+        "Provide intelligent code completion and suggestions.",
+        "Assist with debugging and troubleshooting.",
+        "Offer guidance on best practices and design patterns.",
+        "Automate repetitive coding tasks."
+      ],
+      "tools": [
+        "cursor",
+        "windsurf",
+        "cline",
+        "claude",
+        "copilot",
+        "continue",
+        "gemini",
+        "qwen",
+        "roocode",
+        "goose",
+        "trae"
+      ]
+    }
+  }
+}
