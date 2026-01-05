@@ -55,11 +55,11 @@ Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimi
 - **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
 - **🏗️ Modular Architecture**: Clean Atom → Molecule → Protein structure
 - **🤖 Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code, and Trae
+- **🔄 OSA (Ralph-First) Framework**: Mandatory Ralph Loop orchestration with Gemini/Qwen/Opencode agents
 - **⚡ Simple Deployment**: One command to deploy configurations
 - **🔗 Smart File Management**: Copies configurations to ensure tool-specific customization
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
-- **📘 OSA Orchestrator Patterns**: Distribute execution patterns and agent mappings
 - **🛡️ Local Secret Protection**: Auto-sanitize known keys and generate a local security report for remediation
 
 
@@ -135,7 +135,6 @@ Deploy tool-specific slash commands, workflows, and recipes directly to your cur
 - **Rules Files** (Cline): Markdown rules (NOT slash commands - see note below)
 - **Config-Based** (Continue): Prompts defined in config.yaml
 - **TOML Commands** (Gemini CLI, Qwen): TOML configuration files
-- **Recipes** (Goose): YAML recipe files with instructions
 
 > **⚠️ Important Note about Cline**: Cline does **NOT** support custom slash commands. It only has two built-in commands (`/newtask` and `/newrule`). The `--commands cline` deployment creates `.clinerules` files with MANDATORY instructions, not slash commands. See [KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md](KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md) for details.
 
@@ -148,7 +147,6 @@ ainish-coder --commands cline        # Rules files to .clinerules/ (NOT slash co
 ainish-coder --commands continue     # Creates setup guide for config.yaml
 ainish-coder --commands gemini-cli   # TOML files to .gemini/commands/
 ainish-coder --commands qwen         # TOML files to .qwen/commands/
-ainish-coder --commands goose        # YAML recipes to .goose/recipes/
 
 # Deploy to all tools at once
 ainish-coder --commands all
@@ -173,7 +171,6 @@ ainish-coder --commands all
 |------|------------|---------------|--------------|-----------------|--------|
 | **Gemini CLI** | `--gemini` | `--commands gemini-cli` | `.gemini/` | `.gemini/commands/*.toml` | TOML |
 | **Qwen Code** | `--qwen` | `--commands qwen` | `QWEN.md` | `.qwen/commands/*.toml` | TOML |
-| **Goose** | N/A | `--commands goose` | N/A | `.goose/recipes/*.yaml` | YAML recipes |
 
 ## 📋 Complete Usage Guide
 
@@ -197,14 +194,10 @@ ainish-coder --cursor                    # Configure Cursor AI
 ainish-coder --windsurf                  # Configure Windsurf
 ainish-coder --copilot                   # Configure GitHub Copilot
 
-# Step 4: Deploy custom commands (optional)
-ainish-coder --commands cursor           # Deploy Cursor slash commands
-ainish-coder --commands windsurf         # Deploy Windsurf workflows
-ainish-coder --commands all              # Deploy to all 8 tools at once
+# Step 4: Deploy OSA (Ralph-First) Framework
+ainish-coder --osa                        # Deploys OSA.md, OSAVARS.md, llms.txt, and TODO.md
 
-# Step 5: Add utilities (optional)
-ainish-coder --gitignore                 # Create comprehensive .gitignore
-ainish-coder --critical                  # Copy critical.md
+# Step 5: Deploy custom commands (optional)
 
 ```
 
@@ -219,9 +212,10 @@ ainish-coder --critical                  # Copy critical.md
 **Individual Files** (`--agents` or `--mairules`):
 - Deploy files individually if you only need one
 
-**Orchestrator Guide** (`--osa`):
-- Copies `OSA.md` (execution patterns and agent tool mappings) to the target directory
-- Use for orchestrator and sub-agent workflows
+**OSA Framework** (`--osa`):
+- Copies `OSA.md`, `OSAVARS.md`, `llms.txt`, and `TODO.md` to the target directory
+- Establishes the Ralph-First (v3.0) orchestration model
+- Use for multi-agent tree management and autonomous deep-work loops
 
 **Tier Rules** (`--tier {0-4|all}`):
 - **Appends** tier content to `MAIRULES.md` in the target directory
@@ -237,7 +231,7 @@ ainish-coder --critical                  # Copy critical.md
 - Deploys tool-specific commands from source prompts in `.github/prompts/`
 - Creates appropriate directory structure per tool
 - Converts formats as needed (markdown, TOML, YAML)
-- Currently available: cursor, roocode, windsurf, cline, continue, gemini-cli, qwen, goose, all
+- Currently available: cursor, roocode, windsurf, cline, continue, gemini-cli, qwen, all
 
 **Utilities**:
 - `--gitignore`: Creates comprehensive .gitignore (225 lines)
@@ -317,7 +311,6 @@ This repo is designed to be **local-first**:
 | **GitHub Copilot** | `--copilot` | N/A | Copied | `.github/copilot-instructions.md` |
 | **Gemini CLI** | `--gemini` | `--commands gemini-cli` | TOML | Copied + `.gemini/commands/*.toml` |
 | **Qwen Code** | `--qwen` | `--commands qwen` | TOML | `QWEN.md` copied from AGENTS.md + `.qwen/commands/*.toml` |
-| **Goose** | N/A | `--commands goose` | YAML recipes | `.goose/recipes/*.yaml` |
 
 **Important:** Tool-specific configurations require `AGENTS.md` and `MAIRULES.md` to exist first. Run `ainish-coder --rules` before tool-specific deployments.
 
@@ -460,7 +453,6 @@ Command run: `eza --all --tree --level=2`
 │   ├── .continue
 │   ├── .cursor
 │   ├── .gemini
-│   ├── .goose
 │   ├── .mai-rules
 │   ├── .qwen
 │   ├── .roo
@@ -504,10 +496,6 @@ Command run: `eza --all --tree --level=2`
 │   ├── prompts
 │   └── workflows
 ├── .gitignore
-├── .goose
-│   ├── AGENTS.md
-│   ├── MAIRULES.md
-│   └── recipes
 ├── .windsurf
 │   ├── rules
 │   └── workflows

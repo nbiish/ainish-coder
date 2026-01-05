@@ -1,6 +1,6 @@
 # Orchestrated System of Agents (OSA)
 
-> Multi-agent orchestration reference for CLI-based agentic compute. When this document is referenced, the orchestrator LLM should use these patterns and tools to accomplish tasks with enhanced parallel intelligence.
+> Multi-agent orchestration reference for CLI-based agentic compute. **Claude (Ralph Loop) is the mandatory Trunk Orchestrator**. All tasks must be managed via the `@OSA.md`, `@OSAVARS.md`, `@TODO.md`, and `@llms.txt` framework. Use sub-agents in order of usage priority: **Gemini → Qwen → Opencode**.
 
 ---
 
@@ -8,11 +8,13 @@
 
 When a user references this document and requests a task:
 
-1. **Analyze the task** — Determine dependencies, parallelization opportunities, and output requirements
-2. **Select execution pattern** — Match task structure to Sequential, Parallel, Pipeline, or Feedback Loop
-3. **Choose agents** — Use the Agent Selection Guide below, respecting any user-specified preferences
-4. **Generate executable commands** — Output ready-to-run bash commands using the agent CLI syntax
-5. **Define merge strategy** — Specify how outputs combine into final deliverable
+1. **Initialize Trunk** — Start with `/ralph-loop` on the Trunk branch. Use the framework files to track state.
+2. **Analyze the task** — Determine dependencies, parallelization opportunities, and output requirements.
+3. **Select execution pattern** — Match task structure to Sequential, Parallel, Pipeline, or Feedback Loop.
+4. **Choose agents** — Delegate 'lower' subtasks to agents in priority order (**Gemini**, then **Qwen**, then **Opencode**) to optimize for usage limits.
+5. **Generate executable commands** — Output ready-to-run bash commands using the agent CLI syntax. All Claude usage MUST be via `/ralph-loop`.
+6. **Define merge strategy** — Specify how outputs combine into final deliverable.
+7. **Iterate** — Trunk Ralph Loop reviews outputs and loops back if requirements are not fully met.
 
 ### User Override Handling
 
@@ -42,32 +44,36 @@ wait
 
 ## Agents
 
+### Orchestrator
 | Agent | Command | Strengths | Best For |
 |-------|---------|-----------|----------|
-| Qwen | `qwen -y "{prompt}"` | Fast, good reasoning, generous limits | Summarization, analysis, quick tasks |
+| Claude (Ralph Loop) | `/ralph-loop "{prompt}" --completion-promise "{promise}" --max-iterations {count}` | Fully autonomous, self-correcting, deep reasoning | Orchestration, deep work, refactoring, migrations |
+
+### Agents
+| Agent | Command | Strengths | Best For |
+|-------|---------|-----------|----------|
 | Gemini | `gemini -y -p "{prompt}"` | Multimodal, large context, strong coding | Design, documentation, complex code |
-| Claude | `claude --dangerously-skip-permissions --yes --recursive "{prompt}"` | Deep reasoning, safety-aware, thorough | Research, security review, architecture |
-| Goose | `echo "{prompt}" \| goose` | Lightweight, scriptable | Simple automation, chaining |
-| Opencode | `opencode run "{prompt}"` | Code-focused | Pure coding tasks |
+| Qwen | `qwen -y "{prompt}"` | Fast, good reasoning, generous limits | Summarization, analysis, quick tasks |
+| Opencode | `opencode run "{prompt}"` | Code-focused, SOTA free model | Pure coding tasks |
 | Crush | `crush run "{prompt}"` | Fast execution | Quick iterations |
-| Copilot | `copilot --allow-all-tools "{prompt}"` | IDE integration | Code completion, refactoring |
-| Cursor | `cursor agent --print --approve-mcps "{prompt}"` | Agentic coding | Complex multi-file changes |
 
 ### Agent Selection Guide
 
 ```
 Task Type → Recommended Agent(s)
 ─────────────────────────────────────────────────
-Research/Analysis     → Claude (thorough) or Qwen (fast)
-Code Generation       → Gemini or Claude
-Code Review           → Claude (security) + Qwen (style)
-Documentation         → Gemini or Qwen
-Summarization         → Qwen (fast) or Gemini (detailed)
-Refactoring           → Cursor or Claude
-Multi-file Changes    → Cursor or Claude
-Quick Iterations      → Qwen or Crush
-Security Audit        → Claude (primary) + Gemini (secondary)
-Design/Architecture   → Claude or Gemini
+Orchestration         → Claude (Ralph Loop)
+Research/Analysis     → Gemini (thorough), Qwen (fast)
+Code Generation       → Gemini, Opencode, Qwen
+Code Review           → Gemini (logic), Qwen (style)
+Documentation         → Gemini, Qwen
+Summarization         → Gemini, Qwen (fast)
+Refactoring           → Claude (Ralph Loop), Gemini, Opencode
+Multi-file Changes    → Claude (Ralph Loop), Gemini
+Quick Iterations      → Gemini, Qwen, Crush
+Security Audit        → Claude (Ralph Loop), Gemini
+Design/Architecture   → Claude (Ralph Loop), Gemini
+Deep Work/Migrations  → Claude (Ralph Loop)
 ```
 
 ### Model Selection
@@ -94,10 +100,7 @@ Sandbox mode runs agent commands in a restricted environment — isolated file a
 | Gemini | `--sandbox` or `-s` | Clones repo, blocks network, restricts file access, requires confirmation for system changes |
 | Claude | Default behavior (use `--dangerously-skip-permissions` to disable) | Normal mode has approval prompts; sandbox via containerization |
 | Qwen | `-s` or `--sandbox` | Isolated environment for safe code execution |
-| Cursor | Built-in (Enterprise) | Sandbox mode in settings; blocks network, limits to workspace + `/tmp/` |
-| Copilot | Firewall-controlled environment | Coding agent runs in GitHub Actions sandbox with read-only repo access |
-| Aider | Docker container | Run via `docker run` for isolation |
-| Opencode | Docker container | Run via container for isolation |
+| Opencode | Native | Isolated environment for safe code execution |
 
 ### Sandbox Commands
 
@@ -114,15 +117,6 @@ gemini --sandbox -p "{prompt}"
 # Qwen - sandbox mode
 qwen -s "{prompt}"
 qwen --sandbox "{prompt}"
-
-# Cursor - sandbox enabled via settings or Enterprise admin
-# Commands auto-run in sandbox with workspace-only access
-
-# Aider - run in Docker for isolation
-docker run -v $(pwd):/app aider "{prompt}"
-
-# Generic Docker isolation for any tool
-docker run --rm -v $(pwd):/workspace --network none <tool-image> "{prompt}"
 ```
 
 ### Sandbox vs Full-Auto Mode
@@ -167,10 +161,73 @@ When user requests sandbox mode:
 # If tool supports native sandbox
 <tool> -s "{prompt}"
 <tool> --sandbox "{prompt}"
-
-# If tool needs container isolation
-docker run --rm -v $(pwd):/workspace --network none <tool> "{prompt}"
 ```
+
+## Autonomous Deep-Work (Ralph Loop)
+
+The Ralph Loop (via the `ralph-wiggum` plugin) allows Claude to run autonomously for up to 50 iterations, self-correcting based on tool outputs until a "completion promise" is met.
+
+### Expert Prompting for Ralph Loop
+To maximize Ralph's effectiveness, use structured prompts with explicit requirements and success criteria:
+
+```bash
+claude -p "/ralph-loop \"
+Task: {task_description}
+
+Requirements:
+1. {req_1}
+2. {req_2}
+
+Success Criteria:
+- All tests in {test_path} pass
+- No linter errors in {src_path}
+- Documentation updated in {docs_path}
+
+Output <promise>COMPLETE</promise> when and only when all criteria are met.
+\" --completion-promise \"COMPLETE\" --max-iterations 50"
+```
+
+### The Ralph-Trunk Pattern
+In the OSA framework, the **Ralph Loop acts as the high-level Orchestrator (Trunk)**. It maintains the global state and iterates until the entire tree's goal is achieved.
+
+1. **Initialize**: Start a Ralph Loop on the Trunk.
+2. **Delegate**: Ralph spawns sub-agents (Gemini, Qwen, etc.) for specific branches via standard CLI commands.
+3. **Verify**: Ralph reviews the sub-agent outputs.
+4. **Loop-Back**: If sub-agent output is insufficient, Ralph iterates, refining the prompt for the next sub-agent call.
+
+### Multi-Ralph Parallelism
+For massive tasks, split work into separate git worktrees and run Ralph Loops in parallel:
+```bash
+# Terminal 1 (Auth Branch)
+git worktree add ../feature-auth -b feat/auth
+cd ../feature-auth && claude -p "/ralph-loop 'Implement auth...' --completion-promise 'AUTH_DONE'" &
+
+# Terminal 2 (API Branch)
+git worktree add ../feature-api -b feat/api
+cd ../feature-api && claude -p "/ralph-loop 'Build REST API...' --completion-promise 'API_DONE'" &
+wait
+```
+
+### State Synchronization
+Ralph Loop state is tracked locally in `.claude/ralph-loop.local.md`. The OSA framework integrates this into `OSAVARS.md` for cross-agent visibility.
+
+### Advanced Ralph-Loop SOTA (2026 Upgrade)
+For elite-level autonomous orchestration, implement these high-performance patterns:
+
+1.  **Ralph-Monitor Dashboard**: Run `ralph-monitor` in a separate terminal to track real-time loop metrics: iterations, API token consumption, file modification heatmaps, and estimated time to completion.
+2.  **External Scripted Promises**: Instead of static strings, use CLI-output promises:
+    ```bash
+    /ralph-loop "Refactor code..." --completion-promise "SUCCESS_$(date +%Y%m%d)"
+    ```
+    Or wrap within a script that echoes the promise only after a test suite passes.
+3.  **The "Wiggum Recovery" Protocol**: If Ralph hits a logical loop (doing the same edit 3+ times), the system should automatically inject `/reset` or `/compact` to clear context debt.
+4.  **Worktree Swarming**: For massive features, split into independent modules and run parallel Ralph Loops in dedicated git worktrees:
+    ```bash
+    git worktree add ../swarm-api -b swarm/api
+    cd ../swarm-api && ralph-loop "Build API..." --completion-promise "API_READY"
+    ```
+5.  **Multi-Agent Hand-off (The "Ralph-Sub" Pattern)**: Within a Ralph Loop, delegate expensive or specialized tasks to cheaper sub-agents (`gemini`, `qwen`) to preserve Claude's message limits while maintaining autonomous oversight.
+6.  **Progressive Checkpoints**: Use tiered promises (`PHASE_1_DONE`, `PHASE_2_DONE`) to prevent work loss in extremely long-running migrations (50+ iterations).
 
 ---
 
@@ -197,15 +254,13 @@ Task A → Task B → Task C → Result
 **Examples:**
 ```bash
 # Research → Summarize → Document
-claude --dangerously-skip-permissions --yes --recursive \
-  "Research best practices for API rate limiting, save findings to ./tmp/research.md"
+claude -p "/ralph-loop 'Research best practices for API rate limiting, save findings to ./tmp/research.md' --completion-promise 'RESEARCH_DONE'"
 qwen -y "Summarize ./tmp/research.md into key points, output to ./tmp/summary.md"
 gemini -y -p "Create implementation guide from ./tmp/summary.md, output to ./docs/rate-limiting.md"
 
 # Analyze → Fix → Test
 qwen -y "Analyze ./src for security vulnerabilities, output report to ./tmp/security-audit.md"
-claude --dangerously-skip-permissions --yes --recursive \
-  "Fix vulnerabilities listed in ./tmp/security-audit.md in ./src"
+claude -p "/ralph-loop 'Fix vulnerabilities listed in ./tmp/security-audit.md in ./src' --completion-promise 'FIXES_DONE'"
 gemini -y -p "Generate security tests for fixes in ./src, output to ./tests/security/"
 ```
 
@@ -237,14 +292,12 @@ wait
 # Parallel research from multiple perspectives
 qwen -y "Research Python async patterns, output to ./tmp/research-python.md" &
 gemini -y -p "Research Node.js async patterns, output to ./tmp/research-node.md" &
-claude --dangerously-skip-permissions --yes --recursive \
-  "Research Go concurrency patterns, output to ./tmp/research-go.md" &
+claude -p "/ralph-loop 'Research Go concurrency patterns, output to ./tmp/research-go.md' --completion-promise 'GO_RESEARCH_DONE'" &
 wait
 qwen -y "Compare and synthesize ./tmp/research-*.md into ./docs/async-comparison.md"
 
 # Parallel code review (different aspects)
-claude --dangerously-skip-permissions --yes --recursive \
-  "Review ./src/api for security issues, output to ./tmp/review-security.md" &
+claude -p "/ralph-loop 'Review ./src/api for security issues, output to ./tmp/review-security.md' --completion-promise 'SEC_REVIEW_DONE'" &
 gemini -y -p "Review ./src/api for performance issues, output to ./tmp/review-perf.md" &
 qwen -y "Review ./src/api for code style issues, output to ./tmp/review-style.md" &
 wait
@@ -281,8 +334,7 @@ wait
 **Examples:**
 ```bash
 # Spec → Multiple implementations
-claude --dangerously-skip-permissions --yes --recursive \
-  "Create API spec for user service, output to ./tmp/user-api-spec.yaml"
+claude -p "/ralph-loop 'Create API spec for user service, output to ./tmp/user-api-spec.yaml' --completion-promise 'SPEC_DONE'"
 
 qwen -y "Implement ./tmp/user-api-spec.yaml in Python FastAPI, output to ./impl/python/" &
 gemini -y -p "Implement ./tmp/user-api-spec.yaml in Node Express, output to ./impl/node/" &
@@ -327,8 +379,7 @@ done
 **Examples:**
 ```bash
 # Code generation with validation
-claude --dangerously-skip-permissions --yes --recursive \
-  "Generate authentication middleware for Express, output to ./src/middleware/auth.js"
+claude -p "/ralph-loop 'Generate authentication middleware for Express, output to ./src/middleware/auth.js' --completion-promise 'AUTH_MW_DONE'"
 
 for i in {1..3}; do
   qwen -y "Review ./src/middleware/auth.js for security issues, output to ./tmp/validation.md"
@@ -349,6 +400,7 @@ done
 | "Fix/Debug X" | Feedback Loop | Identify → Fix → Validate → Repeat |
 | "Document X" | Sequential | Analyze → Generate → Review |
 | "Refactor X" | Feedback Loop | Refactor → Test → Validate |
+| "Deep/Massive Migration" | Autonomous Loop | Ralph Loop (Claude) with completion promise |
 | "Compare X vs Y" | Parallel | Research each → Synthesize comparison |
 | "Complete this feature" | Pipeline | Spec → Parallel (frontend/backend/tests) |
 
@@ -418,8 +470,7 @@ Format: {final_format}
 ### User: "Research {topic} and give me a summary"
 ```bash
 # Parallel research for breadth
-claude --dangerously-skip-permissions --yes --recursive \
-  "Deep research on {topic}: theory, history, current state. Output to ./tmp/research-deep.md" &
+claude -p "/ralph-loop 'Deep research on {topic}: theory, history, current state. Output to ./tmp/research-deep.md' --completion-promise 'DEEP_RESEARCH_DONE'" &
 qwen -y "Research {topic}: practical applications and examples. Output to ./tmp/research-practical.md" &
 gemini -y -p "Research {topic}: tools, libraries, implementations. Output to ./tmp/research-tools.md" &
 wait
@@ -432,8 +483,7 @@ qwen -y "Synthesize ./tmp/research-*.md into executive summary with key takeaway
 ```bash
 # Sequential: Design → Implement → Document → Test
 gemini -y -p "Design REST API schema for {feature}, output to ./tmp/api-design.yaml"
-claude --dangerously-skip-permissions --yes --recursive \
-  "Implement API from ./tmp/api-design.yaml, output to ./src/api/"
+claude -p "/ralph-loop 'Implement API from ./tmp/api-design.yaml, output to ./src/api/' --completion-promise 'API_IMPL_DONE'"
 qwen -y "Generate OpenAPI docs for ./src/api/, output to ./docs/openapi.yaml" &
 gemini -y -p "Generate integration tests for ./src/api/, output to ./tests/api/" &
 wait
@@ -442,8 +492,7 @@ wait
 ### User: "Review this codebase"
 ```bash
 # Parallel multi-aspect review
-claude --dangerously-skip-permissions --yes --recursive \
-  "Security audit of ./src, output to ./tmp/review-security.md" &
+claude -p "/ralph-loop 'Security audit of ./src, output to ./tmp/review-security.md' --completion-promise 'SEC_AUDIT_DONE'" &
 gemini -y -p "Performance analysis of ./src, output to ./tmp/review-performance.md" &
 qwen -y "Code quality and maintainability review of ./src, output to ./tmp/review-quality.md" &
 wait
@@ -467,8 +516,7 @@ qwen -y "Validate ./output/{task_name}.md, output to ./tmp/validation.md"
 qwen -y "Analyze codebase and infer requirements for {feature}, output spec to ./tmp/feature-spec.md"
 
 # Pipeline: parallel implementation branches
-claude --dangerously-skip-permissions --yes --recursive \
-  "Implement backend for ./tmp/feature-spec.md, output to ./src/backend/" &
+claude -p "/ralph-loop 'Implement backend for ./tmp/feature-spec.md, output to ./src/backend/' --completion-promise 'BACKEND_DONE'" &
 gemini -y -p "Implement frontend for ./tmp/feature-spec.md, output to ./src/frontend/" &
 qwen -y "Write unit tests for ./tmp/feature-spec.md, output to ./tests/" &
 wait
@@ -495,7 +543,7 @@ User Request
     └─ Simple single task ─────────────── Direct execution with best-fit agent
 ```
 
-**When in doubt:** Start with the most capable agent (Claude/Gemini), use Qwen for speed/volume, parallelize independent work, always define clear output paths.
+**When in doubt:** Start with the Trunk Orchestrator (Claude Ralph Loop), use sub-agents (Gemini → Qwen → Opencode) for execution, parallelize independent work, always define clear output paths.
 
 ---
 
@@ -518,12 +566,12 @@ User Request
 ### User: "Use sandbox mode to {task}"
 ```bash
 # Single agent sandbox (choose based on task type)
-claude "{task}, output to ./output/"           # Deep reasoning, security
+claude -p "/ralph-loop '{task}, output to ./output/' --completion-promise 'SANDBOX_DONE'" # Deep reasoning, security
 gemini -s -p "{task}, output to ./output/"        # Design, multimodal
 qwen -s "{task}, output to ./output/"          # Fast, summarization
 
 # Parallel sandbox execution (all three)
-claude "{subtask_security}, output to ./tmp/out1.md" &
+claude -p "/ralph-loop '{subtask_security}, output to ./tmp/out1.md' --completion-promise 'SB_SEC_DONE'" &
 gemini -s -p "{subtask_design}, output to ./tmp/out2.md" &
 qwen -s "{subtask_analysis}, output to ./tmp/out3.md" &
 wait
@@ -533,13 +581,13 @@ qwen -y "Merge ./tmp/out*.md into ./output/final.md"
 ### User: "Safely analyze this untrusted repo"
 ```bash
 # All operations in sandbox (parallel for speed)
-claude "Deep security analysis and threat modeling, output to ./tmp/threat-model.md" &
+claude -p "/ralph-loop 'Deep security analysis and threat modeling, output to ./tmp/threat-model.md' --completion-promise 'TM_DONE'" &
 gemini -s -p "Analyze repo structure and architecture, output to ./tmp/structure.md" &
 qwen -s "Scan for malicious patterns and obfuscation, output to ./tmp/malware-scan.md" &
 wait
 
 # Sequential deep-dive
-claude "Review dependencies for supply chain risks, output to ./tmp/deps-audit.md"
+claude -p "/ralph-loop 'Review dependencies for supply chain risks, output to ./tmp/deps-audit.md' --completion-promise 'DEPS_DONE'"
 gemini -s -p "Check for data exfiltration patterns, output to ./tmp/exfil-check.md"
 
 # Synthesis can be full-auto (no file system risk)
