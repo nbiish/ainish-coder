@@ -3,14 +3,16 @@
 # Ref: OSA.md (Patterns) | TODO.md (Checklist)
 
 [PROTOCOL]
-INIT: Load llms.txt + OSA.md. Create TODO.md + OSAVARS.md if null.
+INIT: Start Ralph Loop (/ralph-loop) on Trunk. Load llms.txt + OSA.md. Create TODO.md + OSAVARS.md if null.
+TRUNK: Ralph acts as Orchestrator. Spawns BRANCHES via CLI.
 BRANCH: Spawn sub-agents per OSA.md pattern. Pass context via OSAVARS.md [VARS].
+RALPH: High-intensity autonomous loop (Claude-specific) for deep work.
 SYNC: Updates in OSAVARS.md or TODO.md MUST be atomic.
-MERGE: Branches return results to Trunk; update OSAVARS.md [LOG].
+MERGE: Branches return results to Trunk; Ralph verifies and iterates if necessary.
 
 [STATE]
 # Variable Store (See OSAVARS.md for dynamic values)
-VERSION: 2.1.0-SOTA
+VERSION: 3.0.0-RALPH-FIRST
 VARS_STORE: OSAVARS.md
 TODO_TRACKER: TODO.md
 
@@ -19,3 +21,5 @@ TODO_TRACKER: TODO.md
 - Minimal verbiage; use symbols/shorthand.
 - Every branch updates TODO.md status.
 - Security-first (PQC/Zero-Trust) in all code.
+- RALPH-TRUNK: Prioritize starting all complex tasks with `/ralph-loop`.
+- LOOP-BACK: If sub-agent output is partial, Trunk Ralph MUST iterate to completion.

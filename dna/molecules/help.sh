@@ -39,7 +39,6 @@ TOOL-SPECIFIC CONFIGURATION:
     --qwen [TARGET_DIR]       Deploy Qwen AI - rules, commands (TOML), QWEN.md
     --roocode [TARGET_DIR]    Deploy Roo Code - rules, commands, ignore files
     --roo [TARGET_DIR]        Alias for --roocode
-    --goose [TARGET_DIR]      Deploy Goose CLI - rules, recipes (YAML)
     --trae [TARGET_DIR]       Deploy TRAE rules by copying repository AGENTS.md into
                               TARGET_DIR/.trae/rules/AGENTS.md (defaults to current dir)
                               Example: --trae ./my-project
@@ -81,17 +80,15 @@ AGENT CUSTOMIZATION:
                               
                               Example: ainish-coder --OSAA ~/my-project
 
-    --osa [DIR]               Distribute OSA.md orchestrator execution patterns
+    --osa [DIR]               Deploy full OSA (Ralph-First) Framework
                               
-                              Creates: OSA.md (Orchestrator Strategy & Agents)
+                              Creates: OSA.md, OSAVARS.md, llms.txt, TODO.md
                               
                               Features:
-                              - Execution patterns (Sequential, Parallel, Pipeline, Feedback Loop)
-                              - Compile Prompt schema (Role, Context, Task)
-                              - Agent tool mappings for CLI and IDE
-                              
-                              Use this to provide teams and tools with a concise,
-                              standardized reference for orchestration patterns.
+                              - Ralph Loop Trunk Orchestrator (Claude)
+                              - Sub-agent priority (Gemini -> Qwen -> Opencode)
+                              - Autonomous state tracking via OSAVARS.md
+                              - Unified task checklist via TODO.md
                               
                               Example: ainish-coder --osa ~/my-project
 
@@ -115,9 +112,6 @@ CUSTOM COMMANDS DEPLOYMENT:
                               CLI Tools (TOML Commands):
                               - gemini-cli  (.gemini/commands/*.toml)
                               - qwen        (.qwen/commands/*.toml)
-                              
-                              CLI Tools (Recipes):
-                              - goose       (.goose/recipes/*.yaml)
                               
                               Other:
                               - copilot     (use --copilot flag instead)

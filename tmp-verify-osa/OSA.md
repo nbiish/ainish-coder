@@ -48,12 +48,10 @@ Task:
 
 ```
 
-## Agents (Listed in order of skill)
+## Agents (Listed in order of priority)
 
-[Qwen] -> `qwen -y "{prompt}"`
+[Claude (Ralph Loop)] -> `/ralph-loop "{prompt}" --completion-promise "{promise}" --max-iterations {count}` (Orchestrator)
 [Gemini] -> `gemini -y -p "{prompt}"`
-[Copilot] -> `copilot --allow-all-tools "{prompt}"`
-[Cursor] -> `cursor agent --print --approve-mcps "{prompt}"`
-[Goose] -> `echo "{prompt}" | goose`
+[Qwen] -> `qwen -y "{prompt}"`
 [Opencode] -> `opencode run "{prompt}"`
 [Crush] -> `crush run "{prompt}"`

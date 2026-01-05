@@ -37,7 +37,6 @@ source "${DNA_DIR}/molecules/deploy_continue.sh"
 source "${DNA_DIR}/molecules/deploy_gemini.sh"
 source "${DNA_DIR}/molecules/deploy_qwen.sh"
 source "${DNA_DIR}/molecules/deploy_roocode.sh"
-source "${DNA_DIR}/molecules/deploy_goose.sh"
 source "${DNA_DIR}/molecules/deploy_critical.sh"
 source "${DNA_DIR}/molecules/deploy_gitignore.sh"
 # Load prompt deployment molecules
@@ -49,7 +48,6 @@ source "${DNA_DIR}/molecules/deploy_cline_prompts.sh"
 source "${DNA_DIR}/molecules/deploy_roocode_prompts.sh"
 # CLI tool prompt deployment
 source "${DNA_DIR}/molecules/deploy_gemini_cli_prompts.sh"
-source "${DNA_DIR}/molecules/deploy_goose_prompts.sh"
 source "${DNA_DIR}/molecules/deploy_qwen_cli_prompts.sh"
 # Load ignore file deployment molecules
 source "${DNA_DIR}/molecules/deploy_cursor_ignore.sh"
@@ -179,11 +177,6 @@ main() {
             ;;
         --roocode|--roo)
             deploy_roocode "$target_dir"
-            ;;
-            
-        # Goose support
-        --goose)
-            deploy_goose "$target_dir"
             ;;
             
         # Template Agent System

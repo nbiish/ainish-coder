@@ -5,10 +5,13 @@
 - [x] Initialize TODO.md structure [BRANCH: Trunk]
 - [x] Establish OSAVARS.md Variable Store [BRANCH: Trunk]
 - [x] Implement cross-agent state sync [BRANCH: Trunk]
+- [x] Integrate Ralph Loop (Claude-specific) Orchestration [BRANCH: Trunk]
+- [x] Deep dive and document SOTA Ralph Loop techniques (2026) [AGENT: Claude]
+- [/] Instantiate multi-agent-tree framework via Ralph Loop [AGENT: Claude (Ralph)] [PATTERN: Ralph-Trunk]
 
 [BRANCHES]
-# OSAVARS.md [VARS] and [HANDOFFS] drive sub-agent tasks
-# - [ ] Task Name [AGENT: ToolName] [PATTERN: Seq/Par/Pipe/Loop]
+- [ ] Implement Ralph-aware state synchronization hooks [AGENT: Claude]
+- [ ] Test parallel Ralph loops in separate worktrees [AGENT: Claude]
 
 
 [SYMBOLS]

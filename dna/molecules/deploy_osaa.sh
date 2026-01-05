@@ -39,23 +39,30 @@ deploy_osa() {
 
     validate_target_dir "$target_dir" || return 1
 
-    echo -e "${BRIGHT_BLUE}Deploying OSA Orchestrator Patterns${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying OSA (Ralph-First) Orchestration Framework${RESET}"
 
-    local osa_file="$target_dir/OSA.md"
-    local source_osa="$source_dir/OSA.md"
+    local files=("OSA.md" "OSAVARS.md" "llms.txt" "TODO.md")
+    local success=0
 
-    if [[ -f "$source_osa" ]]; then
-        cp "$source_osa" "$osa_file"
-        echo -e "${GREEN}✓ Deployed: OSA.md${RESET}"
-        echo -e "${CYAN}  └─ Location: $osa_file${RESET}"
+    for file in "${files[@]}"; do
+        if [[ -f "$source_dir/$file" ]]; then
+            cp "$source_dir/$file" "$target_dir/$file"
+            echo -e "${GREEN}✓ Deployed: $file${RESET}"
+            ((success++))
+        else
+            echo -e "${YELLOW}⚠ Warning: $file not found in source${RESET}"
+        fi
+    done
+
+    if [[ $success -eq ${#files[@]} ]]; then
+        echo -e "${BRIGHT_GREEN}✅ OSA Framework (v3.0) fully deployed${RESET}"
     else
-        echo -e "${YELLOW}⚠ Warning: OSA.md not found in source${RESET}"
-        return 1
+        echo -e "${YELLOW}⚠ OSA Framework partially deployed ($success/${#files[@]} files)${RESET}"
     fi
 
-    echo -e "${BRIGHT_GREEN}✅ OSA orchestrator patterns deployed${RESET}"
     echo -e "${CYAN}Next steps:${RESET}"
-    echo -e "${CYAN}  1. Use OSA.md to guide execution patterns (Sequential, Parallel, Pipeline, Feedback)${RESET}"
-    echo -e "${CYAN}  2. Reference compile prompt schema and agent tool mappings${RESET}"
+    echo -e "${CYAN}  1. Initialize with: claude -p \"/ralph-loop 'Initiate framework...'\"${RESET}"
+    echo -e "${CYAN}  2. Trunk (Ralph) will use OSAVARS.md and TODO.md to manage state${RESET}"
+    echo -e "${CYAN}  3. Sub-agents (Gemini -> Qwen -> Opencode) execute delegated tasks${RESET}"
     return 0
 }
