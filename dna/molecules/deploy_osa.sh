@@ -57,8 +57,15 @@ deploy_osa() {
     # Deploy Expert Core (Python)
     if [[ -d "$source_dir/osa_expert" ]]; then
         echo -e "${BRIGHT_BLUE}Deploying OSA Expert Core...${RESET}"
-        mkdir -p "$target_dir/osa_expert"
-        cp -r "$source_dir/osa_expert/"* "$target_dir/osa_expert/"
+        # Use rsync if available for better directory copying, otherwise use cp
+        if command -v rsync &> /dev/null; then
+            rsync -a --exclude='.venv' "$source_dir/osa_expert/" "$target_dir/osa_expert/"
+        else
+            mkdir -p "$target_dir/osa_expert"
+            cp -R "$source_dir/osa_expert/." "$target_dir/osa_expert/"
+            # Remove .venv if it was copied (we want to re-sync)
+            rm -rf "$target_dir/osa_expert/.venv"
+        fi
         
         # Initialize uv environment if uv is available
         if command -v uv &> /dev/null; then
