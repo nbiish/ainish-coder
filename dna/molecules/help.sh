@@ -80,15 +80,15 @@ AGENT CUSTOMIZATION:
                               
                               Example: ainish-coder --OSAA ~/my-project
 
-    --osa [DIR]               Deploy full OSA (Ralph-First) Framework
+    --osa [DIR]               Deploy OSA 4.0 (Ultimate SOTA) Framework
                               
-                              Creates: OSA.md, OSAVARS.md, llms.txt, TODO.md
+                              Creates: OSA.md, OSAVARS.md, llms.txt, TODO.md, osa_expert/
                               
                               Features:
-                              - Ralph Loop Trunk Orchestrator (Claude)
-                              - Sub-agent priority (Gemini -> Qwen -> Opencode)
-                              - Autonomous state tracking via OSAVARS.md
-                              - Unified task checklist via TODO.md
+                              - Expert Core (LightRAG + Memori + DSPy)
+                              - Ralph-Trunk Orchestrator (Claude)
+                              - Strategic Delegation to Gemini & Qwen
+                              - Autonomous self-improving loops
                               
                               Example: ainish-coder --osa ~/my-project
 

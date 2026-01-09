@@ -14,6 +14,10 @@ SYNC_MODE: ATOMIC
 SHARED_MEMORY: OSAVARS.md
 RALPH_STATE_FILE: .claude/ralph-loop.local.md
 RALPH_ACTIVE: TRUE
+EXPERT_CORE_ACTIVE: TRUE
+EXPERT_CORE_STATUS: READY
+EXPERT_DB_PATH: .osa/memory.db
+EXPERT_RAG_STORE: .osa/vector_store
 
 [RALPH]
 # Autonomous Loop Tracking
