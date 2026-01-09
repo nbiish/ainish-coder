@@ -1,14 +1,25 @@
 # SOTA Agent-Tree Trunk (llms.txt)
 # Protocol: INIT | BRANCH | SYNC | MERGE
-# Ref: OSA.md (Patterns) | TODO.md (Checklist)
+# Ref: OSA.md (Patterns) | TODO.md (Checklist) | CLAUDE_CODE_RALPH_LOOP.md (Ralph)
+
+[SETUP]
+1. GATHER: Run `ainish-coder --osa` to pull detailed 'how-to' and framework files.
+2. EXPERT: Run `python -m osa_expert bootstrap` to initialize deep intelligence.
+3. INIT: Start Ralph Loop (`/ralph-loop`) on Trunk.
+4. TRACK: Use `TODO.md` for tasks and `OSAVARS.md` for shared state.
+5. DOCS: Reference `OSA.md` for patterns and `CLAUDE_CODE_RALPH_LOOP.md` for Ralph-specific SOTA.
+
+[BOOTSTRAP]
+INIT_EXPERT: `python -m osa_expert bootstrap`
+SKILLS: `./osa_expert/skills/osa-expert.json`
+MCP_SERVER: `python -m osa_expert.mcp_server` (Model Context Protocol)
 
 [PROTOCOL]
-INIT: Start Ralph Loop (/ralph-loop) on Trunk. Load llms.txt + OSA.md. Create TODO.md + OSAVARS.md if null.
-TRUNK: Ralph acts as Orchestrator. Spawns BRANCHES via CLI.
-BRANCH: Spawn sub-agents per OSA.md pattern. Pass context via OSAVARS.md [VARS].
-RALPH: High-intensity autonomous loop (Claude-specific) for deep work.
-SYNC: Updates in OSAVARS.md or TODO.md MUST be atomic.
-MERGE: Branches return results to Trunk; Ralph verifies and iterates if necessary.
+INIT: Load llms.txt + OSA.md. Bootstrap Expert Core via `osa-expert bootstrap`.
+TRUNK: Ralph (Claude) queries `osa-expert` for a "Strategic Plan" and "Sub-Agent Directives".
+BRANCH: Ralph spawns BRANCHES (Gemini, Qwen) using expert directives.
+SYNC: Branches update OSAVARS.md [VARS] and TODO.md [STATUS].
+MERGE: Ralph verifies branch results against the expert strategy and commits "Lessons Learned".
 
 [STATE]
 # Variable Store (See OSAVARS.md for dynamic values)

@@ -54,15 +54,32 @@ deploy_osa() {
         fi
     done
 
-    if [[ $success -eq ${#files[@]} ]]; then
-        echo -e "${BRIGHT_GREEN}✅ OSA Framework (v3.0) fully deployed${RESET}"
+    # Deploy Expert Core (Python)
+    if [[ -d "$source_dir/osa_expert" ]]; then
+        echo -e "${BRIGHT_BLUE}Deploying OSA Expert Core...${RESET}"
+        mkdir -p "$target_dir/osa_expert"
+        cp -r "$source_dir/osa_expert/"* "$target_dir/osa_expert/"
+        
+        # Initialize uv environment if uv is available
+        if command -v uv &> /dev/null; then
+            echo -e "${CYAN}Syncing Expert Core environment (uv)...${RESET}"
+            (cd "$target_dir/osa_expert" && uv sync)
+            echo -e "${GREEN}✓ Expert Core environment synced${RESET}"
+        else
+            echo -e "${YELLOW}⚠ Warning: 'uv' not found. Please install uv to use the Expert Core.${RESET}"
+        fi
+        ((success++))
+    fi
+
+    if [[ $success -ge ${#files[@]} ]]; then
+        echo -e "${BRIGHT_GREEN}✅ OSA Framework (v4.0) deployed with Expert Core${RESET}"
     else
-        echo -e "${YELLOW}⚠ OSA Framework partially deployed ($success/${#files[@]} files)${RESET}"
+        echo -e "${YELLOW}⚠ OSA Framework partially deployed ($success/$(( ${#files[@]} + 1 )) modules)${RESET}"
     fi
 
     echo -e "${CYAN}Next steps:${RESET}"
-    echo -e "${CYAN}  1. Initialize with: claude -p \"/ralph-loop 'Initiate framework...'\"${RESET}"
-    echo -e "${CYAN}  2. Trunk (Ralph) will use OSAVARS.md and TODO.md to manage state${RESET}"
-    echo -e "${CYAN}  3. Sub-agents (Gemini -> Qwen -> Opencode) execute delegated tasks${RESET}"
+    echo -e "${CYAN}  1. Initialize Expert Core: python -m osa_expert bootstrap${RESET}"
+    echo -e "${CYAN}  2. Start Trunk: claude -p \"/ralph-loop 'Initiate framework...'\"${RESET}"
+    echo -e "${CYAN}  3. Use 'osa-expert query' for deep codebase intelligence${RESET}"
     return 0
 }
