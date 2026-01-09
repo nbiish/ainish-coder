@@ -1,0 +1,31 @@
+{
+  "name": "osa-expert",
+  "version": "4.0.0",
+  "description": "Expert architectural and codebase intelligence skill for OSA Ralph-Trunk orchestration.",
+  "capabilities": [
+    "strategic-orchestration-planning",
+    "sub-agent-directive-generation",
+    "multimodal-rag-analysis",
+    "long-term-cognitive-memory",
+    "self-optimization"
+  ],
+  "procedures": {
+    "strategic-task-orchestration": {
+      "steps": [
+        "Query 'query_expert_strategy' for a high-level plan and agent directives",
+        "Ralph (Trunk) parses the 'strategic_plan' into TODO.md tasks",
+        "Ralph delegates 'directives' to Gemini (Logic) or Qwen (Summary/Review) via CLI",
+        "Branch results are captured and synthesized by Ralph",
+        "Capture 'Lessons Learned' and store via 'store_lesson_learned'"
+      ]
+    }
+  },
+  "mcp_server": {
+    "command": "python -m osa_expert.mcp_server",
+    "tools": [
+      "query_expert_strategy",
+      "store_lesson_learned",
+      "retrieve_recent_memory"
+    ]
+  }
+}
