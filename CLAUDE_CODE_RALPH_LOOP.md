@@ -104,7 +104,7 @@ Instead of a simple string, use environment variables or dynamic strings:
 The `ralph-monitor` utility provides a terminal UI for overseeing active loops. It helps identify when a loop has stalled or is consuming excessive tokens.
 
 ### Cross-Agent State Injection
-In the OSA framework, use `OSAVARS.md` to pass state from a Ralph Loop to other agents (`gemini`, `qwen`) and back, allowing the Loop to orchestrate a wider swarm.
+In the OSA framework, use `OSAVARS.toon` to pass state from a Ralph Loop to other agents (`gemini`, `qwen`) and back, allowing the Loop to orchestrate a wider swarm.
 
 ## References
 

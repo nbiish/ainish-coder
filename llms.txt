@@ -1,36 +1,34 @@
 # SOTA Agent-Tree Trunk (llms.txt)
 # Protocol: INIT | BRANCH | SYNC | MERGE
-# Ref: OSA.md (Patterns) | TODO.md (Checklist) | CLAUDE_CODE_RALPH_LOOP.md (Ralph)
+# Ref: OSA.md (Patterns) | TODO.md (Checklist) | TOON (Memory)
 
 [SETUP]
-1. GATHER: Run `ainish-coder --osa` to pull detailed 'how-to' and framework files.
-2. EXPERT: Run `python -m osa_expert bootstrap` to initialize deep intelligence.
-3. INIT: Start Ralph Loop (`/ralph-loop`) on Trunk.
-4. TRACK: Use `TODO.md` for tasks and `OSAVARS.md` for shared state.
-5. DOCS: Reference `OSA.md` for patterns and `CLAUDE_CODE_RALPH_LOOP.md` for Ralph-specific SOTA.
+1. GATHER: Run `ainish-coder --osa` to pull detailed framework files.
+2. MEMORY: Use TOON for shared state in OSAVARS.toon.
+3. INIT: Start Claude Code Ralph Loop (`/ralph-loop`) on Trunk.
+4. TRACK: Use TODO.md for tasks and OSAVARS.toon for shared state.
+5. DOCS: Reference `OSA.md` for patterns and orchestration directives.
 
 [BOOTSTRAP]
-INIT_EXPERT: `python -m osa_expert bootstrap`
-SKILLS: `./osa_expert/skills/osa-expert.json`
-MCP_SERVER: `python -m osa_expert.mcp_server` (Model Context Protocol)
+MEMORY: TOON (Token-Oriented Object Notation)
+ORCHESTRATOR: Claude Code (Ralph Loop)
+SUB-AGENTS: Gemini (CLI), Qwen (CLI), Opencode (CLI)
 
 [PROTOCOL]
-INIT: Load llms.txt + OSA.md. Bootstrap Expert Core via `osa-expert bootstrap`.
-TRUNK: Ralph (Claude) queries `osa-expert` for a "Strategic Plan" and "Sub-Agent Directives".
-BRANCH: Ralph spawns BRANCHES (Gemini, Qwen) using expert directives.
-SYNC: Branches update OSAVARS.md [VARS] and TODO.md [STATUS].
-MERGE: Ralph verifies branch results against the expert strategy and commits "Lessons Learned".
+INIT: Load llms.txt + OSA.md. Sync latest context from OSAVARS.toon.
+TRUNK: Ralph (Claude) designs the Strategic Plan in TODO.md.
+BRANCH: Ralph spawns sub-agent branches using patterns in OSA.md.
+SYNC: Agents update OSAVARS.toon [VARS] and logs.
+MERGE: Ralph verifies branch results, updates TODO.md, and persists state to OSAVARS.toon.
 
 [STATE]
-# Variable Store (See OSAVARS.md for dynamic values)
-VERSION: 3.0.0-RALPH-FIRST
-VARS_STORE: OSAVARS.md
+VERSION: 4.1.0-TOON-SOTA
+VARS_STORE: OSAVARS.toon
 TODO_TRACKER: TODO.md
-
+MEMORY_ENGINE: TOON
 
 [DIRECTIVES]
 - Minimal verbiage; use symbols/shorthand.
-- Every branch updates TODO.md status.
-- Security-first (PQC/Zero-Trust) in all code.
-- RALPH-TRUNK: Prioritize starting all complex tasks with `/ralph-loop`.
-- LOOP-BACK: If sub-agent output is partial, Trunk Ralph MUST iterate to completion.
+- Every branch updates TODO.md status and OSAVARS.toon state.
+- Ralph Loop MUST review every sub-agent output for security and logic.
+- Use TOON tables for every successful "Promise" completed.
