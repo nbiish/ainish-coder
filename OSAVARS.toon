@@ -1,0 +1,19 @@
+session:
+  id: SESSION-INIT
+  start: YYYY-MM-DD
+  target: Project Initialization
+  status: ACTIVE
+
+vars{key,val}:
+  VERSION,4.1.0-TOON
+  SYNC_MODE,ATOMIC
+  CORE_BRANCH,Trunk
+  ORCHESTRATOR,Ralph
+  MEMORY_ENGINE,TOON
+
+agents[0]{name,iter,status,promise}:
+
+handoffs[0]{from,to,task}:
+
+log[1]{ts,agent,event}:
+  YYYY-MM-DD,Ralph,Initialized OSA Framework

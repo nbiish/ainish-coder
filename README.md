@@ -195,7 +195,7 @@ ainish-coder --windsurf                  # Configure Windsurf
 ainish-coder --copilot                   # Configure GitHub Copilot
 
 # Step 4: Deploy OSA (Ralph-First) Framework
-ainish-coder --osa                        # Deploys OSA.md, OSAVARS.md, llms.txt, and TODO.md
+ainish-coder --osa                        # Deploys OSA.md, OSAVARS.toon, llms.txt, and TODO.md
 
 # Step 5: Deploy custom commands (optional)
 
@@ -213,7 +213,7 @@ ainish-coder --osa                        # Deploys OSA.md, OSAVARS.md, llms.txt
 - Deploy files individually if you only need one
 
 **OSA Framework** (`--osa`):
-- Copies `OSA.md`, `OSAVARS.md`, `llms.txt`, and `TODO.md` to the target directory
+- Copies `OSA.md`, `OSAVARS.toon`, `llms.txt`, and `TODO.md` to the target directory
 - Establishes the Ralph-First (v3.0) orchestration model
 - Use for multi-agent tree management and autonomous deep-work loops
 
