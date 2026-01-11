@@ -40,8 +40,8 @@ deploy_osa() {
     validate_target_dir "$target_dir" || return 1
 
     echo -e "${BRIGHT_BLUE}Deploying OSA 4.0 (Memori-Driven) Orchestration Framework${RESET}"
-
-    local files=("OSA.md" "OSAVARS.toon" "llms.txt" "TODO.md")
+    
+    local files=("OSA.md" "OSAVARS.toon" "llms.txt" "TODO.md" "CLAUDE_CODE_RALPH_LOOP.md" "TOON.md")
     local success=0
 
     for file in "${files[@]}"; do
@@ -55,7 +55,7 @@ deploy_osa() {
     done
 
     if [[ $success -eq ${#files[@]} ]]; then
-        echo -e "${BRIGHT_GREEN}✅ OSA Framework (v4.0) fully deployed${RESET}"
+        echo -e "${BRIGHT_GREEN}✅ OSA Framework (v4.0) fully deployed to $target_dir${RESET}"
     else
         echo -e "${YELLOW}⚠ OSA Framework partially deployed ($success/${#files[@]} files)${RESET}"
     fi

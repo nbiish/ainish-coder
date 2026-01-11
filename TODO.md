@@ -1,12 +1,16 @@
-# Agent-Tree Checklist (TODO.md)
+# Agent-Tree Kanban (TODO.md)
+> The Queue for Ralph Loop. Keep tasks atomic and testable.
 
-[TRUNK]
+[BACKLOG]
 - [ ] Initialize Project State
 - [ ] Define Architecture & Scope
 - [ ] Create Strategic Plan
 
-[BRANCHES]
-- [ ] (Waiting for Trunk Delegation)
+[IN_PROGRESS]
+- [ ] (Current Task)
+
+[DONE]
+- [x] (Completed Tasks)
 
 [SYMBOLS]
 - [ ] Pending

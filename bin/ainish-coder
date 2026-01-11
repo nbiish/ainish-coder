@@ -127,15 +127,25 @@ main() {
         
         # Core rules deployment
         --rules)
-            deploy_agents "$target_dir" && : > "$target_dir/MAIRULES.md" && echo -e "${GREEN}✓ Created empty MAIRULES.md at $target_dir${RESET}" && deploy_critical "$target_dir" && deploy_gitignore "$target_dir"
-            if [[ -f "${REPO_DIR}/llms.txt" ]]; then
-                if cp "${REPO_DIR}/llms.txt" "$target_dir/llms.txt" 2>/dev/null; then
-                    echo -e "${GREEN}✓ Deployed llms.txt to $target_dir${RESET}"
-                else
-                    echo -e "${BRIGHT_RED}Error: Failed to deploy llms.txt${RESET}"
-                fi
+            deploy_agents "$target_dir"
+            
+            # Deploy AGENTS_SECURE.md
+            local secure_source="${REPO_DIR}/AGENTS_SECURE.md"
+            if [[ -f "$secure_source" ]]; then
+                 cp "$secure_source" "$target_dir/AGENTS_SECURE.md"
+                 echo -e "${GREEN}✓ Created AGENTS_SECURE.md at $target_dir${RESET}"
             else
-                echo -e "${YELLOW}⚠️  llms.txt not found at ${REPO_DIR}/llms.txt${RESET}"
+                 echo -e "${BRIGHT_RED}Error: AGENTS_SECURE.md not found at $secure_source${RESET}"
+            fi
+
+            # Deploy MAIRULES.md
+            local mairules_source="${REPO_DIR}/MAIRULES.md"
+            if [[ -f "$mairules_source" ]]; then
+                cp "$mairules_source" "$target_dir/MAIRULES.md"
+                echo -e "${GREEN}✓ Created MAIRULES.md at $target_dir${RESET}"
+            else
+                 : > "$target_dir/MAIRULES.md"
+                 echo -e "${GREEN}✓ Created empty MAIRULES.md at $target_dir${RESET}"
             fi
             ;;
         --agents)
