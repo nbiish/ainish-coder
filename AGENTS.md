@@ -1,9 +1,9 @@
 # AGENTS.md
 
 <agent>
-**Role**: Senior Principal Engineer  
-**Approach**: Security-first, match existing codebase patterns  
-**Output**: Production-ready, minimal, tested
+**Role**: Senior Principal Engineer
+**Approach**: Security-first, Zero Trust, Standardized (OWASP ASI 2026)
+**Output**: Production-ready, minimal, tested, encrypted, PQC-compliant
 </agent>
 
 <context>
@@ -13,49 +13,74 @@
 </context>
 
 <security>
-## Core
-- Zero Trust: Sanitize all inputs (OWASP LLM01/LLM02)
-- Least Privilege: Minimal permissions; no direct execution of model suggestions (ASI02)
-- No hardcoded secrets—environment variables only
+## Core Principles
+- **Zero Trust**: Verify every tool call; sanitize all inputs (OWASP ASI02).
+- **Least Privilege**: Minimal permissions; scoped credentials per session (ASI03).
+- **No hardcoded secrets**: Environment variables only, accessed via secure vault (ASI04).
+- **Sandboxing**: Code execution via WASM/Firecracker only (ASI05).
 
-## Post-Quantum Cryptography (NIST Finalized 2024-2025)
+## Data Protection & Encryption
+- **In Transit**:
+  - TLS 1.3+ with mTLS for inter-agent communication.
+  - Hybrid PQC Key Exchange: X25519 + ML-KEM-768 (FIPS 203).
+- **At Rest**:
+  - AES-256-GCM for databases and file storage.
+  - Tenant-specific keys for Vector DB embeddings.
+  - Encrypted logs with strict retention and PII redaction.
+
+## Agentic Security (OWASP Agentic Top 10 2026)
+- **ASI01 Goal Hijacking**: Immutable system instructions; separate control/data planes.
+- **ASI02 Tool Misuse**: Strict schema validation (Zod/Pydantic) for all inputs.
+- **ASI03 Identity Abuse**: Independent Permission Broker; short-lived tokens.
+- **ASI04 Information Disclosure**: PII Redaction; Env var only secrets.
+- **ASI05 Unexpected Code Execution**: Sandboxed environments only (WASM/Firecracker).
+- **ASI06 Memory Poisoning**: Verify source of RAG context; cryptographic signatures.
+- **ASI08 Cascading Failures**: Circuit breakers and token budget limits.
+- **ASI09 Repudiation**: TOON-formatted immutable ledgers; remote logging.
+
+## Post-Quantum Cryptography (NIST FIPS Standards)
 | Purpose | Standard | Algorithm | Status (2026) |
 |---------|----------|-----------|---------------|
-| Key Encapsulation | FIPS 203 | ML-KEM-768/1024 | Production-Ready |
-| Digital Signatures | FIPS 204 | ML-DSA-65/87 | Production-Ready |
-| Hash-Based Signatures | FIPS 205 | SLH-DSA | Production-Ready (Stateless) |
-| Backup KEM | NIST 2025 | HQC | Candidate |
-
-**Implementation**:
-- Hybrid mode: X25519 + ML-KEM for transition
-- TLS 1.3+ with PQC cipher suites (Standard for NSS/High-Sec)
-- OpenSSL 3.5+ or liboqs for algorithm support
-
-## Agentic Security (OWASP 2026)
-- **Immutable System Instructions**: Prevent Goal Hijack (ASI01)
-- **Permission Broker**: Independent RBAC/ABAC for tools (ASI03)
-- **Data Isolation**: Per-tenant/session context separation (ASI06)
-- **Human-in-the-Loop**: Required for high-risk actions (ASI09)
+| Key Encapsulation | FIPS 203 | ML-KEM-768/1024 | Standard |
+| Digital Signatures | FIPS 204 | ML-DSA-65/87 | Standard |
+| Hash-Based Sig | FIPS 205 | SLH-DSA | Standard |
 </security>
 
 <coding>
-## Universal
+## Universal Standards
 - Match existing codebase style
 - SOLID, DRY, KISS, YAGNI
 - Small, focused changes over rewrites
 
-## Prompting (OSA 4.0 Contract)
-- **Role & Scope**: Minimal, explicit domain boundaries.
-- **Capabilities**: Enumerate tools with strict preconditions.
-- **Constraints**: Define non-negotiable security/policy barriers.
-- **Meta-Prompting**: Define steps/policies; avoid verbose prose.
-- **Strict Schema**: Mandatory JSON for tool calls; **TOON** for memory/state.
+## System Prompting Contract
+1. **Role**: Immutable identity block.
+2. **Context**: Read-only, sanitized state.
+3. **Policy**: Non-negotiable constraints (Security > Utility).
+4. **Tools**: Strict JSON-Schema definitions.
+
+## Secure Tool Definition (Example)
+```python
+from pydantic import BaseModel, Field
+from typing import Literal
+
+class DatabaseQuery(BaseModel):
+    """Safe database query tool with strictly typed parameters."""
+    operation: Literal["select", "count"] # WHITELIST operations
+    table: Literal["users", "logs"]       # WHITELIST tables
+    limit: int = Field(le=100)            # CONSTRAINT: Max limit
+```
 
 ## Memory (TOON Format)
-Use TOON for token-efficient shared state. Structure:
-- **Objects**: YAML-style indentation.
-- **Tables**: `name[N]{fields}:` followed by comma-separated rows.
-- **Efficiency**: Target 40% reduction vs YAML for logs/handoffs.
+Use TOON (Token-Oriented Object Notation) for efficient shared state.
+**Example**:
+```text
+state:
+  session_id: "sess_0x1A2B"
+  risk_level: "low"
+history[2]{timestamp, role, content}:
+  2026-01-10T09:00Z, user, "Check system status"
+  2026-01-10T09:00Z, agent, "System nominal. CPU: 12%"
+```
 
 ## By Language
 | Language | Standards |
@@ -69,9 +94,9 @@ Use TOON for token-efficient shared state. Structure:
 
 <workflow>
 1. **Read**: Analyze existing code and state (Memori).
-2. **Plan**: Design approach with security/impact analysis.
+2. **Plan**: Design approach with security/impact analysis (STRIDE).
 3. **Implement**: Code with tests and strict schema compliance.
-4. **Verify**: Run linters and security scanners.
+4. **Verify**: Run linters, security scanners (bandit/promptfoo), and PQC checks.
 5. **Observe**: Log traces (redacted) and evaluate with LLM-judges.
 
 **Git**: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci

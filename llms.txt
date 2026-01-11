@@ -10,25 +10,28 @@
 5. DOCS: Reference `OSA.md` for patterns and orchestration directives.
 
 [BOOTSTRAP]
-MEMORY: TOON (Token-Oriented Object Notation)
+MEMORY: TOON (Token-Oriented Object Notation) - Ref: TOON.md
 ORCHESTRATOR: Claude Code (Ralph Loop)
 SUB-AGENTS: Gemini (CLI), Qwen (CLI), Opencode (CLI)
 
 [PROTOCOL]
-INIT: Load llms.txt + OSA.md. Sync latest context from OSAVARS.toon.
-TRUNK: Ralph (Claude) designs the Strategic Plan in TODO.md.
-BRANCH: Ralph spawns sub-agent branches using patterns in OSA.md.
-SYNC: Agents update OSAVARS.toon [VARS] and logs.
-MERGE: Ralph verifies branch results, updates TODO.md, and persists state to OSAVARS.toon.
+INIT: Load llms.txt + OSA.md. Sync context from OSAVARS.toon (Memory).
+TRUNK: Ralph (Claude) acts as "Supervisor", managing the Loop.
+KANBAN: Atomic tasks in TODO.md (The Queue) -> Pick -> Implement -> Verify -> Done.
+BRANCH: Spawn sub-agents (Gemini/Qwen/Opencode) for heavy lifting or reviews.
+SYNC: Update OSAVARS.toon (Short-term Memory) with vars and logs.
+RESET: Clear context between phases to prevent hallucination (Context Hygiene).
 
 [STATE]
-VERSION: 4.1.0-TOON-SOTA
-VARS_STORE: OSAVARS.toon
-TODO_TRACKER: TODO.md
-MEMORY_ENGINE: TOON
+VERSION: 5.0.0-RALPH-KANBAN
+VARS_STORE: OSAVARS.toon (Short-term Memory)
+TODO_TRACKER: TODO.md (The Queue)
+MEMORY_ENGINE: TOON (Protocol)
+LONG_TERM: OSA.md (Patterns & Standards)
 
 [DIRECTIVES]
-- Minimal verbiage; use symbols/shorthand.
+- **Atomic Stories**: Break tasks into small, testable units in TODO.md.
+- **Context Hygiene**: Reset context after major phases.
+- **3-Layer Memory**: Use TODO.md (Queue), OSAVARS.toon (Loop Context), OSA.md (Standards).
 - Every branch updates TODO.md status and OSAVARS.toon state.
 - Ralph Loop MUST review every sub-agent output for security and logic.
-- Use TOON tables for every successful "Promise" completed.

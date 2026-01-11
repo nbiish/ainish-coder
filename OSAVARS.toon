@@ -1,3 +1,4 @@
+# OSAVARS.toon - Global State (Ref: TOON.md)
 session:
   id: SESSION-INIT
   start: YYYY-MM-DD
@@ -10,10 +11,11 @@ vars{key,val}:
   CORE_BRANCH,Trunk
   ORCHESTRATOR,Ralph
   MEMORY_ENGINE,TOON
+  DOCS_PATH,TOON.md
 
 agents[0]{name,iter,status,promise}:
 
 handoffs[0]{from,to,task}:
 
 log[1]{ts,agent,event}:
-  YYYY-MM-DD,Ralph,Initialized OSA Framework
+  YYYY-MM-DD,Ralph,Initialized OSA Framework with TOON.md support
