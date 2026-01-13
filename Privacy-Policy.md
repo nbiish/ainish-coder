@@ -1,8 +1,8 @@
 # PRIVACY POLICY
 ## Grounded in Indigenous Data Sovereignty and Tribal Jurisdiction
 
-**Last Updated:** November 8, 2025  
-**Effective Date:** November 8, 2025  
+**Last Updated:** January 13, 2026  
+**Effective Date:** January 13, 2026  
 **Version:** 2.0
 
 ---
@@ -2023,9 +2023,9 @@ Your privacy is not a commodity. Your data is not for sale. Your trust is sacred
 ---
 
 **Version:** 2.0  
-**Effective Date:** November 8, 2025  
-**Last Updated:** November 8, 2025  
-**Next Scheduled Review:** November 2026
+**Effective Date:** January 13, 2026  
+**Last Updated:** January 13, 2026  
+**Next Scheduled Review:** January 2027
 
 ---
 

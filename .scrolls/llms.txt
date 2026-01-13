@@ -16,3 +16,16 @@ For complete context and the full historical mandate, see [llms-full.txt](https:
 
 - **Website**: [nbiish.me](https://nbiish.me)
 - **GitHub**: [github.com/nbiish](https://github.com/nbiish)
+
+## Digital Scrolls Source
+
+To reproduce and build your own scrolls, access the source files here:
+- **Source Tree**: [GitHub .scrolls Directory](https://github.com/nbiish/ainish-coder/tree/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls)
+
+### Raw References
+- [llms.txt](https://raw.githubusercontent.com/nbiish/ainish-coder/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls/llms.txt)
+- [llms-full.txt](https://raw.githubusercontent.com/nbiish/ainish-coder/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls/llms-full.txt)
+- [8th_fire_expanded_prompts.md](https://raw.githubusercontent.com/nbiish/ainish-coder/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls/8th_fire_expanded_prompts.md)
+- [vital_text_historical_and_legal_significance.md](https://raw.githubusercontent.com/nbiish/ainish-coder/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls/vital_text_historical_and_legal_significance.md)
+- [vital_text_legacy.md](https://raw.githubusercontent.com/nbiish/ainish-coder/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls/vital_text_legacy.md)
+- [vital_text_template.md](https://raw.githubusercontent.com/nbiish/ainish-coder/c2cecba42057f81f8f4e34057146841cf8f395e2/.scrolls/vital_text_template.md)

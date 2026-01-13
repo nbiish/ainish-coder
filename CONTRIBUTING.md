@@ -1246,7 +1246,7 @@ By contributing, you join a movement toward Indigenous wealth reclamation, data 
 
 ---
 
-**DOCUMENT VERSION:** 2.0 (Comprehensive Legal Hardening - 2025)
+**DOCUMENT VERSION:** 2.0 (Comprehensive Legal Hardening - 2026)
 
 **EFFECTIVE DATE:** Upon acceptance by Contributor
 

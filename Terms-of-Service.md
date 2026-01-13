@@ -1,7 +1,7 @@
 # Terms of Service
 
-**Last Updated:** November 8, 2025  
-**Effective Date:** November 8, 2025  
+**Last Updated:** January 13, 2026  
+**Effective Date:** January 13, 2026  
 **Version:** 2.0
 
 ---
@@ -1752,10 +1752,10 @@ Email: legal@in-digi-nous.com
 **END OF TERMS OF SERVICE**
 
 **Document Version:** 2.0  
-**Effective Date:** November 8, 2025  
-**Last Updated:** November 8, 2025
+**Effective Date:** January 13, 2026  
+**Last Updated:** January 13, 2026
 
-**Copyright © 2025 ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.**
+**Copyright © 2026 ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.**
 
 **Governed by the sovereign authority of the Grand Traverse Band of Ottawa and Chippewa Indians.**
 
