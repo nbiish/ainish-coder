@@ -3,11 +3,9 @@
 # Ref: OSA.md (Patterns) | TODO.md (Checklist) | TOON (Memory)
 
 [SETUP]
-1. GATHER: Run `ainish-coder --osa` to pull detailed framework files.
-2. MEMORY: Use TOON for shared state in OSAVARS.toon.
-3. INIT: Start Claude Code Ralph Loop (`/ralph-loop`) on Trunk.
-4. TRACK: Use TODO.md for tasks and OSAVARS.toon for shared state.
-5. DOCS: Reference `OSA.md` for patterns and orchestration directives.
+1. INIT: Start Claude Code Ralph Loop (`/ralph-loop`) on Trunk.
+2. TRACK: Use TODO.md for tasks and OSAVARS.toon for shared state.
+3. DOCS: Reference `OSA.md` for patterns and orchestration directives.
 
 [BOOTSTRAP]
 MEMORY: TOON (Token-Oriented Object Notation) - Ref: TOON.md
