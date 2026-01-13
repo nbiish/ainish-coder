@@ -62,6 +62,7 @@ source "${DNA_DIR}/molecules/deploy_osa.sh"
 source "${DNA_DIR}/molecules/deploy_trae.sh"
 source "${DNA_DIR}/molecules/deploy_mcp.sh"
 source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
+source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
 
 # Main function
@@ -262,6 +263,10 @@ main() {
 
         --mcp-recipes)
             deploy_mcp_recipes "$target_dir"
+            ;;
+
+        --scrolls)
+            deploy_scrolls "$target_dir"
             ;;
 
         --license)

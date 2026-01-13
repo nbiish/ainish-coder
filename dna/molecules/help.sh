@@ -140,6 +140,12 @@ UTILITY COMMANDS:
                               Note: Requires GitHub repo settings for full functionality.
                               Example: ainish-coder --github-actions ~/my-project
 
+    --scrolls [TARGET_DIR]    Deploy .scrolls directory (Vital texts & prompts)
+                              Deploys:
+                              - .scrolls/ (Vital texts, expanded prompts)
+                              
+                              Example: ainish-coder --scrolls ~/my-project
+
     --mcp-recipes [DIR]       Deploy MCP recipes (e.g., Tavily CLI templates)
                               Deploys markdown templates to mcp_recipes/ in target directory.
                               Example: ainish-coder --mcp-recipes ~/my-project
