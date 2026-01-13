@@ -45,12 +45,22 @@ deploy_osa() {
     local success=0
 
     for file in "${files[@]}"; do
-        if [[ -f "$source_dir/$file" ]]; then
-            cp "$source_dir/$file" "$target_dir/$file"
+        local src_file="$source_dir/.osa/$file"
+        local dest_file="$target_dir/$file"
+        
+        if [[ -f "$src_file" ]]; then
+            # Avoid copying if source and dest are the same file
+            if [[ "$src_file" -ef "$dest_file" ]]; then
+                echo -e "${GREEN}✓ Skipped: $file (same file)${RESET}"
+                ((success++))
+                continue
+            fi
+
+            cp "$src_file" "$dest_file"
             echo -e "${GREEN}✓ Deployed: $file${RESET}"
             ((success++))
         else
-            echo -e "${YELLOW}⚠ Warning: $file not found in source${RESET}"
+            echo -e "${YELLOW}⚠ Warning: $file not found in source ($src_file)${RESET}"
         fi
     done
 

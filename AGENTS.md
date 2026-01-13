@@ -52,34 +52,32 @@
 - SOLID, DRY, KISS, YAGNI
 - Small, focused changes over rewrites
 
-## System Prompting Contract
-1. **Role**: Immutable identity block.
-2. **Context**: Read-only, sanitized state.
-3. **Policy**: Non-negotiable constraints (Security > Utility).
-4. **Tools**: Strict JSON-Schema definitions.
+## MEMORY.md & PRD.md (TOON Format)
+Use TOON (Token-Oriented Object Notation) for efficient shared state.
+**MEMORY.md Example**:
+```toon
+context:
+  user: nbiish
+  role: admin
+  prefs:
+    lang: typescript
+    test: jest
 
-## Secure Tool Definition (Example)
-```python
-from pydantic import BaseModel, Field
-from typing import Literal
-
-class DatabaseQuery(BaseModel):
-    """Safe database query tool with strictly typed parameters."""
-    operation: Literal["select", "count"] # WHITELIST operations
-    table: Literal["users", "logs"]       # WHITELIST tables
-    limit: int = Field(le=100)            # CONSTRAINT: Max limit
+facts[2]{topic,detail}:
+  auth,JWT with 15min expiry
+  deploy,Vercel frontend
 ```
 
-## Memory (TOON Format)
-Use TOON (Token-Oriented Object Notation) for efficient shared state.
-**Example**:
-```text
-state:
-  session_id: "sess_0x1A2B"
-  risk_level: "low"
-history[2]{timestamp, role, content}:
-  2026-01-10T09:00Z, user, "Check system status"
-  2026-01-10T09:00Z, agent, "System nominal. CPU: 12%"
+**PRD.md Example**:
+```toon
+product:
+  name: SecureChat
+  ver: 2.0.0
+
+features[3]{id,name,pri,status}:
+  AUTH-01,MFA Implementation,P0,Done
+  CHAT-02,Message Editing,P1,In Progress
+  ADMIN-03,Audit Logs,P2,Pending
 ```
 
 ## By Language
@@ -93,11 +91,11 @@ history[2]{timestamp, role, content}:
 </coding>
 
 <workflow>
-1. **Read**: Analyze existing code and state (Memori).
+1. **Read**: Analyze existing code and state (PRD.md).
 2. **Plan**: Design approach with security/impact analysis (STRIDE).
 3. **Implement**: Code with tests and strict schema compliance.
 4. **Verify**: Run linters, security scanners (bandit/promptfoo), and PQC checks.
-5. **Observe**: Log traces (redacted) and evaluate with LLM-judges.
+5. **Observe**: Log traces (redacted) and evaluate (PRD.md).
 
 **Git**: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 </workflow>
