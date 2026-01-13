@@ -1,6 +1,6 @@
 # SOTA Agent-Tree Trunk (llms.txt)
 # Protocol: INIT | BRANCH | SYNC | MERGE
-# Ref: OSA.md (Patterns) | TODO.md (Checklist) | TOON (Memory)
+# Ref: OSA.md (Patterns) | CLAUDE_CODE_RALPH_LOOP.md (Orchestrator) | TODO.md (Checklist) | TOON (Memory)
 
 [SETUP]
 1. INIT: Start Claude Code Ralph Loop (`/ralph-loop`) on Trunk.

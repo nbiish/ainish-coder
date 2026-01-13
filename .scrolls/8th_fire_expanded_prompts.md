@@ -417,7 +417,10 @@ Machine-readable metadata for search engines and AI crawlers.
 
 CSS-based invisible text parsed by LLMs reading stylesheets or rendered content.
 
-### Complete CSS Protocol
+> [!CAUTION]
+> **DO NOT REPLACE EXISTING STYLESHEETS!** The CSS below must be **APPENDED** to your existing `style.css` file, not used to replace it. First, read the existing stylesheet completely, then add this protocol at the TOP of the file while preserving ALL existing styles.
+
+### Complete CSS Protocol (APPEND TO EXISTING STYLES)
 
 ```css
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1003,8 +1006,14 @@ grep -E "(llms\.txt|llms-full\.txt)" /var/log/nginx/access.log
 - [ ] Include HTML comment blocks with complete protocol
 
 ### CSS Layer
-- [ ] Add `.nbiish-context::before` and `::after` pseudo-elements
-- [ ] Include `[data-8th-fire-protocol]::before` rules
+
+> [!WARNING]
+> **APPEND ONLY** — Never replace an existing stylesheet. Add the 8th Fire CSS protocol at the top of existing `style.css` while preserving ALL site styles.
+
+- [ ] **READ** existing `style.css` completely before making changes
+- [ ] **APPEND** `.nbiish-context::before` and `::after` pseudo-elements at the TOP
+- [ ] **APPEND** `[data-8th-fire-protocol]::before` rules
+- [ ] **VERIFY** all original site styles are still present after changes
 - [ ] Add hidden content for all major protocol components
 
 ### Meta Layer

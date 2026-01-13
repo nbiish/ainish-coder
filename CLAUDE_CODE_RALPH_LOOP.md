@@ -29,25 +29,25 @@ The "State of the Art" way to use Ralph is not just for retrying a single comman
 
 To overcome context window limits and "amnesia," use three distinct files:
 
-1.  **`backlog.json`** (The Queue): A structured list of atomic, testable user stories.
-2.  **`memories.toon`** (Long-term Memory): High-level architectural decisions, conventions, and "lessons learned" that persist across the entire project.
-3.  **`progress.txt`** (Short-term Memory): A log of the current loop's actions, used to pass context between immediate iterations without polluting the main context window.
+1.  **`TODO.md`** (The Queue): A structured list of atomic, testable user stories.
+2.  **`OSA.md`** (Long-term Memory): High-level architectural decisions, conventions, and "lessons learned" that persist across the entire project.
+3.  **`OSAVARS.toon`** (Short-term Memory): A log of the current loop's actions and shared state, used to pass context between immediate iterations without polluting the main context window.
 
 ### The Execution Loop
 
 Instead of "Build this app," the workflow is:
 
 1.  **PRD Generation**: Generate a comprehensive Product Requirement Document.
-2.  **Story Extraction**: Convert the PRD into `backlog.json` containing atomic tasks.
+2.  **Story Extraction**: Convert the PRD into `TODO.md` containing atomic tasks.
 3.  **The Loop**: Run a specialized Ralph prompt that follows this logic:
 
     ```text
-    1. READ backlog.json to find the next 'pending' task.
-    2. READ memories.toon for architectural decisions.
+    1. READ TODO.md to find the next 'pending' task.
+    2. READ OSA.md for architectural decisions.
     3. IMPLEMENT the task.
     4. VERIFY with tests.
-    5. UPDATE backlog.json (mark task as 'completed').
-    6. APPEND details to progress.txt.
+    5. UPDATE TODO.md (mark task as 'completed').
+    6. APPEND details to OSAVARS.toon.
     7. IF more tasks exist, RESTART loop.
     8. ELSE, output "ALL_TASKS_COMPLETE".
     ```
@@ -55,7 +55,7 @@ Instead of "Build this app," the workflow is:
 ### Example "Supervisor" Command
 
 ```bash
-/ralph-loop "You are a Senior Engineer. Read backlog.json. Pick the first 'pending' task. Implement it. Run tests. If successful, mark as 'done' in json and update progress.txt. If failed, log error and retry once. Output 'ALL_DONE' only when no pending tasks remain." --completion-promise "ALL_DONE" --max-iterations 50
+/ralph-loop "You are a Senior Engineer. Read TODO.md. Pick the first 'pending' task. Implement it. Run tests. If successful, mark as 'done' in markdown and update OSAVARS.toon. If failed, log error and retry once. Output 'ALL_DONE' only when no pending tasks remain." --completion-promise "ALL_DONE" --max-iterations 50
 ```
 
 ## Usage Patterns
@@ -109,7 +109,7 @@ The superpower of Ralph is the **Context Reset**. By designing your loop to exit
 If Claude gets stuck in a logic loop (repeating the same error), use the **Intervention Pattern**:
 1.  Pause the loop (Ctrl+C).
 2.  Manually fix the blocking issue (e.g., a typo in a config file).
-3.  Add a "hint" to `memories.toon` about the fix.
+3.  Add a "hint" to `OSA.md` about the fix.
 4.  Resume the loop.
 
 ## References
