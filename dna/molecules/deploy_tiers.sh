@@ -11,7 +11,7 @@ deploy_tier0() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_0 (Documentation Protocol) to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_0_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES/TIER_0_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: TIER_0_RULES directory not found${RESET}"
@@ -46,7 +46,7 @@ deploy_tier1() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_1 (Code Security) to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_1_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES/TIER_1_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: TIER_1_RULES directory not found${RESET}"
@@ -81,7 +81,7 @@ deploy_tier2() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_2 (Prompt Security) to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_2_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES/TIER_2_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: TIER_2_RULES directory not found${RESET}"
@@ -116,7 +116,7 @@ deploy_tier3() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_3 (Cultural/Stylistic) to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_3_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES/TIER_3_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: TIER_3_RULES directory not found${RESET}"
@@ -151,7 +151,7 @@ deploy_tier4() {
     
     echo -e "${BRIGHT_BLUE}Deploying TIER_4 (Advanced Prompting) to $mairules_file${RESET}"
     
-    local tier_dir="${REPO_DIR}/TIER_4_RULES"
+    local tier_dir="${REPO_DIR}/TIER_RULES/TIER_4_RULES"
     
     if [[ ! -d "$tier_dir" ]]; then
         echo -e "${BRIGHT_RED}Error: TIER_4_RULES directory not found${RESET}"

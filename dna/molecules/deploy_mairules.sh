@@ -11,7 +11,7 @@ deploy_mairules_tier0() {
     local dest="$target_dir/MAIRULES.md"
     local temp_file=$(mktemp)
     
-    local tier_path="${REPO_DIR}/TIER_0_RULES"
+    local tier_path="${REPO_DIR}/TIER_RULES/TIER_0_RULES"
     local files_found=0
     
     if [[ ! -d "$tier_path" ]]; then
@@ -58,11 +58,19 @@ deploy_mairules() {
     fi
     
     # Concatenate all tier files in order
-    local tier_files=("docs-protocol.md" "uv-python.md" "code-security.md" "prompt-security.md" "anishinaabe-cyberpunk-style.md" "modern-prompting.md")
+    local tier_files=(
+        "TIER_0_RULES/docs-protocol.md"
+        "TIER_1_RULES/rust-cargo.md"
+        "TIER_1_RULES/uv-python.md"
+        "TIER_2_RULES/code-security.md"
+        "TIER_2_RULES/prompt-security.md"
+        "TIER_3_RULES/anishinaabe-cyberpunk-style.md"
+        "TIER_4_RULES/modern-prompting.md"
+    )
     local files_found=0
-    local tier_path="${REPO_DIR}/TIER_RULES"
+    local tier_root="${REPO_DIR}/TIER_RULES"
     
-    if [[ ! -d "$tier_path" ]]; then
+    if [[ ! -d "$tier_root" ]]; then
         echo -e "${BRIGHT_RED}Error: TIER_RULES directory not found${RESET}"
         rm -f "$temp_file"
         return 1
@@ -71,27 +79,21 @@ deploy_mairules() {
     echo -e "${BRIGHT_BLUE}Processing TIER_RULES...${RESET}"
     
     for tier_file in "${tier_files[@]}"; do
-        local file_path="${tier_path}/${tier_file}"
+        local file_path="${tier_root}/${tier_file}"
         if [[ -f "$file_path" ]]; then
-            echo -e "${BRIGHT_BLUE}Processing ${tier_dir}...${RESET}"
+            echo -e "${GREEN}  ✓ Adding $(basename "$tier_file")${RESET}"
             
-            # Add tier header
+            # Add file header
             echo "" >> "$temp_file"
-            echo "## ${tier_dir}" >> "$temp_file"
+            echo "# $(basename "$tier_file" .md)" >> "$temp_file"
             echo "" >> "$temp_file"
             
-            # Find all .md files in tier directory and concatenate them
-            while IFS= read -r -d '' md_file; do
-                if [[ -f "$md_file" ]]; then
-                    echo -e "${GREEN}  ✓ Adding $(basename "$md_file")${RESET}"
-                    echo "# $(basename "$md_file" .md)" >> "$temp_file"
-                    echo "" >> "$temp_file"
-                    cat "$md_file" >> "$temp_file"
-                    echo "" >> "$temp_file"
-                    echo "" >> "$temp_file"
-                    ((files_found++))
-                fi
-            done < <(find "$tier_path" -maxdepth 1 -name "*.md" -type f -print0 | sort -z)
+            cat "$file_path" >> "$temp_file"
+            echo "" >> "$temp_file"
+            echo "" >> "$temp_file"
+            ((files_found++))
+        else
+            echo -e "${YELLOW}  ⚠ File not found: ${tier_file}${RESET}"
         fi
     done
     
