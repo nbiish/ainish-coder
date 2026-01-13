@@ -3,6 +3,9 @@
 # Handles setup of wrapper functions in shell configuration files
 
 setup_wrapper_functions() {
+    # Default ZSHRC if not set
+    : "${ZSHRC:=$HOME/.zshrc}"
+
     echo -e "${BRIGHT_BLUE}🔧 Updating .zshrc with wrapper functions...${RESET}"
     
     # Create backup
@@ -12,38 +15,28 @@ setup_wrapper_functions() {
         return 1
     fi
     
-    # Remove existing AINISH CODER WRAPPERS section
+    # Remove existing AINISH CODER WRAPPERS section(s) reliably using awk
     local temp_file="${ZSHRC}.tmp"
-    local in_section=0
-    local section_start_found=0
     
-    while IFS= read -r line; do
-        if [[ "$line" == "### AINISH CODER WRAPPERS ###" ]]; then
-            in_section=1
-            section_start_found=1
-            echo -e "${YELLOW}⚠️  Found existing AINISH CODER WRAPPERS section, removing...${RESET}"
-            continue
-        fi
-        
-        if [[ "$line" == "### END AINISH CODER WRAPPERS ###" ]]; then
-            in_section=0
-            echo -e "${GREEN}✓ Removed existing AINISH CODER WRAPPERS section${RESET}"
-            continue
-        fi
-        
-        if [[ $in_section -eq 0 ]]; then
-            echo "$line" >> "$temp_file"
-        fi
-    done < "$ZSHRC"
+    # Use awk to filter out the block. 
+    # This handles multiple occurrences and doesn't depend on exact line matching for content within the block.
+    awk '
+      /^### AINISH CODER WRAPPERS ###$/ {skip=1; found=1; next}
+      /^### END AINISH CODER WRAPPERS ###$/ {skip=0; next}
+      !skip {print}
+    ' "$ZSHRC" > "$temp_file"
     
-    if [[ $section_start_found -eq 0 ]]; then
-        echo -e "${YELLOW}ℹ️  No existing AINISH CODER WRAPPERS section found${RESET}"
+    if [[ $? -ne 0 ]]; then
+         echo -e "${BRIGHT_RED}Error: Failed to process .zshrc${RESET}"
+         rm -f "$temp_file"
+         return 1
     fi
-    
+
+    # Replace original file
     mv "$temp_file" "$ZSHRC"
     
     # Validate .zshrc after cleaning
-    if [[ ! -f "$ZSHRC" ]] || [[ ! -s "$ZSHRC" ]]; then
+    if [[ ! -f "$ZSHRC" ]]; then # Allow empty file, but must exist
         echo -e "${BRIGHT_RED}Error: .zshrc appears to be corrupted after cleaning${RESET}"
         if restore_backup "$backup_file"; then
             echo -e "${BRIGHT_GREEN}✅ .zshrc restored successfully${RESET}"
@@ -54,6 +47,11 @@ setup_wrapper_functions() {
         fi
     fi
     
+    # Ensure file ends with a newline before appending
+    if [[ -s "$ZSHRC" && "$(tail -c 1 "$ZSHRC")" != "" ]]; then
+        echo "" >> "$ZSHRC"
+    fi
+
     # Add new wrapper functions
     cat >> "$ZSHRC" << EOF
 ### AINISH CODER WRAPPERS ###
