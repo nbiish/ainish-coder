@@ -9,6 +9,7 @@
 
   <h2>🎯 What is ainish-coder?</h2>
   <p><strong>ainish-coder</strong> is a powerful configuration management tool that simplifies deploying AI coding assistant rules across multiple platforms. It creates a unified configuration system using the emerging AGENTS.md standard, ensuring consistent AI behavior across all your development tools.</p>
+</div>
 
 <div align="center">
   <hr width="50%">
@@ -30,29 +31,6 @@
   <hr width="50%">
 </div>
 
-## 📜 License & Contributing
-
-Please refer to the current [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md) files for legal terms and contribution guidelines.
-
-
-## 📚 Citation
-
-```bibtex
-@misc{ainish-coder2025,
-  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians},
-  title/description = {ainish-coder},
-  type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},
-  year = {2025},
-  publisher/source/event = {GitHub repository under tribal sovereignty protections},
-  howpublished = {\url{https://github.com/nbiish/ainish-coder}},
-  note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
-}
-```
-
-## ⚖️ Copyright
-
-Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
-
 ## 🔥 Key Features
 
 - **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
@@ -64,7 +42,6 @@ Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimi
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
 - **🛡️ Local Secret Protection**: Auto-sanitize known keys and generate a local security report for remediation
-
 
 ## 📦 Quick Start
 
@@ -107,52 +84,6 @@ ainish-coder --commands windsurf         # Deploy workflow commands
 ainish-coder --gitignore                 # Create comprehensive .gitignore
 ainish-coder --critical                  # Copy critical.md (license & contributing)
 ainish-coder --osa                       # Distribute OSA.md orchestration guide to target
-
-```
-
-## 🎯 What's New
-
-### 🆕 Tier-Based Rule Deployment
-
-Deploy modular rule sets organized by priority and purpose. **Tiers append to MAIRULES.md** for consolidated rule management. All tier rules are now located in the `TIER_RULES/` directory.
-
-- **TIER_0**: Documentation protocols (docs-protocol.md)
-- **TIER_1**: Code security best practices (code-security.md)
-- **TIER_2**: Prompt security guidelines (prompt-security.md)
-- **TIER_3**: Cultural styling preferences (anishinaabe-cyberpunk-style.md)
-- **TIER_4**: Advanced prompting techniques (modern-prompting.md)
-
-```bash
-ainish-coder --tier 1    # Appends TIER_1 to MAIRULES.md
-ainish-coder --tier all  # Appends all 5 tiers to MAIRULES.md
-```
-
-### Custom Commands Deployment
-
-Deploy tool-specific slash commands, workflows, and recipes directly to your current project.
-
-**Available Command Types:**
-
-- **File-Based Commands** (Cursor, Roo): Markdown files with slash command definitions
-- **Workflows** (Windsurf): Workflow markdown files for task automation
-- **Rules Files** (Cline): Markdown rules (NOT slash commands - see note below)
-- **Config-Based** (Continue): Prompts defined in config.yaml
-- **TOML Commands** (Gemini CLI, Qwen): TOML configuration files
-
-> **⚠️ Important Note about Cline**: Cline does **NOT** support custom slash commands. It only has two built-in commands (`/newtask` and `/newrule`). The `--commands cline` deployment creates `.clinerules` files with MANDATORY instructions, not slash commands. See [KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md](KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md) for details.
-
-```bash
-# Deploy to specific tools
-ainish-coder --commands cursor       # Plain markdown to .cursor/commands/
-ainish-coder --commands roocode      # Markdown + frontmatter to .roo/commands/
-ainish-coder --commands windsurf     # Workflows to .windsurf/workflows/
-ainish-coder --commands cline        # Rules files to .clinerules/ (NOT slash commands!)
-ainish-coder --commands continue     # Creates setup guide for config.yaml
-ainish-coder --commands gemini-cli   # TOML files to .gemini/commands/
-ainish-coder --commands qwen         # TOML files to .qwen/commands/
-
-# Deploy to all tools at once
-ainish-coder --commands all
 ```
 
 ## 🛠️ Supported AI Tools
@@ -164,9 +95,10 @@ ainish-coder --commands all
 | **Cursor** | `--cursor` | `--commands cursor` | `.cursor/rules/` | `.cursor/commands/*.md` | Plain markdown |
 | **Roo Code** | `--roocode` | `--commands roocode` | `.roo/rules/` | `.roo/commands/*.md` | Markdown + frontmatter |
 | **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` | `.windsurf/workflows/*.md` | Workflows |
-| **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/*.md` | Rules files (not slash commands) |
+| **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/*.md` | Rules files |
 | **Continue Dev** | `--continue` | `--commands continue` | `.continue/rules/` | Config guide | config.yaml setup |
 | **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` | N/A | Copied |
+| **Trae** | `--trae` | N/A | `.trae/rules/` | N/A | Markdown |
 
 ### CLI Tools
 
@@ -175,222 +107,15 @@ ainish-coder --commands all
 | **Gemini CLI** | `--gemini` | `--commands gemini-cli` | `.gemini/` | `.gemini/commands/*.toml` | TOML |
 | **Qwen Code** | `--qwen` | `--commands qwen` | `QWEN.md` | `.qwen/commands/*.toml` | TOML |
 
-## 📋 Complete Usage Guide
-
-### Recommended Workflow
-
-```bash
-# Navigate to your project directory
-cd /path/to/your/project
-
-# Step 1: Deploy core rules (RECOMMENDED FIRST)
-ainish-coder --rules                     # Deploys AGENTS.md, empty MAIRULES.md, critical.md, .gitignore, and llms.txt
-
-# Step 2: Deploy specific tiers to MAIRULES.md (optional)
-ainish-coder --tier 1                    # Append code security rules
-ainish-coder --tier 2                    # Append prompt security rules
-# OR deploy all tiers at once:
-ainish-coder --tier all                  # Append all 5 tiers to MAIRULES.md
-
-# Step 3: Deploy tool-specific configurations
-ainish-coder --cursor                    # Configure Cursor AI
-ainish-coder --windsurf                  # Configure Windsurf
-ainish-coder --copilot                   # Configure GitHub Copilot
-
-# Step 4: Deploy OSA (Ralph-First) Framework
-ainish-coder --osa                        # Deploys OSA.md, OSAVARS.toon, llms.txt, and TODO.md
-
-# Step 5: Deploy custom commands (optional)
-
-```
-
-### What Gets Deployed
-
-**Core Rules** (`--rules`):
-- Deploys `AGENTS.md` - Universal AI agent standard
-- Creates empty `MAIRULES.md` (append tiers later via `--tier` or `--mairules`)
-- Deploys `llms.txt` - Reference list of LLMs used
-- Files are created in the target directory
-
-**Individual Files** (`--agents` or `--mairules`):
-- Deploy files individually if you only need one
-
-**OSA Framework** (`--osa`):
-- Copies `OSA.md`, `OSAVARS.toon`, `llms.txt`, and `TODO.md` to the target directory
-- Establishes the Ralph-First (v3.0) orchestration model
-- Use for multi-agent tree management and autonomous deep-work loops
-
-**Tier Rules** (`--tier {0-4|all}`):
-- **Appends** tier content to `MAIRULES.md` in the target directory
-- Does NOT create `.mai-rules/` directory (consolidated approach)
-- Use `--tier all` to append all 5 tiers in one command
-
-**Tool Configurations** (`--cursor`, `--windsurf`, etc.):
-- Copies AGENTS.md and MAIRULES.md to tool-specific directories
-- All files are copied (not symlinked) for tool-specific customization
-- Requires AGENTS.md/MAIRULES.md to exist first (run `--rules` first)
-
-**Custom Commands** (`--commands {tool}`):
-- Deploys tool-specific commands from source prompts in `.github/prompts/`
-- Creates appropriate directory structure per tool
-- Converts formats as needed (markdown, TOML, YAML)
-- Currently available: cursor, roocode, windsurf, cline, continue, gemini-cli, qwen, all
-
-**Utilities**:
-- `--gitignore`: Creates comprehensive .gitignore (225 lines)
-- `--critical`: Copies critical.md (license & contributing guidelines)
-- `--template-agent`: Deploy customizable agent system prompt template
-
-### Template Agent System
-
-**🆕 Create Custom System Prompts** (`--template-agent`):
-
-The Template Agent System provides a comprehensive framework for crafting your AI agent's "constitution" - the core instructions that guide every interaction.
-
-```bash
-# Deploy template to current directory
-ainish-coder --template-agent
-
-# Deploy to specific project
-ainish-coder --template-agent ~/my-project
-```
-
-**Creates:** `.mai-rules/template-agent.md`
-
-**Features:**
-- 🎭 **Persona and Goals** - Define agent identity and objectives
-- 🛠️ **Tool Instructions** - Specify tool usage with examples
-- 📋 **Output Format** - Structure consistent responses
-- 🎯 **Miscellaneous** - Edge cases and refinement guidance
-- 📚 **Iteration Log** - Track improvements and changes
-- ✅ **Best Practices** - Built-in prompt engineering tips
-
-**Philosophy:** Start simple, iterate based on real behavior. No A/B testing needed on day one.
-
-**Includes:**
-- Clearly marked `[FILL_IN: ...]` sections for customization
-- Real-world examples and use cases
-- Quality assurance checklist
-- Version history tracking
-- Common refinement patterns
-
-**Documentation:**
-- Quick Start: `.mai-rules/TEMPLATE_AGENT_QUICKSTART.md`
-- Complete Guide: `KNOWLEDGE_BASE/TEMPLATE_AGENT_SYSTEM.md`
-- Example (Python Security): `.mai-rules/template-agent-example-python-security.md`
-
-### Orchestrator Patterns (OSA)
-
-Use `ainish-coder --osa` to distribute `OSA.md` to your project root. This guide covers execution patterns (Sequential, Parallel, Pipeline, Feedback Loop), compile prompt schema, and agent tool mappings to coordinate orchestrator and sub-agent workflows.
-
-### Local Secret Protection
-
-This repo is designed to be **local-first**:
-
-1. **Auto-sanitization** (known key patterns and sensitive paths)
-2. **Local scanning** that generates `SECURITY_REPORT.md` with recommendations for what to fix
-
-
-### Available Tier Rules
-
-| Tier | Focus Area | Files | Priority | Lines |
-|------|-----------|-------|----------|-------|
-| **0** | Documentation | `docs-protocol.md` | Critical | 13 |
-| **1** | Code Security | `code-security.md` | High | 279 |
-| **2** | Prompt Security | `prompt-security.md` | High | 291 |
-| **3** | Cultural Style | `anishinaabe-cyberpunk-style.md` | Medium | 147 |
-| **4** | Advanced Prompting | `modern-prompting.md` | Medium | 887 |
-| **all** | All Tiers Combined | All 5 tier files | - | 1617 |
-
-### Tool-Specific Target Directories
-
-| Tool | Configuration Command | Commands Deployment | Format | Notes |
-|------|----------------------|---------------------|--------|-------|
-| **Cursor** | `--cursor` | `--commands cursor` | Plain markdown | `.cursor/rules/` + `.cursor/commands/*.md` |
-| **Roo Code** | `--roocode` | `--commands roocode` | Markdown + frontmatter | `.roo/rules/` + `.roo/commands/*.md` |
-| **Windsurf** | `--windsurf` | `--commands windsurf` | Workflows | `.windsurf/rules/` + `.windsurf/workflows/*.md` |
-| **Cline** | `--cline` | `--commands cline` | Workflows | `.clinerules/` + `.clinerules/workflows/*.md` |
-| **Continue Dev** | `--continue` | `--commands continue` | Config guide | `.continue/rules/` + setup guide for config.yaml |
-| **GitHub Copilot** | `--copilot` | N/A | Copied | `.github/copilot-instructions.md` |
-| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | TOML | Copied + `.gemini/commands/*.toml` |
-| **Qwen Code** | `--qwen` | `--commands qwen` | TOML | `QWEN.md` copied from AGENTS.md + `.qwen/commands/*.toml` |
-
-**Important:** Tool-specific configurations require `AGENTS.md` and `MAIRULES.md` to exist first. Run `ainish-coder --rules` before tool-specific deployments.
-
-### Configuration Hierarchy
-
-The tool follows a hierarchical configuration approach:
-
-1. `MAIRULES.md` (project root) - Consolidated rules from all tiers
-2. `AGENTS.md` (project root) - Universal AI agent standard
-3. Tool-specific configurations (`.cursor/rules/`, `.windsurf/rules/`, etc.)
-4. Default AI tool behavior
-
-**Note:** The `--tier` commands append content to MAIRULES.md, consolidating all rules in a single file for easier management.
-
-## 📁 Project Structure
-
-```text
-ainish-coder/
-├── bin/
-│   └── ainish-coder           # Main CLI tool
-├── CONFIGURATIONS/            # Tool-specific configurations
-│   ├── .cursor/
-│   │   ├── commands/          # Cursor slash commands source
-│   │   └── rules/             # Cursor rules (not used by CLI)
-│   ├── .windsurf/
-│   │   ├── commands/          # Windsurf workflows source
-│   │   └── rules/             # Windsurf rules (not used by CLI)
-│   ├── .gemini/               # Gemini configs
-│   ├── .qwen/                 # Qwen configs
-│   └── MCP/                   # Model Context Protocol configs
-├── dna/                       # Modular architecture
-│   ├── atoms/                 # Core utilities (colors, paths, validation)
-│   ├── molecules/             # Deployment functions (deploy_*.sh)
-│   └── proteins/              # Higher-level orchestration
-├── TIER_RULES/                # Tier-based rule files
-│   ├── docs-protocol.md       # TIER_0: Documentation protocols
-│   ├── code-security.md       # TIER_1: Code security
-│   ├── prompt-security.md     # TIER_2: Prompt security
-│   ├── anishinaabe-cyberpunk-style.md  # TIER_3: Cultural styling
-│   └── modern-prompting.md    # TIER_4: Advanced prompting
-├── AGENTS.md                  # Universal AI agent instructions (223 lines)
-├── MAIRULES.md                # Empty template (populated by deployment)
-├── ainish-setup.sh            # Setup script
-└── KNOWLEDGE_BASE/            # Documentation
-    ├── TODO.md
-    ├── TEST_RESULTS.md        # Comprehensive test documentation
-    └── DEVELOPMENT.md         # Developer workflow guide
-```
-
 ## 🎨 Tier Rules Explained
 
 Rules are organized into tiers by priority and purpose:
 
-### TIER_0 - Documentation Protocols (Critical)
-
-- **docs-protocol.md**: Documentation standards and best practices
-- Essential guidelines for maintaining project documentation
-
-### TIER_1 - Code Security (High Priority)
-
-- **code-security.md**: Comprehensive code security best practices
-- Input validation, authentication, encryption, and vulnerability prevention
-
-### TIER_2 - Prompt Security (High Priority)
-
-- **prompt-security.md**: AI prompt injection defense and security
-- Protection against prompt manipulation and jailbreak attempts
-
-### TIER_3 - Cultural Styling (Optional)
-
-- **anishinaabe-cyberpunk-style.md**: Anishinaabe cyberpunk aesthetic preferences
-- Optional cultural and stylistic guidelines
-
-### TIER_4 - Advanced Prompting (Optional)
-
-- **modern-prompting.md**: OOReDAct framework and advanced prompting techniques
-- Chain-of-Thought, Tree-of-Thought, and modern AI interaction patterns
+- **TIER_0 (Documentation)**: `docs-protocol.md` - Documentation standards and best practices (Critical)
+- **TIER_1 (Code Security)**: `code-security.md` - Comprehensive code security best practices (High)
+- **TIER_2 (Prompt Security)**: `prompt-security.md` - AI prompt injection defense and security (High)
+- **TIER_3 (Cultural Style)**: `anishinaabe-cyberpunk-style.md` - Anishinaabe cyberpunk aesthetic preferences (Medium)
+- **TIER_4 (Advanced Prompting)**: `modern-prompting.md` - OOReDAct framework and advanced prompting techniques (Medium)
 
 ## 🏗️ Architecture
 
@@ -400,146 +125,35 @@ The tool is built with a modular, extensible design following the Atomic Design 
 - **Atoms** (`dna/atoms/`): Core utilities (colors, paths, validation, file operations)
 - **Molecules** (`dna/molecules/`): Deployment functions (deploy_*.sh)
 - **Proteins** (`dna/proteins/`): Higher-level orchestration
-- **CONFIGURATIONS** (`CONFIGURATIONS/`): Centralized tool-specific configs
+- **CONFIGURATIONS** (`CONFIGURATIONS/`): Centralized tool-specific configs (now centralized in `.configs/`)
 - **TIER_RULES** (`TIER_RULES/`): Modular rule sets organized by priority
 
-### Design Principles
+## 📚 Citation
 
-1. **Modularity**: Rules and configs separated by tool and priority
-2. **Simplicity**: Single bash script CLI with clear command structure
-3. **Extensibility**: Easy to add new tiers or tool configurations
-4. **Portability**: Works across Unix-like systems (macOS, Linux)
-5. **No Reinstall**: Changes take effect immediately (scripts in PATH)
+```bibtex
+@misc{ainish-coder2025,
+  author/creator/steward = {ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians},
+  title/description = {ainish-coder},
+  type_of_work = {Indigenous digital creation/software incorporating traditional knowledge and cultural expressions},
+  year = {2025},
+  publisher/source/event = {GitHub repository under tribal sovereignty protections},
+  howpublished = {\url{https://github.com/nbiish/ainish-coder}},
+  note = {Authored and stewarded by ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band and enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Indigenous intellectual property, traditional knowledge systems (TK), traditional cultural expressions (TCEs), and associated data protected under tribal law, federal Indian law, treaty rights, Indigenous Data Sovereignty principles, and international indigenous rights frameworks including UNDRIP. All usage, benefit-sharing, and data governance are governed by the COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS WITH TRIBAL SOVEREIGNTY, DATA SOVEREIGNTY, AND WEALTH RECLAMATION PROTECTIONS.}
+}
+```
 
-## 🤝 Contributing
+## ⚖️ Copyright
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+```markdown
+Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians. This work embodies Traditional Knowledge and Traditional Cultural Expressions. All rights reserved.
+```
 
-## 📄 License
+## 📜 License & Contributing
 
-See [LICENSE](LICENSE) for details.
+Please refer to the current [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md) files for legal terms and contribution guidelines.
 
 ---
-
 
 <div align="center">
   <p>◈──◆──◇ Made with ♥ by the AINISH community ◇──◆──◈</p>
 </div>
-
----
-
-## Repository snapshot (eza --all --tree --level=2)
-
-Generated: 2025-11-08
-
-Command run: `eza --all --tree --level=2`
-
-```text
-.
-├── .clinerules
-├── .configs
-│   ├── .claude
-│   ├── .clinerules
-│   ├── .continue
-│   ├── .cursor
-│   ├── .gemini
-│   ├── .mai-rules
-│   ├── .qwen
-│   ├── .roo
-│   ├── .trae
-│   ├── .windsurf
-│   └── MCP
-├── .continue
-│   ├── prompts
-│   └── rules
-├── .copilotignore
-├── .copilotindexignore
-├── .cursor
-│   ├── commands
-│   └── rules
-├── .cursorignore
-├── .cursorindexignore
-├── .DS_Store
-├── .gemini
-│   ├── AGENTS.md
-│   ├── commands
-│   └── MAIRULES.md
-├── .git
-│   ├── COMMIT_EDITMSG
-│   ├── config
-│   ├── cursor_metadata.pb
-│   ├── description
-│   ├── FETCH_HEAD
-│   ├── HEAD
-│   ├── hooks
-│   ├── index
-│   ├── info
-│   ├── logs
-│   ├── objects
-│   ├── ORIG_HEAD
-│   ├── packed-refs
-│   └── refs
-├── .git-secrets-setup.sh
-├── .github
-│   ├── copilot-instructions.md
-│   ├── FUNDING.yml
-│   ├── prompts
-│   └── workflows
-├── .gitignore
-├── .windsurf
-│   ├── rules
-│   └── workflows
-├── AGENTS.md
-├── bin
-│   ├── ainish-coder
-│   ├── ainish-coder.bak
-│   └── README.md
-├── buymeacoffee-button.svg
-├── CHECKLIST.md
-├── CONTRIBUTING.md
-├── critical.md
-├── dna
-│   ├── atoms
-│   ├── molecules
-│   ├── proteins
-│   └── README.md
-├── fix-path.sh
-├── GITHUB_ACTIONS_SETUP.md
-├── knowledge-base
-│   ├── CLINE_RULES_SYSTEM.md
-│   ├── COMPREHENSIVE_DEPLOYMENT_UPDATE.md
-│   ├── DEVELOPMENT.md
-│   ├── IMPLEMENTATION_VERIFICATION_REPORT.md
-│   ├── OSAA_FRAMEWORK.md
-│   ├── OSAA_IMPLEMENTATION.md
-│   ├── SECRET_PROTECTION_SETUP.md
-│   ├── SLASH_COMMANDS_CORRECTIONS.md
-│   ├── SLASH_COMMANDS_DEPLOYMENT.md
-│   ├── TEMPLATE_AGENT_IMPLEMENTATION.md
-│   ├── TEMPLATE_AGENT_SYSTEM.md
-│   ├── TEST_RESULTS.md
-│   ├── TODO.md
-│   ├── TRAE_INTEGRATION.md
-│   ├── TRAE_QUICK_REFERENCE.md
-│   ├── TRAE_RESEARCH_SOURCES.md
-│   ├── TRAE_RULES_VERIFICATION.md
-│   └── VSCODE_COPILOT_DEPLOYMENT.md
-├── LICENSE
-├── MAIRULES.md
-├── OSAA.md
-├── Privacy-Policy.md
-├── qr-stripe-donation.png
-├── README.md
-├── Terms-of-Service.md
-├── TIER_0_RULES
-│   └── docs-protocol.md
-├── TIER_1_RULES
-│   └── uv-python.md
-├── TIER_2_RULES
-│   ├── code-security.md
-│   └── prompt-security.md
-├── TIER_3_RULES
-│   └── anishinaabe-cyberpunk-style.md
-└── TIER_4_RULES
-    └── modern-prompting.md
-```

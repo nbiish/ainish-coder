@@ -12,7 +12,7 @@ install_global_mairules() {
     fi
     
     # Copy MAIRULES.md to global location
-    local source="${TIER_1_DIR}/MAIRULES.md"
+    local source="${REPO_DIR}/MAIRULES.md"
     local dest="${MAI_RULES_GLOBAL_DIR}/MAIRULES.md"
     
     if [[ ! -f "$source" ]]; then
@@ -31,9 +31,9 @@ install_global_mairules() {
     # Copy tier-specific rules to global .mai-rules directory
     echo -e "${BRIGHT_BLUE}Installing tier-specific rules...${RESET}"
     
-    local tiers=("TIER_0" "TIER_2_RULES" "TIER_3_RULES" "TIER_4_RULES")
+    local tiers=("TIER_0_RULES" "TIER_1_RULES" "TIER_2_RULES" "TIER_3_RULES" "TIER_4_RULES")
     for tier_var in "${tiers[@]}"; do
-        local tier_dir="${REPO_DIR}/${tier_var}"
+        local tier_dir="${REPO_DIR}/TIER_RULES/${tier_var}"
         if [[ -d "$tier_dir" ]]; then
             for rule_file in "$tier_dir"/*.md; do
                 if [[ -f "$rule_file" ]]; then
@@ -63,7 +63,7 @@ install_global_qwen() {
     fi
     
     # Copy consolidated QWEN.md
-    local source="${TIER_1_DIR}/MAIRULES.md"
+    local source="${REPO_DIR}/MAIRULES.md"
     local dest="${QWEN_GLOBAL_DIR}/QWEN.md"
     
     if [[ -f "$source" ]] && cp "$source" "$dest" 2>/dev/null; then
@@ -87,7 +87,7 @@ install_global_gemini() {
     fi
     
     # Copy consolidated GEMINI.md
-    local source="${TIER_1_DIR}/MAIRULES.md"
+    local source="${REPO_DIR}/MAIRULES.md"
     local dest="${GEMINI_GLOBAL_DIR}/GEMINI.md"
     
     if [[ -f "$source" ]] && cp "$source" "$dest" 2>/dev/null; then
