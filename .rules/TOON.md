@@ -1,10 +1,6 @@
 # TOON: Token-Oriented Object Notation
-> **Version**: 2.0.0 (SOTA 2026)
-> **Status**: Core OSA Standard
-> **Protocol**: REQUIRED for all Shared State
 
 ## Protocol Directive
-**You MUST use TOON** for all shared state, logging, and high-density data exchange.
 **Goal**: Maximize information density per token.
 **Constraint**: Do not use JSON or YAML for lists > 3 items.
 
@@ -137,54 +133,15 @@ logs[3]{ts,level,msg}:
   2026-01-01,ERROR,Failed
 ```
 
-## OSA Framework Usage
-
-In the Orchestrated System of Agents (OSA), TOON is used for:
-
 ### Core Files
 
 | File | Purpose | Key Schemas |
 |------|---------|-------------|
-| `MEMORY.toon` | Session context | `context{}`, `facts{topic,detail}` |
-| `PRD.toon` | Product requirements | `product{}`, `features{id,name,pri,status}` |
-| `TODO.toon` | Task management | `tasks{id,status,desc}` |
-| `llms.txt` | Protocol definitions | Documentation + schemas |
+| `MEMORY.md` | Session context | `context{}`, `facts{topic,detail}` |
+| `PRD.md` | Product requirements | `product{}`, `features{id,name,pri,status}` |
+| `TODO.md` | Task management | `tasks{id,status,desc}` |
 
-### Agent Handoffs
-Passing high-density context between Gemini (Trunk) and sub-agents.
-
-### Example `OSAVARS.toon` (Shared State Pattern)
-
-```toon
-# OSAVARS.toon
-session:
-  id: RUN-8821
-  objective: Refactor Auth System
-  started_at: 2026-01-14T01:00:00Z
-  status: ACTIVE
-
-# Kanban Backlog (Optional)
-backlog[3]{id,task,status}:
-  1,Create Login UI,DONE
-  2,Add Zod Validation,PENDING
-  3,Connect Auth API,PENDING
-
-vars{key,val}:
-  MAX_RETRIES,5
-  TARGET_DIR,src/auth
-  TEST_STATUS,PASSING
-  API_BASE_URL,https://api.example.com
-
-agents[2]{name,role,status}:
-  Gemini,Implementation,IDLE
-  Qwen,Review,ACTIVE
-
-log[2]{ts,agent,msg}:
-  10:00,Gemini,Started refactor loop
-  10:05,Gemini,Updated login.ts
-```
-
-### Example `MEMORY.toon`
+### Example `MEMORY.md`
 
 ```toon
 context:
@@ -210,7 +167,7 @@ last_session:
   duration_minutes: 45
 ```
 
-### Example `PRD.toon`
+### Example `PRD.md`
 
 ```toon
 product:
@@ -288,49 +245,6 @@ data[3]{name,id}:  # First entry has different schema
 | Booleans | is/are/has prefix | `is_active`, `has_error` |
 | Constants | UPPER_SNAKE_CASE | `MAX_RETRIES`, `API_BASE_URL` |
 
-## File Extension & MIME
-
-| Attribute | Value |
-|-----------|-------|
-| File Extension | `.toon` |
-| MIME Type | `application/toon` |
-| Editor Support | VS Code, Vim, Neovim |
-
-## Tooling Support
-
-### Parsers
-
-```python
-# Example Python parser
-import re
-
-def parse_toon(content):
-    """Parse TOON format into Python dict."""
-    lines = content.strip().split('\n')
-    result = {}
-    # Implementation...
-    return result
-```
-
-### Validators
-
-```python
-def validate_toon(content):
-    """Validate TOON format and schema consistency."""
-    # Check array counts match entries
-    # Check schema consistency
-    # Return (is_valid, errors)
-    pass
-```
-
-### Formatters
-
-```bash
-# Format and sort TOON file
-toon format --sort config.toon
-toon validate file.toon
-```
-
 ## Integration Points
 
 ### LLM Context Injection
@@ -341,19 +255,6 @@ toon validate file.toon
 [CONTEXT]
 [MEMORY]
 [TASK]
-```
-
-### Agent Communication
-
-```toon
-# Agent handoff format
-handoff:
-  from: Gemini
-  to: Qwen
-  task: Generate API routes
-  context: |
-    {previous_context}
-  output_format: toon
 ```
 
 ### State Persistence

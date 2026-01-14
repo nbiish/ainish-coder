@@ -9,7 +9,7 @@ USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
+    --rules [TARGET_DIR]      Deploy AGENTS.md, AGENTS_SECURE.md, and .rules/ directory (MEMORY.md, PRD.md, etc.)
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
     
