@@ -10,6 +10,10 @@ PATTERNS=(
     "tvly-[a-zA-Z0-9-]{30,}"
     "BRAVE_API_KEY.*[\"'][^\"']{10,}[\"']"
     "tavilyApiKey=[^&\"\\s]{10,}"
+    "AIza[0-9A-Za-z-_]{35}"
+    "hf_[a-zA-Z0-9]{34}"
+    "sk_live_[0-9a-zA-Z]{24}"
+    "glpat-[0-9a-zA-Z-]{20}"
     "ghp_[A-Za-z0-9]{36}"
     "gho_[A-Za-z0-9]{36}"
     "ghu_[A-Za-z0-9]{36}"
@@ -23,6 +27,20 @@ PATTERNS=(
     "/Volumes/[A-Za-z0-9._-]+/"
     "/Users/[A-Za-z0-9._-]+/"
 )
+
+# Check for Legacy Crypto (ASI06/FIPS 204 Compliance)
+# We scan specifically for RSA keys to warn about Post-Quantum migration
+RSA_MATCHES=$(grep -rIn "BEGIN RSA PRIVATE KEY" . \
+    --exclude-dir={.git,node_modules,venv,.venv,target,dist,build,__pycache__} \
+    --exclude="$OUTPUT_FILE" \
+    --exclude="scan_secrets.sh" \
+    --exclude="sanitize.py" \
+    2>/dev/null)
+
+if [ -n "$RSA_MATCHES" ]; then
+    echo "⚠️  Legacy RSA Keys detected. Per FIPS 204 (2026), consider migrating to ML-DSA." >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+fi
 
 # Start report
 echo "# Security Scan Report" > "$OUTPUT_FILE"

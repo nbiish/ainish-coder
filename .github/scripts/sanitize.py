@@ -35,11 +35,17 @@ def sanitize_text(text: str) -> str:
         return text
 
     patterns: List[tuple[str, str, int]] = [
+        # OWASP ASI04: Information Disclosure (Secrets)
         (r"tvly-[a-zA-Z0-9-]{30,}", "YOUR_TAVILY_API_KEY_HERE", 0),
         (r"tavilyApiKey=[^&\"\s]{10,}", "tavilyApiKey=YOUR_TAVILY_API_KEY_HERE", 0),
         (r"BSA[a-zA-Z0-9]{27}", "YOUR_BRAVE_API_KEY_HERE", 0),
         (r"\bsk-ant-[a-zA-Z0-9_-]{20,}\b", "YOUR_ANTHROPIC_API_KEY_HERE", 0),
         (r"\bsk-[a-zA-Z0-9]{20,}\b", "YOUR_OPENAI_API_KEY_HERE", 0),
+        (r"\bAIza[0-9A-Za-z-_]{35}\b", "YOUR_GOOGLE_API_KEY_HERE", 0),
+        (r"\bhf_[a-zA-Z0-9]{34}\b", "YOUR_HUGGINGFACE_TOKEN_HERE", 0),
+        (r"\bglpat-[0-9a-zA-Z-]{20}\b", "YOUR_GITLAB_TOKEN_HERE", 0),
+        (r"\bkey-[0-9a-zA-Z]{32}\b", "YOUR_MAILGUN_API_KEY_HERE", 0),
+        (r"\bsk_live_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_SECRET_KEY_HERE", 0),
         (r"\bghp_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bgho_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bghu_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
@@ -49,6 +55,7 @@ def sanitize_text(text: str) -> str:
         (r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", "YOUR_SLACK_TOKEN_HERE", 0),
         (r"\bAKIA[0-9A-Z]{16}\b", "YOUR_AWS_ACCESS_KEY_ID_HERE", 0),
         (r"(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", "YOUR_PRIVATE_KEY_HERE", re.DOTALL),
+        # Local paths (ASI04)
         (r"/Volumes/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/volume", 0),
         (r"/Users/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/home", 0),
     ]
