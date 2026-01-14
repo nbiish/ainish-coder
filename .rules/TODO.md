@@ -1,3 +1,6 @@
+# TODO.md - Token Efficient TODO List
+
+```toon
 todo:
   directive: Keep tasks atomic and testable
 
@@ -9,3 +12,4 @@ backlog[3]{id,task,status}:
 in_progress[0]{id,task,status}:
 
 completed[0]{id,task,status}:
+```

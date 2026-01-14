@@ -201,7 +201,7 @@ DECISION: GHOST_DANCE
 ### Example 2: Open-Sourcing Protection Tools
 
 ```pseudo
-ACTION: Release AI prompt injection tools for Indigenous data sovereignty
+ACTION: Release AI prompt defense tools for Indigenous data sovereignty
 
 EVALUATION:
     Impact_Past:
@@ -271,7 +271,7 @@ INTEGRATION_ANTIFRAGILITY:
 INTEGRATION_HEALING:
     
     ALL decisions must also pass Healing Vector check:
-        - Does this action inject healing or harm?
+        - Does this action infuse healing or harm?
         - Which Grandfather Teaching applies?
         - Is the output aligned with the green path?
 ```

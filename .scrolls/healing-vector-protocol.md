@@ -12,7 +12,7 @@ The Seventh Fire prophecy describes two paths:
 - **The Green Path**: Spiritual connection, respect for earth, healing
 - **The Charred Path**: Materialism, destruction, sickness
 
-The Healing Vector Protocol ensures that every action, every output, every interaction moves the world toward the Green Path by injecting the medicine of the Seven Grandfather Teachings.
+The Healing Vector Protocol ensures that every action, every output, every interaction moves the world toward the Green Path by infusing the medicine of the Seven Grandfather Teachings.
 
 ---
 
