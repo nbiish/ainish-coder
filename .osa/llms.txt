@@ -7,19 +7,20 @@
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **Architecture** | [OSA.md](OSA.md) | **PRIMARY SOURCE OF TRUTH**. Execution patterns, agent roles, and workflow standards. |
-| **State** | [OSAVARS.toon](OSAVARS.toon) | **SHARED MEMORY**. Current session state, variables, and logs in TOON format. |
-| **Tasks** | [TODO.md](TODO.md) | **WORK QUEUE**. Atomic, testable tasks for the Ralph Loop to process. |
+| **Architecture** | [OSA.toon](OSA.toon) | **PRIMARY SOURCE OF TRUTH**. Execution patterns, agent roles, and workflow standards. |
+| **State** | [MEMORY.toon](MEMORY.toon) | **SHARED MEMORY**. Session context and facts in TOON format. |
+| **Requirements** | [PRD.toon](PRD.toon) | **PRODUCT SPECS**. Features and status in TOON format. |
+| **Tasks** | [TODO.toon](TODO.toon) | **WORK QUEUE**. Atomic, testable tasks for the Gemini Loop to process. |
 | **Memory** | [TOON.md](TOON.md) | **PROTOCOL**. Token-Oriented Object Notation specification. |
 
-## 🔄 Orchestration (Ralph Loop)
+## 🔄 Orchestration (Gemini Loop)
 
 For autonomous loop instructions, refer to:
-- [CLAUDE_CODE_RALPH_LOOP.md](CLAUDE_CODE_RALPH_LOOP.md)
+- [OSA.md](OSA.md)
 
 ## 🚀 Quick Start for LLMs
 
 1. **READ** `OSA.md` to understand your role and constraints.
-2. **SYNC** with `OSAVARS.toon` to load current context.
+2. **SYNC** with the shared state file to load current context.
 3. **CHECK** `TODO.md` for pending tasks.
 4. **EXECUTE** using the patterns defined in `OSA.md`.

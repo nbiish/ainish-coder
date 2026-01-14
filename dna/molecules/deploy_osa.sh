@@ -39,23 +39,23 @@ deploy_osa() {
 
     validate_target_dir "$target_dir" || return 1
 
-    echo -e "${BRIGHT_BLUE}Deploying OSA 4.0 (Memori-Driven) Orchestration Framework${RESET}"
+    local osa_dir="$target_dir/.osa"
+    echo -e "${BRIGHT_BLUE}Deploying OSA Framework to: $osa_dir${RESET}"
+
+    # Create .osa directory
+    if ! mkdir -p "$osa_dir"; then
+        print_error "Failed to create directory: $osa_dir"
+        return 1
+    fi
     
-    local files=("OSA.md" "OSAVARS.toon" "llms.txt" "TODO.md" "CLAUDE_CODE_RALPH_LOOP.md" "TOON.md")
+    local files=("OSA.toon" "llms.txt")
     local success=0
 
     for file in "${files[@]}"; do
         local src_file="$source_dir/.osa/$file"
-        local dest_file="$target_dir/$file"
+        local dest_file="$osa_dir/$file"
         
         if [[ -f "$src_file" ]]; then
-            # Avoid copying if source and dest are the same file
-            if [[ "$src_file" -ef "$dest_file" ]]; then
-                echo -e "${GREEN}✓ Skipped: $file (same file)${RESET}"
-                ((success++))
-                continue
-            fi
-
             cp "$src_file" "$dest_file"
             echo -e "${GREEN}✓ Deployed: $file${RESET}"
             ((success++))
@@ -64,23 +64,11 @@ deploy_osa() {
         fi
     done
 
-    if [[ $success -eq ${#files[@]} ]]; then
-        echo -e "${BRIGHT_GREEN}✅ OSA Framework (v4.0) fully deployed to $target_dir${RESET}"
+    if [[ $success -gt 0 ]]; then
+        echo -e "${BRIGHT_GREEN}✅ OSA Framework deployed to $osa_dir${RESET}"
     else
-        echo -e "${YELLOW}⚠ OSA Framework partially deployed ($success/${#files[@]} files)${RESET}"
+        echo -e "${YELLOW}⚠ OSA Framework partially deployed or empty${RESET}"
     fi
 
-    # Check for Memori CLI
-    if ! command -v memori &> /dev/null; then
-        echo -e "${YELLOW}⚠ Warning: 'memori' CLI not found.${RESET}"
-        echo -e "${CYAN}  Please install it: npm install -g @memorilabs/memori${RESET}"
-    else
-        echo -e "${GREEN}✓ 'memori' CLI detected${RESET}"
-    fi
-
-    echo -e "${CYAN}Next steps:${RESET}"
-    echo -e "${CYAN}  1. Initialize collective memory: memori init${RESET}"
-    echo -e "${CYAN}  2. Start Trunk: claude -p \"/ralph-loop 'Initiate framework...'\"${RESET}"
-    echo -e "${CYAN}  3. Ralph (Claude) will use Memori to coordinate Gemini and Qwen branches${RESET}"
     return 0
 }

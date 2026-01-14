@@ -128,6 +128,9 @@ main() {
         
         # Core rules deployment
         --rules)
+            echo -e "${BRIGHT_BLUE}Deploying Rules System${RESET}"
+            
+            # Deploy AGENTS.md
             deploy_agents "$target_dir"
             
             # Deploy AGENTS_SECURE.md
@@ -139,14 +142,24 @@ main() {
                  echo -e "${BRIGHT_RED}Error: AGENTS_SECURE.md not found at $secure_source${RESET}"
             fi
 
-            # Deploy MAIRULES.md
-            local mairules_source="${REPO_DIR}/MAIRULES.md"
-            if [[ -f "$mairules_source" ]]; then
-                cp "$mairules_source" "$target_dir/MAIRULES.md"
-                echo -e "${GREEN}✓ Created MAIRULES.md at $target_dir${RESET}"
+            # Deploy .rules directory
+            local rules_dir="$target_dir/.rules"
+            local source_rules="${REPO_DIR}/.rules"
+            
+            echo -e "${BRIGHT_BLUE}Deploying .rules directory to: $rules_dir${RESET}"
+            if mkdir -p "$rules_dir"; then
+                if [[ -d "$source_rules" ]]; then
+                    # Copy contents recursively
+                    if cp -R "$source_rules/." "$rules_dir/"; then
+                        echo -e "${GREEN}✓ Deployed .rules directory${RESET}"
+                    else
+                         echo -e "${BRIGHT_RED}Error: Failed to copy .rules contents${RESET}"
+                    fi
+                else
+                    echo -e "${BRIGHT_RED}Error: Source .rules directory not found at $source_rules${RESET}"
+                fi
             else
-                 : > "$target_dir/MAIRULES.md"
-                 echo -e "${GREEN}✓ Created empty MAIRULES.md at $target_dir${RESET}"
+                print_error "Failed to create directory: $rules_dir"
             fi
             ;;
         --agents)
