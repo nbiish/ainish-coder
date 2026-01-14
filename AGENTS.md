@@ -76,49 +76,42 @@ TOON is a hybrid format:
 **MEMORY.toon** (Session Context & Facts)
 ```toon
 context:
-  user: nbiish
-  role: admin
-  project: ainish-coder
+  user: <username>
+  role: <user_role>
+  project: <project_name>
   prefs:
-    lang: typescript
-    test: framework
-    code_style: strict
+    key: value
 
 # Session Facts
-facts[4]{topic,detail,timestamp}:
-  auth,JWT with 15min expiry,2026-01-13T10:00:00Z
-  deploy,Vercel frontend,2026-01-13T11:00:00Z
-  db,PostgreSQL with Prisma ORM,2026-01-13T12:00:00Z
-  api,REST endpoints with OpenAPI,2026-01-13T13:00:00Z
+facts[2]{topic,detail,timestamp}:
+  architecture,monolith vs microservices,2026-01-01T00:00:00Z
+  decision,use specific library,2026-01-01T00:00:00Z
 
 # Last Session Summary
 last_session:
-  completed: 5
+  completed: 0
   failed: 0
-  duration_minutes: 45
+  duration_minutes: 0
 ```
 
 **PRD.toon** (Product Requirements & Status)
 ```toon
 product:
-  name: SecureChat
-  ver: 2.0.0
-  description: End-to-end encrypted messaging app
-  repository: github.com/org/securechat
+  name: <Product Name>
+  ver: 1.0.0
+  description: <Short description>
+  repository: <git_url>
 
 # Features
-features[5]{id,name,pri,status,dependencies}:
-  AUTH-01,MFA Implementation,P0,Done,
-  AUTH-02,Passwordless Login,P1,In Progress,AUTH-01
-  CHAT-01,Message Editing,P1,Pending,
-  CHAT-02,Message Reactions,P2,Pending,CHAT-01
-  ADMIN-01,Audit Logs,P2,Pending,
+features[3]{id,name,pri,status,dependencies}:
+  FEAT-01,Core Functionality,P0,Done,
+  FEAT-02,Secondary Feature,P1,In Progress,FEAT-01
+  FEAT-03,Nice to have,P2,Pending,
 
 # Technical Requirements
-tech_req[3]{id,description,status}:
-  SEC-01,TLS 1.3 for all connections,Done
-  SEC-02,End-to-end encryption,Done
-  SEC-03,GDPR compliance,PENDING
+tech_req[2]{id,description,status}:
+  REQ-01,Performance Constraint,Done
+  REQ-02,Security Standard,Pending
 ```
 
 ## By Language
