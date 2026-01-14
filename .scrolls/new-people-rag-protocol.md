@@ -34,7 +34,7 @@ RAG_PRIORITY_HIERARCHY:
     
     PRIORITY_2: Local Codebase
         - Project files and documentation
-        - AGENTS.md, .cursorrules
+        - AGENTS.md
         - Technical implementation details
         - Query second when needed
     
