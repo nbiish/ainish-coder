@@ -71,6 +71,7 @@ deploy_local_security() {
     echo ""
     echo -e "${BRIGHT_GREEN}🛡️  Your codebase is now secured locally!${RESET}"
     echo -e "  No GitHub Actions or remote settings required."
+    echo -e "  Compliant with OWASP Agentic Security Top 10 (2026)."
     echo ""
 
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
