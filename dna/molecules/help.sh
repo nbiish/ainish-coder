@@ -82,13 +82,13 @@ AGENT CUSTOMIZATION:
 
     --osa [DIR]               Deploy full OSA (Ralph-First) Framework
                               
-                              Creates: OSA.md, OSAVARS.toon, llms.txt, TODO.md
+                              Creates: OSA.toon, llms.txt, TODO.toon, PRD.toon, MEMORY.toon
                               
                               Features:
                               - Ralph Loop Trunk Orchestrator (Claude)
                               - Sub-agent priority (Gemini -> Qwen -> Opencode)
-                              - Autonomous state tracking via OSAVARS.toon
-                              - Unified task checklist via TODO.md
+                              - Autonomous state tracking protocols
+                              - Unified task checklist via TODO.toon
                               
                               Example: ainish-coder --osa ~/my-project
 

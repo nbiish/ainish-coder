@@ -36,7 +36,7 @@
 - **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
 - **🏗️ Modular Architecture**: Clean Atom → Molecule → Protein structure
 - **🤖 Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code, and Trae
-- **🔄 OSA (Ralph-First) Framework**: Mandatory Ralph Loop orchestration with Gemini/Qwen/Opencode agents
+- **🔄 OSA (Gemini-First) Framework**: Mandatory Gemini Loop orchestration with Qwen/OpenCode/Crush/Goose agents
 - **⚡ Simple Deployment**: One command to deploy configurations
 - **🔗 Smart File Management**: Copies configurations to ensure tool-specific customization
 - **💻 Shell Integration**: Convenient `ainish-coder` command

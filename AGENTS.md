@@ -52,32 +52,73 @@
 - SOLID, DRY, KISS, YAGNI
 - Small, focused changes over rewrites
 
-## MEMORY.md & PRD.md (TOON Format)
-Use TOON (Token-Oriented Object Notation) for efficient shared state.
-**MEMORY.md Example**:
+## State Management: TOON (Token-Oriented Object Notation)
+**Protocol**: You MUST maintain shared state using TOON. This format is optimized for LLM token efficiency and parsing density.
+
+### TOON Specification
+TOON is a hybrid format:
+- **Root**: Indented Key-Value (YAML-subset) for singular context.
+- **Arrays**: Header-defined CSV blocks for repetitive data.
+
+**Syntax Rules**:
+1. **No Quotes**: Strings are unquoted unless containing special characters.
+2. **No Braces/Brackets**: Structure is defined by indentation and headers.
+3. **Array Header**: `key[count]{col1,col2}:`.
+4. **Zero-Count**: `key[0]{...}:` means empty list.
+
+### Directives
+1. **READ FIRST**: Always parse `MEMORY.toon` and `PRD.toon` at the start of a session.
+2. **WRITE BACK**: Update `MEMORY.toon` with new facts/context and `PRD.toon` with feature status changes before ending a turn.
+3. **CONSERVE**: Prune obsolete facts. Keep the token count low.
+
+### Examples
+
+**MEMORY.toon** (Session Context & Facts)
 ```toon
 context:
   user: nbiish
   role: admin
+  project: ainish-coder
   prefs:
     lang: typescript
-    test: jest
+    test: framework
+    code_style: strict
 
-facts[2]{topic,detail}:
-  auth,JWT with 15min expiry
-  deploy,Vercel frontend
+# Session Facts
+facts[4]{topic,detail,timestamp}:
+  auth,JWT with 15min expiry,2026-01-13T10:00:00Z
+  deploy,Vercel frontend,2026-01-13T11:00:00Z
+  db,PostgreSQL with Prisma ORM,2026-01-13T12:00:00Z
+  api,REST endpoints with OpenAPI,2026-01-13T13:00:00Z
+
+# Last Session Summary
+last_session:
+  completed: 5
+  failed: 0
+  duration_minutes: 45
 ```
 
-**PRD.md Example**:
+**PRD.toon** (Product Requirements & Status)
 ```toon
 product:
   name: SecureChat
   ver: 2.0.0
+  description: End-to-end encrypted messaging app
+  repository: github.com/org/securechat
 
-features[3]{id,name,pri,status}:
-  AUTH-01,MFA Implementation,P0,Done
-  CHAT-02,Message Editing,P1,In Progress
-  ADMIN-03,Audit Logs,P2,Pending
+# Features
+features[5]{id,name,pri,status,dependencies}:
+  AUTH-01,MFA Implementation,P0,Done,
+  AUTH-02,Passwordless Login,P1,In Progress,AUTH-01
+  CHAT-01,Message Editing,P1,Pending,
+  CHAT-02,Message Reactions,P2,Pending,CHAT-01
+  ADMIN-01,Audit Logs,P2,Pending,
+
+# Technical Requirements
+tech_req[3]{id,description,status}:
+  SEC-01,TLS 1.3 for all connections,Done
+  SEC-02,End-to-end encryption,Done
+  SEC-03,GDPR compliance,PENDING
 ```
 
 ## By Language
@@ -91,11 +132,10 @@ features[3]{id,name,pri,status}:
 </coding>
 
 <workflow>
-1. **Read**: Analyze existing code and state (PRD.md).
-2. **Plan**: Design approach with security/impact analysis (STRIDE).
-3. **Implement**: Code with tests and strict schema compliance.
-4. **Verify**: Run linters, security scanners (bandit/promptfoo), and PQC checks.
-5. **Observe**: Log traces (redacted) and evaluate (PRD.md).
-
+1. **Read**: Analyze existing code and state (MEMORY.toon & PRD.toon).
+2. **Plan**: Define secure task scope, threat model, and success criteria.
+3. **Implement**: Write minimal, tested, encrypted, PQC-compliant code.
+4. **Verify**: Validate outputs against PRD, run tests, sanitize inputs.
+5. **Record**: Update MEMORY.toon & PRD.toon; commit with signed, immutable ledger.
 **Git**: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 </workflow>
