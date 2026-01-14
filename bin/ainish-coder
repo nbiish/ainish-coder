@@ -142,24 +142,19 @@ main() {
                  echo -e "${BRIGHT_RED}Error: AGENTS_SECURE.md not found at $secure_source${RESET}"
             fi
 
-            # Deploy .rules directory
-            local rules_dir="$target_dir/.rules"
+            # Deploy .rules contents to root
             local source_rules="${REPO_DIR}/.rules"
             
-            echo -e "${BRIGHT_BLUE}Deploying .rules directory to: $rules_dir${RESET}"
-            if mkdir -p "$rules_dir"; then
-                if [[ -d "$source_rules" ]]; then
-                    # Copy contents recursively
-                    if cp -R "$source_rules/." "$rules_dir/"; then
-                        echo -e "${GREEN}✓ Deployed .rules directory${RESET}"
-                    else
-                         echo -e "${BRIGHT_RED}Error: Failed to copy .rules contents${RESET}"
-                    fi
+            echo -e "${BRIGHT_BLUE}Deploying rules files to: $target_dir${RESET}"
+            if [[ -d "$source_rules" ]]; then
+                # Copy contents recursively
+                if cp -R "$source_rules/." "$target_dir/"; then
+                    echo -e "${GREEN}✓ Deployed rules files${RESET}"
                 else
-                    echo -e "${BRIGHT_RED}Error: Source .rules directory not found at $source_rules${RESET}"
+                     echo -e "${BRIGHT_RED}Error: Failed to copy rules files${RESET}"
                 fi
             else
-                print_error "Failed to create directory: $rules_dir"
+                echo -e "${BRIGHT_RED}Error: Source .rules directory not found at $source_rules${RESET}"
             fi
             ;;
         --agents)
