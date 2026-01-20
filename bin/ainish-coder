@@ -142,23 +142,23 @@ main() {
                  echo -e "${BRIGHT_RED}Error: AGENTS_SECURE.md not found at $secure_source${RESET}"
             fi
 
-            # Deploy .rules contents to .rules directory in target
-            local source_rules="${REPO_DIR}/.rules"
-            local target_rules_dir="$target_dir/.rules"
+            # Deploy .llms.txt contents to .llms.txt directory in target
+            local source_rules="${REPO_DIR}/.llms.txt"
+            local target_rules_dir="$target_dir/.llms.txt"
             
             echo -e "${BRIGHT_BLUE}Deploying rules files to: $target_rules_dir${RESET}"
             if [[ -d "$source_rules" ]]; then
-                # Create .rules directory if it doesn't exist
+                # Create .llms.txt directory if it doesn't exist
                 mkdir -p "$target_rules_dir"
                 
                 # Copy contents recursively
                 if cp -R "$source_rules/." "$target_rules_dir/"; then
-                    echo -e "${GREEN}✓ Deployed rules files to .rules directory${RESET}"
+                    echo -e "${GREEN}✓ Deployed rules files to .llms.txt directory${RESET}"
                 else
                      echo -e "${BRIGHT_RED}Error: Failed to copy rules files${RESET}"
                 fi
             else
-                echo -e "${BRIGHT_RED}Error: Source .rules directory not found at $source_rules${RESET}"
+                echo -e "${BRIGHT_RED}Error: Source .llms.txt directory not found at $source_rules${RESET}"
             fi
             ;;
         --agents)
