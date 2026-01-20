@@ -21,8 +21,8 @@ TOON is a hybrid format:
 ```toon
 session:
   id: sess-123
-  user: nbiish
-  mode: yolo
+  user: developer
+  mode: debug
   flags: --verbose --force
 ```
 
@@ -31,9 +31,9 @@ session:
 # BAD (JSON/YAML): Repeats keys "id", "status", "agent"
 # GOOD (TOON): Define keys once.
 tasks[3]{id,status,agent}:
-  1,DONE,gemini
-  2,IN_PROGRESS,qwen
-  3,PENDING,opencode
+  1,DONE,agent_a
+  2,IN_PROGRESS,agent_b
+  3,PENDING,agent_c
 ```
 
 ### Pattern C: Multi-line Content
@@ -145,9 +145,9 @@ logs[3]{ts,level,msg}:
 
 ```toon
 context:
-  user: nbiish
+  user: developer
   role: admin
-  project: ainish-coder
+  project: my-project
   prefs:
     lang: typescript
     test: framework
@@ -155,10 +155,10 @@ context:
 
 # Session Facts
 facts[4]{topic,detail,timestamp}:
-  auth,JWT with 15min expiry,2026-01-13T10:00:00Z
-  deploy,Vercel frontend,2026-01-13T11:00:00Z
-  db,PostgreSQL with Prisma ORM,2026-01-13T12:00:00Z
-  api,REST endpoints with OpenAPI,2026-01-13T13:00:00Z
+  auth,OAuth2 implementation,2026-01-13T10:00:00Z
+  deploy,Cloud Provider,2026-01-13T11:00:00Z
+  db,SQL Database,2026-01-13T12:00:00Z
+  api,REST endpoints,2026-01-13T13:00:00Z
 
 # Last Session Summary
 last_session:
@@ -171,24 +171,24 @@ last_session:
 
 ```toon
 product:
-  name: SecureChat
-  ver: 2.0.0
-  description: End-to-end encrypted messaging app
-  repository: github.com/org/securechat
+  name: ProjectAlpha
+  ver: 1.0.0
+  description: A sample application
+  repository: github.com/org/project-alpha
 
 # Features
 features[5]{id,name,pri,status,dependencies}:
-  AUTH-01,MFA Implementation,P0,Done,
-  AUTH-02,Passwordless Login,P1,In Progress,AUTH-01
-  CHAT-01,Message Editing,P1,Pending,
-  CHAT-02,Message Reactions,P2,Pending,CHAT-01
-  ADMIN-01,Audit Logs,P2,Pending,
+  FEAT-01,User Authentication,P0,Done,
+  FEAT-02,Dashboard UI,P1,In Progress,FEAT-01
+  FEAT-03,User Settings,P1,Pending,FEAT-01
+  FEAT-04,Notifications,P2,Pending,
+  FEAT-05,Reporting,P2,Pending,
 
 # Technical Requirements
 tech_req[3]{id,description,status}:
-  SEC-01,TLS 1.3 for all connections,Done
-  SEC-02,End-to-end encryption,Done
-  SEC-03,GDPR compliance,PENDING
+  SEC-01,HTTPS Enforcement,Done
+  SEC-02,Data Encryption At Rest,Done
+  SEC-03,Compliance Check,PENDING
 ```
 
 ## Best Practices
@@ -198,9 +198,14 @@ tech_req[3]{id,description,status}:
 ```toon
 # ✓ Use descriptive array names
 users[3]{id,name,email,role}:
+  1,alice,alice@example.com,admin
+  2,bob,bob@example.com,editor
+  3,charlie,charlie@example.com,viewer
 
 # ✓ Include count in header
-tasks[5]{id,title,status,assignee}:
+tasks[2]{id,title,status,assignee}:
+  1,Setup Project,Done,alice
+  2,Write Tests,Pending,bob
 
 # ✓ Use consistent indentation (2 spaces)
 config:
@@ -279,4 +284,4 @@ checkpoint:
 | LLM Optimization | ★★★★★ | ★★☆☆☆ | ★★★☆☆ |
 | File Size (1000 rows) | ~30KB | ~100KB | ~85KB |
 
-**Remember**: TOON is designed for AI-to-AI and AI-to-Human communication. Use it for state, memory, and configuration. Use JSON for external APIs, YAML for documentation, and TOON for everything in the OSA framework.
+**Remember**: TOON is designed for AI-to-AI and AI-to-Human communication. Use it for state, memory, and configuration. Use JSON for external APIs, YAML for documentation, and TOON for everything in your framework.
