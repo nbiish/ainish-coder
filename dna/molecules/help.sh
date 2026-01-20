@@ -9,7 +9,7 @@ USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md, AGENTS_SECURE.md, and .rules/ directory (MEMORY.md, PRD.md, etc.)
+    --rules [TARGET_DIR]      Deploy AGENTS.md, AGENTS_SECURE.md, and .llms.txt/ directory (MEMORY.md, PRD.md, etc.)
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
     
@@ -168,13 +168,9 @@ OTHER:
 
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
-    - Tier deployments APPEND to MAIRULES.md (they don't deploy to .mai-rules/)
-    - --rules deploys AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
-    - Tool deployments now include ALL configurations (rules + commands/recipes + ignores)
-NOTES:
-    - TARGET_DIR defaults to current directory if not provided
     - Tier deployments APPEND to MAIRULES.md (they don't overwrite)
-    - --rules deploys AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
+    - --rules deploys AGENTS.md + AGENTS_SECURE.md + .llms.txt/ directory
+    - Tool deployments include ALL configurations (rules + commands/recipes + ignores)
     - Use --mairules for ALL tiers or --tier {1-4} to add specific tiers
     - Run --rules first before tool-specific deployments
 
