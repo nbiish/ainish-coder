@@ -186,9 +186,9 @@ features[5]{id,name,pri,status,dependencies}:
 
 # Technical Requirements
 tech_req[3]{id,description,status}:
-  SEC-01,HTTPS Enforcement,Done
-  SEC-02,Data Encryption At Rest,Done
-  SEC-03,Compliance Check,PENDING
+  SEC-01,TLS 1.3 + FIPS 203 PQC (ML-KEM-768),Done
+  SEC-02,AES-256-GCM + Tenant-Specific Keys,Done
+  SEC-03,OWASP ASI 2026 Zero Trust Compliance,PENDING
 ```
 
 ## Best Practices
