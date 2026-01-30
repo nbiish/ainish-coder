@@ -129,28 +129,46 @@ main() {
         # Core rules deployment
         --rules)
             echo -e "${BRIGHT_BLUE}Deploying Rules System${RESET}"
-            
+
             # Deploy AGENTS.md
             deploy_agents "$target_dir"
-            
-            # Deploy AGENTS_SECURE.md
-            local secure_source="${REPO_DIR}/AGENTS_SECURE.md"
-            if [[ -f "$secure_source" ]]; then
-                 cp "$secure_source" "$target_dir/AGENTS_SECURE.md"
-                 echo -e "${GREEN}✓ Created AGENTS_SECURE.md at $target_dir${RESET}"
+
+            # Deploy RULES.md
+            local rules_source="${REPO_DIR}/RULES.md"
+            if [[ -f "$rules_source" ]]; then
+                 cp "$rules_source" "$target_dir/RULES.md"
+                 echo -e "${GREEN}✓ Created RULES.md at $target_dir${RESET}"
             else
-                 echo -e "${BRIGHT_RED}Error: AGENTS_SECURE.md not found at $secure_source${RESET}"
+                 echo -e "${BRIGHT_RED}Error: RULES.md not found at $rules_source${RESET}"
+            fi
+
+            # Deploy AGENTS_CODE_SECURITY.md
+            local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
+            if [[ -f "$code_security_source" ]]; then
+                 cp "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md"
+                 echo -e "${GREEN}✓ Created AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
+            else
+                 echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
+            fi
+
+            # Deploy AGENTS_LLM_SECURITY.md
+            local llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
+            if [[ -f "$llm_security_source" ]]; then
+                 cp "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md"
+                 echo -e "${GREEN}✓ Created AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
+            else
+                 echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
             fi
 
             # Deploy .llms.txt contents to .llms.txt directory in target
             local source_rules="${REPO_DIR}/.llms.txt"
             local target_rules_dir="$target_dir/.llms.txt"
-            
+
             echo -e "${BRIGHT_BLUE}Deploying rules files to: $target_rules_dir${RESET}"
             if [[ -d "$source_rules" ]]; then
                 # Create .llms.txt directory if it doesn't exist
                 mkdir -p "$target_rules_dir"
-                
+
                 # Copy contents recursively
                 if cp -R "$source_rules/." "$target_rules_dir/"; then
                     echo -e "${GREEN}✓ Deployed rules files to .llms.txt directory${RESET}"
