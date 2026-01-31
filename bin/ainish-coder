@@ -134,24 +134,6 @@ main() {
             # Deploy AGENTS.md
             deploy_agents "$target_dir"
 
-            # Deploy AGENTS_CODE_SECURITY.md
-            local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
-            if [[ -f "$code_security_source" ]]; then
-                 cp "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md"
-                 echo -e "${GREEN}✓ Created AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
-            else
-                 echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
-            fi
-
-            # Deploy AGENTS_LLM_SECURITY.md
-            local llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
-            if [[ -f "$llm_security_source" ]]; then
-                 cp "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md"
-                 echo -e "${GREEN}✓ Created AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
-            else
-                 echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
-            fi
-
             # Deploy .llms.txt contents to .llms.txt directory in target
             local source_rules="${REPO_DIR}/.llms.txt"
             local target_rules_dir="$target_dir/.llms.txt"
@@ -170,6 +152,33 @@ main() {
             else
                 echo -e "${BRIGHT_RED}Error: Source .llms.txt directory not found at $source_rules${RESET}"
             fi
+            
+            echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
+            ;;
+        
+        # Agents security deployment
+        --agents-security)
+            echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
+
+            # Deploy AGENTS_CODE_SECURITY.md
+            local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
+            if [[ -f "$code_security_source" ]]; then
+                 cp "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md"
+                 echo -e "${GREEN}✓ Created AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
+            else
+                 echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
+            fi
+
+            # Deploy AGENTS_LLM_SECURITY.md
+            local llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
+            if [[ -f "$llm_security_source" ]]; then
+                 cp "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md"
+                 echo -e "${GREEN}✓ Created AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
+            else
+                 echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
+            fi
+            
+            echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
             ;;
         --agents)
             deploy_agents "$target_dir"
