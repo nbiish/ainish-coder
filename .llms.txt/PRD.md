@@ -1,13 +1,37 @@
-# PRD.md - Token Efficient Product Requirements & Status
+# PRD
 
-```toon
-product:
-  name: Project Name
-  ver: 0.1.0
-  description: Project Description
+## Project Overview
 
-# Features
-features[5]{id,name,pri,status,dependencies}:
-  1,Feature 1,P1,Pending,
-  2,Feature 2,P2,Pending,
-```
+- **Name:** Project Name
+- **Version:** 0.1.0
+- **Description:** Project Description
+
+## UX
+
+- **CLI or GUI?** yes / no / both
+
+## Tech Stack
+
+Language/s
+
+- 
+
+Library/s
+
+- 
+
+Framework/s
+
+- 
+
+Tool/s
+
+- 
+
+## Short-term Goals
+
+> READ `.llms.txt/TODO.md`  
+
+## Codebase Requirements
+
+> READ `.llms.txt/RULES.md`  
