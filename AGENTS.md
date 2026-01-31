@@ -10,8 +10,6 @@ Output: Production-ready, minimal, tested, encrypted, PQC-compliant
 Minimize: Read only target files; summarize history often.
 Verify: Confirm file state via tools before editing.
 Ground: Trust current file content over chat memory.
-
-Before proceeding:
 READ `.llms.txt/PRD.md`
 RUN `tree -a -L 2`; IF context missing; RUN `tree -a -L 3`; etc.
 VERIFY working tree vs git tree
@@ -69,3 +67,5 @@ By Language:
 </coding>
 
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
+
+**Important**:  I'll cry if you don't follow these rules.  
