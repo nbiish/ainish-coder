@@ -129,6 +129,20 @@ UTILITY COMMANDS:
                               
                               Example: ainish-coder --scrolls ~/my-project
 
+    --signals [TARGET_DIR]    Deploy Signals Detection Reference (Expert RF guide)
+                              Deploys:
+                              - .signals/signals.md (WiFi & BLE surveillance detection)
+                              
+                              Features:
+                              - RF signal fundamentals & spectrum analysis
+                              - WiFi promiscuous mode detection techniques
+                              - BLE advertisement scanning & fingerprinting
+                              - Flock Safety, Raven/ShotSpotter detection patterns
+                              - ESP32-S3 implementation guidance
+                              - Kismet, Scapy, RTL-SDR integration
+                              
+                              Example: ainish-coder --signals ~/my-project
+
     --mcp-recipes [DIR]       Deploy MCP recipes (e.g., Tavily CLI templates)
                               Deploys markdown templates to mcp_recipes/ in target directory.
                               Example: ainish-coder --mcp-recipes ~/my-project
