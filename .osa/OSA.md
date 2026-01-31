@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Orchestrated System of Agents (OSA)** is a framework for scaling intelligence by distributing work across specialized LLMs. This document focuses on the **"YOLO Mode"** (Yielding Ownership to Local Orchestrators) pattern—a high-autonomy, high-parallelism approach where the Main Orchestrator (Gemini) aggressively delegates sub-tasks to other models to maximize compute throughput.
+The **Orchestrated System of Agents (OSA)** is a framework for scaling intelligence by distributing work across specialized LLMs. This document focuses on the **"YOLO Mode"** (Yielding Ownership to Local Orchestrators) pattern—a high-autonomy, high-parallelism approach where a Main Orchestrator aggressively delegates sub-tasks to other models to maximize compute throughput.
 
 ---
 
@@ -20,6 +20,7 @@ Each agent is treated as a CLI tool with specific strengths:
 
 | Agent | CLI Alias | YOLO Invocation (Non-Interactive) |
 | :--- | :--- | :--- |
+| **Claude Code** | `claude` | `claude -p "Prompt" --dangerously-skip-permissions` |
 | **Gemini** | `gemini` | `gemini --yolo "Prompt"` |
 | **Qwen** | `qwen` | `qwen --yolo "Prompt"` |
 | **OpenCode** | `opencode` | `opencode run "Prompt"` |
@@ -34,11 +35,11 @@ All commands MUST be fully autonomous. Never launch a CLI tool in interactive mo
 
 **Correct Invocation Pattern**:
 ```bash
-gemini --yolo -p "
-  1. Analyze task.
-  2. Run 'qwen --yolo -p \"Generate interface X\"'.
-  3. Merge results.
-"
+# Claude Code as orchestrator
+claude -p "Analyze task. Run 'qwen --yolo \"Generate interface X\"'. Merge results." --dangerously-skip-permissions
+
+# Or Gemini as orchestrator
+gemini --yolo "Analyze task. Run 'qwen --yolo \"Generate interface X\"'. Merge results."
 ```
 
 ---

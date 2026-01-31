@@ -9,7 +9,7 @@ USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md, AGENTS_SECURE.md, and .llms.txt/ directory (MEMORY.md, PRD.md, etc.)
+    --rules [TARGET_DIR]      Deploy AGENTS.md, AGENTS_SECURE.md, and .llms.txt/ directory (MEMORY.md, PRD.md, TODO.md)
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
     
@@ -62,33 +62,16 @@ AGENT CUSTOMIZATION:
                               
                               Example: ainish-coder --template-agent ~/my-project
 
-    --OSAA [DIR]              Deploy OSAA.md framework for orchestrated agent actions
+    --osa [DIR]               Deploy OSA (YOLO Mode) Framework
                               
-                              Creates: OSAA.md (Orchestrator Sub-Agent Action)
-                              
-                              Features:
-                              - Task decomposition patterns
-                              - Agent orchestration guidelines
-                              - Sub-agent specialization (Code, Test, Doc, Deploy)
-                              - Execution patterns (Sequential, Parallel, Pipeline)
-                              - Communication protocols
-                              - Error handling strategies
-                              - Monitoring and metrics
-                              
-                              Use this for complex tasks requiring multiple specialized
-                              agents working together under a master orchestrator.
-                              
-                              Example: ainish-coder --OSAA ~/my-project
-
-    --osa [DIR]               Deploy full OSA (Ralph-First) Framework
-                              
-                              Creates: OSA.toon, llms.txt, TODO.toon, PRD.toon, MEMORY.toon
+                              Creates: OSA.md, llms.txt
                               
                               Features:
-                              - Ralph Loop Trunk Orchestrator (Claude)
-                              - Sub-agent priority (Gemini -> Qwen -> Opencode)
-                              - Autonomous state tracking protocols
-                              - Unified task checklist via TODO.toon
+                              - YOLO Mode: Yielding Ownership to Local Orchestrators
+                              - CLI YOLO agents (Claude, Gemini, Qwen, OpenCode, Crush)
+                              - Non-interactive autonomous execution
+                              - Parallel task dispatch patterns
+                              - Shared state coordination
                               
                               Example: ainish-coder --osa ~/my-project
 
