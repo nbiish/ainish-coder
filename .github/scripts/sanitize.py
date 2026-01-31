@@ -36,28 +36,63 @@ def sanitize_text(text: str) -> str:
 
     patterns: List[tuple[str, str, int]] = [
         # OWASP ASI04: Information Disclosure (Secrets)
+        # --- AI/LLM Providers ---
         (r"tvly-[a-zA-Z0-9-]{30,}", "YOUR_TAVILY_API_KEY_HERE", 0),
         (r"tavilyApiKey=[^&\"\s]{10,}", "tavilyApiKey=YOUR_TAVILY_API_KEY_HERE", 0),
-        (r"BSA[a-zA-Z0-9]{27}", "YOUR_BRAVE_API_KEY_HERE", 0),
         (r"\bsk-ant-[a-zA-Z0-9_-]{20,}\b", "YOUR_ANTHROPIC_API_KEY_HERE", 0),
         (r"\bsk-[a-zA-Z0-9]{20,}\b", "YOUR_OPENAI_API_KEY_HERE", 0),
         (r"\bAIza[0-9A-Za-z-_]{35}\b", "YOUR_GOOGLE_API_KEY_HERE", 0),
         (r"\bhf_[a-zA-Z0-9]{34}\b", "YOUR_HUGGINGFACE_TOKEN_HERE", 0),
-        (r"\bglpat-[0-9a-zA-Z-]{20}\b", "YOUR_GITLAB_TOKEN_HERE", 0),
-        (r"\bkey-[0-9a-zA-Z]{32}\b", "YOUR_MAILGUN_API_KEY_HERE", 0),
-        (r"\bsk_live_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_SECRET_KEY_HERE", 0),
+        (r"\bpplx-[a-zA-Z0-9]{48}\b", "YOUR_PERPLEXITY_API_KEY_HERE", 0),
+        (r"\bco-[a-zA-Z0-9]{40}\b", "YOUR_COHERE_API_KEY_HERE", 0),
+        # --- Search/Data Providers ---
+        (r"BSA[a-zA-Z0-9]{27}", "YOUR_BRAVE_API_KEY_HERE", 0),
+        (r"\bSG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}\b", "YOUR_SENDGRID_API_KEY_HERE", 0),
+        # --- Version Control ---
         (r"\bghp_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bgho_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bghu_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bghs_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bghr_[A-Za-z0-9]{36}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
         (r"\bgithub_pat_[A-Za-z0-9_]{50,}\b", "YOUR_GITHUB_TOKEN_HERE", 0),
-        (r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", "YOUR_SLACK_TOKEN_HERE", 0),
+        (r"\bglpat-[0-9a-zA-Z-]{20}\b", "YOUR_GITLAB_TOKEN_HERE", 0),
+        # --- Cloud Providers ---
         (r"\bAKIA[0-9A-Z]{16}\b", "YOUR_AWS_ACCESS_KEY_ID_HERE", 0),
+        (r"\b[A-Za-z0-9+/]{40}\b(?=.*aws)", "YOUR_AWS_SECRET_KEY_HERE", re.IGNORECASE),
+        (r"\b[a-zA-Z0-9+/]{86}==\b", "YOUR_AZURE_STORAGE_KEY_HERE", 0),
+        # --- Payment/SaaS ---
+        (r"\bsk_live_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_SECRET_KEY_HERE", 0),
+        (r"\bsk_test_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_TEST_KEY_HERE", 0),
+        (r"\brk_live_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_RESTRICTED_KEY_HERE", 0),
+        (r"\bSK[a-f0-9]{32}\b", "YOUR_TWILIO_API_KEY_HERE", 0),
+        (r"\bkey-[0-9a-zA-Z]{32}\b", "YOUR_MAILGUN_API_KEY_HERE", 0),
+        # --- Communication ---
+        (r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", "YOUR_SLACK_TOKEN_HERE", 0),
+        (r"[MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27}", "YOUR_DISCORD_TOKEN_HERE", 0),
+        # --- Dev Tools/Platforms ---
+        (r"\blin_api_[a-zA-Z0-9]{40}\b", "YOUR_LINEAR_API_KEY_HERE", 0),
+        (r"\bsecret_[a-zA-Z0-9]{43}\b", "YOUR_NOTION_API_KEY_HERE", 0),
+        (r"\bnpx_[a-zA-Z0-9]{36}\b", "YOUR_NPM_TOKEN_HERE", 0),
+        (r"\bpypi-[a-zA-Z0-9_-]{50,}\b", "YOUR_PYPI_TOKEN_HERE", 0),
+        (r"\bvercel_[a-zA-Z0-9]{24}\b", "YOUR_VERCEL_TOKEN_HERE", 0),
+        (r"\bnlfy_[a-zA-Z0-9_-]{40,}\b", "YOUR_NETLIFY_TOKEN_HERE", 0),
+        # --- Auth/JWT ---
+        (r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*", "YOUR_JWT_TOKEN_HERE", 0),
+        # --- Database Connection Strings ---
+        (r"(postgres|postgresql)://[^@\s]+@[^\s]+", "YOUR_POSTGRES_URL_HERE", 0),
+        (r"mysql://[^@\s]+@[^\s]+", "YOUR_MYSQL_URL_HERE", 0),
+        (r"mongodb(\+srv)?://[^@\s]+@[^\s]+", "YOUR_MONGODB_URL_HERE", 0),
+        (r"redis://[^@\s]+@[^\s]+", "YOUR_REDIS_URL_HERE", 0),
+        # --- Private Keys ---
         (r"(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", "YOUR_PRIVATE_KEY_HERE", re.DOTALL),
-        # Local paths (ASI04)
+        (r"(?s)-----BEGIN RSA PRIVATE KEY-----.*?-----END RSA PRIVATE KEY-----", "YOUR_RSA_PRIVATE_KEY_HERE", re.DOTALL),
+        (r"(?s)-----BEGIN EC PRIVATE KEY-----.*?-----END EC PRIVATE KEY-----", "YOUR_EC_PRIVATE_KEY_HERE", re.DOTALL),
+        (r"(?s)-----BEGIN OPENSSH PRIVATE KEY-----.*?-----END OPENSSH PRIVATE KEY-----", "YOUR_SSH_PRIVATE_KEY_HERE", re.DOTALL),
+        # --- Local paths (ASI04) ---
         (r"/Volumes/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/volume", 0),
         (r"/Users/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/home", 0),
+        (r"C:\\Users\\[A-Za-z0-9._-]+\\[^\s\"'`]*", "C:\\path\\to\\your\\home", 0),
+        (r"/home/[A-Za-z0-9._-]+/[^\s\"'`]*", "/path/to/your/home", 0),
     ]
 
     out = text
