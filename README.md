@@ -35,13 +35,13 @@
 
 - **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
 - **🏗️ Modular Architecture**: Clean Atom → Molecule → Protein structure
-- **🤖 Multiple AI Tools**: GitHub Copilot, Continue Dev, Qwen, Gemini, Cline, Windsurf, Roo Code, and Trae
-- **🔄 OSA (Gemini-First) Framework**: Mandatory Gemini Loop orchestration with Qwen/OpenCode/Crush/Goose agents
+- **🤖 Multiple AI Tools**: Cursor, Claude Code, Windsurf, Cline, Continue Dev, GitHub Copilot, Gemini CLI, Qwen, Roo Code, and Trae
+- **🔄 OSA (YOLO Mode) Framework**: CLI YOLO agents (Claude, Gemini, Qwen, OpenCode, Crush) for parallel autonomous execution
 - **⚡ Simple Deployment**: One command to deploy configurations
 - **🔗 Smart File Management**: Copies configurations to ensure tool-specific customization
 - **💻 Shell Integration**: Convenient `ainish-coder` command
 - **🎭 Template Agent System**: Craft custom system prompts with expert guidance
-- **🛡️ Local Secret Protection**: Auto-sanitize known keys and generate a local security report for remediation
+- **🛡️ Security Options**: Local secret protection OR GitHub Actions CI/CD integration
 
 ## 📦 Quick Start
 
@@ -64,48 +64,76 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md, empty MAIRULES.md, critical.md, .gitignore, and llms.txt
+ainish-coder --rules                     # Deploy AGENTS.md, AGENTS_CODE_SECURITY.md, AGENTS_LLM_SECURITY.md, and .llms.txt/ (MEMORY.md, PRD.md, TODO.md)
 
 # Deploy tier-specific rules (appends to MAIRULES.md)
-ainish-coder --tier 0                    # Append TIER_0 to MAIRULES.md (Documentation protocols)
-ainish-coder --tier 1                    # Append TIER_1 to MAIRULES.md (Code security)
-ainish-coder --tier all                  # Append all tiers (0-4) to MAIRULES.md
+ainish-coder --tier 0                    # Append TIER_0 (Documentation protocols)
+ainish-coder --tier 1                    # Append TIER_1 (Code security)
+ainish-coder --tier all                  # Append all tiers (0-4)
+ainish-coder --mairules                  # Deploy MAIRULES.md with ALL tiers
 
 # Deploy tool-specific configurations
-ainish-coder --cursor                    # Deploy to .configs/.cursor/rules/
-ainish-coder --windsurf                  # Deploy to .configs/.windsurf/rules/
-ainish-coder --trae                      # Deploy to .configs/.trae/rules/
+ainish-coder --cursor                    # Deploy Cursor AI - rules, commands, ignore files
+ainish-coder --claude                    # Deploy Claude Code - rules, commands
+ainish-coder --windsurf                  # Deploy Windsurf - rules, workflows
+ainish-coder --cline                     # Deploy Cline - single .clinerules file
+ainish-coder --continue                  # Deploy Continue.dev - rules, prompts, ignore files
+ainish-coder --copilot                   # Deploy GitHub Copilot to .github/instructions/
+ainish-coder --gemini                    # Deploy Gemini CLI - rules, commands (TOML)
+ainish-coder --qwen                      # Deploy Qwen AI - rules, commands (TOML)
+ainish-coder --roocode                   # Deploy Roo Code - rules, commands, ignore files
+ainish-coder --trae                      # Deploy TRAE rules to .trae/rules/
 
-# Deploy custom commands to current directory
-ainish-coder --commands cursor           # Deploy slash commands from .configs
-ainish-coder --commands windsurf         # Deploy workflow commands
+# Deploy custom commands
+ainish-coder --commands cursor           # Deploy slash commands
+ainish-coder --commands windsurf         # Deploy workflows
+ainish-coder --commands all              # Deploy to all applicable tools
+
+# Agent customization
+ainish-coder --template-agent            # Deploy template-agent.md for custom system prompts
+ainish-coder --osa                       # Deploy OSA (YOLO Mode) Framework - CLI YOLO agents
+
+# Security deployments
+ainish-coder --local-security            # Deploy LOCAL secret protection (git hooks + scripts)
+ainish-coder --github-actions            # Deploy GitHub Actions workflows (CI/CD integration)
 
 # Utility commands
-ainish-coder --gitignore                 # Create comprehensive .gitignore
-ainish-coder --critical                  # Copy critical.md (license & contributing)
-ainish-coder --osa                       # Distribute OSA.md orchestration guide to target
+ainish-coder --gitignore                 # Deploy comprehensive .gitignore
+ainish-coder --critical                  # Deploy critical.md from TIER_0
+ainish-coder --license                   # Deploy LICENSE file
+ainish-coder --scrolls                   # Deploy .scrolls directory (Vital texts & prompts)
+ainish-coder --mcp-recipes               # Deploy MCP recipes
+
+# Ignore file deployment
+ainish-coder --cursor-ignore             # Deploy .cursorignore
+ainish-coder --cline-ignore              # Deploy .clineignore
+ainish-coder --continue-ignore           # Deploy .continueignore
+ainish-coder --copilot-ignore            # Deploy .copilotignore
+ainish-coder --roocode-ignore            # Deploy .rooignore
+ainish-coder --all-ignores               # Deploy all ignore files at once
 ```
 
 ## 🛠️ Supported AI Tools
 
 ### IDE Extensions
 
-| Tool | Config Flag | Commands Flag | Rules Target | Commands Target | Format |
-|------|------------|---------------|--------------|-----------------|--------|
-| **Cursor** | `--cursor` | `--commands cursor` | `.cursor/rules/` | `.cursor/commands/*.md` | Plain markdown |
-| **Roo Code** | `--roocode` | `--commands roocode` | `.roo/rules/` | `.roo/commands/*.md` | Markdown + frontmatter |
-| **Windsurf** | `--windsurf` | `--commands windsurf` | `.windsurf/rules/` | `.windsurf/workflows/*.md` | Workflows |
-| **Cline** | `--cline` | `--commands cline` | `.clinerules/` | `.clinerules/*.md` | Rules files |
-| **Continue Dev** | `--continue` | `--commands continue` | `.continue/rules/` | Config guide | config.yaml setup |
-| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` | N/A | Copied |
-| **Trae** | `--trae` | N/A | `.trae/rules/` | N/A | Markdown |
+| Tool | Config Flag | Commands Flag | Description |
+|------|------------|---------------|-------------|
+| **Cursor** | `--cursor` | `--commands cursor` | Rules, commands (`.cursor/commands/*.md`), ignore files |
+| **Claude Code** | `--claude` | `--commands claude` | Rules, commands |
+| **Windsurf** | `--windsurf` | `--commands windsurf` | Rules, workflows (`.windsurf/workflows/*.md`) |
+| **Cline** | `--cline` | `--commands cline` | Single `.clinerules` file (merged rules), ignore files |
+| **Continue Dev** | `--continue` / `--cn` | `--commands continue` | Rules, prompts, ignore files, config.yaml setup |
+| **Roo Code** | `--roocode` / `--roo` | `--commands roocode` | Rules, commands (`.roo/commands/*.md`), ignore files |
+| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` |
+| **Trae** | `--trae` | N/A | `.trae/rules/AGENTS.md` |
 
 ### CLI Tools
 
-| Tool | Config Flag | Commands Flag | Rules Target | Commands Target | Format |
-|------|------------|---------------|--------------|-----------------|--------|
-| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | `.gemini/` | `.gemini/commands/*.toml` | TOML |
-| **Qwen Code** | `--qwen` | `--commands qwen` | `QWEN.md` | `.qwen/commands/*.toml` | TOML |
+| Tool | Config Flag | Commands Flag | Description |
+|------|------------|---------------|-------------|
+| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | Rules, commands (`.gemini/commands/*.toml`) |
+| **Qwen Code** | `--qwen` | `--commands qwen` | QWEN.md, commands (`.qwen/commands/*.toml`) |
 
 ## 🎨 Tier Rules Explained
 
