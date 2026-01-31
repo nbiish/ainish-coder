@@ -64,6 +64,7 @@ source "${DNA_DIR}/molecules/deploy_mcp.sh"
 source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
 source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
+source "${DNA_DIR}/molecules/deploy_signals.sh"
 
 # Main function
 main() {
@@ -296,6 +297,10 @@ main() {
 
         --license)
             deploy_license "$target_dir"
+            ;;
+            
+        --signals)
+            deploy_signals "$target_dir"
             ;;
             
         *)
