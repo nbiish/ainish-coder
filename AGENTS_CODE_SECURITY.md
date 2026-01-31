@@ -537,6 +537,6 @@ Max attempts: 3-5 depending on idempotency
 
 ---
 
-> **The Golden Rule**: 
-> **The Body** (Code) must be deterministic and verifiable.
-> Never confuse deterministic code with probabilistic AI.
+> **The Golden Rule**:  
+> The Body (Code) **must** be deterministic and verifiable.  
+> **Never** confuse deterministic code with probabilistic AI.  

@@ -64,7 +64,8 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md, AGENTS_CODE_SECURITY.md, AGENTS_LLM_SECURITY.md, and .llms.txt/ (MEMORY.md, PRD.md, TODO.md)
+ainish-coder --rules                     # Deploy AGENTS.md and .llms.txt/ (MEMORY.md, PRD.md, TODO.md)
+ainish-coder --agents-security           # Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
 
 # Deploy tier-specific rules (appends to MAIRULES.md)
 ainish-coder --tier 0                    # Append TIER_0 (Documentation protocols)

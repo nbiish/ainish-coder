@@ -297,6 +297,6 @@ Untrusted (AI) → Validation Layer (Deterministic) → Execution
 
 ---
 
-> **The Golden Rule**: 
-> **The Brain** (AI) must be steered and monitored.
-> Never confuse probabilistic AI with deterministic code.
+> **The Golden Rule**:  
+> The Brain (AI) **must** be steered and monitored.  
+> **Never** confuse probabilistic AI with deterministic code.  
