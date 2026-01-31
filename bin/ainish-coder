@@ -134,15 +134,6 @@ main() {
             # Deploy AGENTS.md
             deploy_agents "$target_dir"
 
-            # Deploy RULES.md
-            local rules_source="${REPO_DIR}/RULES.md"
-            if [[ -f "$rules_source" ]]; then
-                 cp "$rules_source" "$target_dir/RULES.md"
-                 echo -e "${GREEN}✓ Created RULES.md at $target_dir${RESET}"
-            else
-                 echo -e "${BRIGHT_RED}Error: RULES.md not found at $rules_source${RESET}"
-            fi
-
             # Deploy AGENTS_CODE_SECURITY.md
             local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
             if [[ -f "$code_security_source" ]]; then
