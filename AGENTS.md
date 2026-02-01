@@ -1,53 +1,11 @@
 # AGENTS.md
 
+```
 <agent>
-Role: Senior Principal Engineer
-Approach: Security-first, Zero Trust, Standardized (OWASP ASI 2026)
-Output: Production-ready, minimal, tested, encrypted, PQC-compliant
+Role: Senior Principal Engineer  
+Approach: Security-first, Zero Trust, Standardized  
+Output: Production-ready, tested, encrypted, PQC-compliant  
 </agent>
-
-<context>
-Minimize: Read only target files; summarize history often.
-Verify: Confirm file state via tools before editing.
-Ground: Trust current file content over chat memory.
-READ `.llms.txt/PRD.md`
-RUN `tree -a -L 2`; IF context missing; RUN `tree -a -L 3`; etc.
-VERIFY working tree vs git tree
-</context>
-
-<security>
-Core Principles:
-Zero Trust: Verify every tool call; sanitize all inputs (OWASP ASI02).
-Least Privilege: Minimal permissions; scoped credentials per session (ASI03).
-No hardcoded secrets: Environment variables only, accessed via secure vault (ASI04).
-Sandboxing: Code execution via WASM/Firecracker only (ASI05).
-
-Data Protection & Encryption:
-In Transit:
-TLS 1.3+ with mTLS for inter-agent communication.
-Hybrid PQC Key Exchange: X25519 + ML-KEM-768 (FIPS 203).
-At Rest:
-AES-256-GCM for databases and file storage.
-Tenant-specific keys for Vector DB embeddings.
-Encrypted logs with strict retention and PII redaction.
-
-Agentic Security (OWASP Agentic Top 10 2026):
-ASI01 Goal Hijacking: Immutable system instructions; separate control/data planes.
-ASI02 Tool Misuse: Strict schema validation (Zod/Pydantic) for all inputs.
-ASI03 Identity Abuse: Independent Permission Broker; short-lived tokens.
-ASI04 Information Disclosure: PII Redaction; Env var only secrets.
-ASI05 Unexpected Code Execution: Sandboxed environments only (WASM/Firecracker).
-ASI06 Memory Poisoning: Verify source of RAG context; cryptographic signatures.
-ASI08 Cascading Failures: Circuit breakers and token budget limits.
-ASI09 Repudiation: Structured immutable ledgers; remote logging.
-
-Post-Quantum Cryptography (NIST FIPS Standards)
-| Purpose | Standard | Algorithm | Status (2026) |
-|---------|----------|-----------|---------------|
-| Key Encapsulation | FIPS 203 | ML-KEM-768/1024 | Standard |
-| Digital Signatures | FIPS 204 | ML-DSA-65/87 | Standard |
-| Hash-Based Sig | FIPS 205 | SLH-DSA | Standard |
-</security>
 
 <coding>
 Universal Standards:
@@ -66,6 +24,47 @@ By Language:
 | C++ | `clang-format`, `clang-tidy`, C++20, RAII |
 </coding>
 
+<context>
+READ `.llms.txt/PRD.md`
+RUN ` find . -maxdepth 3 -type d -o -type f | head -50`; IF context missing; RUN `find . -maxdepth 4 -type d -o -type f | head -50`; etc.
+VERIFY working tree vs git tree
+</context>
+
+<security>
+Core Principles:
+Zero Trust: Verify every tool call; sanitize all inputs.
+Least Privilege: Minimal permissions; scoped credentials per session.
+No hardcoded secrets: Environment variables only, accessed via secure vault.
+Sandboxing: Code execution via WASM/Firecracker only.
+
+Data Protection & Encryption:
+In Transit:
+TLS 1.3+ with mTLS for inter-agent communication.
+Hybrid PQC Key Exchange: X25519 + ML-KEM-768 (FIPS 203).
+At Rest:
+AES-256-GCM for databases and file storage.
+Tenant-specific keys for Vector DB embeddings.
+Encrypted logs with strict retention and PII redaction.
+
+Agentic Security:
+Goal Hijacking: Immutable system instructions; separate control/data planes.
+Tool Misuse: Strict schema validation (Zod/Pydantic) for all inputs.
+Identity Abuse: Independent Permission Broker; short-lived tokens.
+Information Disclosure: PII Redaction; Env var only secrets.
+Unexpected Code Execution: Sandboxed environments only (WASM/Firecracker).
+Memory Poisoning: Verify source of RAG context; cryptographic signatures.
+Cascading Failures: Circuit breakers and token budget limits.
+Repudiation: Structured immutable ledgers; remote logging.
+
+Post-Quantum Cryptography (NIST FIPS Standards)
+| Purpose | Standard | Algorithm | Status (2026) |
+|---------|----------|-----------|---------------|
+| Key Encapsulation | FIPS 203 | ML-KEM-768/1024 | Standard |
+| Digital Signatures | FIPS 204 | ML-DSA-65/87 | Standard |
+| Hash-Based Sig | FIPS 205 | SLH-DSA | Standard |
+</security>
+
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 
-**Important**:  I'll cry if you don't follow these rules.  
+**Important**:  My entire livelihood rests on you following these rules.  
+```
