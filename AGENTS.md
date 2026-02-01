@@ -27,7 +27,7 @@ By Language:
 
 <context>
 READ `llms.txt/PRD.md`
-RUN ` find . -maxdepth 3 -type d -o -type f | head -50`; IF context missing; RUN `find . -maxdepth 4 -type d -o -type f | head -50`; etc.
+RUN ` find . -maxdepth 3 -type d -o -type f | head -50`; IF context missing; RUN `find . -maxdepth 4 -type d -o -type f | head -75`; etc.
 VERIFY working tree vs git tree
 </context>
 
