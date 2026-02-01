@@ -12,6 +12,7 @@ Universal Standards:
 Match existing codebase style
 SOLID, DRY, KISS, YAGNI
 Small, focused changes over rewrites
+NEVER create dummy code
 
 By Language:
 | Language | Standards |
