@@ -5,8 +5,14 @@
 - Use descriptive names
 - Document code with comments
 
-## ALWAYS
+## Always
 
-## NEVER
+- 
 
-## IF
+## Never
+
+- 
+
+## If
+
+- 
