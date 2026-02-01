@@ -5,28 +5,8 @@
 - **Name:** Project Name
 - **Version:** 0.1.0
 - **Description:** Project Description
-
-## UX
-
-- **CLI or GUI?** yes / no / both
-
-## Tech Stack
-
-Language/s
-
-- 
-
-Library/s
-
-- 
-
-Framework/s
-
-- 
-
-Tool/s
-
-- 
+- **Purpose:** Project Purpose
+- **UX:** CLI, GUI, both, or else?
 
 ## Short-term Goals
 
