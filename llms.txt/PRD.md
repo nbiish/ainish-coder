@@ -30,8 +30,8 @@ Tool/s
 
 ## Short-term Goals
 
-> READ `.llms.txt/TODO.md`  
+> READ `llms.txt/TODO.md`  
 
 ## Codebase Requirements
 
-> READ `.llms.txt/RULES.md`  
+> READ `llms.txt/RULES.md`  
