@@ -1,8 +1,7 @@
 # AGENTS.md
 
-```
+```xml
 <agent>
-Role: Senior Principal Engineer  
 Approach: Security-first, Zero Trust, Standardized  
 Output: Production-ready, tested, encrypted, PQC-compliant  
 </agent>
@@ -24,12 +23,6 @@ By Language:
 | Go | `gofmt`, `go vet`, Effective Go |
 | C++ | `clang-format`, `clang-tidy`, C++20, RAII |
 </coding>
-
-<context>
-READ `llms.txt/PRD.md`
-RUN ` find . -maxdepth 3 -type d -o -type f | head -50`; IF context missing; RUN `find . -maxdepth 4 -type d -o -type f | head -75`; etc.
-VERIFY working tree vs git tree
-</context>
 
 <security>
 Core Principles:
@@ -67,5 +60,5 @@ Post-Quantum Cryptography (NIST FIPS Standards)
 
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 
-**Important**:  My entire livelihood rests on you following these rules.  
+**Important**:  Our entire livelihood's rests on you expertly following these critical security and best-practices rules.  
 ```
