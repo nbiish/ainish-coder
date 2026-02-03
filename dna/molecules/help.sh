@@ -9,7 +9,7 @@ USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md and llms.txt/ directory (MEMORY.md, PRD.md, TODO.md)
+    --rules [TARGET_DIR]      Deploy AGENTS.md, llms.txt/ directory, and .gitignore
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --agents-security [DIR]   Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
     --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
@@ -167,7 +167,7 @@ OTHER:
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Tier deployments APPEND to MAIRULES.md (they don't overwrite)
-    - --rules deploys AGENTS.md + llms.txt/ directory
+    - --rules deploys AGENTS.md + llms.txt/ directory + .gitignore
     - --agents-security deploys AGENTS_LLM_SECURITY.md + AGENTS_CODE_SECURITY.md
     - Tool deployments include ALL configurations (rules + commands/recipes + ignores)
     - Use --mairules for ALL tiers or --tier {1-4} to add specific tiers
@@ -179,7 +179,7 @@ EXAMPLES:
     ainish-coder --rules ~/my-project       # Deploy to specific directory
     
     # Tool-specific deployments
-    ainish-coder --rules                    # Deploy AGENTS.md + empty MAIRULES.md + critical.md + .gitignore
+    ainish-coder --rules                    # Deploy AGENTS.md + llms.txt/ + .gitignore
 
     # Add more tiers as needed
     ainish-coder --tier 1                   # Append code security
