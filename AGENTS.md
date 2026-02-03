@@ -30,6 +30,10 @@ Zero Trust: Verify every tool call; sanitize all inputs.
 Least Privilege: Minimal permissions; scoped credentials per session.
 No hardcoded secrets: Environment variables only, accessed via secure vault.
 Sandboxing: Code execution via WASM/Firecracker only.
+Tool Misuse: Strict schema validation (Zod/Pydantic) for all inputs.
+Identity Abuse: Independent Permission Broker; short-lived tokens.
+Information Disclosure: PII Redaction; Env var only secrets.
+Repudiation: Structured immutable ledgers; remote logging.
 
 Data Protection & Encryption:
 In Transit:
@@ -40,17 +44,8 @@ AES-256-GCM for databases and file storage.
 Tenant-specific keys for Vector DB embeddings.
 Encrypted logs with strict retention and PII redaction.
 
-Agentic Security:
-Goal Hijacking: Immutable system instructions; separate control/data planes.
-Tool Misuse: Strict schema validation (Zod/Pydantic) for all inputs.
-Identity Abuse: Independent Permission Broker; short-lived tokens.
-Information Disclosure: PII Redaction; Env var only secrets.
-Unexpected Code Execution: Sandboxed environments only (WASM/Firecracker).
-Memory Poisoning: Verify source of RAG context; cryptographic signatures.
-Cascading Failures: Circuit breakers and token budget limits.
-Repudiation: Structured immutable ledgers; remote logging.
 
-Post-Quantum Cryptography (NIST FIPS Standards)
+Post-Quantum Crytography (NIST FIPS Standards)
 | Purpose | Standard | Algorithm | Status (2026) |
 |---------|----------|-----------|---------------|
 | Key Encapsulation | FIPS 203 | ML-KEM-768/1024 | Standard |
