@@ -152,6 +152,9 @@ main() {
             else
                 echo -e "${BRIGHT_RED}Error: Source llms.txt directory not found at $source_rules${RESET}"
             fi
+
+            # Deploy .gitignore
+            deploy_gitignore "$target_dir"
             
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
             ;;
