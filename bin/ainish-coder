@@ -134,25 +134,6 @@ main() {
             # Deploy AGENTS.md
             deploy_agents "$target_dir"
 
-            # Deploy llms.txt contents to llms.txt directory in target
-            local source_rules="${REPO_DIR}/llms.txt"
-            local target_rules_dir="$target_dir/llms.txt"
-
-            echo -e "${BRIGHT_BLUE}Deploying rules files to: $target_rules_dir${RESET}"
-            if [[ -d "$source_rules" ]]; then
-                # Create llms.txt directory if it doesn't exist
-                mkdir -p "$target_rules_dir"
-
-                # Copy contents recursively
-                if cp -R "$source_rules/." "$target_rules_dir/"; then
-                    echo -e "${GREEN}✓ Deployed rules files to llms.txt directory${RESET}"
-                else
-                     echo -e "${BRIGHT_RED}Error: Failed to copy rules files${RESET}"
-                fi
-            else
-                echo -e "${BRIGHT_RED}Error: Source llms.txt directory not found at $source_rules${RESET}"
-            fi
-
             # Deploy .gitignore
             deploy_gitignore "$target_dir"
             
