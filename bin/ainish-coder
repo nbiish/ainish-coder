@@ -285,7 +285,21 @@ main() {
             ;;
             
         --signals)
-            deploy_signals "$target_dir"
+            local deploy_examples="false"
+            local real_target="$target_dir"
+            
+            # Check if "ai" argument was passed (captured as target_dir by main)
+            if [[ "$target_dir" == "ai" ]]; then
+                deploy_examples="true"
+                # If "ai" was the first arg, check if user provided a target dir as the second arg
+                if [[ -n "${2:-}" ]]; then
+                    real_target="$2"
+                else
+                    real_target="$(pwd)"
+                fi
+            fi
+            
+            deploy_signals "$real_target" "$deploy_examples"
             ;;
 
         --llms-txt)

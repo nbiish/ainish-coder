@@ -4,6 +4,7 @@
 
 deploy_signals() {
     local target_dir="${1:-.}"
+    local deploy_examples="${2:-false}"
     local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
     validate_target_dir "$target_dir" || return 1
@@ -38,6 +39,24 @@ deploy_signals() {
                 echo -e "${GREEN}✓ Deployed: $filename${RESET}"
             fi
         done
+    fi
+
+    # Deploy examples if requested
+    if [[ "$deploy_examples" == "true" ]]; then
+        local src_examples_dir="$src_signals_dir/examples"
+        local dest_examples_dir="$signals_dir/examples"
+        
+        if [[ -d "$src_examples_dir" ]]; then
+            echo -e "${BRIGHT_BLUE}Deploying Signal Examples...${RESET}"
+            if ! mkdir -p "$dest_examples_dir"; then
+                print_error "Failed to create directory: $dest_examples_dir"
+            else
+                cp "$src_examples_dir"/* "$dest_examples_dir/"
+                echo -e "${GREEN}✓ Deployed examples to $dest_examples_dir${RESET}"
+            fi
+        else
+            echo -e "${YELLOW}Warning: Examples directory not found at $src_examples_dir${RESET}"
+        fi
     fi
 
     echo -e "${BRIGHT_GREEN}✅ Signals Detection Reference deployed to $signals_dir${RESET}"
