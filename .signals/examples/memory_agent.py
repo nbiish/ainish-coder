@@ -2,7 +2,6 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "agno>=2.0.0",
 #   "lancedb>=0.5.0",
 #   "sentence-transformers>=2.2.0",
 #   "llama-cpp-python>=0.2.0",
