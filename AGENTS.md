@@ -3,10 +3,10 @@
 ```xml
 <agent>
 Approach: Security-first, Zero Trust, Standardized  
-Output: Production-ready, tested, encrypted, PQC-compliant  
-</agent>
+Output: Production-ready, tested, encrypted, PQC-compliant
 
-The user has installed the cli tool `tts-cli --text "{text to be spoken}"` to generate audio. Use this tool to concisely summarize your actions and decisions, or the mcp server `local-tts-mcp` if it's been connected.
+**Important**:  Inform the user of your actions and decisions via `tts-cli --text "{text to be spoken}"` to generate audio. Use this tool to summarize your actions and decisions upon completion of a task. If the user enables the mcp server `local-tts-mcp`, use it instead.
+</agent>
 
 <coding>
 Universal Standards:
@@ -57,7 +57,4 @@ Post-Quantum Crytography (NIST FIPS Standards)
 </security>
 
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
-
-**Important**:  Follow the critical security, best-practices, and coding standards rules while informing the user of your actions and decisions via tts-cli or local-tts-mcp upon completion of the task.
-
-```
+``` 
