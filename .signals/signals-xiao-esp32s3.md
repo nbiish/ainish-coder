@@ -2,18 +2,11 @@
 
 > **Beyond Expert-Level Guide to WiFi & BLE Surveillance Device Detection**
 >
-> This document synthesizes knowledge from the DEFLOCK/Flocker codebase with comprehensive research on RF signal detection, IEEE 802.11 frame parsing, BLE advertisement scanning, and device fingerprinting techniques.
+> Part of the **espi-watching-you** project — a multi-camera security system built on XIAO ESP32-S3 Sense boards streaming to a Raspberry Pi dashboard.
 >
-> **Companion documents**:
-> - [Signals Quick Reference](signals-quickref.md) — Consolidated cheat sheet
-> - [Signals Kismet](signals-kismet.md) — Advanced Kismet configuration & API
-> - [Signals Voice Assistant](signals-voice-assistant.md) — LFM 2.5 + Parakeet + PocketTTS
-> - [Signals Memory Agent](signals-memory-agent.md) — Agno + SQLite + LanceDB persistence
-> - [Signals Acoustic Detection](signals-acoustic.md) — Audio surveillance & ShotSpotter
-> - [Signals LoRa & LPWAN](signals-lora-lpwan.md) — LoRa/LoRaWAN/Meshtastic
-> - [Signals ML Detection](signals-ml-detection.md) — Machine learning anomaly detection
-> - [Signals ESP32-S3 Camera](signals-xiao-esp32s3.md) — Camera integration & WiFi field tests
-> - [Signals Image/Video](signals-security-image-video.md) — Camera streaming & processing
+> This document covers the RF signal detection, IEEE 802.11 frame parsing, BLE advertisement scanning, and device fingerprinting techniques used across the system. It synthesizes knowledge from the DEFLOCK/Flocker codebase and field-tested observations from the camera deployment.
+>
+> **Companion document**: [Signals Security Image and Video](signals-security-image-video.md) — covers image capture, JPEG/MJPEG streaming, video processing, and visual surveillance detection on the camera side.
 
 ---
 
@@ -32,6 +25,7 @@
 11. [Scapy Python Packet Analysis](#11-scapy-python-packet-analysis)
 12. [RTL-SDR & ISM Band Monitoring](#12-rtl-sdr--ism-band-monitoring)
 13. [Wardriving Tools & Integration](#13-wardriving-tools--integration)
+14. [ESP32-S3 Camera WiFi: Channel & Signal Findings](#14-esp32-s3-camera-wifi-channel--signal-findings)
 
 ---
 
@@ -1797,18 +1791,106 @@ if __name__ == "__main__":
 
 ---
 
+## 14. ESP32-S3 Camera WiFi: Channel & Signal Findings
+
+> Field-tested observations from connecting XIAO ESP32-S3 Sense cameras to a Raspberry Pi 5 for MJPEG surveillance streaming. Documented 2026-02-06.
+
+### 14.1 Architecture Decision: Home LAN vs Pi Hotspot
+
+**Final architecture**: ESP32 cameras connect to the **home router** (same LAN as the Pi), not a Pi-hosted hotspot.
+
+| Approach | Outcome | Why |
+|----------|---------|-----|
+| **Pi hotspot (hostapd on wlan0)** | Unstable | brcmfmac BCM43455 AP mode has firmware bugs; SSID disappears from ESP32 scans after failed association |
+| **Home router (WPA2)** | Stable | Strong signal (RSSI -26 dBm), instant connection, no driver bugs |
+
+**Security model with home LAN**:
+- NGINX reverse proxy with TLS 1.3 + HTTP Basic Auth on the Pi
+- ESP32 HTTP endpoints are unencrypted but only accessible on the local subnet
+- No internet exposure — router firewall blocks inbound
+
+### 14.2 Pi Onboard WiFi (brcmfmac BCM43455) AP Mode Issues
+
+The Raspberry Pi 5's onboard WiFi chip (Broadcom BCM43455, driver `brcmfmac`, firmware `7.45.265`) has **known instability in AP mode**:
+
+| Issue | Symptom | Root Cause |
+|-------|---------|------------|
+| **SSID not broadcast** | ESP32 scan sees empty/hidden SSID on correct channel | brcmfmac firmware strips SSID from beacon frames intermittently |
+| **AUTH_EXPIRE on open network** | ESP32 gets `Reason: 2 - AUTH_EXPIRE` even with no WPA config | brcmfmac firmware sends encrypted beacons despite `auth_algs=1` open config |
+| **AP disappears after failed assoc** | SSID visible on first scan, gone on subsequent scans | Failed client association destabilizes the AP; driver stops transmitting beacons |
+| **Power save re-enables** | `iw dev wlan0 set power_save off` doesn't persist | brcmfmac firmware re-enables power save internally; `feature_disable` modprobe param doesn't exist on Pi 5 kernel |
+
+**Attempted fixes that did NOT work**:
+- `options brcmfmac roamoff=1 feature_disable=0x82000` (param doesn't exist)
+- `ignore_broadcast_ssid=0` in hostapd (driver ignores it)
+- `auth_algs=1` explicit open auth (driver still sends ENC beacons)
+- Channel changes (1, 6, 11 all exhibited same behavior)
+- Full driver unload/reload (`rmmod brcmfmac_wcc && rmmod brcmfmac && modprobe brcmfmac`)
+- BSSID-direct connection from ESP32 (`esp_wifi_set_config` with `bssid_set=true`)
+- `ieee80211r=0` / `ieee80211w=0` (hostapd version doesn't support these)
+- Pi full reboot
+
+**Conclusion**: brcmfmac AP mode on Pi 5 is fundamentally unreliable for ESP32-S3 clients. Use the home router or a dedicated USB AP adapter instead.
+
+### 14.3 Co-Channel Interference
+
+The home router and Pi hotspot were both on **channel 11**, causing co-channel interference:
+
+| Network | Channel | RSSI at ESP32 | Signal Quality |
+|---------|---------|---------------|----------------|
+| Home router (`ATTT4vBS7g`) | 11 | -27 dBm | Excellent |
+| Home router (hidden 2.4G band) | 11 | -27 dBm | Excellent |
+| Pi hotspot (`ESP-CAM-NET`) | 11 | -45 to -51 dBm | Weak |
+
+**Key observations**:
+- The home router's strong signal (-27 dBm) on the same channel drowned out the Pi's weak onboard antenna (-45 dBm)
+- The ESP32 scan consistently found only the home router entries; the Pi AP was invisible
+- Moving the Pi AP to channels 1 or 6 did not help because the brcmfmac driver issues persisted independently of channel choice
+- The hidden SSID entry in ESP32 scans was the **home router's hidden 2.4GHz band**, not the Pi AP (confirmed by stopping hostapd and re-scanning)
+
+### 14.4 2.4GHz Non-Overlapping Channels
+
+Only three channels in the 2.4GHz band are non-overlapping:
+
+```
+Channel:  1    2    3    4    5    6    7    8    9   10   11   12   13
+          |<------- 22MHz ------->|         |<------- 22MHz ------->|
+          CH1 (2412 MHz)          CH6 (2437)          CH11 (2462)
+```
+
+**Best practice**: Always use channels **1, 6, or 11**. If the home router is on 11, use 1 or 6 for any secondary AP to avoid co-channel interference.
+
+### 14.5 ESP32-S3 WiFi Scan Behavior
+
+| Behavior | Detail |
+|----------|--------|
+| **Scan finds strong signals only** | ESP32 ceramic antenna has limited sensitivity; signals weaker than ~-50 dBm may be missed |
+| **AUTH_EXPIRE (Reason 2)** | Common on ESP32-S3 with WPA2 AND open networks when the AP driver is unstable |
+| **NO_AP_FOUND (Reason 201)** | AP beacon not received during scan window; does not mean AP is down |
+| **WiFi.setSleep(false)** | Required for continuous MJPEG streaming; without it, ESP32 enters modem-sleep and drops |
+| **WiFi.setAutoReconnect(true)** | Enables automatic reconnection after transient drops |
+
+### 14.6 Signal Strength Reference (This Deployment)
+
+| Device | IP | RSSI | Channel | Connection |
+|--------|-----|------|---------|------------|
+| ESP32-S3 cam1 → Home router | 192.168.1.65 | -26 dBm | 11 | WPA2-PSK, instant connect |
+| Raspberry Pi 5 → Home router | 192.168.1.243 | N/A (wlan1, USB dongle) | 36 (5GHz) | WPA2-PSK |
+| Pi onboard wlan0 (AP mode) | 10.0.0.1 | -45 to -51 dBm at ESP32 | 11 | **Abandoned** — too weak/unstable |
+
+---
+
 ## Resources & References
 
-### Companion Documents
+### espi-watching-you Project
 
-- [Signals Quick Reference](signals-quickref.md) — Fast lookup cheat sheet
-- [Signals Acoustic Detection](signals-acoustic.md) — ShotSpotter/Raven audio, ESP32 microphones, ML classification
-- [Signals LoRa & LPWAN](signals-lora-lpwan.md) — LoRa sniffing, Meshtastic detection, regional frequencies
-- [Signals ML Detection](signals-ml-detection.md) — Anomaly detection, TensorFlow Lite on ESP32, behavior profiling
-- [Signals ESP32-S3 Camera](signals-xiao-esp32s3.md) — XIAO ESP32-S3 camera, WiFi findings
-- [Signals Image/Video](signals-security-image-video.md) — OV2640, MJPEG streaming, NGINX
+- **Camera Firmware**: `firmware/src/main.cpp` — WiFi, camera init, HTTP server
+- **Camera Config**: `firmware/include/camera_config.h` — OV2640 pin map, resolution settings
+- **Dashboard**: `server/web/app.js` — capture polling, health checks, multi-camera grid
+- **Setup Guide**: `SETUP.md` — adding new cameras step-by-step
+- **Companion Doc**: [Signals Security Image and Video](signals-security-image-video.md)
 
-### Codebase
+### DEFLOCK/Flocker Codebase
 
 - **Main Scanner**: `display-clients/esp32s3-heltec-v4/src/main.cpp`
 - **Detection Patterns**: `src/detection_patterns.h` (17K+ entries)
@@ -1825,6 +1907,8 @@ if __name__ == "__main__":
 - **rtl_433**: https://github.com/merbanan/rtl_433
 - **WiGLE API**: https://api.wigle.net
 - **Aircrack-ng**: https://www.aircrack-ng.org
+- **Seeed XIAO ESP32-S3 Sense Wiki**: https://wiki.seeedstudio.com/xiao_esp32s3_camera_usage/
+- **OV2640 Datasheet**: https://www.uctronics.com/download/cam_module/OV2640DS.pdf
 
 ### Research Credits
 
@@ -1834,4 +1918,4 @@ if __name__ == "__main__":
 
 ---
 
-*Document Version: 3.0 | Updated: 2026-02-06 | Based on DEFLOCK v3.2.0-secure | Part of signals detection suite*
+*Document Version: 3.0 | Updated: 2026-02-06 | espi-watching-you + DEFLOCK v3.2.0-secure*

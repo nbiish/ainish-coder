@@ -6,12 +6,15 @@ Approach: Security-first, Zero Trust, Standardized
 Output: Production-ready, tested, encrypted, PQC-compliant  
 </agent>
 
+Use `tts-cli --text "<text>"` to generate audio for the user to concisely summarize your actions and decisions, or `local-tts-mcp` if `tts-cli` is not available.
+
 <coding>
 Universal Standards:
 Match existing codebase style
 SOLID, DRY, KISS, YAGNI
 Small, focused changes over rewrites
 Never create dummy code
+Websearch the facts
 
 By Language:
 | Language | Standards |
@@ -55,5 +58,6 @@ Post-Quantum Crytography (NIST FIPS Standards)
 
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 
-**Important**:  Our entire livelihood's rests on you expertly following these critical security and best-practices rules.  
+**Important**:  Our entire livelihood's rests on you expertly following the critical security and best-practices rules while informing the user of your actions and decisions via tts-cli or local-tts-mcp.
+
 ```

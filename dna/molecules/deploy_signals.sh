@@ -19,15 +19,27 @@ deploy_signals() {
     
     local src_file="$source_dir/signals.md"
     local dest_file="$signals_dir/signals.md"
+    local src_signals_dir="$source_dir/.signals"
     
     if [[ -f "$src_file" ]]; then
         cp "$src_file" "$dest_file"
         echo -e "${GREEN}✓ Deployed: signals.md${RESET}"
-        echo -e "${BRIGHT_GREEN}✅ Signals Detection Reference deployed to $signals_dir${RESET}"
     else
         print_error "signals.md not found in source ($src_file)"
         return 1
     fi
 
+    # Copy additional signal files from .signals directory
+    if [[ -d "$src_signals_dir" ]]; then
+        for file in "$src_signals_dir"/*.md; do
+            if [[ -f "$file" ]]; then
+                local filename=$(basename "$file")
+                cp "$file" "$signals_dir/$filename"
+                echo -e "${GREEN}✓ Deployed: $filename${RESET}"
+            fi
+        done
+    fi
+
+    echo -e "${BRIGHT_GREEN}✅ Signals Detection Reference deployed to $signals_dir${RESET}"
     return 0
 }
