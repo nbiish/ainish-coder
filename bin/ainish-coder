@@ -65,6 +65,7 @@ source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
 source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
 source "${DNA_DIR}/molecules/deploy_signals.sh"
+source "${DNA_DIR}/molecules/deploy_llms_txt.sh"
 
 # Main function
 main() {
@@ -286,7 +287,11 @@ main() {
         --signals)
             deploy_signals "$target_dir"
             ;;
-            
+
+        --llms-txt)
+            deploy_llms_txt "$target_dir"
+            ;;
+
         *)
             print_error "Unknown command: $command"
             echo "Use 'ainish-coder --help' for usage information" >&2

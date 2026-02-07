@@ -1,8 +1,19 @@
 # Signals Detection: Expert Technical Reference
 
 > **Beyond Expert-Level Guide to WiFi & BLE Surveillance Device Detection**
-> 
+>
 > This document synthesizes knowledge from the DEFLOCK/Flocker codebase with comprehensive research on RF signal detection, IEEE 802.11 frame parsing, BLE advertisement scanning, and device fingerprinting techniques.
+>
+> **Companion documents**:
+> - [Signals Quick Reference](signals-quickref.md) — Consolidated cheat sheet
+> - [Signals Kismet](signals-kismet.md) — Advanced Kismet configuration & API
+> - [Signals Voice Assistant](signals-voice-assistant.md) — LFM 2.5 + Parakeet + PocketTTS
+> - [Signals Memory Agent](signals-memory-agent.md) — Agno + SQLite + LanceDB persistence
+> - [Signals Acoustic Detection](signals-acoustic.md) — Audio surveillance & ShotSpotter
+> - [Signals LoRa & LPWAN](signals-lora-lpwan.md) — LoRa/LoRaWAN/Meshtastic
+> - [Signals ML Detection](signals-ml-detection.md) — Machine learning anomaly detection
+> - [Signals ESP32-S3 Camera](signals-xiao-esp32s3.md) — Camera integration & WiFi field tests
+> - [Signals Image/Video](signals-security-image-video.md) — Camera streaming & processing
 
 ---
 
@@ -1788,6 +1799,15 @@ if __name__ == "__main__":
 
 ## Resources & References
 
+### Companion Documents
+
+- [Signals Quick Reference](signals-quickref.md) — Fast lookup cheat sheet
+- [Signals Acoustic Detection](signals-acoustic.md) — ShotSpotter/Raven audio, ESP32 microphones, ML classification
+- [Signals LoRa & LPWAN](signals-lora-lpwan.md) — LoRa sniffing, Meshtastic detection, regional frequencies
+- [Signals ML Detection](signals-ml-detection.md) — Anomaly detection, TensorFlow Lite on ESP32, behavior profiling
+- [Signals ESP32-S3 Camera](signals-xiao-esp32s3.md) — XIAO ESP32-S3 camera, WiFi findings
+- [Signals Image/Video](signals-security-image-video.md) — OV2640, MJPEG streaming, NGINX
+
 ### Codebase
 
 - **Main Scanner**: `display-clients/esp32s3-heltec-v4/src/main.cpp`
@@ -1814,4 +1834,4 @@ if __name__ == "__main__":
 
 ---
 
-*Document Version: 2.0 | Generated: 2026-01-31 | Based on DEFLOCK v3.2.0-secure*
+*Document Version: 3.0 | Updated: 2026-02-06 | Based on DEFLOCK v3.2.0-secure | Part of signals detection suite*
