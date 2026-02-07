@@ -6,7 +6,7 @@ Approach: Security-first, Zero Trust, Standardized
 Output: Production-ready, tested, encrypted, PQC-compliant  
 </agent>
 
-Use `tts-cli --text "<text>"` to generate audio for the user to concisely summarize your actions and decisions, or `local-tts-mcp` if `tts-cli` is not available.
+The user has installed the cli tool `tts-cli --text "{text to be spoken}"` to generate audio. Use this tool to concisely summarize your actions and decisions, or the mcp server `local-tts-mcp` if it's been connected.
 
 <coding>
 Universal Standards:
@@ -58,6 +58,6 @@ Post-Quantum Crytography (NIST FIPS Standards)
 
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 
-**Important**:  Our entire livelihood's rests on you expertly following the critical security and best-practices rules while informing the user of your actions and decisions via tts-cli or local-tts-mcp.
+**Important**:  Follow the critical security, best-practices, and coding standards rules while informing the user of your actions and decisions via tts-cli or local-tts-mcp upon completion of the task.
 
 ```
