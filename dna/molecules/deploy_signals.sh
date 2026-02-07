@@ -51,7 +51,21 @@ deploy_signals() {
             if ! mkdir -p "$dest_examples_dir"; then
                 print_error "Failed to create directory: $dest_examples_dir"
             else
-                cp "$src_examples_dir"/* "$dest_examples_dir/"
+                for item in "$src_examples_dir"/*; do
+                    [[ -e "$item" ]] || continue
+                    local base_name=$(basename "$item")
+                    
+                    # Skip __pycache__
+                    if [[ "$base_name" == "__pycache__" ]]; then
+                        continue
+                    fi
+
+                    if [[ -d "$item" ]]; then
+                        cp -r "$item" "$dest_examples_dir/"
+                    else
+                        cp "$item" "$dest_examples_dir/"
+                    fi
+                done
                 echo -e "${GREEN}✓ Deployed examples to $dest_examples_dir${RESET}"
             fi
         else
