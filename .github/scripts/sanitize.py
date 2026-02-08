@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
+"""
+ainish-coder Secret Sanitizer
+Automatically detects and replaces secrets/credentials in files.
+Compliant with OWASP Agentic Security ASI04 (Information Disclosure).
+"""
+import argparse
 import json
 import os
 import re
 import sys
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 
 def sanitize_value(key: str, value: Any) -> Any:
     """Sanitize a single value based on key name or value pattern."""
@@ -34,7 +40,7 @@ def sanitize_text(text: str) -> str:
     if not text:
         return text
 
-    patterns: List[tuple[str, str, int]] = [
+    patterns: List[Tuple[str, str, int]] = [
         # OWASP ASI04: Information Disclosure (Secrets)
         # --- AI/LLM Providers ---
         (r"tvly-[a-zA-Z0-9-]{30,}", "YOUR_TAVILY_API_KEY_HERE", 0),
@@ -45,6 +51,13 @@ def sanitize_text(text: str) -> str:
         (r"\bhf_[a-zA-Z0-9]{34}\b", "YOUR_HUGGINGFACE_TOKEN_HERE", 0),
         (r"\bpplx-[a-zA-Z0-9]{48}\b", "YOUR_PERPLEXITY_API_KEY_HERE", 0),
         (r"\bco-[a-zA-Z0-9]{40}\b", "YOUR_COHERE_API_KEY_HERE", 0),
+        # --- NEW: Additional AI Providers (2026) ---
+        (r"\bsk-or-[a-zA-Z0-9-]{48,}\b", "YOUR_OPENROUTER_API_KEY_HERE", 0),
+        (r"\bgsk_[a-zA-Z0-9]{52}\b", "YOUR_GROQ_API_KEY_HERE", 0),
+        (r"\br8_[a-zA-Z0-9]{40}\b", "YOUR_REPLICATE_TOKEN_HERE", 0),
+        (r"\bsk-[a-f0-9]{54}\b", "YOUR_DEEPSEEK_API_KEY_HERE", 0),
+        (r"\bgoog-[a-zA-Z0-9-]{32,}\b", "YOUR_GEMINI_API_KEY_HERE", 0),
+        (r"\bxai-[a-zA-Z0-9]{48,}\b", "YOUR_XAI_API_KEY_HERE", 0),
         # --- Search/Data Providers ---
         (r"BSA[a-zA-Z0-9]{27}", "YOUR_BRAVE_API_KEY_HERE", 0),
         (r"\bSG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}\b", "YOUR_SENDGRID_API_KEY_HERE", 0),
@@ -60,6 +73,13 @@ def sanitize_text(text: str) -> str:
         (r"\bAKIA[0-9A-Z]{16}\b", "YOUR_AWS_ACCESS_KEY_ID_HERE", 0),
         (r"\b[A-Za-z0-9+/]{40}\b(?=.*aws)", "YOUR_AWS_SECRET_KEY_HERE", re.IGNORECASE),
         (r"\b[a-zA-Z0-9+/]{86}==\b", "YOUR_AZURE_STORAGE_KEY_HERE", 0),
+        # --- NEW: Cloud Platforms (2026) ---
+        (r"\bCF_API_KEY.*[a-f0-9]{37}\b", "YOUR_CLOUDFLARE_API_KEY_HERE", 0),
+        (r"\brailway_[a-zA-Z0-9]{24,}\b", "YOUR_RAILWAY_TOKEN_HERE", 0),
+        (r"\brnd_[a-zA-Z0-9]{40,}\b", "YOUR_RENDER_TOKEN_HERE", 0),
+        (r"\bsbp_[a-zA-Z0-9]{40,}\b", "YOUR_SUPABASE_KEY_HERE", 0),
+        (r"\bfly_[a-zA-Z0-9]{43}\b", "YOUR_FLY_TOKEN_HERE", 0),
+        (r"\bdopt_[a-zA-Z0-9]{30,}\b", "YOUR_DENO_DEPLOY_TOKEN_HERE", 0),
         # --- Payment/SaaS ---
         (r"\bsk_live_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_SECRET_KEY_HERE", 0),
         (r"\bsk_test_[0-9a-zA-Z]{24}\b", "YOUR_STRIPE_TEST_KEY_HERE", 0),
@@ -223,29 +243,106 @@ def process_json_file(file_path: str) -> bool:
         # Return False to trigger fallback or indicate no change
         return False
 
+def preview_changes(file_path: str) -> List[Tuple[str, str, str]]:
+    """Preview what changes would be made without modifying the file.
+    Returns list of (original_snippet, replacement, pattern_name) tuples.
+    """
+    changes = []
+    try:
+        if is_binary_file(file_path):
+            return changes
+
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+
+        # Check each pattern for matches
+        patterns: List[Tuple[str, str, int]] = [
+            # AI/LLM Providers
+            (r"\bsk-ant-[a-zA-Z0-9_-]{20,}\b", "ANTHROPIC_API_KEY", 0),
+            (r"\bsk-[a-zA-Z0-9]{20,}\b", "OPENAI_API_KEY", 0),
+            (r"\bsk-or-[a-zA-Z0-9-]{48,}\b", "OPENROUTER_API_KEY", 0),
+            (r"\bgsk_[a-zA-Z0-9]{52}\b", "GROQ_API_KEY", 0),
+            (r"\bhf_[a-zA-Z0-9]{34}\b", "HUGGINGFACE_TOKEN", 0),
+            (r"tvly-[a-zA-Z0-9-]{30,}", "TAVILY_API_KEY", 0),
+            (r"\bpplx-[a-zA-Z0-9]{48}\b", "PERPLEXITY_API_KEY", 0),
+            # Cloud/DevOps
+            (r"\bghp_[A-Za-z0-9]{36}\b", "GITHUB_TOKEN", 0),
+            (r"\bAKIA[0-9A-Z]{16}\b", "AWS_ACCESS_KEY", 0),
+            (r"BSA[a-zA-Z0-9]{27}", "BRAVE_API_KEY", 0),
+            # Private Keys
+            (r"-----BEGIN [A-Z ]*PRIVATE KEY-----", "PRIVATE_KEY", 0),
+            # Local paths
+            (r"/Users/[A-Za-z0-9._-]+/", "LOCAL_PATH", 0),
+            (r"/Volumes/[A-Za-z0-9._-]+/", "VOLUME_PATH", 0),
+        ]
+
+        for pattern, name, flags in patterns:
+            matches = re.findall(pattern, content, flags=flags)
+            for match in matches:
+                # Truncate long matches for display
+                display = match if len(match) < 50 else match[:47] + "..."
+                changes.append((display, f"YOUR_{name}_HERE", name))
+
+        return changes
+    except Exception:
+        return changes
+
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: sanitize.py <file1> [file2 ...]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='Sanitize secrets and sensitive data from files.',
+        epilog='Examples:\n'
+               '  sanitize.py config.json              # Sanitize file\n'
+               '  sanitize.py --dry-run *.py           # Preview changes\n'
+               '  sanitize.py -v src/ tests/           # Verbose output',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('files', nargs='+', help='Files to sanitize')
+    parser.add_argument('--dry-run', '-n', action='store_true',
+                        help='Preview changes without modifying files')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Show detailed output')
+    args = parser.parse_args()
 
-    files = sys.argv[1:]
     changed_files = []
+    total_changes = 0
 
-    for file_path in files:
+    for file_path in args.files:
+        if not os.path.isfile(file_path):
+            if args.verbose:
+                print(f"Skipping (not a file): {file_path}", file=sys.stderr)
+            continue
+
         try:
-            if process_file(file_path):
-                changed_files.append(file_path)
-                # Don't print to stdout (silent mode for hooks)
-                # print(f"Sanitized: {file_path}", file=sys.stderr)
+            if args.dry_run:
+                changes = preview_changes(file_path)
+                if changes:
+                    print(f"\n📋 {file_path}:")
+                    for original, replacement, pattern_type in changes:
+                        print(f"   ├─ {pattern_type}: '{original}' → '{replacement}'")
+                    total_changes += len(changes)
+            else:
+                if process_file(file_path):
+                    changed_files.append(file_path)
+                    if args.verbose:
+                        print(f"✓ Sanitized: {file_path}", file=sys.stderr)
         except Exception as e:
-            # Silently skip files that can't be processed
-            pass
+            if args.verbose:
+                print(f"Error processing {file_path}: {e}", file=sys.stderr)
 
-    # Silent mode - don't print unless explicitly needed
-    # if changed_files:
-    #     print(f"Modified {len(changed_files)} files.")
-    # else:
-    #     print("No files needed sanitization.")
+    if args.dry_run:
+        if total_changes > 0:
+            print(f"\n🔍 Found {total_changes} potential secret(s) in {len(args.files)} file(s)")
+            print("   Run without --dry-run to sanitize.")
+        else:
+            print("✅ No secrets detected.")
+    elif args.verbose:
+        if changed_files:
+            print(f"Modified {len(changed_files)} file(s).", file=sys.stderr)
+        else:
+            print("No files needed sanitization.", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
+

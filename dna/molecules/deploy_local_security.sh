@@ -87,6 +87,31 @@ install_ainish_git_hooks() {
     
     mkdir -p "$hooks_dir"
     
+    # Check for existing pre-commit hook
+    if [[ -f "${hooks_dir}/pre-commit" ]]; then
+        if grep -q "ainish-coder" "${hooks_dir}/pre-commit" 2>/dev/null; then
+            print_success "Pre-commit hook already contains ainish-coder (updating)"
+        else
+            print_warning "Existing pre-commit hook found - backing up to pre-commit.backup"
+            cp "${hooks_dir}/pre-commit" "${hooks_dir}/pre-commit.backup"
+            echo ""
+            echo -e "${YELLOW}⚠️  To merge with your existing hook:${RESET}"
+            echo "   1. Review: ${hooks_dir}/pre-commit.backup"
+            echo "   2. Add your custom logic to the new pre-commit hook"
+            echo ""
+        fi
+    fi
+    
+    # Check for existing pre-push hook
+    if [[ -f "${hooks_dir}/pre-push" ]]; then
+        if grep -q "ainish-coder" "${hooks_dir}/pre-push" 2>/dev/null; then
+            print_success "Pre-push hook already contains ainish-coder (updating)"
+        else
+            print_warning "Existing pre-push hook found - backing up to pre-push.backup"
+            cp "${hooks_dir}/pre-push" "${hooks_dir}/pre-push.backup"
+        fi
+    fi
+    
     # Create pre-commit hook
     cat > "${hooks_dir}/pre-commit" << 'EOF'
 #!/bin/sh

@@ -60,7 +60,7 @@ Match OUI or SSID Pattern?
     🚨 DETECTION ALERT
 ```
 
-### BLE Detection Flow
+### BLE Detection Flow (ESP32 / NimBLE)
 
 ```
 Init NimBLE Stack
@@ -78,9 +78,84 @@ Match MAC/Name/Raven UUID?
     🚨 DETECTION ALERT
 ```
 
+### BLE Detection Flow (Raspberry Pi / btmgmt — Production)
+
+```
+Kill orphaned btmgmt (sudo killall -q btmgmt)
+        ↓
+Wait 0.3s (kernel releases HCI)
+        ↓
+script -qc "sudo btmgmt --index 1 find -l" /dev/null
+        ↓
+Parse: regex extract MAC, type, RSSI, flags, name
+        ↓
+bt_tracker.update() → persist to bt_devices.json
+        ↓
+fingerprint_db.record(device_type="bluetooth")
+        ↓
+tracker.update(phy="ble") → Tier 1/2/3 alerts
+        ↓
+tri_engine.add_observation(signal_type="ble")
+        ↓
+SignalCorrelator → WiFi↔BLE clustering
+        ↓
+    🚨 DETECTION ALERT (if tier > 0)
+```
+
+### Unified Pipeline (WiFi + BT → Alerts + Correlation)
+
+```
+┌─ iw wlan1 scan ──────────┐     ┌─ fingerprint_db ─┐
+│                           ├────→│ signal profiling  │
+│                           │     └────────┬──────────┘
+│ btmgmt find -l            │              ▼
+│ (via script -qc)  ────────┘     ┌─ tracker ────────┐
+│                                 │ persistence >30s  │
+│                                 │ Tier 1/2/3 alerts │
+│                                 └────────┬──────────┘
+│                                          ▼
+│                                 ┌─ tri_engine ──────┐
+│                                 │ GPS + RSSI → pos  │
+│                                 └────────┬──────────┘
+│                                          ▼
+│                                 ┌─ Correlator ──────┐
+│                                 │ WiFi↔BLE clusters │
+│                                 └───────────────────┘
+```
+
 ---
 
 ## Key Commands
+
+### Raspberry Pi Production Commands
+
+```bash
+# WiFi scan (production)
+sudo iw wlan1 scan
+
+# BT scan (production — MUST use script -qc under systemd)
+script -qc "sudo /usr/bin/btmgmt --index 1 find -l" /dev/null
+
+# Kill stale btmgmt (before each scan)
+sudo killall -q btmgmt
+
+# Check HCI state
+hciconfig hci1
+btmgmt --index 1 info
+
+# Service management
+sudo systemctl restart creeper-sweeper-webapp@<user>
+journalctl -u creeper-sweeper-webapp@<user> -f
+
+# Check for orphaned btmgmt
+pgrep -la btmgmt
+
+# Reset HCI (nuclear option)
+sudo hciconfig hci1 reset
+
+# Free occupied port after crash
+sudo fuser -k 5000/tcp
+```
 
 ### Linux Monitor Mode
 
@@ -306,7 +381,51 @@ async def scan():
 asyncio.run(scan())
 ```
 
-### RTL-SDR ISM Monitor
+### btmgmt BLE Scanner (Raspberry Pi — Production)
+
+```python
+import re, subprocess
+
+_DEV_RE = re.compile(
+    r"hci\d+\s+dev_found:\s+(?P<mac>[0-9A-Fa-f:]{17})\s+"
+    r"type\s+(?P<type>\S+(?:\s+\S+)?)\s+"
+    r"rssi\s+(?P<rssi>-?\d+)\s+flags\s+(?P<flags>0x[0-9A-Fa-f]+)"
+)
+
+def bt_scan(hci_index=1, duration=8):
+    # Kill orphans first
+    subprocess.run(["sudo", "killall", "-q", "btmgmt"],
+                   capture_output=True, timeout=3)
+    # MUST use script -qc for PTY under systemd
+    cmd = f"sudo /usr/bin/btmgmt --index {hci_index} find -l"
+    r = subprocess.run(["script", "-qc", cmd, "/dev/null"],
+                       capture_output=True, text=True, timeout=duration+10)
+    devices = []
+    for m in _DEV_RE.finditer(r.stdout):
+        devices.append({
+            "mac": m.group("mac").upper(),
+            "type": m.group("type"),
+            "rssi": int(m.group("rssi")),
+        })
+    return devices
+```
+
+---
+
+## Companion Documents
+
+| Document | Description |
+|----------|-------------|
+| [signals.md](signals.md) | Full RF signals reference (WiFi/BLE/SDR) |
+| [signals-bt-implementation.md](signals-bt-implementation.md) | **btmgmt under systemd, PTY fix, pipeline integration** |
+| [signals-kismet.md](signals-kismet.md) | Kismet architecture and REST API |
+| [signals-acoustic.md](signals-acoustic.md) | ShotSpotter/Raven audio detection |
+| [signals-lora-lpwan.md](signals-lora-lpwan.md) | LoRa sniffing and Meshtastic |
+| [signals-ml-detection.md](signals-ml-detection.md) | ML anomaly detection |
+
+---
+
+*Quick Reference v2.0 | 2025-07 | Creeper Sweeper signals suite*### RTL-SDR ISM Monitor
 
 ```python
 import subprocess, json
