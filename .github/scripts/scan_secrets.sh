@@ -15,6 +15,13 @@ PATTERNS=(
     "hf_[a-zA-Z0-9]{34}"
     "pplx-[a-zA-Z0-9]{48}"
     "co-[a-zA-Z0-9]{40}"
+    # NEW: Additional AI Providers (2026)
+    "sk-or-[a-zA-Z0-9-]{48,}"
+    "gsk_[a-zA-Z0-9]{52}"
+    "r8_[a-zA-Z0-9]{40}"
+    "sk-[a-f0-9]{54}"
+    "goog-[a-zA-Z0-9-]{32,}"
+    "xai-[a-zA-Z0-9]{48,}"
     # Search/Data Providers
     "BSA[a-zA-Z0-9]{27}"
     "SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}"
@@ -29,6 +36,13 @@ PATTERNS=(
     # Cloud Providers
     "AKIA[0-9A-Z]{16}"
     "[a-zA-Z0-9+/]{86}=="
+    # NEW: Cloud Platforms (2026)
+    "CF_API_KEY.*[a-f0-9]{37}"
+    "railway_[a-zA-Z0-9]{24,}"
+    "rnd_[a-zA-Z0-9]{40,}"
+    "sbp_[a-zA-Z0-9]{40,}"
+    "fly_[a-zA-Z0-9]{43}"
+    "dopt_[a-zA-Z0-9]{30,}"
     # Payment/SaaS
     "sk_live_[0-9a-zA-Z]{24}"
     "sk_test_[0-9a-zA-Z]{24}"

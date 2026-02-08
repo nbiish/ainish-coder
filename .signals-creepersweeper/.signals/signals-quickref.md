@@ -425,7 +425,7 @@ def bt_scan(hci_index=1, duration=8):
 
 ---
 
-*Quick Reference v2.0 | 2025-07 | Creeper Sweeper signals suite*### RTL-SDR ISM Monitor
+### RTL-SDR ISM Monitor
 
 ```python
 import subprocess, json
@@ -483,6 +483,89 @@ void setup() {
 
 ---
 
+## Creeper Sweeper Implementation Quick Reference
+
+### Correlation Engine — Multi-Dimensional Clustering (6 Phases)
+
+| Phase | Name | Cluster Type | Key Logic |
+|-------|------|--------------|-----------|
+| 1 | Manufacturer + RSSI | `mfr-` | Group by OUI vendor → RSSI band sub-cluster (`RSSI_GAP_TARGET`) |
+| 2 | PNL Fingerprint | `pnl-` | Jaccard similarity ≥ 0.5 on directed probe SSIDs |
+| 3 | Randomized MAC | `rand-` | LA-bit MACs with shared SSIDs → merge |
+| 4 | Bluetooth | `btn-`, `btr-` | Name prefix rules + RSSI band sub-clusters |
+| 5 | WiFi↔BT Cross-Link | `xlink-` | OUI(0.35) + RSSI(0.25) + Name(0.30) scoring |
+| 6 | Cross-Vendor PNL | `pnlxv-` | Same PNL hash or exact name across vendors |
+
+### RSSI Convergence Parameters
+
+| Param | Value |
+|-------|-------|
+| Formula | $\text{gap}(n) = 1.0 + 19.0 \times 0.92^n$ |
+| WiFi target | 1.0 dBm (`RSSI_GAP_TARGET`) |
+| BT target | 5.0 dBm (`RSSI_GAP_TARGET + 4`) |
+| Decay rate | 0.92 |
+| Start gap | 20.0 dBm |
+| Converges at | Step 36 (~36 minutes) |
+
+> **Pure exponential** — no oscillation, monotonically decreasing.
+
+### Alert Tiers
+
+| Tier | Name | Sound | Auto-Dismiss |
+|------|------|-------|------|
+| 1 | NEW_DEVICE | 660Hz sine, 0.3s | 5s |
+| 2 | PERSIST | Double 880Hz, 0.2s ea | 5s |
+| 3 | SURVEILLANCE | Sawtooth siren 440→1200Hz | Manual |
+| 4 | WATCH_ALERT | C5-E5-G5 arpeggio | 5s |
+
+### Watch Alert Match Types (7)
+
+| Type | Matches Against |
+|------|-----------------|
+| `mac` | detection.mac (exact) |
+| `oui` | detection.mac[:8] (OUI prefix) |
+| `friendly_name` | detection.friendly_name (substring) |
+| `device_name` | detection.device_name (substring) |
+| `ssid` | detection.ssid (substring) |
+| `manufacturer` | detection.manufacturer (substring) |
+| `pnl_hash` | detection.pnl_hash (exact) |
+
+### Persistence Files
+
+| File | Purpose |
+|------|---------|
+| `~/.local/share/creeper-sweeper/fingerprints.json` | Device fingerprint database |
+| `~/.local/share/creeper-sweeper/ignore_list.json` | 4-pane: MAC, OUI, SSID, device_name |
+| `~/.local/share/creeper-sweeper/watchlist.json` | Named watch alert configs (7 match types) |
+| `~/.local/share/creeper-sweeper/settings.json` | Scan params, audio, thresholds (7 fields) |
+| `~/.local/share/creeper-sweeper/signal_correlations.json` | Multi-dimensional cluster state |
+| `~/.local/share/creeper-sweeper/pnl_profiles.json` | PNL fingerprint profiles |
+| `~/.local/share/creeper-sweeper/bt_devices.json` | Bluetooth device state |
+| `~/.local/share/creeper-sweeper/gps_log.json` | GPS coordinate track log |
+| `~/.local/share/creeper-sweeper/alert_history.json` | Tiered alert history |
+| `~/.local/share/creeper-sweeper/ssid_groups.json` | SSID group tracker |
+| `~/.local/share/creeper-sweeper/triangulation.json` | Multi-node position results |
+
+### Deploy Command
+
+```bash
+bash webapp/deploy.sh <PI_IP> <HOSTNAME>
+# e.g. bash webapp/deploy.sh 192.168.1.243 pedicure-recognize-stress7
+```
+
+### Companion Documents — Implementation
+
+| Document | Coverage |
+|----------|----------|
+| [Architecture](signals-architecture.md) | System design, pipeline, threading |
+| [Correlation Engine](signals-correlation-engine.md) | Scoring, convergence, clustering |
+| [Data Models](signals-data-models.md) | Schemas, REST API, WebSocket events |
+| [Deployment](signals-deployment.md) | Pi setup, systemd, CI/CD |
+| [Frontend](signals-frontend.md) | Tabs, modals, audio, rendering |
+| [BT Implementation](signals-bt-implementation.md) | btmgmt PTY, HCI lifecycle |
+
+---
+
 ## Resources
 
 | Resource | URL |
@@ -498,4 +581,5 @@ void setup() {
 
 ---
 
-*Quick Reference v1.0 | 2026-02-06 | Part of ainish-coder signals suite*
+*Quick Reference v3.0 | 2026-02-08 | Creeper Sweeper*
+*Updated: Multi-dimensional clustering, pure exponential convergence, 7 watch types, correct persistence paths*
