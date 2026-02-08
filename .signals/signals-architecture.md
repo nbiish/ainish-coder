@@ -484,23 +484,24 @@ the same physical device using different MAC addresses (randomization).
 
 ### Summary
 
-The `SignalCorrelator` links WiFi and BLE observations from the same
-physical device by scoring 7 independent signals:
+The `SignalCorrelator` (L1408–L2390 in `app.py`) uses **multi-dimensional
+clustering** across 6 phases to link WiFi and BLE observations:
 
-| Signal | Weight | Algorithm |
-|--------|--------|-----------|
-| OUI Match | 0.10 | Same first 3 octets |
-| Probe Overlap | 0.15 | Jaccard of probed SSIDs |
-| PNL Match | 0.25 | PNL engine Jaccard similarity |
-| Temporal | 0.10 | Co-occurrence within time window |
-| RSSI Proximity | 0.25 | RSSI delta < damped tolerance |
-| Name Similarity | 0.10 | String matching |
-| Address Type | 0.05 | Same address classification |
+| Phase | Algorithm | Cluster Types Produced |
+|-------|-----------|------------------------|
+| 2 | OUI grouping → RSSI band sub-clustering | `manufacturer`, `manufacturer_rssi` |
+| 3 | PNL hash match → Jaccard overlap | `pnl_match`, `pnl_overlap`, `randomised` |
+| 3b | BT name grouping → RSSI sub-clustering | `bt_name`, `bt_rssi` |
+| 4 | WiFi↔BT cross-link (OUI+RSSI+name score ≥ 0.50) | `cross_linked` |
+| 5 | Cross-vendor PNL merge (Jaccard ≥ 0.70) | `pnl_cross_vendor` |
 
-Pairs above threshold → union-find clustering → correlation clusters.
+RSSI tolerance uses **exponential convergence** (no oscillation):
+$$\text{gap}(n) = 1.0 + 19.0 \times 0.92^n$$
 
-RSSI tolerance uses **damped oscillatory convergence**:
-$$\Delta(n) = \Delta_{\text{target}} + (\Delta_0 - \Delta_{\text{target}}) \cdot r^n \cdot |\cos(n \cdot \theta)|$$
+- WiFi target: **1.0 dBm** · BT target: **5.0 dBm** (WiFi + 4)
+- Converges at step 36 (~36 minutes)
+- 9 distinct cluster types with semantic meaning
+- ~315 clusters from ~250 devices in production
 
 ---
 
@@ -695,4 +696,5 @@ On user actions:
 
 ---
 
-*signals-architecture v1.0 | 2026-02 | Creeper Sweeper*
+*signals-architecture v2.0 | 2026-02-08 | Creeper Sweeper*
+*Updated: multi-dimensional clustering, 9 cluster types, exponential convergence*
