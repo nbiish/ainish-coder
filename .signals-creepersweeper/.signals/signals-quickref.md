@@ -26,6 +26,38 @@
 | `B8:27:EB:*` | Raspberry Pi (common in surveillance) | WiFi |
 | `DC:A6:32:*` | Raspberry Pi 4 | WiFi |
 
+### MAC Address Structure Quick Reference
+
+```
+MAC:  D4:F9:8D:01:2A:B7
+      ├─OUI──┤ ├─NIC──┤
+      (vendor)  (device)
+
+First Octet Bits:
+  Bit 0 (I/G): 0=Unicast  1=Multicast
+  Bit 1 (U/L): 0=Universal (real vendor)  1=Local (randomized)
+
+Randomization Check:
+  U/L=1 → MAC is randomized (iOS 14+, Android 10+, Win10+)
+  U/L=1 → OUI lookup will NOT find real manufacturer
+```
+
+### OUI Database Statistics
+
+| Source | Entries |
+|--------|---------|
+| maclookup.app | 56,878 |
+| IEEE MA-L | 38,893 |
+| **Merged Total** | **56,887** |
+
+| Block Type | Count | Prefix Length |
+|-----------|-------|--------------|
+| MA-L | 38,920 | 24-bit (3 bytes) |
+| MA-S | 6,894 | 36-bit (4.5 bytes) |
+| MA-M | 6,248 | 28-bit (3.5 bytes) |
+| IAB | 4,578 | 36-bit (deprecated) |
+| CID | 212 | 24-bit (internal) |
+
 ### BLE Service UUIDs (Raven/ShotSpotter)
 
 | UUID Prefix | Service | Data Type |

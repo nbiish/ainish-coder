@@ -370,8 +370,9 @@ sudo timedatectl set-ntp true
 #### Step 2: SCP Webapp Files
 
 ```
-app.py, bt_scanner.py, pnl_engine.py, gps_reader.py, triangulation.py
-requirements.txt, static/*, templates/*
+app.py, bt_scanner.py, pnl_engine.py, gps_reader.py, triangulation.py,
+mac_breakdown.py, phy_fingerprint.py, oui_lookup.json
+requirements.txt, static/* (including oui_db.json), templates/*
 ```
 
 #### Step 3: SCP Config + Source Package
@@ -960,4 +961,4 @@ sudo ufw allow 2947/tcp comment "gpsd"
 ---
 
 *signals-deployment v2.0 | 2026-02-08 | Creeper Sweeper*
-*Updated: 9-step deploy.sh, src package deployment, default host/user*
+*Updated: 9-step deploy.sh, src package deployment, MAC breakdown + OUI DB, default host/user*

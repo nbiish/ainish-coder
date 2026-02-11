@@ -60,21 +60,23 @@ built-in Chromium without any toolchain.
 ```
 webapp/
 ├── templates/
-│   └── index.html          # 563 lines — Single HTML page
+│   └── index.html          # 732 lines — Single HTML page (10 tabs)
 └── static/
-    ├── app.js              # 2464 lines — All application logic (92 functions)
-    ├── reference.js        # 958 lines — SIGINT reference data + 30 vendors
-    └── style.css           # 2047 lines — Dark theme styles
+    ├── app.js              # 3063 lines — All application logic + MAC breakdown
+    ├── reference.js        # 973 lines — SIGINT reference data + 30 vendors + MAC analyzer
+    ├── style.css           # 2364 lines — Dark theme styles + MAC breakdown panel
+    └── oui_db.json         # 4.4MB — Client-side OUI vendor database (56,887 entries)
 ```
 
 ### Line Count Distribution
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `app.js` | ~2464 | Socket handlers, API calls, rendering, audio, state, analyzer |
-| `reference.js` | ~958 | Static reference tables, 30 vendors, 102 OUI prefixes |
-| `style.css` | ~2047 | Full dark theme, responsive, modals, alerts, scrollable layout |
-| `index.html` | ~563 | Structure, tab containers, form elements, CDN imports |
+| `app.js` | ~3063 | Socket handlers, API calls, rendering, audio, state, analyzer, MAC breakdown, OUI loader |
+| `reference.js` | ~973 | Static reference tables, 30 vendors, 102 OUI prefixes, MAC analyzer with vendor lookup |
+| `style.css` | ~2364 | Full dark theme, responsive, modals, alerts, scrollable layout, MAC breakdown panel |
+| `index.html` | ~732 | Structure, 10 tab containers, form elements, CDN imports |
+| `oui_db.json` | 56,887 entries | Client-side OUI vendor lookup (loaded to `window._ouiDB` on init) |
 
 ---
 
