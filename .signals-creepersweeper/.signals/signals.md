@@ -11,6 +11,7 @@
 > - [Deployment & Operations](signals-deployment.md) — Pi setup, systemd, deploy.sh, CI/CD, diagnostics
 > - [Frontend & Dashboard](signals-frontend.md) — Tabs, modals, Web Audio, Socket.IO client rendering
 > - [BT Implementation](signals-bt-implementation.md) — btmgmt under systemd, PTY spawn, HCI lifecycle
+> - [MAC Breakdown & OUI](signals-mac-breakdown.md) — MAC address structural analysis, 56k+ vendor database, educational reference
 >
 > **Companion documents — Research & Reference**:
 > - [Signals Quick Reference](signals-quickref.md) — Consolidated cheat sheet

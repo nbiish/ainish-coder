@@ -69,7 +69,7 @@ AGENT CUSTOMIZATION:
                               
                               Features:
                               - YOLO Mode: Yielding Ownership to Local Orchestrators
-                              - CLI YOLO agents (Claude, Gemini, Qwen, OpenCode, Crush)
+                              - CLI YOLO agents (Gemini, Qwen, OpenCode, Crush, Claude)
                               - Non-interactive autonomous execution
                               - Parallel task dispatch patterns
                               - Shared state coordination

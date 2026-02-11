@@ -564,6 +564,18 @@ Credentials from `.env`: `CREEPER_ADMIN_USER` / `CREEPER_ADMIN_PASSWORD`.
 | GET | `/api/export/detections.csv` | — | CSV file download |
 | POST | `/api/import/csv` | Multipart form: file | Import result stats |
 
+### MAC Address Breakdown & OUI Lookup
+
+| Method | Path | Params | Response |
+|--------|------|--------|----------|
+| GET | `/api/mac/<mac>/breakdown` | — | Full structural analysis: octets, bits, vendor, category, tracking risk |
+| GET | `/api/oui/<prefix>` | — | Vendor lookup: `{prefix, vendor, block_type, private}` |
+| GET | `/api/oui/stats` | — | DB stats: `{loaded, total_entries, block_types}` |
+
+**Note:** `/api/devices/<mac>` also includes `mac_breakdown` field in its response,
+containing the same data as `/api/mac/<mac>/breakdown`. This enrichment happens
+server-side so the device modal can render the breakdown without an extra API call.
+
 ---
 
 ## 6. WebSocket Events

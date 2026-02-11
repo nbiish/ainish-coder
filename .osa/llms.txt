@@ -1,0 +1,54 @@
+# OSA Framework
+
+> Orchestrated System of Agents (OSA) — YOLO Mode
+> Yielding Ownership to Local Orchestrators
+
+## Overview
+
+OSA is a multi-agent orchestration framework for autonomous CLI-based coding agents. It coordinates Qwen, Gemini, Crush, Claude, and OpenCode through non-interactive YOLO mode execution with parallel dispatch, role-based routing, and contract-aware resource management.
+
+## Docs
+
+- [OSA.md](OSA.md): Full framework specification — roles, patterns, registry, security
+
+## Core Concepts
+
+- **YOLO Mode**: Non-interactive autonomous agent execution via CLI flags (`--yolo`, `--dangerously-skip-permissions`, `run`)
+- **Agent Roles**: Orchestrator, Architect, Coder, Security, QA — auto-detected from task keywords
+- **Execution Patterns**: Sequential, Parallel (`&` + `wait`), Feedback Loop (Draft → Critique → Refine)
+- **Agent Registry**: Centralized config for CLI command, YOLO flag, env vars, capabilities, priority
+- **Contract Modes**: Urgent (speed), Economical (cost), Balanced (role-based)
+- **State Sync**: YAML state files + legacy `.toon` format for inter-agent coordination
+
+## Agent CLI
+
+- gemini --yolo "prompt": Orchestration, planning, merging (Priority 1)
+- qwen --yolo "prompt": Fast code generation (Priority 2)
+- opencode run "prompt": Schema validation, security (Priority 3)
+- crush run "prompt": Security audit, review (Priority 4)
+- claude -p "prompt" --dangerously-skip-permissions: Architecture, QA (Priority 5)
+
+## Security
+
+- Zero Trust (NIST SP 800-207): Verify every tool call, sanitize all inputs
+- Post-Quantum Cryptography: ML-KEM-768 (FIPS 203), ML-DSA-65 (FIPS 204)
+- Encryption in Transit: TLS 1.3+ with mTLS, Hybrid PQC (X25519 + ML-KEM-768)
+- Encryption at Rest: AES-256-GCM, tenant-specific keys
+- No hardcoded secrets: Environment variables only
+
+## Safety
+
+- Abort swarm if >50% agent failure rate
+- 5 minute timeout per agent execution
+- Maximum 50 iterations per YOLO session
+- Token budget tracking (default: 100,000)
+- git worktree for parallel changes
+
+## Standards
+
+- SOLID, DRY, KISS, YAGNI
+- Git commits: <type>(<scope>): <description>
+- Bash: set -euo pipefail
+- Python: PEP 8, type hints, uv
+- TypeScript: strict mode, ESLint
+- Rust: cargo fmt, cargo clippy
