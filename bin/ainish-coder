@@ -141,8 +141,12 @@ main() {
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
             ;;
         
-        # Agents security deployment
-        --agents-security|--secure)
+        --agents)
+            deploy_agents "$target_dir"
+            ;;
+        
+        # Security files deployment
+        --secure)
             echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
 
             # Deploy AGENTS_CODE_SECURITY.md
@@ -164,9 +168,6 @@ main() {
             fi
             
             echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
-            ;;
-        --agents)
-            deploy_agents "$target_dir"
             ;;
         --mairules)
             # Deploy MAIRULES.md with all tiers (for backward compatibility)
