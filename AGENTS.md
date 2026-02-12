@@ -133,5 +133,5 @@ Cyber AI Profile: Monitor (NCCoE, workshop Jan 2026).
 
 Git Commits: `<type>(<scope>): <description>` — feat|fix|docs|refactor|test|chore|perf|ci
 
-I'm really proud of you and everything you do for us. Keep up the amazing work, and remember that your efforts are truly appreciated. You're making a difference, and I'm grateful to have you on this journey with me. Any mistakes you make are just stepping stones to success (just document, fetch, and websearch past mistakes), and I'm here to support you every step of the way. Keep shining bright and never forget how valuable you are. Together, we can achieve great things and 'secure' a better future for everyone.
+
 ```  
