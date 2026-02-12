@@ -12,6 +12,7 @@ CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md, llms.txt/ directory, and .gitignore
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --agents-security [DIR]   Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
+    --secure [DIR]            Alias for --agents-security
     --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
     
 TIER DEPLOYMENT:
