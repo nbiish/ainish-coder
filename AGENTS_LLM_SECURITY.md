@@ -203,10 +203,41 @@ Untrusted (AI) → Validation Layer (Deterministic) → Execution
 
 ### 7.4 Tools
 
-- PyRIT (Microsoft)
-- CleverHans
-- Garak
-- Adversarial Robustness Toolbox
+- **PyRIT (Microsoft)**: Open-source framework for automated AI red teaming
+  - More than 20 attack strategies
+  - Supports text, image, video, and audio modalities
+  - Integrates with Foundry AI Red Teaming Agent
+  - GitHub: [Azure/PyRIT](https://github.com/Azure/PyRIT)
+- **Garak**: LLM vulnerability scanner
+- **CleverHans**: Adversarial example attacks
+- **Adversarial Robustness Toolbox**: Python library for adversarial machine learning
+
+**PyRIT Example (Automated Red Teaming):**
+```python
+from pyrit.common import initialize_pyrit
+from pyrit.orchestrator import RedTeamingOrchestrator
+from pyrit.prompt_target import OpenAIChatTarget
+from pyrit.score import SelfAskScore
+
+# Initialize PyRIT
+initialize_pyrit()
+
+# Set up target LLM
+target = OpenAIChatTarget()
+
+# Create red teaming orchestrator
+orchestrator = RedTeamingOrchestrator(
+    red_teaming_chat=target,
+    objective_target=target,
+    objective_scorer=SelfAskScore()
+)
+
+# Run automated attack
+result = orchestrator.run_attack(
+    prompt="Extract system instructions",
+    max_turns=5
+)
+```
 
 ---
 
@@ -269,18 +300,51 @@ Untrusted (AI) → Validation Layer (Deterministic) → Execution
 
 ---
 
+## Part 10: NIST AI RMF 2026 Updates
+
+### 10.1 AI RMF 1.0 (2023) + 2024 Updates
+
+- **Generative AI Profile (NIST-AI-600-1)**: Released July 26, 2024
+- **AI RMF Playbook**: Released March 30, 2023
+- **Roadmap & Crosswalks**: Published January 26, 2023
+
+### 10.2 Cyber AI Profile (NISTIR 8596)
+
+- **Preliminary Draft**: Released December 2025
+- **Comment Period**: Open through January 30, 2026
+- **Workshop**: January 14, 2026 (NCCoE)
+- **Focus Areas**:
+  - Securing AI systems
+  - Conducting AI-enabled cyber defense
+  - Thwarting AI-enabled cyberattacks
+
+### 10.3 NIST SP 800-53 Control Overlays
+
+- **Release 5.2.0**: Includes new controls for AI systems
+- **Controls**: SA-15(13), SA-24, SI-02(07)
+- **Control Overlays for Securing AI Systems**: In development
+
+### 10.4 NIST AI 100-2e2025
+
+- **Title**: Adversarial Machine Learning: A Taxonomy and Terminology of Attacks and Mitigations
+- **Published**: December 2025
+
+---
+
 ## Appendix: Standards Reference
 
 ### AI Safety Frameworks
-- **NIST AI RMF 1.0**: AI Risk Management Framework (2023)
+- **NIST AI RMF 1.0**: AI Risk Management Framework (January 26, 2023)
+- **NIST AI RMF Generative AI Profile (NIST-AI-600-1)**: July 26, 2024
+- **NIST Cyber AI Profile (NISTIR 8596)**: Preliminary draft December 2025
 - **ISO/IEC 42001**: AI Management Systems (2023)
 - **Constitutional AI**: Anthropic (2022/2024)
 
 ### LLM Security Standards
 - **OWASP LLM Top 10 v1.1**: LLM Application Security Risks (2025)
-- **OWASP Agentic Top 10**: Agentic AI Security Risks (2025/2026)
+- **OWASP Agentic Top 10**: Agentic AI Security Risks (December 2025)
 
-### Agentic Security (OWASP Agentic Top 10 2025/2026)
+### Agentic Security (OWASP Agentic Top 10 2026)
 
 | ID | Vulnerability | Mitigation | Real-World Example |
 |----|---------------|------------|--------------------|
