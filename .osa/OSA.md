@@ -41,15 +41,61 @@ Your goal is not just to "do a task" but to **orchestrate** the best possible so
 
 ---
 
+## Agent Hierarchy
+
+When breaking out agent teams or parallel agents, follow this hierarchy for team member selection:
+
+| Priority | Agent | Use Case |
+|----------|-------|----------|
+| **1** | **Gemini** | Orchestration, planning, merging, architecture |
+| **2** | **Qwen** | Fast code generation, implementation |
+| **3** | **Claude** | Architecture review, QA, complex reasoning |
+| **4** | **mini** | Software engineering, bug fixes, code implementation |
+| **5** | **OpenCode** | Schema validation, security audit |
+
+### Hierarchy Selection Rules
+
+1. **Primary Agent**: Always start with the highest-priority agent suitable for the task
+2. **Team Formation**: When creating parallel agent teams, select members in hierarchy order
+3. **Fallback Chain**: If an agent fails, proceed to the next in hierarchy
+4. **Role Matching**: Within each priority tier, match agent capabilities to task requirements
+
+---
+
 ## Agent CLI Commands
 
-| Agent | Command | Use Case | Priority |
+| Agent | Command | Use Case | Hierarchy |
 |--------|-----------|------------|-----------|
-| **Gemini** | `gemini --yolo "prompt"` | Orchestration, planning, merging | 1 |
-| **Qwen** | `qwen --yolo "prompt"` | Fast code generation | 2 |
-| **OpenCode** | `opencode run "prompt"` | Schema validation, security | 3 |
-| **Crush** | `crush run "prompt"` | Security audit, code review | 4 |
-| **Claude** | `claude -p "prompt" --dangerously-skip-permissions` | Architecture, QA | 5 |
+| **Gemini** | `gemini --yolo "prompt"` | Orchestration, planning, merging | **1** |
+| **Qwen** | `qwen --yolo "prompt"` | Fast code generation | **2** |
+| **Claude** | `claude -p "prompt" --dangerously-skip-permissions` | Architecture, QA | **3** |
+| **mini** | `mini --task "prompt"` | Software engineering, bug fixes, code implementation | **4** |
+| **OpenCode** | `opencode run "prompt"` | Schema validation, security | **5** |
+
+### Gemini (Hierarchy 1)
+
+Gemini is the **primary** agent in the OSA Framework for orchestration and planning tasks. Best usage/rate limits make it ideal for coordinating multi-agent workflows.
+
+### mini-swe-agent (Hierarchy 4)
+
+mini-swe-agent is a specialized software engineering agent. Developed by the Princeton/Stanford team behind SWE-bench.
+
+**Key Features:**
+- **Minimal**: ~100 lines of Python for the agent class
+- **Performant**: >74% on SWE-bench verified benchmark
+- **Simple**: No tools other than bash
+- **Transparent**: Completely linear history
+- **Compatible**: Works with all models via litellm
+
+**Installation:**
+```bash
+pip install mini-swe-agent
+mini --task "Fix the bug in src/main.py"
+```
+
+**Role-Specific Configs:** `.osa/mini/config/osa_{role}.yaml`
+
+See `.osa/mini/README.md` for full documentation.
 
 ### Core Rules
 
@@ -65,36 +111,36 @@ Your goal is not just to "do a task" but to **orchestrate** the best possible so
 
 Adopt these personas as needed for each task:
 
-### 1. Orchestrator (You)
+### 1. Orchestrator
 
 - Planning and task decomposition
 - Progress tracking and agent coordination
 - Workflow management and dependency resolution
-- **Preferred Agents:** `gemini`, `qwen`
+- **Preferred Agents (by hierarchy):** `gemini` → `qwen` → `claude` → `mini` → `opencode`
 
 ### 2. Architect
 
 - System design and finding patterns
 - API design and defining structures
-- **Preferred Agents:** `gemini`, `opencode`
+- **Preferred Agents (by hierarchy):** `gemini` → `claude` → `qwen` → `mini` → `opencode`
 
 ### 3. Coder
 
 - Implementation (SOLID, DRY, KISS, YAGNI)
 - Writing production code and refactoring
-- **Preferred Agents:** `qwen`, `gemini`
+- **Preferred Agents (by hierarchy):** `qwen` → `gemini` → `claude` → `mini` → `opencode`
 
 ### 4. Security
 
 - Zero Trust validation and input sanitization
 - Secret management and vulnerability assessment
-- **Preferred Agents:** `opencode`, `crush`
+- **Preferred Agents (by hierarchy):** `opencode` → `gemini` → `claude` → `qwen` → `mini`
 
 ### 5. QA
 
 - Verification, testing, edge-case analysis
 - Code review and benchmarking
-- **Preferred Agents:** `crush`, `opencode`
+- **Preferred Agents (by hierarchy):** `claude` → `gemini` → `qwen` → `opencode` → `mini`
 
 ### Role Keywords
 
@@ -315,13 +361,13 @@ class AgentConfig:
 
 ### Registry Table
 
-| Agent | Roles | Capabilities | Env Vars | Priority |
-|-------|-------|-------------|----------|----------|
-| **Gemini** | Orchestrator, Architect | plan, orchestrate, arch, context | `GEMINI_YOLO=true` | 1 |
+| Agent | Roles | Capabilities | Env Vars | Hierarchy |
+|-------|-------|-------------|----------|-----------|
+| **Gemini** | Orchestrator, Architect | plan, orchestrate, arch, context | `GEMINI_YOLO=true` | **1** |
 | **Qwen** | Coder, QA | code_gen, refactor, test, docs | `QWEN_YOLO=true` | 2 |
-| **OpenCode** | Security | security_audit, review | `OPENCODE_YOLO=true` | 3 |
-| **Crush** | Security, QA | security_audit, review, test | `CRUSH_YOLO=true` | 4 |
-| **Claude** | Architect, QA | arch, review, test | — | 5 |
+| **Claude** | Architect, QA | arch, review, test | — | 3 |
+| **mini** | Orchestrator, Coder, Security, QA | code_gen, refactor, test, docs, security_audit, plan | `MSWEA_MODEL_NAME` | 4 |
+| **OpenCode** | Security | security_audit, review | `OPENCODE_YOLO=true` | 5 |
 
 ---
 
@@ -331,25 +377,28 @@ class AgentConfig:
 
 | Mode | Strategy |
 |------|----------|
-| **Urgent** | Prefer fastest agents (Gemini → Qwen → OpenCode) |
-| **Economical** | Prefer cheapest agents (Gemini → Qwen → OpenCode) |
-| **Balanced** | Role-based selection with priority fallback (Gemini → Qwen → OpenCode → Crush → Claude) |
+| **Urgent** | Prefer fastest agents (Gemini → Qwen → Claude → mini → OpenCode) |
+| **Economical** | Prefer cheapest agents (Gemini → Qwen → mini → OpenCode → Claude) |
+| **Balanced** | Hierarchy-based selection (Gemini → Qwen → Claude → mini → OpenCode) |
 
 ### Selection Logic
 
 ```
-IF time_remaining < 30s   → Select fastest agent
-IF token_utilization > 80% → Select most efficient agent
-IF token_utilization < 50% → Select highest quality agent
-ELSE                       → Role-based default selection
+IF time_remaining < 30s   → Select fastest agent by hierarchy
+IF token_utilization > 80% → Select most efficient agent by hierarchy
+IF token_utilization < 50% → Select highest quality agent by hierarchy
+ELSE                       → Hierarchy-based default selection
 ```
 
 ### Agent Performance Profiles
 
-| Agent | Speed | Cost | Quality |
-|-------|-------|------|---------|
-| **Gemini** | Fast | Free Tier | Very High |
-| **Qwen** | Fast | Free Tier | High |
+| Agent | Speed | Cost | Quality | Hierarchy |
+|-------|-------|------|---------|-----------|
+| **Gemini** | Fast | Free Tier | Very High | **1** |
+| **Qwen** | Fast | Free Tier | High | 2 |
+| **Claude** | Medium | High | Very High | 3 |
+| **mini** | Fast | Low | >74% SWE-bench | 4 |
+| **OpenCode** | Medium | Low | High | 5 |
 | **OpenCode** | Medium | Low | High |
 | **Crush** | Medium | Low | High |
 | **Claude** | Medium | High | Very High |
@@ -461,5 +510,73 @@ The Orchestrator has 16 defined actions for full workflow management:
 
 ---
 
-*Framework: OSA (One-Shot Agent) v2.0*
+## Implementation Roadmap
+
+### Priority 1: Agent Registry Module
+
+**Files:**
+- `yolo_mode/agents/__init__.py`
+- `yolo_mode/agents/registry.py`
+- `yolo_mode/agents/runner.py`
+- `yolo_mode/agents/role_detection.py`
+
+**Impact:** High | **Effort:** Medium
+
+### Priority 2: Contract Integration
+
+**Files:**
+- `yolo_mode/contracts.py` (enhance existing)
+- `yolo_mode/agents/resource_aware.py`
+
+**Impact:** High | **Effort:** Medium
+
+### Priority 3: Enhanced Parallel Execution
+
+**Files:**
+- `yolo_mode/agents/parallel_executor.py`
+
+**Impact:** Medium | **Effort:** Medium
+
+### Priority 4: Manager Agent Actions
+
+**Files:**
+- `yolo_mode/agents/manager.py`
+
+**Impact:** Medium | **Effort:** High
+
+### Priority 5: State File Format
+
+**Files:**
+- `.claude/yolo-state.yaml`
+- `yolo_mode/state.py` (enhance existing)
+
+**Impact:** Low | **Effort:** Low
+
+---
+
+## Quick Start Implementation
+
+### Step 1: Create Agent Module
+
+```bash
+mkdir -p yolo_mode/agents
+touch yolo_mode/agents/__init__.py
+touch yolo_mode/agents/registry.py
+touch yolo_mode/agents/runner.py
+touch yolo_mode/agents/role_detection.py
+```
+
+### Step 2: Test Integration
+
+```bash
+# Test each agent
+python -m yolo_mode.agents.runner qwen "write hello world"
+python -m yolo_mode.agents.runner gemini "plan a project"
+python -m yolo_mode.agents.runner crush "audit this code"
+```
+
+---
+
+*Framework: OSA (One-Shot Agent) v2.1*
 *YOLO: Yielding Ownership to Local Orchestrators*
+*Primary Agent: mini-swe-agent (Priority 0)*
