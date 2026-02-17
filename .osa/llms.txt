@@ -5,11 +5,13 @@
 
 ## Overview
 
-OSA is a multi-agent orchestration framework for autonomous CLI-based coding agents. It coordinates Qwen, Gemini, Crush, Claude, and OpenCode through non-interactive YOLO mode execution with parallel dispatch, role-based routing, and contract-aware resource management.
+OSA is a multi-agent orchestration framework for autonomous CLI-based coding agents. It coordinates mini-swe-agent, Qwen, Gemini, Crush, Claude, and OpenCode through non-interactive YOLO mode execution with parallel dispatch, role-based routing, and contract-aware resource management.
 
 ## Docs
 
 - [OSA.md](OSA.md): Full framework specification — roles, patterns, registry, security
+- [IMPLEMENTATION.md](IMPLEMENTATION.md): Python implementation guide — registry, runner, role detection, contracts
+- [mini/README.md](mini/README.md): mini-swe-agent integration documentation
 
 ## Core Concepts
 
@@ -22,11 +24,40 @@ OSA is a multi-agent orchestration framework for autonomous CLI-based coding age
 
 ## Agent CLI
 
-- gemini --yolo "prompt": Orchestration, planning, merging (Priority 1)
-- qwen --yolo "prompt": Fast code generation (Priority 2)
-- opencode run "prompt": Schema validation, security (Priority 3)
-- crush run "prompt": Security audit, review (Priority 4)
-- claude -p "prompt" --dangerously-skip-permissions: Architecture, QA (Priority 5)
+- gemini --yolo "prompt": Orchestration, planning, merging (Hierarchy 1 — PRIMARY)
+- qwen --yolo "prompt": Fast code generation (Hierarchy 2)
+- claude -p "prompt" --dangerously-skip-permissions: Architecture, QA (Hierarchy 3)
+- mini --task "prompt": Software engineering, bug fixes, code implementation (Hierarchy 4)
+- opencode run "prompt": Schema validation, security (Hierarchy 5)
+
+## Agent Hierarchy
+
+When breaking out agent teams or parallel agents, follow this hierarchy for team member selection:
+
+1. **Gemini** — Orchestration, planning, architecture
+2. **Qwen** — Fast code generation, implementation
+3. **Claude** — Architecture review, QA, complex reasoning
+4. **mini** — Software engineering, bug fixes, code implementation
+5. **OpenCode** — Schema validation, security audit
+
+## mini-swe-agent (Hierarchy 4)
+
+mini-swe-agent is a specialized software engineering agent. Developed by the Princeton/Stanford team behind SWE-bench.
+
+**Key Features:**
+- **Minimal**: ~100 lines of Python for the agent class
+- **Performant**: >74% on SWE-bench verified benchmark
+- **Simple**: No tools other than bash
+- **Transparent**: Completely linear history
+- **Compatible**: Works with all models via litellm
+
+**Installation:**
+```bash
+pip install mini-swe-agent
+mini --task "Fix the bug in src/main.py"
+```
+
+**Role-Specific Configs:** `mini/config/osa_{role}.yaml`
 
 ## Security
 

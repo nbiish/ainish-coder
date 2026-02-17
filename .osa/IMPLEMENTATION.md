@@ -1,47 +1,27 @@
-# OSA Framework Improvement Recommendations
+# OSA Framework - Implementation Guide
 
+**Version:** 2.0
 **Date:** 2026-02-11
-**Status:** Implementation Roadmap
-**Priority:** High
+**Status:** Implementation Reference
 
 ---
 
-## Executive Summary
+## Table of Contents
 
-Based on comprehensive research of academic papers and CLI agentic tools, this document outlines specific, actionable improvements to the OSA Framework. The recommendations are organized by priority and implementation complexity.
+1. [Agent Registry Module](#agent-registry-module)
+2. [Unified Agent Runner](#unified-agent-runner)
+3. [Role Detection](#role-detection)
+4. [Resource-Aware Selection](#resource-aware-selection)
+5. [Contract Integration](#contract-integration)
+6. [Parallel Executor](#parallel-executor)
+7. [Manager Agent](#manager-agent)
+8. [Testing Suite](#testing-suite)
 
 ---
 
-## Part 1: CLI Agent Integration (HIGH Priority)
+## Agent Registry Module
 
-### Current State
-The YOLO Loop (`yolo_mode/scripts/yolo_loop.py`) has basic support for:
-- claude (via `--dangerously-skip-permissions`)
-- opencode (via environment variables)
-- gemini (via `--yolo` flag)
-- qwen (via `--yolo` flag)
-- crush (via `run` subcommand)
-
-### Issue: Inconsistent Agent Interfaces
-Each agent has different invocation patterns:
-```python
-# Current implementation - scattered and inconsistent
-if agent == "claude":
-    cmd = ["claude", "-p", prompt, "--dangerously-skip-permissions", "--no-session-persistence"]
-elif agent == "opencode":
-    cmd = ["opencode", "run", prompt]
-    env_vars["OPENCODE_YOLO"] = "true"
-elif agent == "gemini":
-    cmd = ["gemini", "--yolo", prompt]
-elif agent == "qwen":
-    cmd = ["qwen", "--yolo", prompt]
-elif agent == "crush":
-    cmd = ["crush", "run", prompt]
-```
-
-### Recommendation 1.1: Create Agent Registry Module
-
-**File:** `yolo_mode/agents/__init__.py`
+### File: `yolo_mode/agents/__init__.py`
 
 ```python
 """
@@ -63,7 +43,7 @@ __all__ = [
 ]
 ```
 
-**File:** `yolo_mode/agents/registry.py`
+### File: `yolo_mode/agents/registry.py`
 
 ```python
 """
@@ -73,6 +53,7 @@ Agent Registry - Central configuration for all supported CLI agents.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 from enum import Enum
+
 
 class AgentCapability(Enum):
     """Core agent capabilities for task routing."""
@@ -87,32 +68,38 @@ class AgentCapability(Enum):
     DOCUMENTATION = "documentation"
     CONTEXT_MANAGEMENT = "context_management"
 
+
 class OSARole(Enum):
-    """OSA Framework roles from .claude/OSA_FRAMEWORK.md"""
+    """OSA Framework roles."""
     ORCHESTRATOR = "orchestrator"
     ARCHITECT = "architect"
     CODER = "coder"
     SECURITY = "security"
     QA = "qa"
 
+
 @dataclass
 class AgentConfig:
     """Configuration for a CLI agent."""
     name: str                          # Display name
-    cli_command: str                    # Command to invoke
+    cli_command: str                   # Command to invoke
     yolo_flag: str = "--yolo"          # YOLO mode flag
-    subcommand: Optional[str] = None     # Subcommand if needed
-    prompt_position: str = "last"       # Where prompt goes: "last" or flag name
-    model_flag: Optional[str] = None     # Flag for model selection
+    subcommand: Optional[str] = None   # Subcommand if needed
+    prompt_position: str = "last"      # Where prompt goes: "last" or flag name
+    model_flag: Optional[str] = None   # Flag for model selection
     preferred_models: List[str] = field(default_factory=list)
     osa_roles: Set[OSARole] = field(default_factory=set)
     capabilities: Set[AgentCapability] = field(default_factory=set)
     env_vars: Dict[str, str] = field(default_factory=dict)  # Required env vars
     priority: int = 99                 # Selection priority (lower = preferred)
 
+
 # ============================================================================
 # COMPLETE AGENT REGISTRY
 # ============================================================================
+
+# Agent Hierarchy: gemini(1) → qwen(2) → claude(3) → mini(4) → opencode(5)
+# When breaking out agent teams or parallel agents, follow this hierarchy.
 
 AGENT_REGISTRY: Dict[str, AgentConfig] = {
     "gemini": AgentConfig(
@@ -127,7 +114,7 @@ AGENT_REGISTRY: Dict[str, AgentConfig] = {
             AgentCapability.CONTEXT_MANAGEMENT,
         },
         env_vars={"GEMINI_YOLO": "true"},
-        priority=1,  # Primary — best usage/rate limits
+        priority=1,  # Hierarchy 1 — orchestration, planning, architecture
     ),
 
     "qwen": AgentConfig(
@@ -142,7 +129,40 @@ AGENT_REGISTRY: Dict[str, AgentConfig] = {
             AgentCapability.DOCUMENTATION,
         },
         env_vars={"QWEN_YOLO": "true"},
-        priority=2,  # Secondary — fast code generation
+        priority=2,  # Hierarchy 2 — fast code generation
+    ),
+
+    "claude": AgentConfig(
+        name="Claude Code",
+        cli_command="claude",
+        yolo_flag="--dangerously-skip-permissions",
+        prompt_position="last",
+        osa_roles={OSARole.ARCHITECT, OSARole.QA},
+        capabilities={
+            AgentCapability.ARCHITECTURE_DESIGN,
+            AgentCapability.CODE_REVIEW,
+            AgentCapability.TESTING,
+        },
+        env_vars={},
+        priority=3,  # Hierarchy 3 — architecture review, QA, complex reasoning
+    ),
+
+    "mini": AgentConfig(
+        name="mini-swe-agent",
+        cli_command="mini",
+        yolo_flag="--task",
+        prompt_position="last",
+        osa_roles={OSARole.ORCHESTRATOR, OSARole.CODER, OSARole.SECURITY, OSARole.QA},
+        capabilities={
+            AgentCapability.CODE_GENERATION,
+            AgentCapability.REFACTORING,
+            AgentCapability.TESTING,
+            AgentCapability.DOCUMENTATION,
+            AgentCapability.SECURITY_AUDIT,
+            AgentCapability.PLANNING,
+        },
+        env_vars={"MSWEA_MODEL_NAME": ""},
+        priority=4,  # Hierarchy 4 — software engineering, bug fixes
     ),
 
     "opencode": AgentConfig(
@@ -160,40 +180,10 @@ AGENT_REGISTRY: Dict[str, AgentConfig] = {
             "OPENCODE_YOLO": "true",
             "OPENCODE_DANGEROUSLY_SKIP_PERMISSIONS": "true"
         },
-        priority=3,  # Tertiary — schema validation
-    ),
-
-    "crush": AgentConfig(
-        name="Crush CLI",
-        cli_command="crush",
-        subcommand="run",
-        yolo_flag="--yolo",
-        preferred_models=[],
-        osa_roles={OSARole.SECURITY, OSARole.QA},
-        capabilities={
-            AgentCapability.SECURITY_AUDIT,
-            AgentCapability.CODE_REVIEW,
-            AgentCapability.TESTING,
-        },
-        env_vars={"CRUSH_YOLO": "true"},
-        priority=4,  # Quaternary — security audit
-    ),
-
-    "claude": AgentConfig(
-        name="Claude Code",
-        cli_command="claude",
-        yolo_flag="--dangerously-skip-permissions",
-        prompt_position="last",
-        osa_roles={OSARole.ARCHITECT, OSARole.QA},
-        capabilities={
-            AgentCapability.ARCHITECTURE_DESIGN,
-            AgentCapability.CODE_REVIEW,
-            AgentCapability.TESTING,
-        },
-        env_vars={},
-        priority=5,  # Last resort — highest rate limit cost
+        priority=5,  # Hierarchy 5 — schema validation, security
     ),
 }
+
 
 def get_agent_for_role(role: OSARole, available: List[str] = None) -> str:
     """Get best agent for a role, respecting availability."""
@@ -215,9 +205,11 @@ def get_agent_for_role(role: OSARole, available: List[str] = None) -> str:
     return candidates[0][0]
 ```
 
-### Recommendation 1.2: Unified Agent Runner
+---
 
-**File:** `yolo_mode/agents/runner.py`
+## Unified Agent Runner
+
+### File: `yolo_mode/agents/runner.py`
 
 ```python
 """
@@ -228,6 +220,7 @@ import subprocess
 import os
 from typing import Optional
 from .registry import AGENT_REGISTRY
+
 
 def run_agent(agent: str, prompt: str, verbose: bool = False) -> Optional[str]:
     """
@@ -289,6 +282,7 @@ def run_agent(agent: str, prompt: str, verbose: bool = False) -> Optional[str]:
         print(f"⏱️ Agent '{agent}' timed out after 5 minutes")
         return None
 
+
 def _run_direct(agent: str, prompt: str, verbose: bool) -> Optional[str]:
     """Fallback for unknown agents."""
     try:
@@ -303,9 +297,11 @@ def _run_direct(agent: str, prompt: str, verbose: bool) -> Optional[str]:
         return None
 ```
 
-### Recommendation 1.3: Enhanced Role Detection
+---
 
-**File:** `yolo_mode/agents/role_detection.py`
+## Role Detection
+
+### File: `yolo_mode/agents/role_detection.py`
 
 ```python
 """
@@ -315,7 +311,8 @@ Role Detection - Map tasks to OSA roles and optimal agents.
 from typing import Dict, List, Tuple
 from .registry import OSARole, AGENT_REGISTRY, get_agent_for_role
 
-# Extended role keywords from yolo_loop.py OSA_ROLES
+
+# Extended role keywords
 ROLE_KEYWORDS = {
     OSARole.ORCHESTRATOR: [
         "plan", "orchestrate", "coordinate", "manage", "organize",
@@ -344,6 +341,7 @@ ROLE_KEYWORDS = {
     ],
 }
 
+
 def detect_role(task_description: str) -> OSARole:
     """
     Detect the appropriate OSA role for a task.
@@ -368,6 +366,7 @@ def detect_role(task_description: str) -> OSARole:
 
     return OSARole.CODER  # Default fallback
 
+
 def detect_role_and_agent(
     task: str,
     available_agents: List[str] = None
@@ -389,21 +388,9 @@ def detect_role_and_agent(
 
 ---
 
-## Part 2: Contract Integration (HIGH Priority)
+## Resource-Aware Selection
 
-### Current State
-The Agent Contracts framework (`yolo_mode/contracts.py`) is implemented but not integrated with the YOLO Loop.
-
-### Issue: No Resource Awareness During Agent Selection
-
-The YOLO Loop doesn't consider:
-- Remaining token budgets
-- Time constraints
-- Agent cost profiles
-
-### Recommendation 2.1: Resource-Aware Agent Selection
-
-**Add to:** `yolo_mode/agents/resource_aware.py`
+### File: `yolo_mode/agents/resource_aware.py`
 
 ```python
 """
@@ -417,14 +404,17 @@ from typing import Dict, List
 from .registry import AGENT_REGISTRY, OSARole, AgentConfig
 from ..contracts import AgentContract, ResourceDimension, ContractMode
 
+
 # Agent performance profiles (based on research)
+# Hierarchy: gemini(1) → qwen(2) → claude(3) → mini(4) → opencode(5)
 AGENT_PROFILES = {
-    "qwen": {"speed": "fast", "cost": "low", "quality": "high"},
-    "gemini": {"speed": "medium", "cost": "medium", "quality": "very_high"},
-    "crush": {"speed": "medium", "cost": "low", "quality": "high"},
-    "claude": {"speed": "medium", "cost": "high", "quality": "very_high"},
-    "opencode": {"speed": "medium", "cost": "low", "quality": "high"},
+    "gemini": {"speed": "fast", "cost": "low", "quality": "very_high", "hierarchy": 1},
+    "qwen": {"speed": "fast", "cost": "low", "quality": "high", "hierarchy": 2},
+    "claude": {"speed": "medium", "cost": "high", "quality": "very_high", "hierarchy": 3},
+    "mini": {"speed": "fast", "cost": "low", "quality": "high", "hierarchy": 4},
+    "opencode": {"speed": "medium", "cost": "low", "quality": "high", "hierarchy": 5},
 }
+
 
 def select_agent_by_contract(
     task: str,
@@ -434,11 +424,11 @@ def select_agent_by_contract(
     """
     Select agent based on contract state and task requirements.
 
-    Selection Logic:
-    - High token utilization (>80%) → Prefer efficient agents (qwen)
-    - Low time remaining (<30s) → Prefer fast agents (qwen)
-    - Low utilization → Prefer quality agents (claude, gemini)
-    - Default → Role-based selection
+    Selection Logic (follows hierarchy: gemini → qwen → claude → mini → opencode):
+    - High token utilization (>80%) → Prefer efficient agents by hierarchy
+    - Low time remaining (<30s) → Prefer fast agents by hierarchy
+    - Low utilization → Prefer quality agents by hierarchy
+    - Default → Hierarchy-based selection
 
     Args:
         task: Task description
@@ -452,31 +442,37 @@ def select_agent_by_contract(
     max_util = status["max_utilization"]
     time_remaining = status["time_remaining"]
 
-    # Urgent mode: speed matters
+    # Hierarchy order for all selections
+    hierarchy_order = ["gemini", "qwen", "claude", "mini", "opencode"]
+
+    # Urgent mode: speed matters (follow hierarchy)
     if contract.mode == ContractMode.URGENT or time_remaining < 30:
-        speed_agents = ["gemini", "qwen", "opencode", "crush", "claude"]
-        for agent in speed_agents:
+        for agent in hierarchy_order:
             if agent in available_agents:
                 return agent
 
-    # High utilization: efficiency matters
+    # High utilization: efficiency matters (follow hierarchy)
     if max_util > 0.8:
-        efficient_agents = ["gemini", "qwen", "opencode", "crush"]
-        for agent in efficient_agents:
+        for agent in hierarchy_order:
             if agent in available_agents:
                 return agent
 
-    # Low utilization: quality matters
+    # Low utilization: quality matters (follow hierarchy)
     if max_util < 0.5:
-        quality_agents = ["gemini", "qwen", "opencode"]
-        for agent in quality_agents:
+        for agent in hierarchy_order:
             if agent in available_agents:
                 return agent
 
-    # Default: role-based selection
+    # Default: hierarchy-based selection
+    for agent in hierarchy_order:
+        if agent in available_agents:
+            return agent
+
+    # Fallback: role-based selection
     from .role_detection import detect_role_and_agent
     _, agent = detect_role_and_agent(task, available_agents)
     return agent
+
 
 def build_contract_aware_prompt(
     base_prompt: str,
@@ -514,7 +510,11 @@ Your primary strengths: {', '.join(c.value for c in config.capabilities)}
     return budget_prompt + agent_context
 ```
 
-### Recommendation 2.2: Integrate Contracts into YOLO Loop
+---
+
+## Contract Integration
+
+### Integration into YOLO Loop
 
 **Modify:** `yolo_mode/scripts/yolo_loop.py`
 
@@ -525,13 +525,14 @@ from yolo_mode.agents.registry import AGENT_REGISTRY, OSARole
 from yolo_mode.agents.role_detection import detect_role_and_agent
 from yolo_mode.agents.resource_aware import select_agent_by_contract, build_contract_aware_prompt
 
+
 def main():
     parser = argparse.ArgumentParser(description="YOLO Mode Loop")
     parser.add_argument("prompt", nargs="+", help="The main goal/prompt")
     parser.add_argument("--tts", action="store_true", help="Enable TTS")
     parser.add_argument("--agent", default="claude", help="Default CLI agent")
     parser.add_argument("--contract-mode", choices=["urgent", "economical", "balanced"],
-                      default="balanced", help="Contract mode")
+                        default="balanced", help="Contract mode")
     args = parser.parse_args()
 
     goal = " ".join(args.prompt)
@@ -586,21 +587,9 @@ def main():
 
 ---
 
-## Part 3: Enhanced Parallel Execution (MEDIUM Priority)
+## Parallel Executor
 
-### Current State
-Parallel execution exists in `yolo_mode/scripts/yolo_loop.py` via `ParallelExecutor` class.
-
-### Issue: No Contract-Aware Batching
-
-Parallel execution doesn't consider:
-- Per-task resource allocation
-- Contract conservation laws
-- Agent specialization for batch optimization
-
-### Recommendation 3.1: Contract-Aware Parallel Executor
-
-**Add to:** `yolo_mode/agents/parallel_executor.py`
+### File: `yolo_mode/agents/parallel_executor.py`
 
 ```python
 """
@@ -613,6 +602,7 @@ and conservation law enforcement.
 from typing import List, Dict, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..contracts import AgentContract, ConservationEnforcer
+
 
 class ContractAwareExecutor:
     """
@@ -676,18 +666,9 @@ class ContractAwareExecutor:
 
 ---
 
-## Part 4: Manager Agent Actions (MEDIUM Priority)
+## Manager Agent
 
-### Current State
-OSA orchestrator role exists but has limited action space.
-
-### Issue: Limited Orchestration Capabilities
-
-Based on ACM DAI 2025 research, Manager Agent needs 16 specific actions. Current implementation has limited workflow management.
-
-### Recommendation 4.1: Manager Agent Action Space
-
-**Add to:** `yolo_mode/agents/manager.py`
+### File: `yolo_mode/agents/manager.py`
 
 ```python
 """
@@ -700,6 +681,7 @@ as a Unifying Research Challenge" (ACM DAI 2025)
 from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass
 from enum import Enum
+
 
 class ManagerAction(Enum):
     """16 Manager Agent actions from ACM DAI 2025."""
@@ -728,6 +710,7 @@ class ManagerAction(Enum):
     FAILED_ACTION = "failed_action"
     ASSIGN_ALL = "assign_all_pending"
 
+
 @dataclass
 class WorkflowState:
     """State snapshot for Manager Agent decisions."""
@@ -736,6 +719,7 @@ class WorkflowState:
     dependencies: Dict[str, List[str]]  # Task dependency graph
     constraints: Dict  # Resource/time constraints
     progress: Dict  # Completion metrics
+
 
 class OSAManagerAgent:
     """
@@ -813,99 +797,9 @@ class OSAManagerAgent:
 
 ---
 
-## Part 5: State File Improvements (LOW Priority)
+## Testing Suite
 
-### Current State
-State is stored in `.claude/yolo-state.md` with basic iteration count.
-
-### Issue: Limited State Information
-
-State file doesn't track:
-- Contract status
-- Resource utilization
-- Agent usage statistics
-- Task completion metrics
-
-### Recommendation 5.1: Enhanced State File Format
-
-**New format:** `.claude/yolo-state.yaml`
-
-```yaml
-# YOLO Mode State File
-# Auto-generated - do not edit manually
-
-metadata:
-  version: "2.0"
-  created_at: "2026-02-11T10:00:00Z"
-  last_updated: "2026-02-11T10:30:00Z"
-
-goal:
-  original: "help me research CLI agent integration"
-  current_status: "in_progress"
-
-session:
-  iteration: 15
-  max_iterations: 50
-  start_time: "2026-02-11T10:00:00Z"
-
-contract:
-  mode: balanced
-  state: active
-  status:
-    max_utilization: 0.45
-    time_remaining: 180
-    is_expired: false
-    is_violated: false
-
-resources:
-  tokens:
-    budget: 100000
-    consumed: 45000
-    utilization: 0.45
-  iterations:
-    budget: 10
-    consumed: 3
-    utilization: 0.30
-  time:
-    budget: 300
-    remaining: 180
-    utilization: 0.40
-
-agents:
-  qwen:
-    tasks_assigned: 8
-    tasks_completed: 7
-    success_rate: 0.875
-  gemini:
-    tasks_assigned: 3
-    tasks_completed: 3
-    success_rate: 1.0
-  crush:
-    tasks_assigned: 2
-    tasks_completed: 2
-    success_rate: 1.0
-
-tasks:
-  total: 15
-  completed: 12
-  pending: 3
-  failed: 0
-
-workflow:
-  current_phase: "execution"
-  next_actions:
-    - execute remaining tasks
-    - verify completion
-    - generate report
-```
-
----
-
-## Part 6: Testing & Validation (MEDIUM Priority)
-
-### Recommendation 6.1: Agent Integration Tests
-
-**File:** `tests/test_agents/test_integration.py`
+### File: `tests/test_agents/test_integration.py`
 
 ```python
 """
@@ -916,6 +810,7 @@ import pytest
 from yolo_mode.agents.registry import AGENT_REGISTRY, get_agent_for_role, OSARole
 from yolo_mode.agents.role_detection import detect_role_and_agent
 from yolo_mode.agents.runner import run_agent
+
 
 class TestAgentRegistry:
     """Test agent registry configuration."""
@@ -936,6 +831,7 @@ class TestAgentRegistry:
         orchestrator_agent = get_agent_for_role(OSARole.ORCHESTRATOR)
         assert orchestrator_agent in ["gemini", "claude"]
 
+
 class TestRoleDetection:
     """Test task-to-role mapping."""
 
@@ -949,11 +845,27 @@ class TestRoleDetection:
         role, agent = detect_role_and_agent("plan the implementation")
         assert role == OSARole.ORCHESTRATOR
 
+    def test_security_detection(self):
+        """Security tasks should map to security role."""
+        role, agent = detect_role_and_agent("audit the codebase for vulnerabilities")
+        assert role == OSARole.SECURITY
+
+    def test_qa_detection(self):
+        """Testing tasks should map to QA role."""
+        role, agent = detect_role_and_agent("write unit tests for the API")
+        assert role == OSARole.QA
+
+
 class TestContractIntegration:
     """Test contract-aware agent selection."""
 
     def test_high_utilization_selects_efficient(self):
         """High utilization should select efficient agents."""
+        # Test implementation
+        pass
+
+    def test_low_time_selects_fast(self):
+        """Low time remaining should select fast agents."""
         # Test implementation
         pass
 ```
@@ -963,7 +875,7 @@ class TestContractIntegration:
 ## Implementation Priority Summary
 
 | Priority | Feature | Effort | Impact | Files |
-|----------|----------|--------|--------|-------|
+|----------|---------|--------|--------|-------|
 | **HIGH** | Agent Registry Module | Medium | High | `yolo_mode/agents/` |
 | **HIGH** | Unified Agent Runner | Low | High | `yolo_mode/agents/runner.py` |
 | **HIGH** | Contract-Aware Selection | Medium | High | `yolo_mode/agents/resource_aware.py` |
@@ -974,60 +886,4 @@ class TestContractIntegration:
 
 ---
 
-## Quick Start Implementation Guide
-
-### Step 1: Create Agent Module (Day 1-2)
-
-```bash
-mkdir -p yolo_mode/agents
-touch yolo_mode/agents/__init__.py
-touch yolo_mode/agents/registry.py
-touch yolo_mode/agents/runner.py
-touch yolo_mode/agents/role_detection.py
-```
-
-### Step 2: Implement Registry (Day 2-3)
-
-Copy the `AGENT_REGISTRY` from Recommendation 1.1 into `registry.py`.
-
-### Step 3: Update YOLO Loop (Day 3-4)
-
-Modify `yolo_mode/scripts/yolo_loop.py` to use the new agent system:
-
-```python
-# Replace existing run_agent with:
-from yolo_mode.agents.runner import run_agent
-
-# Replace role detection with:
-from yolo_mode.agents.role_detection import detect_role_and_agent
-```
-
-### Step 4: Test Integration (Day 4-5)
-
-```bash
-# Test each agent
-python -m yolo_mode.agents.runner qwen "write hello world"
-python -m yolo_mode.agents.runner gemini "plan a project"
-python -m yolo_mode.agents.runner crush "audit this code"
-
-# Test full YOLO loop
-python -m yolo_mode.scripts.yolo_loop "implement a REST API" --agent qwen
-```
-
----
-
-## Conclusion
-
-The OSA Framework can be significantly improved through:
-
-1. **CLI Agent Integration** - Unified registry and runner for Qwen, Gemini, Crush, and others
-2. **Contract Integration** - Resource-aware agent selection based on remaining budget
-3. **Enhanced Orchestration** - Full Manager Agent action space from ACM DAI 2025
-4. **Better State Management** - YAML-based state with comprehensive tracking
-
-The modular design allows incremental implementation, with the agent registry providing immediate value while more advanced features like contract-aware selection and Manager Agent actions can be added progressively.
-
----
-
-*Prepared by YOLO Mode autonomous research agent*
-*Date: 2026-02-11*
+*Implementation Guide v2.0*
