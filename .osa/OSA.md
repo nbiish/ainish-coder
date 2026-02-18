@@ -43,59 +43,43 @@ Your goal is not just to "do a task" but to **orchestrate** the best possible so
 
 ## Agent Hierarchy
 
-When breaking out agent teams or parallel agents, follow this hierarchy for team member selection:
+The agent hierarchy is designed for **rate limit and API key utilization optimization**. When multiple agents are available, this ordering maximizes the use of free tiers, optimal rate limits, and cost-effective API keys before falling back to paid or rate-limited alternatives.
 
-| Priority | Agent | Use Case |
-|----------|-------|----------|
-| **1** | **Gemini** | Orchestration, planning, merging, architecture |
-| **2** | **Qwen** | Fast code generation, implementation |
-| **3** | **Claude** | Architecture review, QA, complex reasoning |
-| **4** | **mini** | Software engineering, bug fixes, code implementation |
-| **5** | **OpenCode** | Schema validation, security audit |
+| Priority | Agent | Rate Limit / Cost Profile |
+|----------|-------|---------------------------|
+| **1** | **Gemini** | Free tier available; generous rate limits (150 RPD free) |
+| **2** | **Qwen** | Free tier available; fast response (100 RPD free) |
+| **3** | **Claude** | Paid tier; high quality; moderate rate limits |
+| **4** | **mini** | Low cost; SWE-bench optimized; model-dependent |
+| **5** | **OpenCode** | Low cost; model-dependent |
 
 ### Hierarchy Selection Rules
 
-1. **Primary Agent**: Always start with the highest-priority agent suitable for the task
-2. **Team Formation**: When creating parallel agent teams, select members in hierarchy order
-3. **Fallback Chain**: If an agent fails, proceed to the next in hierarchy
-4. **Role Matching**: Within each priority tier, match agent capabilities to task requirements
+1. **Start with Best Rate Limits**: Always begin with the highest-priority agent (best free tier/rate limits) that can handle the task
+2. **Fallback on Failure**: If an agent fails (rate limit hit, timeout, error), proceed to the next agent in the hierarchy
+3. **Maximize Key Utilization**: Distribute tasks across agents to fully utilize all available API keys and free tier quotas
+4. **Cost Escalation**: Only escalate to paid-tier agents when free tier agents are exhausted or unsuitable
+5. **Team Formation**: When creating parallel agent teams, select members in hierarchy order to optimize resource usage
 
 ---
 
 ## Agent CLI Commands
 
-| Agent | Command | Use Case | Hierarchy |
-|--------|-----------|------------|-----------|
-| **Gemini** | `gemini --yolo "prompt"` | Orchestration, planning, merging | **1** |
-| **Qwen** | `qwen --yolo "prompt"` | Fast code generation | **2** |
-| **Claude** | `claude -p "prompt" --dangerously-skip-permissions` | Architecture, QA | **3** |
-| **mini** | `mini --task "prompt"` | Software engineering, bug fixes, code implementation | **4** |
-| **OpenCode** | `opencode run "prompt"` | Schema validation, security | **5** |
+| Agent | Command | Hierarchy |
+|-------|---------|-----------|
+| **Gemini** | `gemini --yolo "prompt"` | **1** |
+| **Qwen** | `qwen --yolo "prompt"` | **2** |
+| **Claude** | `claude -p "prompt" --dangerously-skip-permissions` | **3** |
+| **mini** | `mini --task "prompt"` | **4** |
+| **OpenCode** | `opencode run "prompt"` | **5** |
 
 ### Gemini (Hierarchy 1)
 
-Gemini is the **primary** agent in the OSA Framework for orchestration and planning tasks. Best usage/rate limits make it ideal for coordinating multi-agent workflows.
+Gemini has the **highest priority** in the OSA Framework due to its generous free tier rate limits, making it the first choice for any task to maximize resource utilization.
 
-### mini-swe-agent (Hierarchy 4)
+### Qwen (Hierarchy 2)
 
-mini-swe-agent is a specialized software engineering agent. Developed by the Princeton/Stanford team behind SWE-bench.
-
-**Key Features:**
-- **Minimal**: ~100 lines of Python for the agent class
-- **Performant**: >74% on SWE-bench verified benchmark
-- **Simple**: No tools other than bash
-- **Transparent**: Completely linear history
-- **Compatible**: Works with all models via litellm
-
-**Installation:**
-```bash
-pip install mini-swe-agent
-mini --task "Fix the bug in src/main.py"
-```
-
-**Role-Specific Configs:** `.osa/mini/config/osa_{role}.yaml`
-
-See `.osa/mini/README.md` for full documentation.
+Qwen is the second priority, offering a good balance of performance and free tier availability. It serves as the primary fallback when Gemini's limits are reached or if Gemini is unsuitable for a specific task.
 
 ### Core Rules
 
@@ -116,31 +100,26 @@ Adopt these personas as needed for each task:
 - Planning and task decomposition
 - Progress tracking and agent coordination
 - Workflow management and dependency resolution
-- **Preferred Agents (by hierarchy):** `gemini` → `qwen` → `claude` → `mini` → `opencode`
 
 ### 2. Architect
 
 - System design and finding patterns
 - API design and defining structures
-- **Preferred Agents (by hierarchy):** `gemini` → `claude` → `qwen` → `mini` → `opencode`
 
 ### 3. Coder
 
 - Implementation (SOLID, DRY, KISS, YAGNI)
 - Writing production code and refactoring
-- **Preferred Agents (by hierarchy):** `qwen` → `gemini` → `claude` → `mini` → `opencode`
 
 ### 4. Security
 
 - Zero Trust validation and input sanitization
 - Secret management and vulnerability assessment
-- **Preferred Agents (by hierarchy):** `opencode` → `gemini` → `claude` → `qwen` → `mini`
 
 ### 5. QA
 
 - Verification, testing, edge-case analysis
 - Code review and benchmarking
-- **Preferred Agents (by hierarchy):** `claude` → `gemini` → `qwen` → `opencode` → `mini`
 
 ### Role Keywords
 
@@ -199,24 +178,24 @@ wait
 
 ### Debug Chain
 
-1. **Gemini**: Analyze codebase → `ANALYSIS.md`
-2. **Qwen**: Implement fix
-3. **OpenCode**: Verify security
+1. **Agent (Hierarchy 1)**: Analyze codebase → `ANALYSIS.md`
+2. **Agent (Hierarchy 2)**: Implement fix
+3. **Agent (Hierarchy 5)**: Verify security
 
 ### Review Chain
 
-1. **Qwen**: Generate code (speed)
-2. **OpenCode**: Audit for security
-3. **Gemini**: Merge and refine
+1. **Agent (Hierarchy 2)**: Generate code
+2. **Agent (Hierarchy 5)**: Audit for security
+3. **Agent (Hierarchy 1)**: Merge and refine
 
 ### Full Lifecycle
 
-1. **Gemini**: Plan and decompose tasks → `YOLO_PLAN.md`
-2. **Qwen**: Implement features (parallel batch)
-3. **OpenCode**: Schema validation
-4. **Crush**: Security audit all changes
-5. **Claude**: Architecture review and QA
-6. **Gemini**: Final merge and integration
+1. **Agent (Hierarchy 1)**: Plan and decompose tasks → `YOLO_PLAN.md`
+2. **Agent (Hierarchy 2)**: Implement features (parallel batch)
+3. **Agent (Hierarchy 5)**: Schema validation
+4. **Agent (Hierarchy 4)**: Security audit all changes
+5. **Agent (Hierarchy 3)**: Architecture review and QA
+6. **Agent (Hierarchy 1)**: Final merge and integration
 
 ---
 
@@ -328,22 +307,6 @@ swarm[2]{agent,task,status}:
 
 ## Agent Registry
 
-### Agent Configuration Schema
-
-```python
-@dataclass
-class AgentConfig:
-    name: str                          # Display name
-    cli_command: str                    # Command to invoke
-    yolo_flag: str = "--yolo"          # YOLO mode flag
-    subcommand: Optional[str] = None   # Subcommand if needed
-    prompt_position: str = "last"      # Where prompt goes
-    osa_roles: Set[OSARole]            # Supported OSA roles
-    capabilities: Set[AgentCapability] # Agent capabilities
-    env_vars: Dict[str, str]           # Required env vars
-    priority: int                      # Selection priority (lower = preferred)
-```
-
 ### Agent Capabilities
 
 | Capability | Description |
@@ -359,49 +322,21 @@ class AgentConfig:
 | `documentation` | Writing docs and comments |
 | `context_management` | Large context analysis |
 
-### Registry Table
-
-| Agent | Roles | Capabilities | Env Vars | Hierarchy |
-|-------|-------|-------------|----------|-----------|
-| **Gemini** | Orchestrator, Architect | plan, orchestrate, arch, context | `GEMINI_YOLO=true` | **1** |
-| **Qwen** | Coder, QA | code_gen, refactor, test, docs | `QWEN_YOLO=true` | 2 |
-| **Claude** | Architect, QA | arch, review, test | — | 3 |
-| **mini** | Orchestrator, Coder, Security, QA | code_gen, refactor, test, docs, security_audit, plan | `MSWEA_MODEL_NAME` | 4 |
-| **OpenCode** | Security | security_audit, review | `OPENCODE_YOLO=true` | 5 |
-
 ---
 
 ## Resource-Aware Selection
 
-### Contract Modes
-
-| Mode | Strategy |
-|------|----------|
-| **Urgent** | Prefer fastest agents (Gemini → Qwen → Claude → mini → OpenCode) |
-| **Economical** | Prefer cheapest agents (Gemini → Qwen → mini → OpenCode → Claude) |
-| **Balanced** | Hierarchy-based selection (Gemini → Qwen → Claude → mini → OpenCode) |
+The resource-aware selection system optimizes for **API key utilization and rate limit management** across multiple providers. The goal is to maximize the value of all available keys by using free tiers and generous rate limits first.
 
 ### Selection Logic
 
 ```
-IF time_remaining < 30s   → Select fastest agent by hierarchy
-IF token_utilization > 80% → Select most efficient agent by hierarchy
-IF token_utilization < 50% → Select highest quality agent by hierarchy
-ELSE                       → Hierarchy-based default selection
+IF rate_limit_hit(agent)     → Fall back to next agent in hierarchy
+IF free_quota_available      → Prefer agents with free tier remaining
+IF paid_keys_exhausted       → Use agents with remaining quota
+IF all_keys_exhausted        → Wait and retry, or notify user
+ELSE                         → Use highest-priority agent (best rate limits)
 ```
-
-### Agent Performance Profiles
-
-| Agent | Speed | Cost | Quality | Hierarchy |
-|-------|-------|------|---------|-----------|
-| **Gemini** | Fast | Free Tier | Very High | **1** |
-| **Qwen** | Fast | Free Tier | High | 2 |
-| **Claude** | Medium | High | Very High | 3 |
-| **mini** | Fast | Low | >74% SWE-bench | 4 |
-| **OpenCode** | Medium | Low | High | 5 |
-| **OpenCode** | Medium | Low | High |
-| **Crush** | Medium | Low | High |
-| **Claude** | Medium | High | Very High |
 
 ---
 
@@ -497,86 +432,6 @@ Types: feat|fix|docs|refactor|test|chore|perf|ci
 
 ---
 
-## Manager Agent Actions (ACM DAI 2025)
-
-The Orchestrator has 16 defined actions for full workflow management:
-
-| Category | Actions |
-|----------|---------|
-| **Core Workflow** | assign_task, create_task, remove_task, send_message |
-| **Information** | noop, get_workflow_status, get_available_agents, get_pending_tasks |
-| **Task Mgmt** | refine_task, add_dependency, remove_dependency, inspect_task, decompose_task |
-| **Termination** | request_end_workflow, failed_action, assign_all_pending |
-
----
-
-## Implementation Roadmap
-
-### Priority 1: Agent Registry Module
-
-**Files:**
-- `yolo_mode/agents/__init__.py`
-- `yolo_mode/agents/registry.py`
-- `yolo_mode/agents/runner.py`
-- `yolo_mode/agents/role_detection.py`
-
-**Impact:** High | **Effort:** Medium
-
-### Priority 2: Contract Integration
-
-**Files:**
-- `yolo_mode/contracts.py` (enhance existing)
-- `yolo_mode/agents/resource_aware.py`
-
-**Impact:** High | **Effort:** Medium
-
-### Priority 3: Enhanced Parallel Execution
-
-**Files:**
-- `yolo_mode/agents/parallel_executor.py`
-
-**Impact:** Medium | **Effort:** Medium
-
-### Priority 4: Manager Agent Actions
-
-**Files:**
-- `yolo_mode/agents/manager.py`
-
-**Impact:** Medium | **Effort:** High
-
-### Priority 5: State File Format
-
-**Files:**
-- `.claude/yolo-state.yaml`
-- `yolo_mode/state.py` (enhance existing)
-
-**Impact:** Low | **Effort:** Low
-
----
-
-## Quick Start Implementation
-
-### Step 1: Create Agent Module
-
-```bash
-mkdir -p yolo_mode/agents
-touch yolo_mode/agents/__init__.py
-touch yolo_mode/agents/registry.py
-touch yolo_mode/agents/runner.py
-touch yolo_mode/agents/role_detection.py
-```
-
-### Step 2: Test Integration
-
-```bash
-# Test each agent
-python -m yolo_mode.agents.runner qwen "write hello world"
-python -m yolo_mode.agents.runner gemini "plan a project"
-python -m yolo_mode.agents.runner crush "audit this code"
-```
-
----
-
 *Framework: OSA (One-Shot Agent) v2.1*
 *YOLO: Yielding Ownership to Local Orchestrators*
-*Primary Agent: mini-swe-agent (Priority 0)*
+*Selection: Rate limit hierarchy (Priority 1 = best rate limits)*
