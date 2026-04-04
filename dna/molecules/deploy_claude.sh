@@ -48,8 +48,50 @@ deploy_claude() {
             echo -e "${BRIGHT_GREEN}✅ Deployed $cmd_count Claude Code command(s)${RESET}"
         fi
     fi
+
+    # Deploy skills
+    deploy_claude_skills "$target_dir"
     
     echo -e "${BRIGHT_GREEN}✅ Claude Code fully configured${RESET}"
     echo -e "${BLUE}💡 Commands available via / in Claude Code${RESET}"
     return 0
+}
+
+deploy_claude_skills() {
+    local target_dir="${1:-.}"
+    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    
+    echo -e "${BRIGHT_BLUE}Deploying Claude Code Skills${RESET}"
+    
+    local claude_skills_dir="$target_dir/.claude/skills"
+    
+    if [[ -d "$source_dir/.configs/.claude/skills" ]]; then
+        safe_mkdir "$claude_skills_dir" || return 1
+        local skill_count=0
+        
+        # Deploy each skill directory
+        for skill_dir in "$source_dir/.configs/.claude/skills"/*; do
+            if [[ -d "$skill_dir" ]]; then
+                local skill_name=$(basename "$skill_dir")
+                local target_skill_dir="$claude_skills_dir/$skill_name"
+                
+                # Create target skill directory
+                safe_mkdir "$target_skill_dir" || return 1
+                
+                # Copy skill files
+                cp -r "$skill_dir"/* "$target_skill_dir/" 2>/dev/null || true
+                
+                ((skill_count++))
+                echo -e "${GREEN}✓ Deployed: .claude/skills/$skill_name${RESET}"
+            fi
+        done
+        
+        if [[ $skill_count -gt 0 ]]; then
+            echo -e "${BRIGHT_GREEN}✅ Deployed $skill_count skill(s)${RESET}"
+        else
+            echo -e "${YELLOW}⚠ No skills found to deploy${RESET}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ Skills source directory not found${RESET}"
+    fi
 }
