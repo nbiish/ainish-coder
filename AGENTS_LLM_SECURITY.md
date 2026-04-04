@@ -39,6 +39,28 @@ AI components are probabilistic and fallible. We do not "fix" them; we steer the
 
 ---
 
+## Part 2b: OWASP Agentic Top 10 (2026)
+
+| Rank | Vulnerability | Mitigation Strategy |
+|------|---------------|---------------------|
+| **AGT01** | Agent Behaviour Hijack | Input validation, context isolation, privilege separation |
+| **AGT02** | Tool Misuse & Exploitation | Schema validation (Zod/Pydantic), per-tool rate limiting, audit logging |
+| **AGT03** | Identity & Privilege Abuse | Independent Permission Broker, short-lived tokens, least privilege |
+| **AGT04** | Agentic Supply Chain Vulnerabilities | SBOM + AIBOM, SLSA Level 3+, dependency pinning, model provenance |
+| **AGT05** | Unexpected Code Execution (RCE) | Sandboxing (WASM/Firecracker), input validation, FFI boundary checks |
+| **AGT06** | Memory & Context Poisoning | RAG input validation, context hygiene, embedding integrity checks |
+| **AGT07** | Insecure Inter-Agent Communication | mTLS with PQC certificates, signed messages (ML-DSA-65), context isolation |
+| **AGT08** | Cascading Failures | Circuit breakers, graceful degradation, RTO/RPO enforcement |
+| **AGT09** | Human-Agent Trust Exploitation | Explicit approval workflows, confidence scores, citation requirements |
+| **AGT10** | Rogue Agents | UEBA monitoring, immutable audit trail, anomaly detection |
+
+**Key Additions vs LLM Top 10:**
+- **Agent-specific**: Rogue Agents, Cascading Failures, Inter-Agent Communication
+- **Tool-focused**: Tool Misuse, Unexpected Code Execution
+- **Identity/Privilege**: Identity & Privilege Abuse (not in LLM Top 10)
+
+---
+
 ## Part 3: Prompt Engineering & Control
 
 ### 3.1 Role Separation

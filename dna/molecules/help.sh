@@ -32,7 +32,8 @@ TOOL-SPECIFIC CONFIGURATION:
     --cursor [TARGET_DIR]     Deploy Cursor AI - rules, commands, ignore files
     --windsurf [TARGET_DIR]   Deploy Windsurf - rules, workflows
     --cline [TARGET_DIR]      Deploy Cline - single .clinerules file (merged rules), ignore files
-    --claude [TARGET_DIR]     Deploy Claude Code - rules, commands
+    --claude [TARGET_DIR]     Deploy Claude Code - rules, commands, skills (skill-creator,
+                              agent-creator for creating custom skills/agents), agents, MCP
     --copilot [TARGET_DIR]    Deploy GitHub Copilot to .github/instructions/
     --continue [TARGET_DIR]   Deploy Continue.dev - rules, prompts, ignore files
     --cn [TARGET_DIR]         Alias for --continue
@@ -40,6 +41,7 @@ TOOL-SPECIFIC CONFIGURATION:
     --qwen [TARGET_DIR]       Deploy Qwen AI - rules, commands (TOML), QWEN.md
     --roocode [TARGET_DIR]    Deploy Roo Code - rules, commands, ignore files
     --roo [TARGET_DIR]        Alias for --roocode
+    --pi [TARGET_DIR]         Deploy Pi Coding Agent - extensions, agents, skills, themes
     --trae [TARGET_DIR]       Deploy TRAE rules by copying repository AGENTS.md into
                               TARGET_DIR/.trae/rules/AGENTS.md (defaults to current dir)
                               Example: --trae ./my-project
@@ -129,6 +131,12 @@ UTILITY COMMANDS:
                               - .scrolls/ (Vital texts, expanded prompts)
                               
                               Example: ainish-coder --scrolls ~/my-project
+
+    --skills [TARGET_DIR]     Deploy Claude Code skills (meta-creators)
+                              Deploys:
+                              - .claude/skills/ (skill-creator, agent-creator)
+                              
+                              Example: ainish-coder --skills ~/my-project
 
     --signals [TARGET_DIR]    Deploy Signals Detection Reference (Expert RF guide)
                               Deploys:

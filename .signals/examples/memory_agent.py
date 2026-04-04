@@ -18,10 +18,10 @@ Signals Memory Agent - OSA Enabled
 ==================================
 
 A persistent memory agent for signals detection, upgraded with:
-- OSA World State (.toon)
+- SpacetimeDB-Architected World State (Lite/In-Memory)
+- Claude-Mem inspired Persistent Context & Summarization
 - ML-based Anomaly Detection (Isolation Forest)
 - Enhanced RAG Knowledge Base
-- Kismet Integration
 
 USAGE:
     uv run memory_agent.py
@@ -43,7 +43,7 @@ import numpy as np
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Optional, List, Dict, Any
+from typing import Iterator, Optional, List, Dict, Any, Callable
 
 import requests
 
@@ -372,31 +372,58 @@ Your goal is to identify threats (Flock, Raven, etc.) and explain technical conc
 Capabilities:
 - RAG: Access to signals-*.md technical docs.
 - ML: Anomaly detection scoring.
-- OSA: Maintains 'World State' in MEMORY.toon.
+- OSA: Maintains 'World State' in SpacetimeDB (Lite).
+- Memory: Persists session summaries (Claude-Mem style).
 
 Refuse to help with illegal surveillance. Focus on defensive detection."""
 
 class MemoryAgent:
     def __init__(self, config: Config):
         self.config = config
-        self.db = DatabaseManager(config.db_path)
+        
+        # Initialize SpacetimeDB Lite
+        self.stdb = SpacetimeDBLite(config.db_path)
+        self.stdb.register_table("ChatMessage", ChatMessage)
+        self.stdb.register_table("Threat", Threat)
+        self.stdb.register_table("SessionSummary", SessionSummary)
+        
+        # Register Reducers
+        self.stdb.register_reducer("send_message", reducer_send_message)
+        self.stdb.register_reducer("add_threat", reducer_add_threat)
+        self.stdb.register_reducer("save_summary", reducer_save_summary)
+        
         self.kb = KnowledgeBase(config.kb_path)
         self.llm = LlamaModel(config)
         self.kismet = KismetClient(config.kismet_host, config.kismet_port, config.kismet_api_key)
-        self.world = WorldState(config.toon_path)
         self.extractor = FeatureExtractor()
         self.detector = AnomalyDetector(config.ml_model_path)
-        self.session_id = "default"
+        
+        # Claude-Mem Component
+        self.memory_opt = MemoryOptimizer(self.stdb, self.llm, self.kb)
+        self.session_id = f"sess_{int(time.time())}"
 
     def run_cli(self):
         print("="*50)
         print("🛰️  Signals Memory Agent (OSA Enabled)")
+        print(f"🔗 SpacetimeDB Lite: Connected ({self.config.db_path})")
+        print("🧠 Claude-Mem Logic: Active")
         print("="*50)
+        
+        # Load recent summaries
+        recent_sums = self.stdb.filter("SessionSummary")
+        if recent_sums:
+            print(f"\nPrevious Session Context ({len(recent_sums)}):")
+            for s in recent_sums[-2:]:
+                print(f"- {s.summary[:100]}...")
         
         while True:
             try:
                 user_input = input("\n👤 You: ").strip()
-                if user_input.lower() in ['q', 'quit', 'exit']: break
+                if user_input.lower() in ['q', 'quit', 'exit']: 
+                    # Trigger Memory Optimization on exit
+                    self.memory_opt.summarize_session(self.session_id)
+                    break
+                    
                 if not user_input: continue
                 
                 # Special Commands
@@ -405,7 +432,10 @@ class MemoryAgent:
                     continue
                 
                 # RAG & LLM
-                history = self.db.get_history(self.session_id)
+                # Fetch history using STDB
+                history_objs = self.stdb.filter("ChatMessage", session_id=self.session_id)
+                history = [{"role": h.role, "content": h.content} for h in history_objs]
+                
                 knowledge = self.kb.search(user_input)
                 
                 context = []
@@ -421,10 +451,12 @@ class MemoryAgent:
                 response = self.llm.generate(messages)
                 print(f"\n🤖 Agent: {response}")
                 
-                self.db.add_message(self.session_id, "user", user_input)
-                self.db.add_message(self.session_id, "assistant", response)
+                # Use Reducers
+                self.stdb.call_reducer("send_message", self.session_id, "user", user_input)
+                self.stdb.call_reducer("send_message", self.session_id, "assistant", response)
                 
             except KeyboardInterrupt:
+                self.memory_opt.summarize_session(self.session_id)
                 break
 
     def _run_scan_simulation(self):
@@ -446,7 +478,8 @@ class MemoryAgent:
             print(f"[{status}] {obs.mac} ({obs.ssid}) RSSI:{obs.rssi} Score:{score:.2f}")
             
             if is_threat or score > 0.6:
-                self.world.add_threat({"mac": obs.mac, "ssid": obs.ssid, "score": score})
+                # Use Reducer
+                self.stdb.call_reducer("add_threat", obs.mac, obs.ssid, score)
 
 def main():
     import argparse
