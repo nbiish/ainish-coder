@@ -16,8 +16,14 @@ echo -e "${BLUE}║                   AINISH-CODER SETUP UTILITY                
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Get the absolute path to the ainish-coder bin directory
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the absolute path to the ainish-coder bin directory, resolving symlinks
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+ROOT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 BIN_DIR="${ROOT_DIR}/bin"
 CLI_EXEC="${BIN_DIR}/ainish-coder"
 
