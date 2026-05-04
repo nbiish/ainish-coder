@@ -1,14 +1,14 @@
 # ◈──◆──◇ ainish-coder ◇──◆──◈
 
 <div align="center">
-  <h1>🚀 Configuration Manager for AI Coding Assistants</h1>
-  <p><strong>Simple deployment of MAI RULES and AGENTS.md configurations to your projects</strong></p>
-  <p>✨ <em>Now supports AGENTS.md - the universal standard for AI pair programmers</em></p>
+  <h1>🚀 Configuration & Skills Manager for AI Coding Agents</h1>
+  <p><strong>Deploy hardened AGENTS.md configs, reusable AI skills, and autonomous agent frameworks to any project</strong></p>
+  <p>✨ <em>Security-first, self-hosted, Zero Trust — built for the agentic era</em></p>
 
   <hr width="60%">
 
   <h2>🎯 What is ainish-coder?</h2>
-  <p><strong>ainish-coder</strong> is a powerful configuration management tool that simplifies deploying AI coding assistant rules across multiple platforms. It creates a unified configuration system using the emerging AGENTS.md standard, ensuring consistent AI behavior across all your development tools.</p>
+  <p><strong>ainish-coder</strong> is a modular configuration and skills deployment system for AI coding assistants. It standardizes agent behavior across 10+ IDE extensions and CLI tools via the AGENTS.md standard, ships production-grade security skills, and enables autonomous multi-agent execution through the OSA framework. Every configuration is hardened against the OWASP LLM Top 10, OWASP Agentic Top 10 (ASI 2026), and OWASP Agentic Skills Top 10 (AST10 2026).</p>
 </div>
 
 <div align="center">
@@ -33,15 +33,75 @@
 
 ## 🔥 Key Features
 
-- **🎯 AGENTS.md Standard**: Deploy universal AI agent instructions
-- **🏗️ Modular Architecture**: Clean Atom → Molecule → Protein structure
-- **🤖 Multiple AI Tools**: Cursor, Claude Code, Windsurf, Cline, Continue Dev, GitHub Copilot, Gemini CLI, Qwen, Roo Code, and Trae
-- **🔄 OSA (YOLO Mode) Framework**: CLI YOLO agents (Claude, Gemini, Qwen, OpenCode, Crush) for parallel autonomous execution
-- **⚡ Simple Deployment**: One command to deploy configurations
-- **🔗 Smart File Management**: Copies configurations to ensure tool-specific customization
-- **💻 Shell Integration**: Convenient `ainish-coder` command
-- **🎭 Template Agent System**: Craft custom system prompts with expert guidance
-- **🛡️ Security Options**: Local secret protection OR GitHub Actions CI/CD integration
+- **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
+- **🧠 Skills System** — Reusable domain knowledge packs (security, browser automation, multimodal AI)
+- **🏗️ Modular Architecture** — Clean Atom → Molecule → Protein structure
+- **🤖 10+ AI Tools** — Cursor, Claude Code, Windsurf, Cline, Continue Dev, GitHub Copilot, Gemini CLI, Qwen, Roo Code, and Trae
+- **🔄 OSA Framework** — CLI YOLO agents (Claude, Gemini, Qwen, OpenCode, Crush) for parallel autonomous execution
+- **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
+- **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
+- **🔗 Smart File Management** — Copies configurations for tool-specific customization
+- **🎭 Template Agent System** — Craft custom system prompts with expert guidance
+- **📜 Scrolls & LLM Context** — Deploy `llms.txt` and `.scrolls` for machine-readable project context
+
+---
+
+## 🧠 Skills System
+
+Skills are portable, expert-level knowledge packs that inject domain expertise into AI agents. Each skill lives in `.skills/<name>/SKILL.md` and is loaded on demand.
+
+| Skill | Path | Description |
+|-------|------|-------------|
+| **Code Security** | `.skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQL injection, XSS, CSRF, SSRF, path traversal, MCP hardening, SBOM generation, and SLSA provenance. |
+| **LLM Security** | `.skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, inter-agent mTLS, circuit breakers, kill switches, and append-only audit ledgers. |
+| **Skyvern** | `.skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support: OpenRouter, Ollama, any OpenAI-compatible endpoint. Never uses cloud API. |
+
+### Skill Format
+
+```yaml
+---
+name: skill-name
+description: >
+  What this skill teaches the agent
+version: 1.0.0
+---
+
+# Skill Title
+
+## Instructions
+## Guidelines
+## Guardrails
+## Examples
+## Troubleshooting
+```
+
+---
+
+## 🛡️ Security Posture
+
+ainish-coder configurations enforce a comprehensive security baseline:
+
+| Domain | Standards |
+|--------|-----------|
+| **Core Framework** | OWASP LLM Top 10 (2025), OWASP Agentic Top 10 (ASI 2026), OWASP Agentic Skills Top 10 (AST10 2026) |
+| **Cryptography** | PQC-compliant: ML-KEM-768 (FIPS 203), ML-DSA-65 (FIPS 204), SLH-DSA (FIPS 205); AES-256-GCM at rest; TLS 1.3+ in transit |
+| **Agent Security** | Zero Trust; MCP manifest signing; tool schema validation (Zod/Pydantic); HITL for high-risk actions; kill switches |
+| **Supply Chain** | SBOMs (CycloneDX/SPDX), SLSA attestations, artifact signing (Sigstore), dependency pinning by hash |
+| **Data Protection** | PII redaction (Presidio); env-only secrets; encrypted logs; structured immutable audit trails |
+| **MCP Hardening** | Allowlisted servers; pinned manifests; drift detection; sandboxed execution (WASM/Firecracker); no auto-approve |
+
+### Known MCP CVE Mitigations
+
+| CVE | Product | Mitigation |
+|-----|---------|------------|
+| CVE-2025-32711 | M365 Copilot (EchoLeak) | Output sanitization; strip markdown image refs |
+| CVE-2025-53773 | GitHub Copilot (Worm) | Instruction hierarchy; treat repo text as untrusted |
+| CVE-2025-54135 | Cursor (CurXecute) | Require explicit approval; no auto-start |
+| CVE-2025-64660 | GitHub Copilot | Behavioral monitoring; AGENTS.md immutability |
+| CVE-2026-30615 | Windsurf | Never let LLM output modify system config |
+| CVE-2026-30623 | LiteLLM | Auth required for MCP creation; allowlisted definitions |
+
+---
 
 ## 📦 Quick Start
 
@@ -114,6 +174,8 @@ ainish-coder --roocode-ignore            # Deploy .rooignore
 ainish-coder --all-ignores               # Deploy all ignore files at once
 ```
 
+---
+
 ## 🛠️ Supported AI Tools
 
 ### IDE Extensions
@@ -121,7 +183,7 @@ ainish-coder --all-ignores               # Deploy all ignore files at once
 | Tool | Config Flag | Commands Flag | Description |
 |------|------------|---------------|-------------|
 | **Cursor** | `--cursor` | `--commands cursor` | Rules, commands (`.cursor/commands/*.md`), ignore files |
-| **Claude Code** | `--claude` | `--commands claude` | Rules, commands |
+| **Claude Code** | `--claude` | `--commands claude` | Rules, commands, skills |
 | **Windsurf** | `--windsurf` | `--commands windsurf` | Rules, workflows (`.windsurf/workflows/*.md`) |
 | **Cline** | `--cline` | `--commands cline` | Single `.clinerules` file (merged rules), ignore files |
 | **Continue Dev** | `--continue` / `--cn` | `--commands continue` | Rules, prompts, ignore files, config.yaml setup |
@@ -136,26 +198,84 @@ ainish-coder --all-ignores               # Deploy all ignore files at once
 | **Gemini CLI** | `--gemini` | `--commands gemini-cli` | Rules, commands (`.gemini/commands/*.toml`) |
 | **Qwen Code** | `--qwen` | `--commands qwen` | QWEN.md, commands (`.qwen/commands/*.toml`) |
 
+---
+
+## 🔄 OSA Framework (YOLO Mode)
+
+The OSA (One-Shot Autonomous) framework deploys CLI-based YOLO agents for parallel autonomous execution. Each agent is a standalone shell wrapper around a coding assistant with pre-configured system prompts and autonomy settings.
+
+**Agents**: Claude, Gemini, Qwen, OpenCode, Crush
+
+```bash
+ainish-coder --osa                       # Deploy all OSA agents
+```
+
+See [`.osa/OSA.md`](.osa/OSA.md) for full agent configuration and `llms.txt` integration.
+
+---
+
 ## 🎨 Tier Rules Explained
 
 Rules are organized into tiers by priority and purpose:
 
-- **TIER_0 (Documentation)**: `docs-protocol.md` - Documentation standards and best practices (Critical)
-- **TIER_1 (Code Security)**: `code-security.md` - Comprehensive code security best practices (High)
-- **TIER_2 (Prompt Security)**: `prompt-security.md` - AI prompt injection defense and security (High)
-- **TIER_3 (Cultural Style)**: `anishinaabe-cyberpunk-style.md` - Anishinaabe cyberpunk aesthetic preferences (Medium)
-- **TIER_4 (Advanced Prompting)**: `modern-prompting.md` - OOReDAct framework and advanced prompting techniques (Medium)
+- **TIER_0 (Documentation)**: `docs-protocol.md` — Documentation standards and best practices (Critical)
+- **TIER_1 (Code Security)**: `code-security.md` — Comprehensive code security best practices (High)
+- **TIER_2 (Prompt Security)**: `prompt-security.md` — AI prompt injection defense and security (High)
+- **TIER_3 (Cultural Style)**: `anishinaabe-cyberpunk-style.md` — Anishinaabe cyberpunk aesthetic preferences (Medium)
+- **TIER_4 (Advanced Prompting)**: `modern-prompting.md` — OOReDAct framework and advanced prompting techniques (Medium)
+
+---
 
 ## 🏗️ Architecture
 
 The tool is built with a modular, extensible design following the Atomic Design pattern:
 
-- **CLI Tool** (`bin/ainish-coder`): Main command-line interface
-- **Atoms** (`dna/atoms/`): Core utilities (colors, paths, validation, file operations)
-- **Molecules** (`dna/molecules/`): Deployment functions (deploy_*.sh)
-- **Proteins** (`dna/proteins/`): Higher-level orchestration
-- **CONFIGURATIONS** (`CONFIGURATIONS/`): Centralized tool-specific configs (now centralized in `.configs/`)
-- **TIER_RULES** (`TIER_RULES/`): Modular rule sets organized by priority
+```
+ainish-coder/
+├── AGENTS.md                   # Universal agent instructions (OWASP-aligned)
+├── bin/ainish-coder             # Main CLI interface
+├── dna/
+│   ├── atoms/                   # Core utilities (colors, paths, validation, file ops)
+│   ├── molecules/               # Deployment functions (deploy_*.sh)
+│   └── proteins/                # Higher-level orchestration
+├── .skills/                     # Portable AI skill packs
+│   ├── code-security/SKILL.md   # Safety-critical code engineering
+│   ├── llm-security/SKILL.md    # LLM & agentic AI security
+│   └── skyvern/SKILL.md         # AI browser automation (self-hosted)
+├── .osa/                        # OSA Framework (YOLO agents)
+│   ├── OSA.md                   # Framework documentation
+│   └── llms.txt                 # Machine-readable context
+├── .configs/                    # Centralized tool-specific configs
+├── .scrolls/                    # Vital texts & prompts (llms.txt, llms-full.txt)
+├── TIER_RULES/                  # Modular rule sets organized by priority
+├── llms.txt/                    # Machine-readable project context
+├── mcp_recipes/                 # MCP server recipes
+└── .signals/                    # Signal detection configs
+```
+
+### Design Principles
+
+| Principle | Implementation |
+|-----------|---------------|
+| **SOLID** | Single Responsibility per module; Open for extension via skills/tiers |
+| **DRY** | Shared atoms; configs generated from templates |
+| **KISS** | Shell-based CLI; no runtime dependencies beyond Bash |
+| **YAGNI** | Skills loaded on demand; tiers deployed selectively |
+| **Zero Trust** | Every tool call validated; all inputs sanitized; MCP servers treated as hostile |
+
+### OOReDAct Decision Loop
+
+All agent behavior follows the **OOReDAct** framework (OODA + ReAct + Chain of Draft):
+
+| Step | Directive |
+|------|-----------|
+| **Observe** | Capture inputs without bias. ≤30 words. |
+| **Orient** | Identify relevant facts and constraints relative to goal. |
+| **Reason** | Draft ≤3 options; score each in ≤10 words (outcome, risk, cost). |
+| **Decide** | Select best action. Output: `{ "action": "<name>" }`. Verify alignment. |
+| **Act** | Execute via tool/agent. Feed result back to Observe. |
+
+---
 
 ## 📚 Citation
 

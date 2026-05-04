@@ -134,7 +134,7 @@ UTILITY COMMANDS:
 
     --skills [TARGET_DIR]     Deploy Claude Code skills (meta-creators)
                               Deploys:
-                              - .claude/skills/ (skill-creator, agent-creator)
+                              - skills/ (skill-creator, agent-creator)
                               
                               Example: ainish-coder --skills ~/my-project
 
