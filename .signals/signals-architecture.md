@@ -11,6 +11,7 @@
 > - [Data Models](signals-data-models.md) — Persistence formats, schemas
 > - [Deployment](signals-deployment.md) — Setup, systemd, CI/CD
 > - [BT Implementation](signals-bt-implementation.md) — btmgmt PTY fix
+> - [Haven Node Setup](signals-haven-node.md) — Sub-GHz Wi-Fi HaLow Mesh Node
 
 ---
 
@@ -95,6 +96,15 @@
 | **Real-time first** | SocketIO pushes every scan cycle (3s default) |
 | **Cross-protocol** | WiFi and BLE flow through identical pipeline stages |
 | **Graceful degradation** | Kismet offline → iw fallback; GPS offline → no location; BT offline → WiFi only |
+| **HaLow Mesh Extensibility** | Support for sub-gigahertz 802.11ah Haven Nodes for off-grid backhaul |
+
+---
+
+## 1.1 Sub-Gigahertz High-Bandwidth Mesh (Wi-Fi HaLow)
+
+While Creeper Sweeper monitors traditional 2.4GHz WiFi and BLE, the underlying architecture can be extended or backhauled over **Wi-Fi HaLow (IEEE 802.11ah)** networks using [Haven Nodes](signals-haven-node.md).
+
+These nodes operate in the 900MHz ISM band and provide long-range, high-bandwidth peer-to-peer capabilities without internet dependencies. Applications like **FaceTime, Signal, and Mumble** can natively route over this Layer-2 mesh (`batman-adv` and `802.11s`) purely via local discovery, bridging remote surveillance data or providing off-grid communications.
 
 ---
 

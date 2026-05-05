@@ -63,7 +63,7 @@ deploy_claude_skills() {
     
     echo -e "${BRIGHT_BLUE}Deploying Claude Code Skills${RESET}"
     
-    local claude_skills_dir="$target_dir/skills"
+    local claude_skills_dir="$target_dir/.claude/skills"
     
     if [[ -d "$source_dir/.configs/.claude/skills" ]]; then
         safe_mkdir "$claude_skills_dir" || return 1
@@ -82,7 +82,7 @@ deploy_claude_skills() {
                 cp -r "$skill_dir"/* "$target_skill_dir/" 2>/dev/null || true
                 
                 ((skill_count++))
-                echo -e "${GREEN}✓ Deployed: skills/$skill_name${RESET}"
+                echo -e "${GREEN}✓ Deployed: .claude/skills/$skill_name${RESET}"
             fi
         done
         

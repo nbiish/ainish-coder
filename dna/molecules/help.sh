@@ -12,16 +12,7 @@ CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md, llms.txt/ directory, and .gitignore
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --secure [DIR]            Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
-    --mairules [TARGET_DIR]   Deploy MAIRULES.md with ALL tiers (0-4 concatenated)
-    
-TIER DEPLOYMENT:
-    --tier {0-4} [TARGET_DIR] Append specific tier to MAIRULES.md
-    --tier all [TARGET_DIR]   Append all tiers (0-4) to MAIRULES.md
-    --tier0 [TARGET_DIR]      Append TIER_0 (Documentation protocols)
-    --tier1 [TARGET_DIR]      Append TIER_1 (Code security)
-    --tier2 [TARGET_DIR]      Append TIER_2 (Prompt security)
-    --tier3 [TARGET_DIR]      Append TIER_3 (Cultural styling)
-    --tier4 [TARGET_DIR]      Append TIER_4 (Advanced prompting)
+
 
 TOOL-SPECIFIC CONFIGURATION:
     Each tool deployment now includes:
@@ -38,10 +29,9 @@ TOOL-SPECIFIC CONFIGURATION:
     --continue [TARGET_DIR]   Deploy Continue.dev - rules, prompts, ignore files
     --cn [TARGET_DIR]         Alias for --continue
     --gemini [TARGET_DIR]     Deploy Gemini CLI - rules, commands (TOML)
-    --qwen [TARGET_DIR]       Deploy Qwen AI - rules, commands (TOML), QWEN.md
+    --pi [TARGET_DIR]         Deploy Pi Coding Agent - extensions, agents, skills, themes
     --roocode [TARGET_DIR]    Deploy Roo Code - rules, commands, ignore files
     --roo [TARGET_DIR]        Alias for --roocode
-    --pi [TARGET_DIR]         Deploy Pi Coding Agent - extensions, agents, skills, themes
     --trae [TARGET_DIR]       Deploy TRAE rules by copying repository AGENTS.md into
                               TARGET_DIR/.trae/rules/AGENTS.md (defaults to current dir)
                               Example: --trae ./my-project
@@ -65,19 +55,6 @@ AGENT CUSTOMIZATION:
                               
                               Example: ainish-coder --template-agent ~/my-project
 
-    --osa [DIR]               Deploy OSA (YOLO Mode) Framework
-                              
-                              Creates: OSA.md, llms.txt
-                              
-                              Features:
-                              - YOLO Mode: Yielding Ownership to Local Orchestrators
-                              - CLI YOLO agents (Gemini, Qwen, OpenCode, Crush, Claude)
-                              - Non-interactive autonomous execution
-                              - Parallel task dispatch patterns
-                              - Shared state coordination
-                              
-                              Example: ainish-coder --osa ~/my-project
-
 CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
                               
@@ -97,7 +74,6 @@ CUSTOM COMMANDS DEPLOYMENT:
                               
                               CLI Tools (TOML Commands):
                               - gemini-cli  (.gemini/commands/*.toml)
-                              - qwen        (.qwen/commands/*.toml)
                               
                               Other:
                               - copilot     (use --copilot flag instead)
@@ -132,10 +108,15 @@ UTILITY COMMANDS:
                               
                               Example: ainish-coder --scrolls ~/my-project
 
-    --skills [TARGET_DIR]     Deploy Claude Code skills (meta-creators)
+    --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory
                               Deploys:
-                              - skills/ (skill-creator, agent-creator)
-                              
+                              - .agents/skills/osa/         (Multi-agent orchestration)
+                              - .agents/skills/skyvern/     (AI browser automation)
+                              - .agents/skills/llm-security/ (LLM & agentic AI security)
+                              - .agents/skills/code-security/ (Safety-critical code engineering)
+                              - .agents/skills/anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
+                              - .agents/skills/modern-prompting/ (OOReDAct advanced prompting)
+
                               Example: ainish-coder --skills ~/my-project
 
     --signals [TARGET_DIR]    Deploy Signals Detection Reference (Expert RF guide)
@@ -180,11 +161,9 @@ OTHER:
 
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
-    - Tier deployments APPEND to MAIRULES.md (they don't overwrite)
     - --rules deploys AGENTS.md + llms.txt/ directory + .gitignore
     - --secure deploys AGENTS_LLM_SECURITY.md + AGENTS_CODE_SECURITY.md
     - Tool deployments include ALL configurations (rules + commands/recipes + ignores)
-    - Use --mairules for ALL tiers or --tier {1-4} to add specific tiers
     - Run --rules first before tool-specific deployments
 
 EXAMPLES:
@@ -195,15 +174,7 @@ EXAMPLES:
     # Tool-specific deployments
     ainish-coder --rules                    # Deploy AGENTS.md + llms.txt/ + .gitignore
 
-    # Add more tiers as needed
-    ainish-coder --tier 1                   # Append code security
-    ainish-coder --tier 2                   # Append prompt security
-    ainish-coder --tier all                 # Append all remaining tiers (1-4)
-
-    # OR deploy all tiers at once
-    ainish-coder --mairules                 # Deploy MAIRULES.md with ALL tiers
-
-    # Deploy tool configurations (requires AGENTS.md/MAIRULES.md first)
+    # Deploy tool configurations (requires AGENTS.md first)
     ainish-coder --cursor                   # Deploy to current directory
     ainish-coder --windsurf /path/to/project
     

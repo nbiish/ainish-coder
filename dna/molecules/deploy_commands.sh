@@ -12,7 +12,6 @@ source "${SCRIPT_DIR}/deploy_cline_prompts.sh"
 source "${SCRIPT_DIR}/deploy_roocode_prompts.sh"
 # CLI tools
 source "${SCRIPT_DIR}/deploy_gemini_cli_prompts.sh"
-source "${SCRIPT_DIR}/deploy_qwen_cli_prompts.sh"
 
 deploy_commands() {
     local tool="$1"
@@ -37,7 +36,6 @@ deploy_commands() {
         echo "" >&2
         echo "CLI Tools (TOML Commands):" >&2
         echo "  gemini-cli  Deploy to .gemini/commands/ (TOML files)" >&2
-        echo "  qwen        Deploy to .qwen/commands/ (TOML files)" >&2
         echo "" >&2
         echo "Other:" >&2
         echo "  copilot     Use --copilot flag instead" >&2
@@ -75,34 +73,30 @@ deploy_commands() {
         gemini-cli|gemini)
             deploy_gemini_cli_prompts "$target_dir"
             ;;
-        qwen|qwen-cli)
-            deploy_qwen_cli_prompts "$target_dir"
-            ;;
-            
+
         # Deploy all
         all)
             echo -e "${BRIGHT_BLUE}Deploying to all supported tools${RESET}"
             local success=0
-            local total=7
-            
+            local total=6
+
             echo -e "${CYAN}--- File-Based Commands ---${RESET}"
             deploy_cursor_commands "$target_dir" && ((success++))
             deploy_roocode_prompts "$target_dir" && ((success++))
-            
+
             echo ""
             echo -e "${CYAN}--- Workflows ---${RESET}"
             deploy_windsurf_prompts "$target_dir" && ((success++))
             deploy_cline_prompts "$target_dir" && ((success++))
-            
+
             echo ""
             echo -e "${CYAN}--- Config-Based ---${RESET}"
             deploy_continue_prompts "$target_dir" && ((success++))
-            
+
             echo ""
             echo -e "${CYAN}--- CLI TOML Commands ---${RESET}"
             deploy_gemini_cli_prompts "$target_dir" && ((success++))
-            deploy_qwen_cli_prompts "$target_dir" && ((success++))
-            
+
             echo ""
             echo -e "${BRIGHT_GREEN}✅ Deployed to $success/$total tools${RESET}"
             echo -e "${BLUE}💡 GitHub Copilot: Use 'ainish-coder --copilot' separately${RESET}"

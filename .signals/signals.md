@@ -14,6 +14,7 @@
 > - [Signals ML Detection](signals-ml-detection.md) — Machine learning anomaly detection
 > - [Signals ESP32-S3 Camera](signals-xiao-esp32s3.md) — Camera integration & WiFi field tests
 > - [Signals Image/Video](signals-security-image-video.md) — Camera streaming & processing
+> - [Signals Haven Node](signals-haven-node.md) — Sub-GHz Wi-Fi HaLow Mesh Node Setup
 
 ---
 
