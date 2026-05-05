@@ -53,28 +53,28 @@ install_global_mairules() {
     echo -e "   3. Global: ~/.mai-rules/MAIRULES.md (fallback)"
 }
 
-install_global_qwen() {
-    echo -e "${BRIGHT_BLUE}Installing Global Qwen Rules...${RESET}"
-    
-    # Create global Qwen directory
-    if [[ ! -d "$QWEN_GLOBAL_DIR" ]]; then
-        mkdir -p "$QWEN_GLOBAL_DIR"
-        echo -e "${GREEN}✓ Created ${QWEN_GLOBAL_DIR}${RESET}"
+install_global_pi() {
+    echo -e "${BRIGHT_BLUE}Installing Global Pi Rules...${RESET}"
+
+    # Create global Pi directory
+    if [[ ! -d "$PI_GLOBAL_DIR" ]]; then
+        mkdir -p "$PI_GLOBAL_DIR"
+        echo -e "${GREEN}✓ Created ${PI_GLOBAL_DIR}${RESET}"
     fi
-    
-    # Copy consolidated QWEN.md
+
+    # Copy consolidated PI.md
     local source="${REPO_DIR}/MAIRULES.md"
-    local dest="${QWEN_GLOBAL_DIR}/QWEN.md"
-    
+    local dest="${PI_GLOBAL_DIR}/PI.md"
+
     if [[ -f "$source" ]] && cp "$source" "$dest" 2>/dev/null; then
-        echo -e "${GREEN}✓ Installed QWEN.md to ${QWEN_GLOBAL_DIR}${RESET}"
-        echo -e "${BRIGHT_GREEN}📍 Global Qwen rules available at: ${dest}${RESET}"
+        echo -e "${GREEN}✓ Installed PI.md to ${PI_GLOBAL_DIR}${RESET}"
+        echo -e "${BRIGHT_GREEN}📍 Global Pi rules available at: ${dest}${RESET}"
     else
-        echo -e "${BRIGHT_RED}Error: Failed to install global Qwen rules${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to install global Pi rules${RESET}"
         return 1
     fi
-    
-    echo -e "${BRIGHT_GREEN}✅ Global Qwen rules installation complete${RESET}"
+
+    echo -e "${BRIGHT_GREEN}✅ Global Pi rules installation complete${RESET}"
 }
 
 install_global_gemini() {
@@ -135,7 +135,7 @@ install_all_global_rules() {
     install_global_mairules
     echo ""
     
-    install_global_qwen
+    install_global_pi
     echo ""
     
     install_global_gemini
@@ -150,7 +150,7 @@ install_all_global_rules() {
     echo ""
     echo -e "${BRIGHT_BLUE}📍 Global Configuration Locations:${RESET}"
     echo -e "   • MAI RULES:  ~/.mai-rules/MAIRULES.md"
-    echo -e "   • Qwen:       ~/.qwen/QWEN.md"
+    echo -e "   • Pi:         ~/.pi/PI.md"
     echo -e "   • Gemini:     ~/.gemini/GEMINI.md"
     echo -e "   • Continue:   ~/.continue/CONTINUE.md"
     echo ""

@@ -36,8 +36,8 @@
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
 - **🧠 Skills System** — Reusable domain knowledge packs (security, browser automation, multimodal AI)
 - **🏗️ Modular Architecture** — Clean Atom → Molecule → Protein structure
-- **🤖 10+ AI Tools** — Cursor, Claude Code, Windsurf, Cline, Continue Dev, GitHub Copilot, Gemini CLI, Qwen, Roo Code, and Trae
-- **🔄 OSA Framework** — CLI YOLO agents (Claude, Gemini, Qwen, OpenCode, Crush) for parallel autonomous execution
+- **🤖 10+ AI Tools** — Cursor, Claude Code, Windsurf, Cline, Continue Dev, GitHub Copilot, Gemini CLI, Pi, Roo Code, and Trae
+- **🔄 OSA Framework** — CLI YOLO agents (Gemini, Claude, OpenCode, mini, pi, kilo) with fixed-order rotation, automatic fallback, and git worktree isolation
 - **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
 - **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
 - **🔗 Smart File Management** — Copies configurations for tool-specific customization
@@ -48,13 +48,14 @@
 
 ## 🧠 Skills System
 
-Skills are portable, expert-level knowledge packs that inject domain expertise into AI agents. Each skill lives in `.skills/<name>/SKILL.md` and is loaded on demand.
+Skills are portable, expert-level knowledge packs that inject domain expertise into AI agents. Each skill lives in `.agents/skills/<name>/SKILL.md` and is loaded on demand.
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| **Code Security** | `.skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQL injection, XSS, CSRF, SSRF, path traversal, MCP hardening, SBOM generation, and SLSA provenance. |
-| **LLM Security** | `.skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, inter-agent mTLS, circuit breakers, kill switches, and append-only audit ledgers. |
-| **Skyvern** | `.skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support: OpenRouter, Ollama, any OpenAI-compatible endpoint. Never uses cloud API. |
+| **Code Security** | `.agents/skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQL injection, XSS, CSRF, SSRF, path traversal, MCP hardening, SBOM generation, and SLSA provenance. |
+| **LLM Security** | `.agents/skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, inter-agent mTLS, circuit breakers, kill switches, and append-only audit ledgers. |
+| **OSA** | `.agents/skills/osa/` | Multi-agent orchestration via fixed-order rotation across equal CLI coding agents (Gemini, Claude, OpenCode, mini, pi, kilo). YOLO mode execution with automatic fallback and git worktree isolation per subagent. |
+| **Skyvern** | `.agents/skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support: OpenRouter, Ollama, any OpenAI-compatible endpoint. Never uses cloud API. |
 
 ### Skill Format
 
@@ -141,7 +142,7 @@ ainish-coder --cline                     # Deploy Cline - single .clinerules fil
 ainish-coder --continue                  # Deploy Continue.dev - rules, prompts, ignore files
 ainish-coder --copilot                   # Deploy GitHub Copilot to .github/instructions/
 ainish-coder --gemini                    # Deploy Gemini CLI - rules, commands (TOML)
-ainish-coder --qwen                      # Deploy Qwen AI - rules, commands (TOML)
+ainish-coder --pi                        # Deploy Pi Coding Agent - extensions, agents, skills
 ainish-coder --roocode                   # Deploy Roo Code - rules, commands, ignore files
 ainish-coder --trae                      # Deploy TRAE rules to .trae/rules/
 
@@ -152,7 +153,9 @@ ainish-coder --commands all              # Deploy to all applicable tools
 
 # Agent customization
 ainish-coder --template-agent            # Deploy template-agent.md for custom system prompts
-ainish-coder --osa                       # Deploy OSA (YOLO Mode) Framework - CLI YOLO agents
+
+# Deploy skills
+ainish-coder --skills                    # Deploy all skills (OSA, security, Skyvern)
 
 # Security deployments
 ainish-coder --local-security            # Deploy LOCAL secret protection (git hooks + scripts)
@@ -196,35 +199,23 @@ ainish-coder --all-ignores               # Deploy all ignore files at once
 | Tool | Config Flag | Commands Flag | Description |
 |------|------------|---------------|-------------|
 | **Gemini CLI** | `--gemini` | `--commands gemini-cli` | Rules, commands (`.gemini/commands/*.toml`) |
-| **Qwen Code** | `--qwen` | `--commands qwen` | QWEN.md, commands (`.qwen/commands/*.toml`) |
+| **Pi Coding Agent** | `--pi` | N/A | Extensions, agents, skills, themes (`.pi/`) |
 
 ---
 
 ## 🔄 OSA Framework (YOLO Mode)
 
-The OSA (One-Shot Autonomous) framework deploys CLI-based YOLO agents for parallel autonomous execution. Each agent is a standalone shell wrapper around a coding assistant with pre-configured system prompts and autonomy settings.
+The OSA (Orchestrated System of Agents) framework coordinates multiple CLI coding agents through fixed-order rotation with automatic fallback. All agents are equal peers — multiple arms of the same thinking tool.
 
-**Agents**: Claude, Gemini, Qwen, OpenCode, Crush
+**Agents**: Gemini, Claude, OpenCode, mini, pi, kilo
 
 ```bash
-ainish-coder --osa                       # Deploy all OSA agents
+ainish-coder --skills                    # Deploy all skills
 ```
 
-See [`.osa/OSA.md`](.osa/OSA.md) for full agent configuration and `llms.txt` integration.
+See [`.agents/skills/osa/SKILL.md`](.agents/skills/osa/SKILL.md) for the full framework specification, or [`.osa/llms.txt`](.osa/llms.txt) for the quick reference.
 
----
 
-## 🎨 Tier Rules Explained
-
-Rules are organized into tiers by priority and purpose:
-
-- **TIER_0 (Documentation)**: `docs-protocol.md` — Documentation standards and best practices (Critical)
-- **TIER_1 (Code Security)**: `code-security.md` — Comprehensive code security best practices (High)
-- **TIER_2 (Prompt Security)**: `prompt-security.md` — AI prompt injection defense and security (High)
-- **TIER_3 (Cultural Style)**: `anishinaabe-cyberpunk-style.md` — Anishinaabe cyberpunk aesthetic preferences (Medium)
-- **TIER_4 (Advanced Prompting)**: `modern-prompting.md` — OOReDAct framework and advanced prompting techniques (Medium)
-
----
 
 ## 🏗️ Architecture
 
@@ -238,16 +229,17 @@ ainish-coder/
 │   ├── atoms/                   # Core utilities (colors, paths, validation, file ops)
 │   ├── molecules/               # Deployment functions (deploy_*.sh)
 │   └── proteins/                # Higher-level orchestration
-├── .skills/                     # Portable AI skill packs
+├── .agents/skills/              # Portable AI skill packs
 │   ├── code-security/SKILL.md   # Safety-critical code engineering
 │   ├── llm-security/SKILL.md    # LLM & agentic AI security
-│   └── skyvern/SKILL.md         # AI browser automation (self-hosted)
-├── .osa/                        # OSA Framework (YOLO agents)
-│   ├── OSA.md                   # Framework documentation
-│   └── llms.txt                 # Machine-readable context
+│   ├── osa/SKILL.md             # Multi-agent orchestration (OSA framework)
+│   ├── skyvern/SKILL.md         # AI browser automation (self-hosted)
+│   ├── anishinaabe-cyberpunk-style/SKILL.md # Cultural aesthetic rules
+│   └── modern-prompting/SKILL.md # OOReDAct advanced prompting
+├── .osa/                        # OSA Framework quick reference
+│   └── llms.txt                 # Machine-readable agent context
 ├── .configs/                    # Centralized tool-specific configs
 ├── .scrolls/                    # Vital texts & prompts (llms.txt, llms-full.txt)
-├── TIER_RULES/                  # Modular rule sets organized by priority
 ├── llms.txt/                    # Machine-readable project context
 ├── mcp_recipes/                 # MCP server recipes
 └── .signals/                    # Signal detection configs

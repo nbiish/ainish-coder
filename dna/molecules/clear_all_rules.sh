@@ -47,10 +47,10 @@ clear_all_rules() {
         ((dirs_removed++))
     fi
     
-    # Remove Qwen rules
-    if [[ -f "$target_dir/QWEN.md" ]]; then
-        rm -f "$target_dir/QWEN.md"
-        echo -e "${YELLOW}✓ Removed QWEN.md${RESET}"
+    # Remove Pi rules
+    if [[ -f "$target_dir/PI.md" ]]; then
+        rm -f "$target_dir/PI.md"
+        echo -e "${YELLOW}✓ Removed PI.md${RESET}"
         ((files_removed++))
     fi
     
@@ -86,13 +86,13 @@ clear_all_rules() {
         files_removed=$((files_removed + gemini_file_count))
     fi
     
-    # Remove global Qwen settings
-    if [[ -d "$HOME/.qwen" ]]; then
-        local qwen_file_count=$(find "$HOME/.qwen" -type f 2>/dev/null | wc -l | tr -d ' ')
-        rm -rf "$HOME/.qwen"
-        echo -e "${YELLOW}✓ Removed ~/.qwen/ directory with $qwen_file_count file(s)${RESET}"
+    # Remove global Pi settings
+    if [[ -d "$HOME/.pi" ]]; then
+        local pi_file_count=$(find "$HOME/.pi" -type f 2>/dev/null | wc -l | tr -d ' ')
+        rm -rf "$HOME/.pi"
+        echo -e "${YELLOW}✓ Removed ~/.pi/ directory with $pi_file_count file(s)${RESET}"
         ((dirs_removed++))
-        files_removed=$((files_removed + qwen_file_count))
+        files_removed=$((files_removed + pi_file_count))
     fi
     
     # Summary

@@ -32,8 +32,7 @@ source "${DNA_DIR}/atoms/ignore_patterns.sh"
 source "${DNA_DIR}/molecules/help.sh"
 source "${DNA_DIR}/molecules/deploy_commands.sh"
 source "${DNA_DIR}/molecules/deploy_agents.sh"
-source "${DNA_DIR}/molecules/deploy_mairules.sh"
-source "${DNA_DIR}/molecules/deploy_tiers.sh"
+
 source "${DNA_DIR}/molecules/deploy_cursor.sh"
 source "${DNA_DIR}/molecules/deploy_windsurf.sh"
 source "${DNA_DIR}/molecules/deploy_cline.sh"
@@ -41,7 +40,6 @@ source "${DNA_DIR}/molecules/deploy_claude.sh"
 source "${DNA_DIR}/molecules/deploy_copilot.sh"
 source "${DNA_DIR}/molecules/deploy_continue.sh"
 source "${DNA_DIR}/molecules/deploy_gemini.sh"
-source "${DNA_DIR}/molecules/deploy_qwen.sh"
 source "${DNA_DIR}/molecules/deploy_roocode.sh"
 source "${DNA_DIR}/molecules/deploy_critical.sh"
 source "${DNA_DIR}/molecules/deploy_gitignore.sh"
@@ -54,7 +52,6 @@ source "${DNA_DIR}/molecules/deploy_cline_prompts.sh"
 source "${DNA_DIR}/molecules/deploy_roocode_prompts.sh"
 # CLI tool prompt deployment
 source "${DNA_DIR}/molecules/deploy_gemini_cli_prompts.sh"
-source "${DNA_DIR}/molecules/deploy_qwen_cli_prompts.sh"
 # Load ignore file deployment molecules
 source "${DNA_DIR}/molecules/deploy_cursor_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_cline_ignore.sh"
@@ -64,7 +61,7 @@ source "${DNA_DIR}/molecules/deploy_roocode_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_github_actions.sh"
 source "${DNA_DIR}/molecules/deploy_local_security.sh"
 source "${DNA_DIR}/molecules/deploy_template_agent.sh"
-source "${DNA_DIR}/molecules/deploy_osa.sh"
+source "${DNA_DIR}/molecules/deploy_skills.sh"
 source "${DNA_DIR}/molecules/deploy_trae.sh"
 source "${DNA_DIR}/molecules/deploy_mcp.sh"
 source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
@@ -101,39 +98,7 @@ main() {
             deploy_commands "$1"
             ;;
             
-        # Tier deployment (with argument)
-        --tier)
-            if [[ $# -eq 0 ]]; then
-                print_error "Missing tier number"
-                echo "Usage: ainish-coder --tier {0-4} [TARGET_DIR]" >&2
-                echo "Example: ainish-coder --tier 1" >&2
-                exit 1
-            fi
-            local tier_num="$1"
-            shift
-            local tier_target="${1:-$(pwd)}"
-            
-            case "$tier_num" in
-                0) deploy_tier0 "$tier_target" ;;
-                1) deploy_tier1 "$tier_target" ;;
-                2) deploy_tier2 "$tier_target" ;;
-                3) deploy_tier3 "$tier_target" ;;
-                4) deploy_tier4 "$tier_target" ;;
-                all) deploy_all_tiers "$tier_target" ;;
-                *)
-                    print_error "Invalid tier number: $tier_num"
-                    echo "Valid tiers: 0, 1, 2, 3, 4, all" >&2
-                    exit 1
-                    ;;
-            esac
-            ;;
-            
-        # Individual tier flags (backward compatibility)
-        --tier0) deploy_tier0 "$target_dir" ;;
-        --tier1) deploy_tier1 "$target_dir" ;;
-        --tier2) deploy_tier2 "$target_dir" ;;
-        --tier3) deploy_tier3 "$target_dir" ;;
-        --tier4) deploy_tier4 "$target_dir" ;;
+
         
         # Core rules deployment
         --rules)
@@ -176,14 +141,7 @@ main() {
             
             echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
             ;;
-        --mairules)
-            # Deploy MAIRULES.md with all tiers (for backward compatibility)
-            deploy_mairules "$target_dir"
-            ;;
-        --mairules-tier0)
-            # Deploy MAIRULES.md with only TIER_0
-            deploy_mairules_tier0 "$target_dir"
-            ;;
+
             
         # Tool-specific deployments
         --cursor)
@@ -207,9 +165,6 @@ main() {
         --gemini)
             deploy_gemini "$target_dir"
             ;;
-        --qwen)
-            deploy_qwen "$target_dir"
-            ;;
         --roocode|--roo)
             deploy_roocode "$target_dir"
             ;;
@@ -217,11 +172,6 @@ main() {
         # Template Agent System
         --template-agent)
             deploy_template_agent "$target_dir"
-            ;;
-            
-        # OSA Orchestrator Patterns (distribute OSA.md)
-        --osa)
-            deploy_osa "$target_dir"
             ;;
             
         # Utility deployments
@@ -285,7 +235,7 @@ main() {
             ;;
 
         --skills)
-            deploy_claude_skills "$target_dir"
+            deploy_skills "$target_dir"
             ;;
 
         --scrolls)
