@@ -1,3 +1,10 @@
+---
+name: llm-security
+description: >
+  LLM & Agentic AI Security Skill. Domain knowledge for securing probabilistic AI components, 
+  including prompt injection defense, RAG security, and MCP hardening.
+---
+
 # LLM & Agentic AI Security Skill
 
 *Updated: May 4th, 2026 (May 2026 Standards)*

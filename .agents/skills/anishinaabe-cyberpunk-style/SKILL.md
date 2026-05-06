@@ -1,3 +1,10 @@
+---
+name: anishinaabe-cyberpunk-style
+description: >
+  Anishinaabe-inspired cyberpunk styling guide for documentation and scripts. 
+  Combines Canadian Aboriginal Syllabics with ASCII circuit-like symbols for a unique aesthetic.
+---
+
 # Anishinaabe-Inspired Cyberpunk Styling Guide
 
 This guide documents the project's unified styling approach that combines Anishinaabe cultural elements with cyberpunk aesthetics for documentation and script files.

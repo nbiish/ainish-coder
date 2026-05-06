@@ -1,3 +1,10 @@
+---
+name: modern-prompting
+description: >
+  Modern Prompting & Context Engineering Framework. Includes techniques like OOReDAct, 
+  Chain-of-Thought, Chain-of-Draft, ReAct, and more for advanced LLM steering.
+---
+
 # Modern Prompting & Context Engineering Framework
 
 ## Compression Principles
