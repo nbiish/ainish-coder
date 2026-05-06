@@ -1,3 +1,10 @@
+---
+name: code-security
+description: >
+  Safety-critical code engineering skill for writing deterministic, verifiable, and secure 
+  foundational code. Covers SQLi, XSS, Path Traversal, and more.
+---
+
 # Safety-Critical Code Engineering Skill
 
 *Updated: May 4th, 2026 (May 2026 Standards)*

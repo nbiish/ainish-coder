@@ -2,7 +2,7 @@
 name: osa
 description: >
   Multi-agent orchestration via fixed-order rotation across equal CLI coding agents (Gemini, Claude,
-  OpenCode, mini, pi, kilo). Use when dispatching subagent tasks, running parallel agent work, or
+  OpenCode, mini, pi, kilo, crush). Use when dispatching subagent tasks, running parallel agent work, or
   orchestrating code changes across multiple tools. Implements YOLO mode (non-interactive) execution
   with automatic fallback on failure and git worktree isolation per subagent.
 ---
@@ -16,7 +16,7 @@ description: >
 ## Agent Pool — Fixed Rotation Order
 
 ```
-gemini → claude → opencode → mini → pi → kilo → (wrap around)
+gemini → claude → crush → pi → mini → opencode → kilo → (wrap around)
 ```
 
 All agents are **equal peers** — multiple arms of the same thinking tool. No agent is specialized or preferred. Every task flows through the fixed rotation.
@@ -25,16 +25,17 @@ All agents are **equal peers** — multiple arms of the same thinking tool. No a
 |---|-------|-------------|
 | 1 | **Gemini** | `gemini -p "prompt" -y` |
 | 2 | **Claude** | `claude -p "prompt" --dangerously-skip-permissions` |
-| 3 | **OpenCode** | `opencode run "prompt"` |
-| 4 | **mini** | `mini --task "prompt" --yolo` |
-| 5 | **pi** | `pi -p "prompt" --no-session --thinking off` |
-| 6 | **kilo** | `kilo run "prompt"` |
+| 3 | **Crush** | `crush --yolo run "prompt"` |
+| 4 | **pi** | `pi -p "prompt" --no-session --thinking off` |
+| 5 | **mini** | `mini --task "prompt" --yolo` |
+| 6 | **OpenCode** | `opencode run "prompt"` |
+| 7 | **kilo** | `kilo run "prompt"` |
 
 ---
 
 ## Dispatch Rules
 
-1. **Fixed order**: Always dispatch gemini → claude → opencode → mini → pi → kilo → gemini → ...
+1. **Fixed order**: Always dispatch gemini → claude → crush → pi → mini → opencode → kilo → gemini → ...
 2. **Fallback on failure**: If an agent fails, retry the **same task** with the next agent in the order
 3. **Wrap around**: After kilo, restart from gemini
 4. **Never repeat on success**: After a success, advance to the next agent
@@ -82,14 +83,17 @@ gemini -p "In src/api/routes.ts add a POST /users endpoint with zod validation."
 # Claude — -p for non-interactive, --dangerously-skip-permissions for auto-approve
 claude -p "Review src/auth/middleware.ts for vulnerabilities. Output findings." --dangerously-skip-permissions
 
-# OpenCode — run executes non-interactively
-opencode run "Validate src/ against schemas/ definitions. List mismatches."
+# Crush — run for non-interactive, --yolo for auto-approve permissions
+crush --yolo run "Add input sanitization to src/api/handlers.ts for all POST endpoints."
+
+# pi — -p for non-interactive, --no-session for fresh state, --thinking off for speed
+pi -p "Fix race condition in src/workers/queue.ts line 45." --no-session --thinking off
 
 # mini — --task for the description, --yolo for auto-approve
 mini --task "Fix src/parser.ts:handleInput() to handle empty input." --yolo
 
-# pi — -p for non-interactive, --no-session for fresh state, --thinking off for speed
-pi -p "Fix race condition in src/workers/queue.ts line 45." --no-session --thinking off
+# OpenCode — run executes non-interactively
+opencode run "Validate src/ against schemas/ definitions. List mismatches."
 
 # kilo — run executes non-interactively
 kilo run "Refactor the database connection pooling logic in src/db/."
@@ -120,7 +124,7 @@ gemini -p "Add formatCurrency(amount, currency) to src/utils/format.ts supportin
 
 ```yaml
 dispatch:
-  order: ["gemini", "claude", "opencode", "mini", "pi", "kilo"]
+  order: ["gemini", "claude", "crush", "pi", "mini", "opencode", "kilo"]
   pointer: 0
   last_agent: null
 ```
