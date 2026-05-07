@@ -32,8 +32,8 @@ The `bin/` directory follows the **Unix philosophy** of simplicity:
 ./bin/ainish-coder cursor /path/to/project
 ./bin/ainish-coder windsurf /path/to/project
 
-# Deploy tiers
-./bin/ainish-coder --tier all /path/to/project
+# Example: Deploying rules to a target directory
+./bin/ainish-coder --rules /path/to/project
 ```
 
 ### System-Wide Installation
@@ -68,7 +68,7 @@ The `ainish-coder` script follows the **Atomic Design** pattern:
 
 - **`dna/`** - Contains all implementation (atoms, molecules, organisms)
 - **`dna/organisms/install.sh`** - Wrapper for system-wide installation
-- **`CONFIGURATIONS/`** - Configuration templates and tier rules
+- **`CONFIGURATIONS/`** - Configuration templates
 
 ## Development
 

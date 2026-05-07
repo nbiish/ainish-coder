@@ -16,25 +16,14 @@ CORE COMMANDS:
 
 TOOL-SPECIFIC CONFIGURATION:
     Each tool deployment now includes:
-    • AGENTS.md and MAIRULES.md (core rules)
+    • AGENTS.md (core rules)
     • Tool-specific commands/workflows/recipes
     • Ignore files for context optimization
     
-    --cursor [TARGET_DIR]     Deploy Cursor AI - rules, commands, ignore files
-    --windsurf [TARGET_DIR]   Deploy Windsurf - rules, workflows
-    --cline [TARGET_DIR]      Deploy Cline - single .clinerules file (merged rules), ignore files
     --claude [TARGET_DIR]     Deploy Claude Code - rules, commands, skills (skill-creator,
                               agent-creator for creating custom skills/agents), agents, MCP
     --copilot [TARGET_DIR]    Deploy GitHub Copilot to .github/instructions/
-    --continue [TARGET_DIR]   Deploy Continue.dev - rules, prompts, ignore files
-    --cn [TARGET_DIR]         Alias for --continue
-    --gemini [TARGET_DIR]     Deploy Gemini CLI - rules, commands (TOML)
     --pi [TARGET_DIR]         Deploy Pi Coding Agent - extensions, agents, skills, themes
-    --roocode [TARGET_DIR]    Deploy Roo Code - rules, commands, ignore files
-    --roo [TARGET_DIR]        Alias for --roocode
-    --trae [TARGET_DIR]       Deploy TRAE rules by copying repository AGENTS.md into
-                              TARGET_DIR/.trae/rules/AGENTS.md (defaults to current dir)
-                              Example: --trae ./my-project
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
@@ -58,23 +47,6 @@ AGENT CUSTOMIZATION:
 CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
                               
-                              IDE Extensions (File-Based):
-                              - cursor      (.cursor/commands/*.md - plain markdown)
-                              - roocode     (.roo/commands/*.md - with frontmatter)
-                              
-                              IDE Extensions (Workflows):
-                              - windsurf    (.windsurf/workflows/*.md)
-                              
-                              IDE Extensions (Rules - NOT Slash Commands):
-                              - cline       (.clinerules/*.md - rules files, NOT slash commands!)
-                                            Note: Cline only has /newtask and /newrule (built-in)
-                              
-                              IDE Extensions (Config-Based):
-                              - continue    (provides config.yaml setup guide)
-                              
-                              CLI Tools (TOML Commands):
-                              - gemini-cli  (.gemini/commands/*.toml)
-                              
                               Other:
                               - copilot     (use --copilot flag instead)
                               - all         (deploy to all applicable tools)
@@ -82,7 +54,7 @@ CUSTOM COMMANDS DEPLOYMENT:
                               Example: ainish-coder --commands all
 
 UTILITY COMMANDS:
-    --critical [TARGET_DIR]   Deploy critical.md from TIER_0
+    --critical [TARGET_DIR]   Deploy critical.md (Critical protocols)
     --license [TARGET_DIR]    Deploy LICENSE file
     --gitignore [TARGET_DIR]  Deploy comprehensive .gitignore
     --local-security [DIR]    Deploy LOCAL secret protection (git hooks + scripts)
@@ -144,12 +116,7 @@ UTILITY COMMANDS:
                               Example: ainish-coder --mcp-recipes ~/my-project
 
 IGNORE FILE DEPLOYMENT:
-    --cursor-ignore [DIR]     Deploy .cursorignore for Cursor AI
-    --cline-ignore [DIR]      Deploy .clineignore for Cline VSCode extension
-    --continue-ignore [DIR]   Deploy .continueignore for Continue.dev
     --copilot-ignore [DIR]    Deploy .copilotignore for GitHub Copilot
-    --roocode-ignore [DIR]    Deploy .rooignore for Roo Code
-    --roo-ignore [DIR]        Alias for --roocode-ignore
     --all-ignores [DIR]       Deploy all ignore files at once
                               
                               Ignore files help AI tools focus on relevant code by
@@ -175,13 +142,11 @@ EXAMPLES:
     ainish-coder --rules                    # Deploy AGENTS.md + llms.txt/ + .gitignore
 
     # Deploy tool configurations (requires AGENTS.md first)
-    ainish-coder --cursor                   # Deploy to current directory
-    ainish-coder --windsurf /path/to/project
+    ainish-coder --claude                   # Deploy to current directory
+    ainish-coder --pi /path/to/project
     
     # Deploy custom commands
-    ainish-coder --commands cursor          # Deploy slash commands
-    ainish-coder --commands windsurf        # Deploy workflows
-    ainish-coder --commands cline           # Deploy rules files (NOT slash commands)
+    ainish-coder --commands claude          # Deploy slash commands
 
     # Utility deployments
     ainish-coder --gitignore                # Create comprehensive .gitignore
@@ -189,14 +154,7 @@ EXAMPLES:
     ainish-coder --github-actions           # Deploy CI/CD secret protection
     
     # Deploy ignore files for AI tools
-    ainish-coder --cursor-ignore            # Deploy .cursorignore
     ainish-coder --all-ignores              # Deploy all ignore files
-    ainish-coder --continue-ignore ~/project # Deploy to specific directory
-
-IMPORTANT NOTES:
-    ⚠️  Cline does NOT support custom slash commands! It only has /newtask and /newrule
-        built-in. The --commands cline deployment creates .clinerules files with MANDATORY
-        instructions, not slash commands. See KNOWLEDGE_BASE/CLINE_RULES_SYSTEM.md
 
 For more information, see: https://github.com/nbiish/ainish-coder
 EOF

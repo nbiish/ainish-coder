@@ -26,13 +26,6 @@ clear_all_rules() {
         ((dirs_removed++))
     fi
     
-    # Remove Continue Dev rules
-    if [[ -f "$target_dir/.continue/rules/MAIRULES.md" ]]; then
-        rm -f "$target_dir/.continue/rules/MAIRULES.md"
-        echo -e "${YELLOW}✓ Removed .continue/rules/MAIRULES.md${RESET}"
-        ((files_removed++))
-    fi
-    
     # Remove .continue/rules directory if empty
     if [[ -d "$target_dir/.continue/rules" ]] && [[ -z "$(ls -A "$target_dir/.continue/rules" 2>/dev/null)" ]]; then
         rmdir "$target_dir/.continue/rules"
@@ -58,13 +51,6 @@ clear_all_rules() {
     if [[ -f "$target_dir/GEMINI.md" ]]; then
         rm -f "$target_dir/GEMINI.md"
         echo -e "${YELLOW}✓ Removed GEMINI.md${RESET}"
-        ((files_removed++))
-    fi
-    
-    # Remove MAIRULES.md (direct deployment)
-    if [[ -f "$target_dir/MAIRULES.md" ]]; then
-        rm -f "$target_dir/MAIRULES.md"
-        echo -e "${YELLOW}✓ Removed MAIRULES.md${RESET}"
         ((files_removed++))
     fi
     

@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: AGENTS.md deployment
-# Copies MAIRULES.md to AGENTS.md at project root
+# Copies AGENTS.md to project root
 # AGENTS.md is the universal standard for AI pair programmers
 
 deploy_agents() {

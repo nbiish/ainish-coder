@@ -33,31 +33,17 @@ source "${DNA_DIR}/molecules/help.sh"
 source "${DNA_DIR}/molecules/deploy_commands.sh"
 source "${DNA_DIR}/molecules/deploy_agents.sh"
 
-source "${DNA_DIR}/molecules/deploy_cursor.sh"
-source "${DNA_DIR}/molecules/deploy_windsurf.sh"
-source "${DNA_DIR}/molecules/deploy_cline.sh"
 source "${DNA_DIR}/molecules/deploy_claude.sh"
 source "${DNA_DIR}/molecules/deploy_copilot.sh"
 source "${DNA_DIR}/molecules/deploy_continue.sh"
-source "${DNA_DIR}/molecules/deploy_gemini.sh"
-source "${DNA_DIR}/molecules/deploy_roocode.sh"
 source "${DNA_DIR}/molecules/deploy_critical.sh"
 source "${DNA_DIR}/molecules/deploy_gitignore.sh"
 # Load prompt deployment molecules
-source "${DNA_DIR}/molecules/deploy_cursor_commands.sh"
 source "${DNA_DIR}/molecules/deploy_claude_commands.sh"
 source "${DNA_DIR}/molecules/deploy_continue_prompts.sh"
-source "${DNA_DIR}/molecules/deploy_windsurf_prompts.sh"
-source "${DNA_DIR}/molecules/deploy_cline_prompts.sh"
-source "${DNA_DIR}/molecules/deploy_roocode_prompts.sh"
-# CLI tool prompt deployment
-source "${DNA_DIR}/molecules/deploy_gemini_cli_prompts.sh"
 # Load ignore file deployment molecules
-source "${DNA_DIR}/molecules/deploy_cursor_ignore.sh"
-source "${DNA_DIR}/molecules/deploy_cline_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_continue_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_copilot_ignore.sh"
-source "${DNA_DIR}/molecules/deploy_roocode_ignore.sh"
 source "${DNA_DIR}/molecules/deploy_github_actions.sh"
 source "${DNA_DIR}/molecules/deploy_local_security.sh"
 source "${DNA_DIR}/molecules/deploy_template_agent.sh"
@@ -144,15 +130,6 @@ main() {
 
             
         # Tool-specific deployments
-        --cursor)
-            deploy_cursor "$target_dir"
-            ;;
-        --windsurf)
-            deploy_windsurf "$target_dir"
-            ;;
-        --cline)
-            deploy_cline "$target_dir"
-            ;;
         --claude)
             deploy_claude "$target_dir"
             ;;
@@ -161,12 +138,6 @@ main() {
             ;;
         --continue|--cn)
             deploy_continue "$target_dir"
-            ;;
-        --gemini)
-            deploy_gemini "$target_dir"
-            ;;
-        --roocode|--roo)
-            deploy_roocode "$target_dir"
             ;;
             
         # Template Agent System
@@ -189,41 +160,17 @@ main() {
             ;;
             
         # Ignore file deployments
-        --cursor-ignore)
-            deploy_cursor_ignore "$target_dir"
-            ;;
-        --cline-ignore)
-            deploy_cline_ignore "$target_dir"
-            ;;
         --continue-ignore)
             deploy_continue_ignore "$target_dir"
             ;;
         --copilot-ignore)
             deploy_copilot_ignore "$target_dir"
             ;;
-        --roocode-ignore|--roo-ignore)
-            deploy_roocode_ignore "$target_dir"
-            ;;
         --all-ignores)
             echo -e "${BRIGHT_BLUE}Deploying All Ignore Files${RESET}"
-            deploy_cursor_ignore "$target_dir"
-            deploy_cline_ignore "$target_dir"
             deploy_continue_ignore "$target_dir"
             deploy_copilot_ignore "$target_dir"
-            deploy_roocode_ignore "$target_dir"
             echo -e "${BRIGHT_GREEN}✅ All ignore files deployed${RESET}"
-            ;;
-            
-        --trae)
-            # Usage: ainish-coder --trae [TARGET_DIR]
-            # Copies AGENTS.md from repository root into TARGET_DIR/.trae/rules/AGENTS.md
-            if [[ $# -ge 1 && ! -d "$1" ]]; then
-                # If first arg is a directory path but does not exist, show error
-                print_error "Target directory does not exist: $1"
-                exit 1
-            fi
-            local trae_target="${1:-$target_dir}"
-            deploy_trae "$trae_target"
             ;;
         
         --mcp)

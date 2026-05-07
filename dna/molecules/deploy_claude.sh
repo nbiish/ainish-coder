@@ -28,11 +28,6 @@ deploy_claude() {
         return 1
     fi
     
-    if [[ -f "$target_dir/MAIRULES.md" ]]; then
-        cp "$target_dir/MAIRULES.md" "$claude_rules_dir/MAIRULES.md"
-        echo -e "${GREEN}✓ Copied: MAIRULES.md → .claude/rules/MAIRULES.md${RESET}"
-    fi
-    
     # Deploy commands from .configs
     if [[ -d "$source_dir/.configs/.claude/commands" ]]; then
         local cmd_count=0

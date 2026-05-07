@@ -75,20 +75,6 @@ require_agents_md() {
     return 0
 }
 
-# Require MAIRULES.md to exist in target directory
-require_mairules_md() {
-    local target_dir="$1"
-    local mairules_file="$target_dir/MAIRULES.md"
-    
-    if [[ ! -f "$mairules_file" ]]; then
-        echo "Error: MAIRULES.md not found in $target_dir" >&2
-        echo "Run: ainish-coder --mairules $target_dir" >&2
-        return 1
-    fi
-    
-    return 0
-}
-
 # Validate command line arguments
 validate_args() {
     local expected="$1"

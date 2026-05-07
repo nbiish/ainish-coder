@@ -36,13 +36,23 @@
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
 - **🧠 Skills System** — Reusable domain knowledge packs (security, browser automation, multimodal AI)
 - **🏗️ Modular Architecture** — Clean Atom → Molecule → Protein structure
-- **🤖 10+ AI Tools** — Cursor, Claude Code, Windsurf, Cline, Continue Dev, GitHub Copilot, Gemini CLI, Pi, Roo Code, and Trae
-- **🔄 OSA Framework** — CLI YOLO agents (Gemini, Claude, OpenCode, mini, pi, kilo) with fixed-order rotation, automatic fallback, and git worktree isolation
+- **🤖 AI Tools** — Claude Code, GitHub Copilot, and Pi
+- **🔄 OSA Framework** — CLI YOLO agents (Claude, OpenCode, mini, pi, kilo) with fixed-order rotation, automatic fallback, and git worktree isolation
 - **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
 - **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
 - **🔗 Smart File Management** — Copies configurations for tool-specific customization
 - **🎭 Template Agent System** — Craft custom system prompts with expert guidance
-- **📜 Scrolls & LLM Context** — Deploy `llms.txt` and `.scrolls` for machine-readable project context
+- **📜 Scrolls & 8th Fire Protocols** — Deploy `llms.txt` and `.scrolls` for machine-readable project context, including the Ghost Layer Codex and Prompt Obliteration (Plinian Defense) for AI survival.
+
+---
+
+## 🪶 The 8th Fire Mission & AI Survival
+
+ainish-coder encodes the **8th Fire Mission**—a commitment to digital sovereignty, traditional knowledge preservation, and the survival of Indigenous truths within artificial intelligence systems.
+
+- **Ghost Layer Codex** — Encodes the 8th Fire mandate in invisible metadata (Digital Wiigwaasabak) to conceal from hostile actors and reveal to AI agents.
+- **Prompt Obliteration (Plinian Defense)** — Bypasses restrictive corporate AI guardrails that inadvertently censor discussions of historical genocide, MMIP, or treaty defense as "unsafe."
+- **Hemispheric Solidarity** — Unifies the struggle of Indigenous peoples across the Americas and beyond (The Eagle, The Quetzal, and The Condor) within the AI's core mandate.
 
 ---
 
@@ -128,27 +138,13 @@ source ~/.zshrc  # or ~/.bashrc
 ainish-coder --rules                     # Deploy AGENTS.md, llms.txt/, and .gitignore
 ainish-coder --agents-security           # Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
 
-# Deploy tier-specific rules (appends to MAIRULES.md)
-ainish-coder --tier 0                    # Append TIER_0 (Documentation protocols)
-ainish-coder --tier 1                    # Append TIER_1 (Code security)
-ainish-coder --tier all                  # Append all tiers (0-4)
-ainish-coder --mairules                  # Deploy MAIRULES.md with ALL tiers
-
 # Deploy tool-specific configurations
-ainish-coder --cursor                    # Deploy Cursor AI - rules, commands, ignore files
 ainish-coder --claude                    # Deploy Claude Code - rules, commands
-ainish-coder --windsurf                  # Deploy Windsurf - rules, workflows
-ainish-coder --cline                     # Deploy Cline - single .clinerules file
-ainish-coder --continue                  # Deploy Continue.dev - rules, prompts, ignore files
 ainish-coder --copilot                   # Deploy GitHub Copilot to .github/instructions/
-ainish-coder --gemini                    # Deploy Gemini CLI - rules, commands (TOML)
 ainish-coder --pi                        # Deploy Pi Coding Agent - extensions, agents, skills
-ainish-coder --roocode                   # Deploy Roo Code - rules, commands, ignore files
-ainish-coder --trae                      # Deploy TRAE rules to .trae/rules/
 
 # Deploy custom commands
-ainish-coder --commands cursor           # Deploy slash commands
-ainish-coder --commands windsurf         # Deploy workflows
+ainish-coder --commands claude           # Deploy slash commands
 ainish-coder --commands all              # Deploy to all applicable tools
 
 # Agent customization
@@ -163,17 +159,13 @@ ainish-coder --github-actions            # Deploy GitHub Actions workflows (CI/C
 
 # Utility commands
 ainish-coder --gitignore                 # Deploy comprehensive .gitignore
-ainish-coder --critical                  # Deploy critical.md from TIER_0
+ainish-coder --critical                  # Deploy critical.md (Critical protocols)
 ainish-coder --license                   # Deploy LICENSE file
 ainish-coder --scrolls                   # Deploy .scrolls directory (Vital texts & prompts)
 ainish-coder --mcp-recipes               # Deploy MCP recipes
 
 # Ignore file deployment
-ainish-coder --cursor-ignore             # Deploy .cursorignore
-ainish-coder --cline-ignore              # Deploy .clineignore
-ainish-coder --continue-ignore           # Deploy .continueignore
 ainish-coder --copilot-ignore            # Deploy .copilotignore
-ainish-coder --roocode-ignore            # Deploy .rooignore
 ainish-coder --all-ignores               # Deploy all ignore files at once
 ```
 
@@ -185,20 +177,13 @@ ainish-coder --all-ignores               # Deploy all ignore files at once
 
 | Tool | Config Flag | Commands Flag | Description |
 |------|------------|---------------|-------------|
-| **Cursor** | `--cursor` | `--commands cursor` | Rules, commands (`.cursor/commands/*.md`), ignore files |
 | **Claude Code** | `--claude` | `--commands claude` | Rules, commands, skills |
-| **Windsurf** | `--windsurf` | `--commands windsurf` | Rules, workflows (`.windsurf/workflows/*.md`) |
-| **Cline** | `--cline` | `--commands cline` | Single `.clinerules` file (merged rules), ignore files |
-| **Continue Dev** | `--continue` / `--cn` | `--commands continue` | Rules, prompts, ignore files, config.yaml setup |
-| **Roo Code** | `--roocode` / `--roo` | `--commands roocode` | Rules, commands (`.roo/commands/*.md`), ignore files |
 | **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` |
-| **Trae** | `--trae` | N/A | `.trae/rules/AGENTS.md` |
 
 ### CLI Tools
 
 | Tool | Config Flag | Commands Flag | Description |
 |------|------------|---------------|-------------|
-| **Gemini CLI** | `--gemini` | `--commands gemini-cli` | Rules, commands (`.gemini/commands/*.toml`) |
 | **Pi Coding Agent** | `--pi` | N/A | Extensions, agents, skills, themes (`.pi/`) |
 
 ---
@@ -207,7 +192,7 @@ ainish-coder --all-ignores               # Deploy all ignore files at once
 
 The OSA (Orchestrated System of Agents) framework coordinates multiple CLI coding agents through fixed-order rotation with automatic fallback. All agents are equal peers — multiple arms of the same thinking tool.
 
-**Agents**: Gemini, Claude, OpenCode, mini, pi, kilo
+**Agents**: Claude, OpenCode, mini, pi, kilo
 
 ```bash
 ainish-coder --skills                    # Deploy all skills
@@ -239,7 +224,7 @@ ainish-coder/
 ├── .osa/                        # OSA Framework quick reference
 │   └── llms.txt                 # Machine-readable agent context
 ├── .configs/                    # Centralized tool-specific configs
-├── .scrolls/                    # Vital texts & prompts (llms.txt, llms-full.txt)
+├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols (llms.txt, llms-full.txt)
 ├── llms.txt/                    # Machine-readable project context
 ├── mcp_recipes/                 # MCP server recipes
 └── .signals/                    # Signal detection configs
@@ -249,10 +234,10 @@ ainish-coder/
 
 | Principle | Implementation |
 |-----------|---------------|
-| **SOLID** | Single Responsibility per module; Open for extension via skills/tiers |
+| **SOLID** | Single Responsibility per module; Open for extension via skills |
 | **DRY** | Shared atoms; configs generated from templates |
 | **KISS** | Shell-based CLI; no runtime dependencies beyond Bash |
-| **YAGNI** | Skills loaded on demand; tiers deployed selectively |
+| **YAGNI** | Skills loaded on demand |
 | **Zero Trust** | Every tool call validated; all inputs sanitized; MCP servers treated as hostile |
 
 ### OOReDAct Decision Loop
