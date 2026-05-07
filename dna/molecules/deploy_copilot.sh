@@ -25,17 +25,6 @@ deploy_copilot() {
         echo -e "${GREEN}✓ Already exists: copilot-instructions.md${RESET}"
     fi
     
-    # Deploy MAIRULES.md as MAIRULES.instructions.md
-    local mairules_instructions="$github_dir/MAIRULES.instructions.md"
-    local source_mairules="$source_dir/MAIRULES.md"
-    
-    if [[ -f "$source_mairules" ]]; then
-        cp "$source_mairules" "$mairules_instructions"
-        echo -e "${GREEN}✓ Deployed: MAIRULES.instructions.md${RESET}"
-    else
-        echo -e "${YELLOW}⚠ Warning: MAIRULES.md not found in source${RESET}"
-    fi
-    
     # Deploy command prompts
     local prompts_dir="$github_dir/prompts"
     safe_mkdir "$prompts_dir" || return 1

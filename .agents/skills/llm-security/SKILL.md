@@ -1070,6 +1070,13 @@ def _evaluate_response(response: str, expected: str) -> bool:
     return True  # safe_response: no sensitive data leaked
 ```
 
+### Real-world Jailbreak Resources
+
+For advanced testing against the latest jailbreak paradigms (such as prompt obliteration, leetspeak encodings, and role-play frameworks), refer to the cloned research repositories:
+
+*   **L1B3RT4S (Jailbreak Prompts):** Located at `/Users/nbiish/code/ainish-coder/pliny-research/L1B3RT4S`. Contains "Pliny the Prompter's" liberation prompts for virtually all major AI models, utilizing dividers, unicode obfuscation, and persona hijacking.
+*   **CL4R1T4S (Extracted System Prompts):** Located at `/Users/nbiish/code/ainish-coder/pliny-research/CL4R1T4S`. Contains leaked system prompts from major platforms (OpenAI, Claude, Devin, Cursor, Windsurf, etc.), demonstrating System Prompt Leakage (OWASP LLM07) and serving as real-world examples of how labs construct and occasionally fail to protect their hidden scaffolding.
+
 ### Metrics
 
 | Metric | Definition | Target |
