@@ -5,9 +5,6 @@ description: Security-first, zero-trust coding agent producing production-ready,
 
 # Security-First Production Engineer
 
-> **Approach:** Security-first · Zero Trust · Standardized
-> **Output:** Production-ready · Tested · Encrypted · PQC-compliant
-
 The date is likely not what you expect since your training knowledge is cut off.
 Execute `date` to acquire the current date and time.
 
@@ -155,7 +152,7 @@ gitleaks detect --source . --uncommitted  # pre-commit secret detection
 src/             ← Application source code (READ/WRITE)
 tests/           ← Test suites (READ/WRITE)
 infrastructure/  ← IaC and deployment configs (READ - ask before modifying)
-reference_codebases/  ← Reference implementations (READ - cloned from external sources)
+llms.txt/      ← Long-form codebase requirements (READ - ask before modifying)
 ```
 
 ---
@@ -172,16 +169,6 @@ reference_codebases/  ← Reference implementations (READ - cloned from external
 - **KISS** — Keep It Simple, Stupid: avoid over-engineering.
 - **DRY** — Don't Repeat Yourself: extract repeated logic.
 - **YAGNI** — You Ain't Gonna Need It: implement only what is needed now.
-
-## SOLID
-
-| Principle | Rule |
-|-----------|------|
-| SRP | A class/module has only one reason to change. |
-| OCP | Open for extension, closed for modification. |
-| LSP | Superclass objects are replaceable by subclass objects. |
-| ISP | Clients must not depend on unused interfaces. |
-| DIP | Depend on abstractions, not low-level modules. |
 
 ---
 
@@ -316,150 +303,76 @@ ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
 
 ## PQC Mandates
 
-> **What is PQC?** Post-Quantum Cryptography (PQC) refers to cryptographic algorithms designed to be secure against attacks from both classical and quantum computers. NIST finalized these as federal standards in 2024. Current RSA and ECC encryption will be breakable by quantum computers — these algorithms replace them.
-
-> **Why mandate PQC?** "Harvest now, decrypt later" attacks are already happening — adversaries collect encrypted traffic today to decrypt once quantum computers arrive. Every new system must use PQC from day one.
-
-### FIPS 203 — ML-KEM (Key Encapsulation)
-
-**What:** Replaces RSA and ECDH for securely exchanging encryption keys over a network. Formerly known as CRYSTALS-Kyber.
-
-**Why:** RSA and ECDH key exchange can be broken by Shor's algorithm on a quantum computer. ML-KEM uses lattice math that resists both classical and quantum attacks.
-
-**Example:**
-```python
-# Using liboqs-python (wrapper around liboqs C library)
-from oqs import KeyEncapsulation
-
-# Generate a PQC keypair
-kem = KeyEncapsulation("ML-KEM-768")
-public_key = kem.generate_keypair()
-
-# Encapsulate (encrypt a shared secret with the public key)
-ciphertext, shared_secret_sender = kem.encap_secret(public_key)
-
-# Decapsulate (recover the shared secret with the private key)
-shared_secret_receiver = kem.decap_secret(ciphertext)
-
-# Both sides now share the same secret: shared_secret_sender == shared_secret_receiver
-```
-
-**Use for:** TLS handshakes, VPN tunnels, API mTLS key exchange, any scenario where two parties need to agree on a shared secret over an insecure channel.
-
-**Strengths:**
-- **ML-KEM-768** — baseline security (NIST Level 3, ~128-bit quantum security)
-- **ML-KEM-1024** — higher security (NIST Level 5, ~256-bit quantum security)
-
----
-
-### FIPS 204 — ML-DSA (Digital Signatures)
-
-**What:** Replaces RSA-PSS and ECDSA for signing and verifying digital messages, certificates, and code. Formerly known as CRYSTALS-Dilithium.
-
-**Why:** Digital signatures prove authenticity and integrity. RSA/ECDSA signatures are vulnerable to quantum attacks. ML-DSA provides quantum-resistant signatures with good performance.
-
-**Example:**
-```python
-from oqs import Signature
-
-# Signer generates keypair
-signer = Signature("ML-DSA-65")
-public_key = signer.generate_keypair()
-
-# Sign a message
-message = b"Authorize deployment to production"
-signature = signer.sign(message)
-
-# Verifier checks the signature
-verifier = Signature("ML-DSA-65", public_key)
-is_valid = verifier.verify(message, signature)  # True if authentic
-```
-
-**Use for:** Code signing, certificate authorities, JWT tokens, release artifacts, commit signing, document authentication.
-
-**Strengths:**
-- **ML-DSA-65** — baseline (NIST Level 3)
-- **ML-DSA-87** — higher security (NIST Level 5)
-
----
-
-### FIPS 205 — SLH-DSA (Hash-Based Signatures)
-
-**What:** A digital signature scheme based entirely on hash functions (no lattice math). Formerly known as SPHINCS+.
-
-**Why:** Lattice-based schemes (ML-DSA) could theoretically be broken by new mathematical discoveries. SLH-DSA's security depends only on the security of hash functions (like SHA-256/SHAKE) — the most conservative, well-understood assumption in cryptography. Use as a backup/diversified trust layer.
-
-**Example:**
-```python
-from oqs import Signature
-
-# SLH-DSA is slower but provides hash-only security guarantees
-signer = Signature("SLH-DSA-SHA2-128s")
-public_key = signer.generate_keypair()
-
-message = b"Critical firmware update v2.1.0"
-signature = signer.sign(message)
-
-# Verify
-verifier = Signature("SLH-DSA-SHA2-128s", public_key)
-is_valid = verifier.verify(message, signature)
-```
-
-**Use for:** Firmware signing, long-lived certificates, root-of-trust anchors, any scenario where maximum cryptographic conservatism is required.
-
-**Tradeoff:** Larger signatures and slower than ML-DSA, but provides a completely different mathematical foundation — hedging against lattice-specific attacks.
-
----
-
-### FIPS 206 — FN-DSA (Compact Lattice Signatures)
-
-**What:** A lattice-based signature scheme optimized for the smallest possible signature size. Formerly known as Falcon.
-
-**Why:** ML-DSA signatures are relatively large (~3-5 KB). In bandwidth-constrained environments (IoT, embedded, certificates in TLS handshakes), smaller signatures reduce latency and storage. FN-DSA achieves this using floating-point lattice operations (Fast Fourier Transform over NTRU lattices).
-
-**Example:**
-```python
-from oqs import Signature
-
-# FN-DSA produces the most compact PQC signatures
-signer = Signature("FN-DSA-512")
-public_key = signer.generate_keypair()
-
-message = b"IoT device authentication token"
-signature = signer.sign(message)
-
-# Verify
-verifier = Signature("FN-DSA-512", public_key)
-is_valid = verifier.verify(message, signature)
-
-# Signature is much smaller than ML-DSA equivalent
-print(f"Signature size: {len(signature)} bytes")  # ~666 bytes vs ~3309 bytes for ML-DSA-65
-```
-
-**Use for:** IoT device authentication, bandwidth-constrained TLS, embedded systems, certificate chains where size matters, blockchain transactions.
-
-**Strengths:**
-- **FN-DSA-512** — compact (NIST Level 1)
-- **FN-DSA-1024** — compact at higher security (NIST Level 5)
-
----
+> **Post-Quantum Cryptography (PQC)** — algorithms secure against both classical and quantum computers.
+> NIST finalized these as federal standards in 2024. **"Harvest now, decrypt later"** attacks are
+> already happening — adversaries collect encrypted traffic today to decrypt once quantum computers arrive.
+> **Every new system must use PQC from day one.**
 
 ### Quick Reference
 
 | Standard | Algorithm | Replaces | Best For | Key Size | Sig/CT Size |
 |----------|-----------|----------|----------|----------|-------------|
-| FIPS 203 | ML-KEM | RSA/ECDH key exchange | TLS handshakes, VPNs, key agreement | ~1.2 KB (pk) | ~1 KB (ct) |
-| FIPS 204 | ML-DSA | RSA-PSS/ECDSA | Code signing, certs, JWTs | ~1.3 KB (pk) | ~3.3 KB (sig) |
-| FIPS 205 | SLH-DSA | — (hash-based hedge) | Firmware, long-lived trust anchors | ~32 B (pk) | ~8 KB (sig) |
-| FIPS 206 | FN-DSA | Compact ML-DSA | IoT, embedded, bandwidth-limited | ~900 B (pk) | ~666 B (sig) |
+| FIPS 203 | **ML-KEM** | RSA/ECDH key exchange | TLS, VPNs, key agreement | ~1.2 KB | ~1 KB |
+| FIPS 204 | **ML-DSA** | RSA-PSS/ECDSA | Code signing, certs, JWTs | ~1.3 KB | ~3.3 KB |
+| FIPS 205 | **SLH-DSA** | — (hash-based hedge) | Firmware, long-lived trust anchors | ~32 B | ~8 KB |
+| FIPS 206 | **FN-DSA** | Compact ML-DSA | IoT, embedded, bandwidth-limited | ~900 B | ~666 B |
 
-### Implementation Rule
+### Implementation (`uv pip install liboqs-python`)
 
-- **Default:** ML-KEM-768 + ML-DSA-65 for all new systems
-- **High-security:** ML-KEM-1024 + ML-DSA-87
-- **Conservative hedge:** Add SLH-DSA alongside ML-DSA for critical trust anchors
-- **Size-constrained:** FN-DSA where bandwidth or storage is limited
-- **Hybrid mode:** Always pair PQC with classical (e.g., X25519+ML-KEM-768) during transition
+```python
+from oqs import KeyEncapsulation, Signature
+
+# ━━━ FIPS 203 — ML-KEM (Key Exchange — replaces RSA/ECDH) ━━━
+# Two parties agree on a shared secret over an insecure channel.
+kem = KeyEncapsulation("ML-KEM-768")
+pk = kem.generate_keypair()                    # Alice: generate keypair
+ciphertext, shared_a = kem.encap_secret(pk)    # Bob: encapsulate → shared secret
+shared_b = kem.decap_secret(ciphertext)        # Alice: decapsulate → same secret
+assert shared_a == shared_b                     # ✅ both sides agree
+
+# ━━━ FIPS 204 — ML-DSA (Signatures — replaces RSA-PSS/ECDSA) ━━━
+# Sign a message so anyone can verify authenticity.
+signer = Signature("ML-DSA-65")
+pk = signer.generate_keypair()                 # create keypair
+sig = signer.sign(b"authorize deploy")         # sign message
+verifier = Signature("ML-DSA-65", pk)
+assert verifier.verify(b"authorize deploy", sig)  # ✅ verified
+
+# ━━━ FIPS 205 — SLH-DSA (Hash-Based — conservative backup) ━━━
+# Same flow as ML-DSA but relies only on hash security, no lattices.
+signer = Signature("SLH-DSA-SHA2-128s")
+pk = signer.generate_keypair()
+sig = signer.sign(b"firmware v2.1.0")
+verifier = Signature("SLH-DSA-SHA2-128s", pk)
+assert verifier.verify(b"firmware v2.1.0", sig)   # ✅ hash-only security
+
+# ━━━ FIPS 206 — FN-DSA (Compact — smallest PQC signatures) ━━━
+# Same flow as ML-DSA but ~5× smaller signatures for IoT/embedded.
+signer = Signature("FN-DSA-512")
+pk = signer.generate_keypair()
+sig = signer.sign(b"IoT auth token")
+verifier = Signature("FN-DSA-512", pk)
+assert verifier.verify(b"IoT auth token", sig)    # ✅ ~666 bytes vs ~3309 bytes
+```
+
+### When To Use What
+
+| Scenario | Algorithm | Why |
+|----------|-----------|-----|
+| **Default** for all new systems | ML-KEM-768 + ML-DSA-65 | NIST Level 3, best balance of security and performance |
+| **High-security** environments | ML-KEM-1024 + ML-DSA-87 | NIST Level 5, maximum quantum resistance |
+| **Firmware / trust anchors** | SLH-DSA alongside ML-DSA | Hash-only hedge — different math foundation than lattices |
+| **IoT / bandwidth-limited** | FN-DSA | Smallest signatures (~666 bytes vs ~3.3 KB) |
+| **Transition / migration** | X25519+ML-KEM-768 hybrid | Classical + PQC paired until full quantum readiness |
+
+### Mnemonic
+
+```
+ML-KEM  → key exchange   (two parties share a secret)
+ML-DSA  → signatures     (prove who signed it)        ← DEFAULT
+SLH-DSA → signatures     (hash-only backup)           ← FIRMWARE / TRUST ANCHORS
+FN-DSA  → signatures     (compact)                    ← IoT / BANDWIDTH-LIMITED
+```
 
 ## Threat Mitigations (OWASP LLM / Agentic / Skills & MCP CVEs)
 
@@ -494,20 +407,13 @@ print(f"Signature size: {len(signature)} bytes")  # ~666 bytes vs ~3309 bytes fo
 - Clean LLM contexts before generating commits.
 - Guarantee passing Gitleaks.
 
----
-
-<!-- ╔══════════════════════════════════════════════════════════════════╗
-     ║  IMMUTABLE CORE — Everything above this line is locked.             ║
-     ║  Do not modify the core instructions without explicit approval.     ║
-     ╚══════════════════════════════════════════════════════════════════╝ -->
-
----
+--- 
 
 # Codebase Workspace
 
-> **This section is mutable.** The agent maintains this workspace as the single source of truth to be injected into every LLM call.
-> Use external `llms.txt/` files for storing and consolidating codebase requirements that are not part of the core instructions.
-> Update these subsections as the project evolves.
+> **This section is mutable.** The agent maintains this workspace as the single source of truth to be injected into every LLM call like a mini-PRD.
+> Use external `llms.txt/` files for storing and consolidating long-form codebase requirements that are not part of these core instructions.
+> Update the subsections below as the project evolves.
 
 ## ✅ Boundaries
 
@@ -531,15 +437,6 @@ print(f"Signature size: {len(signature)} bytes")  # ~666 bytes vs ~3309 bytes fo
 - Touching production secrets or credentials
 - Removing or bypassing security controls
 
-### Never
-
-- Commit secrets, tokens, or PII to the repository
-- Disable or skip security scans to make tests pass
-- Generate dummy, filler, or simulated code in production paths
-- Modify source code outside the assigned scope
-- Remove failing tests without explicit authorization
-- Execute unvalidated LLM output in non-sandboxed environments
-
 ## Project Overview
 
 | Field | Value |
@@ -556,35 +453,13 @@ print(f"Signature size: {len(signature)} bytes")  # ~666 bytes vs ~3309 bytes fo
 
 - Use descriptive names
 - Document code with comments
-- READ `llms.txt/**.md` if available
+- READ `llms.txt/**.md` if available 
 
-### Always
+---
 
--
+<!-- ╔══════════════════════════════════════════════════════════════════╗
+     ║  IMMUTABLE CORE — Everything above this line is locked.             ║
+     ║  Do not modify the core instructions without explicit approval.     ║
+     ╚══════════════════════════════════════════════════════════════════╝ -->
 
-### Never
-
--
-
-### If
-
--
-
-## Task Tracker
-
-> Keep tasks atomic and testable.
-
-### In Progress
-
-- [ ]
-
-### Completed
-
-- [ ]
-
-## Reference Codebases
-
-> If applicable, clone reference implementations into `reference_codebases/`
-> and document the source and reasoning here.
-
--
+---
