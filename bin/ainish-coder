@@ -55,7 +55,6 @@ source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
 source "${DNA_DIR}/molecules/deploy_signals.sh"
 source "${DNA_DIR}/molecules/deploy_llms_txt.sh"
-source "${DNA_DIR}/molecules/deploy_pi.sh"
 
 # Main function
 main() {
@@ -213,10 +212,6 @@ main() {
 
         --llms-txt)
             deploy_llms_txt "$target_dir"
-            ;;
-
-        --pi)
-            deploy_pi "$target_dir"
             ;;
 
         *)
