@@ -20,10 +20,7 @@ TOOL-SPECIFIC CONFIGURATION:
     • Tool-specific commands/workflows/recipes
     • Ignore files for context optimization
     
-    --claude [TARGET_DIR]     Deploy Claude Code - rules, commands, skills (skill-creator,
-                              agent-creator for creating custom skills/agents), agents, MCP
-    --copilot [TARGET_DIR]    Deploy GitHub Copilot to .github/instructions/
-    --pi [TARGET_DIR]         Deploy Pi Coding Agent - extensions, agents, skills, themes
+    (All specific tool flags have been deprecated in favor of the .agents/skills/ architecture)
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
@@ -48,7 +45,6 @@ CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
                               
                               Other:
-                              - copilot     (use --copilot flag instead)
                               - all         (deploy to all applicable tools)
                               
                               Example: ainish-coder --commands all
@@ -116,7 +112,6 @@ UTILITY COMMANDS:
                               Example: ainish-coder --mcp-recipes ~/my-project
 
 IGNORE FILE DEPLOYMENT:
-    --copilot-ignore [DIR]    Deploy .copilotignore for GitHub Copilot
     --all-ignores [DIR]       Deploy all ignore files at once
                               
                               Ignore files help AI tools focus on relevant code by
@@ -142,11 +137,10 @@ EXAMPLES:
     ainish-coder --rules                    # Deploy AGENTS.md + llms.txt/ + .gitignore
 
     # Deploy tool configurations (requires AGENTS.md first)
-    ainish-coder --claude                   # Deploy to current directory
-    ainish-coder --pi /path/to/project
+    # (No tools currently have standalone configs outside of agents system)
     
     # Deploy custom commands
-    ainish-coder --commands claude          # Deploy slash commands
+    # (Commands logic now handled by agent skills)
 
     # Utility deployments
     ainish-coder --gitignore                # Create comprehensive .gitignore
