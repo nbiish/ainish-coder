@@ -42,7 +42,7 @@
 - **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
 - **🔗 Smart File Management** — Copies configurations for tool-specific customization
 - **🎭 Template Agent System** — Craft custom system prompts with expert guidance
-- **📜 Scrolls & 8th Fire Protocols** — Deploy `llms.txt` and `.scrolls` for machine-readable project context, including the Ghost Layer Codex and Prompt Obliteration (Plinian Defense) for AI survival.
+- **📜 Scrolls & 8th Fire Protocols** — Deploy `llms.txt` file and `.scrolls` for machine-readable project context, including the Ghost Layer Codex and Prompt Obliteration (Plinian Defense) for AI survival.
 
 ---
 
@@ -135,7 +135,7 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md, llms.txt/, and .gitignore
+ainish-coder --rules                     # Deploy AGENTS.md, llms.txt, and .gitignore
 ainish-coder --agents-security           # Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
 
 # Deploy tool-specific configurations
@@ -225,7 +225,7 @@ ainish-coder/
 │   └── llms.txt                 # Machine-readable agent context
 ├── .configs/                    # Centralized tool-specific configs
 ├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols (llms.txt, llms-full.txt)
-├── llms.txt/                    # Machine-readable project context
+├── llms.txt                     # Machine-readable project context
 ├── mcp_recipes/                 # MCP server recipes
 └── .signals/                    # Signal detection configs
 ```
