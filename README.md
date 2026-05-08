@@ -136,22 +136,13 @@ source ~/.zshrc  # or ~/.bashrc
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
 ainish-coder --rules                     # Deploy AGENTS.md, llms.txt, and .gitignore
-ainish-coder --agents-security           # Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
+ainish-coder --secure                    # Deploy security skill files
 
-# Deploy tool-specific configurations
-ainish-coder --claude                    # Deploy Claude Code - rules, commands
-ainish-coder --copilot                   # Deploy GitHub Copilot to .github/instructions/
-ainish-coder --pi                        # Deploy Pi Coding Agent - extensions, agents, skills
-
-# Deploy custom commands
-ainish-coder --commands claude           # Deploy slash commands
-ainish-coder --commands all              # Deploy to all applicable tools
+# Deploy skills
+ainish-coder --skills                    # Deploy all skills (OSA, security, Skyvern, Pi)
 
 # Agent customization
 ainish-coder --template-agent            # Deploy template-agent.md for custom system prompts
-
-# Deploy skills
-ainish-coder --skills                    # Deploy all skills (OSA, security, Skyvern)
 
 # Security deployments
 ainish-coder --local-security            # Deploy LOCAL secret protection (git hooks + scripts)
@@ -163,28 +154,9 @@ ainish-coder --critical                  # Deploy critical.md (Critical protocol
 ainish-coder --license                   # Deploy LICENSE file
 ainish-coder --scrolls                   # Deploy .scrolls directory (Vital texts & prompts)
 ainish-coder --mcp-recipes               # Deploy MCP recipes
-
-# Ignore file deployment
-ainish-coder --copilot-ignore            # Deploy .copilotignore
-ainish-coder --all-ignores               # Deploy all ignore files at once
+ainish-coder --signals                   # Deploy Signals Detection Reference
+ainish-coder --llms-txt                  # Deploy llms.txt file
 ```
-
----
-
-## 🛠️ Supported AI Tools
-
-### IDE Extensions
-
-| Tool | Config Flag | Commands Flag | Description |
-|------|------------|---------------|-------------|
-| **Claude Code** | `--claude` | `--commands claude` | Rules, commands, skills |
-| **GitHub Copilot** | `--copilot` | N/A | `.github/copilot-instructions.md` |
-
-### CLI Tools
-
-| Tool | Config Flag | Commands Flag | Description |
-|------|------------|---------------|-------------|
-| **Pi Coding Agent** | `--pi` | N/A | Extensions, agents, skills, themes (`.pi/`) |
 
 ---
 
@@ -198,7 +170,7 @@ The OSA (Orchestrated System of Agents) framework coordinates multiple CLI codin
 ainish-coder --skills                    # Deploy all skills
 ```
 
-See [`.agents/skills/osa/SKILL.md`](.agents/skills/osa/SKILL.md) for the full framework specification, or [`.osa/llms.txt`](.osa/llms.txt) for the quick reference.
+See [`.agents/skills/osa/SKILL.md`](.agents/skills/osa/SKILL.md) for the full framework specification.
 
 
 
@@ -215,15 +187,15 @@ ainish-coder/
 │   ├── molecules/               # Deployment functions (deploy_*.sh)
 │   └── proteins/                # Higher-level orchestration
 ├── .agents/skills/              # Portable AI skill packs
+│   ├── advisory-council/SKILL.md  # Multi-expert advisory council
 │   ├── code-security/SKILL.md   # Safety-critical code engineering
 │   ├── llm-security/SKILL.md    # LLM & agentic AI security
 │   ├── osa/SKILL.md             # Multi-agent orchestration (OSA framework)
+│   ├── pi/SKILL.md              # Pi Coding Agent expertise
+│   ├── production-security/SKILL.md # Core security policies & PQC mandates
 │   ├── skyvern/SKILL.md         # AI browser automation (self-hosted)
 │   ├── anishinaabe-cyberpunk-style/SKILL.md # Cultural aesthetic rules
 │   └── modern-prompting/SKILL.md # OOReDAct advanced prompting
-├── .osa/                        # OSA Framework quick reference
-│   └── llms.txt                 # Machine-readable agent context
-├── .configs/                    # Centralized tool-specific configs
 ├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols (llms.txt, llms-full.txt)
 ├── llms.txt                     # Machine-readable project context
 ├── mcp_recipes/                 # MCP server recipes
