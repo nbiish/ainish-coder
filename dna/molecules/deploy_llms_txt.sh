@@ -1,6 +1,6 @@
 #!/bin/bash
-# MOLECULE: llms.txt directory deployment
-# Deploys llms.txt/ directory to target
+# MOLECULE: llms.txt file deployment
+# Deploys llms.txt file to target
 
 deploy_llms_txt() {
     local target_dir="${1:-.}"
@@ -8,36 +8,23 @@ deploy_llms_txt() {
 
     validate_target_dir "$target_dir" || return 1
 
-    local dest_dir="$target_dir/llms.txt"
-    echo -e "${BRIGHT_BLUE}Deploying llms.txt directory to: $dest_dir${RESET}"
+    local src_file="$source_dir/llms.txt"
+    local dest_file="$target_dir/llms.txt"
 
-    # Create llms.txt directory
-    if ! mkdir -p "$dest_dir"; then
-        print_error "Failed to create directory: $dest_dir"
+    if [[ ! -f "$src_file" ]]; then
+        print_error "llms.txt file not found in source ($src_file)"
         return 1
     fi
 
-    local src_dir="$source_dir/llms.txt"
-    local success=0
+    echo -e "${BRIGHT_BLUE}Deploying llms.txt file to: $dest_file${RESET}"
 
-    if [[ -d "$src_dir" ]]; then
-        for file in "$src_dir"/*.md; do
-            if [[ -f "$file" ]]; then
-                local filename=$(basename "$file")
-                cp "$file" "$dest_dir/$filename"
-                echo -e "${GREEN}✓ Deployed: $filename${RESET}"
-                ((success++))
-            fi
-        done
+    cp "$src_file" "$dest_file"
+
+    if [[ -f "$dest_file" ]]; then
+        echo -e "${BRIGHT_GREEN}✅ llms.txt file deployed to $dest_file${RESET}"
     else
-        print_error "llms.txt directory not found in source ($src_dir)"
+        print_error "Failed to deploy llms.txt"
         return 1
-    fi
-
-    if [[ $success -gt 0 ]]; then
-        echo -e "${BRIGHT_GREEN}✅ llms.txt directory deployed to $dest_dir${RESET}"
-    else
-        echo -e "${YELLOW}⚠ No files found to deploy from llms.txt${RESET}"
     fi
 
     return 0

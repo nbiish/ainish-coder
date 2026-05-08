@@ -9,7 +9,7 @@ USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md, llms.txt/ directory, and .gitignore
+    --rules [TARGET_DIR]      Deploy AGENTS.md, llms.txt file, and .gitignore
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
     --secure [DIR]            Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
 
@@ -101,9 +101,9 @@ UTILITY COMMANDS:
 
                               Example: ainish-coder --signals ~/my-project
 
-    --llms-txt [TARGET_DIR]   Deploy llms.txt directory
+    --llms-txt [TARGET_DIR]   Deploy llms.txt file
                               Deploys:
-                              - llms.txt/ (PRD, RULES, TODO)
+                              - llms.txt (project context template)
 
                               Example: ainish-coder --llms-txt ~/my-project
 
@@ -123,7 +123,7 @@ OTHER:
 
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
-    - --rules deploys AGENTS.md + llms.txt/ directory + .gitignore
+    - --rules deploys AGENTS.md + llms.txt file + .gitignore
     - --secure deploys AGENTS_LLM_SECURITY.md + AGENTS_CODE_SECURITY.md
     - Tool deployments include ALL configurations (rules + commands/recipes + ignores)
     - Run --rules first before tool-specific deployments
@@ -134,7 +134,7 @@ EXAMPLES:
     ainish-coder --rules ~/my-project       # Deploy to specific directory
     
     # Tool-specific deployments
-    ainish-coder --rules                    # Deploy AGENTS.md + llms.txt/ + .gitignore
+    ainish-coder --rules                    # Deploy AGENTS.md + llms.txt + .gitignore
 
     # Deploy tool configurations (requires AGENTS.md first)
     # (No tools currently have standalone configs outside of agents system)
