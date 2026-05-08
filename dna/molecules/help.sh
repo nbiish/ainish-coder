@@ -15,12 +15,9 @@ CORE COMMANDS:
 
 
 TOOL-SPECIFIC CONFIGURATION:
-    Each tool deployment now includes:
-    • AGENTS.md (core rules)
-    • Tool-specific commands/workflows/recipes
-    • Ignore files for context optimization
-    
-    (All specific tool flags have been deprecated in favor of the .agents/skills/ architecture)
+    All tool-specific configs have been consolidated into .agents/skills/.
+    Use --rules to deploy AGENTS.md + llms.txt + .gitignore.
+    Use --skills to deploy all skill packs.
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
@@ -111,12 +108,6 @@ UTILITY COMMANDS:
                               Deploys markdown templates to mcp_recipes/ in target directory.
                               Example: ainish-coder --mcp-recipes ~/my-project
 
-IGNORE FILE DEPLOYMENT:
-    --all-ignores [DIR]       Deploy all ignore files at once
-                              
-                              Ignore files help AI tools focus on relevant code by
-                              excluding dependencies, build artifacts, and sensitive files.
-
 OTHER:
     --help, -h                Show this help message
     --version, -v             Show version information
@@ -125,8 +116,7 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - --rules deploys AGENTS.md + llms.txt file + .gitignore
     - --secure deploys AGENTS_LLM_SECURITY.md + AGENTS_CODE_SECURITY.md
-    - Tool deployments include ALL configurations (rules + commands/recipes + ignores)
-    - Run --rules first before tool-specific deployments
+    - All tool-specific flags consolidated into .agents/skills/
 
 EXAMPLES:
     # Recommended workflow - deploy core rules first
@@ -147,8 +137,7 @@ EXAMPLES:
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
     
-    # Deploy ignore files for AI tools
-    ainish-coder --all-ignores              # Deploy all ignore files
+    ainish-coder --skills                    # Deploy all skill packs
 
 For more information, see: https://github.com/nbiish/ainish-coder
 EOF

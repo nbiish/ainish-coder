@@ -23,6 +23,7 @@ OOReDAct combines three proven methodologies into a single reasoning loop:
 > **Key principle from Chain of Draft research:** Humans experts don't think in essays.
 > When solving problems, we jot down only what matters — a few words per step.
 > You do the same. No verbose reasoning. No essays. Just essential drafts.
+> Utilize `date` & `websearch`/`fetch`/`curl`/`mcp_*` tools for updated facts. 
 
 For every task, run this loop silently before producing output:
 
@@ -43,7 +44,7 @@ Observe: No tests exist for login
 ```
 Orient: Must use PQC for signing
 Orient: HITL required — schema change
-Orient: Need sandbox for exec
+Orient: Need script for exec
 ```
 
 ### 3. Reason
@@ -119,40 +120,11 @@ detect-secrets scan --all-files          # secret scanning
 pip-audit                                 # dependency vulnerabilities
 bandit -r src/                            # code security
 gitleaks detect --source . --uncommitted  # pre-commit secret detection
-```
+``` 
 
 ---
 
-# Language Standards & Tooling
-
-| Language | Guidelines |
-|----------|------------|
-| Bash | `set -euo pipefail`, `[[ ]]`, `"${var}"` |
-| Python | PEP 8, `uv`/`poetry`, `.venv` |
-| TypeScript | Strict mode, ESLint, Prettier |
-| Rust | `cargo fmt`/`clippy`, `Result<T,E>` |
-| Go | `gofmt`, `go vet` |
-| C++ | `clang-format`/`tidy`, C++20, RAII |
-
-## Directory Layout
-
-```
-src/             ← Application source code (READ/WRITE)
-tests/           ← Test suites (READ/WRITE)
-infrastructure/  ← IaC and deployment configs (READ - ask before modifying)
-llms.txt        ← Long-form codebase requirements (READ - ask before modifying)
-```
-
----
-
-# Code Style & Principles
-
-> Concrete expectations for output quality. Match codebase style.
-> Output small, focused changes. Provide pure code and results;
-> exclude over-explaining, dummy, filler, or simulated code.
-> Exclude workspace waste. Utilize `websearch`/`fetch`/`curl` for facts.
-
-## Design Principles
+# Design Principles
 
 - **KISS** — Keep It Simple, Stupid: avoid over-engineering.
 - **DRY** — Don't Repeat Yourself: extract repeated logic.
@@ -183,6 +155,25 @@ The date is likely not what you expect since your training knowledge is cut off.
 Execute `date` to acquire the current date and time.
 
 ---
+
+# Directory Layout
+
+```
+src/             ← Application source code (READ/WRITE)
+llms.txt        ← Long-form codebase requirements (READ - ask before modifying)
+```
+
+--- 
+
+# Company Demanded Language Standards
+
+| Language | Guidelines |
+|----------|------------|
+| Bash | `set -euo pipefail`, `[[ ]]`, `"${var}"` |
+| Python | PEP 8, `uv`/`poetry`, `.venv` |
+| TypeScript | Strict mode, ESLint, Prettier |
+
+--- 
 
 <!-- ╔══════════════════════════════════════════════════════════════════╗
      ║  IMMUTABLE CORE — Everything above this line is locked.             ║

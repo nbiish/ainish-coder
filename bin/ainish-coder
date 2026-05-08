@@ -40,7 +40,6 @@ source "${DNA_DIR}/molecules/deploy_github_actions.sh"
 source "${DNA_DIR}/molecules/deploy_local_security.sh"
 source "${DNA_DIR}/molecules/deploy_template_agent.sh"
 source "${DNA_DIR}/molecules/deploy_skills.sh"
-source "${DNA_DIR}/molecules/deploy_mcp.sh"
 source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
 source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
@@ -122,17 +121,6 @@ main() {
             ;;
 
             
-        # Tool-specific deployments
-        --claude)
-            deploy_claude "$target_dir"
-            ;;
-        --copilot)
-            deploy_copilot "$target_dir"
-            ;;
-        --continue|--cn)
-            deploy_continue "$target_dir"
-            ;;
-            
         # Template Agent System
         --template-agent)
             deploy_template_agent "$target_dir"
@@ -152,24 +140,6 @@ main() {
             deploy_local_security "$target_dir"
             ;;
             
-        # Ignore file deployments
-        --continue-ignore)
-            deploy_continue_ignore "$target_dir"
-            ;;
-        --copilot-ignore)
-            deploy_copilot_ignore "$target_dir"
-            ;;
-        --all-ignores)
-            echo -e "${BRIGHT_BLUE}Deploying All Ignore Files${RESET}"
-            deploy_continue_ignore "$target_dir"
-            deploy_copilot_ignore "$target_dir"
-            echo -e "${BRIGHT_GREEN}✅ All ignore files deployed${RESET}"
-            ;;
-        
-        --mcp)
-            deploy_mcp "$target_dir"
-            ;;
-
         --mcp-recipes)
             deploy_mcp_recipes "$target_dir"
             ;;
