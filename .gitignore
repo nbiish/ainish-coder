@@ -107,6 +107,10 @@ scrolls-lab/logs/
 scrolls-lab/reference/
 scrolls-lab/omni_output/
 scrolls-lab/sections/
+scrolls-lab/working/
+scrolls-lab/original/
+scrolls-lab/output/
+*.patch
 
 # Omni Extractor media files (global safety)
 **/*.jpg
