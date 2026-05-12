@@ -1,0 +1,4 @@
+# JSTOR test
+open https://www.jstor.org/action/doBasicSearch?Query=psionics
+wait body --timeout 15000
+snapshot --format json
