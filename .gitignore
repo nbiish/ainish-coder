@@ -101,3 +101,14 @@ yarn-error.log
 
 # Security reports
 SECURITY_REPORT.md
+
+# Scrolls Lab runtime artifacts
+scrolls-lab/logs/
+scrolls-lab/reference/
+scrolls-lab/omni_output/
+scrolls-lab/sections/
+
+# Omni Extractor media files (global safety)
+**/*.jpg
+**/*.mp4
+**/*.vtt
