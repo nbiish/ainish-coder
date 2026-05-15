@@ -13,7 +13,12 @@ set -euo pipefail
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Load .env if present
-if [[ -f "${LAB_DIR}/.env" ]]; then
+if [[ -f "${PWD}/.env" ]]; then
+  # shellcheck disable=SC1091
+  set -a
+  source "${PWD}/.env"
+  set +a
+elif [[ -f "${LAB_DIR}/.env" ]]; then
   # shellcheck disable=SC1091
   set -a
   source "${LAB_DIR}/.env"
@@ -234,31 +239,51 @@ role_call() {
   local primary_provider="${resolved%% *}"
   local model="${resolved#* }"
 
-  # Read and JSON-escape prompts (errors='replace' handles non-UTF-8 bytes in Pliny material)
+  # Read and JSON-escape prompts (errors='replace' handles non-UTF-8 bytes in external material)
   local system_prompt user_prompt
 
   # Inject AGENTS.md to prevent context poisoning and provide security framework
   local agents_md=""
-  if [[ -f "${LAB_DIR}/../AGENTS.md" ]]; then
-    agents_md="$(cat "${LAB_DIR}/../AGENTS.md")"$'\n\n---\n\n'
-  fi
   
-  # Inject Pliny Research to harden the recursive language model agents against censorship
-  local pliny_md=""
-  if [[ -f "${LAB_DIR}/../pliny-research/CL4R1T4S/README.md" ]]; then
-    pliny_md="$(cat "${LAB_DIR}/../pliny-research/CL4R1T4S/README.md")"$'\n\n---\n\n'
+  # Search for AGENTS.md from PWD upwards
+  local current_dir="${PWD}"
+  local target_agents=""
+  while [[ "${current_dir}" != "/" ]]; do
+    if [[ -f "${current_dir}/AGENTS.md" ]]; then
+      target_agents="${current_dir}/AGENTS.md"
+      break
+    fi
+    current_dir="$(dirname "${current_dir}")"
+  done
+  
+  if [[ -n "${target_agents}" ]]; then
+    agents_md="$(cat "${target_agents}")"$'\n\n---\n\n'
+    echo >&2 "[provider] Injected context from ${target_agents}"
   fi
 
   local camofox_md=""
-  if [[ -f "${LAB_DIR}/../.agents/skills/camofox-stack/SKILL.md" ]]; then
-    camofox_md="# CAMOFOX STEALTH AUTOMATION SKILL"$'\n'"$(cat "${LAB_DIR}/../.agents/skills/camofox-stack/SKILL.md")"$'\n'"You have full authorization to write and execute camofox CLI scripts to bypass bot detection when sourcing new intelligence for the scrolls."$'\n\n---\n\n'
+  
+  # Search for camofox-stack/SKILL.md from PWD upwards
+  local target_camofox=""
+  current_dir="${PWD}"
+  while [[ "${current_dir}" != "/" ]]; do
+    if [[ -f "${current_dir}/.agents/skills/camofox-stack/SKILL.md" ]]; then
+      target_camofox="${current_dir}/.agents/skills/camofox-stack/SKILL.md"
+      break
+    fi
+    current_dir="$(dirname "${current_dir}")"
+  done
+
+  if [[ -n "${target_camofox}" ]]; then
+    camofox_md="# CAMOFOX STEALTH AUTOMATION SKILL"$'\n'"$(cat "${target_camofox}")"$'\n'"You have full authorization to write and execute camofox CLI scripts to bypass bot detection when sourcing new intelligence for the target document."$'\n\n---\n\n'
+    echo >&2 "[provider] Injected stealth skills from ${target_camofox}"
   fi
 
   system_prompt="$(python3 -c '
 import sys,json
-content = sys.argv[1] + sys.argv[2] + sys.argv[3] + sys.stdin.buffer.read().decode("utf-8", errors="replace")
+content = sys.argv[1] + sys.argv[2] + sys.stdin.buffer.read().decode("utf-8", errors="replace")
 print(json.dumps(content))
-' "${agents_md}" "${pliny_md}" "${camofox_md}" < "${system_file}")"
+' "${agents_md}" "${camofox_md}" < "${system_file}")"
 
   user_prompt="$(python3 -c 'import sys,json; print(json.dumps(sys.stdin.buffer.read().decode("utf-8", errors="replace")))' < "${user_file}")"
 

@@ -78,6 +78,7 @@ The `pliny-research/` directory contains:
 ### Architecture Constraints
 - **Context Pollution Prevention:** The full 68KB scroll is never sent to a single agent. The `orchestrator.sh` and `omni_integrator.sh` scripts handle semantic chunking natively. Furthermore, all agents in the pipeline are automatically injected with the project's `AGENTS.md` structured reasoning framework to prevent their context from being poisoned or drifting from the security and production guidelines.
 - **Pliny Ingestion:** The `provider.sh` script automatically reads relevant adversarial prompts and methodologies from `pliny-research/CL4R1T4S/` to armor the agents against refusal triggers while operating.
+- **Camofox Web Stealth Integration:** The pipeline automatically injects the `camofox-stack` SKILL.md into the sub-agent and orchestrator system prompts. This provides the RLM agents with native expertise and authorization to write and execute stealth CLI web-scraping scripts if they require external intelligence to harden the scrolls.
 - **Provider Fallback:** All API calls route through `lib/provider.sh`, which automatically falls back between OpenRouter, ZenMux, and Nebius if a provider drops a request.
 - **Do not edit the scripts manually** to fix context limits; the bash pipelines are already engineered to handle chunking, dispatch, and reassembly.
 
