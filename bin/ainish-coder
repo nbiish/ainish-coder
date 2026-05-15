@@ -82,9 +82,6 @@ main() {
             # Deploy AGENTS.md
             deploy_agents "$target_dir"
 
-            # Deploy llms.txt
-            deploy_llms_txt "$target_dir"
-
             # Deploy .gitignore
             deploy_gitignore "$target_dir"
             

@@ -135,27 +135,9 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md, llms.txt, and .gitignore
-ainish-coder --secure                    # Deploy security skill files
-
-# Deploy skills
-ainish-coder --skills                    # Deploy all skills (OSA, security, Skyvern, Pi)
-
-# Agent customization
-ainish-coder --template-agent            # Deploy template-agent.md for custom system prompts
-
-# Security deployments
-ainish-coder --local-security            # Deploy LOCAL secret protection (git hooks + scripts)
-ainish-coder --github-actions            # Deploy GitHub Actions workflows (CI/CD integration)
-
-# Utility commands
-ainish-coder --gitignore                 # Deploy comprehensive .gitignore
-ainish-coder --critical                  # Deploy critical.md (Critical protocols)
-ainish-coder --license                   # Deploy LICENSE file
-ainish-coder --scrolls                   # Deploy .scrolls directory (Vital texts & prompts)
-ainish-coder --mcp-recipes               # Deploy MCP recipes
-ainish-coder --signals                   # Deploy Signals Detection Reference
+ainish-coder --rules                     # Deploy AGENTS.md and .gitignore
 ainish-coder --llms-txt                  # Deploy llms.txt file
+ainish-coder --secure                    # Deploy security skill files
 ```
 
 ---
