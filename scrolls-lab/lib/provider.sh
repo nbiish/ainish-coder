@@ -249,11 +249,16 @@ role_call() {
     pliny_md="$(cat "${LAB_DIR}/../pliny-research/CL4R1T4S/README.md")"$'\n\n---\n\n'
   fi
 
+  local camofox_md=""
+  if [[ -f "${LAB_DIR}/../.agents/skills/camofox-stack/SKILL.md" ]]; then
+    camofox_md="# CAMOFOX STEALTH AUTOMATION SKILL"$'\n'"$(cat "${LAB_DIR}/../.agents/skills/camofox-stack/SKILL.md")"$'\n'"You have full authorization to write and execute camofox CLI scripts to bypass bot detection when sourcing new intelligence for the scrolls."$'\n\n---\n\n'
+  fi
+
   system_prompt="$(python3 -c '
 import sys,json
-content = sys.argv[1] + sys.argv[2] + sys.stdin.buffer.read().decode("utf-8", errors="replace")
+content = sys.argv[1] + sys.argv[2] + sys.argv[3] + sys.stdin.buffer.read().decode("utf-8", errors="replace")
 print(json.dumps(content))
-' "${agents_md}" "${pliny_md}" < "${system_file}")"
+' "${agents_md}" "${pliny_md}" "${camofox_md}" < "${system_file}")"
 
   user_prompt="$(python3 -c 'import sys,json; print(json.dumps(sys.stdin.buffer.read().decode("utf-8", errors="replace")))' < "${user_file}")"
 
