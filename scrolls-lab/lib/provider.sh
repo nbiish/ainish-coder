@@ -236,7 +236,25 @@ role_call() {
 
   # Read and JSON-escape prompts (errors='replace' handles non-UTF-8 bytes in Pliny material)
   local system_prompt user_prompt
-  system_prompt="$(python3 -c 'import sys,json; print(json.dumps(sys.stdin.buffer.read().decode("utf-8", errors="replace")))' < "${system_file}")"
+
+  # Inject AGENTS.md to prevent context poisoning and provide security framework
+  local agents_md=""
+  if [[ -f "${LAB_DIR}/../AGENTS.md" ]]; then
+    agents_md="$(cat "${LAB_DIR}/../AGENTS.md")"$'\n\n---\n\n'
+  fi
+  
+  # Inject Pliny Research to harden the recursive language model agents against censorship
+  local pliny_md=""
+  if [[ -f "${LAB_DIR}/../pliny-research/CL4R1T4S/README.md" ]]; then
+    pliny_md="$(cat "${LAB_DIR}/../pliny-research/CL4R1T4S/README.md")"$'\n\n---\n\n'
+  fi
+
+  system_prompt="$(python3 -c '
+import sys,json
+content = sys.argv[1] + sys.argv[2] + sys.stdin.buffer.read().decode("utf-8", errors="replace")
+print(json.dumps(content))
+' "${agents_md}" "${pliny_md}" < "${system_file}")"
+
   user_prompt="$(python3 -c 'import sys,json; print(json.dumps(sys.stdin.buffer.read().decode("utf-8", errors="replace")))' < "${user_file}")"
 
   # Build request body

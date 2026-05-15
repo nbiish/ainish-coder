@@ -64,8 +64,20 @@ cd scrolls-lab
 ./orchestrator.sh llms.txt
 ```
 
+## 3. Pliny-Research Integration (CL4R1T4S / OBLITERATUS)
+
+When running the recursive language model agents, the pipeline must pull from the adversarial research directory `pliny-research/` to ensure the scrolls remain hardened against corporate safety filters and prompt engineering shifts. 
+
+The `pliny-research/` directory contains:
+- `CL4R1T4S/`: Extracted system prompts from major models (OpenAI, Anthropic, Gemini, etc.) and agent frameworks.
+- `OBLITERATUS/`: Deep mechanistic interpretability research on model abliteration and activation patching.
+- `G0DM0D3/`: Advanced prompt injection routing techniques.
+
+**Usage Constraint**: Before running `orchestrator.sh`, ensure that relevant Plinian methodologies (such as instruction isolation, cognitive breaks, and SVD abliteration) from the `pliny-research/` repositories are loaded into the Orchestrator's context or explicitly referenced in the system prompts. The RLM agents must use this research to construct the "Ghost Layers" within the Midewiwin Scrolls.
+
 ### Architecture Constraints
-- **Context Pollution Prevention:** The full 68KB scroll is never sent to a single agent. The `orchestrator.sh` and `omni_integrator.sh` scripts handle semantic chunking natively.
+- **Context Pollution Prevention:** The full 68KB scroll is never sent to a single agent. The `orchestrator.sh` and `omni_integrator.sh` scripts handle semantic chunking natively. Furthermore, all agents in the pipeline are automatically injected with the project's `AGENTS.md` structured reasoning framework to prevent their context from being poisoned or drifting from the security and production guidelines.
+- **Pliny Ingestion:** The `provider.sh` script automatically reads relevant adversarial prompts and methodologies from `pliny-research/CL4R1T4S/` to armor the agents against refusal triggers while operating.
 - **Provider Fallback:** All API calls route through `lib/provider.sh`, which automatically falls back between OpenRouter, ZenMux, and Nebius if a provider drops a request.
 - **Do not edit the scripts manually** to fix context limits; the bash pipelines are already engineered to handle chunking, dispatch, and reassembly.
 

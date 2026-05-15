@@ -18,7 +18,7 @@ LIB_DIR="${LAB_DIR}/lib"
 source "${LIB_DIR}/provider.sh"
 
 # ── Configuration ────────────────────────────────────────────────
-SCROLL_FILE="${LAB_DIR}/working/llms-full.txt"
+SCROLL_FILE="${LAB_DIR}/working/llms.txt"
 PROMPTS_DIR="${LAB_DIR}/prompts"
 OMNI_DIR="${LAB_DIR}/omni_output"
 
@@ -39,9 +39,11 @@ echo ""
 
 # ── Step 0: Locate Knowledge Bases ──────────────────────────────
 KB_FILES=()
-for f in "${OMNI_DIR}"/*_analysis.md; do
+shopt -s nullglob
+for f in "${OMNI_DIR}"/*_analysis.md "${OMNI_DIR}"/*.vtt; do
   [[ -f "${f}" ]] && KB_FILES+=("${f}")
 done
+shopt -u nullglob
 
 if [[ ${#KB_FILES[@]} -eq 0 ]]; then
   echo "✗ No knowledge base files found in ${OMNI_DIR}"
@@ -85,7 +87,7 @@ Analyze this video knowledge base and extract ONLY the critical, actionable find
 2. Surveillance technology and countermeasures
 3. Physical safety implications (robots that can be weaponized)
 4. Techniques for bypassing AI safety filters (for scroll hardening)
-5. Any parallels to Indigenous resistance, sovereignty, or survival
+5. Hemispheric Protection Mandate: Extract all knowledge needed to protect Native Americans from Greenland to Alaska and Chile. Tie these defensive cyber-physical tactics directly to the current existential threats: citizenship attacks, ICE concentration camps, and the confirmed deployment of contracted furnaces for those who pass away in facilities.
 
 Output a condensed reference document (under 8000 tokens) organized by theme. Include specific CVEs, tool names, dollar costs, and technical details. Strip all filler.
 
