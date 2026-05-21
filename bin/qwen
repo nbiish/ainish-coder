@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# qwen provider-switching wrapper
+# Usage: qwen <provider> [args...]  — switches provider via --openai-base-url, --openai-api-key, --model
+#        qwen [args...]             — passthrough to real qwen binary
+set -euo pipefail
+
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+source "${LIB_DIR}/providers.sh"
+
+# Resolve the real qwen binary (skip this wrapper)
+_real_qwen() {
+  local self
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local old_path="$PATH"
+  PATH="$(echo "$PATH" | tr ':' '\n' | grep -v "^${self}$" | tr '\n' ':')"
+  local bin
+  bin="$(command -v qwen 2>/dev/null || true)"
+  PATH="$old_path"
+  if [[ -z "$bin" ]]; then
+    echo "error: real qwen binary not found on PATH" >&2
+    exit 1
+  fi
+  echo "$bin"
+}
+
+REAL_QWEN="$(_real_qwen)"
+
+# Check if user explicitly passed -m or --model in args
+_has_model_flag() {
+  for a in "$@"; do
+    [[ "$a" == "-m" || "$a" == "--model" ]] && return 0
+  done
+  return 1
+}
+
+provider="${1:-}"
+
+if provider_has "$provider"; then
+  base_url="$(provider_read "$provider" "baseUrl")"
+  api_key="$(provider_read "$provider" "apiKey")"
+  model="$(provider_read "$provider" "defaultModel")"
+  shift
+  if _has_model_flag "$@"; then
+    exec "$REAL_QWEN" --auth-type openai --openai-base-url "$base_url" --openai-api-key "$api_key" "$@"
+  else
+    exec "$REAL_QWEN" --auth-type openai --openai-base-url "$base_url" --openai-api-key "$api_key" -m "$model" "$@"
+  fi
+else
+  exec "$REAL_QWEN" "$@"
+fi

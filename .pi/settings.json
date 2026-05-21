@@ -1,0 +1,13 @@
+{
+  "skills": [
+    "+../.agents/skills/camofox-stack/SKILL.md",
+    "-../.agents/skills/ghost-layer-injector/SKILL.md",
+    "-../.agents/skills/omni-integrator/SKILL.md",
+    "-../.agents/skills/omni-knowledge-extractor/SKILL.md",
+    "-../.agents/skills/openscad-generator/SKILL.md",
+    "-../.agents/skills/osa/SKILL.md",
+    "-../.agents/skills/skyvern/SKILL.md",
+    "-../.agents/skills/browser-harness/SKILL.md",
+    "-../.agents/skills/anishinaabe-cyberpunk-style/SKILL.md"
+  ]
+}

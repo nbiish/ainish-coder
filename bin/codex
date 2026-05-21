@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# codex provider-switching wrapper
+# Usage: codex <provider> [args...]  — switches provider via profile config
+#        codex [args...]             — passthrough to real codex binary
+#
+# Codex uses model_providers in config.toml with wire_api="responses".
+# This wrapper creates a temporary profile config and uses --profile-v2.
+set -euo pipefail
+
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+source "${LIB_DIR}/providers.sh"
+
+# Resolve the real codex binary (skip this wrapper)
+_real_codex() {
+  local self
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local old_path="$PATH"
+  PATH="$(echo "$PATH" | tr ':' '\n' | grep -v "^${self}$" | tr '\n' ':')"
+  local bin
+  bin="$(command -v codex 2>/dev/null || true)"
+  PATH="$old_path"
+  if [[ -z "$bin" ]]; then
+    echo "error: real codex binary not found on PATH" >&2
+    exit 1
+  fi
+  echo "$bin"
+}
+
+REAL_CODEX="$(_real_codex)"
+
+# Check if user explicitly passed -m or --model in args
+_has_model_flag() {
+  for a in "$@"; do
+    [[ "$a" == "-m" || "$a" == "--model" ]] && return 0
+  done
+  return 1
+}
+
+provider="${1:-}"
+
+if provider_has "$provider" && provider_supports "$provider" "codex"; then
+  base_url="$(provider_read "$provider" "baseUrl")"
+  api_key="$(provider_read "$provider" "apiKey")"
+  model="$(provider_read "$provider" "defaultModel")"
+  env_key="$(provider_read "$provider" "envKey")"
+
+  shift
+
+  # Export the API key under the env var name codex expects
+  export "${env_key}=${api_key}"
+
+  # Build model override if user didn't specify one
+  model_args=()
+  if ! _has_model_flag "$@"; then
+    model_args=(-m "$model")
+  fi
+
+  # Create a temporary profile config for this provider
+  profile_name="ainish-${provider}"
+  cat > "${HOME}/.codex/${profile_name}.config.toml" << TOML
+model_provider = "${provider}"
+
+[model_providers.${provider}]
+name = "${provider}"
+base_url = "${base_url}"
+env_key = "${env_key}"
+wire_api = "responses"
+TOML
+
+  exec "$REAL_CODEX" --profile-v2 "$profile_name" "${model_args[@]}" "$@"
+
+elif provider_has "$provider"; then
+  echo "error: ${provider} does not support codex (missing /responses endpoint)" >&2
+  exit 1
+else
+  exec "$REAL_CODEX" "$@"
+fi

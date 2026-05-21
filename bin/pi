@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# pi provider-switching wrapper
+# Usage: pi <provider> [args...]  — switches provider + default model
+#        pi [args...]             — passthrough to real pi binary
+set -euo pipefail
+
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+source "${LIB_DIR}/providers.sh"
+
+# Resolve the real pi binary (skip this wrapper via PATH manipulation)
+_real_pi() {
+  local self
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local old_path="$PATH"
+  PATH="$(echo "$PATH" | tr ':' '\n' | grep -v "^${self}$" | tr '\n' ':')"
+  local bin
+  bin="$(command -v pi 2>/dev/null || true)"
+  PATH="$old_path"
+  if [[ -z "$bin" ]]; then
+    echo "error: real pi binary not found on PATH" >&2
+    exit 1
+  fi
+  echo "$bin"
+}
+
+REAL_PI="$(_real_pi)"
+
+# Check if user explicitly passed --model in args
+_has_model_flag() {
+  local i
+  for i in "$@"; do
+    [[ "$i" == "--model" ]] && return 0
+  done
+  return 1
+}
+
+provider="${1:-}"
+
+if provider_has "$provider"; then
+  model="$(provider_read "$provider" "defaultModel")"
+  shift
+  if _has_model_flag "$@"; then
+    exec "$REAL_PI" --provider "$provider" "$@"
+  else
+    exec "$REAL_PI" --provider "$provider" --model "$model" "$@"
+  fi
+else
+  exec "$REAL_PI" "$@"
+fi
