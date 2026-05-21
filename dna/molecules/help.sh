@@ -108,6 +108,35 @@ UTILITY COMMANDS:
                               Deploys markdown templates to mcp_recipes/ in target directory.
                               Example: ainish-coder --mcp-recipes ~/my-project
 
+PROVIDER-SWITCHING WRAPPERS:
+    pi <provider> [args...]      Run pi coding agent with a provider
+    codex <provider> [args...]   Run codex with a provider
+    mini <provider> [args...]    Run mini-swe-agent with a provider
+    qwen <provider> [args...]    Run qwen-code with a provider
+
+    Providers: openrouter, zenmux, zai
+
+    The wrapper injects the right provider config (API key, base URL,
+    default model) from ~/.config/ainish-coder/providers.json.
+    Pass --model or -m to override the default model.
+
+    No provider arg = passthrough to the real binary.
+
+    Provider compatibility:
+                  OpenRouter   ZenMux   ZAI
+        pi            ✓          ✓       ✓
+        mini          ✓          ✓       ✓
+        qwen          ✓          ✓       ✓
+        codex         ✓          ✓       ✗
+
+    Examples:
+        pi openrouter                    # deepseek-v4-pro via openrouter
+        pi zai "fix the bug"             # glm-5.1 via ZAI coding plan
+        codex zenmux exec "refactor X"   # deepseek-v4-pro via zenmux
+        mini openrouter -t "fix tests"   # deepseek-v4-pro via openrouter
+        qwen zenmux -y "explain this"    # deepseek-v4-pro via zenmux
+        qwen zai -m glm-4.7 "review"    # override model on ZAI
+
 OTHER:
     --help, -h                Show this help message
     --version, -v             Show version information
@@ -117,18 +146,19 @@ NOTES:
     - --rules deploys AGENTS.md + llms.txt file + .gitignore
     - --secure deploys AGENTS_LLM_SECURITY.md + AGENTS_CODE_SECURITY.md
     - All tool-specific flags consolidated into .agents/skills/
+    - Provider API keys stored in ~/.config/ainish-coder/providers.json
 
 EXAMPLES:
     # Recommended workflow - deploy core rules first
     ainish-coder --rules                    # Deploy to current directory
     ainish-coder --rules ~/my-project       # Deploy to specific directory
-    
+
     # Tool-specific deployments
     ainish-coder --rules                    # Deploy AGENTS.md + llms.txt + .gitignore
 
     # Deploy tool configurations (requires AGENTS.md first)
     # (No tools currently have standalone configs outside of agents system)
-    
+
     # Deploy custom commands
     # (Commands logic now handled by agent skills)
 
@@ -136,7 +166,7 @@ EXAMPLES:
     ainish-coder --gitignore                # Create comprehensive .gitignore
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
-    
+
     ainish-coder --skills                    # Deploy all skill packs
 
 For more information, see: https://github.com/nbiish/ainish-coder
