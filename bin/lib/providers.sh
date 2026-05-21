@@ -34,15 +34,16 @@ with open('${PROVIDERS_FILE}') as f:
 # Usage: provider_has <provider>
 # Returns 0 if provider exists in config, 1 otherwise
 provider_has() {
-  local provider="${1:?provider name required}"
+  local provider="${1:-}"
+  [[ -n "$provider" ]] || return 1
   [[ "$(provider_read "$provider" "baseUrl")" != "" ]]
 }
 
 # Usage: provider_supports <provider> <tool>
 # Returns 0 if the provider supports the given tool, 1 otherwise
 provider_supports() {
-  local provider="${1:?provider name required}"
-  local tool="${2:?tool name required (pi|mini|qwen|codex)}"
+  local provider="${1:-}"
+  local tool="${2:-}"
   local supported
   supported="$(python3 -c "
 import json

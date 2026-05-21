@@ -4,7 +4,7 @@
 #        codex [args...]             — passthrough to real codex binary
 #
 # Codex uses model_providers in config.toml with wire_api="responses".
-# This wrapper creates a temporary profile config and uses --profile-v2.
+# This wrapper creates a temp profile and uses --profile-v2.
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
@@ -28,7 +28,6 @@ _real_codex() {
 
 REAL_CODEX="$(_real_codex)"
 
-# Check if user explicitly passed -m or --model in args
 _has_model_flag() {
   for a in "$@"; do
     [[ "$a" == "-m" || "$a" == "--model" ]] && return 0
@@ -46,18 +45,17 @@ if provider_has "$provider" && provider_supports "$provider" "codex"; then
 
   shift
 
-  # Export the API key under the env var name codex expects
   export "${env_key}=${api_key}"
 
-  # Build model override if user didn't specify one
   model_args=()
   if ! _has_model_flag "$@"; then
     model_args=(-m "$model")
   fi
 
-  # Create a temporary profile config for this provider
+  # Use a temp profile that won't interfere with normal codex config
   profile_name="ainish-${provider}"
-  cat > "${HOME}/.codex/${profile_name}.config.toml" << TOML
+  profile_file="${HOME}/.codex/${profile_name}.config.toml"
+  cat > "${profile_file}" << TOML
 model_provider = "${provider}"
 
 [model_providers.${provider}]
@@ -67,7 +65,11 @@ env_key = "${env_key}"
 wire_api = "responses"
 TOML
 
-  exec "$REAL_CODEX" --profile-v2 "$profile_name" "${model_args[@]}" "$@"
+  # Run codex (not exec — so we can clean up after)
+  "$REAL_CODEX" --profile-v2 "$profile_name" "${model_args[@]}" "$@"
+  rc=$?
+  rm -f "${profile_file}"
+  exit $rc
 
 elif provider_has "$provider"; then
   echo "error: ${provider} does not support codex (missing /responses endpoint)" >&2
