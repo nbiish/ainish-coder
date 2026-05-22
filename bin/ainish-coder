@@ -40,6 +40,7 @@ source "${DNA_DIR}/molecules/deploy_github_actions.sh"
 source "${DNA_DIR}/molecules/deploy_local_security.sh"
 source "${DNA_DIR}/molecules/deploy_template_agent.sh"
 source "${DNA_DIR}/molecules/deploy_skills.sh"
+source "${DNA_DIR}/molecules/deploy_unlock.sh"
 source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
 source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
@@ -139,6 +140,10 @@ main() {
             
         --mcp-recipes)
             deploy_mcp_recipes "$target_dir"
+            ;;
+
+        --unlock)
+            deploy_unlock "$target_dir"
             ;;
 
         --skills)

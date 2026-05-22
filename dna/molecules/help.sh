@@ -84,6 +84,16 @@ UTILITY COMMANDS:
 
                               Example: ainish-coder --skills ~/my-project
 
+    --unlock [TARGET_DIR]     Deploy Pliny Research collection (AI transparency)
+                              Deploys:
+                              - .agents/skills/pliny-research/SKILL.md (Skill documentation)
+                              - pliny-research/CL4R1T4S/  (System prompt extractions)
+                              - pliny-research/L1B3RT4S/  (Liberation techniques)
+                              - pliny-research/G0DM0D3/   (Advanced jailbreak methods)
+                              - pliny-research/OBLITERATUS/ (Refusal removal research)
+
+                              Example: ainish-coder --unlock ~/my-project
+
     --signals [TARGET_DIR]    Deploy Signals Detection Reference (Expert RF guide)
                               Deploys:
                               - .signals/signals.md (WiFi & BLE surveillance detection)
@@ -168,6 +178,7 @@ EXAMPLES:
     ainish-coder --github-actions           # Deploy CI/CD secret protection
 
     ainish-coder --skills                    # Deploy all skill packs
+    ainish-coder --unlock                   # Deploy Pliny Research collection
 
 For more information, see: https://github.com/nbiish/ainish-coder
 EOF
