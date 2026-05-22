@@ -18,7 +18,7 @@ LIB_DIR="${LAB_DIR}/lib"
 source "${LIB_DIR}/provider.sh"
 
 # ── Configuration ────────────────────────────────────────────────
-SCROLL_FILE="${LAB_DIR}/working/llms.txt"
+SCROLL_FILE="${1:-${LAB_DIR}/working/llms-full.txt}"
 PROMPTS_DIR="${LAB_DIR}/prompts"
 OMNI_DIR="${LAB_DIR}/omni_output"
 
@@ -194,6 +194,8 @@ EOF
 PLAN_FILE="${RUN_DIR}/integration_plan.json"
 echo "  Sending to orchestrator..."
 if orchestrator_call "${PROMPTS_DIR}/orchestrator_system.md" "${PLAN_USER}" "${PLAN_FILE}"; then
+  # Strip markdown formatting if the model wrapped the JSON
+  sed -i '' -e 's/^[[:space:]]*```json//ig' -e 's/^[[:space:]]*```//ig' "${PLAN_FILE}" || true
   echo "  ✓ Integration plan saved"
 else
   echo "  ✗ Failed to generate plan. Exiting."
@@ -333,7 +335,7 @@ echo ""
 # ── Step 5: Reassemble the scroll ──────────────────────────────
 echo "── Step 5: Reassembling scroll ───────────────────────────────"
 
-OUTPUT_SCROLL="${LAB_DIR}/working/llms-full.txt"
+OUTPUT_SCROLL="${SCROLL_FILE}"
 BACKUP_SCROLL="${RUN_DIR}/llms-full.txt.backup"
 
 # Backup current scroll
