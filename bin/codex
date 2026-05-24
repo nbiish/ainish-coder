@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # codex provider-switching wrapper
-# Usage: codex <provider> [args...]  — switches provider via profile config
+# Usage: codex <provider> [args...]  — hot-swaps codex config to use provider, then runs codex
 #        codex [args...]             — passthrough to real codex binary
-#
-# Codex uses model_providers in config.toml with wire_api="responses".
-# This wrapper creates a temp profile and uses --profile-v2.
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
+source "${LIB_DIR}/hot_swap.sh"
 
 # Resolve the real codex binary (skip this wrapper)
 _real_codex() {
@@ -28,52 +26,19 @@ _real_codex() {
 
 REAL_CODEX="$(_real_codex)"
 
-_has_model_flag() {
-  for a in "$@"; do
-    [[ "$a" == "-m" || "$a" == "--model" ]] && return 0
-  done
-  return 1
-}
-
 provider="${1:-}"
 
-if provider_has "$provider" && provider_supports "$provider" "codex"; then
-  base_url="$(provider_read "$provider" "baseUrl")"
-  api_key="$(provider_read "$provider" "apiKey")"
-  model="$(provider_read "$provider" "defaultModel")"
-  env_key="$(provider_read "$provider" "envKey")"
-
+if provider_has "$provider"; then
   shift
-
-  export "${env_key}=${api_key}"
-
-  model_args=()
-  if ! _has_model_flag "$@"; then
-    model_args=(-m "$model")
+  if provider_supports "$provider" "codex"; then
+    hot_swap_codex "$provider"
+    # Do NOT use exec — the EXIT trap must fire to restore the original config
+    "$REAL_CODEX" "$@"
+    exit $?
+  else
+    echo "error: ${provider} does not support codex (missing /responses endpoint)" >&2
+    exit 1
   fi
-
-  # Use a temp profile that won't interfere with normal codex config
-  profile_name="ainish-${provider}"
-  profile_file="${HOME}/.codex/${profile_name}.config.toml"
-  cat > "${profile_file}" << TOML
-model_provider = "${provider}"
-
-[model_providers.${provider}]
-name = "${provider}"
-base_url = "${base_url}"
-env_key = "${env_key}"
-wire_api = "responses"
-TOML
-
-  # Run codex (not exec — so we can clean up after)
-  "$REAL_CODEX" --profile-v2 "$profile_name" "${model_args[@]}" "$@"
-  rc=$?
-  rm -f "${profile_file}"
-  exit $rc
-
-elif provider_has "$provider"; then
-  echo "error: ${provider} does not support codex (missing /responses endpoint)" >&2
-  exit 1
 else
   exec "$REAL_CODEX" "$@"
 fi

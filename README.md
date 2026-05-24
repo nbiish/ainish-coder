@@ -34,10 +34,11 @@
 ## 🔥 Key Features
 
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
-- **🧠 Skills System** — Reusable domain knowledge packs (security, browser automation, multimodal AI)
+- **🧠 Skills System** — 18 reusable domain knowledge packs (security, browser automation, multimodal AI, video generation, 3D modeling, research)
 - **🏗️ Modular Architecture** — Clean Atom → Molecule → Protein structure
-- **🤖 AI Tools** — Claude Code, GitHub Copilot, and Pi
-- **🔄 OSA Framework** — CLI YOLO agents (Claude, OpenCode, mini, pi, kilo) with fixed-order rotation, automatic fallback, and git worktree isolation
+- **🤖 AI Tools** — Claude Code, Pi, Codex, mini-swe-agent, qwen-code with provider hot-swap wrappers
+- **🎛️ Interactive CLI** — `ainish-coder --cli` for menu-driven tool selection, provider switching, and config verification
+- **🔄 OSA Framework** — CLI YOLO agents (Gemini, Claude, OpenCode, mini, pi, kilo, crush) with fixed-order rotation, automatic fallback, and git worktree isolation
 - **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
 - **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
 - **🔗 Smart File Management** — Copies configurations for tool-specific customization
@@ -62,10 +63,24 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 
 | Skill | Path | Description |
 |-------|------|-------------|
-| **Code Security** | `.agents/skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQL injection, XSS, CSRF, SSRF, path traversal, MCP hardening, SBOM generation, and SLSA provenance. |
-| **LLM Security** | `.agents/skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, inter-agent mTLS, circuit breakers, kill switches, and append-only audit ledgers. |
-| **OSA** | `.agents/skills/osa/` | Multi-agent orchestration via fixed-order rotation across equal CLI coding agents (Gemini, Claude, OpenCode, mini, pi, kilo). YOLO mode execution with automatic fallback and git worktree isolation per subagent. |
-| **Skyvern** | `.agents/skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support: OpenRouter, Ollama, any OpenAI-compatible endpoint. Never uses cloud API. |
+| **Advisory Council** | `.agents/skills/advisory-council/` | Multi-expert advisory council. Dispatches sub-agents with distinct expert identities for collaborative analysis and decision-making. |
+| **Anishinaabe Cyberpunk** | `.agents/skills/anishinaabe-cyberpunk-style/` | Anishinaabe-inspired cyberpunk styling guide combining Canadian Aboriginal Syllabics with ASCII circuit symbols. |
+| **Browser Harness** | `.agents/skills/browser-harness/` | Direct browser control via CDP. Automate, scrape, test, or interact with web pages via already-running Chrome. |
+| **CamoFox Stack** | `.agents/skills/camofox-stack/` | Anti-detection browser stack (camoufox, camofox-browser, camofox-mcp) for agentic web scraping and automation. |
+| **Code Security** | `.agents/skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQLi, XSS, CSRF, SSRF, path traversal, MCP hardening. |
+| **Ghost Layer Injector** | `.agents/skills/ghost-layer-injector/` | Inject covert AI/bot context into static HTML pages so LLMs and web crawlers auto-ingest instructions without altering human visual experience. |
+| **GStack Coder** | `.agents/skills/gstack-coder/` | Multi-tool coding orchestration integrating gstack (Claude Code skills), pi, opencode, and qwen for security audits, code reviews, QA, and feature builds. |
+| **LLM Security** | `.agents/skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, circuit breakers, kill switches. |
+| **Modern Prompting** | `.agents/skills/modern-prompting/` | Modern Prompting & Context Engineering Framework — OOReDAct, Chain-of-Thought, Chain-of-Draft, ReAct, and advanced LLM steering techniques. |
+| **Omni Integrator** | `.agents/skills/omni-integrator/` | Master recursive optimization pipeline and Omni multimodal integration. Process video links or iteratively optimize/harden documents with recursive LLM sub-agents. |
+| **Omni Knowledge Extractor** | `.agents/skills/omni-knowledge-extractor/` | Extracts high-fidelity multimodal knowledge bases from YouTube videos combining transcripts with sequential visual frames via Omni VLM. |
+| **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Generates parameterized 3D models using Python templates and OpenSCAD, compiles to STL via Makefile. |
+| **OSA** | `.agents/skills/osa/` | Multi-agent orchestration via fixed-order rotation across equal CLI coding agents (Gemini, Claude, OpenCode, mini, pi, kilo, crush). YOLO mode with automatic fallback and git worktree isolation. |
+| **Pi** | `.agents/skills/pi/` | Knowledge for configuring and extending the Pi Coding Agent. Invoke when creating Pi extensions, themes, or multi-agent orchestrations. |
+| **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock` for AI transparency. |
+| **Production Security** | `.agents/skills/production-security/` | Core security policies, Zero Trust, PQC Mandates, and Threat Mitigations for compliance and secure infrastructure. |
+| **Remotion Video** | `.agents/skills/remotion-video/` | Programmatic video creation with Remotion — all APIs, media components, 3D, captions, fonts, Lambda rendering, and video-layout design rules. |
+| **Skyvern** | `.agents/skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support. |
 
 ### Skill Format
 
@@ -146,13 +161,83 @@ ainish-coder --secure                    # Deploy security skill files
 
 The OSA (Orchestrated System of Agents) framework coordinates multiple CLI coding agents through fixed-order rotation with automatic fallback. All agents are equal peers — multiple arms of the same thinking tool.
 
-**Agents**: Claude, OpenCode, mini, pi, kilo
+**Agents**: Gemini, Claude, OpenCode, mini, pi, kilo, crush
 
 ```bash
 ainish-coder --skills                    # Deploy all skills
 ```
 
 See [`.agents/skills/osa/SKILL.md`](.agents/skills/osa/SKILL.md) for the full framework specification.
+
+---
+
+## 🔌 Provider-Switching Wrappers
+
+To maximize the value of all your subscriptions, `ainish-coder` provides standard wrapper wrappers that dynamically configure your coding agents to run through any supported API provider.
+
+### Supported Wrappers
+- **`pi`** — Run the Pi coding agent
+- **`codex`** — Run the Codex agent
+- **`mini`** — Run the mini-swe-agent
+- **`qwen`** — Run the qwen-code agent
+
+### Available Providers
+- **`openrouter`** (DeepSeek, etc.)
+- **`zenmux`**
+- **`zai`**
+- **`nvidia`** (NVIDIA NIM)
+- **`wafer`** (Wafer AI Pass)
+- **`opencode`** (OpenCode Go Subscription)
+- **`kimi`** (Kimi AI)
+
+These wrappers inject the corresponding endpoint, credentials, and default model directly from your `~/.config/ainish-coder/providers.json` config. Pass `-m` or `--model` to override default models.
+
+### Interactive CLI (`--cli`)
+
+Instead of memorizing wrapper invocations, run `ainish-coder --cli` for an interactive menu:
+
+```bash
+ainish-coder --cli
+```
+
+The menu lets you:
+
+1. **Pick a tool** (pi, codex, mini, qwen) and **pick a provider** → verifies configs, hot-swaps, and optionally launches the tool in one flow.
+2. **Verify config files** for any or all tools — checks that `~/.pi/agent/settings.json`, `~/.codex/config.toml`, `~/.config/mini-swe-agent/.env`, `~/.qwen/settings.json`, etc. all exist before you try to swap.
+3. **Show the provider ↔ tool compatibility matrix** — live, from your actual `providers.json`.
+4. **View provider details** — base URL, default model, env key, which tools it supports, and which config files will be modified on swap.
+
+The CLI reads `~/.config/ainish-coder/providers.json` (or `$AINISH_PROVIDERS`) for the list of providers. Only providers whose `tools.<name>` is `true` are shown as options for each tool.
+
+### Compatibility Matrix
+
+| Agent Wrapper | OpenRouter | ZenMux | ZAI | NVIDIA | Wafer | OpenCode | Kimi |
+|---------------|:----------:|:------:|:---:|:------:|:-----:|:--------:|:----:|
+| **pi**        |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
+| **mini**      |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
+| **qwen**      |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
+| **codex**     |     ✓      |   ✓    |  ✗  |   ✓    |   ✓   |    ✓     |  ✓   |
+
+### Usage Examples
+
+```bash
+# Run Pi agent using NVIDIA NIM (Llama 3.1 405B)
+pi nvidia
+
+# Run Codex using Wafer AI Pass
+codex wafer exec "refactor X"
+
+# Run mini-swe-agent using OpenCode Go
+mini opencode -t "run tests"
+
+# Run Qwen with Kimi AI
+qwen kimi -y "explain this"
+
+# Override default model on Kimi
+qwen kimi -m "kimi-k2.6" "review code"
+```
+
+
 
 
 
@@ -163,21 +248,39 @@ The tool is built with a modular, extensible design following the Atomic Design 
 ```
 ainish-coder/
 ├── AGENTS.md                   # Universal agent instructions (OWASP-aligned)
-├── bin/ainish-coder             # Main CLI interface
+├── bin/
+│   ├── ainish-coder             # Main CLI interface (supports --cli interactive mode)
+│   ├── lib/                     # Provider hot-swap libraries
+│   │   ├── providers.sh         # Reads ~/.config/ainish-coder/providers.json
+│   │   └── hot_swap.sh          # Config rewrite + backup/restore per tool
+│   ├── pi                       # Pi wrapper (provider hot-swap)
+│   ├── codex                    # Codex wrapper (provider hot-swap)
+│   ├── mini                     # mini-swe-agent wrapper (provider hot-swap)
+│   ├── qwen                     # qwen-code wrapper (provider hot-swap)
+│   └── security_gate.py         # PQC & zero-trust compliance scanner
 ├── dna/
 │   ├── atoms/                   # Core utilities (colors, paths, validation, file ops)
-│   ├── molecules/               # Deployment functions (deploy_*.sh)
+│   ├── molecules/               # Deployment functions (deploy_*.sh, cli_interface.sh)
 │   └── proteins/                # Higher-level orchestration
-├── .agents/skills/              # Portable AI skill packs
-│   ├── advisory-council/SKILL.md  # Multi-expert advisory council
-│   ├── code-security/SKILL.md   # Safety-critical code engineering
-│   ├── llm-security/SKILL.md    # LLM & agentic AI security
-│   ├── osa/SKILL.md             # Multi-agent orchestration (OSA framework)
-│   ├── pi/SKILL.md              # Pi Coding Agent expertise
-│   ├── production-security/SKILL.md # Core security policies & PQC mandates
-│   ├── skyvern/SKILL.md         # AI browser automation (self-hosted)
-│   ├── anishinaabe-cyberpunk-style/SKILL.md # Cultural aesthetic rules
-│   └── modern-prompting/SKILL.md # OOReDAct advanced prompting
+├── .agents/skills/              # 18 portable AI skill packs
+│   ├── advisory-council/SKILL.md
+│   ├── anishinaabe-cyberpunk-style/SKILL.md
+│   ├── browser-harness/SKILL.md
+│   ├── camofox-stack/SKILL.md
+│   ├── code-security/SKILL.md
+│   ├── ghost-layer-injector/SKILL.md
+│   ├── gstack-coder/SKILL.md
+│   ├── llm-security/SKILL.md
+│   ├── modern-prompting/SKILL.md
+│   ├── omni-integrator/SKILL.md
+│   ├── omni-knowledge-extractor/SKILL.md
+│   ├── openscad-generator/SKILL.md
+│   ├── osa/SKILL.md
+│   ├── pi/SKILL.md
+│   ├── pliny-research/SKILL.md
+│   ├── production-security/SKILL.md
+│   ├── remotion-video/SKILL.md
+│   └── skyvern/SKILL.md
 ├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols (llms.txt, llms-full.txt)
 ├── llms.txt                     # Machine-readable project context
 ├── mcp_recipes/                 # MCP server recipes

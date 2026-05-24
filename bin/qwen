@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # qwen provider-switching wrapper
-# Usage: qwen <provider> [args...]  — switches provider via --openai-base-url, --openai-api-key, --model
+# Usage: qwen <provider> [args...]  — hot-swaps qwen config to use provider, then runs qwen
 #        qwen [args...]             — passthrough to real qwen binary
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
+source "${LIB_DIR}/hot_swap.sh"
 
 # Resolve the real qwen binary (skip this wrapper)
 _real_qwen() {
@@ -25,26 +26,14 @@ _real_qwen() {
 
 REAL_QWEN="$(_real_qwen)"
 
-# Check if user explicitly passed -m or --model in args
-_has_model_flag() {
-  for a in "$@"; do
-    [[ "$a" == "-m" || "$a" == "--model" ]] && return 0
-  done
-  return 1
-}
-
 provider="${1:-}"
 
 if provider_has "$provider"; then
-  base_url="$(provider_read "$provider" "baseUrl")"
-  api_key="$(provider_read "$provider" "apiKey")"
-  model="$(provider_read "$provider" "defaultModel")"
   shift
-  if _has_model_flag "$@"; then
-    exec "$REAL_QWEN" --auth-type openai --openai-base-url "$base_url" --openai-api-key "$api_key" "$@"
-  else
-    exec "$REAL_QWEN" --auth-type openai --openai-base-url "$base_url" --openai-api-key "$api_key" -m "$model" "$@"
-  fi
+  hot_swap_qwen "$provider"
+  # Do NOT use exec — the EXIT trap must fire to restore the original config
+  "$REAL_QWEN" "$@"
+  exit $?
 else
   exec "$REAL_QWEN" "$@"
 fi

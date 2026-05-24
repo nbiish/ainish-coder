@@ -50,6 +50,10 @@ _provider_url() {
     openrouter) echo "${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}" ;;
     zenmux)     echo "${ZENMUX_BASE_URL:-}" ;;
     nebius)     echo "${NEBIUS_BASE_URL:-https://api.studio.nebius.com/v1}" ;;
+    nvidia)     echo "${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}" ;;
+    wafer)      echo "${WAFER_BASE_URL:-https://pass.wafer.ai/v1}" ;;
+    opencode)   echo "${OPENCODE_BASE_URL:-https://opencode.ai/zen/go/v1}" ;;
+    kimi)       echo "${KIMI_BASE_URL:-https://api.moonshot.ai/v1}" ;;
     *)          echo >&2 "[provider] Unknown provider: ${p}"; return 1 ;;
   esac
 }
@@ -61,6 +65,10 @@ _provider_key() {
     openrouter) echo "${OPENROUTER_API_KEY:-}" ;;
     zenmux)     echo "${ZENMUX_API_KEY:-}" ;;
     nebius)     echo "${NEBIUS_API_KEY:-}" ;;
+    nvidia)     echo "${NVIDIA_API_KEY:-}" ;;
+    wafer)      echo "${WAFER_API_KEY:-}" ;;
+    opencode)   echo "${OPENCODE_API_KEY:-}" ;;
+    kimi)       echo "${KIMI_API_KEY:-}" ;;
     *)          echo >&2 "[provider] Unknown provider: ${p}"; return 1 ;;
   esac
 }
@@ -362,7 +370,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   echo ""
 
   echo "── Provider Status ─────────────────────────────────"
-  for p in openrouter zenmux nebius; do
+  for p in openrouter zenmux nebius nvidia wafer opencode kimi; do
     if _provider_ready "${p}"; then
       url="$(_provider_url "${p}")"
       echo "  ✓ ${p}: READY (${url})"

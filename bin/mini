@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # mini provider-switching wrapper
-# Usage: mini <provider> [args...]  — switches provider via OPENAI_API_BASE/OPENAI_API_KEY env vars + model
+# Usage: mini <provider> [args...]  — hot-swaps mini config to use provider, then runs mini
 #        mini [args...]             — passthrough to real mini binary
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
+source "${LIB_DIR}/hot_swap.sh"
 
 # Resolve the real mini binary (skip this wrapper)
 _real_mini() {
@@ -25,30 +26,14 @@ _real_mini() {
 
 REAL_MINI="$(_real_mini)"
 
-# Check if user explicitly passed -m or --model in args
-_has_model_flag() {
-  for a in "$@"; do
-    [[ "$a" == "-m" || "$a" == "--model" ]] && return 0
-  done
-  return 1
-}
-
 provider="${1:-}"
 
 if provider_has "$provider"; then
-  base_url="$(provider_read "$provider" "baseUrl")"
-  api_key="$(provider_read "$provider" "apiKey")"
-  model="$(provider_read "$provider" "defaultModel")"
   shift
-  if _has_model_flag "$@"; then
-    export OPENAI_API_BASE="$base_url"
-    export OPENAI_API_KEY="$api_key"
-    exec "$REAL_MINI" "$@"
-  else
-    export OPENAI_API_BASE="$base_url"
-    export OPENAI_API_KEY="$api_key"
-    exec "$REAL_MINI" -m "openai/${model}" "$@"
-  fi
+  hot_swap_mini "$provider"
+  # Do NOT use exec — the EXIT trap must fire to restore the original config
+  "$REAL_MINI" "$@"
+  exit $?
 else
   exec "$REAL_MINI" "$@"
 fi
