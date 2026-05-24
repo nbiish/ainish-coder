@@ -7,23 +7,37 @@ ainish-coder - Configuration Manager for AI Coding Assistants
 
 USAGE:
     ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
+    ainish-coder --cli                       (interactive menu)
+
+INTERACTIVE MODE:
+    --cli                   Launch interactive CLI menu to pick a tool, pick a
+                            provider, verify configs, and hot-swap. Reads providers
+                            from ~/.config/ainish-coder/providers.json.
+
+                            Menu options:
+                              - Pick a tool + provider → hot-swap & launch
+                              - Verify config files for any/all tools
+                              - Show provider ↔ tool compatibility matrix
+                              - View provider details and which config files are modified
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md, llms.txt file, and .gitignore
+    --rules [TARGET_DIR]      Deploy AGENTS.md and .gitignore
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
-    --secure [DIR]            Deploy AGENTS_LLM_SECURITY.md and AGENTS_CODE_SECURITY.md
+    --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
+                              (files must exist in the ainish-coder repo root)
 
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + llms.txt + .gitignore.
+    Use --rules to deploy AGENTS.md + .gitignore.
+    Use --llms-txt to deploy llms.txt.
     Use --skills to deploy all skill packs.
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
-                              
+
                               Creates: .mai-rules/template-agent.md
-                              
+
                               Features:
                               - Comprehensive system prompt framework
                               - Persona and goals section
@@ -31,19 +45,19 @@ AGENT CUSTOMIZATION:
                               - Output format standards
                               - Iteration and refinement guidance
                               - Clearly marked [FILL_IN] sections
-                              
+
                               Use this to create your agent's "constitution" - the core
                               instructions that guide every interaction. Start simple,
                               iterate based on behavior. No A/B testing needed on day one.
-                              
+
                               Example: ainish-coder --template-agent ~/my-project
 
 CUSTOM COMMANDS DEPLOYMENT:
     --commands {tool} [DIR]   Deploy slash commands/workflows for AI tools
-                              
+
                               Other:
                               - all         (deploy to all applicable tools)
-                              
+
                               Example: ainish-coder --commands all
 
 UTILITY COMMANDS:
@@ -54,7 +68,7 @@ UTILITY COMMANDS:
                               Deploys:
                               - .ainish/scripts/ (sanitize.py, scan_secrets.sh)
                               - Pre-commit & Pre-push hooks (auto-sanitizes)
-                              
+
                               Recommended for super-simple local orchestration.
                               Example: ainish-coder --local-security ~/my-project
 
@@ -63,24 +77,36 @@ UTILITY COMMANDS:
                               - .github/workflows/ (CI secret scanning, CodeQL, ZAP, PQC audit)
                               - .github/scripts/ (sanitize.py, scan_secrets.sh)
                               - Pre-commit & Pre-push hooks (backup layer)
-                              
+
                               Note: Requires GitHub repo settings for full functionality.
                               Example: ainish-coder --github-actions ~/my-project
 
     --scrolls [TARGET_DIR]    Deploy .scrolls directory (Vital texts & prompts)
                               Deploys:
                               - .scrolls/ (Vital texts, expanded prompts)
-                              
+
                               Example: ainish-coder --scrolls ~/my-project
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory
-                              Deploys:
-                              - .agents/skills/osa/         (Multi-agent orchestration)
-                              - .agents/skills/skyvern/     (AI browser automation)
-                              - .agents/skills/llm-security/ (LLM & agentic AI security)
-                              - .agents/skills/code-security/ (Safety-critical code engineering)
-                              - .agents/skills/anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
-                              - .agents/skills/modern-prompting/ (OOReDAct advanced prompting)
+                              Deploys 18 skill packs:
+                              - advisory-council/          (Multi-expert advisory council)
+                              - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
+                              - browser-harness/           (CDP browser automation)
+                              - camofox-stack/             (Anti-detection browser stack)
+                              - code-security/             (Safety-critical code engineering)
+                              - ghost-layer-injector/      (Covert AI context injection)
+                              - gstack-coder/              (Multi-tool coding orchestration)
+                              - llm-security/              (LLM & agentic AI security)
+                              - modern-prompting/          (OOReDAct advanced prompting)
+                              - omni-integrator/           (Recursive optimization pipeline)
+                              - omni-knowledge-extractor/  (YouTube knowledge extraction)
+                              - openscad-generator/        (Parametric 3D model generation)
+                              - osa/                       (Multi-agent orchestration)
+                              - pi/                        (Pi Coding Agent expertise)
+                              - pliny-research/            (AI transparency research)
+                              - production-security/       (Core security policies & PQC)
+                              - remotion-video/            (Programmatic video creation)
+                              - skyvern/                   (AI browser automation)
 
                               Example: ainish-coder --skills ~/my-project
 
@@ -124,7 +150,7 @@ PROVIDER-SWITCHING WRAPPERS:
     mini <provider> [args...]    Run mini-swe-agent with a provider
     qwen <provider> [args...]    Run qwen-code with a provider
 
-    Providers: openrouter, zenmux, zai
+    Providers: openrouter, zenmux, zai, nvidia, wafer, opencode, kimi
 
     The wrapper injects the right provider config (API key, base URL,
     default model) from ~/.config/ainish-coder/providers.json.
@@ -133,11 +159,11 @@ PROVIDER-SWITCHING WRAPPERS:
     No provider arg = passthrough to the real binary.
 
     Provider compatibility:
-                  OpenRouter   ZenMux   ZAI
-        pi            ✓          ✓       ✓
-        mini          ✓          ✓       ✓
-        qwen          ✓          ✓       ✓
-        codex         ✓          ✓       ✗
+                  OpenRouter   ZenMux   ZAI   NVIDIA   Wafer   OpenCode   Kimi
+        pi            ✓          ✓       ✓      ✓        ✓        ✓         ✓
+        mini          ✓          ✓       ✓      ✓        ✓        ✓         ✓
+        qwen          ✓          ✓       ✓      ✓        ✓        ✓         ✓
+        codex         ✓          ✓       ✗      ✓        ✓        ✓         ✓
 
     Examples:
         pi openrouter                    # deepseek-v4-pro via openrouter
@@ -145,7 +171,11 @@ PROVIDER-SWITCHING WRAPPERS:
         codex zenmux exec "refactor X"   # deepseek-v4-pro via zenmux
         mini openrouter -t "fix tests"   # deepseek-v4-pro via openrouter
         qwen zenmux -y "explain this"    # deepseek-v4-pro via zenmux
-        qwen zai -m glm-4.7 "review"    # override model on ZAI
+        qwen zai -m glm-4.7 "review"     # override model on ZAI
+        pi nvidia                        # Llama-3.1 via NVIDIA NIM
+        codex wafer exec "refactor X"    # DeepSeek-V4-Pro via Wafer
+        mini opencode -t "run tests"     # Kimi-k2.6 via OpenCode Go
+        qwen kimi -y "explain this"      # Kimi-k2.6 via Kimi AI
 
 OTHER:
     --help, -h                Show this help message
@@ -153,8 +183,9 @@ OTHER:
 
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
-    - --rules deploys AGENTS.md + llms.txt file + .gitignore
-    - --secure deploys AGENTS_LLM_SECURITY.md + AGENTS_CODE_SECURITY.md
+    - --rules deploys AGENTS.md + .gitignore
+    - --llms-txt deploys llms.txt (separate from --rules)
+    - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md
     - All tool-specific flags consolidated into .agents/skills/
     - Provider API keys stored in ~/.config/ainish-coder/providers.json
 
@@ -164,7 +195,7 @@ EXAMPLES:
     ainish-coder --rules ~/my-project       # Deploy to specific directory
 
     # Tool-specific deployments
-    ainish-coder --rules                    # Deploy AGENTS.md + llms.txt + .gitignore
+    ainish-coder --rules                    # Deploy AGENTS.md + .gitignore
 
     # Deploy tool configurations (requires AGENTS.md first)
     # (No tools currently have standalone configs outside of agents system)

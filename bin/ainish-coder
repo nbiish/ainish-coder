@@ -46,15 +46,16 @@ source "${DNA_DIR}/molecules/deploy_scrolls.sh"
 source "${DNA_DIR}/molecules/deploy_license.sh"
 source "${DNA_DIR}/molecules/deploy_signals.sh"
 source "${DNA_DIR}/molecules/deploy_llms_txt.sh"
+source "${DNA_DIR}/molecules/cli_interface.sh"
 
 # Main function
 main() {
     local command="$1"
     shift
-    
+
     # Get target directory (default to current directory)
     local target_dir="${1:-$(pwd)}"
-    
+
     case "$command" in
         --help|-h)
             show_help
@@ -62,7 +63,7 @@ main() {
         --version|-v)
             show_version
             ;;
-            
+
         # Commands deployment
         --commands)
             if [[ $# -eq 0 ]]; then
@@ -73,9 +74,9 @@ main() {
             fi
             deploy_commands "$1"
             ;;
-            
 
-        
+
+
         # Core rules deployment
         --rules)
             echo -e "${BRIGHT_BLUE}Deploying Rules System${RESET}"
@@ -85,14 +86,14 @@ main() {
 
             # Deploy .gitignore
             deploy_gitignore "$target_dir"
-            
+
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
             ;;
-        
+
         --agents)
             deploy_agents "$target_dir"
             ;;
-        
+
         # Security files deployment
         --secure)
             echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
@@ -114,16 +115,16 @@ main() {
             else
                  echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
             fi
-            
+
             echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
             ;;
 
-            
+
         # Template Agent System
         --template-agent)
             deploy_template_agent "$target_dir"
             ;;
-            
+
         # Utility deployments
         --critical)
             deploy_critical "$target_dir"
@@ -137,7 +138,7 @@ main() {
         --local-security)
             deploy_local_security "$target_dir"
             ;;
-            
+
         --mcp-recipes)
             deploy_mcp_recipes "$target_dir"
             ;;
@@ -157,11 +158,11 @@ main() {
         --license)
             deploy_license "$target_dir"
             ;;
-            
+
         --signals)
             local deploy_examples="false"
             local real_target="$target_dir"
-            
+
             # Check if "ai" argument was passed (captured as target_dir by main)
             if [[ "$target_dir" == "ai" ]]; then
                 deploy_examples="true"
@@ -172,12 +173,16 @@ main() {
                     real_target="$(pwd)"
                 fi
             fi
-            
+
             deploy_signals "$real_target" "$deploy_examples"
             ;;
 
         --llms-txt)
             deploy_llms_txt "$target_dir"
+            ;;
+
+        --cli)
+            run_cli_interface
             ;;
 
         *)
@@ -192,6 +197,7 @@ main() {
 if [[ $# -eq 0 ]]; then
     print_error "No command specified"
     echo "Use 'ainish-coder --help' for usage information" >&2
+    echo "Use 'ainish-coder --cli' for the interactive menu" >&2
     exit 1
 fi
 
