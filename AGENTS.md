@@ -45,13 +45,71 @@ Conflict → fail closed, explain, ask. Constraints override reasoning.
 
 ---
 
+<SECURITY_GATES>
+## PRE-COMMIT SECURITY GATES
+
+**Mandatory before every commit.** The gates catch secrets before they leave your machine. Never bypass.
+
+### Setup (one-time per repo)
+
+```bash
+ainish-coder --local-security    # Full deployment: hooks + sanitizer + scanner
+```
+
+Manual setup if `ainish-coder` unavailable:
+```bash
+# Copy the sanitizer and install hooks
+mkdir -p .ainish/scripts
+cp .github/scripts/sanitize.py .ainish/scripts/
+bash scripts/setup-hooks.sh
+```
+
+### What the gates catch
+
+| Category | Examples | Action |
+|----------|----------|--------|
+| **LLM API keys** | `sk-or-*`, `sk-ant-*`, `AIza*`, `hf_*`, `pplx-*`, `gsk_*`, `xai-*` | Block commit |
+| **Cloud creds** | `AKIA*` (AWS), `ghp_*` (GitHub), `CF_API_KEY` (Cloudflare), `railway_*`, `sbp_*` (Supabase) | Block commit |
+| **Private keys** | `BEGIN RSA PRIVATE KEY`, `BEGIN OPENSSH PRIVATE KEY`, `BEGIN EC PRIVATE KEY` | Block commit |
+| **DB connection strings** | `postgres://`, `mysql://`, `mongodb://`, `redis://` with embedded credentials | Block commit |
+| **Local filesystem paths** | `/Users/*`, `/Volumes/*`, `/home/*`, `C:\Users\*` | Auto-sanitize |
+| **JWT / auth tokens** | `eyJ...` Bearer tokens, `xox[baprs]-*` (Slack) | Block commit |
+| **Payment / SaaS keys** | `sk_live_*`, `sk_test_*` (Stripe), `SK[a-f0-9]{32}` (Twilio) | Block commit |
+
+### Agent workflow
+
+1. **Pre-commit:** Agent runs `git diff --cached --name-only` → sanitizer auto-cleans staged files → `git add` re-stages cleaned files → commit proceeds clean
+2. **Pre-push:** Agent verifies no secrets remain in branch diff → blocks push if any found, instructs to amend commit
+3. **Manual scan:** `bash .ainish/scripts/scan_secrets.sh` generates `SECURITY_REPORT.md` for LLM review — file locations only, no secret content
+
+### Verification commands
+
+```bash
+# Verify hooks are active (must exist and be executable)
+ls -la .git/hooks/pre-commit .git/hooks/pre-push
+
+# Dry-run the sanitizer on pending staged changes
+python3 .ainish/scripts/sanitize.py --dry-run $(git diff --cached --name-only)
+
+# Full repo scan (locations only, safe for LLM review)
+bash .ainish/scripts/scan_secrets.sh && cat SECURITY_REPORT.md
+
+# Quick staged-files-only scan (what the pre-commit hook checks)
+git diff --cached --name-only -z | xargs -0 grep -HnE "sk-or-|sk-ant-|AIza|ghp_|AKIA|BEGIN.*PRIVATE KEY" 2>/dev/null
+```
+
+**Failure mode:** Gates block → auto-sanitize or manually fix secrets → re-stage (`git add`) → re-commit. Never `--no-verify`. Never `SKIP=1`.
+</SECURITY_GATES>
+
+---
+
 <WORKFLOW>
 ## WORKFLOW & GIT
 
 - **Plan:** Read llms.txt → create branch+worktree → read/create TASK.$(date).md → minimize context → build → test → review.
 - **Branch:** `git worktree add -b <type>/<scope>-<slug> <path>`. ∅ work on main. If on main: stop, create worktree, switch. Each task → dedicated worktree (filesystem isolation).
 - **Audit:** Per cycle, scan code + TASK.$(date).md + llms.txt for banned crypto/secrets. Before commit: worktree not stale, not dirty, not on main.
-- **Commits:** `<type>(<scope>): <description>`. No secrets. Gate: `uv build`, `ruff`, `pytest`, `bandit`, `detect-secrets`, `gitleaks`.
+- **Commits:** `<type>(<scope>): <description>`. No secrets. Pre-commit gate auto-sanitizes; if hook absent, run manually. CI gate: `uv build`, `ruff`, `pytest`, `bandit`, `detect-secrets`, `gitleaks`.
 - **Merge:** ∅ auto-merge. ∅ bypass. Pre-merge: gates pass, diff clean, worktree tidy, TASK complete. Ask: "Ready to merge `<branch>` → main? [summarize diff]. Confirm?" Fail closed if unconfirmed. Clean merged post-approval.
 </WORKFLOW>
 
@@ -103,7 +161,8 @@ Run before crypto/storage/network code. Check:
 - Platform keystore, AES-256-GCM + ML-KEM-768, ∅ plaintext/.env
 - TLS 1.3 + ML-KEM-768, secrets redacted
 - Inputs validated, outputs sanitized
-- Merge: gates pass, diff summarized, user confirmed
+- Merge: gates pass (pre-commit + CI), diff summarized, user confirmed
+- Pre-commit hook active, sanitizer present in `.ainish/scripts/`
 - Worktree: not stale, not dirty, not on main (if on main: stop, create worktree)
 
 **Incidents:** Stop → Preserve (redacted) → Notify → Mitigate.
