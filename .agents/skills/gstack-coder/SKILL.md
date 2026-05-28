@@ -2,15 +2,16 @@
 name: gstack-coder
 description: >
   Multi-tool coding skill integrating gstack (Claude Code skills), pi (pi-coding-agent),
-  opencode (opencode.ai), and qwen (qwen-code). Use when spawning Claude Code sessions
-  for coding work, running security audits, code reviews, QA testing URLs, building features
-  end-to-end, or planning before building. Also configures and orchestrates pi, opencode,
-  and qwen to maximize utilization of all AI subscriptions and APIs.
+  and mini (mini-swe-agent). Use when spawning Claude Code sessions for coding work,
+  running security audits, code reviews, QA testing URLs, building features end-to-end,
+  or planning before building. Also configures and orchestrates pi and mini to maximize
+  utilization of all AI subscriptions and APIs. For MCP-equipped sub-agent dispatch with
+  provider fallback, pair with subagent-orchestrator skill.
 ---
 
 # GStack Coder — Multi-Tool Coding Orchestration
 
-This skill combines **gstack** (Claude Code skill pack) with **pi**, **opencode**, and **qwen** to form a complete multi-tool coding workflow. Each tool has unique strengths and subscription quotas — this skill ensures all are utilized.
+This skill combines **gstack** (Claude Code skill pack) with **pi** and **mini** to form a complete multi-tool coding workflow. Each tool has unique strengths and subscription quotas — this skill ensures all are utilized.
 
 ---
 
@@ -42,29 +43,25 @@ After installation, gstack provides these slash commands inside Claude Code:
 | Tool | CLI | Config Location | Best For |
 |------|-----|-----------------|----------|
 | **Claude Code** (gstack) | `claude` | `~/.claude/` | Security audits, code review, planning, shipping |
-| **pi** | `pi` | `~/.pi/agent/` | Fast non-interactive coding, extensions, themes |
-| **OpenCode** | `opencode` | npm global | Non-interactive code generation, validation |
-| **qwen** | `qwen` (wrapper) | `~/.qwen/settings.json` | Non-interactive coding with qwen models |
+| **pi** | `pi` (wrapper) | `~/.pi/agent/` | Fast non-interactive coding, extensions, themes, MCP servers |
+| **mini** | `mini` (wrapper) | `~/.config/mini-swe-agent/.env` | Lightweight SWE agent, bash-based tasks |
 
 ### Provider Hot-Swap (use all subscriptions)
 
-The ainish-coder framework supports hot-swapping provider configs. Each tool can be pointed at different API providers to maximize quota usage:
+The ainish-coder framework supports hot-swapping provider configs via CLI wrappers. Each tool can be pointed at different API providers to maximize quota usage:
 
 ```bash
-# Source the hot-swap library
-source bin/lib/hot_swap.sh
+# pi with provider — wrapper auto-swaps config before launch
+pi zenmux -p "Add input validation to src/api/handlers.ts" --no-session --thinking off
 
-# Hot-swap pi to use OpenRouter
-hot_swap_pi openrouter
+# mini with provider
+mini openrouter --task "Fix the race condition" --yolo
 
-# Hot-swap qwen to use ZenMux
-hot_swap_qwen zenmux
-
-# Then run the tool normally — it uses the swapped provider
-pi -p "Add input validation to src/api/handlers.ts" --no-session --thinking off
+# MCP-equipped dispatch (see subagent-orchestrator skill)
+pi zenmux --mcp tavily-search,github -p "Review PR for security issues" --no-session --thinking off
 ```
 
-Available providers: `openrouter`, `zenmux`, `zai`, `nvidia`, `wafer`, `opencode`, `kimi`
+Available providers: `openrouter`, `zenmux`, `zai`, `nvidia`, `wafer`, `wafer-balance`, `opencode`, `kimi`
 
 ---
 
@@ -92,19 +89,19 @@ Test a deployed URL end-to-end: functional testing, API validation, UI checks, p
 ```
 Load gstack. Run /autoplan, implement the plan, then run /ship
 ```
-Full cycle: auto-generate implementation plan → execute the plan → build & ship. The `/autoplan` breaks down the feature into tasks, and `/ship` handles testing, building, and deployment.
+Full cycle: auto-generate implementation plan, execute, build and ship.
 
 ### Plan Before Building (No Implementation)
 ```
 Load gstack. Run /office-hours then /autoplan. Save the plan, don't implement.
 ```
-Architecture discussion first (`/office-hours`), then generate detailed plan (`/autoplan`). Save the plan for later implementation. No code changes.
+Architecture discussion first, then detailed plan. Save for later. No code changes.
 
 ---
 
 ## 4. OSA: Orchestrated System of Agents
 
-When you need to dispatch work across all coding tools using fixed-order rotation:
+When dispatching work across coding tools using fixed-order rotation:
 
 ```
 gemini → claude → crush → pi → mini → opencode → kilo → (wrap)
@@ -116,9 +113,8 @@ gemini → claude → crush → pi → mini → opencode → kilo → (wrap)
 # Sequential dispatch — each agent does one task
 gemini -p "Add error handling to src/api/routes.ts" -y
 claude -p "Review the error handling for edge cases" --dangerously-skip-permissions
-pi -p "Add unit tests for the error handling" --no-session --thinking off
-opencode run "Validate src/api/routes.ts against OpenAPI schema"
-qwen zenmux "Refactor error handling to use a unified error class"
+pi zenmux -p "Add unit tests for the error handling" --no-session --thinking off
+mini openrouter --task "Validate routes against schema" --yolo
 ```
 
 ### Parallel Dispatch (separate worktrees)
@@ -129,7 +125,7 @@ git worktree add ../task-auth agent-gemini
 cd ../task-auth && gemini -p "Implement OAuth2 login flow" -y &
 
 git worktree add ../task-payment agent-pi
-cd ../task-payment && pi -p "Implement Stripe payment integration" --no-session --thinking off &
+cd ../task-payment && pi zenmux -p "Implement Stripe payment integration" --no-session --thinking off &
 
 wait
 # Review and merge worktrees back
@@ -141,21 +137,20 @@ wait
 
 ### pi (pi-coding-agent)
 - Config: `~/.pi/agent/settings.json`, `auth.json`, `models.json`
-- Hot-swap: `hot_swap_pi <provider>`
-- Non-interactive: `pi -p "prompt" --no-session --thinking off`
+- Non-interactive: `pi <provider> -p "prompt" --no-session --thinking off`
+- With MCP: `pi <provider> --mcp server1,server2 -p "prompt" --no-session --thinking off`
 - Extensions: `pi -e extensions/your-extension.ts`
 
-### OpenCode
-- Install: `npm install -g @opencode-ai/opencode`
-- Config: `~/.opencode/`
-- Non-interactive: `opencode run "prompt"`
-- Version: `opencode --version`
+### mini (mini-swe-agent)
+- Config: `~/.config/mini-swe-agent/.env`
+- Non-interactive: `mini <provider> --task "prompt" --yolo`
+- With MCP: `mini <provider> --mcp server1,server2 --task "prompt" --yolo`
+- Config override: `mini -c custom.yaml --task "prompt" --yolo`
 
-### qwen (qwen-code)
-- Config: `~/.qwen/settings.json`
-- Wrapper: `bin/qwen` (ainish-coder wrapper for provider hot-swapping)
-- Hot-swap: `hot_swap_qwen <provider>`
-- Direct: `qwen <provider> "prompt"` or `qwen "prompt"` (uses default)
+### Provider switching
+- Both wrappers auto-detect provider arg and hot-swap config before launch
+- Original config restored when the tool exits
+- All providers in `~/.config/ainish-coder/providers.json`
 
 ---
 
@@ -169,19 +164,13 @@ Configure providers in `~/.config/ainish-coder/providers.json`:
     "baseUrl": "https://openrouter.ai/api/v1",
     "apiKey": "sk-or-v1-...",
     "defaultModel": "deepseek/deepseek-v4-pro",
-    "tools": { "pi": true, "mini": true, "qwen": true, "codex": true }
+    "tools": { "pi": true, "mini": true }
   },
-  "opencode": {
-    "baseUrl": "https://opencode.ai/zen/go/v1",
-    "apiKey": "sk-opencode-...",
-    "defaultModel": "opencode-go/kimi-k2.6",
-    "tools": { "pi": true, "mini": true, "qwen": true, "codex": true }
-  },
-  "kimi": {
-    "baseUrl": "https://api.moonshot.ai/v1",
-    "apiKey": "sk-kimi-...",
-    "defaultModel": "kimi-k2.6",
-    "tools": { "pi": true, "mini": true, "qwen": true, "codex": true }
+  "zenmux": {
+    "baseUrl": "https://zenmux.ai/api/v1",
+    "apiKey": "sk-ss-v1-...",
+    "defaultModel": "deepseek/deepseek-v4-pro",
+    "tools": { "pi": true, "mini": true }
   }
 }
 ```
@@ -190,7 +179,25 @@ Each provider maps to a different subscription — rotate between them to maximi
 
 ---
 
-## 7. Adding "Coding Tasks" to AGENTS.md
+## 7. MCP Sub-Agent Dispatch
+
+For MCP-equipped sub-agent dispatch with automatic provider fallback, pair with the **subagent-orchestrator** skill. It provides:
+
+- MCP server catalog (9 servers: tavily, context7, brave, github, postgres, filesystem, codewhale, puppeteer, memory)
+- Provider fallback chains (zenmux → openrouter → opencode → zai → wafer → nvidia → wafer-balance → kimi)
+- Error recovery patterns (provider failure → next provider, MCP failure → retry without)
+- Scoped MCP: sub-agents only get the tools they need per task
+
+```bash
+# Example: code review with GitHub access + provider fallback
+pi zenmux --mcp github -p "Review PR #42" --no-session --thinking off ||
+  pi openrouter --mcp github -p "Review PR #42" --no-session --thinking off ||
+  pi opencode --mcp github -p "Review PR #42" --no-session --thinking off
+```
+
+---
+
+## 8. Adding "Coding Tasks" to AGENTS.md
 
 When setting up a new codebase, add this section to AGENTS.md:
 
@@ -210,9 +217,8 @@ When spawning Claude Code sessions for coding work, tell the session to use gsta
 ### Multi-Tool Dispatch
 
 For parallel work across subscriptions:
-- **pi**: `pi -p "task" --no-session --thinking off`
-- **opencode**: `opencode run "task"`
-- **qwen**: `qwen <provider> "task"`
+- **pi**: `pi <provider> -p "task" --no-session --thinking off`
+- **mini**: `mini <provider> --task "task" --yolo`
 
-Hot-swap providers first: `source bin/lib/hot_swap.sh && hot_swap_pi openrouter`
+For MCP-equipped dispatch with provider fallback, load the subagent-orchestrator skill.
 ```

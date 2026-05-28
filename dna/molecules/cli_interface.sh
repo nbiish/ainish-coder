@@ -27,23 +27,17 @@ trap _cli_cleanup EXIT
 # Each tool: name, binary, config files, hot-swap function, description
 # This is the single source of truth for what the CLI knows about.
 
-TOOL_NAMES=(pi codex mini qwen)
+TOOL_NAMES=(pi mini)
 
 TOOL_BINARY_pi="pi"
-TOOL_BINARY_codex="codex"
 TOOL_BINARY_mini="mini"
-TOOL_BINARY_qwen="qwen"
 
 TOOL_DESC_pi="Pi coding agent — fast non-interactive coding, extensions, themes"
-TOOL_DESC_codex="OpenAI Codex — sandboxed agent with /responses wire API"
 TOOL_DESC_mini="mini-swe-agent — lightweight swe-agent via .env config"
-TOOL_DESC_qwen="Qwen-code — non-interactive coding with Qwen/custom models"
 
 # Config files per tool (space-separated, relative to $HOME)
 TOOL_CONFIGS_pi=".pi/agent/settings.json .pi/agent/auth.json .pi/agent/models.json"
-TOOL_CONFIGS_codex=".codex/config.toml"
 TOOL_CONFIGS_mini=".config/mini-swe-agent/.env"
-TOOL_CONFIGS_qwen=".qwen/settings.json"
 
 # ─── Provider JSON path ──────────────────────────────────────────────────────
 PROVIDERS_FILE="${AINISH_PROVIDERS:-$HOME/.config/ainish-coder/providers.json}"
@@ -380,7 +374,7 @@ run_cli_interface() {
     "apiKey": "sk-or-v1-...",
     "defaultModel": "deepseek/deepseek-v4-pro",
     "envKey": "OPENROUTER_API_KEY",
-    "tools": { "pi": true, "mini": true, "qwen": true, "codex": true }
+    "tools": { "pi": true, "mini": true }
   }
 }
 PROVIDER_EXAMPLE

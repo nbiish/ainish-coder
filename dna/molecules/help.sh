@@ -146,9 +146,7 @@ UTILITY COMMANDS:
 
 PROVIDER-SWITCHING WRAPPERS:
     pi <provider> [args...]      Run pi coding agent with a provider
-    codex <provider> [args...]   Run codex with a provider
     mini <provider> [args...]    Run mini-swe-agent with a provider
-    qwen <provider> [args...]    Run qwen-code with a provider
 
     Providers: openrouter, zenmux, zai, nvidia, wafer, opencode, kimi
 
@@ -162,20 +160,13 @@ PROVIDER-SWITCHING WRAPPERS:
                   OpenRouter   ZenMux   ZAI   NVIDIA   Wafer   OpenCode   Kimi
         pi            ✓          ✓       ✓      ✓        ✓        ✓         ✓
         mini          ✓          ✓       ✓      ✓        ✓        ✓         ✓
-        qwen          ✓          ✓       ✓      ✓        ✓        ✓         ✓
-        codex         ✓          ✓       ✗      ✓        ✓        ✓         ✓
 
     Examples:
         pi openrouter                    # deepseek-v4-pro via openrouter
         pi zai "fix the bug"             # glm-5.1 via ZAI coding plan
-        codex zenmux exec "refactor X"   # deepseek-v4-pro via zenmux
         mini openrouter -t "fix tests"   # deepseek-v4-pro via openrouter
-        qwen zenmux -y "explain this"    # deepseek-v4-pro via zenmux
-        qwen zai -m glm-4.7 "review"     # override model on ZAI
         pi nvidia                        # Llama-3.1 via NVIDIA NIM
-        codex wafer exec "refactor X"    # DeepSeek-V4-Pro via Wafer
         mini opencode -t "run tests"     # Kimi-k2.6 via OpenCode Go
-        qwen kimi -y "explain this"      # Kimi-k2.6 via Kimi AI
 
 OTHER:
     --help, -h                Show this help message
