@@ -50,6 +50,11 @@ PROVIDERS_FILE="${AINISH_PROVIDERS:-$HOME/.config/ainish-coder/providers.json}"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+_CLI_REPLY=""
+
+# Convert a string to lowercase (bash 3.2 compatible)
+_lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 _cli_header() {
     echo ""
     echo -e "${BRIGHT_CYAN}╔══════════════════════════════════════════════════════════════════════╗${RESET}"
@@ -62,16 +67,19 @@ _cli_prompt() {
     echo -ne "${BRIGHT_YELLOW}▸ ${RESET}$1"
 }
 
-# Read a single line, stripping ANSI escape sequences (arrow keys produce
-# ^[[A, ^[[B, etc.) so invalid input is cleanly discarded rather than
-# corrupting the picker logic.  Uses read -re for readline support.
+# Read a single line directly into _CLI_REPLY global.
+# Strips ANSI escape sequences (arrow keys produce ^[[A etc).
+# Does NOT use command substitution for read — avoids subshell issues on bash 3.2.
 _cli_read() {
-    local reply esc
-    IFS= read -re reply 2>/dev/null || IFS= read -r reply
-    # Strip ANSI escape sequences (uses shell $'...' for literal ESC char)
-    esc=$'\033'
-    reply="$(printf '%s' "$reply" | sed -E "s/${esc}\[[0-9;]*[A-Za-z]//g" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
-    printf '%s' "$reply"
+    local raw
+    IFS= read -r raw
+    # Strip ANSI escape sequences (ESC followed by [ + params + letter)
+    # and other control characters except tab/newline
+    raw="$(printf '%s' "$raw" | tr -d '\033' | sed 's/\[[0-9;]*[A-Za-z]//g' | tr -d '\001-\010\013\014\016-\037')"
+    # Trim whitespace
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    _CLI_REPLY="$raw"
 }
 
 # Print a numbered list, return the array via global _CLI_ITEMS
@@ -86,9 +94,10 @@ _cli_menu() {
     done
 }
 
-# Show a numbered menu and return the selected item.  Retries on empty or
-# invalid input so arrow-key noise or accidental Enter does not silently
-# fall through to an unexpected action.
+# Show a numbered menu and return the selected item via _CLI_PICK_RESULT.
+# All display output goes to stderr so the caller can call this without
+# command substitution (which would swallow the menu on bash 3.2).
+# Returns 0 if an item was selected, 1 if user quit.
 _cli_pick() {
     local prompt="$1"
     shift
@@ -98,16 +107,18 @@ _cli_pick() {
         _cli_menu "$@"
         echo ""
         _cli_prompt "${prompt} [1-${#_CLI_ITEMS[@]}, q=quit]: "
-        choice="$(_cli_read)"
+        _cli_read
+        choice="$_CLI_REPLY"
 
         # Allow quitting from any picker
-        if [[ "${choice,,}" == "q" ]]; then
+        if [[ "$(_lower "$choice")" == "q" ]]; then
             echo ""
+            _CLI_PICK_RESULT=""
             return 1
         fi
 
         if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#_CLI_ITEMS[@]} )); then
-            echo "${_CLI_ITEMS[$((choice-1))]}"
+            _CLI_PICK_RESULT="${_CLI_ITEMS[$((choice-1))]}"
             return 0
         fi
 
@@ -121,7 +132,7 @@ _cli_pick() {
 _cli_pause() {
     echo ""
     _cli_prompt "Press Enter to continue... "
-    _cli_read > /dev/null
+    _cli_read
 }
 
 # ─── Provider Listing ─────────────────────────────────────────────────────────
@@ -246,13 +257,13 @@ _cli_show_compat_matrix() {
     echo ""
 }
 
-# ─── Hot-Swap Execution ──────────────────────────────────────────────────────
+# ─── Hot-Swap Core (used by both swap-only and swap+launch) ──────────────────
 
-_cli_hot_swap_and_run() {
+# Performs the actual config backup, rewrite, and confirmation print.
+# Does NOT launch the tool. Returns 0 on success.
+_cli_do_hot_swap() {
     local tool="$1"
     local provider="$2"
-    shift 2
-    local extra_args=("$@")
 
     # Check compatibility
     local supports
@@ -266,9 +277,9 @@ _cli_hot_swap_and_run() {
     if ! _cli_verify_tool_config "$tool"; then
         echo -e "${YELLOW}Config files missing. Hot-swap may fail.${RESET}"
         _cli_prompt "Continue anyway? [y/N]: "
-        local confirm
-        confirm="$(_cli_read)"
-        if [[ "${confirm,,}" != "y" ]]; then
+        _cli_read
+        local confirm="$_CLI_REPLY"
+        if [[ "$(_lower "$confirm")" != "y" ]]; then
             echo "Aborted."
             return 1
         fi
@@ -303,39 +314,53 @@ _cli_hot_swap_and_run() {
     echo -e "  ${BRIGHT_GREEN}ℹ  Your original ${tool} config has been backed up.${RESET}"
     echo -e "  ${BRIGHT_GREEN}   It will be restored when you exit ainish-coder --cli.${RESET}"
     echo ""
+}
+
+# Swap + immediately launch the tool in the current terminal.
+# The tool runs in the foreground. When the user exits the tool,
+# they return to the CLI menu with the config still swapped.
+_cli_hot_swap_and_run() {
+    local tool="$1"
+    local provider="$2"
+    shift 2
+    local extra_args=("$@")
+
+    _cli_do_hot_swap "$tool" "$provider" || return $?
+
+    echo -e "${BRIGHT_BLUE}Launching ${tool}...${RESET}"
+    echo "─────────────────────────────────────────────────"
+
+    # Resolve the real binary (skip ainish-coder wrapper scripts)
+    local self_dir
+    if [[ -n "${REPO_DIR:-}" ]]; then
+        self_dir="${REPO_DIR}/bin"
+    else
+        self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../bin" && pwd)"
+    fi
+    local old_path="$PATH"
+    PATH="$(echo "$PATH" | tr ':' '\n' | grep -v "^${self_dir}$" | tr '\n' ':')"
+    local real_bin
+    real_bin="$(command -v "$tool" 2>/dev/null || true)"
+    PATH="$old_path"
+
+    if [[ -z "$real_bin" ]]; then
+        echo -e "${RED}✗ Real ${tool} binary not found on PATH.${RESET}" >&2
+        echo -e "${YELLOW}   Your original config will still be restored on exit.${RESET}"
+        return 1
+    fi
 
     if [[ ${#extra_args[@]} -gt 0 ]]; then
-        echo -e "${BRIGHT_BLUE}Launching ${tool} with args: ${extra_args[*]}${RESET}"
-        echo "─────────────────────────────────────────────────"
-
-        # Resolve the real binary (skip ainish-coder wrapper scripts)
-        local self_dir
-        if [[ -n "${REPO_DIR:-}" ]]; then
-            self_dir="${REPO_DIR}/bin"
-        else
-            self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../bin" && pwd)"
-        fi
-        local old_path="$PATH"
-        PATH="$(echo "$PATH" | tr ':' '\n' | grep -v "^${self_dir}$" | tr '\n' ':')"
-        local real_bin
-        real_bin="$(command -v "$tool" 2>/dev/null || true)"
-        PATH="$old_path"
-
-        if [[ -z "$real_bin" ]]; then
-            echo -e "${RED}✗ Real ${tool} binary not found on PATH.${RESET}" >&2
-            echo -e "${YELLOW}   Your original config will still be restored on exit.${RESET}"
-            return 1
-        fi
-
+        echo -e "${BRIGHT_WHITE}→ ${tool} ${extra_args[*]}${RESET}"
         "$real_bin" "${extra_args[@]}"
-        local rc=$?
-        echo ""
-        echo -e "${BRIGHT_BLUE}← ${tool} exited (code ${rc}). Config still swapped until you quit this CLI.${RESET}"
     else
-        echo -e "${BRIGHT_WHITE}→ ${tool} is now configured for ${provider}.${RESET}"
-        echo -e "${BRIGHT_WHITE}  Run '${tool} ...' in another terminal, or pick this menu option${RESET}"
-        echo -e "${BRIGHT_WHITE}  again and provide command-line args to launch directly.${RESET}"
+        echo -e "${BRIGHT_WHITE}→ ${tool}${RESET}"
+        "$real_bin"
     fi
+
+    local rc=$?
+    echo ""
+    echo -e "${BRIGHT_BLUE}← ${tool} exited (code ${rc}).${RESET}"
+    echo -e "${BRIGHT_GREEN}  Config remains swapped. Choose another tool or exit to restore defaults.${RESET}"
 }
 
 # ─── Main CLI Loop ────────────────────────────────────────────────────────────
@@ -368,17 +393,18 @@ PROVIDER_EXAMPLE
         echo ""
 
         local action
-        action="$(_cli_pick "What do you want to do?" \
+        _cli_pick "What do you want to do?" \
             "🔧  Pick a tool, hot-swap to a provider, and optionally launch it" \
             "🔍  Verify config files for a tool (checks all required files exist)" \
             "📋  Show provider ↔ tool compatibility matrix" \
             "📄  View a provider's details (base URL, model, supported tools)" \
-            "🚪  Exit (restores all original configs)")" || {
+            "🚪  Exit (restores all original configs)" || {
             # User pressed 'q' — exit cleanly
             echo ""
             echo -e "${GREEN}Exiting. Original configs will be restored.${RESET}"
             return 0
         }
+        action="$_CLI_PICK_RESULT"
 
         [[ -z "$action" ]] && continue
 
@@ -421,7 +447,8 @@ _cli_action_hot_swap() {
     done
 
     local tool_pick
-    tool_pick="$(_cli_pick "Which tool?" "${tool_items[@]}")" || return 0
+    _cli_pick "Which tool?" "${tool_items[@]}" || return 0
+    tool_pick="$_CLI_PICK_RESULT"
     [[ -z "$tool_pick" ]] && return 0
 
     local tool="${tool_pick%% *}"
@@ -452,7 +479,8 @@ _cli_action_hot_swap() {
     fi
 
     local prov_pick
-    prov_pick="$(_cli_pick "Which provider?" "${compat_providers[@]}")" || return 0
+    _cli_pick "Which provider?" "${compat_providers[@]}" || return 0
+    prov_pick="$_CLI_PICK_RESULT"
     [[ -z "$prov_pick" ]] && return 0
 
     local provider="${prov_pick%% *}"
@@ -465,22 +493,25 @@ _cli_action_hot_swap() {
     _cli_show_provider_details "$provider"
 
     _cli_prompt "Hot-swap and launch ${tool} now? [Y/n/q]: "
-    local launch
-    launch="$(_cli_read)"
+    _cli_read
+    local launch="$_CLI_REPLY"
 
-    if [[ "${launch,,}" == "q" ]]; then
+    if [[ "$(_lower "$launch")" == "q" ]]; then
         echo "Cancelled. Nothing changed."
         return 0
     fi
 
-    if [[ "${launch,,}" == "n" ]]; then
-        # Swap only — no launch
-        _cli_hot_swap_and_run "$tool" "$provider"
+    if [[ "$(_lower "$launch")" == "n" ]]; then
+        # Swap only — no launch, just configure
+        _cli_do_hot_swap "$tool" "$provider"
+        echo -e "${BRIGHT_WHITE}→ ${tool} is configured for ${provider}. Not launched.${RESET}"
+        echo -e "${BRIGHT_WHITE}  You can launch it from another terminal, or pick this menu${RESET}"
+        echo -e "${BRIGHT_WHITE}  option again and choose 'Y' to launch directly.${RESET}"
     else
-        # Swap and optionally pass extra args
+        # Swap AND immediately launch in this terminal
         _cli_prompt "Extra args for ${tool} (or press Enter for none): "
-        local extra
-        extra="$(_cli_read)"
+        _cli_read
+        local extra="$_CLI_REPLY"
         if [[ -n "$extra" ]]; then
             # shellcheck disable=SC2086
             _cli_hot_swap_and_run "$tool" "$provider" $extra
@@ -507,7 +538,8 @@ _cli_action_verify() {
     done
 
     local tool_pick
-    tool_pick="$(_cli_pick "Which tool to verify?" "${tool_items[@]}")" || return 0
+    _cli_pick "Which tool to verify?" "${tool_items[@]}" || return 0
+    tool_pick="$_CLI_PICK_RESULT"
     [[ -z "$tool_pick" ]] && return 0
 
     local tool="${tool_pick%% *}"
@@ -575,7 +607,8 @@ _cli_action_provider_details() {
     fi
 
     local prov_pick
-    prov_pick="$(_cli_pick "Which provider?" "${prov_items[@]}")" || return 0
+    _cli_pick "Which provider?" "${prov_items[@]}" || return 0
+    prov_pick="$_CLI_PICK_RESULT"
     [[ -z "$prov_pick" ]] && return 0
 
     local provider="${prov_pick%% *}"
