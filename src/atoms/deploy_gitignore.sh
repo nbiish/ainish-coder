@@ -6,20 +6,28 @@
 
 deploy_gitignore() {
     local target_dir="${1:-.}"  # Default to current directory if not provided
-    
+
     validate_target_dir "$target_dir" || return 1
-    
+
     echo -e "${BRIGHT_BLUE}Deploying .gitignore configuration${RESET}"
-    
+
     local gitignore_file="$target_dir/.gitignore"
     local source_gitignore="${REPO_DIR}/.gitignore"
-    
+
     # Check if source .gitignore exists
     if [[ ! -f "$source_gitignore" ]]; then
         echo -e "${BRIGHT_RED}Error: Source .gitignore not found at ${source_gitignore}${RESET}"
         return 1
     fi
-    
+
+    # In non-overwrite mode, skip if .gitignore already exists at target
+    if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
+        if [[ -f "$gitignore_file" ]]; then
+            echo -e "${YELLOW}⏭️  Skipping .gitignore (already exists at $target_dir)${RESET}"
+            return 0
+        fi
+    fi
+
     # If no existing .gitignore, just copy the source
     if [[ ! -f "$gitignore_file" ]]; then
         if cp "$source_gitignore" "$gitignore_file" 2>/dev/null; then
@@ -31,39 +39,39 @@ deploy_gitignore() {
             return 1
         fi
     fi
-    
+
     # Existing .gitignore found - merge unique patterns
     echo -e "${YELLOW}⚠️  Existing .gitignore found - merging unique patterns${RESET}"
-    
+
     local temp_file=$(mktemp)
     local existing_patterns_file=$(mktemp)
-    
+
     # Start with our source template
     cp "$source_gitignore" "$temp_file"
-    
+
     # Extract non-empty, non-comment lines from existing .gitignore for comparison
     # Normalize by trimming whitespace for pattern matching
     grep -v '^[[:space:]]*$' "$gitignore_file" 2>/dev/null | \
         grep -v '^[[:space:]]*#' | \
         sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
         sort -u > "$existing_patterns_file"
-    
+
     # Extract patterns from our source template (for duplicate detection)
     local source_patterns_file=$(mktemp)
     grep -v '^[[:space:]]*$' "$source_gitignore" 2>/dev/null | \
         grep -v '^[[:space:]]*#' | \
         sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
         sort -u > "$source_patterns_file"
-    
+
     # Find patterns in existing .gitignore that are NOT in our source
     local unique_patterns_file=$(mktemp)
     comm -23 "$existing_patterns_file" "$source_patterns_file" > "$unique_patterns_file"
-    
+
     # If there are unique patterns from the existing file, append them
     if [[ -s "$unique_patterns_file" ]]; then
         local unique_count=$(wc -l < "$unique_patterns_file" | tr -d ' ')
         echo -e "${BRIGHT_BLUE}Found $unique_count unique patterns in existing .gitignore${RESET}"
-        
+
         # Add separator and append unique patterns
         {
             echo ""
@@ -77,7 +85,7 @@ deploy_gitignore() {
     else
         echo -e "${GREEN}No additional unique patterns found in existing .gitignore${RESET}"
     fi
-    
+
     # Move merged file to target
     if mv "$temp_file" "$gitignore_file" 2>/dev/null; then
         echo -e "${GREEN}✓ Deployed merged .gitignore to $target_dir${RESET}"
@@ -88,9 +96,9 @@ deploy_gitignore() {
         rm -f "$existing_patterns_file" "$source_patterns_file" "$unique_patterns_file"
         return 1
     fi
-    
+
     # Cleanup temp files
     rm -f "$existing_patterns_file" "$source_patterns_file" "$unique_patterns_file"
-    
+
     return 0
 }
