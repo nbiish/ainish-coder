@@ -36,6 +36,19 @@
 - **Always** write atomic, gist-state progress tracking in `TASK.$(date).md` inside the worktree (Chain-of-Draft format).
 - **Never** self-approve or auto-merge pull requests into `main` without explicit user confirmation.
 
+### Merge Finalization (Complete Merge-to-Main Procedure)
+When wrapping up a feature and finalizing the full merge pipeline, follow this exact sequence:
+
+1. **Verify clean state** — `git status` must show clean working tree on feature branch.
+2. **Merge feature → dev** — `git checkout dev && git merge feature/<slug> --no-ff`. Use `--no-ff` to preserve the feature branch topology.
+3. **Present cumulative diff to user** — run `git --no-pager log --oneline main..dev` and `git --no-pager diff --stat main..dev`. Summarize commits, files changed, and line counts. Ask: "Ready to promote dev → main? Confirm?"
+4. **Merge dev → main** — after explicit user confirmation: `git checkout main && git merge dev --no-ff`.
+5. **Clean up** — delete the merged feature branch: `git branch -d feature/<slug>`. Remove any stale worktrees.
+6. **Push everything** — `git push origin main dev`. Both branches must be pushed to origin.
+7. **Verify** — confirm `git --no-pager log --oneline --graph -8` shows clean topology with all merge commits intact.
+
+**Never skip the user confirmation step.** Every merge across the pipeline boundary requires explicit approval. Fail closed on any ambiguity.
+
 ### Interactivity & Prompting
 - **Always** implement interactive prompting (with options and y/N confirmations) when running direct CLI flags (e.g., `--rules`, `--skills`).
 - **Always** offer a destination picker (home directory `~/.agents/` vs project-local) for skills, agents, and unlock deployments.
