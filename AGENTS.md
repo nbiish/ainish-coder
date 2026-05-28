@@ -18,7 +18,7 @@ Conflict → fail closed, explain, ask.
 <TASK_PRIMER>
 ## TASK COORDINATION & CHAIN-OF-DRAFT
 
-- **Task File:** Every task writes to `TASK.$(date).md` in its dedicated git worktree. Chain-of-Draft format (Xu et al., 2025): objective, status, PQC flag — gist-state only, never narrative bloat. Read → Execute → Write. No secrets or keys.
+- **Task File:** Every task writes to .agents/tasks/`TASK.$(date).md` in its dedicated git worktree. Chain-of-Draft format (Xu et al., 2025): objective, status, PQC flag — gist-state only, never narrative bloat. Read → Execute → Write. No secrets or keys.
 - **PRD Anchor:** `llms.txt` is the authoritative Product Requirements Document. Read unconditionally if present. Overrides conflicting sources per Priority 2. If task drifts, re-read. Never skip.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle for banned crypto and secrets. Default classification: Confidential.
 </TASK_PRIMER>
