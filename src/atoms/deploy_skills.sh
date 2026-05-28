@@ -27,7 +27,7 @@ deploy_skills() {
             local target_skill_dir="$skills_target/$skill_name"
 
             safe_mkdir "$target_skill_dir" || return 1
-            cp -r "$skill_dir"* "$target_skill_dir/" 2>/dev/null || true
+            deploy_path_contents "$skill_dir" "$target_skill_dir" 2>/dev/null || true
 
             ((skill_count++))
             echo -e "${GREEN}✓ Deployed: .agents/skills/$skill_name${RESET}"

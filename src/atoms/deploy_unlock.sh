@@ -25,7 +25,7 @@ deploy_unlock() {
 
     # Deploy the SKILL.md
     if [[ -f "$skills_source/SKILL.md" ]]; then
-        cp "$skills_source/SKILL.md" "$skills_target/SKILL.md" 2>/dev/null || true
+        deploy_path "$skills_source/SKILL.md" "$skills_target/SKILL.md"
         echo -e "${GREEN}✓ Deployed: .agents/skills/pliny-research/SKILL.md${RESET}"
     fi
 
@@ -42,7 +42,7 @@ deploy_unlock() {
                 local coll_target="$research_target/$coll_name"
 
                 safe_mkdir "$coll_target" || return 1
-                cp -r "$collection"* "$coll_target/" 2>/dev/null || true
+                deploy_path_contents "$collection" "$coll_target"
 
                 ((collection_count++))
                 echo -e "${GREEN}✓ Deployed research collection: $coll_name${RESET}"

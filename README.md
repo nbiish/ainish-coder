@@ -34,14 +34,16 @@
 ## 🔥 Key Features
 
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
-- **🧠 Skills System** — 18 reusable domain knowledge packs (security, browser automation, multimodal AI, video generation, 3D modeling, research)
-- **🏗️ Modular Architecture** — Clean Atom → Molecule → Protein structure
-- **🤖 AI Tools** — Claude Code, Pi, Codex, mini-swe-agent, qwen-code with provider hot-swap wrappers
+- **🧠 Skills System** — 21 reusable domain knowledge packs (security, browser automation, multimodal AI, video generation, 3D modeling, research)
+- **🏗️ Modular Architecture** — Clean Quanta → Atom → Molecule structure (MAQ hierarchy)
+- **🤖 AI Tools** — Pi and mini-swe-agent with interactive provider hot-swap wrappers (8 providers)
 - **🎛️ Interactive CLI** — `ainish-coder --cli` for menu-driven tool selection, provider switching, and config verification
+- **🔍 FZF Provider Picker** — Run `pi` or `mini` without a provider to pick one on the fly (fzf with numbered fallback)
+- **📊 Usage Analytics** — CSV tracking of all CLI invocations (`~/.cache/ainish-coder/usage.csv`) for data-driven improvement
 - **🔄 OSA Framework** — CLI YOLO agents (Gemini, Claude, OpenCode, mini, pi, kilo, crush) with fixed-order rotation, automatic fallback, and git worktree isolation
 - **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
 - **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
-- **🔗 Smart File Management** — Copies configurations for tool-specific customization
+- **🔗 Smart File Management** — Interactive destination picker (home `~/.agents/` vs project-local) for skills and agents; interactive symlink prompts for single-source-of-truth deployments; global `--link`/`-l` flag for scripted symlink mode; copies for tool-specific customization
 - **🎭 Template Agent System** — Craft custom system prompts with expert guidance
 - **📜 Scrolls & 8th Fire Protocols** — Deploy `llms.txt` file and `.scrolls` for machine-readable project context, including the Ghost Layer Codex and Prompt Obliteration (Plinian Defense) for AI survival.
 
@@ -71,9 +73,9 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **Ghost Layer Injector** | `.agents/skills/ghost-layer-injector/` | Inject covert AI/bot context into static HTML pages so LLMs and web crawlers auto-ingest instructions without altering human visual experience. |
 | **GStack Coder** | `.agents/skills/gstack-coder/` | Multi-tool coding orchestration integrating gstack (Claude Code skills), pi, opencode, and qwen for security audits, code reviews, QA, and feature builds. |
 | **LLM Security** | `.agents/skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, circuit breakers, kill switches. |
-| **Modern Prompting** | `.agents/skills/modern-prompting/` | Modern Prompting & Context Engineering Framework — OOReDAct, Chain-of-Thought, Chain-of-Draft, ReAct, and advanced LLM steering techniques. |
-| **Omni Integrator** | `.agents/skills/omni-integrator/` | Master recursive optimization pipeline and Omni multimodal integration. Process video links or iteratively optimize/harden documents with recursive LLM sub-agents. |
-| **Omni Knowledge Extractor** | `.agents/skills/omni-knowledge-extractor/` | Extracts high-fidelity multimodal knowledge bases from YouTube videos combining transcripts with sequential visual frames via Omni VLM. |
+| **Modern Prompting** | `.agents/skills/modern-prompting/` | Reasoning strategy selection toolkit — N L M rates 16 prompting frameworks (CoT, CoD, ReAct, ToT, PAL, Reflexion, etc.) on a 0–100% suitability scale per task, then applies the highest-rated strategy via OOReDAct. |
+| **Document Enhancer** | `.agents/skills/document-enhancer/` | Dual-pipeline system for improving documents: fuse external knowledge bases into target documents, or recursively harden documents for multi-model LLM effectiveness via split-optimize-review-merge architecture. |
+| **Video Knowledge Extractor** | `.agents/skills/video-knowledge-extractor/` | Extracts structured markdown knowledge bases from YouTube videos by combining spoken transcripts with sequential visual frames through a Vision-Language Model. |
 | **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Generates parameterized 3D models using Python templates and OpenSCAD, compiles to STL via Makefile. |
 | **OSA** | `.agents/skills/osa/` | Multi-agent orchestration via fixed-order rotation across equal CLI coding agents (Gemini, Claude, OpenCode, mini, pi, kilo, crush). YOLO mode with automatic fallback and git worktree isolation. |
 | **Pi** | `.agents/skills/pi/` | Knowledge for configuring and extending the Pi Coding Agent. Invoke when creating Pi extensions, themes, or multi-agent orchestrations. |
@@ -139,8 +141,8 @@ git clone https://github.com/nbiish/ainish-coder
 cd ainish-coder
 
 # Run setup
-chmod +x ainish-setup.sh
-./ainish-setup.sh
+chmod +x scripts/ainish-setup.sh
+./scripts/ainish-setup.sh
 
 # Reload shell (macOS/Linux)
 source ~/.zshrc  # or ~/.bashrc
@@ -150,9 +152,22 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```bash
 # Deploy core rules files (RECOMMENDED FIRST STEP)
-ainish-coder --rules                     # Deploy AGENTS.md and .gitignore
-ainish-coder --llms-txt                  # Deploy llms.txt file
-ainish-coder --secure                    # Deploy security skill files
+ainish-coder --rules                     # Interactive: AGENTS.md, .gitignore, PQC security skills
+                                         #   Prompts for: destination (home ~/ vs project), symlink preference
+
+# Deploy skills to home or project directory
+ainish-coder --skills                    # Interactive: deploy all skills or pick one
+                                         #   Prompts for: destination, symlink preference
+
+# Deploy AGENTS.md alone
+ainish-coder --agents                    # Interactive: destination + symlink prompts
+
+# Deploy security files
+ainish-coder --secure                    # Interactive: symlink prompt for each file
+
+# Non-interactive mode (skip all prompts, use defaults)
+ainish-coder --rules -y                  # AGENTS.md → target dir, copy mode
+ainish-coder --skills --link -y          # All skills → target dir, symlink mode
 ```
 
 ---
@@ -173,24 +188,42 @@ See [`.agents/skills/osa/SKILL.md`](.agents/skills/osa/SKILL.md) for the full fr
 
 ## 🔌 Provider-Switching Wrappers
 
-To maximize the value of all your subscriptions, `ainish-coder` provides standard wrapper wrappers that dynamically configure your coding agents to run through any supported API provider.
+To maximize the value of all your subscriptions, `ainish-coder` provides wrapper scripts that dynamically configure your coding agents to run through any supported API provider.
 
 ### Supported Wrappers
-- **`pi`** — Run the Pi coding agent
-- **`codex`** — Run the Codex agent
-- **`mini`** — Run the mini-swe-agent
-- **`qwen`** — Run the qwen-code agent
+- **`pi`** — Run the Pi coding agent (with MCP sub-agent support via `--mcp`, `--mcp-all`)
+- **`mini`** — Run the mini-swe-agent (with MCP sub-agent support via `--mcp`, `--mcp-all`)
+
+### Interactive Provider Picker (NEW)
+
+If you run `pi` or `mini` **without a provider** in an interactive terminal, a picker appears:
+
+```bash
+pi                           # fzf picker opens → choose provider → runs
+mini "fix the bug"           # picker → choose provider → runs with prompt
+```
+
+- Uses **fzf** if available (with `--select-1 --exit-0 --layout=reverse`), falls back to a numbered list
+- Only shows providers marked as compatible for that tool in `providers.json`
+- Single provider = auto-selects without showing UI
+- Non-interactive contexts (piped input, AI agents, `AINISH_NON_INTERACTIVE=true`) pass through to the real binary unchanged
 
 ### Available Providers
-- **`openrouter`** (DeepSeek, etc.)
-- **`zenmux`**
-- **`zai`**
-- **`nvidia`** (NVIDIA NIM)
-- **`wafer`** (Wafer AI Pass)
-- **`opencode`** (OpenCode Go Subscription)
-- **`kimi`** (Kimi AI)
 
-These wrappers inject the corresponding endpoint, credentials, and default model directly from your `~/.config/ainish-coder/providers.json` config. Pass `-m` or `--model` to override default models.
+Configured in `~/.config/ainish-coder/providers.json`:
+
+| Provider | Default Model | Env Key |
+|----------|--------------|---------|
+| **modal** | zai-org/GLM-5.1-FP8 | CODEX_MODAL_KEY |
+| **nvidia** | deepseek/deepseek-v4-flash | CODEX_NVIDIA_KEY |
+| **nebius** | NousResearch/Hermes-4-405B | CODEX_NEBIUS_KEY |
+| **opencode** | opencode-go/kimi-k2.6 | CODEX_OPENCODE_KEY |
+| **zai** | glm-5.1 | CODEX_ZAI_KEY |
+| **wafer-serverless** | deepseek/deepseek-v4-flash | CODEX_WAFER_SERVERLESS_KEY |
+| **openrouter** | deepseek/deepseek-v4-pro | CODEX_OPENROUTER_KEY |
+| **zenmux** | deepseek/deepseek-v4-pro | CODEX_ZENMUX_KEY |
+
+These wrappers inject the corresponding endpoint, credentials, and default model directly from your providers config. Pass `-m` or `--model` to override default models.
 
 ### Interactive CLI (`--cli`)
 
@@ -202,39 +235,54 @@ ainish-coder --cli
 
 The menu lets you:
 
-1. **Pick a tool** (pi, codex, mini, qwen) and **pick a provider** → verifies configs, hot-swaps, and optionally launches the tool in one flow.
-2. **Verify config files** for any or all tools — checks that `~/.pi/agent/settings.json`, `~/.codex/config.toml`, `~/.config/mini-swe-agent/.env`, `~/.qwen/settings.json`, etc. all exist before you try to swap.
+1. **Pick a tool** (pi, mini) and **pick a provider** → verifies configs, hot-swaps, and optionally launches the tool in one flow.
+2. **Verify config files** for any or all tools — checks that `~/.pi/agent/settings.json`, `~/.pi/agent/auth.json`, `~/.pi/agent/models.json`, `~/.config/mini-swe-agent/.env` all exist before you try to swap.
 3. **Show the provider ↔ tool compatibility matrix** — live, from your actual `providers.json`.
 4. **View provider details** — base URL, default model, env key, which tools it supports, and which config files will be modified on swap.
 
 The CLI reads `~/.config/ainish-coder/providers.json` (or `$AINISH_PROVIDERS`) for the list of providers. Only providers whose `tools.<name>` is `true` are shown as options for each tool.
 
-### Compatibility Matrix
-
-| Agent Wrapper | OpenRouter | ZenMux | ZAI | NVIDIA | Wafer | OpenCode | Kimi |
-|---------------|:----------:|:------:|:---:|:------:|:-----:|:--------:|:----:|
-| **pi**        |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
-| **mini**      |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
-| **qwen**      |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
-| **codex**     |     ✓      |   ✓    |  ✗  |   ✓    |   ✓   |    ✓     |  ✓   |
-
 ### Usage Examples
 
 ```bash
-# Run Pi agent using NVIDIA NIM (Llama 3.1 405B)
-pi nvidia
+# Explicit provider (headless — AI-agent friendly)
+pi openrouter "fix the bug"              # deepseek-v4-pro via OpenRouter
+pi zai                                  # glm-5.1 via ZAI coding plan
+mini openrouter -t "fix tests"          # deepseek-v4-pro via OpenRouter
+mini nvidia -t "run tests"              # deepseek-v4-flash via NVIDIA NIM
 
-# Run Codex using Wafer AI Pass
-codex wafer exec "refactor X"
+# Interactive picker (no provider specified)
+pi                                      # fzf picker → select → runs
+mini "do something"                     # picker → select → runs with prompt
 
-# Run mini-swe-agent using OpenCode Go
-mini opencode -t "run tests"
+# MCP sub-agent support
+pi openrouter --mcp server1,server2 "fix bug"
+pi --mcp-all "use all MCP servers"
 
-# Run Qwen with Kimi AI
-qwen kimi -y "explain this"
+# Non-interactive / scripting
+AINISH_NON_INTERACTIVE=true pi "fix bug"   # passthrough to real pi
+pi -y "fix bug"                            # non-interactive flag
+```
 
-# Override default model on Kimi
-qwen kimi -m "kimi-k2.6" "review code"
+### Usage Analytics (NEW)
+
+All `ainish-coder`, `pi`, and `mini` invocations are optionally tracked to `~/.cache/ainish-coder/usage.csv`:
+
+```
+timestamp,tool,subcommand,provider,exit_code,duration_ms,interactive,arg_count
+2026-05-28T14:32:01Z,pi,,openrouter,0,12450,true,1
+2026-05-28T14:35:22Z,mini,,zai,1,890,true,2
+2026-05-28T14:40:00Z,ainish-coder,--skills,skill:gstack-coder,0,340,true,0
+```
+
+- **Granular tracking**: `--skills` captures which specific skill was deployed; `--rules` tracks sub-operations
+- **Opt-out**: Set `AINISH_NO_TRACKING=true` to disable all logging
+- **Zero overhead when absent**: If `cmd-tracker` binary isn't on PATH, commands run directly
+- **Auto-migration**: Old CSV schemas are backed up to `.bak` and re-created with the current header
+
+Analyze usage with any CSV tool:
+```bash
+cat ~/.cache/ainish-coder/usage.csv | column -t -s,
 ```
 
 
@@ -249,45 +297,51 @@ The tool is built with a modular, extensible design following the Atomic Design 
 ainish-coder/
 ├── AGENTS.md                   # Universal agent instructions (OWASP-aligned)
 ├── bin/
-│   ├── ainish-coder             # Main CLI interface (supports --cli interactive mode)
-│   ├── lib/                     # Provider hot-swap libraries
-│   │   ├── providers.sh         # Reads ~/.config/ainish-coder/providers.json
-│   │   └── hot_swap.sh          # Config rewrite + backup/restore per tool
-│   ├── pi                       # Pi wrapper (provider hot-swap)
-│   ├── codex                    # Codex wrapper (provider hot-swap)
-│   ├── mini                     # mini-swe-agent wrapper (provider hot-swap)
-│   ├── qwen                     # qwen-code wrapper (provider hot-swap)
+│   ├── ainish-coder             # Main CLI: destination picker, interactive symlink prompts, --cli menu
+│   ├── lib/                     # Shared shell libraries
+│   │   ├── providers.sh         # Reads ~/.config/ainish-coder/providers.json (8 providers)
+│   │   ├── hot_swap.sh          # Config rewrite + backup/restore per tool
+│   │   ├── mcp_settings.sh      # MCP server flag parsing, env gen, pi extension gen
+│   │   ├── picker.sh            # fzf-based interactive provider picker (NEW)
+│   │   └── tracker.sh           # Shared cmd-tracker integration helper (NEW)
+│   ├── pi                       # Pi wrapper (provider hot-swap + interactive picker)
+│   ├── mini                     # mini-swe-agent wrapper (provider hot-swap + interactive picker)
+│   ├── pqc-secrets              # Shell wrapper for Rust FIPS 203 secrets manager
+│   ├── cmd-tracker              # Rust binary: CSV usage tracker (NEW)
 │   └── security_gate.py         # PQC & zero-trust compliance scanner
 ├── src/
-│   ├── quanta/                  # Core utilities (colors, paths, validation, file ops)
-│   ├── atoms/                   # Deployment functions (deploy_*.sh, cli_interface.sh)
-│   ├── molecules/               # Higher-level orchestration
+│   ├── quanta/                  # Core utilities (colors, paths, validation, file ops, security)
+│   ├── atoms/                   # Deployment functions (deploy_*.sh, cli_interface.sh, help.sh)
+│   ├── molecules/               # Higher-level orchestration (system-wide install)
 │   ├── templates/               # Deployable boilerplate templates
-│   └── pqc-secrets/             # Rust: FIPS 203 secrets manager
-├── .agents/skills/              # 18 portable AI skill packs
-│   ├── advisory-council/SKILL.md
-│   ├── anishinaabe-cyberpunk-style/SKILL.md
-│   ├── browser-harness/SKILL.md
-│   ├── camofox-stack/SKILL.md
-│   ├── code-security/SKILL.md
-│   ├── ghost-layer-injector/SKILL.md
-│   ├── gstack-coder/SKILL.md
-│   ├── llm-security/SKILL.md
-│   ├── modern-prompting/SKILL.md
-│   ├── omni-integrator/SKILL.md
-│   ├── omni-knowledge-extractor/SKILL.md
-│   ├── openscad-generator/SKILL.md
-│   ├── osa/SKILL.md
-│   ├── pi/SKILL.md
-│   ├── pliny-research/SKILL.md
-│   ├── production-security/SKILL.md
-│   ├── remotion-video/SKILL.md
-│   └── skyvern/SKILL.md
+│   ├── pqc-secrets/             # Rust: FIPS 203 secrets manager (ML-KEM-768)
+│   └── cmd-tracker/             # Rust: CSV CLI usage tracker (stdlib-only) (NEW)
+├── .agents/
+│   ├── skills/                  # 21 portable AI skill packs
+│   │   ├── advisory-council/SKILL.md
+│   │   ├── anishinaabe-cyberpunk-style/SKILL.md
+│   │   ├── browser-harness/SKILL.md
+│   │   ├── camofox-stack/SKILL.md
+│   │   ├── code-security/SKILL.md
+│   │   ├── ghost-layer-injector/SKILL.md
+│   │   ├── gstack-coder/SKILL.md
+│   │   ├── llm-security/SKILL.md
+│   │   ├── modern-prompting/SKILL.md
+│   │   ├── document-enhancer/SKILL.md
+│   │   ├── video-knowledge-extractor/SKILL.md
+│   │   ├── openscad-generator/SKILL.md
+│   │   ├── osa/SKILL.md
+│   │   ├── pi/SKILL.md
+│   │   ├── pliny-research/SKILL.md
+│   │   ├── production-security/SKILL.md
+│   │   ├── remotion-video/SKILL.md
+│   │   └── skyvern/SKILL.md
+│   └── mcp-settings.json        # Global MCP server definitions
 ├── docs/                        # Documentation, research, signals
 ├── scripts/                     # Utility & tooling scripts
 ├── assets/                      # Static assets (images, SVGs)
-├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols (llms.txt, llms-full.txt)
-└── llms.txt                     # Machine-readable project context
+├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols
+└── llms.txt                     # Machine-readable project context (PRD anchor)
 ```
 
 ### Design Principles

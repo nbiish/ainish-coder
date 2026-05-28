@@ -9,6 +9,8 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
 source "${LIB_DIR}/hot_swap.sh"
 source "${LIB_DIR}/mcp_settings.sh"
+source "${LIB_DIR}/picker.sh"
+source "${LIB_DIR}/tracker.sh"
 
 # ── Parse MCP flags before anything else ─────────────────────────────────────
 # bash 3.2 compat: mcp_parse_flags runs in a subshell (process substitution),
@@ -19,7 +21,9 @@ _parsed=()
 while IFS= read -r line; do
   _parsed+=("$line")
 done < <(mcp_parse_flags "$@")
-set -- "${_parsed[@]}"
+if [[ ${#_parsed[@]} -gt 0 ]]; then
+  set -- "${_parsed[@]}"
+fi
 unset _parsed
 
 # Source the MCP state written by mcp_parse_flags, then clean up the temp file
@@ -62,30 +66,28 @@ fi
 
 # ── Main dispatch ────────────────────────────────────────────────────────────
 provider="${1:-}"
+_TRACK_PROVIDER=""
 
 if provider_has "$provider"; then
   shift
   hot_swap_pi "$provider"
-  # Do NOT use exec — the EXIT trap must fire to restore the original config
-  if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
-    "$REAL_PI" --extension "$mcp_ext_file" "$@"
-  else
-    "$REAL_PI" "$@"
+  _TRACK_PROVIDER="$provider"
+elif is_interactive; then
+  if picker_select "pi"; then
+    hot_swap_pi "$_PICKER_RESULT"
+    echo -e "\033[1;32m→ Using provider: ${_PICKER_RESULT}\033[0m" >&2
+    _TRACK_PROVIDER="$_PICKER_RESULT"
   fi
-  rc=$?
-  if [[ "$MCP_CLEANUP_NEEDED" == "true" && -n "$mcp_ext_file" ]]; then
-    rm -f "$mcp_ext_file"
-  fi
-  exit $rc
-else
-  if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
-    "$REAL_PI" --extension "$mcp_ext_file" "$@"
-  else
-    "$REAL_PI" "$@"
-  fi
-  rc=$?
-  if [[ "$MCP_CLEANUP_NEEDED" == "true" && -n "$mcp_ext_file" ]]; then
-    rm -f "$mcp_ext_file"
-  fi
-  exit $rc
 fi
+
+# Do NOT use exec — the EXIT trap must fire to restore the original config
+if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
+  run_with_tracker "pi" "" "$_TRACK_PROVIDER" -- "$REAL_PI" --extension "$mcp_ext_file" "$@"
+else
+  run_with_tracker "pi" "" "$_TRACK_PROVIDER" -- "$REAL_PI" "$@"
+fi
+rc=$?
+if [[ "$MCP_CLEANUP_NEEDED" == "true" && -n "$mcp_ext_file" ]]; then
+  rm -f "$mcp_ext_file"
+fi
+exit $rc

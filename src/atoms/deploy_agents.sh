@@ -18,14 +18,14 @@ deploy_agents() {
         return 1
     fi
     
-    # Check if we are trying to copy the file onto itself
+    # Check if we are trying to deploy the file onto itself
     if [[ "$source" -ef "$dest" ]]; then
         echo -e "${GREEN}✓ AGENTS.md is already up to date at $target_dir (same file)${RESET}"
         return 0
     fi
-    
-    # Copy AGENTS.md to target directory
-    if ! cp "$source" "$dest" 2>/dev/null; then
+
+    # Deploy (symlink with --link, copy otherwise)
+    if ! deploy_path "$source" "$dest"; then
         echo -e "${BRIGHT_RED}Error: Failed to create AGENTS.md${RESET}"
         return 1
     fi

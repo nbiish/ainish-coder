@@ -1,22 +1,27 @@
-# ainish-coder — Universal AI Configuration & Skills Manager
+# ainish-coder PRD — Project Requirements Document
 
-> Authoritative Product Requirements Document (PRD) anchor for ainish-coder development.
+> Universal AI Configuration & Skills Manager. Authoritative PRD anchor for ainish-coder development.
 
 ## Overview
 
 - **Name:** ainish-coder
-- **Version:** 1.2.0
-- **Description:** Modular configuration, rules, and skills manager for AI coding assistants.
-- **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs, and orchestrate multi-agent workflows.
-- **UX:** Interactive CLI menu (`--cli`), interactive command flags, and non-interactive scripted operations.
+- **Version:** 1.5.0
+- **Description:** Modular configuration, rules, and skills manager for AI coding assistants with interactive provider switching, destination-picker (home vs project), interactive symlink prompting, and CLI usage analytics.
+- **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs to home or project directories, hot-swap LLM providers on the fly, and track usage patterns for continuous improvement.
+- **UX:** Interactive CLI menu (`--cli`), fzf-powered provider picker in wrappers, destination picker for home (`~/.agents/`) vs project-local deployments, interactive symlink prompts for single-source-of-truth configs, global symlink (`--link` / `-l`) flag, and non-interactive (`-y`) scripted operations for AI agents.
 
 ## Core Rules
 
 ### Secrets & Cryptography (PQC Mandate)
-- **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768.
+- **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768 (FIPS 203).
 - **Always** retrieve the private key from the macOS Keychain (service: `pqc-secrets`).
 - **Never** store plaintext secrets in repositories, `.env` files, or task logs.
 - **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
+
+### Code Signing & Integrity (PQC Mandate)
+- **Always** verify code integrity with ML-DSA-65 (FIPS 204) signatures before deployment.
+- **Always** sign commits and releases with ML-DSA-65 keys stored in the macOS Keychain.
+- **Never** rely on classical signature schemes (RSA-PSS, ECDSA) for integrity verification of critical artifacts.
 
 ### Workflow & Sandboxing
 - **Always** isolate tasks using dedicated git worktrees.
@@ -26,20 +31,113 @@
 
 ### Interactivity & Prompting
 - **Always** implement interactive prompting (with options and y/N confirmations) when running direct CLI flags (e.g., `--rules`, `--skills`).
-- **Always** support non-interactive mode via `--yes` or `-y` flag to bypass prompts for script runs.
+- **Always** offer a destination picker (home directory `~/.agents/` vs project-local) for skills, agents, and unlock deployments.
+- **Always** offer an interactive symlink prompt ("Symlink from repo source?") after destination selection, so users can keep a single source of truth.
+- **Always** support non-interactive mode via `--yes` or `-y` flag to bypass all prompts (defaults: target dir, copy mode).
+- The global `--link` / `-l` flag forces symlink mode and skips the symlink prompt.
+- Provider wrappers (`pi`, `mini`) show an fzf-based picker (with numbered fallback) when invoked interactively without a provider argument.
 
 ## Architecture
 
-- `bin/ainish-coder` — Master script and option routing.
-- `src/quanta/` — Shell utility libraries: colors, file validation, backup helper, ignore patterns, security gates.
-- `src/atoms/` — Modular deployment logic.
-  - `deploy_agents.sh` — Copies the standard `AGENTS.md` guidelines.
-  - `deploy_gitignore.sh` — Deploys/merges developer `.gitignore` patterns.
-  - `deploy_llms_txt.sh` — Copies the boilerplate user-project `llms.txt` template from `src/templates/llms.txt`.
-  - `deploy_skills.sh` — Handles deployment of modular agent skills.
-- `src/molecules/` — High-level orchestration (e.g., system-wide installation).
+- `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt), and `_with_link_choice()` (deploy wrapper).
+- `bin/pi` — Pi coding agent wrapper with interactive provider picker and MCP sub-agent support. Tracks usage via `cmd-tracker`.
+- `bin/mini` — mini-swe-agent wrapper with interactive provider picker and MCP sub-agent support. Tracks usage via `cmd-tracker`.
+- `bin/pqc-secrets` — Shell wrapper for the Rust FIPS 203 secrets manager (keygen, pack, export).
+- `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
+- `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
+- `bin/lib/` — Shared shell libraries (all 5 files):
+  - `providers.sh` — Reads `~/.config/ainish-coder/providers.json` (8 providers: modal, nvidia, nebius, opencode, zai, wafer-serverless, openrouter, zenmux).
+  - `hot_swap.sh` — Backs up pi/mini config files, rewrites for chosen provider, restores on EXIT trap.
+  - `mcp_settings.sh` — MCP server flag parsing, config loading, env generation, pi extension generation.
+  - `picker.sh` — fzf-based interactive provider picker with numbered-list fallback. Respects `is_interactive()` guard.
+  - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
+- `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
+  - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise.
+- `src/atoms/` — 15 modular deployment atoms, all using `deploy_path`/`deploy_path_contents` for `--link` support:
+  - `cli_interface.sh` — Full interactive CLI menu (hot-swap, verify configs, compat matrix, provider details).
+  - `deploy_agents.sh` — Deploys `AGENTS.md` (symlink-capable).
+  - `deploy_skills.sh` — Deploys all 21 skill packs from `.agents/skills/`.
+  - `deploy_commands.sh` — Deploys slash command workflows.
+  - `deploy_critical.sh`, `deploy_gitignore.sh`, `deploy_github_actions.sh`, `deploy_local_security.sh`, `deploy_template_agent.sh`, `deploy_mcp.sh`, `deploy_mcp_recipes.sh`, `deploy_scrolls.sh`, `deploy_license.sh`, `deploy_signals.sh`, `deploy_llms_txt.sh`, `deploy_unlock.sh` — Individual deployment atoms.
+  - `help.sh` — Full help text and usage documentation.
+  - `setup_shell.sh`, `setup-secret-protection.sh`, `clear_all_rules.sh` — Setup and maintenance atoms.
+- `src/molecules/` — High-level orchestration (system-wide installation wrapper).
 - `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
-- `.agents/skills/` — Hardened procedural guidelines for agent integration.
-- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager.
-- `bin/pqc-secrets` — Compiled and optimized release binary for keygen, pack, and export operations.
+- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export).
+- `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
+- `.agents/skills/` — 21 hardened procedural guideline skill packs for agent integration:
+  advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, gstack-coder, llm-security, modern-prompting, openscad-generator, osa, pi, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, subagent-orchestrator, video-knowledge-extractor
+- `.agents/mcp-settings.json` — Global MCP server definitions (merged with project-level overrides).
 
+## Symlink Deployments
+
+### Global `--link` / `-l` Flag
+
+Pass `--link` or `-l` as a global flag to symlink all deployed files from the ainish-coder repository instead of copying:
+
+```
+ainish-coder --rules --link /my-project       # AGENTS.md, .gitignore, PQC skills → symlinks
+ainish-coder --license -l -y /my-project      # LICENSE → symlink (non-interactive)
+ainish-coder --skills --link /my-project      # All skills → symlinks
+ainish-coder --cli -l                         # Interactive menu with symlink mode
+```
+
+### Interactive Symlink Prompt (NEW in 1.5.0)
+
+Every deploy command now interactively asks whether to symlink from the repo source:
+
+```
+▸ Symlink from repo source (single source of truth)? [y/N]:
+```
+
+Answer **y** to symlink (live-updating — edit the repo, all deployments follow). Answer **n** (or hit Enter) to copy. The global `-l` flag skips this prompt and forces symlink mode. Non-interactive mode (`-y`) defaults to copy.
+
+This sets `AINISH_LINK_MODE=true`, which is read by `deploy_path()` and `deploy_path_contents()` in `src/quanta/file_operations.sh`. When enabled, files are symlinked with absolute paths (surviving directory moves). When disabled (default), files are copied.
+
+### Destination Picker (NEW in 1.5.0)
+
+Commands that deploy skills or agents (`--agents`, `--skills`, `--unlock`, and PQC skills within `--rules`) now prompt for destination:
+
+```
+Where would you like to deploy?
+  1) Home directory (~/)
+  2) Current/Target directory (/path/to/project)
+▸ Enter choice [1 or 2, default: 2]:
+```
+
+Choose **1** to install to `~/.agents/` (available to all projects) or **2** for project-local deployment. Non-interactive mode (`-y`) defaults to the target directory.
+
+**Exceptions:** `.gitignore` (merge logic), GitHub Actions workflows, and local security hooks always copy regardless of `--link` — their deployment logic is inherently copy-based.
+
+## Provider Configuration
+
+Providers are defined in `~/.config/ainish-coder/providers.json`:
+
+| Provider | Default Model |
+|----------|--------------|
+| modal | zai-org/GLM-5.1-FP8 |
+| nvidia | deepseek/deepseek-v4-flash |
+| nebius | NousResearch/Hermes-4-405B |
+| opencode | opencode-go/kimi-k2.6 |
+| zai | glm-5.1 |
+| wafer-serverless | deepseek/deepseek-v4-flash |
+| openrouter | deepseek/deepseek-v4-pro |
+| zenmux | deepseek/deepseek-v4-pro |
+
+Each provider entry has: `baseUrl`, `apiKey`, `defaultModel`, `wireApi`, `envKey`, and a `tools` map (`pi`, `mini` booleans).
+
+### Interactive Provider Picker
+
+When `pi` or `mini` are invoked without an explicit provider argument in an interactive terminal:
+1. If only one compatible provider exists, it's auto-selected.
+2. If multiple providers match, an fzf picker appears (falls back to a numbered list if fzf is unavailable).
+3. Non-interactive contexts (piped stdin, `-y` flag, AI agents) skip the picker and pass through to the default provider.
+
+## Usage Tracking
+
+All ainish-coder, pi, and mini invocations are optionally logged to `~/.cache/ainish-coder/usage.csv` with columns:
+`timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`
+
+`subcommand` captures granular detail — which skill was deployed (`skill:gstack-coder`), which rules path was taken (`AGENTS.md+gitignore`), whether PQC skills were included (`+pqc-secrets+pqq-signatures`), etc.
+
+Set `AINISH_NO_TRACKING=true` to opt out. If `cmd-tracker` is not on PATH, commands run directly with zero overhead.

@@ -34,7 +34,7 @@ deploy_mcp_recipes() {
     for file in "$src_dir"/*.md; do
         if [[ -f "$file" ]]; then
             local filename=$(basename "$file")
-            if cp "$file" "$recipes_dir/"; then
+            if deploy_path "$file" "$recipes_dir/$filename"; then
                 echo -e "${GREEN}✓ Deployed $filename${RESET}"
                 ((count++))
             else

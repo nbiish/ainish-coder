@@ -36,7 +36,7 @@ deploy_scrolls() {
     for file in "$src_dir"/*; do
         if [[ -f "$file" ]]; then
             local filename=$(basename "$file")
-            if cp "$file" "$scrolls_dir/"; then
+            if deploy_path "$file" "$scrolls_dir/$filename"; then
                 echo -e "${GREEN}✓ Deployed $filename${RESET}"
                 ((count++))
             else

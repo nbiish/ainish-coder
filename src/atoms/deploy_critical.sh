@@ -23,11 +23,11 @@ deploy_critical() {
         echo -e "${YELLOW}Backed up existing critical.md${RESET}"
     fi
     
-    # Copy file
-    if cp "$source" "$dest" 2>/dev/null; then
-        echo -e "${GREEN}✓ Copied: critical.md${RESET}"
+    # Deploy (symlink with --link, copy otherwise)
+    if deploy_path "$source" "$dest"; then
+        echo -e "${GREEN}✓ Deployed: critical.md${RESET}"
     else
-        echo -e "${BRIGHT_RED}Error: Failed to copy critical.md${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to deploy critical.md${RESET}"
         return 1
     fi
     
