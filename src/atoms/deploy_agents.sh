@@ -28,7 +28,7 @@ deploy_agents() {
     if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
         if [[ -f "$dest" || -L "$dest" ]]; then
             echo -e "${YELLOW}⏭️  Skipping AGENTS.md (already exists at $target_dir)${RESET}"
-            echo -e "${YELLOW}   Use --force to overwrite with ainish-coder rules${RESET}"
+            echo -e "${YELLOW}   Use ainish-coder --rules to overwrite (or -y for non-interactive)${RESET}"
             return 0
         fi
     fi
@@ -43,4 +43,32 @@ deploy_agents() {
     echo -e "${BRIGHT_GREEN}✅ AGENTS.md is ready for all AI tools${RESET}"
 
     return 0
+}
+
+# Global AGENTS.md symlink — ensures ~/.agents/AGENTS.md and ~/.config/AGENTS.md
+# always point to the canonical AGENTS.md in the ainish-coder repo.
+deploy_agents_global() {
+    local source="${REPO_DIR}/AGENTS.md"
+    if [[ ! -f "$source" ]]; then
+        echo -e "${BRIGHT_RED}Error: AGENTS.md not found at $source${RESET}"
+        return 1
+    fi
+
+    mkdir -p "$HOME/.agents" "$HOME/.config"
+
+    for dest in "$HOME/.agents/AGENTS.md" "$HOME/.config/AGENTS.md"; do
+        if [[ -L "$dest" && "$(readlink "$dest")" == "$source" ]]; then
+            echo -e "${GREEN}✓ Global AGENTS.md symlink already correct: $dest${RESET}"
+            continue
+        fi
+
+        if [[ -e "$dest" && ! -L "$dest" ]]; then
+            local backup="${dest}.backup.$(date +%Y%m%d%H%M%S)"
+            mv "$dest" "$backup"
+            echo -e "${YELLOW}⚠ Backed up existing $dest to $backup${RESET}"
+        fi
+
+        ln -sf "$source" "$dest"
+        echo -e "${GREEN}✓ Symlinked AGENTS.md to $dest${RESET}"
+    done
 }

@@ -27,7 +27,13 @@ INTERACTIVE MODE:
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md and .gitignore
+                              Also ensures global symlinks:
+                                ~/.agents/AGENTS.md → repo AGENTS.md
+                                ~/.config/AGENTS.md → repo AGENTS.md
     --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
+                              Also ensures global symlinks:
+                                ~/.agents/AGENTS.md → repo AGENTS.md
+                                ~/.config/AGENTS.md → repo AGENTS.md
     --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
                               (files must exist in the ainish-coder repo root)
 
@@ -93,7 +99,7 @@ UTILITY COMMANDS:
                               Example: ainish-coder --scrolls ~/my-project
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory
-                              Deploys 21 skill packs:
+                              Deploys 19 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
@@ -106,8 +112,6 @@ UTILITY COMMANDS:
                               - document-enhancer/         (Knowledge fusion & document hardening)
                               - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
-                              - osa/                       (Multi-agent orchestration)
-                              - pi/                        (Pi Coding Agent expertise)
                               - pliny-research/            (AI transparency research)
                               - pqc-secrets/               (PQC secrets: API key encryption, ML-KEM-768)
                               - pqc-signatures-security/   (PQC signatures: ML-DSA-65 code signing & integrity)
@@ -179,9 +183,17 @@ OTHER:
     --help, -h                Show this help message
     --version, -v             Show version information
 
+ENVIRONMENT VARIABLES:
+    AINISH_NON_INTERACTIVE=true   Equivalent to -y; skip all interactive prompts
+    AINISH_NO_OVERWRITE=true      Equivalent to -n; skip existing files
+    AINISH_LINK_MODE=true         Equivalent to -l; force symlink mode
+    AINISH_NO_TRACKING=true       Disable usage tracking (cmd-tracker integration)
+    AINISH_PROVIDERS=path         Override default ~/.config/ainish-coder/providers.json
+
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
-    - --rules deploys AGENTS.md + .gitignore
+    - --rules deploys AGENTS.md + .gitignore + global symlinks
+    - --agents deploys AGENTS.md + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
     - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md
     - All tool-specific flags consolidated into .agents/skills/
@@ -214,7 +226,7 @@ EOF
 }
 
 show_version() {
-    echo "ainish-coder v1.0.0"
+    echo "ainish-coder v1.5.1"
     echo "Configuration Manager for AI Coding Assistants"
     echo "Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ"
 }
