@@ -1,0 +1,5 @@
+[package]
+name = "cmd-tracker"
+version = "1.0.0"
+edition = "2024"
+description = "Tracks ainish-coder CLI invocations to a CSV file for usage analytics"
