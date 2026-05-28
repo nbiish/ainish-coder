@@ -1,4 +1,0 @@
-# CamoFox pipeline script for Google Scholar
-open https://scholar.google.com/scholar?q=psionics
-wait body --timeout 10000
-snapshot --format json

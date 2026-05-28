@@ -18,35 +18,35 @@ while [ -h "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-DNA_DIR="${SCRIPT_DIR}/../dna"
+SRC_DIR="${SCRIPT_DIR}/../src"
 
-# Load atoms (core utilities)
-source "${DNA_DIR}/atoms/colors.sh"
-source "${DNA_DIR}/atoms/paths.sh"
-source "${DNA_DIR}/atoms/file_operations.sh"
-source "${DNA_DIR}/atoms/validation.sh"
-source "${DNA_DIR}/atoms/backup.sh"
-source "${DNA_DIR}/atoms/ignore_patterns.sh"
+# Load quanta (core utilities)
+source "${SRC_DIR}/quanta/colors.sh"
+source "${SRC_DIR}/quanta/paths.sh"
+source "${SRC_DIR}/quanta/file_operations.sh"
+source "${SRC_DIR}/quanta/validation.sh"
+source "${SRC_DIR}/quanta/backup.sh"
+source "${SRC_DIR}/quanta/ignore_patterns.sh"
 
-# Load molecules (deployment functions)
-source "${DNA_DIR}/molecules/help.sh"
-source "${DNA_DIR}/molecules/deploy_commands.sh"
-source "${DNA_DIR}/molecules/deploy_agents.sh"
+# Load atoms (deployment functions)
+source "${SRC_DIR}/atoms/help.sh"
+source "${SRC_DIR}/atoms/deploy_commands.sh"
+source "${SRC_DIR}/atoms/deploy_agents.sh"
 
-source "${DNA_DIR}/molecules/deploy_critical.sh"
-source "${DNA_DIR}/molecules/deploy_gitignore.sh"
-# Load ignore file deployment molecules
-source "${DNA_DIR}/molecules/deploy_github_actions.sh"
-source "${DNA_DIR}/molecules/deploy_local_security.sh"
-source "${DNA_DIR}/molecules/deploy_template_agent.sh"
-source "${DNA_DIR}/molecules/deploy_skills.sh"
-source "${DNA_DIR}/molecules/deploy_unlock.sh"
-source "${DNA_DIR}/molecules/deploy_mcp_recipes.sh"
-source "${DNA_DIR}/molecules/deploy_scrolls.sh"
-source "${DNA_DIR}/molecules/deploy_license.sh"
-source "${DNA_DIR}/molecules/deploy_signals.sh"
-source "${DNA_DIR}/molecules/deploy_llms_txt.sh"
-source "${DNA_DIR}/molecules/cli_interface.sh"
+source "${SRC_DIR}/atoms/deploy_critical.sh"
+source "${SRC_DIR}/atoms/deploy_gitignore.sh"
+# Load ignore file deployment atoms
+source "${SRC_DIR}/atoms/deploy_github_actions.sh"
+source "${SRC_DIR}/atoms/deploy_local_security.sh"
+source "${SRC_DIR}/atoms/deploy_template_agent.sh"
+source "${SRC_DIR}/atoms/deploy_skills.sh"
+source "${SRC_DIR}/atoms/deploy_unlock.sh"
+source "${SRC_DIR}/atoms/deploy_mcp_recipes.sh"
+source "${SRC_DIR}/atoms/deploy_scrolls.sh"
+source "${SRC_DIR}/atoms/deploy_license.sh"
+source "${SRC_DIR}/atoms/deploy_signals.sh"
+source "${SRC_DIR}/atoms/deploy_llms_txt.sh"
+source "${SRC_DIR}/atoms/cli_interface.sh"
 
 # Main function
 main() {

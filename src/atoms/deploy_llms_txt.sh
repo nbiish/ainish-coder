@@ -8,7 +8,7 @@ deploy_llms_txt() {
 
     validate_target_dir "$target_dir" || return 1
 
-    local src_file="$source_dir/dna/templates/llms.txt"
+    local src_file="$source_dir/src/templates/llms.txt"
     local dest_file="$target_dir/llms.txt"
 
     if [[ ! -f "$src_file" ]]; then

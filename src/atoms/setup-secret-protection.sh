@@ -28,7 +28,7 @@ do
         "Manual Sanitization + Local Scan (No Hooks)")
             echo -e "${GREEN}Manual sanitization + local scanning ready!${NC}"
             echo -e "${YELLOW}Before committing, run:${NC}"
-            echo -e "  - ${CYAN}bash dna/atoms/sanitize-settings.sh${NC}"
+            echo -e "  - ${CYAN}bash src/quanta/sanitize-settings.sh${NC}"
             echo -e "  - ${CYAN}bash .github/scripts/scan_secrets.sh${NC}  ${YELLOW}(generates SECURITY_REPORT.md if issues found)${NC}"
             break
             ;;
@@ -45,7 +45,7 @@ echo -e "${BLUE}═════════════════════�
 echo -e "${GREEN}📋 Next Steps:${NC}"
 echo ""
 echo -e "1. Review your current settings.json files for secrets"
-echo -e "2. If they contain secrets, run: ${YELLOW}bash dna/atoms/sanitize-settings.sh${NC}"
+echo -e "2. If they contain secrets, run: ${YELLOW}bash src/quanta/sanitize-settings.sh${NC}"
 echo -e "3. Configure your MCP server settings directly in your tool's config"
 echo -e "4. See .agents/skills/llm-security/SKILL.md for MCP hardening guidance"
 echo ""

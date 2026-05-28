@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sanitize settings.json files by removing API keys and local paths
-# Usage: bash dna/atoms/sanitize-settings.sh [path/to/configurations]
+# Usage: bash src/quanta/sanitize-settings.sh [path/to/configurations]
 
 set -e
 

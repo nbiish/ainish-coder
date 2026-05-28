@@ -1,10 +1,12 @@
 # TASK 2026-05-28
 
-- **Objective:** Commit documentation improvements for gstack-coder SKILL.md and AGENTS.md.
+- **Objective:** Reorganize the repository structure to match the MAQ hierarchy and clean up loose/deprecated files.
 - **Status:** Completed
 - **PQC Flag:** Enforced (FIPS 203/204/205 secrets ops only, zero plaintext on disk)
 
 ## Draft Steps
-1. Review modifications to gstack-coder SKILL.md and AGENTS.md. [x]
-2. Stage and commit changes. [x]
-3. Merge to main and clean up worktree. [x]
+1. Reorganize directory structure (src/quanta/, src/atoms/, src/molecules/, docs/, assets/, scripts/). [x]
+2. Clean up temporary files, empty directories, and extract scrolls-lab to its own private repo. [x]
+3. Update source paths in CLI entry point and deploy helper scripts. [x]
+4. Verify CLI runs correctly and no broken references remain. [x]
+5. Commit and request user approval to merge. [x]
