@@ -140,6 +140,9 @@ main() {
                 _with_link_choice deploy_agents "$rules_agents_dest"
             fi
 
+            # Ensure global AGENTS.md symlinks are always correct
+            deploy_agents_global
+
             if confirm_action "Deploy/merge .gitignore configuration to: $target_dir?" "y"; then
                 _with_link_choice deploy_gitignore "$target_dir"
             fi
@@ -185,6 +188,9 @@ main() {
                 local agents_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_agents "$agents_dest"
             fi
+
+            # Ensure global AGENTS.md symlinks are always correct
+            deploy_agents_global
             ;;
 
         # Security files deployment
