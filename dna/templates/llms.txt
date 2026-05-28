@@ -1,0 +1,46 @@
+# Project Name
+
+> Project Description — Project Purpose
+
+## Overview
+
+- **Name:** Project Name
+- **Version:** 0.1.0
+- **Description:** Project Description
+- **Purpose:** Project Purpose
+- **UX:** CLI, GUI, both, or else?
+
+## Rules
+
+### Naming & Comments
+
+- Use descriptive names
+- Document code with comments
+
+### Always
+
+- 
+
+### Never
+
+- 
+
+### If
+
+- 
+
+## TODO
+
+> Keep tasks atomic and testable.
+
+### In Progress
+
+- [ ] 
+
+### Completed
+
+- [ ] 
+
+## Short-term Goals
+
+## Reference Codebases

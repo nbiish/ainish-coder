@@ -1,46 +1,41 @@
-# Project Name
+# ainish-coder — Universal AI Configuration & Skills Manager
 
-> Project Description — Project Purpose
+> Authoritative Product Requirements Document (PRD) anchor for ainish-coder development.
 
 ## Overview
 
-- **Name:** Project Name
-- **Version:** 0.1.0
-- **Description:** Project Description
-- **Purpose:** Project Purpose
-- **UX:** CLI, GUI, both, or else?
+- **Name:** ainish-coder
+- **Version:** 1.2.0
+- **Description:** Modular configuration, rules, and skills manager for AI coding assistants.
+- **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs, and orchestrate multi-agent workflows.
+- **UX:** Interactive CLI menu (`--cli`), interactive command flags, and non-interactive scripted operations.
 
-## Rules
+## Core Rules
 
-### Naming & Comments
+### Secrets & Cryptography (PQC Mandate)
+- **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768.
+- **Always** retrieve the private key from the macOS Keychain (service: `pqc-secrets`).
+- **Never** store plaintext secrets in repositories, `.env` files, or task logs.
+- **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
 
-- Use descriptive names
-- Document code with comments
+### Workflow & Sandboxing
+- **Always** isolate tasks using dedicated git worktrees.
+- **Never** develop directly on the `main` branch.
+- **Always** write atomic, gist-state progress tracking in `TASK.$(date).md` inside the worktree (Chain-of-Draft format).
+- **Never** self-approve or auto-merge pull requests into `main` without explicit user confirmation.
 
-### Always
+### Interactivity & Prompting
+- **Always** implement interactive prompting (with options and y/N confirmations) when running direct CLI flags (e.g., `--rules`, `--skills`).
+- **Always** support non-interactive mode via `--yes` or `-y` flag to bypass prompts for script runs.
 
-- 
+## Architecture
 
-### Never
-
-- 
-
-### If
-
-- 
-
-## TODO
-
-> Keep tasks atomic and testable.
-
-### In Progress
-
-- [ ] 
-
-### Completed
-
-- [ ] 
-
-## Short-term Goals
-
-## Reference Codebases
+- `bin/ainish-coder` — Master script and option routing.
+- `dna/atoms/` — Shell utility libraries: colors, file validation, backup helper, ignore patterns, security gates.
+- `dna/molecules/` — Modular deployment logic.
+  - `deploy_agents.sh` — Copies the standard `AGENTS.md` guidelines.
+  - `deploy_gitignore.sh` — Deploys/merges developer `.gitignore` patterns.
+  - `deploy_llms_txt.sh` — Copies the boilerplate user-project `llms.txt` template from `dna/templates/llms.txt`.
+  - `deploy_skills.sh` — Handles deployment of modular agent skills.
+- `dna/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
+- `.agents/skills/` — Hardened procedural guidelines for agent integration.

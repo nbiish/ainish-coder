@@ -86,3 +86,63 @@ validate_args() {
     fi
     return 0
 }
+
+# Ask for user confirmation. Returns 0 if yes, 1 if no.
+confirm_action() {
+    local prompt="$1"
+    local default="${2:-n}" # y or n
+    
+    if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]]; then
+        if [[ "$default" == "y" ]]; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    
+    # Check if stdin is a tty
+    if [[ ! -t 0 ]]; then
+        if [[ "$default" == "y" ]]; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    
+    local yn
+    while true; do
+        if [[ "$default" == "y" ]]; then
+            echo -ne "${BRIGHT_YELLOW}▸ ${RESET}${prompt} [Y/n]: "
+        else
+            echo -ne "${BRIGHT_YELLOW}▸ ${RESET}${prompt} [y/N]: "
+        fi
+        
+        # Read user response
+        if ! read -r yn; then
+            # If EOF, return default
+            if [[ "$default" == "y" ]]; then
+                return 0
+            else
+                return 1
+            fi
+        fi
+        
+        # Trim whitespace and lowercase
+        yn=$(echo "$yn" | tr '[:upper:]' '[:lower:]' | xargs)
+        
+        if [[ -z "$yn" ]]; then
+            if [[ "$default" == "y" ]]; then
+                return 0
+            else
+                return 1
+            fi
+        fi
+        
+        case "$yn" in
+            y|yes) return 0 ;;
+            n|no) return 1 ;;
+            *) echo "Please answer yes (y) or no (n)." ;;
+        esac
+    done
+}
+
