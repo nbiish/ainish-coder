@@ -81,17 +81,66 @@ main() {
         --rules)
             echo -e "${BRIGHT_BLUE}Deploying Rules System${RESET}"
 
-            # Deploy AGENTS.md
-            deploy_agents "$target_dir"
+            if confirm_action "Deploy AGENTS.md standard rules to: $target_dir?" "y"; then
+                # Deploy AGENTS.md
+                deploy_agents "$target_dir"
+            fi
 
-            # Deploy .gitignore
-            deploy_gitignore "$target_dir"
+            if confirm_action "Deploy/merge .gitignore configuration to: $target_dir?" "y"; then
+                # Deploy .gitignore
+                deploy_gitignore "$target_dir"
+            fi
+
+            # Offer to deploy pqc-secrets skill
+            if confirm_action "Do you want to deploy the post-quantum cryptography secrets skill (pqc-secrets)?" "y"; then
+                local skill_dest=""
+                if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" || ! -t 0 ]]; then
+                    skill_dest="2"
+                else
+                    while true; do
+                        echo -e "Where would you like to deploy the pqc-secrets skill?"
+                        echo -e "  1) Home directory (~/.agents/skills/pqc-secrets/SKILL.md)"
+                        echo -e "  2) Current/Target directory ($target_dir/.agents/skills/pqc-secrets/SKILL.md)"
+                        echo -ne "${BRIGHT_YELLOW}▸ ${RESET}Enter choice [1 or 2, default: 2]: "
+                        local choice
+                        read -r choice
+                        choice=$(echo "$choice" | xargs)
+                        if [[ -z "$choice" ]]; then
+                            skill_dest="2"
+                            break
+                        elif [[ "$choice" == "1" || "$choice" == "2" ]]; then
+                            skill_dest="$choice"
+                            break
+                        else
+                            echo "Invalid choice. Please enter 1 or 2."
+                        fi
+                    done
+                fi
+
+                local skill_src="${REPO_DIR}/.agents/skills/pqc-secrets"
+                local final_dest=""
+                if [[ "$skill_dest" == "1" ]]; then
+                    final_dest="$HOME/.agents/skills/pqc-secrets"
+                else
+                    final_dest="$target_dir/.agents/skills/pqc-secrets"
+                fi
+
+                echo -e "${BRIGHT_BLUE}Deploying pqc-secrets skill to: $final_dest${RESET}"
+                mkdir -p "$final_dest"
+                if cp -r "$skill_src/"* "$final_dest/" 2>/dev/null; then
+                    echo -e "${BRIGHT_GREEN}✅ Deployed pqc-secrets skill to $final_dest${RESET}"
+                else
+                    print_error "Failed to deploy pqc-secrets skill"
+                fi
+            fi
 
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
             ;;
 
         --agents)
-            deploy_agents "$target_dir"
+            if confirm_action "Deploy AGENTS.md standard rules to: $target_dir?" "y"; then
+                deploy_agents "$target_dir"
+            fi
             ;;
 
         # Security files deployment
@@ -99,21 +148,25 @@ main() {
             echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
 
             # Deploy AGENTS_CODE_SECURITY.md
-            local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
-            if [[ -f "$code_security_source" ]]; then
-                 cp -f "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md" 2>/dev/null || true
-                 echo -e "${GREEN}✓ AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
-            else
-                 echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
+            if confirm_action "Deploy AGENTS_CODE_SECURITY.md (code security standards)?" "y"; then
+                local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
+                if [[ -f "$code_security_source" ]]; then
+                     cp -f "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md" 2>/dev/null || true
+                     echo -e "${GREEN}✓ AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
+                else
+                     echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
+                fi
             fi
 
             # Deploy AGENTS_LLM_SECURITY.md
-            local llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
-            if [[ -f "$llm_security_source" ]]; then
-                 cp -f "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md" 2>/dev/null || true
-                 echo -e "${GREEN}✓ AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
-            else
-                 echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
+            if confirm_action "Deploy AGENTS_LLM_SECURITY.md (LLM/agentic security standards)?" "y"; then
+                local llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
+                if [[ -f "$llm_security_source" ]]; then
+                     cp -f "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md" 2>/dev/null || true
+                     echo -e "${GREEN}✓ AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
+                else
+                     echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
+                fi
             fi
 
             echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
@@ -122,41 +175,111 @@ main() {
 
         # Template Agent System
         --template-agent)
-            deploy_template_agent "$target_dir"
+            if confirm_action "Deploy template agent files to: $target_dir?" "y"; then
+                deploy_template_agent "$target_dir"
+            fi
             ;;
 
         # Utility deployments
         --critical)
-            deploy_critical "$target_dir"
+            if confirm_action "Deploy critical.md (essential repository rules)?" "y"; then
+                deploy_critical "$target_dir"
+            fi
             ;;
         --gitignore)
-            deploy_gitignore "$target_dir"
+            if confirm_action "Deploy/merge .gitignore configuration?" "y"; then
+                deploy_gitignore "$target_dir"
+            fi
             ;;
         --github-actions)
-            deploy_github_actions "$target_dir"
+            if confirm_action "Deploy secure GitHub Actions workflow templates?" "y"; then
+                deploy_github_actions "$target_dir"
+            fi
             ;;
         --local-security)
-            deploy_local_security "$target_dir"
+            if confirm_action "Deploy local security hooks and checking scripts?" "y"; then
+                deploy_local_security "$target_dir"
+            fi
             ;;
 
         --mcp-recipes)
-            deploy_mcp_recipes "$target_dir"
+            if confirm_action "Deploy MCP server configuration recipes?" "y"; then
+                deploy_mcp_recipes "$target_dir"
+            fi
             ;;
 
         --unlock)
-            deploy_unlock "$target_dir"
+            if confirm_action "Unlock repository (deploy ref-codebases, research collections, pliny)?" "y"; then
+                deploy_unlock "$target_dir"
+            fi
             ;;
 
         --skills)
-            deploy_skills "$target_dir"
+            local skills_dir="${REPO_DIR}/.agents/skills"
+            if confirm_action "Deploy all available skill packs?" "y"; then
+                deploy_skills "$target_dir"
+            elif [[ "${AINISH_NON_INTERACTIVE:-false}" == "false" && -t 0 ]]; then
+                # Interactive selection of specific skill
+                local available_skills=()
+                for d in "$skills_dir"/*/; do
+                    if [[ -d "$d" ]]; then
+                        available_skills+=($(basename "$d"))
+                    fi
+                done
+
+                if [[ ${#available_skills[@]} -eq 0 ]]; then
+                    echo -e "${YELLOW}No skills found in source directory.${RESET}"
+                else
+                    while true; do
+                        echo -e "\n${BRIGHT_CYAN}Select a specific skill to deploy:${RESET}"
+                        local idx=1
+                        for s in "${available_skills[@]}"; do
+                            printf "  ${BRIGHT_WHITE}%2d${RESET}) %s\n" "$idx" "$s"
+                            ((idx++))
+                        done
+                        echo -e "   q) Cancel"
+
+                        echo -ne "\n${BRIGHT_YELLOW}▸ ${RESET}Enter choice [1-${#available_skills[@]}, q=quit]: "
+                        local choice
+                        read -r choice
+                        choice=$(echo "$choice" | xargs)
+
+                        if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
+                            echo "Aborted."
+                            break
+                        elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#available_skills[@]} )); then
+                            local chosen_skill="${available_skills[$((choice-1))]}"
+                            local skill_src="$skills_dir/$chosen_skill"
+                            local skill_dest="$target_dir/.agents/skills/$chosen_skill"
+
+                            echo -e "${BRIGHT_BLUE}Deploying: $chosen_skill to $skill_dest${RESET}"
+                            mkdir -p "$skill_dest"
+                            if cp -r "$skill_src/"* "$skill_dest/" 2>/dev/null; then
+                                echo -e "${BRIGHT_GREEN}✅ Successfully deployed $chosen_skill${RESET}"
+                            else
+                                print_error "Failed to deploy skill: $chosen_skill"
+                            fi
+                            break
+                        else
+                            echo "Invalid option. Please choose a number or 'q'."
+                        fi
+                    done
+                fi
+            else
+                echo -e "${YELLOW}Aborted skills deployment.${RESET}"
+            fi
             ;;
 
         --scrolls)
-            deploy_scrolls "$target_dir"
+            if confirm_action "Deploy scrolls (knowledge databases) to: $target_dir?" "y"; then
+                deploy_scrolls "$target_dir"
+            fi
             ;;
 
         --license)
-            deploy_license "$target_dir"
+            if confirm_action "Deploy LICENSE to: $target_dir?" "y"; then
+                deploy_license "$target_dir"
+            fi
             ;;
 
         --signals)
@@ -174,7 +297,9 @@ main() {
                 fi
             fi
 
-            deploy_signals "$real_target" "$deploy_examples"
+            if confirm_action "Deploy signals monitoring framework to: $real_target?" "y"; then
+                deploy_signals "$real_target" "$deploy_examples"
+            fi
             ;;
 
         --llms-txt)
@@ -192,6 +317,21 @@ main() {
             ;;
     esac
 }
+
+# Parse global flags
+export AINISH_NON_INTERACTIVE="false"
+filtered_args=()
+for arg in "$@"; do
+    if [[ "$arg" == "-y" || "$arg" == "--yes" || "$arg" == "--non-interactive" ]]; then
+        export AINISH_NON_INTERACTIVE="true"
+    else
+        filtered_args+=("$arg")
+    fi
+done
+
+if [[ ${#filtered_args[@]} -gt 0 ]]; then
+    set -- "${filtered_args[@]}"
+fi
 
 # Check if at least one argument provided
 if [[ $# -eq 0 ]]; then

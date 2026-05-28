@@ -8,12 +8,18 @@ deploy_llms_txt() {
 
     validate_target_dir "$target_dir" || return 1
 
-    local src_file="$source_dir/llms.txt"
+    local src_file="$source_dir/dna/templates/llms.txt"
     local dest_file="$target_dir/llms.txt"
 
     if [[ ! -f "$src_file" ]]; then
-        print_error "llms.txt file not found in source ($src_file)"
+        print_error "llms.txt file template not found in source ($src_file)"
         return 1
+    fi
+
+    # Interactive prompt unless non-interactive is set
+    if ! confirm_action "Do you want to deploy the llms.txt template to: $dest_file?" "y"; then
+        echo -e "${YELLOW}Aborted deployment of llms.txt.${RESET}"
+        return 0
     fi
 
     echo -e "${BRIGHT_BLUE}Deploying llms.txt file to: $dest_file${RESET}"
@@ -29,3 +35,4 @@ deploy_llms_txt() {
 
     return 0
 }
+
