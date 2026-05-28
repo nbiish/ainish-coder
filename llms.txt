@@ -65,6 +65,7 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
 - `bin/pqc-secrets` — Shell wrapper for the Rust FIPS 203 secrets manager (keygen, pack, export).
 - `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
 - `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
+- `bin/git-context.sh` — AI agent situational awareness script invoked by the `git context` alias. Produces a structured, token-efficient context dump: branch/worktree position, status, diffs, task files, PRD anchor, worktrees, stashes, timeline, last commit, and gate-tool availability. Designed as the one-command bridge between the developer's git state and any AI coding agent's context window.
 - `bin/lib/` — Shared shell libraries (all 5 files):
   - `providers.sh` — Reads `~/.config/ainish-coder/providers.json` (8 providers: modal, nvidia, nebius, opencode, zai, wafer-serverless, openrouter, zenmux).
   - `hot_swap.sh` — Backs up pi/mini config files, rewrites for chosen provider, restores on EXIT trap.
@@ -183,6 +184,19 @@ All ainish-coder, pi, and mini invocations are optionally logged to `~/.cache/ai
 `subcommand` captures granular detail — which skill was deployed (`skill:gstack-coder`), which rules path was taken (`AGENTS.md+gitignore`), whether PQC skills were included (`+pqc-secrets+pqq-signatures`), etc.
 
 Set `AINISH_NO_TRACKING=true` to opt out. If `cmd-tracker` is not on PATH, commands run directly with zero overhead.
+
+
+## Git Context Command
+
+The `git context` alias (configured in `~/.gitconfig`) runs `bin/git-context.sh` and provides a comprehensive, structured context dump designed for AI coding agents:
+
+```
+git context
+```
+
+**Sections:** Branch & worktree (±ahead/behind main and dev), status, unstaged/staged diffs, task files (`.agents/tasks/TASK.*.md` with gist), PRD anchor (`llms.txt` presence/version), worktree listing, stashes, compact timeline (14 commits), last commit detail, security gate tool availability (ruff, bandit, gitleaks, pqc-secrets), and agent environment summary (skill pack count, AGENTS.md presence).
+
+**Design:** Token-efficient (stat-first, compact timeline, single-commit detail vs. the old 5-full-patch dump). Single-command situational awareness — the first thing any AI agent should run to orient itself.
 
 ## Known Issues (May 28, 2026)
 
