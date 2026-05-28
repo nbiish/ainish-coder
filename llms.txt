@@ -31,13 +31,14 @@
 ## Architecture
 
 - `bin/ainish-coder` — Master script and option routing.
-- `dna/atoms/` — Shell utility libraries: colors, file validation, backup helper, ignore patterns, security gates.
-- `dna/molecules/` — Modular deployment logic.
+- `src/quanta/` — Shell utility libraries: colors, file validation, backup helper, ignore patterns, security gates.
+- `src/atoms/` — Modular deployment logic.
   - `deploy_agents.sh` — Copies the standard `AGENTS.md` guidelines.
   - `deploy_gitignore.sh` — Deploys/merges developer `.gitignore` patterns.
-  - `deploy_llms_txt.sh` — Copies the boilerplate user-project `llms.txt` template from `dna/templates/llms.txt`.
+  - `deploy_llms_txt.sh` — Copies the boilerplate user-project `llms.txt` template from `src/templates/llms.txt`.
   - `deploy_skills.sh` — Handles deployment of modular agent skills.
-- `dna/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
+- `src/molecules/` — High-level orchestration (e.g., system-wide installation).
+- `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
 - `.agents/skills/` — Hardened procedural guidelines for agent integration.
 - `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager.
 - `bin/pqc-secrets` — Compiled and optimized release binary for keygen, pack, and export operations.

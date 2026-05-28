@@ -12,7 +12,7 @@ deploy_unlock() {
 
     # Determine source paths
     local skills_source="${REPO_DIR}/.agents/skills/pliny-research"
-    local research_source="${REPO_DIR}/pliny-research"
+    local research_source="${REPO_DIR}/docs/research/pliny-research"
     local skills_target="${target_dir}/.agents/skills/pliny-research"
 
     if [[ ! -d "$skills_source" ]]; then

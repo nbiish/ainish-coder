@@ -22,7 +22,7 @@ deploy_mcp_recipes() {
     fi
     
     # Source directory (from repo root)
-    local src_dir="${REPO_DIR}/mcp_recipes"
+    local src_dir="${REPO_DIR}/docs/mcp-recipes"
     
     if [[ ! -d "$src_dir" ]]; then
         print_error "Source mcp_recipes directory not found at: $src_dir"

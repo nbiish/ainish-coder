@@ -18,12 +18,12 @@
     <tr style="border: none;">
       <td align="center" style="border: none; vertical-align: middle; padding: 20px;">
         <h4>Stripe</h4>
-        <img src="qr-stripe-donation.png" alt="Scan to donate" width="180"/>
+        <img src="assets/qr-stripe-donation.png" alt="Scan to donate" width="180"/>
         <p><a href="https://raw.githubusercontent.com/nbiish/license-for-all-works/8e9b73b269add9161dc04bbdd79f818c40fca14e/qr-stripe-donation.png">Donate via Stripe</a></p>
       </td>
       <td align="center" style="border: none; vertical-align: middle; padding: 20px;">
         <a href="https://www.buymeacoffee.com/nbiish">
-          <img src="buy-me-a-coffee.svg" alt="Buy me a coffee" />
+          <img src="assets/buy-me-a-coffee.svg" alt="Buy me a coffee" />
         </a>
       </td>
     </tr>
@@ -258,10 +258,12 @@ ainish-coder/
 │   ├── mini                     # mini-swe-agent wrapper (provider hot-swap)
 │   ├── qwen                     # qwen-code wrapper (provider hot-swap)
 │   └── security_gate.py         # PQC & zero-trust compliance scanner
-├── dna/
-│   ├── atoms/                   # Core utilities (colors, paths, validation, file ops)
-│   ├── molecules/               # Deployment functions (deploy_*.sh, cli_interface.sh)
-│   └── proteins/                # Higher-level orchestration
+├── src/
+│   ├── quanta/                  # Core utilities (colors, paths, validation, file ops)
+│   ├── atoms/                   # Deployment functions (deploy_*.sh, cli_interface.sh)
+│   ├── molecules/               # Higher-level orchestration
+│   ├── templates/               # Deployable boilerplate templates
+│   └── pqc-secrets/             # Rust: FIPS 203 secrets manager
 ├── .agents/skills/              # 18 portable AI skill packs
 │   ├── advisory-council/SKILL.md
 │   ├── anishinaabe-cyberpunk-style/SKILL.md
@@ -281,10 +283,11 @@ ainish-coder/
 │   ├── production-security/SKILL.md
 │   ├── remotion-video/SKILL.md
 │   └── skyvern/SKILL.md
+├── docs/                        # Documentation, research, signals
+├── scripts/                     # Utility & tooling scripts
+├── assets/                      # Static assets (images, SVGs)
 ├── .scrolls/                    # Ghost Layer repository & 8th Fire Protocols (llms.txt, llms-full.txt)
-├── llms.txt                     # Machine-readable project context
-├── mcp_recipes/                 # MCP server recipes
-└── .signals/                    # Signal detection configs
+└── llms.txt                     # Machine-readable project context
 ```
 
 ### Design Principles

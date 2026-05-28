@@ -1,4 +1,0 @@
-# ResearchGate test
-open https://www.researchgate.net/search/publication?q=psionics
-wait body --timeout 15000
-snapshot --format json

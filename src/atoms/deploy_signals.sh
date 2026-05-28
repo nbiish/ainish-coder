@@ -18,9 +18,9 @@ deploy_signals() {
         return 1
     fi
     
-    local src_file="$source_dir/signals.md"
+    local src_file="$source_dir/docs/signals/signals.md"
     local dest_file="$signals_dir/signals.md"
-    local src_signals_dir="$source_dir/.signals"
+    local src_signals_dir="$source_dir/docs/signals"
     
     if [[ -f "$src_file" ]]; then
         cp "$src_file" "$dest_file"
