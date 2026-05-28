@@ -1,13 +1,9 @@
 # TASK 2026-05-28
 
-- **Objective:** Integrate native Rust PQC secrets manager under `src/pqc-secrets/` and `bin/pqc-secrets`.
+- **Objective:** Remove codewhale references from the subagent-orchestrator skill.
 - **Status:** Completed
-- **PQC Flag:** Enforced (FIPS 203/204/205 only for secrets management, no plaintext keys)
+- **PQC Flag:** Enforced (FIPS 203/204/205 secrets ops only, zero plaintext on disk)
 
 ## Draft Steps
-1. Create `src/pqc-secrets/Cargo.toml`
-2. Write `src/pqc-secrets/src/main.rs`
-3. Compile release build
-4. Strip and copy binary to `bin/pqc-secrets`
-5. Update docs in `AGENTS.md`
-6. Verify and commit
+1. Remove the codewhale row from the MCP Server Catalog table in `.agents/skills/subagent-orchestrator/SKILL.md`. [x]
+2. Commit changes and ask the user for merge confirmation. [x]
