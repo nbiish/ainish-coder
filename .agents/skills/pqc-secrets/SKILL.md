@@ -5,6 +5,8 @@ description: Post-quantum cryptography secrets management system for protecting 
 
 # PQC Secrets Management Agent Skill
 
+> **Companion skill:** [pqc-signatures-security](../pqc-signatures-security/SKILL.md) — ML-DSA-65 code signing, integrity verification, and secure coding patterns. Use both together for complete PQC coverage: this skill encrypts secrets at rest; pqc-signatures-security verifies code hasn't been tampered with.
+
 This skill provides comprehensive instructions, policies, and blueprints for managing repository and application secrets (API keys, credentials, private user data) using post-quantum cryptographic (PQC) algorithms.
 
 AI agents using this skill are equipped to:
