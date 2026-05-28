@@ -17,7 +17,7 @@ AI agents using this skill are equipped to:
 ## 1. Core Philosophy: Zero Plaintext on Disk
 
 Traditional secrets management relies heavily on plaintext `.env` files or insecure environment variables. Under the PQC mandate:
-- **Always** protect API keys and private data with FIPS 203 (ML-KEM) key encapsulation and AES-256-GCM symmetric encryption.
+- **Always** protect API keys and private data with FIPS 203 (ML-KEM-768) key encapsulation and AES-256-GCM symmetric encryption.
 - **Never** store raw API keys, secrets, or tokens in git repositories, task files, logs, or local unencrypted files.
 - **Always** load secrets on-demand directly into the shell environment from an encrypted bundle, and ensure they never persist to disk.
 
@@ -32,23 +32,24 @@ macOS Keychain                    ~/.config/pqc-secrets/
 ┌──────────────────────┐          ┌────────────────────────────┐
 │ service: pqc-secrets │          │ recipient.pub              │
 │ ML-KEM-768 secret key│          │ ML-KEM-768 public key      │
-└──────────┬───────────┘          │ (safe to commit)           │
-           │                      └────────────┬───────────────┘
+│ (Secure Enclave)     │          │ (safe to commit)           │
+└──────────┬───────────┘          └────────────┬───────────────┘
+           │                                   │
            │ decaps (ML-KEM-768)               │ encaps
            ▼                                   ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                    secrets.bundle.json                        │
+│                    secrets.bundle.json                       │
 │  ┌─────────────────┐  ┌──────────────────────────────────┐   │
-│  │ kem.ciphertext  │  │ data.ciphertext (AES-256-GCM)     │   │
-│  │ (ML-KEM-768)    │  │ 24 API keys encrypted at rest     │   │
+│  │ kem.ciphertext  │  │ data.ciphertext (AES-256-GCM)    │   │
+│  │ (ML-KEM-768)    │  │ 24+ API keys encrypted at rest   │   │
 │  └─────────────────┘  └──────────────┬───────────────────┘   │
-└──────────────────────────────────────┼────────────────────────┘
+└──────────────────────────────────────┼───────────────────────┘
                                        │ decrypt
                                        ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  Exported environment variables (never touch disk)           │
 │  ANTHROPIC_AUTH_TOKEN  ZENMUX_API_KEY  NEBIUS_API_KEY        │
-│  OPENROUTER_API_KEY    WAFER_API_KEY    ... (24 total)        │
+│  OPENROUTER_API_KEY    WAFER_API_KEY    ... (in-memory only) │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,30 +57,32 @@ macOS Keychain                    ~/.config/pqc-secrets/
 
 ## 3. Cryptographic Standards
 
-For all secrets operations, only NIST-approved post-quantum algorithms are permitted. Traditional algorithms are strictly forbidden for protecting key material:
+For all secrets operations, only NIST-approved post-quantum algorithms are permitted. Traditional classical algorithms are strictly forbidden for protecting key material:
 
 | Use Case | Permitted Algorithms (FIPS) | Forbidden Algorithms |
 |---|---|---|
 | Key Encapsulation (KEM) | ML-KEM-768, ML-KEM-1024 | RSA, ECDH, ECDSA, Ed25519 |
 | Symmetric Encryption | AES-256-GCM | AES-CBC, DES, 3DES, Blowfish, RC4 |
-| Backup Signatures | ML-DSA-65/87, SLH-DSA-SHA2-128s | MD5, SHA-1, RSA, DSA |
+| Digital Signatures | ML-DSA-65/87, SLH-DSA-SHA2-128s | MD5, SHA-1, RSA, DSA |
 
 ---
 
 ## 4. Lifecycle Commands
 
+Always use the compiled native Rust release binary `bin/pqc-secrets` for secrets operations:
+
 | Step | Command | Description |
 |---|---|---|
-| **Keygen** | `pqc-secrets keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain and writes the public key to `recipient.pub`. |
-| **Pack** | `pqc-secrets pack < secrets.env` | Reads key/value pairs from stdin, encrypts them via AES-256-GCM, wraps the data key via ML-KEM-768 encapsulation, and outputs `secrets.bundle.json`. |
-| **Load** | `secrets-load` (or `pqc-secrets export`) | Retrieves the private key from macOS Keychain, decrypts the bundle, and exports the variables into the active shell. |
-| **Rotate** | `pqc-secrets rewrap --new-pub new.pub` | Decrypts the bundle with the old key and re-encrypts the data key for the new public key. |
+| **Keygen** | `bin/pqc-secrets keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain (service: `pqc-secrets`, account: `default`) and writes public key to `~/.config/pqc-secrets/recipient.pub`. |
+| **Pack** | `bin/pqc-secrets pack` | Reads `KEY=VAL` lines from stdin, encrypts them via AES-256-GCM, wraps the data key via ML-KEM-768 encapsulation, and outputs `~/.config/pqc-secrets/secrets.bundle.json`. |
+| **Load** | `secrets-load` (or `bin/pqc-secrets export`) | Decrypts the bundle in-memory and outputs `export KEY=VALUE` lines. The `secrets-load` zsh function evaluates this output. |
+| **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | Generates a new keypair and packs the secrets under the new public key. |
 
 ---
 
 ## 5. Application Integration Guidelines
 
-Applications must read secrets exclusively from environment variables populated dynamically in memory.
+Applications must read secrets exclusively from environment variables populated dynamically in memory. Do not store or read plaintext files inside the application context.
 
 ### Pattern 1: Safe Environment Variable Consumption (Python)
 ```python
@@ -96,23 +99,41 @@ def get_api_key(name: str) -> str:
     return api_key
 ```
 
-### Pattern 2: Memory Clearing (Zeroing buffers)
-When handling sensitive material, overwrite memory buffers as soon as they are no longer needed.
-```python
-import ctypes
-
-def zero_buffer(buf: str | bytes):
-    """Overwrites the string buffer in memory with zero bytes."""
-    if isinstance(buf, str):
-        # Python strings are immutable, but we can target the underlying buffer
-        # where possible or minimize lifetimes. In C/C++/Rust, always zero buffers:
-        # memset(buffer, 0, size);
-        pass
+### Pattern 2: Safe Environment Variable Consumption (Node.js)
+```javascript
+function getApiKey(name) {
+    const apiKey = process.env[name];
+    if (!apiKey) {
+        console.error(`CRITICAL ERROR: Environment variable '${name}' is not set.`);
+        console.error("Please load secrets via 'secrets-load' before running this application.");
+        process.exit(1);
+    }
+    return apiKey;
+}
 ```
 
-### Pattern 3: CI/CD & Headless Environments
-In CI/CD pipelines where macOS Keychain is unavailable, use runtime injection (e.g. GitHub Secrets or Kubernetes Secrets) or decrypt using an `age` key with age-encrypted fallback files.
+### Pattern 3: Shell Wrapper Integration
+When wrapping command-line tools or other agents, pass env variables down rather than writing to disk config files. If a configuration file is strictly required by the tool (e.g. `auth.json` or `.env` file), write it dynamically to a secure directory (or temporary RAM disk if supported) and delete it immediately upon tool exit via traps.
+
 ```bash
-# Decrypting age-encrypted fallback in CI
-age --decrypt -i ci_key.txt fallback.env.age | pqc-secrets pack > secrets.bundle.json
+# Example wrapper with exit trap for temporary configs
+run_tool_with_secrets() {
+  local temp_env
+  temp_env=$(mktemp /tmp/tool-env.XXXXXX)
+  trap 'rm -f "$temp_env"' EXIT
+  
+  # Populate temp config from environment variables loaded via secrets-load
+  cat > "$temp_env" <<EOF
+API_KEY="${ZENMUX_API_KEY}"
+EOF
+
+  command-tool --config "$temp_env" "$@"
+}
+```
+
+### Pattern 4: Headless & CI/CD Pipelines
+In headless environments where macOS Keychain is unavailable, use standard platform secrets injection (e.g., GitHub Secrets, Kubernetes Secrets, or Docker environment flags) passed dynamically from standard input.
+```bash
+# Injecting secrets directly via stdin to avoid write-to-disk
+docker run -e ZENMUX_API_KEY=$(bin/pqc-secrets export | grep ZENMUX_API_KEY | cut -d= -f2) my-image
 ```
