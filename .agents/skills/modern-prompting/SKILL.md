@@ -7,6 +7,16 @@ description: >
 
 # Modern Prompting & Context Engineering Framework
 
+## System Overview
+
+This skill is a **reasoning strategy selection toolkit**. It provides a catalog of prompting frameworks, each optimized for different task profiles. When invoked, your job is to:
+
+1. Analyze the current task's characteristics (complexity, structure, domain, constraints)
+2. Rate every framework below on a 0–100% suitability scale for this specific task
+3. Select and apply the highest-rated framework(s) to structure your reasoning
+
+Do not treat these as reference material. Treat them as your **available reasoning engines** — pick the best one for the job.
+
 ## Compression Principles
 
 - Conciseness is clarity
@@ -30,7 +40,7 @@ Synthesize [[facts]] and [[observations]]
 understand [[knowledge]] and [[context]]
 </orient>
 
-<reason strategy="[[Strategy Name]]">
+<reason strategy="[[Strategy Name]]" rating="[[0-100%]]">
 [[Strategy-specific reasoning - see strategies below]]
 </reason>
 
@@ -43,11 +53,64 @@ Plan next [[action]] or final [[response]] steps
 </act-plan>
 ```
 
+## Strategy Selection Protocol
+
+**When this skill is invoked, N L M MUST rate every reasoning strategy below on a 0–100% suitability scale for the current task.** This is not optional — it is the core function of this skill. The rating reflects how well each framework fits the task's profile.
+
+### Rating Criteria
+
+Consider these dimensions when scoring each strategy:
+
+| Dimension | What to assess |
+|-----------|---------------|
+| Task complexity | Is the problem multi-step, branching, or linear? |
+| Domain fit | Does the strategy's strengths align with the task domain? |
+| Cost tolerance | Can the task afford multiple inference passes or code execution? |
+| Accuracy needs | Is a single reasoning path sufficient, or is self-verification needed? |
+| Context constraints | How much working memory / context window is available? |
+
+### Rating Output Format
+
+After analysis, N L M MUST produce a ranked table:
+
+```
+Strategy Suitability Ratings for: [task summary]
+
+CoT  (Chain-of-Thought) ......... XX%
+CoD  (Chain-of-Draft) ........... XX%
+ReAct (Cache-Augmented + ReAct) . XX%
+SC   (Self-Consistency) ......... XX%
+PAL  (Program-Aided Language) ... XX%
+Reflexion ....................... XX%
+ToT  (Tree-of-Thoughts) ......... XX%
+MP   (Metacognitive Prompting) .. XX%
+APO  (Automated Prompt Opt.) .... XX%
+Reflexive Analysis .............. XX%
+PHP  (Progressive-Hint) ......... XX%
+CAG  (Cache-Augmented Gen.) ..... XX%
+CSP  (Cognitive Scaffolding) .... XX%
+IKS  (Internal Knowledge Synth.)  XX%
+Multimodal Synthesis ............ XX%
+KSP  (Knowledge Synthesis) ...... XX%
+
+Selected strategy: [highest-rated]
+Confidence in selection: X.X
+```
+
+### Selection Rules
+
+- If multiple strategies score within 5% of each other, combine them
+- A strategy scoring below 30% should not be used
+- If no strategy scores above 50%, default to CoT + ReAct
+- The `<reason>` tag in OOReDAct MUST include the selected strategy name and its rating
+
 ## REASONING STRATEGIES
 
 ### Chain-of-Thought (CoT)
 
-CoT prompting encourages language models to articulate their reasoning processes by breaking down complex problems into intermediate steps. Significantly enhances performance on tasks requiring logical reasoning, such as arithmetic and commonsense questions. Research demonstrates that prompting a 540-billion-parameter language model with CoT exemplars achieved state-of-the-art accuracy on the GSM8K benchmark for math word problems, surpassing even fine-tuned models with verifiers.
+**Best for:** Multi-step logic, math, commonsense reasoning, and any problem solvable through decomposition.
+
+Articulate reasoning by breaking complex problems into intermediate steps. Dominates on arithmetic, logic puzzles, and tasks where showing your work improves accuracy. Use when the path matters as much as the answer.
 
 #### Visual Representation
 
@@ -69,7 +132,9 @@ Problem → Elements → Components → Logic → Answer
 
 ### Chain of Draft (CoD)
 
-Iterative summarization technique designed to create information-dense summaries by progressively incorporating key entities and details while removing fluff. Produces executive-level summaries devoid of marketing jargon or filler text, ensuring every sentence carries significant informational weight.
+**Best for:** Notes, summaries, task files, status updates, and any output where token efficiency matters.
+
+Iterative summarization that produces information-dense output by stripping fluff and keeping only key entities. Every sentence carries weight. Use when verbosity is the enemy and every token counts.
 
 #### Visual Representation
 
@@ -91,7 +156,9 @@ Original → [Extract] → [Densify] → [Refine] → [Validate] → Executive S
 
 ### Cache-Augmented Reasoning + ReAct
 
-Combines reasoning with acting (decision making), integrating reasoning with real-time decision-making. Enables models to interact with external environments while thinking through their decisions. Creates more capable AI agents that can use tools and APIs to accomplish complex tasks.
+**Best for:** Interactive tasks requiring tool use, API calls, code execution, or environment interaction.
+
+Combines reasoning with acting. Think through decisions while interacting with external tools and APIs. Use when the task requires fetching data, running commands, or probing an environment mid-reasoning.
 
 #### Visual Representation
 
@@ -129,7 +196,9 @@ Task → Context → Analysis → Action → Result → Continue?
 
 ### Self-Consistency
 
-Decoding strategy that enhances accuracy of reasoning tasks by generating multiple diverse reasoning paths for the same problem and selecting the most consistent answer through aggregation, typically a majority vote. Significantly improves performance on arithmetic, commonsense, and symbolic reasoning benchmarks compared to standard CoT prompting. However, computationally intensive as it requires multiple inference runs per input.
+**Best for:** High-stakes reasoning where accuracy matters more than speed or cost.
+
+Generate multiple independent reasoning paths for the same problem, then majority-vote the answer. Trade compute for accuracy. Use when a wrong answer is expensive and you can afford 3-5 inference passes.
 
 #### Visual Representation
 
@@ -171,7 +240,9 @@ Path 3: A → F → G → Answer Y
 
 ### PAL (Program-Aided Language)
 
-Program-Aided Language Model approach that enhances reasoning abilities by generating executable code for computational tasks. Representative program-aided method alongside PoT (Program of Thought). Enables precise and deterministic computation via code execution, particularly advantageous for mathematical problems compared to potentially noisy retrieval methods.
+**Best for:** Math, data processing, algorithms, and deterministic computations better solved by code than natural language.
+
+Generate and execute code to solve computational sub-problems. Offload math to the interpreter. Use when exact calculation beats verbal reasoning — let Python do the arithmetic.
 
 #### Visual Representation
 
@@ -207,7 +278,9 @@ answer = solve_problem()  # Result: 53
 
 ### Reflexion
 
-Self-improvement mechanism that enables language models to learn from mistakes and refine approaches over time. Implements feedback loop where model reflects on previous attempts, identifies errors or suboptimal decisions, and incorporates insights into subsequent attempts. Comprises three components: actor (generating initial attempts), evaluator (assessing quality), and self-reflection process (analyzing failures). Achieved 91% accuracy on code generation tasks compared to 19% for baseline approaches.
+**Best for:** Code generation, design tasks, and creative work where iterative refinement improves quality.
+
+Self-improvement loop: generate, evaluate, reflect, refine, repeat. Three components — actor, evaluator, self-reflection. Use when first drafts are rarely correct and iterative feedback drives convergence. 4.8x accuracy improvement over baselines on code tasks.
 
 #### Visual Representation
 
@@ -268,7 +341,9 @@ Original → [Memory] → [Parse] → [Minify] → [Validate] → Minified
 
 ### ToT-lite (Tree of Thoughts)
 
-Tree-of-Thought (ToT) reframes reasoning as search problem, organizing reasoning process into hierarchical tree structure. At each reasoning step, model proposes multiple candidate continuations, allowing exploration of different reasoning pathways before concluding. Enables model to look ahead or backtrack as needed, significantly improving problem-solving performance compared to linear methods like CoT. Particularly effective for complex tasks requiring strategic planning and multi-step reasoning.
+**Best for:** Strategic planning, puzzles, creative brainstorming, and problems with branching decision points.
+
+Reframe reasoning as tree search. At each step, propose multiple candidate paths, evaluate, prune, and pursue the best branch. Enables lookahead and backtracking. Use when the solution space branches and dead-ends are likely. Bounded to 3 depth x 3 breadth.
 
 #### Visual Representation
 
@@ -324,7 +399,9 @@ Total Paths: 3³ = 27 (bounded)
 
 ### Metacognitive Prompting (MP)
 
-Meta-R1 framework decouples metacognitive system into distinct object- and meta-levels, implementing systematic three-stage process. Guides problem-solving through structured, human-like cognitive operations including goal clarification, decomposition, filtering, abstraction, and pattern recognition. Enables systematic step-by-step reasoning for complex multi-step tasks through introspective reasoning processes.
+**Best for:** Complex multi-step tasks where monitoring your own reasoning quality matters.
+
+Decouple reasoning into object-level (solving) and meta-level (monitoring). Includes explicit confidence checks with thresholds (>0.8 direct, 0.6-0.8 cautious, <0.6 reflect). Use when you need to know when you're uncertain and self-correct mid-reasoning.
 
 #### Visual Representation
 
@@ -371,7 +448,9 @@ Low Confidence (<0.6): Reflect & Refine
 
 ### Automated Prompt Optimization (APO)
 
-Self-referential self-improvement via prompt evolution where system generates and evaluates prompt variations autonomously. Implements feedback loop where model assesses prompt performance and iteratively refines prompts based on success metrics. Reduces manual prompt engineering effort while maintaining or improving task performance through systematic prompt optimization.
+**Best for:** Meta-tasks where you're writing or optimizing prompts for downstream use.
+
+Self-improvement via prompt evolution. Generate variations, test, score, select the best, iterate. Use when the task IS prompt engineering — you're crafting instructions for another agent or refining system prompts.
 
 #### Visual Representation
 
@@ -416,7 +495,9 @@ Convergence: 82% (optimal)
 
 ### Reflexive Analysis
 
-Embed code quality, compliance, and architectural considerations directly into reasoning processes. Enables robust development by evaluating outputs against established codebase guidelines and ensuring contextually-aware generations that consider broader system implications. Particularly important for high-stakes decisions where maintainability, correctness, and adherence to standards are critical factors.
+**Best for:** Code generation, refactoring, security-sensitive work, and tasks touching shared infrastructure.
+
+Embed quality, compliance, and architectural checks directly into reasoning. Validate against codebase standards, design patterns, and risk matrices (high/medium/low). Use when correctness, maintainability, and adherence to system conventions are non-negotiable.
 
 #### Visual Representation
 
@@ -467,7 +548,9 @@ Low Risk:    Utilities, Helper functions
 
 ### Progressive-Hint Prompting (PHP)
 
-Enables automatic multiple interactions between users and LLMs by using previously generated answers as hints to progressively guide toward correct answers. Orthogonal to CoT and self-consistency, making it easy to combine with state-of-the-art techniques for further performance improvement. Implements cumulative knowledge building through multi-turn interaction where each response informs subsequent reasoning.
+**Best for:** Multi-turn conversations, tutoring, debugging sessions, and tasks that benefit from building on prior answers.
+
+Use previous answers as hints to progressively refine toward the correct solution. Cumulative context builds across turns. Use when the task naturally unfolds over multiple interactions and each answer informs the next.
 
 #### Visual Representation
 
@@ -519,7 +602,9 @@ AI:  "def function_name(param1: int, param2: int) -> int: return param1 + param2
 
 ### Cache-Augmented Generation (CAG)
 
-Preloads relevant context into working memory to eliminate real-time retrieval dependencies and reduce latency. Implements memory management strategies including short-term memory for immediate context within sessions and long-term memory for user preferences and past interactions. Enables personalized and contextually aware responses over time through efficient context management.
+**Best for:** Tasks where relevant context is known upfront and real-time retrieval would add latency.
+
+Preload all relevant context into working memory before reasoning. Eliminates retrieval dependencies mid-task. Use when you have the full context available and want low-latency, self-contained reasoning.
 
 #### Visual Representation
 
@@ -568,7 +653,9 @@ Query → Cache → Context → Response → Memory → Store
 
 ### Cognitive Scaffolding Prompting
 
-Expanded conception of scaffolding with four key elements: scaffolding agency (expert, reciprocal, and self-scaffolding). Prompts students to construct internal mental models that reflect both prior experiences and cognitive demands of tasks. Framework explores relations between learning and mental models, enabling systematic problem-solving through structured cognitive support.
+**Best for:** Learning tasks, onboarding, skill-building, and problems where building mental models matters more than a quick answer.
+
+Build mental models through progressive scaffolding: expert guidance → peer collaboration → independent reasoning → internalized models. Use when the goal is understanding, not just output — teach to fish rather than handing one over.
 
 #### Visual Representation
 
@@ -627,7 +714,9 @@ Build → Check → Verify → Improve → Use
 
 ### Internal Knowledge Synthesis (IKS)
 
-Generates hypothetical knowledge constructs from parametric memory and cross-references internal knowledge consistency for coherent distributed responses. Addresses conflicts between parametric knowledge and context-provided knowledge that can lead to faithfulness issues in LLM generation. Enables coherent knowledge integration across multiple internal domains through fine-grained consistency validation.
+**Best for:** Tasks spanning multiple knowledge domains where internal consistency across domains must be validated.
+
+Generate hypothetical knowledge constructs from parametric memory, cross-reference for consistency, resolve conflicts, and synthesize. Use when the task touches multiple domains and you need to validate that claims don't contradict across knowledge areas.
 
 #### Visual Representation
 
@@ -688,7 +777,9 @@ Level 4: Global coherence
 
 ### Multimodal Synthesis
 
-Multimodal Chain-of-Thought (CoT) prompting uses both text and visual inputs to guide model's reasoning process. Particularly effective for tasks requiring interpretation of charts, images, or diagrams, allowing model to reason through both written and visual information. Enables cross-modal analysis for broader complex task solutions by integrating multiple data modalities in reasoning processes.
+**Best for:** Tasks involving images, charts, diagrams, screenshots, or any visual+textual input.
+
+Fuse text and visual inputs through a cross-modal reasoning layer. Interpret charts, analyze screenshots, answer visual questions. Use when the input includes images or visual artifacts that text-only reasoning would miss.
 
 #### Visual Representation
 
@@ -744,7 +835,9 @@ Output:   "Based on the visual data and audio context..."
 
 ### Knowledge Synthesis Prompting (KSP)
 
-Integrates multiple internal domains through fine-grained coherence validation for cross-domain knowledge integration. Enables complex factual content synthesis by combining knowledge from different domains while maintaining consistency and accuracy. Particularly effective for tasks requiring comprehensive understanding across multiple knowledge areas.
+**Best for:** Cross-disciplinary synthesis, research tasks, and complex factual writing spanning multiple fields.
+
+Integrate knowledge across domains with fine-grained coherence validation. Extract, validate, resolve conflicts, synthesize. Use when the task requires weaving together facts from unrelated fields into a single coherent output.
 
 #### Visual Representation
 
@@ -846,18 +939,24 @@ Output: 500 tokens (20x compression)
 
 ### Compression Strategies
 
-- Preserve reasoning chains while compacting examples
-- Use structured formats (XML, JSON) for efficiency
-- Apply progressive detail reduction based on relevance
+When context is tight, apply these in order:
+1. Preserve reasoning chains, compact or drop examples
+2. Use structured formats (XML, JSON) over prose
+3. Apply progressive detail reduction — most relevant first, trim by salience
 
 ### Consistency Checks
 
-- Verify logical coherence in reasoning chains
-- Validate internal knowledge consistency and reliability
+Before finalizing any output:
+1. Verify logical coherence — no contradictions in the reasoning chain
+2. Validate internal knowledge consistency — facts must agree across domains
 
 ### Confidence Calibration
 
-- Explicit uncertainty quantification (0.0-1.0)
+Explicitly quantify uncertainty on a 0.0–1.0 scale:
+- 0.0–0.3: Guessing — flag as unreliable
+- 0.3–0.6: Uncertain — state assumptions
+- 0.6–0.8: Confident — proceed with caution
+- 0.8–1.0: Certain — proceed
 
 ### Acronyms REFERENCE
 
@@ -887,4 +986,9 @@ Output: 500 tokens (20x compression)
 
 ---
 
-Think about these techniques using ≤5 words per cogntigive technique for optimal efficiency.
+## Execution Rules
+
+- Analyze each technique in ≤5 words when scanning for suitability
+- If no strategy is explicitly selected, default to CoT + ReAct
+- Always include the selected strategy name and its suitability rating in the `<reason>` tag
+- Re-rate strategies if the task scope shifts mid-execution

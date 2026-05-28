@@ -5,6 +5,8 @@ description: Expert instructions to implement and verify ML-DSA-65 post-quantum 
 
 # PQC Signatures and Repository Security Agent Skill
 
+> **Companion skill:** [pqc-secrets](../pqc-secrets/SKILL.md) — API key encryption at rest via ML-KEM-768 + AES-256-GCM. Use both together for complete PQC coverage: pqc-secrets encrypts your secrets; this skill verifies your code integrity.
+
 This skill provides comprehensive instructions, blueprints, and reference code for implementing post-quantum cryptographic (PQC) signature verification and agentic security standards in any repository. 
 
 AI agents using this skill are equipped to:
