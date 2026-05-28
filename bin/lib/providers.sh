@@ -27,10 +27,8 @@ if '${field}' == 'apiKey':
             std_key = 'ZAI_API_KEY'
         elif '${provider}' == 'openrouter':
             std_key = 'OPENROUTER_API_KEY'
-        elif '${provider}' == 'kimi':
-            std_key = 'MOONSHOT_API_KEY'
-        elif '${provider}' == 'wafer':
-            std_key = 'WAFER_PASS_API_KEY'
+        elif '${provider}' == 'wafer-serverless':
+            std_key = 'WAFER_SERVERLESS_API_KEY'
         
         if os.environ.get(std_key):
             val = os.environ.get(std_key)
