@@ -120,3 +120,6 @@ providers.txt
 **/providers.txt
 providers**.txt
 **/providers**.txt
+
+# Scrolls ceremony cloned repos (large)
+.scrolls-ceremony/repos/
