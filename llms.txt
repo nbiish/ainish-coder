@@ -5,7 +5,7 @@
 ## Overview
 
 - **Name:** ainish-coder
-- **Version:** 1.5.0
+- **Version:** 1.5.1
 - **Description:** Modular configuration, rules, and skills manager for AI coding assistants with interactive provider switching, destination-picker (home vs project), interactive symlink prompting, and CLI usage analytics.
 - **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs to home or project directories, hot-swap LLM providers on the fly, and track usage patterns for continuous improvement.
 - **UX:** Interactive CLI menu (`--cli`), fzf-powered provider picker in wrappers, destination picker for home (`~/.agents/`) vs project-local deployments, interactive symlink prompts for single-source-of-truth configs, global symlink (`--link` / `-l`) flag, and non-interactive (`-y`) scripted operations for AI agents.
@@ -52,7 +52,7 @@
   - `picker.sh` — fzf-based interactive provider picker with numbered-list fallback. Respects `is_interactive()` guard.
   - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
 - `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
-  - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise.
+  - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise. When `AINISH_NO_OVERWRITE=true`, existing files are skipped (safe/additive mode).
 - `src/atoms/` — 15 modular deployment atoms, all using `deploy_path`/`deploy_path_contents` for `--link` support:
   - `cli_interface.sh` — Full interactive CLI menu (hot-swap, verify configs, compat matrix, provider details).
   - `deploy_agents.sh` — Deploys `AGENTS.md` (symlink-capable).
@@ -80,6 +80,28 @@ ainish-coder --rules --link /my-project       # AGENTS.md, .gitignore, PQC skill
 ainish-coder --license -l -y /my-project      # LICENSE → symlink (non-interactive)
 ainish-coder --skills --link /my-project      # All skills → symlinks
 ainish-coder --cli -l                         # Interactive menu with symlink mode
+```
+
+### Global `--no-overwrite` / `-n` Flag (NEW in 1.5.1)
+
+Pass `--no-overwrite` or `-n` as a global flag to skip existing files and only add new ones:
+
+```
+ainish-coder -n --rules /my-project           # AGENTS.md, .gitignore, PQC skills → add only
+ainish-coder -n --skills /my-project          # Only deploy skills not already at target
+ainish-coder -n --agents ~/my-project         # Skip if AGENTS.md already exists
+ainish-coder -n -y --skills ~/.agents         # Non-interactive: add missing skills to home
+```
+
+When `-n` is active:
+- **AGENTS.md**: Skipped if any AGENTS.md already exists at target (could be from another tool).
+- **Skills**: Entire skill directories are skipped if they already exist at target. Only new skills are added.
+- **Individual files**: `deploy_path()` and `deploy_path_contents()` check per-file and skip existing ones.
+- Best for: initializing new projects without clobbering existing configs, adding new skills to an existing `.agents/` directory.
+
+Combine with `-y` for fully automated safe deployments:
+```
+ainish-coder -n -y --skills ~/.agents         # Add any missing skills, skip all prompts
 ```
 
 ### Interactive Symlink Prompt (NEW in 1.5.0)
@@ -141,3 +163,30 @@ All ainish-coder, pi, and mini invocations are optionally logged to `~/.cache/ai
 `subcommand` captures granular detail — which skill was deployed (`skill:gstack-coder`), which rules path was taken (`AGENTS.md+gitignore`), whether PQC skills were included (`+pqc-secrets+pqq-signatures`), etc.
 
 Set `AINISH_NO_TRACKING=true` to opt out. If `cmd-tracker` is not on PATH, commands run directly with zero overhead.
+
+## Known Issues (May 28, 2026)
+
+### `update` cascade via system-care-and-updates
+
+Running `system_update.sh` triggered a chain of agent breakage:
+
+1. **`npm update -g` upgraded pi to v0.76.0** — pi v0.76.0 added `showDeprecationWarnings()` in `migrations.js` that waits for a keypress on startup. In non-obvious terminals or when run from the update script, pi hangs indefinitely. The deprecation warnings are for the extension system migration (commands/ → prompts/, tools/ → bin/). The keypress wait is in `dist/migrations.js` in the pi package.
+
+2. **`npm update -g` upgraded Claude Code to v2.1.154** — Claude Code now sends system reminders as `{"role": "system"}` messages inside the `messages` array. FCC's Pydantic validation (`api/models/anthropic.py:95`) only allows `Literal["user", "assistant"]` for message roles, rejecting requests with HTTP 422 before they reach any upstream provider. The real Anthropic API accepts `system` as a valid message role; FCC needs to be updated to match.
+
+3. **`update_standalone_agents()` was redundant** — The function (now removed from `system_update.sh`) duplicated the `npm update -g` and `uv tool upgrade` steps already run earlier. Agent updates should be done individually going forward.
+
+### pi startup hang workaround
+
+When pi v0.76.0 shows deprecation warnings, press any key to dismiss them and continue. To suppress the prompt entirely, ensure `~/.pi/agent/extensions/` and `~/.pi/agent/prompts/` directories exist (the migration only warns when old `commands/` or `tools/` directories contain custom content).
+
+### FCC 422 workaround
+
+The FCC proxy rejects system-in-array messages. Workarounds:
+- Route through a native Anthropic-compatible provider (like `zai`) that preserves the system field as a top-level parameter — the user's local router/Ollama setup should handle this
+- Or configure Claude Code to bypass FCC entirely by pointing `ANTHROPIC_BASE_URL` at a direct Anthropic-compatible endpoint
+- Upstream fix: FCC's `api/models/anthropic.py` line 95 should allow `Literal["user", "assistant", "system"]`
+
+### pi/mini wrapper picker
+
+The `bin/pi` and `bin/mini` wrappers show an interactive provider picker when no provider argument is given in an interactive terminal. Explicit provider selection (`pi zenmux ...`) still hot-swaps configs. Non-interactive contexts skip the picker entirely. The hot_swap mechanism backs up and rewrites `~/.pi/agent/{settings,auth,models}.json` (for pi) or `~/.config/mini-swe-agent/.env` (for mini), with an EXIT trap that restores originals on process exit. If a process is force-killed, stale `.ainish-backup` files may persist — delete them to recover the original config.

@@ -6,8 +6,13 @@ show_help() {
 ainish-coder - Configuration Manager for AI Coding Assistants
 
 USAGE:
-    ainish-coder [COMMAND] [ARGS...] [TARGET_DIR]
+    ainish-coder [GLOBAL_FLAGS] [COMMAND] [ARGS...] [TARGET_DIR]
     ainish-coder --cli                       (interactive menu)
+
+GLOBAL FLAGS:
+    -n, --no-overwrite   Skip existing files; only add new ones (safe mode)
+    -l, --link           Symlink files from repo instead of copying
+    -y, --yes            Non-interactive mode (skip all prompts, defaults to copy)
 
 INTERACTIVE MODE:
     --cli                   Launch interactive CLI menu to pick a tool, pick a
