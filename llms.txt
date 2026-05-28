@@ -39,3 +39,6 @@
   - `deploy_skills.sh` — Handles deployment of modular agent skills.
 - `dna/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
 - `.agents/skills/` — Hardened procedural guidelines for agent integration.
+- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager.
+- `bin/pqc-secrets` — Compiled and optimized release binary for keygen, pack, and export operations.
+

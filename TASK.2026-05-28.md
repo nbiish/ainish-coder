@@ -1,15 +1,13 @@
 # TASK 2026-05-28
 
-- **Objective:** Add interactive CLI capabilities to all commands, deploy `pqc-secrets` skill via `--rules`, relocate/update `llms.txt` template.
+- **Objective:** Integrate native Rust PQC secrets manager under `src/pqc-secrets/` and `bin/pqc-secrets`.
 - **Status:** Completed
 - **PQC Flag:** Enforced (FIPS 203/204/205 only for secrets management, no plaintext keys)
 
 ## Draft Steps
-1. Relocate template `llms.txt` -> `dna/templates/llms.txt`
-2. Update root `llms.txt` -> ainish-coder PRD
-3. Create `.agents/skills/pqc-secrets/SKILL.md`
-4. Update `dna/molecules/deploy_llms_txt.sh`
-5. Update `bin/ainish-coder` parser for `-y` / `--yes`
-6. Make `--rules` offer `pqc-secrets` deployment
-7. Enhance interactivity for `--secure`, `--skills`, `--mcp-recipes`
-8. Verify & commit
+1. Create `src/pqc-secrets/Cargo.toml`
+2. Write `src/pqc-secrets/src/main.rs`
+3. Compile release build
+4. Strip and copy binary to `bin/pqc-secrets`
+5. Update docs in `AGENTS.md`
+6. Verify and commit
