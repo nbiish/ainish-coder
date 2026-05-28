@@ -6,7 +6,7 @@ description: >
   running security audits, code reviews, QA testing URLs, building features end-to-end,
   or planning before building. Also configures and orchestrates pi and mini to maximize
   utilization of all AI subscriptions and APIs. For MCP-equipped sub-agent dispatch with
-  provider fallback, pair with subagent-orchestrator skill.
+  provider fallback, pair with pi-mini-orchestrator skill.
 ---
 
 # GStack Coder — Multi-Tool Coding Orchestration
@@ -59,7 +59,7 @@ pi modal -p "Add input validation to src/api/handlers.ts" --no-session --thinkin
 # mini with provider
 mini nvidia --task "Fix the race condition" --yolo
 
-# MCP-equipped dispatch (see subagent-orchestrator skill)
+# MCP-equipped dispatch (see pi-mini-orchestrator skill)
 pi modal --mcp tavily-search,github -p "Review PR for security issues" --no-session --thinking off
 ```
 
@@ -195,7 +195,7 @@ All 8 providers support both pi and mini. The full provider list, models, and MC
 
 ## 7. MCP Sub-Agent Dispatch
 
-For MCP-equipped sub-agent dispatch with automatic provider fallback, pair with the **subagent-orchestrator** skill. It provides:
+For MCP-equipped sub-agent dispatch with automatic provider fallback, pair with the **pi-mini-orchestrator** skill. It provides:
 
 - MCP server catalog (10 servers: tavily, context7, brave, github, postgres, filesystem, codewhale, puppeteer, memory, gitnexus)
 - Provider fallback chain (modal → nvidia → nebius → opencode → zai → wafer-serverless → openrouter → zenmux)
@@ -237,5 +237,5 @@ For parallel work across subscriptions (in canonical order):
 
 Provider order: modal → nvidia → nebius → opencode → zai → wafer-serverless → openrouter → zenmux
 
-For MCP-equipped dispatch with provider fallback, load the subagent-orchestrator skill.
+For MCP-equipped sub-agent dispatch with provider fallback, pair with pi-mini-orchestrator skill.
 ```

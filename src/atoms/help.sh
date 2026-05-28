@@ -114,7 +114,7 @@ UTILITY COMMANDS:
                               - production-security/       (Core security policies & PQC mandates)
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
-                              - subagent-orchestrator/     (Multi-agent task orchestration)
+                              - pi-mini-orchestrator/     (Pi+Mini orchestration with MCP scoping & provider fallback)
 
                               Example: ainish-coder --skills ~/my-project
 

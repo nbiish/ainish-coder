@@ -87,7 +87,7 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
 - `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export).
 - `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
 - `.agents/skills/` — 21 hardened procedural guideline skill packs for agent integration:
-  advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, gstack-coder, llm-security, modern-prompting, openscad-generator, osa, pi, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, subagent-orchestrator, video-knowledge-extractor
+  advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, gstack-coder, llm-security, modern-prompting, openscad-generator, pi, pi-mini-orchestrator, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, video-knowledge-extractor
 - `.agents/mcp-settings.json` — Global MCP server definitions (merged with project-level overrides).
 
 ## Symlink Deployments
