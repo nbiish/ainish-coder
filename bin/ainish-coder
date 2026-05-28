@@ -385,12 +385,15 @@ main() {
 # Parse global flags
 export AINISH_NON_INTERACTIVE="false"
 export AINISH_LINK_MODE="false"
+export AINISH_NO_OVERWRITE="false"
 filtered_args=()
 for arg in "$@"; do
     if [[ "$arg" == "-y" || "$arg" == "--yes" || "$arg" == "--non-interactive" ]]; then
         export AINISH_NON_INTERACTIVE="true"
     elif [[ "$arg" == "-l" || "$arg" == "--link" ]]; then
         export AINISH_LINK_MODE="true"
+    elif [[ "$arg" == "-n" || "$arg" == "--no-overwrite" ]]; then
+        export AINISH_NO_OVERWRITE="true"
     else
         filtered_args+=("$arg")
     fi
