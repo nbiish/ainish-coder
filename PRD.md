@@ -1,8 +1,8 @@
 # ainish-coder — Product Requirements Document
 
-**Version**: 1.1.0  
+**Version**: 1.2.0  
 **Status**: Iterating (living document)  
-**Last updated**: 2026-05-23  
+**Last updated**: 2026-05-24  
 **Steward**: ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi)
 
 ---
@@ -118,7 +118,7 @@ A single CLI tool (`ainish-coder`) that:
 
 ### 4.4 Provider-Switching Wrappers
 
-Four wrapper scripts live in `bin/`: `pi`, `codex`, `mini`, `qwen`.
+Four wrapper scripts live in `bin/`: `pi`, `codex`, `mini`, `qwen`. Claude Code is configured via `~/.claude/settings.json` env vars (hot-swapped by the `--cli` flow, not a standalone wrapper).
 
 **Usage**: `<wrapper> <provider> [args...]`
 
@@ -129,16 +129,17 @@ Four wrapper scripts live in `bin/`: `pi`, `codex`, `mini`, `qwen`.
 4. Register an EXIT trap to restore the original config files on exit
 5. Do NOT use `exec` — the EXIT trap must fire
 
-**Supported providers**: openrouter, zenmux, zai, nvidia, wafer, opencode, kimi
+**Supported providers**: openrouter, zenmux, zai, nvidia, wafer, wafer-balance, opencode, kimi
 
 **Compatibility matrix** (enforced by `tools.<name>` fields in `providers.json`):
 
-| Tool | openrouter | zenmux | zai | nvidia | wafer | opencode | kimi |
-|------|:----------:|:------:|:---:|:------:|:-----:|:--------:|:----:|
-| pi   |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
-| mini |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
-| qwen |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |    ✓     |  ✓   |
-| codex|     ✓      |   ✓    |  ✗  |   ✓    |   ✓   |    ✓     |  ✓   |
+| Tool | openrouter | zenmux | zai | nvidia | wafer | wafer-balance | opencode | kimi |
+|------|:----------:|:------:|:---:|:------:|:-----:|:-------------:|:--------:|:----:|
+| pi   |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |      ✓        |    ✓     |  ✓   |
+| mini |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |      ✓        |    ✓     |  ✓   |
+| qwen |     ✓      |   ✓    |  ✓  |   ✓    |   ✓   |      ✓        |    ✓     |  ✓   |
+| codex|     ✓      |   ✓    |  ✗  |   ✓    |   ✓   |      ✓        |    ✓     |  ✓   |
+| claude|    ✗      |   ✓    |  ✗  |   ✗    |   ✗   |      ✗        |    ✗     |  ✗   |
 
 **Requirement**: Every hot-swap MUST create a `.ainish-backup` of the original config and restore it on EXIT. The user's default configs are never permanently altered.
 
@@ -260,11 +261,19 @@ User                         ainish-coder/cli          hot_swap.sh              
     "apiKey": "sk-...",
     "defaultModel": "provider/model-name",
     "envKey": "PROVIDER_API_KEY",
+    "note": "Optional human description of this provider config",
     "tools": {
       "pi": true,
       "mini": true,
       "qwen": true,
       "codex": true
+    },
+    "modelAliases": {
+      "pi": "bare-model-name",
+      "mini": "openai/provider/model-name",
+      "qwen": "provider/model-name",
+      "codex": "provider/model-name",
+      "claude": "provider/model-name"
     }
   }
 }
@@ -272,9 +281,16 @@ User                         ainish-coder/cli          hot_swap.sh              
 
 - `baseUrl`: OpenAI-compatible completions endpoint
 - `apiKey`: API key (never logged or displayed in full)
-- `defaultModel`: Model ID with optional provider prefix (e.g., `deepseek/deepseek-v4-pro`)
+- `defaultModel`: Canonical model ID with provider prefix (e.g., `deepseek/deepseek-v4-pro`)
 - `envKey`: Environment variable name for the API key (used by codex/qwen)
+- `note`: Optional human-readable description of this provider configuration
 - `tools.<name>`: Boolean gate controlling which wrapper supports this provider
+- `modelAliases.<tool>`: **Planned** — per-tool model name translations. Currently derived implicitly by hot-swap functions; making these explicit in providers.json is the next iteration. Until then, translations are:
+  - **pi**: strips provider prefix for `defaultModel`, uses full `provider/model` in `enabledModels`
+  - **mini**: prepends `openai/` to the model name
+  - **qwen**: uses model name as-is
+  - **codex**: uses model name as-is
+  - **claude**: uses model name as-is via env var
 
 ---
 
@@ -355,9 +371,14 @@ User                         ainish-coder/cli          hot_swap.sh              
 | **pi** | `~/.pi/agent/settings.json` | JSON — `defaultProvider`, `defaultModel`, `enabledModels` |
 | | `~/.pi/agent/auth.json` | JSON — `{ "<provider>": { "type": "api_key", "key": "..." } }` |
 | | `~/.pi/agent/models.json` | JSON — `providers.<name>.baseUrl`, `.apiKey`, `.models[]` |
+
+**pi-ai monkey patch required**: When using DeepSeek V4 Pro (or any model with `thinkingFormat: "deepseek"`) through the pi coding agent, a monkey patch is needed in `@earendil-works/pi-ai`. See [Section 8.3](#83-known-pi-ai-monkey-patch-deepseek-v4-pro-reasoning_content).
 | **codex** | `~/.codex/config.toml` | TOML — `model`, `[model_providers.<name>]` |
 | **mini** | `~/.config/mini-swe-agent/.env` | ENV — `OPENAI_API_BASE`, `OPENAI_API_KEY`, `MSWEA_MODEL_NAME` |
 | **qwen** | `~/.qwen/settings.json` | JSON — `model.name`, `security.auth.selectedType`, `modelProviders.openai[]` |
+| **claude** | `~/.claude/settings.json` | JSON — `env.ANTHROPIC_AUTH_TOKEN`, `env.ANTHROPIC_BASE_URL`, `env.ANTHROPIC_DEFAULT_*_MODEL` |
+
+**Claude Code routing note**: Claude Code speaks Anthropic protocol exclusively. To route through non-Anthropic providers, set `ANTHROPIC_BASE_URL` to a provider's Anthropic-compatible endpoint (e.g., zenmux's `/api/anthropic`). This requires `CLAUDE_EFFORT=off` because Anthropic's extended thinking produces signed thinking blocks that non-Anthropic backends reject. See Section 8.4.
 
 ### 8.2 Config Restore Guarantee
 
@@ -368,6 +389,98 @@ On every exit (normal, Ctrl+C, error), the EXIT trap:
 4. Clears the tracking array
 
 The interactive CLI (`--cli`) pre-sets `_AINISH_TRAP_SET=1` so `hot_swap.sh` never replaces the trap. Instead, `_cli_cleanup()` calls `_ainish_restore_all` (if it exists) followed by `stty sane`, ensuring both config restore and terminal cleanup execute in the correct order.
+
+### 8.3 Known Monkey Patches (reasoning_content empty-string bug)
+
+DeepSeek V4 Pro (and other DeepSeek-family models in thinking mode) requires `reasoning_content` to be echoed back on every assistant tool-call message. When a model hasn't produced reasoning, these tools set `reasoning_content: ""` (empty string), but DeepSeek's API rejects empty strings with HTTP 400:
+
+```
+Error: 400 The reasoning_content in the thinking mode must be passed back to the API.
+```
+
+The fix is the same pattern everywhere: change `""` to `" "` (single space).
+
+#### 8.3.1 pi-ai (`@earendil-works/pi-ai`)
+
+**Patched**: 2026-05-23
+
+**File**: `<npm-global>/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/providers/openai-completions.js` line 722
+
+```js
+// BEFORE (broken):
+assistantMsg.reasoning_content = "";
+
+// AFTER (fixed):
+assistantMsg.reasoning_content = " ";
+```
+
+**Re-application required after**: `npm update -g @earendil-works/pi-coding-agent`
+
+**Detection**: `model.compat.requiresReasoningContentOnAssistantMessages` is `true` for all `deepseek/deepseek-v4-*` models. Auto-detection also sets it when `provider === "deepseek"` or `baseUrl.includes("deepseek.com")`.
+
+#### 8.3.2 qwen-code (`@qwen-code/qwen-code`)
+
+**Patched**: 2026-05-24
+
+**File**: `<npm-global>/lib/node_modules/@qwen-code/qwen-code/chunks/chunk-N6GSJHZ4.js` line 7333
+
+```js
+// BEFORE (broken — ensureReasoningContentOnAssistantMessage):
+return {
+    ...assistant,
+    reasoning_content: ""
+};
+
+// AFTER (fixed):
+return {
+    ...assistant,
+    reasoning_content: " "
+};
+```
+
+**Re-application required after**: `npm update -g @qwen-code/qwen-code`
+
+**Detection**: `isDeepSeekProvider()` in the same file returns true when the model name contains "deepseek", which activates the `DeepSeekOpenAICompatibleProvider` class that calls `ensureReasoningContentOnAssistantMessage`.
+
+#### 8.3.3 Tools NOT affected
+
+| Tool | Why |
+|------|-----|
+| **mini-swe-agent** | Uses `litellm` internally — handles reasoning_content echo-back correctly |
+| **codex (OpenAI)** | Uses OpenAI's Responses API, not Chat Completions — different protocol |
+| **hermes-agent** | Already has the fix in `agent_runtime_helpers.py::copy_reasoning_content_for_api` (commit `bfb704684`) |
+
+### 8.4 Known: Claude Code Thinking Disabled (signed thinking blocks)
+
+**Patched**: 2026-05-24
+
+Claude Code (`~/.claude/settings.json`) is routed through zenmux's Anthropic-compatible endpoint (`https://zenmux.ai/api/anthropic`) with `ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek/deepseek-v4-pro`. When `CLAUDE_EFFORT=high`, Claude Code sends Anthropic-proprietary signed thinking blocks. Zenmux proxies these to DeepSeek, which cannot validate the Anthropic signatures and rejects them:
+
+```
+API Error: 400 messages.1.content.0: Invalid 'signature' in 'thinking' block
+```
+
+**Fix**: `CLAUDE_EFFORT=off` in `~/.claude/settings.json` env vars. This disables extended thinking, preventing signed thinking blocks from being sent.
+
+**Trade-off**: Thinking/reasoning is disabled when using Claude Code through zenmux. For full Anthropic Claude with thinking, use a real Anthropic API key directly.
+
+### 8.5 Single-Source Model Configuration (Design Decision)
+
+`providers.json` is the single source of truth for all provider credentials and models. The hot-swap functions in `bin/lib/hot_swap.sh` read from this one file and translate into each tool's config format.
+
+**Current model name translations** (implicit in hot-swap functions):
+
+| Tool | Translation | Example |
+|------|------------|---------|
+| **pi** | Strips provider prefix for `defaultModel`; uses `provider/model` in `enabledModels` | `deepseek/deepseek-v4-pro` → `defaultModel: "deepseek-v4-pro"` |
+| **mini** | Prepends `openai/` | `deepseek/deepseek-v4-pro` → `MSWEA_MODEL_NAME='openai/deepseek/deepseek-v4-pro'` |
+| **qwen** | Passes through as-is | `deepseek/deepseek-v4-pro` → `model.name: "deepseek/deepseek-v4-pro"` |
+| **codex** | Passes through as-is | `deepseek/deepseek-v4-pro` → `model = "deepseek/deepseek-v4-pro"` |
+| **claude** | Passes through via env var | `deepseek/deepseek-v4-pro` → `ANTHROPIC_DEFAULT_OPUS_MODEL` |
+
+**Next iteration** (planned v1.3): Make these translations explicit via `modelAliases.<tool>` in each provider entry in `providers.json`. This eliminates hidden logic in hot-swap functions and lets users configure per-tool model names directly in one file.
+
+**Provider-separated configs**: When a provider offers multiple authentication contexts (e.g., Wafer subscription vs. API balance), create separate provider entries (`wafer` and `wafer-balance`) with distinct keys, models, and notes. This keeps the single-source pattern intact while supporting multiple accounts per vendor.
 
 ---
 
@@ -531,7 +644,7 @@ RSA, DSA, ECDSA, ECDH, Ed25519 (standalone), MD5, SHA-1, DES, 3DES, Blowfish, AE
 
 ## 13. Milestones & Roadmap
 
-### 13.1 Completed (v1.0 – v1.1)
+### 13.1 Completed (v1.0 – v1.2)
 
 | Milestone | Status | Date |
 |-----------|--------|------|
@@ -550,11 +663,21 @@ RSA, DSA, ECDSA, ECDH, Ed25519 (standalone), MD5, SHA-1, DES, 3DES, Blowfish, AE
 | `AGENTS_CODE_SECURITY.md` and `AGENTS_LLM_SECURITY.md` created | ✅ Done | 2026-05-23 |
 | `--secure` command operational (deploys both security docs to any project) | ✅ Done | 2026-05-23 |
 | PRD.md created | ✅ Done | 2026-05-23 |
+| pi-ai reasoning_content monkey patch applied | ✅ Done | 2026-05-23 |
+| qwen-code reasoning_content monkey patch applied | ✅ Done | 2026-05-24 |
+| Claude Code thinking disabled (signed block workaround) | ✅ Done | 2026-05-24 |
+| `providers.json` API key audit (dummy keys → real keys) | ✅ Done | 2026-05-24 |
+| mini-swe-agent `.env` API key synced to zenmux | ✅ Done | 2026-05-24 |
+| nvidia NIM default model → `deepseek/deepseek-v4-flash` | ✅ Done | 2026-05-24 |
+| Wafer AI dual config (subscription + balance) | ✅ Done | 2026-05-24 |
+| Single-source model configuration documented (Section 8.5) | ✅ Done | 2026-05-24 |
+| PRD.md updated (v1.2.0 — all agent fixes documented) | ✅ Done | 2026-05-24 |
 
-### 13.2 Planned (v1.2+)
+### 13.2 Planned (v1.3+)
 
 | Milestone | Priority | Notes |
 |-----------|----------|-------|
+| `modelAliases` explicit per-tool model names in `providers.json` | High | Replace implicit hot-swap translations with explicit per-tool model name fields |
 | `providers.json` live-editing from CLI (`--cli` option 6) | High | Add/edit/remove provider entries from the menu without leaving the CLI |
 | Token balance tracking integration | Medium | Poll provider billing endpoints for remaining credits; display in provider details and compatibility matrix |
 | `ainish-coder --update` | Medium | Self-update mechanism (git pull + re-source) |
@@ -619,7 +742,7 @@ RSA, DSA, ECDSA, ECDH, Ed25519 (standalone), MD5, SHA-1, DES, 3DES, Blowfish, AE
 | **Molecule** | Single-purpose deployment function (one per CLI command) |
 | **Protein** | Higher-level orchestration script |
 | **Hot-swap** | Temporarily rewrite a tool's config to point to a different API provider |
-| **Provider** | An API gateway or model host (OpenRouter, ZenMux, ZAI, NVIDIA, Wafer, OpenCode, Kimi) |
+| **Provider** | An API gateway or model host (OpenRouter, ZenMux, ZAI, NVIDIA, Wafer, Wafer-Balance, OpenCode, Kimi) |
 | **OSA** | Orchestrated System of Agents — fixed-order rotation across equal CLI coding agents |
 | **YOLO mode** | Auto-approve agent execution with no human-in-the-loop |
 | **PQC** | Post-Quantum Cryptography — algorithms resistant to quantum computer attacks |
@@ -641,33 +764,46 @@ When starting a new chat with this repo, here is what is verified and what needs
 
 ### Verified (no rework needed)
 
-- Provider library — `provider_read`, `provider_list`, `provider_has`, `provider_supports` all tested with mock data
-- CLI helper functions — `_cli_provider_list`, `_cli_provider_field`, `_cli_provider_supports`, `_cli_show_compat_matrix` all output correctly
-- Hot-swap source chain — all 5 hot-swap functions resolve from `bin/lib/hot_swap.sh`
+- **pi-ai reasoning_content monkey patch applied** (2026-05-23) — `openai-completions.js:722` changed `""` → `" "`. See Section 8.3.1. **Must re-apply after `npm update`**.
+- **qwen-code reasoning_content monkey patch applied** (2026-05-24) — `chunk-N6GSJHZ4.js:7333` changed `""` → `" "`. See Section 8.3.2. **Must re-apply after `npm update`**.
+- **Claude Code thinking disabled** (2026-05-24) — `CLAUDE_EFFORT=off` in `~/.claude/settings.json` to avoid signed thinking block rejection. See Section 8.4.
+- **providers.json API keys** — nvidia, wafer, opencode dummy keys replaced with real keys from `~/.pi/agent/auth.json`. openrouter and zai keys differ between files (both look real, one might be stale).
+- **Nvidia NIM default model** — changed to `deepseek/deepseek-v4-flash` in providers.json.
+- **Wafer AI dual config** — `wafer` (subscription key, GLM-5.1) and `wafer-balance` (API balance key, deepseek-v4-flash). The `wafer-balance` key is placeholder — needs real key.
+- **mini-swe-agent .env** — API key synced to zenmux `sk-ss-v1-...`.
+- Provider library — all functions tested with mock data
+- CLI helper functions — all output correctly
+- Hot-swap source chain — all 5 hot-swap functions resolve
 - `_AINISH_TRAP_SET=1` guard — prevents trap clobbering
-- `_cli_read` — `read -re` with ANSI escape stripping, arrow keys silently discarded
-- `_cli_pick` — retry loop on invalid input, `q` quits any picker
-- Library existence guard — hot-swap source files checked before sourcing
+- `_cli_read` / `_cli_pick` — ANSI stripping, retry loop, `q` quit
 - `--secure` deploys both security docs; `--rules` deploys only AGENTS.md + .gitignore
 - All bash files pass syntax check
+- PRD.md v1.2.0 — all agent fixes, monkey patches, and architecture decisions documented
+
+### Re-apply After npm Updates
+
+These patches live in dist files that get replaced on `npm update`. Re-apply after any global npm update:
+
+| Package | File | Line | Change |
+|---------|------|------|--------|
+| `@earendil-works/pi-ai` | `dist/providers/openai-completions.js` | ~722 | `""` → `" "` |
+| `@qwen-code/qwen-code` | `chunks/chunk-N6GSJHZ4.js` | ~7333 | `""` → `" "` |
 
 ### Needs Interactive Testing (real terminal)
 
-1. Run `ainish-coder --cli` with a real `~/.config/ainish-coder/providers.json`:
-   - Menu items render as numbered list
-   - Arrow keys produce no visible escape sequences
-   - Number + Enter selects option; `q` + Enter goes back
-2. Hot-swap flow: pick tool, pick provider, Y + args:
-   - Real binary launches with swapped config
-   - Backup message appears
-   - Ctrl+C returns to CLI, exit restores configs
+1. Run `ainish-coder --cli` with the updated `providers.json`:
+   - 8 providers listed (including wafer-balance)
+   - Compatibility matrix shows wafer-balance column
+2. Hot-swap flow for each tool+provider pair
 3. Verify flow: check all config paths for selected tool
 
 ### Next Priority (from Roadmap)
 
 | Priority | Task |
 |----------|------|
+| High | `modelAliases` — explicit per-tool model names in `providers.json` |
 | High | `providers.json` live-editing from CLI (Option 6) |
+| High | `wafer-balance` API key — replace placeholder with real key |
 | Medium | Token balance tracking in provider details |
 | Medium | `ainish-coder --update` self-update |
 | Medium | Non-interactive swap: `ainish-coder --cli --swap pi openrouter` |
@@ -681,5 +817,9 @@ When starting a new chat with this repo, here is what is verified and what needs
 | `bin/lib/providers.sh` | Provider JSON reader |
 | `bin/lib/hot_swap.sh` | Config backup/rewrite/restore + EXIT trap |
 | `bin/{pi,codex,mini,qwen}` | Standalone provider-switching wrappers |
+| `~/.config/ainish-coder/providers.json` | Single source of truth — all 8 provider configs |
+| `~/.pi/agent/auth.json` | pi agent API key store (sync provider keys here) |
+| `~/.claude/settings.json` | Claude Code env vars + model routing |
 | `PRD.md` | This document — full spec and roadmap |
 | `README.md` | User-facing docs |
+| `AGENTS.md` | Universal agent instructions deployed by `--rules` |
