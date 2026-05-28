@@ -2,8 +2,8 @@
   "skills": [
     "+../.agents/skills/camofox-stack/SKILL.md",
     "-../.agents/skills/ghost-layer-injector/SKILL.md",
-    "-../.agents/skills/omni-integrator/SKILL.md",
-    "-../.agents/skills/omni-knowledge-extractor/SKILL.md",
+    "-../.agents/skills/document-enhancer/SKILL.md",
+    "-../.agents/skills/video-knowledge-extractor/SKILL.md",
     "-../.agents/skills/openscad-generator/SKILL.md",
     "-../.agents/skills/osa/SKILL.md",
     "-../.agents/skills/skyvern/SKILL.md",
