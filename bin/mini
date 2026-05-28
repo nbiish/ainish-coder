@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
-# mini provider-switching wrapper
-# Usage: mini <provider> [args...]  — hot-swaps mini config to use provider, then runs mini
-#        mini [args...]             — passthrough to real mini binary
+# mini provider-switching wrapper with MCP sub-agent support
+# Usage:
+#   mini <provider> [--mcp server1,server2] [--mcp-all] [--no-mcp] [args...]
+#   mini [--mcp server1,server2] [--mcp-all] [--no-mcp] [args...]
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
 source "${LIB_DIR}/hot_swap.sh"
+source "${LIB_DIR}/mcp_settings.sh"
+
+# ── Parse MCP flags before anything else ─────────────────────────────────────
+export MCP_STATE_FILE="$(mktemp /tmp/ainish-mcp-state.XXXXXX)"
+
+_parsed=()
+while IFS= read -r line; do
+  _parsed+=("$line")
+done < <(mcp_parse_flags "$@")
+set -- "${_parsed[@]}"
+unset _parsed
+
+source "${MCP_STATE_FILE}"
+rm -f "${MCP_STATE_FILE}"
 
 # Resolve the real mini binary (skip this wrapper)
 _real_mini() {
@@ -26,6 +41,13 @@ _real_mini() {
 
 REAL_MINI="$(_real_mini)"
 
+# ── Build MCP environment exports ────────────────────────────────────────────
+if [[ "$MCP_ENABLED" == "true" ]]; then
+  mcp_load
+  eval "$(mcp_generate_mini_env "mini")"
+fi
+
+# ── Main dispatch ────────────────────────────────────────────────────────────
 provider="${1:-}"
 
 if provider_has "$provider"; then

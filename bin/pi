@@ -1,14 +1,32 @@
 #!/usr/bin/env bash
-# pi provider-switching wrapper
-# Usage: pi <provider> [args...]  — hot-swaps pi config to use provider, then runs pi
-#        pi [args...]             — passthrough to real pi binary
+# pi provider-switching wrapper with MCP sub-agent support
+# Usage:
+#   pi <provider> [--mcp server1,server2] [--mcp-all] [--no-mcp] [args...]
+#   pi [--mcp server1,server2] [--mcp-all] [--no-mcp] [args...]
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
 source "${LIB_DIR}/hot_swap.sh"
+source "${LIB_DIR}/mcp_settings.sh"
 
-# Resolve the real pi binary (skip this wrapper via PATH manipulation)
+# ── Parse MCP flags before anything else ─────────────────────────────────────
+# bash 3.2 compat: mcp_parse_flags runs in a subshell (process substitution),
+# so we use a temp file to pass MCP state back to the parent.
+export MCP_STATE_FILE="$(mktemp /tmp/ainish-mcp-state.XXXXXX)"
+
+_parsed=()
+while IFS= read -r line; do
+  _parsed+=("$line")
+done < <(mcp_parse_flags "$@")
+set -- "${_parsed[@]}"
+unset _parsed
+
+# Source the MCP state written by mcp_parse_flags, then clean up the temp file
+source "${MCP_STATE_FILE}"
+rm -f "${MCP_STATE_FILE}"
+
+# Resolve the real pi binary (skip this wrapper)
 _real_pi() {
   local self
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,14 +44,48 @@ _real_pi() {
 
 REAL_PI="$(_real_pi)"
 
+# ── Build extra args for MCP ─────────────────────────────────────────────────
+MCP_CLEANUP_NEEDED="false"
+mcp_ext_file=""
+
+if [[ "$MCP_ENABLED" == "true" ]]; then
+  mcp_load
+
+  # Generate pi extension for MCP servers
+  mcp_ext_file="$(mcp_generate_pi_extension "pi")"
+
+  if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
+    MCP_EXTRA=(--extension "$mcp_ext_file")
+    MCP_CLEANUP_NEEDED="true"
+  fi
+fi
+
+# ── Main dispatch ────────────────────────────────────────────────────────────
 provider="${1:-}"
 
 if provider_has "$provider"; then
   shift
   hot_swap_pi "$provider"
   # Do NOT use exec — the EXIT trap must fire to restore the original config
-  "$REAL_PI" "$@"
-  exit $?
+  if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
+    "$REAL_PI" --extension "$mcp_ext_file" "$@"
+  else
+    "$REAL_PI" "$@"
+  fi
+  rc=$?
+  if [[ "$MCP_CLEANUP_NEEDED" == "true" && -n "$mcp_ext_file" ]]; then
+    rm -f "$mcp_ext_file"
+  fi
+  exit $rc
 else
-  exec "$REAL_PI" "$@"
+  if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
+    "$REAL_PI" --extension "$mcp_ext_file" "$@"
+  else
+    "$REAL_PI" "$@"
+  fi
+  rc=$?
+  if [[ "$MCP_CLEANUP_NEEDED" == "true" && -n "$mcp_ext_file" ]]; then
+    rm -f "$mcp_ext_file"
+  fi
+  exit $rc
 fi
