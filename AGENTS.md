@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task. Chain-of-Draft task files. Ask before merging. Output full production code. Live infrastructure at ~/.config/pqc-secrets/. llms.txt is the PRD anchor. Read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops. Standard crypto for transport. Audit for banned algorithms and secrets every cycle.
+description: PQC secrets for all API keys. Worktree per task. Chain-of-Draft task files. Ask before merging. Output full production code. Live infrastructure at ~/.config/pqc-secrets/. llms.txt is the PRD anchor. Read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops. Standard crypto for transport. Audit for banned algorithms and secrets every cycle. MAQ (molecule <- atom <- quanta) file structure for all artifacts. Never work on main. Create a worktree for every task. Branch naming: `<type>/<scope>-<slug>`. Pre-merge checklist: gates, diff, user confirmation. Fail closed on any conflict or unconfirmed merge.
 ---
 
 # IDENTITY & PRIORITY
