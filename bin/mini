@@ -9,6 +9,8 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 source "${LIB_DIR}/providers.sh"
 source "${LIB_DIR}/hot_swap.sh"
 source "${LIB_DIR}/mcp_settings.sh"
+source "${LIB_DIR}/picker.sh"
+source "${LIB_DIR}/tracker.sh"
 
 # ── Parse MCP flags before anything else ─────────────────────────────────────
 export MCP_STATE_FILE="$(mktemp /tmp/ainish-mcp-state.XXXXXX)"
@@ -17,7 +19,9 @@ _parsed=()
 while IFS= read -r line; do
   _parsed+=("$line")
 done < <(mcp_parse_flags "$@")
-set -- "${_parsed[@]}"
+if [[ ${#_parsed[@]} -gt 0 ]]; then
+  set -- "${_parsed[@]}"
+fi
 unset _parsed
 
 source "${MCP_STATE_FILE}"
@@ -49,13 +53,20 @@ fi
 
 # ── Main dispatch ────────────────────────────────────────────────────────────
 provider="${1:-}"
+_TRACK_PROVIDER=""
 
 if provider_has "$provider"; then
   shift
   hot_swap_mini "$provider"
-  # Do NOT use exec — the EXIT trap must fire to restore the original config
-  "$REAL_MINI" "$@"
-  exit $?
-else
-  exec "$REAL_MINI" "$@"
+  _TRACK_PROVIDER="$provider"
+elif is_interactive; then
+  if picker_select "mini"; then
+    hot_swap_mini "$_PICKER_RESULT"
+    echo -e "\033[1;32m→ Using provider: ${_PICKER_RESULT}\033[0m" >&2
+    _TRACK_PROVIDER="$_PICKER_RESULT"
+  fi
 fi
+
+# Do NOT use exec — the EXIT trap must fire to restore the original config
+run_with_tracker "mini" "" "$_TRACK_PROVIDER" -- "$REAL_MINI" "$@"
+exit $?

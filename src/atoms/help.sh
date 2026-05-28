@@ -88,7 +88,7 @@ UTILITY COMMANDS:
                               Example: ainish-coder --scrolls ~/my-project
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory
-                              Deploys 18 skill packs:
+                              Deploys 21 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
@@ -98,15 +98,18 @@ UTILITY COMMANDS:
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - llm-security/              (LLM & agentic AI security)
                               - modern-prompting/          (OOReDAct advanced prompting)
-                              - omni-integrator/           (Recursive optimization pipeline)
-                              - omni-knowledge-extractor/  (YouTube knowledge extraction)
+                              - document-enhancer/         (Knowledge fusion & document hardening)
+                              - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
                               - osa/                       (Multi-agent orchestration)
                               - pi/                        (Pi Coding Agent expertise)
                               - pliny-research/            (AI transparency research)
-                              - production-security/       (Core security policies & PQC)
+                              - pqc-secrets/               (PQC secrets: API key encryption, ML-KEM-768)
+                              - pqc-signatures-security/   (PQC signatures: ML-DSA-65 code signing & integrity)
+                              - production-security/       (Core security policies & PQC mandates)
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
+                              - subagent-orchestrator/     (Multi-agent task orchestration)
 
                               Example: ainish-coder --skills ~/my-project
 
@@ -148,25 +151,24 @@ PROVIDER-SWITCHING WRAPPERS:
     pi <provider> [args...]      Run pi coding agent with a provider
     mini <provider> [args...]    Run mini-swe-agent with a provider
 
-    Providers: openrouter, zenmux, zai, nvidia, wafer, opencode, kimi
+    Providers configured in ~/.config/ainish-coder/providers.json
 
     The wrapper injects the right provider config (API key, base URL,
     default model) from ~/.config/ainish-coder/providers.json.
     Pass --model or -m to override the default model.
 
-    No provider arg = passthrough to the real binary.
-
-    Provider compatibility:
-                  OpenRouter   ZenMux   ZAI   NVIDIA   Wafer   OpenCode   Kimi
-        pi            ✓          ✓       ✓      ✓        ✓        ✓         ✓
-        mini          ✓          ✓       ✓      ✓        ✓        ✓         ✓
+    If no provider is given and the terminal is interactive, an fzf-based
+    picker (or numbered list fallback) lets you choose a provider on the
+    fly. In non-interactive contexts (piped input, AI agent scripting,
+    AINISH_NON_INTERACTIVE=true), the wrapper passes through to the real
+    binary with no changes.
 
     Examples:
         pi openrouter                    # deepseek-v4-pro via openrouter
         pi zai "fix the bug"             # glm-5.1 via ZAI coding plan
         mini openrouter -t "fix tests"   # deepseek-v4-pro via openrouter
-        pi nvidia                        # Llama-3.1 via NVIDIA NIM
-        mini opencode -t "run tests"     # Kimi-k2.6 via OpenCode Go
+        pi                               # interactive picker (fzf if available)
+        mini "do something"              # interactive picker then runs
 
 OTHER:
     --help, -h                Show this help message

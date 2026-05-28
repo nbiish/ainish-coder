@@ -44,7 +44,7 @@ deploy_mcp() {
     local dest_dir="$target_dir/.trae"
     mkdir -p "$dest_dir"
 
-    cp "$mcp_src" "$dest_dir/mcp.json"
+    deploy_path "$mcp_src" "$dest_dir/mcp.json"
     echo_success "Copied mcp.json → $dest_dir/mcp.json"
 
     echo_success "MCP configuration deployment complete for: $target_dir"

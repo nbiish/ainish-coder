@@ -23,7 +23,7 @@ deploy_signals() {
     local src_signals_dir="$source_dir/docs/signals"
     
     if [[ -f "$src_file" ]]; then
-        cp "$src_file" "$dest_file"
+        deploy_path "$src_file" "$dest_file"
         echo -e "${GREEN}✓ Deployed: signals.md${RESET}"
     else
         print_error "signals.md not found in source ($src_file)"
@@ -35,7 +35,7 @@ deploy_signals() {
         for file in "$src_signals_dir"/*.md; do
             if [[ -f "$file" ]]; then
                 local filename=$(basename "$file")
-                cp "$file" "$signals_dir/$filename"
+                deploy_path "$file" "$signals_dir/$filename"
                 echo -e "${GREEN}✓ Deployed: $filename${RESET}"
             fi
         done
@@ -61,9 +61,9 @@ deploy_signals() {
                     fi
 
                     if [[ -d "$item" ]]; then
-                        cp -r "$item" "$dest_examples_dir/"
+                        deploy_path_contents "$item" "$dest_examples_dir/$base_name"
                     else
-                        cp "$item" "$dest_examples_dir/"
+                        deploy_path "$item" "$dest_examples_dir/$base_name"
                     fi
                 done
                 echo -e "${GREEN}✓ Deployed examples to $dest_examples_dir${RESET}"

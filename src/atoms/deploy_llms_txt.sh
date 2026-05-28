@@ -24,7 +24,7 @@ deploy_llms_txt() {
 
     echo -e "${BRIGHT_BLUE}Deploying llms.txt file to: $dest_file${RESET}"
 
-    cp "$src_file" "$dest_file"
+    deploy_path "$src_file" "$dest_file"
 
     if [[ -f "$dest_file" ]]; then
         echo -e "${BRIGHT_GREEN}✅ llms.txt file deployed to $dest_file${RESET}"

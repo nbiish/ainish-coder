@@ -20,7 +20,7 @@ deploy_template_agent() {
     local source_template="$source_dir/.mai-rules/template-agent.md"
     
     if [[ -f "$source_template" ]]; then
-        cp "$source_template" "$template_agent"
+        deploy_path "$source_template" "$template_agent"
         echo -e "${GREEN}✓ Deployed: template-agent.md${RESET}"
         echo -e "${CYAN}  └─ Location: $template_agent${RESET}"
         echo -e "${YELLOW}  └─ Edit this file to craft your agent's constitution${RESET}"

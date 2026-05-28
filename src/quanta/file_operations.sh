@@ -44,3 +44,67 @@ safe_remove() {
 file_exists_and_readable() {
     [[ -f "$1" ]] && [[ -r "$1" ]] && return 0 || return 1
 }
+
+# Deploy a file or directory from source to destination.
+# When AINISH_LINK_MODE=true, creates a symlink instead of copying.
+# Creates parent directories as needed.
+# Usage: deploy_path <source> <dest>
+deploy_path() {
+    local src="$1"
+    local dest="$2"
+
+    # Ensure parent directory exists
+    local dest_parent
+    dest_parent="$(dirname "$dest")"
+    mkdir -p "$dest_parent"
+
+    # Remove existing file/link at destination
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        rm -f "$dest"
+    fi
+
+    if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then
+        # Resolve source to absolute so symlinks survive directory moves
+        local abs_src
+        abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd)/$(basename "$src")"
+        if [[ -d "$abs_src" ]]; then
+            ln -sfn "$abs_src" "$dest"
+        else
+            ln -sf "$abs_src" "$dest"
+        fi
+    else
+        if [[ -d "$src" ]]; then
+            cp -r "$src" "$dest"
+        else
+            cp "$src" "$dest"
+        fi
+    fi
+}
+
+# Deploy all files from a source directory into a destination directory.
+# When AINISH_LINK_MODE=true, symlinks each file individually.
+# Usage: deploy_path_contents <src_dir> <dest_dir>
+deploy_path_contents() {
+    local src_dir="$1"
+    local dest_dir="$2"
+
+    mkdir -p "$dest_dir"
+
+    if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then
+        local abs_src
+        abs_src="$(cd "$src_dir" 2>/dev/null && pwd)"
+        for item in "$abs_src"/*; do
+            [[ -e "$item" ]] || continue
+            local name
+            name="$(basename "$item")"
+            rm -f "$dest_dir/$name"
+            if [[ -d "$item" ]]; then
+                ln -sfn "$item" "$dest_dir/$name"
+            else
+                ln -sf "$item" "$dest_dir/$name"
+            fi
+        done
+    else
+        cp -r "$src_dir"/* "$dest_dir/" 2>/dev/null || true
+    fi
+}

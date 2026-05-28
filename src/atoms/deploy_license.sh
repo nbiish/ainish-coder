@@ -27,11 +27,11 @@ deploy_license() {
         echo -e "${YELLOW}Backed up existing LICENSE${RESET}"
     fi
     
-    # Copy file
-    if cp "$source" "$dest" 2>/dev/null; then
-        echo -e "${GREEN}✓ Copied: LICENSE${RESET}"
+    # Deploy (symlink with --link, copy otherwise)
+    if deploy_path "$source" "$dest"; then
+        echo -e "${GREEN}✓ Deployed: LICENSE${RESET}"
     else
-        echo -e "${BRIGHT_RED}Error: Failed to copy LICENSE${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to deploy LICENSE${RESET}"
         return 1
     fi
     
