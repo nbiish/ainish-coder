@@ -1,0 +1,77 @@
+{
+  "mcpServers": {
+    "tavily-search": {
+      "command": "npx",
+      "args": ["-y", "tavily-mcp"],
+      "env": {
+        "TAVILY_API_KEY": ""
+      },
+      "description": "Web search via Tavily MCP server. Requires TAVILY_API_KEY."
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/context7-mcp"],
+      "env": {},
+      "description": "Up-to-date library docs via Context7 MCP server."
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/brave-search-mcp"],
+      "env": {
+        "BRAVE_API_KEY": ""
+      },
+      "description": "Web and local search via Brave Search API. Requires BRAVE_API_KEY."
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/github-mcp"],
+      "env": {
+        "GITHUB_TOKEN": ""
+      },
+      "description": "GitHub repository, PR, and issue management. Requires GITHUB_TOKEN."
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/postgres-mcp"],
+      "env": {
+        "DATABASE_URL": ""
+      },
+      "description": "PostgreSQL database query access. Requires DATABASE_URL."
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/filesystem-mcp"],
+      "env": {},
+      "description": "Secure filesystem access with configurable allowed directories."
+    },
+    "codewhale": {
+      "command": "codewhale-mcp",
+      "args": [],
+      "env": {},
+      "description": "codewhale MCP server (local binary)."
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/puppeteer-mcp"],
+      "env": {},
+      "description": "Headless Chrome browser automation via Puppeteer."
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/memory-mcp"],
+      "env": {},
+      "description": "Persistent knowledge graph memory system."
+    },
+    "gitnexus": {
+      "type": "local",
+      "command": "gitnexus",
+      "args": ["mcp"],
+      "env": {},
+      "description": "GitNexus MCP server — local git intelligence and repository analysis."
+    }
+  },
+  "defaults": {
+    "pi": [],
+    "mini": []
+  }
+}
