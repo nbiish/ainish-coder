@@ -8,7 +8,7 @@
 - **Version:** 1.5.1
 - **Description:** Modular configuration, rules, and skills manager for AI coding assistants with interactive provider switching, destination-picker (home vs project), interactive symlink prompting, and CLI usage analytics.
 - **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs to home or project directories, hot-swap LLM providers on the fly, and track usage patterns for continuous improvement.
-- **UX:** Interactive CLI menu (`--cli`), fzf-powered provider picker in wrappers, destination picker for home (`~/.agents/`) vs project-local deployments, interactive symlink prompts for single-source-of-truth configs, global symlink (`--link` / `-l`) flag, and non-interactive (`-y`) scripted operations for AI agents.
+- **UX:** Interactive CLI menu (`--cli`), fzf-powered provider picker in wrappers, destination picker for home (`~/.agents/`) vs project-local deployments, interactive symlink prompts for single-source-of-truth configs, global symlink (`--link` / `-l`) flag, non-overwrite safe mode (`--no-overwrite` / `-n`) flag, and non-interactive (`-y`) scripted operations for AI agents.
 
 ## Core Rules
 
@@ -22,6 +22,13 @@
 - **Always** verify code integrity with ML-DSA-65 (FIPS 204) signatures before deployment.
 - **Always** sign commits and releases with ML-DSA-65 keys stored in the macOS Keychain.
 - **Never** rely on classical signature schemes (RSA-PSS, ECDSA) for integrity verification of critical artifacts.
+
+### Deployment Safety (Additive-Only Mandate)
+- **Never** overwrite existing files at the deployment target unless `--force` is explicitly passed.
+- **Always** default to additive mode: detect what already exists, skip it, only deploy missing artifacts.
+- **Always** treat `.agents/` target directories as multi-tenant — other tools and skills may already be present and must be preserved.
+- **Never** clobber an existing `AGENTS.md`, `.gitignore`, or skill directory without the operator's explicit choice.
+- Use `ainish-coder -n` (or `--no-overwrite`) to enforce non-destructive deployment across all commands (`--rules`, `--skills`, `--agents`, `--critical`, etc.).
 
 ### Workflow & Sandboxing
 - **Always** isolate tasks using dedicated git worktrees.
