@@ -13,6 +13,8 @@ description: >
 
 This skill combines **gstack** (Claude Code skill pack) with **pi** and **mini** to form a complete multi-tool coding workflow. Each tool has unique strengths and subscription quotas — this skill ensures all are utilized.
 
+**PRD Anchor:** Always read `llms.txt` in the repository root first. It is the authoritative Product Requirements Document for this repo — it defines architecture, security policy (PQC mandates, secrets management), workflow rules (git worktrees, commit conventions), and the provider/MCP infrastructure. If `llms.txt` and any other doc conflict, `llms.txt` wins. Never skip reading it.
+
 ---
 
 ## 1. GStack Installation & Setup
@@ -52,16 +54,18 @@ The ainish-coder framework supports hot-swapping provider configs via CLI wrappe
 
 ```bash
 # pi with provider — wrapper auto-swaps config before launch
-pi zenmux -p "Add input validation to src/api/handlers.ts" --no-session --thinking off
+pi modal -p "Add input validation to src/api/handlers.ts" --no-session --thinking off
 
 # mini with provider
-mini openrouter --task "Fix the race condition" --yolo
+mini nvidia --task "Fix the race condition" --yolo
 
 # MCP-equipped dispatch (see subagent-orchestrator skill)
-pi zenmux --mcp tavily-search,github -p "Review PR for security issues" --no-session --thinking off
+pi modal --mcp tavily-search,github -p "Review PR for security issues" --no-session --thinking off
 ```
 
-Available providers: `openrouter`, `zenmux`, `zai`, `nvidia`, `wafer`, `wafer-balance`, `opencode`, `kimi`
+**Canonical provider order:** `modal` → `nvidia` → `nebius` → `opencode` → `zai` → `wafer-serverless` → `openrouter` → `zenmux`
+
+Always dispatch in this order. On failure, advance to the next. Never skip or reorder.
 
 ---
 
@@ -113,8 +117,8 @@ gemini → claude → crush → pi → mini → opencode → kilo → (wrap)
 # Sequential dispatch — each agent does one task
 gemini -p "Add error handling to src/api/routes.ts" -y
 claude -p "Review the error handling for edge cases" --dangerously-skip-permissions
-pi zenmux -p "Add unit tests for the error handling" --no-session --thinking off
-mini openrouter --task "Validate routes against schema" --yolo
+pi modal -p "Add unit tests for the error handling" --no-session --thinking off
+mini nvidia --task "Validate routes against schema" --yolo
 ```
 
 ### Parallel Dispatch (separate worktrees)
@@ -125,7 +129,7 @@ git worktree add ../task-auth agent-gemini
 cd ../task-auth && gemini -p "Implement OAuth2 login flow" -y &
 
 git worktree add ../task-payment agent-pi
-cd ../task-payment && pi zenmux -p "Implement Stripe payment integration" --no-session --thinking off &
+cd ../task-payment && pi modal -p "Implement Stripe payment integration" --no-session --thinking off &
 
 wait
 # Review and merge worktrees back
@@ -156,26 +160,36 @@ wait
 
 ## 6. Provider Configuration
 
-Configure providers in `~/.config/ainish-coder/providers.json`:
+Configure providers in `~/.config/ainish-coder/providers.json`. The canonical dispatch order is fixed:
+
+```
+modal → nvidia → nebius → opencode → zai → wafer-serverless → openrouter → zenmux
+```
 
 ```json
 {
-  "openrouter": {
-    "baseUrl": "https://openrouter.ai/api/v1",
-    "apiKey": "sk-or-v1-...",
-    "defaultModel": "deepseek/deepseek-v4-pro",
+  "modal": {
+    "baseUrl": "https://modal.com/api/v1",
+    "apiKey": "sk-modal-...",
+    "defaultModel": "zai-org/GLM-5.1-FP8",
     "tools": { "pi": true, "mini": true }
   },
-  "zenmux": {
-    "baseUrl": "https://zenmux.ai/api/v1",
-    "apiKey": "sk-ss-v1-...",
-    "defaultModel": "deepseek/deepseek-v4-pro",
+  "nvidia": {
+    "baseUrl": "https://integrate.api.nvidia.com/v1",
+    "apiKey": "nvapi-...",
+    "defaultModel": "deepseek/deepseek-v4-flash",
+    "tools": { "pi": true, "mini": true }
+  },
+  "nebius": {
+    "baseUrl": "https://api.nebius.com/v1",
+    "apiKey": "sk-nebius-...",
+    "defaultModel": "NousResearch/Hermes-4-405B",
     "tools": { "pi": true, "mini": true }
   }
 }
 ```
 
-Each provider maps to a different subscription — rotate between them to maximize API usage.
+All 8 providers support both pi and mini. The full provider list, models, and MCP server catalog are defined in `llms.txt` (the authoritative PRD) and `~/.agents/mcp-settings.json`.
 
 ---
 
@@ -183,16 +197,16 @@ Each provider maps to a different subscription — rotate between them to maximi
 
 For MCP-equipped sub-agent dispatch with automatic provider fallback, pair with the **subagent-orchestrator** skill. It provides:
 
-- MCP server catalog (9 servers: tavily, context7, brave, github, postgres, filesystem, codewhale, puppeteer, memory)
-- Provider fallback chains (zenmux → openrouter → opencode → zai → wafer → nvidia → wafer-balance → kimi)
+- MCP server catalog (10 servers: tavily, context7, brave, github, postgres, filesystem, codewhale, puppeteer, memory, gitnexus)
+- Provider fallback chain (modal → nvidia → nebius → opencode → zai → wafer-serverless → openrouter → zenmux)
 - Error recovery patterns (provider failure → next provider, MCP failure → retry without)
 - Scoped MCP: sub-agents only get the tools they need per task
 
 ```bash
 # Example: code review with GitHub access + provider fallback
-pi zenmux --mcp github -p "Review PR #42" --no-session --thinking off ||
-  pi openrouter --mcp github -p "Review PR #42" --no-session --thinking off ||
-  pi opencode --mcp github -p "Review PR #42" --no-session --thinking off
+pi modal --mcp github -p "Review PR #42" --no-session --thinking off ||
+  pi nvidia --mcp github -p "Review PR #42" --no-session --thinking off ||
+  pi nebius --mcp github -p "Review PR #42" --no-session --thinking off
 ```
 
 ---
@@ -205,6 +219,7 @@ When setting up a new codebase, add this section to AGENTS.md:
 ## CODING TASKS
 
 When spawning Claude Code sessions for coding work, tell the session to use gstack skills.
+Always read llms.txt first — it is the authoritative PRD for this repository.
 
 ### Task Patterns
 
@@ -216,9 +231,11 @@ When spawning Claude Code sessions for coding work, tell the session to use gsta
 
 ### Multi-Tool Dispatch
 
-For parallel work across subscriptions:
+For parallel work across subscriptions (in canonical order):
 - **pi**: `pi <provider> -p "task" --no-session --thinking off`
 - **mini**: `mini <provider> --task "task" --yolo`
+
+Provider order: modal → nvidia → nebius → opencode → zai → wafer-serverless → openrouter → zenmux
 
 For MCP-equipped dispatch with provider fallback, load the subagent-orchestrator skill.
 ```
