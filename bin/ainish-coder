@@ -89,14 +89,15 @@ main() {
 
     # Ask if user wants to symlink from repo source (single source of truth).
     # Returns 0 if symlink, 1 if copy. Respects global -l flag.
+    # Defaults to symlink (y) — changes to the canonical source propagate automatically.
     _confirm_symlink() {
         if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then
             return 0  # Already set globally via -l
         fi
         if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" || ! -t 0 ]]; then
-            return 1  # Default to copy in non-interactive mode
+            return 0  # Default to symlink in non-interactive mode
         fi
-        confirm_action "Symlink from repo source (single source of truth)?" "n"
+        confirm_action "Symlink from repo source (single source of truth)?" "y"
     }
 
     # Run a deploy function, optionally overriding AINISH_LINK_MODE for just
