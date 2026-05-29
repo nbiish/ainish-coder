@@ -11,8 +11,10 @@ USAGE:
 
 GLOBAL FLAGS:
     -n, --no-overwrite   Skip existing files; only add new ones (safe mode)
-    -l, --link           Symlink files from repo instead of copying
-    -y, --yes            Non-interactive mode (skip all prompts, defaults to copy)
+    -l, --link           Force symlink mode (now the default — use to override
+                         any saved preference)
+    -y, --yes            Non-interactive mode (skip all prompts; defaults to
+                         symlink for single source of truth)
 
 INTERACTIVE MODE:
     --cli                   Launch interactive CLI menu to pick a tool, pick a
@@ -26,11 +28,13 @@ INTERACTIVE MODE:
                               - View provider details and which config files are modified
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md and .gitignore
+    --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to symlink — single source
+                              of truth) and .gitignore (symlink or copy, your choice).
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
-    --agents [TARGET_DIR]     Deploy AGENTS.md only (universal AI agent standard)
+    --agents [TARGET_DIR]     Deploy AGENTS.md only (defaults to symlink — single source
+                              of truth).
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
@@ -192,6 +196,7 @@ ENVIRONMENT VARIABLES:
 
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
+    - Deployments default to symlink (single source of truth) — opt out at the prompt
     - --rules deploys AGENTS.md + .gitignore + global symlinks
     - --agents deploys AGENTS.md + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)

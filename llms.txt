@@ -6,9 +6,9 @@
 
 - **Name:** ainish-coder
 - **Version:** 1.5.1
-- **Description:** Modular configuration, rules, and skills manager for AI coding assistants with interactive provider switching, destination-picker (home vs project), interactive symlink prompting, and CLI usage analytics.
+- **Description:** Modular configuration, rules, and skills manager for AI coding assistants with interactive provider switching, destination-picker (home vs project), symlink-by-default deployments (single source of truth), and CLI usage analytics.
 - **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs to home or project directories, hot-swap LLM providers on the fly, and track usage patterns for continuous improvement.
-- **UX:** Interactive CLI menu (`--cli`), fzf-powered provider picker in wrappers, destination picker for home (`~/.agents/`) vs project-local deployments, interactive symlink prompts for single-source-of-truth configs, global symlink (`--link` / `-l`) flag, non-overwrite safe mode (`--no-overwrite` / `-n`) flag, and non-interactive (`-y`) scripted operations for AI agents.
+- **UX:** Interactive CLI menu (`--cli`), fzf-powered provider picker in wrappers, destination picker for home (`~/.agents/`) vs project-local deployments, symlink-by-default deployments (single source of truth — opt-out at prompt), global symlink (`--link` / `-l`) flag, non-overwrite safe mode (`--no-overwrite` / `-n`) flag, and non-interactive (`-y`) scripted operations for AI agents.
 
 ## Core Rules
 
@@ -50,16 +50,16 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
 **Never skip the user confirmation step.** Every merge across the pipeline boundary requires explicit approval. Fail closed on any ambiguity.
 
 ### Interactivity & Prompting
-- **Always** implement interactive prompting (with options and y/N confirmations) when running direct CLI flags (e.g., `--rules`, `--skills`).
+- **Always** implement interactive prompting (with options and Y/n confirmations) when running direct CLI flags (e.g., `--rules`, `--skills`).
 - **Always** offer a destination picker (home directory `~/.agents/` vs project-local) for skills, agents, and unlock deployments.
-- **Always** offer an interactive symlink prompt ("Symlink from repo source?") after destination selection, so users can keep a single source of truth.
-- **Always** support non-interactive mode via `--yes` or `-y` flag to bypass all prompts (defaults: target dir, copy mode).
-- The global `--link` / `-l` flag forces symlink mode and skips the symlink prompt.
+- **Always** offer an interactive symlink prompt ("Symlink from repo source?") after destination selection, defaulting to **yes** (single source of truth). Users can opt out to get a static copy.
+- **Always** support non-interactive mode via `--yes` or `-y` flag to bypass all prompts (defaults: target dir, symlink mode).
+- The global `--link` / `-l` flag still forces symlink mode (now the default — included for scripts that set it explicitly).
 - Provider wrappers (`pi`, `mini`) show an fzf-based picker (with numbered fallback) when invoked interactively without a provider argument.
 
 ## Architecture
 
-- `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt), and `_with_link_choice()` (deploy wrapper).
+- `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt — defaults to yes), and `_with_link_choice()` (deploy wrapper).
 - `bin/pi` — Pi coding agent wrapper with interactive provider picker and MCP sub-agent support. Tracks usage via `cmd-tracker`.
 - `bin/mini` — mini-swe-agent wrapper with interactive provider picker and MCP sub-agent support. Tracks usage via `cmd-tracker`.
 - `bin/pqc-secrets` — Shell wrapper for the Rust FIPS 203 secrets manager (keygen, pack, export).
@@ -92,13 +92,20 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
 
 ## Symlink Deployments
 
+### Symlink-by-Default (NEW in 1.5.2)
+
+As of 1.5.2, all deployments default to symlink mode — the repo source is the **single source of truth**. Changes to the canonical files in the ainish-coder repository propagate automatically to every project that has run `--rules` or `--agents`.
+
+To get a static copy instead, answer **n** at the interactive symlink prompt. In non-interactive mode, use a future `--copy` flag (not yet implemented).
+
 ### Global `--link` / `-l` Flag
 
-Pass `--link` or `-l` as a global flag to symlink all deployed files from the ainish-coder repository instead of copying:
+Pass `--link` or `-l` as a global flag to explicitly force symlink mode (now the default — primarily useful for scripts that set it to override any future saved preference):
 
 ```
-ainish-coder --rules --link /my-project       # AGENTS.md, .gitignore, PQC skills → symlinks
-ainish-coder --license -l -y /my-project      # LICENSE → symlink (non-interactive)
+ainish-coder --rules /my-project              # Symlinks by default (no --link needed)
+ainish-coder --rules -l /my-project           # Explicit force (redundant with default)
+ainish-coder --license -y /my-project         # LICENSE → symlink (non-interactive default)
 ainish-coder --skills --link /my-project      # All skills → symlinks
 ainish-coder --cli -l                         # Interactive menu with symlink mode
 ```
@@ -125,17 +132,17 @@ Combine with `-y` for fully automated safe deployments:
 ainish-coder -n -y --skills ~/.agents         # Add any missing skills, skip all prompts
 ```
 
-### Interactive Symlink Prompt (NEW in 1.5.0)
+### Interactive Symlink Prompt (UPDATED in 1.5.2)
 
-Every deploy command now interactively asks whether to symlink from the repo source:
+Every deploy command asks whether to symlink from the repo source. As of 1.5.2, the default is **yes**:
 
 ```
-▸ Symlink from repo source (single source of truth)? [y/N]:
+▸ Symlink from repo source (single source of truth)? [Y/n]:
 ```
 
-Answer **y** to symlink (live-updating — edit the repo, all deployments follow). Answer **n** (or hit Enter) to copy. The global `-l` flag skips this prompt and forces symlink mode. Non-interactive mode (`-y`) defaults to copy.
+Answer **y** (or hit Enter) to symlink — live-updating: edit the canonical repo, all deployments follow automatically. Answer **n** to get a static copy. The global `-l` flag skips this prompt and forces symlink mode (now the default). Non-interactive mode (`-y`) also defaults to symlink.
 
-This sets `AINISH_LINK_MODE=true`, which is read by `deploy_path()` and `deploy_path_contents()` in `src/quanta/file_operations.sh`. When enabled, files are symlinked with absolute paths (surviving directory moves). When disabled (default), files are copied.
+This sets `AINISH_LINK_MODE=true`, which is read by `deploy_path()` and `deploy_path_contents()` in `src/quanta/file_operations.sh`. When enabled, files are symlinked with absolute paths (surviving directory moves). When disabled, files are copied.
 
 ### Destination Picker (NEW in 1.5.0)
 
