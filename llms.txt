@@ -66,11 +66,13 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
 - `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
 - `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
 - `bin/git-context.sh` — AI agent situational awareness script invoked by the `git context` alias. Produces a structured, token-efficient context dump: branch/worktree position, status, diffs, task files, PRD anchor, worktrees, stashes, timeline, last commit, and gate-tool availability. Designed as the one-command bridge between the developer's git state and any AI coding agent's context window.
+- `bin/auto-thinking-classify` — Smol-model per-turn thinking classifier with task/stage/attempt metadata (`modelRoles.smol`).
 - `bin/lib/` — Shared shell libraries:
   - `providers.sh` — Reads `~/.config/ainish-coder/providers.json` (8 providers: modal, nvidia, nebius, opencode, zai, wafer-serverless, openrouter, zenmux).
   - `hot_swap.sh` — Backs up pi/mini config files, rewrites for chosen provider, restores on EXIT trap.
   - `mcp_settings.sh` — MCP flag parsing, layered config merge, env generation, pi extension generation.
   - `mcp_discover.py` — Host-tool MCP discovery (Claude, Cursor, Codex, Windsurf, Gemini, VS Code) for gap-fill merge.
+  - `auto_thinking_context.sh` — Orchestration metadata envelope for auto thinking classification.
   - `picker.sh` — fzf-based interactive provider picker with numbered-list fallback. Respects `is_interactive()` guard.
   - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
 - `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
@@ -238,6 +240,7 @@ Set per role in step 3. Stored as a `:suffix` on the model string (e.g. `zenmux/
 
 | Level | Label | Typical use | Notes |
 |-------|-------|-------------|-------|
+| `auto` | auto | Session default when dynamic budget wanted | Smol classifies **per user turn** (pi ≥ 15.7.2); see below |
 | `inherit` | inherit | — | Use session `defaultThinkingLevel` |
 | `off` | off | SMOL / orchestrator print mode | No extended reasoning tokens |
 | `min` | min | — | ~1k reasoning budget |
@@ -248,13 +251,70 @@ Set per role in step 3. Stored as a `:suffix` on the model string (e.g. `zenmux/
 
 **CLI override:** `pi … --thinking off` (or `mini` equivalent) applies only to that invocation and does not mutate `settings.json`. Orchestrator dispatches use `--thinking off` for speed unless the task explicitly requires `slow` / `plan` resolution.
 
+**Fixed vs auto:** Selecting `low`…`xhigh` on a role or as `defaultThinkingLevel` **disables** auto for that scope until the operator picks `auto` again. Role suffixes like `model:high` are fixed levels; use session `defaultThinkingLevel: "auto"` (no suffix on the active model) for dynamic mode.
+
+### Auto thinking mode (`auto`)
+
+Pi coding-agent **15.7.2+** adds `auto` to the thinking selector (cycle: `off → auto → min … → xhigh → off`). When `defaultThinkingLevel` or a role is set to `auto`:
+
+1. **Before each real user turn**, pi runs a **smol-model classifier** (`modelRoles.smol`, reasoning disabled, ≤4s timeout).
+2. Classifier returns one keyword: `low` | `medium` | `high` | `xhigh`.
+3. Result is **clamped** to the active model's supported reasoning range (never below `low` for auto).
+4. **Failures never block the turn** — fallback to provisional level (model default, usually `high`).
+5. **`ultrathink`** in the user message forces `xhigh` without calling smol.
+
+**ainish-coder extension:** Pi's built-in classifier reads the user prompt text only. Orchestrators (Cursor agent, pi-mini, scripts) **must prepend** orchestration metadata so smol can factor in task context:
+
+| Field | Source | Purpose |
+|-------|--------|---------|
+| `task` | Latest `.agents/tasks/TASK.*.md` slug | Which work item |
+| `stage` | `AINISH_STAGE` or `AINISH_INFERENCE_KIND` | plan / implement / review / debug / commit |
+| `branch` | `git branch --show-current` | Isolation context |
+| `attempt` | `AINISH_ATTEMPT` (default `1`) | Retry escalation signal |
+| `inference` | `AINISH_INFERENCE_CALL` (default `main`) | main / subtask / plan / commit / vision |
+| `actions` | `AINISH_ACTIONS` | Ultra-short recent tool summary |
+| `preview` | First 200 chars of user text | Intent snapshot |
+
+**Helpers:**
+
+```bash
+# Emit metadata + user text (prepend to pi/Cursor user messages when auto is on)
+source bin/lib/auto_thinking_context.sh
+auto_thinking_context_block "fix the OAuth redirect loop"
+
+# Standalone classify (Cursor agent without pi session auto hook)
+AINISH_STAGE=debug AINISH_ATTEMPT=2 bin/auto-thinking-classify "fix race in queue worker"
+```
+
+**Pi settings:**
+
+```json
+{
+  "defaultThinkingLevel": "auto",
+  "modelRoles": { "smol": "zai/glm-5.1" },
+  "providers": { "autoThinkingModel": "online" }
+}
+```
+
+- `providers.autoThinkingModel`: `online` (default, uses `modelRoles.smol`) or a local tiny-model key for offline classification.
+- **Do not** set `modelRoles.smol` thinking suffix to `auto` — smol runs with reasoning **off** for classification.
+
+**Orchestrator rules (auto):**
+
+| Agent | Behavior |
+|-------|----------|
+| **pi interactive** | Set `defaultThinkingLevel: auto` in settings; optional `<ainish-auto-ctx …/>` prepend via wrapper convention |
+| **pi-mini subtask** | Keep `--thinking off` for execution speed **or** use `auto-thinking-classify` once at dispatch to pick level for that subtask |
+| **Cursor agent** | If operator uses auto: call `bin/auto-thinking-classify` before main inference **or** prepend `auto_thinking_context_block` and rely on pi when driving through `bin/pi` |
+| **Explicit user pick** | Honor fixed `high` / `xhigh` / etc. — never override with auto for that turn |
+
 ### `settings.json` schema (authoritative)
 
 ```json
 {
   "defaultProvider": "zenmux",
   "defaultModel": "xiaomi/mimo-v2.5-pro",
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "auto",
   "enabledModels": [
     "zenmux/xiaomi/mimo-v2.5-pro",
     "zenmux/deepseek/deepseek-v4-pro",
@@ -295,7 +355,7 @@ When dispatching `pi`, `mini`, or Cursor agent subtasks:
 
 1. **Resolve role → model** — Read `modelRoles` from `~/.pi/agent/settings.json` (re-read after hot-swap). Map task type to role per table above.
 2. **Provider hot-swap** — `bin/pi <provider>` rewrites `models.json` for that provider; role strings that include `provider/` must match the hot-swapped backend or use unqualified ids under `defaultProvider`.
-3. **pi-mini-orchestrator** — Default sub-agent dispatches: `task` role + `--thinking off` + `--no-session`. Escalate to `slow` or `plan` on retry after failure. Vision tools require `vision` role model with image input capability.
+3. **pi-mini-orchestrator** — Default sub-agent dispatches: `task` role + `--thinking off` + `--no-session` (fast path). On retry (`AINISH_ATTEMPT>1`), run `bin/auto-thinking-classify` or escalate to `slow` / `plan` role. Vision tools require `vision` role model with image input capability. When the parent session uses `defaultThinkingLevel: auto`, prepend `auto_thinking_context_block` to sub-agent prompts.
 4. **Fail closed** — If a role's model is missing, unauthenticated, or not in `enabledModels`, do not silently fall back to a random provider; surface the error and suggest `pi` model table configuration.
 5. **PRD sync** — This section is normative for agents reading `llms.txt`. Project-local `llms.txt` deployments may extend roles but must not drop the eight built-ins.
 
