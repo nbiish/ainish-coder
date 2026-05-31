@@ -27,16 +27,13 @@ trap _cli_cleanup EXIT
 # Each tool: name, binary, config files, hot-swap function, description
 # This is the single source of truth for what the CLI knows about.
 
-TOOL_NAMES=(pi mini)
+TOOL_NAMES=(mini)
 
-TOOL_BINARY_pi="pi"
 TOOL_BINARY_mini="mini"
 
-TOOL_DESC_pi="Pi coding agent — fast non-interactive coding, extensions, themes"
-TOOL_DESC_mini="mini-swe-agent — lightweight swe-agent via .env config"
+TOOL_DESC_mini="mini-swe-agent — .env / .env-<provider> hot-swap"
 
 # Config files per tool (space-separated, relative to $HOME)
-TOOL_CONFIGS_pi=".pi/agent/settings.json .pi/agent/auth.json .pi/agent/models.json"
 TOOL_CONFIGS_mini=".config/mini-swe-agent/.env"
 
 # ─── Provider JSON path ──────────────────────────────────────────────────────
@@ -279,7 +276,7 @@ _cli_do_hot_swap() {
         fi
     fi
 
-    echo -e "${BRIGHT_BLUE}Hot-swapping ${tool} → ${provider}...${RESET}"
+    echo -e "${BRIGHT_BLUE}Swapping mini .env → .env-${provider}...${RESET}"
 
     # Source the hot-swap library (use REPO_DIR if available, else resolve)
     local lib_dir
@@ -305,8 +302,8 @@ _cli_do_hot_swap() {
     echo -e "${GREEN}✓ ${tool} configured for ${provider}${RESET}"
     echo -e "${BRIGHT_WHITE}Provider details:${RESET}"
     _cli_show_provider_details "$provider"
-    echo -e "  ${BRIGHT_GREEN}ℹ  Your original ${tool} config has been backed up.${RESET}"
-    echo -e "  ${BRIGHT_GREEN}   It will be restored when you exit ainish-coder --cli.${RESET}"
+    echo -e "  ${BRIGHT_GREEN}ℹ  Renamed .env ↔ .env-<provider> (tracked in mini-env-active-provider).${RESET}"
+    echo -e "  ${BRIGHT_GREEN}   Previous provider restores when you exit ainish-coder --cli.${RESET}"
     echo ""
 }
 

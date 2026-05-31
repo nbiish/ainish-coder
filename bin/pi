@@ -1,20 +1,17 @@
 #!/usr/bin/env bash
-# pi provider-switching wrapper with MCP sub-agent support
+# pi wrapper — MCP sub-agent support only; pass-through args to real pi-coding-agent.
+# Provider configs: run `prepend <provider>` first (file symlink), then invoke pi normally.
+#
 # Usage:
-#   pi <provider> [--mcp server1,server2] [--mcp-all] [--no-mcp] [args...]
-#   pi [--mcp server1,server2] [--mcp-all] [--no-mcp] [args...]
+#   prepend zenmux
+#   pi [--mcp server1,server2] [--mcp-all] [--no-mcp] [pi args...]
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
-source "${LIB_DIR}/providers.sh"
-source "${LIB_DIR}/hot_swap.sh"
 source "${LIB_DIR}/mcp_settings.sh"
-source "${LIB_DIR}/picker.sh"
 source "${LIB_DIR}/tracker.sh"
+source "${LIB_DIR}/resolve_binary.sh"
 
-# ── Parse MCP flags before anything else ─────────────────────────────────────
-# bash 3.2 compat: mcp_parse_flags runs in a subshell (process substitution),
-# so we use a temp file to pass MCP state back to the parent.
 export MCP_STATE_FILE="$(mktemp /tmp/ainish-mcp-state.XXXXXX)"
 
 _parsed=()
@@ -26,65 +23,23 @@ if [[ ${#_parsed[@]} -gt 0 ]]; then
 fi
 unset _parsed
 
-# Source the MCP state written by mcp_parse_flags, then clean up the temp file
 source "${MCP_STATE_FILE}"
 rm -f "${MCP_STATE_FILE}"
 
-# Resolve the real pi binary (skip this wrapper)
-_real_pi() {
-  local self
-  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local old_path="$PATH"
-  PATH="$(echo "$PATH" | tr ':' '\n' | grep -v "^${self}$" | tr '\n' ':')"
-  local bin
-  bin="$(command -v pi 2>/dev/null || true)"
-  PATH="$old_path"
-  if [[ -z "$bin" ]]; then
-    echo "error: real pi binary not found on PATH" >&2
-    exit 1
-  fi
-  echo "$bin"
-}
+REAL_PI="$(resolve_real_binary pi "${BASH_SOURCE[0]}")"
 
-REAL_PI="$(_real_pi)"
-
-# ── Build extra args for MCP ─────────────────────────────────────────────────
 MCP_CLEANUP_NEEDED="false"
 mcp_ext_file=""
 
 if [[ "$MCP_ENABLED" == "true" ]]; then
   mcp_load
-
-  # Generate pi extension for MCP servers
   mcp_ext_file="$(mcp_generate_pi_extension "pi")"
-
-  if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
-    MCP_EXTRA=(--extension "$mcp_ext_file")
-    MCP_CLEANUP_NEEDED="true"
-  fi
 fi
 
-# ── Main dispatch ────────────────────────────────────────────────────────────
-provider="${1:-}"
-_TRACK_PROVIDER=""
-
-if provider_has "$provider"; then
-  shift
-  hot_swap_pi "$provider"
-  _TRACK_PROVIDER="$provider"
-elif is_interactive; then
-  if picker_select "pi"; then
-    hot_swap_pi "$_PICKER_RESULT"
-    echo -e "\033[1;32m→ Using provider: ${_PICKER_RESULT}\033[0m" >&2
-    _TRACK_PROVIDER="$_PICKER_RESULT"
-  fi
-fi
-
-# Do NOT use exec — the EXIT trap must fire to restore the original config
 if [[ -n "$mcp_ext_file" && -f "$mcp_ext_file" ]]; then
-  run_with_tracker "pi" "" "$_TRACK_PROVIDER" -- "$REAL_PI" --extension "$mcp_ext_file" "$@"
+  run_with_tracker "pi" "" "" -- "$REAL_PI" --extension "$mcp_ext_file" "$@"
 else
-  run_with_tracker "pi" "" "$_TRACK_PROVIDER" -- "$REAL_PI" "$@"
+  run_with_tracker "pi" "" "" -- "$REAL_PI" "$@"
 fi
 rc=$?
 if [[ "$MCP_CLEANUP_NEEDED" == "true" && -n "$mcp_ext_file" ]]; then
