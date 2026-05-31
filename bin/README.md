@@ -8,9 +8,10 @@ This directory contains the main **command-line interface** entry point for the 
 bin/
 ├── ainish-coder        # Main CLI executable
 ├── pqc-secrets         # FIPS 203 secrets manager binary
-├── pi                  # Pi wrapper (provider hot-swap)
-├── mini                # mini-swe-agent wrapper (provider hot-swap)
-├── lib/                # Provider hot-swap libraries
+├── prepend             # Symlink provider-specific configs into place
+├── pi                  # Pi wrapper (MCP only; pass-through args)
+├── mini                # mini-swe-agent wrapper (MCP only; pass-through args)
+├── lib/                # prepend, MCP, provider registry libraries
 ├── security_gate.py    # PQC & zero-trust compliance scanner
 └── README.md           # This file
 ```

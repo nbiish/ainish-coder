@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Swap mini-swe-agent provider configs: .env <-> .env-<provider> (rename only).
+#
+# Usage:
+#   prepend <provider>           Swap active .env to .env-<provider>
+#   prepend --status             Show active provider and .env-* variants
+#   prepend --list               Refresh and list known providers
+#   prepend --set-active <name>  Record current .env provider (bootstrap)
+#   prepend --persistent <name>  Swap without restoring on shell exit
+set -euo pipefail
+
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+source "${LIB_DIR}/mini_env_swap.sh"
+
+usage() {
+  cat <<'EOF'
+prepend — mini-swe-agent .env provider swap (rename only)
+
+  prepend <provider>              mv .env → .env-<current>, mv .env-<provider> → .env
+  prepend --status                  active provider + .env-* files
+  prepend --list                    refresh ~/.cache/ainish-coder/mini-env-providers.list
+  prepend --set-active <provider>   tag current .env (when state was lost)
+  prepend --save-current-as <name>  copy .env → .env-<name> (first-time setup)
+  prepend --persistent <provider>   swap without auto-restore on EXIT
+
+Files: ~/.config/mini-swe-agent/.env, .env-zenmux, .env-openrouter, ...
+
+Then: mini --config config/livesweagent.yaml -t "task" -y
+EOF
+}
+
+main() {
+  local persistent=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help) usage; exit 0 ;;
+      --status) mini_env_status; exit 0 ;;
+      --list|--discover)
+        echo "Providers (.env-* + providers.json mini):"
+        mini_env_refresh_provider_list | sed 's/^/  /'
+        exit 0
+        ;;
+      --set-active)
+        shift
+        [[ -n "${1:-}" ]] || { echo "prepend: --set-active requires a name" >&2; exit 1; }
+        mini_env_set_active "$1"
+        exit 0
+        ;;
+      --save-current-as)
+        shift
+        [[ -n "${1:-}" ]] || { echo "prepend: --save-current-as requires a name" >&2; exit 1; }
+        mini_env_save_current_as "$1"
+        exit 0
+        ;;
+      --restore) mini_env_restore_session_previous; exit 0 ;;
+      --persistent) persistent=true; shift ;;
+      -*)
+        echo "prepend: unknown option: $1" >&2
+        usage >&2
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  local provider="${1:-}"
+  if [[ -z "$provider" ]]; then
+    usage >&2
+    exit 1
+  fi
+
+  if [[ "$persistent" == "true" ]]; then
+    prepend_activate_persistent "$provider"
+  else
+    mini_env_remember_session_previous
+    mini_env_swap "$provider"
+    _ainish_prepend_ensure_trap
+  fi
+}
+
+main "$@"

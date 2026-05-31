@@ -160,28 +160,21 @@ UTILITY COMMANDS:
                               Deploys markdown templates to mcp_recipes/ in target directory.
                               Example: ainish-coder --mcp-recipes ~/my-project
 
-PROVIDER-SWITCHING WRAPPERS:
-    pi <provider> [args...]      Run pi coding agent with a provider
-    mini <provider> [args...]    Run mini-swe-agent with a provider
+MINI PROVIDER HOT-SWAP (prepend) + WRAPPERS:
+    prepend <provider>                Swap ~/.config/mini-swe-agent/.env via rename:
+                                      .env → .env-<current>, .env-<provider> → .env
+    prepend --status                  Active provider + .env-* variants
+    prepend --list                    Refresh provider list from .env-* on disk
+    prepend --set-active <name>       Record which provider .env is (bootstrap)
 
-    Providers configured in ~/.config/ainish-coder/providers.json
+    mini [args...]                    Run mini-swe-agent (MCP flags only; pass-through)
 
-    The wrapper injects the right provider config (API key, base URL,
-    default model) from ~/.config/ainish-coder/providers.json.
-    Pass --model or -m to override the default model.
+    Workflow:
+        prepend zenmux
+        mini --config config/livesweagent.yaml -t "fix tests" -y
 
-    If no provider is given and the terminal is interactive, an fzf-based
-    picker (or numbered list fallback) lets you choose a provider on the
-    fly. In non-interactive contexts (piped input, AI agent scripting,
-    AINISH_NON_INTERACTIVE=true), the wrapper passes through to the real
-    binary with no changes.
-
-    Examples:
-        pi openrouter                    # deepseek-v4-pro via openrouter
-        pi zai "fix the bug"             # glm-5.1 via ZAI coding plan
-        mini openrouter -t "fix tests"   # deepseek-v4-pro via openrouter
-        pi                               # interactive picker (fzf if available)
-        mini "do something"              # interactive picker then runs
+    Provider files: .env-zenmux, .env-openrouter, ... (any .env-*)
+    Active provider tracked in ~/.cache/ainish-coder/mini-env-active-provider
 
 OTHER:
     --help, -h                Show this help message
