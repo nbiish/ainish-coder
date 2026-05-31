@@ -27,6 +27,8 @@ Traditional secrets management relies heavily on plaintext `.env` files or insec
 
 ## 2. Infrastructure Architecture
 
+The tool is implemented as a **Python UV script** (`scripts/pqc_secrets.py`) with inline dependency metadata. Dependencies (`kyber-py`, `cryptography`) are automatically resolved by `uv run` — no global installs needed. A shell wrapper at `bin/pqc-secrets` provides a clean CLI entry point.
+
 The local secrets infrastructure lives at `~/.config/pqc-secrets/`:
 
 ```
@@ -71,14 +73,23 @@ For all secrets operations, only NIST-approved post-quantum algorithms are permi
 
 ## 4. Lifecycle Commands
 
-Always use the compiled native Rust release binary `bin/pqc-secrets` for secrets operations:
+Use the `bin/pqc-secrets` wrapper (which calls `uv run scripts/pqc_secrets.py` under the hood):
 
 | Step | Command | Description |
 |---|---|---|
 | **Keygen** | `bin/pqc-secrets keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain (service: `pqc-secrets`, account: `default`) and writes public key to `~/.config/pqc-secrets/recipient.pub`. |
 | **Pack** | `bin/pqc-secrets pack` | Reads `KEY=VAL` lines from stdin, encrypts them via AES-256-GCM, wraps the data key via ML-KEM-768 encapsulation, and outputs `~/.config/pqc-secrets/secrets.bundle.json`. |
 | **Load** | `secrets-load` (or `bin/pqc-secrets export`) | Decrypts the bundle in-memory and outputs `export KEY=VALUE` lines. The `secrets-load` zsh function evaluates this output. |
+| **Verify** | `bin/pqc-secrets verify` | Verifies the bundle can be decrypted and lists key names (no values shown). |
 | **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | Generates a new keypair and packs the secrets under the new public key. |
+| **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | Re-encrypts an existing bundle under a different public key without exposing plaintext. |
+
+### Implementation Details
+
+- **Engine:** `kyber-py` (pure Python ML-KEM-768, FIPS 203 compliant)
+- **Dependencies:** Managed inline via UV script metadata — `kyber-py>=0.2.0`, `cryptography>=44.0`
+- **No global installs:** `uv run` auto-resolves and caches dependencies
+- **Portability:** Works on any system with `uv` installed (macOS, Linux)
 
 ---
 
@@ -114,7 +125,18 @@ function getApiKey(name) {
 }
 ```
 
-### Pattern 3: Shell Wrapper Integration
+### Pattern 3: Safe Environment Variable Consumption (Rust)
+```rust
+fn get_api_key(name: &str) -> String {
+    std::env::var(name).unwrap_or_else(|_| {
+        eprintln!("CRITICAL ERROR: Environment variable '{}' is not set.", name);
+        eprintln!("Please load secrets via 'secrets-load' before running this command.");
+        std::process::exit(1);
+    })
+}
+```
+
+### Pattern 4: Shell Wrapper Integration
 When wrapping command-line tools or other agents, pass env variables down rather than writing to disk config files. If a configuration file is strictly required by the tool (e.g. `auth.json` or `.env` file), write it dynamically to a secure directory (or temporary RAM disk if supported) and delete it immediately upon tool exit via traps.
 
 ```bash
@@ -133,7 +155,7 @@ EOF
 }
 ```
 
-### Pattern 4: Headless & CI/CD Pipelines
+### Pattern 5: Headless & CI/CD Pipelines
 In headless environments where macOS Keychain is unavailable, use standard platform secrets injection (e.g., GitHub Secrets, Kubernetes Secrets, or Docker environment flags) passed dynamically from standard input.
 ```bash
 # Injecting secrets directly via stdin to avoid write-to-disk
