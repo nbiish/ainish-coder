@@ -66,10 +66,11 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
 - `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
 - `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
 - `bin/git-context.sh` — AI agent situational awareness script invoked by the `git context` alias. Produces a structured, token-efficient context dump: branch/worktree position, status, diffs, task files, PRD anchor, worktrees, stashes, timeline, last commit, and gate-tool availability. Designed as the one-command bridge between the developer's git state and any AI coding agent's context window.
-- `bin/lib/` — Shared shell libraries (all 5 files):
+- `bin/lib/` — Shared shell libraries:
   - `providers.sh` — Reads `~/.config/ainish-coder/providers.json` (8 providers: modal, nvidia, nebius, opencode, zai, wafer-serverless, openrouter, zenmux).
   - `hot_swap.sh` — Backs up pi/mini config files, rewrites for chosen provider, restores on EXIT trap.
-  - `mcp_settings.sh` — MCP server flag parsing, config loading, env generation, pi extension generation.
+  - `mcp_settings.sh` — MCP flag parsing, layered config merge, env generation, pi extension generation.
+  - `mcp_discover.py` — Host-tool MCP discovery (Claude, Cursor, Codex, Windsurf, Gemini, VS Code) for gap-fill merge.
   - `picker.sh` — fzf-based interactive provider picker with numbered-list fallback. Respects `is_interactive()` guard.
   - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
 - `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
@@ -182,6 +183,168 @@ When `pi` or `mini` are invoked without an explicit provider argument in an inte
 1. If only one compatible provider exists, it's auto-selected.
 2. If multiple providers match, an fzf picker appears (falls back to a numbered list if fzf is unavailable).
 3. Non-interactive contexts (piped stdin, `-y` flag, AI agents) skip the picker and pass through to the default provider.
+
+## Model Delegation & Thinking Levels
+
+Pi-compatible model routing for multi-provider orchestration. Agents, `bin/pi`, `bin/mini`, and the pi-mini-orchestrator skill **must** resolve models through this system — not ad-hoc provider strings in task prompts.
+
+Configuration lives in `~/.pi/agent/settings.json` (roles + thinking) and `~/.pi/agent/models.json` (provider endpoints + catalog). API keys come from PQC secrets / `providers.json` — never from the repo.
+
+### Three-Step Configuration Flow (pi TUI parity)
+
+Matches the pi coding-agent model table UI:
+
+| Step | UI action | What it sets |
+|------|-----------|--------------|
+| **1 — Model table** | Filter by provider tab → pick a row | Adds model to `enabledModels`; base selection is `provider/model-id` |
+| **2 — Delegation** | Action menu on selected model → "Set as ROLE" | Writes `modelRoles.<role>` in `settings.json` |
+| **3 — Thinking** | "Thinking for: ROLE (model)" picker | Appends `:thinkingLevel` suffix to that role's model string (or sets session `defaultThinkingLevel` for DEFAULT) |
+
+**Model table rules:**
+- Show only models whose provider has a configured API key (authenticated in `models.json` / Keychain / PQC export).
+- Model IDs use `provider/model-id` (e.g. `zenmux/xiaomi/mimo-v2.5-pro`, `zai/glm-5.1`).
+- Provider filter tabs: **ALL** plus per-backend filters. Map ainish-coder backends to pi filters:
+
+| pi filter tab | ainish-coder `providers.json` key | Notes |
+|---------------|-----------------------------------|-------|
+| ZENMUX | `zenmux` | Primary cloud router |
+| ZAI | `zai` | GLM native |
+| OPENCODE GO | `opencode` | Kimi / GLM via OpenCode |
+| WAFER SERVERLESS | `wafer-serverless` | Budget inference |
+| CANONICAL | built-in pi catalog | Unqualified ids resolved against default provider |
+| OLLAMA / LM STUDIO / LLAMA.CPP | local (if configured) | Optional; not in default `providers.json` |
+| XIAOMI / MOONSHOT / etc. | model vendor namespace under a provider | Filter narrows rows, not a separate credential |
+
+### Delegation Roles (built-in)
+
+Eight fixed roles (pi `ModelRole`). Each role gets exactly one model assignment. Orchestrators pick the role first, then resolve provider + model + thinking.
+
+| Role key | Tag | Label | Use when |
+|----------|-----|-------|----------|
+| `default` | DEFAULT | Default | Primary interactive session, general coding, Cursor agent default |
+| `smol` | SMOL | Fast | Quick edits, lint fixes, trivial refactors, high-throughput sub-steps |
+| `slow` | SLOW | Thinking | Deep reasoning, ambiguous bugs, multi-file refactors needing extended CoT |
+| `vision` | VISION | Vision | Image inspection, screenshots, diagram/UI analysis (`inspect_image`, VLM tools) |
+| `plan` | PLAN | Architect | PRD drafts, work breakdown, migration design, pre-implementation architecture |
+| `designer` | DESIGNER | Designer | UX copy, component structure, styling systems, non-code design artifacts |
+| `commit` | COMMIT | Commit | Commit message generation, changelog snippets, git metadata summaries |
+| `task` | TASK | Subtask | pi-mini-orchestrator dispatches, parallel worktree workers, isolated sub-agents |
+
+Custom roles are allowed (pi merges `cycleOrder` + `modelTags`), but agents **must** implement the eight built-ins above before adding custom tags.
+
+### Thinking Levels
+
+Set per role in step 3. Stored as a `:suffix` on the model string (e.g. `zenmux/deepseek/deepseek-v4-pro:xhigh`) or via `defaultThinkingLevel` for the session default.
+
+| Level | Label | Typical use | Notes |
+|-------|-------|-------------|-------|
+| `inherit` | inherit | — | Use session `defaultThinkingLevel` |
+| `off` | off | SMOL / orchestrator print mode | No extended reasoning tokens |
+| `min` | min | — | ~1k reasoning budget |
+| `low` | low | DEFAULT on fast models | ~2k reasoning budget |
+| `medium` | medium | — | ~8k reasoning budget |
+| `high` | high | DEFAULT on capable models | ~16k reasoning budget |
+| `xhigh` | xhigh | PLAN, SLOW, TASK, COMMIT | ~32k reasoning budget |
+
+**CLI override:** `pi … --thinking off` (or `mini` equivalent) applies only to that invocation and does not mutate `settings.json`. Orchestrator dispatches use `--thinking off` for speed unless the task explicitly requires `slow` / `plan` resolution.
+
+### `settings.json` schema (authoritative)
+
+```json
+{
+  "defaultProvider": "zenmux",
+  "defaultModel": "xiaomi/mimo-v2.5-pro",
+  "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "zenmux/xiaomi/mimo-v2.5-pro",
+    "zenmux/deepseek/deepseek-v4-pro",
+    "zai/glm-5.1"
+  ],
+  "modelRoles": {
+    "default": "zenmux/xiaomi/mimo-v2.5-pro:high",
+    "smol": "zai/glm-5.1:xhigh",
+    "slow": "zenmux/deepseek/deepseek-v4-pro:xhigh",
+    "vision": "zenmux/xiaomi/mimo-v2.5:high",
+    "plan": "zenmux/deepseek/deepseek-v4-pro:xhigh",
+    "designer": "zenmux/xiaomi/mimo-v2.5:xhigh",
+    "commit": "zai/glm-5.1:xhigh",
+    "task": "zai/glm-5.1:xhigh"
+  }
+}
+```
+
+- **`modelRoles.<role>`** — `provider/model-id` or `provider/model-id:thinkingLevel`. Unqualified ids (e.g. `glm-5.1`) resolve against `defaultProvider`.
+- **`enabledModels`** — allow-list for the model table; must include every model assigned to a role.
+- **No secrets in this file** — `models.json` holds `apiKey` references resolved at runtime from env (PQC-loaded).
+
+### Reference operator profile (example)
+
+Illustrative assignment matching a typical pi model table (customize per machine):
+
+| Role | Model | Thinking |
+|------|-------|----------|
+| DEFAULT | `zenmux/xiaomi/mimo-v2.5-pro` | high |
+| SMOL, COMMIT, TASK | `zai/glm-5.1` | xhigh |
+| SLOW, PLAN | `zenmux/deepseek/deepseek-v4-pro` | xhigh |
+| VISION | `zenmux/xiaomi/mimo-v2.5` | high |
+| DESIGNER | `zenmux/xiaomi/mimo-v2.5` | xhigh |
+
+### Orchestrator rules (ainish-coder)
+
+When dispatching `pi`, `mini`, or Cursor agent subtasks:
+
+1. **Resolve role → model** — Read `modelRoles` from `~/.pi/agent/settings.json` (re-read after hot-swap). Map task type to role per table above.
+2. **Provider hot-swap** — `bin/pi <provider>` rewrites `models.json` for that provider; role strings that include `provider/` must match the hot-swapped backend or use unqualified ids under `defaultProvider`.
+3. **pi-mini-orchestrator** — Default sub-agent dispatches: `task` role + `--thinking off` + `--no-session`. Escalate to `slow` or `plan` on retry after failure. Vision tools require `vision` role model with image input capability.
+4. **Fail closed** — If a role's model is missing, unauthenticated, or not in `enabledModels`, do not silently fall back to a random provider; surface the error and suggest `pi` model table configuration.
+5. **PRD sync** — This section is normative for agents reading `llms.txt`. Project-local `llms.txt` deployments may extend roles but must not drop the eight built-ins.
+
+## MCP Server Configuration
+
+**Canonical source of truth:** `~/.agents/mcp-settings.json` (global) and `.agents/mcp-settings.json` (project). This is the ainish-coder / agentic-ecosystem standard — deploy via `ainish-coder --rules` or `deploy_mcp.sh`.
+
+**Host-tool discovery (pi / oh-my-pi parity):** `bin/lib/mcp_discover.py` also reads MCP definitions already configured in other major agents. Discovered servers are merged **only when the name is absent** from `~/.agents/` — never overriding explicit operator config. Use this to inherit tool-specific servers (e.g. Claude memory plugin MCP, Codex node REPL) without duplicating JSON by hand.
+
+### Merge priority (lowest → highest)
+
+| Layer | Source | Wins on name conflict? |
+|-------|--------|------------------------|
+| 0 — Discovered | Host IDE/CLI configs (below) | No — gap-fill only |
+| 1 — Global | `~/.agents/mcp-settings.json` | Overwrites discovered |
+| 2 — Project | `$(pwd)/.agents/mcp-settings.json` | Overwrites global + discovered |
+
+`mcp_load` in `bin/lib/mcp_settings.sh` applies this stack before `bin/pi` / `bin/mini` generate extensions or env exports.
+
+### Host discovery paths (read-only)
+
+| Host | User paths | Project paths | Notable tooling |
+|------|------------|---------------|-----------------|
+| **Claude Code** | `~/.claude.json`, `~/.claude/mcp.json` | `.claude/mcp.json`, `.claude/.mcp.json` | Memory plugin, hooks, slash commands |
+| **Cursor** | `~/.cursor/mcp.json` | `.cursor/mcp.json` | IDE-integrated MCP |
+| **Codex** | `~/.codex/config.toml` → `[mcp_servers.*]` | `.codex/config.toml` | Node REPL, `AGENTS.md` context |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` | `.windsurf/mcp_config.json` | Codeium MCP bridge |
+| **Gemini CLI** | `~/.gemini/settings.json` → `mcpServers` | `.gemini/settings.json` | Google Antigravity / Gemini OAuth ecosystem |
+| **VS Code** | `~/.vscode/mcp.json` | `.vscode/mcp.json` | Copilot MCP (when present) |
+| **Standalone** | — | `mcp.json`, `.mcp.json` (cwd) | Generic fallback |
+
+**Gemini / Antigravity:** Pi registers `google-gemini-cli` and `google-antigravity` as OAuth providers; filesystem MCP for both flows through `~/.gemini/settings.json` (and project `.gemini/`). Treat **gemini** and **agy** (Antigravity) as one discovery family.
+
+### Operator rules
+
+- **Prefer `~/.agents/`** for servers you want every orchestrator to share. Run `secrets-load` before MCP processes start; env vars in discovered configs must reference PQC-exported keys, not committed literals.
+- **`--mcp name1,name2`** — Enable specific merged servers for one `pi`/`mini` invocation.
+- **`--mcp-all`** — Enable every server in the merged catalog (discovered + agents).
+- **`--no-mcp`** — Skip MCP entirely (orchestrator fast path).
+- **Do not commit API keys** in any host `mcp.json` — redact before sharing dotfiles.
+
+### Why both standards?
+
+| Approach | Benefit |
+|----------|---------|
+| `~/.agents/mcp-settings.json` | Portable, versionable, ainish-coder deploy target, explicit defaults per tool (`defaults.pi`, `defaults.mini`) |
+| Host discovery | Zero-config reuse of IDE-specific MCP you already set up in Claude/Cursor/Codex/etc. |
+
+Agents should list effective MCP via `mcp_list_servers` after `mcp_load` when debugging; each discovered entry includes `_discoveredFrom` metadata in the merged JSON.
 
 ## Usage Tracking
 
