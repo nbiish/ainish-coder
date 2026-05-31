@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Classify required thinking level using modelRoles.smol (pi auto-thinking parity + ainish context).
+#
+# Usage:
+#   bin/auto-thinking-classify "user prompt text"
+#   echo "prompt" | bin/auto-thinking-classify
+#   AINISH_STAGE=debug AINISH_ATTEMPT=2 bin/auto-thinking-classify "fix race in queue"
+#
+# Output: one of low | medium | high | xhigh (stdout). Exit 1 on failure.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LIB="${ROOT}/bin/lib"
+# shellcheck source=bin/lib/auto_thinking_context.sh
+source "${LIB}/auto_thinking_context.sh"
+
+PROMPT="${1:-}"
+if [[ -z "$PROMPT" ]]; then
+  PROMPT="$(cat)"
+fi
+PROMPT="$(printf '%s' "$PROMPT" | head -c 6000)"
+
+CTX_BLOCK="$(auto_thinking_context_block "$PROMPT")"
+
+CLASSIFY_SYSTEM='You are a difficulty classifier for a coding agent. Read the metadata line and user request. Reply with exactly one word: low, medium, high, or xhigh. No other text.
+
+Metadata fields:
+- task: active TASK file slug or none
+- stage: plan | implement | review | debug | commit | unknown
+- branch: git branch name
+- attempt: retry count (1 = first try)
+- inference: call kind (main | subtask | plan | commit | vision | other)
+- actions: recent tool/action summary (may be empty)
+- preview: truncated user text
+
+Levels:
+- low — trivial/mechanical edit or direct factual answer
+- medium — localized change, single-area bugfix
+- high — multi-file, real debugging, moderate design
+- xhigh — subtle bugs, cross-system, ambiguous requirements, large refactor
+
+Use attempt>1 or stage=debug as upward signals. Use stage=plan for medium unless clearly trivial. When torn, pick the lower level.'
+
+# Resolve smol model from pi settings if present
+SMOL_MODEL=""
+SMOL_PROVIDER=""
+if [[ -f "${HOME}/.pi/agent/settings.json" ]]; then
+  read -r SMOL_PROVIDER SMOL_MODEL <<<"$(python3 -c "
+import json, os, re
+p = os.path.expanduser('~/.pi/agent/settings.json')
+d = json.load(open(p))
+raw = d.get('modelRoles', {}).get('smol', d.get('defaultModel', ''))
+raw = re.sub(r':(inherit|off|min|low|medium|high|xhigh|auto)$', '', raw)
+if '/' in raw:
+    prov, mid = raw.split('/', 1)
+    print(prov, mid)
+else:
+    print(d.get('defaultProvider',''), raw)
+" 2>/dev/null || echo " ")"
+fi
+
+PI_BIN="${ROOT}/bin/pi"
+if [[ ! -x "$PI_BIN" ]]; then
+  PI_BIN="$(command -v pi 2>/dev/null || true)"
+fi
+if [[ -z "$PI_BIN" ]]; then
+  echo "error: pi wrapper not found" >&2
+  exit 1
+fi
+
+PI_ARGS=(--no-session --thinking off -p)
+if [[ -n "$SMOL_PROVIDER" ]]; then
+  PI_ARGS=("$SMOL_PROVIDER" "${PI_ARGS[@]}")
+fi
+
+RESPONSE="$("${PI_BIN}" "${PI_ARGS[@]}" "$(cat <<EOF
+${CLASSIFY_SYSTEM}
+
+${CTX_BLOCK}
+EOF
+)" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)"
+
+LEVEL="$(printf '%s' "$RESPONSE" | grep -oE 'xhigh|high|medium|low' | head -1 || true)"
+if [[ -z "$LEVEL" ]]; then
+  echo "error: could not parse thinking level from classifier" >&2
+  exit 1
+fi
+echo "$LEVEL"
