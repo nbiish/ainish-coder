@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # MCP Settings library for ainish-coder sub-agent wrappers
 #
-# Reads MCP server definitions from:
-#   1. ~/.agents/mcp-settings.json   (global — user-level defaults)
-#   2. $(pwd)/.agents/mcp-settings.json  (project — overrides global)
+# Reads MCP server definitions from (lowest → highest priority):
+#   0. Host-tool discovery (claude, cursor, codex, windsurf, gemini, vscode) via mcp_discover.py
+#   1. ~/.agents/mcp-settings.json   (global — canonical ainish-coder standard)
+#   2. $(pwd)/.agents/mcp-settings.json  (project — overrides global + discovered)
 #
-# Project settings merge on top of global. Server definitions with the same
-# name in project replace the global one entirely (not deep-merged).
+# Same-name servers: higher layer wins. Discovery only fills gaps — never overrides ~/.agents.
 #
 # Usage:
 #   source mcp_settings.sh
@@ -98,6 +98,13 @@ STATE
 mcp_load() {
   local global_json="{}"
   local project_json="{}"
+  local discovered_json="{}"
+  local discover_script
+  discover_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mcp_discover.py"
+
+  if [[ -f "$discover_script" ]]; then
+    discovered_json="$(AINISH_MCP_DISCOVER_CWD="$(pwd)" python3 "$discover_script" 2>/dev/null || echo '{}')"
+  fi
 
   if [[ -f "$MCP_GLOBAL" ]]; then
     global_json="$(python3 -c "
@@ -117,24 +124,25 @@ print(json.dumps(data))
 " 2>/dev/null || echo '{}')"
   fi
 
-  # Merge: project overrides global at the server level
+  # Merge: discovered < global < project
   MCP_MERGED_JSON="$(python3 -c "
 import json, sys
 
+discovered_data = json.loads('''${discovered_json}''')
 global_data = json.loads('''${global_json}''')
 project_data = json.loads('''${project_json}''')
 
+discovered_servers = discovered_data.get('mcpServers', {})
 global_servers = global_data.get('mcpServers', {})
 project_servers = project_data.get('mcpServers', {})
 
-# Merge servers: project overwrites global for same key
 merged_servers = {}
+merged_servers.update(discovered_servers)
 merged_servers.update(global_servers)
 merged_servers.update(project_servers)
 
-# Merge defaults: project overrides global
 global_defaults = global_data.get('defaults', {})
-project_defaults = global_data.get('defaults', {})
+project_defaults = project_data.get('defaults', {})
 merged_defaults = {}
 merged_defaults.update(global_defaults)
 merged_defaults.update(project_defaults)
