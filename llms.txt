@@ -15,7 +15,8 @@
 ### Secrets & Cryptography (PQC Mandate)
 - **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768 (FIPS 203).
 - **Always** retrieve the private key from the macOS Keychain (service: `pqc-secrets`).
-- **Never** store plaintext secrets in repositories, `.env` files, or task logs.
+- **Never** store plaintext secrets in repositories, `.env` files, settings files, task logs, or any config with an `env` block (e.g. Claude Code `settings.json`, VS Code `settings.json`, Docker configs).
+- **Always** inject secrets at runtime via OS Keychain + shell wrapper — the key exists only in the Keychain (encrypted at rest) and process memory (volatile). See `pqc-secrets` skill §1.1 for the full pattern.
 - **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
 
 ### Code Signing & Integrity (PQC Mandate)
