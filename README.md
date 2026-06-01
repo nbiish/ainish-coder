@@ -34,13 +34,10 @@
 ## 🔥 Key Features
 
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
-- **🧠 Skills System** — 21 reusable domain knowledge packs (security, browser automation, multimodal AI, video generation, 3D modeling, research)
+- **🧠 Skills System** — 19 hardened procedural guideline skill packs (security, browser automation, video generation, 3D modeling, research)
 - **🏗️ Modular Architecture** — Clean Quanta → Atom → Molecule structure (MAQ hierarchy)
-- **🤖 AI Tools** — Pi and mini-swe-agent with interactive provider hot-swap wrappers (8 providers)
-- **🎛️ Interactive CLI** — `ainish-coder --cli` for menu-driven tool selection, provider switching, and config verification
-- **🔍 FZF Provider Picker** — Run `pi` or `mini` without a provider to pick one on the fly (fzf with numbered fallback)
 - **📊 Usage Analytics** — CSV tracking of all CLI invocations (`~/.cache/ainish-coder/usage.csv`) for data-driven improvement
-- **🔄 OSA Framework** — CLI YOLO agents (Gemini, Claude, OpenCode, mini, pi, kilo, crush) with fixed-order rotation, automatic fallback, and git worktree isolation
+- **🔄 OSA Framework** — Orchestrated System of Agents using standard CLI coding tools (Gemini, Claude, OpenCode, mini-swe-agent, kilo, crush) with fixed-order rotation, automatic fallback, and git worktree isolation
 - **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
 - **⚡ One-Command Deploy** — Configs, skills, and security baselines in a single `ainish-coder` invocation
 - **🔗 Smart File Management** — Interactive destination picker (home `~/.agents/` vs project-local) for skills and agents; interactive symlink prompts for single-source-of-truth deployments; global `--link`/`-l` flag for scripted symlink mode; copies for tool-specific customization
@@ -77,8 +74,9 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **Document Enhancer** | `.agents/skills/document-enhancer/` | Dual-pipeline system for improving documents: fuse external knowledge bases into target documents, or recursively harden documents for multi-model LLM effectiveness via split-optimize-review-merge architecture. |
 | **Video Knowledge Extractor** | `.agents/skills/video-knowledge-extractor/` | Extracts structured markdown knowledge bases from YouTube videos by combining spoken transcripts with sequential visual frames through a Vision-Language Model. |
 | **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Generates parameterized 3D models using Python templates and OpenSCAD, compiles to STL via Makefile. |
-| **OSA** | `.agents/skills/osa/` | Multi-agent orchestration via fixed-order rotation across equal CLI coding agents (Gemini, Claude, OpenCode, mini, pi, kilo, crush). YOLO mode with automatic fallback and git worktree isolation. |
-| **Pi** | `.agents/skills/pi/` | Knowledge for configuring and extending the Pi Coding Agent. Invoke when creating Pi extensions, themes, or multi-agent orchestrations. |
+| **Pi-Mini Orchestrator** | `.agents/skills/pi-mini-orchestrator/` | Multi-agent orchestration via fixed rotation across equal CLI coding agents (`claude`, `mini`) with scoped MCP tools and provider fallback. |
+| **PQC Secrets** | `.agents/skills/pqc-secrets/` | Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. |
+| **PQC Signatures & Security** | `.agents/skills/pqc-signatures-security/` | Expert instructions to implement and verify ML-DSA-65 post-quantum cryptographic signatures and agentic workflow security. |
 | **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock` for AI transparency. |
 | **Production Security** | `.agents/skills/production-security/` | Core security policies, Zero Trust, PQC Mandates, and Threat Mitigations for compliance and secure infrastructure. |
 | **Remotion Video** | `.agents/skills/remotion-video/` | Programmatic video creation with Remotion — all APIs, media components, 3D, captions, fonts, Lambda rendering, and video-layout design rules. |
@@ -176,102 +174,22 @@ ainish-coder --skills --link -y          # All skills → target dir, symlink mo
 
 The OSA (Orchestrated System of Agents) framework coordinates multiple CLI coding agents through fixed-order rotation with automatic fallback. All agents are equal peers — multiple arms of the same thinking tool.
 
-**Agents**: Gemini, Claude, OpenCode, mini, pi, kilo, crush
+**Agents**: Gemini, Claude, OpenCode, mini-swe-agent, kilo, crush
 
 ```bash
 ainish-coder --skills                    # Deploy all skills
 ```
 
-See [`.agents/skills/osa/SKILL.md`](.agents/skills/osa/SKILL.md) for the full framework specification.
+See [`.agents/skills/pi-mini-orchestrator/SKILL.md`](.agents/skills/pi-mini-orchestrator/SKILL.md) for the orchestration framework specification.
 
 ---
 
-## 🔌 Provider-Switching Wrappers
-
-To maximize the value of all your subscriptions, `ainish-coder` provides wrapper scripts that dynamically configure your coding agents to run through any supported API provider.
-
-### Supported Wrappers
-- **`pi`** — Run the Pi coding agent (with MCP sub-agent support via `--mcp`, `--mcp-all`)
-- **`mini`** — Run the mini-swe-agent (with MCP sub-agent support via `--mcp`, `--mcp-all`)
-
-### Interactive Provider Picker (NEW)
-
-If you run `pi` or `mini` **without a provider** in an interactive terminal, a picker appears:
-
-```bash
-pi                           # fzf picker opens → choose provider → runs
-mini "fix the bug"           # picker → choose provider → runs with prompt
-```
-
-- Uses **fzf** if available (with `--select-1 --exit-0 --layout=reverse`), falls back to a numbered list
-- Only shows providers marked as compatible for that tool in `providers.json`
-- Single provider = auto-selects without showing UI
-- Non-interactive contexts (piped input, AI agents, `AINISH_NON_INTERACTIVE=true`) pass through to the real binary unchanged
-
-### Available Providers
-
-Configured in `~/.config/ainish-coder/providers.json`:
-
-| Provider | Default Model | Env Key |
-|----------|--------------|---------|
-| **modal** | zai-org/GLM-5.1-FP8 | CODEX_MODAL_KEY |
-| **nvidia** | deepseek/deepseek-v4-flash | CODEX_NVIDIA_KEY |
-| **nebius** | NousResearch/Hermes-4-405B | CODEX_NEBIUS_KEY |
-| **opencode** | opencode-go/kimi-k2.6 | CODEX_OPENCODE_KEY |
-| **zai** | glm-5.1 | CODEX_ZAI_KEY |
-| **wafer-serverless** | deepseek/deepseek-v4-flash | CODEX_WAFER_SERVERLESS_KEY |
-| **openrouter** | deepseek/deepseek-v4-pro | CODEX_OPENROUTER_KEY |
-| **zenmux** | deepseek/deepseek-v4-pro | CODEX_ZENMUX_KEY |
-
-These wrappers inject the corresponding endpoint, credentials, and default model directly from your providers config. Pass `-m` or `--model` to override default models.
-
-### Interactive CLI (`--cli`)
-
-Instead of memorizing wrapper invocations, run `ainish-coder --cli` for an interactive menu:
-
-```bash
-ainish-coder --cli
-```
-
-The menu lets you:
-
-1. **Pick a tool** (pi, mini) and **pick a provider** → verifies configs, hot-swaps, and optionally launches the tool in one flow.
-2. **Verify config files** for any or all tools — checks that `~/.pi/agent/settings.json`, `~/.pi/agent/auth.json`, `~/.pi/agent/models.json`, `~/.config/mini-swe-agent/.env` all exist before you try to swap.
-3. **Show the provider ↔ tool compatibility matrix** — live, from your actual `providers.json`.
-4. **View provider details** — base URL, default model, env key, which tools it supports, and which config files will be modified on swap.
-
-The CLI reads `~/.config/ainish-coder/providers.json` (or `$AINISH_PROVIDERS`) for the list of providers. Only providers whose `tools.<name>` is `true` are shown as options for each tool.
-
-### Usage Examples
-
-```bash
-# Explicit provider (headless — AI-agent friendly)
-pi openrouter "fix the bug"              # deepseek-v4-pro via OpenRouter
-pi zai                                  # glm-5.1 via ZAI coding plan
-mini openrouter -t "fix tests"          # deepseek-v4-pro via OpenRouter
-mini nvidia -t "run tests"              # deepseek-v4-flash via NVIDIA NIM
-
-# Interactive picker (no provider specified)
-pi                                      # fzf picker → select → runs
-mini "do something"                     # picker → select → runs with prompt
-
-# MCP sub-agent support
-pi openrouter --mcp server1,server2 "fix bug"
-pi --mcp-all "use all MCP servers"
-
-# Non-interactive / scripting
-AINISH_NON_INTERACTIVE=true pi "fix bug"   # passthrough to real pi
-pi -y "fix bug"                            # non-interactive flag
-```
-
 ### Usage Analytics (NEW)
 
-All `ainish-coder`, `pi`, and `mini` invocations are optionally tracked to `~/.cache/ainish-coder/usage.csv`:
+All `ainish-coder` invocations are optionally tracked to `~/.cache/ainish-coder/usage.csv`:
 
 ```
 timestamp,tool,subcommand,provider,exit_code,duration_ms,interactive,arg_count
-2026-05-28T14:32:01Z,pi,,openrouter,0,12450,true,1
-2026-05-28T14:35:22Z,mini,,zai,1,890,true,2
 2026-05-28T14:40:00Z,ainish-coder,--skills,skill:gstack-coder,0,340,true,0
 ```
 

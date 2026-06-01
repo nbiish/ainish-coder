@@ -23,6 +23,62 @@ Traditional secrets management relies heavily on plaintext `.env` files or insec
 - **Never** store raw API keys, secrets, or tokens in git repositories, task files, logs, or local unencrypted files.
 - **Always** load secrets on-demand directly into the shell environment from an encrypted bundle, and ensure they never persist to disk.
 
+### 1.1 ⚠️ Common Agent Trap: Settings Files with `env` Blocks
+
+Many CLI tools (Claude Code, VS Code, Docker, etc.) use JSON/YAML settings files with an `env` block. **Agents will naturally want to put API keys directly in these files. This is a PQC violation.**
+
+**NEVER do this:**
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "sk-ss-v1-abc123...",
+    "ANTHROPIC_API_KEY": "sk-ant-..."
+  }
+}
+```
+
+```yaml
+env:
+  API_KEY: "sk-..."
+```
+
+```json
+{
+  "env": {
+    "OPENAI_API_KEY": "sk-proj-..."
+  }
+}
+```
+
+**Why this is wrong:** The settings file is a regular file on disk. Anyone with file read access (backup tools, cloud sync, other processes, disk imaging) can extract the key. It will also be committed to git if the file is tracked, and it shows up in file search/grep results.
+
+**ALWAYS do this instead — inject at runtime from the OS keychain:**
+```bash
+# Shell wrapper reads from Keychain and passes via env var
+my-tool() {
+    local api_key
+    api_key="$(security find-generic-password -s "my-tool" -a "api-key" -w 2>/dev/null)"
+    if [[ -z "$api_key" ]]; then
+        echo "Error: API key not found in Keychain." >&2
+        return 1
+    fi
+    ANTHROPIC_AUTH_TOKEN="$api_key" command my-tool "$@"
+}
+```
+
+The settings file keeps everything **except** the secret value:
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://zenmux.ai/api/anthropic",
+    "ANTHROPIC_API_KEY": "",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek/deepseek-v4-flash"
+  }
+}
+```
+
+**The key exists only in two places: the OS keychain (encrypted at rest) and process memory (volatile). Never on disk in any config file.**
+
 ---
 
 ## 2. Infrastructure Architecture
