@@ -244,26 +244,35 @@ The FCC proxy rejects system-in-array messages. Workarounds:
 - Or configure Claude Code to bypass FCC entirely by pointing `ANTHROPIC_BASE_URL` at a direct Anthropic-compatible endpoint
 - Upstream fix: FCC's `api/models/anthropic.py` line 95 should allow `Literal["user", "assistant", "system"]`
 
-### mini default config → livesweagent.yaml (May 31, 2026)
+### mini-live — Live-SWE-agent config (Jun 1, 2026)
 
-**Problem:** Running bare `mini` used the upstream default `mini.yaml` config, which lacks the custom Live-SWE-agent system prompt (THOUGHT/action format, tool-creation guidance, truncated-output handling, temperature=0.0, etc.). Users had to manually pass `mini --config config/livesweagent.yaml` every time.
+**Policy:** Bare `mini` uses upstream default `mini.yaml`. Live-SWE-agent work uses **`mini-live`** only — do not patch the installed package.
 
-**Fix:** Replaced the builtin `mini.yaml` inside the installed mini-swe-agent package with the content from `ainish-coder/config/livesweagent.yaml`:
+| Command | Config | Use |
+|---------|--------|-----|
+| `mini` | upstream `mini.yaml` + `~/.config/mini-swe-agent/.env` | Default mini-swe-agent behavior |
+| `mini-live` | `~/.config/mini-swe-agent/live-swe-agent.yaml` + `.env` | Live-SWE prompts (THOUGHT/bash, truncation, `temperature: 0.0`) |
+
+**Shell wrapper** (`~/.zsh/functions.zsh`):
 
 ```bash
-MINI_SITE=$(python3 -c "import minisweagent.config; print(minisweagent.config.builtin_config_dir)")
-cp "$MINI_SITE/mini.yaml" "$MINI_SITE/mini.yaml.bak"   # backup original
-cp ainish-coder/config/livesweagent.yaml "$MINI_SITE/mini.yaml"
+mini-live() {
+  command mini --config "$HOME/.config/mini-swe-agent/live-swe-agent.yaml" "$@"
+}
 ```
 
-**What livesweagent.yaml adds over upstream mini.yaml:**
-- Custom system template with strict single-action formatting, THOUGHT/bash-code-block requirement, and `format_example` tags
-- Instance template with detailed workflow, command-execution rules, tool-creation examples, and macOS `sed -i ''` guard
-- `action_observation_template` with 10 K-char truncation (head+tail elision) and tool-creation reflection prompt
-- `format_error_template` with action-count feedback and COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT guidance
-- `temperature: 0.0` in model kwargs
-- `cost_limit: 3` and `mode: confirm` defaults
+**Install / refresh global config** (from upstream):
 
-**Alternative (env var):** mini-swe-agent also reads `MSWEA_MINI_CONFIG_PATH` at import time. Setting `export MSWEA_MINI_CONFIG_PATH="$HOME/.config/mini-swe-agent/livesweagent.yaml"` in `.zshrc` achieves the same effect without patching the installed package. Use this if you want the override to survive `uv tool upgrade mini-swe-agent`.
+```bash
+curl -fsSL "https://raw.githubusercontent.com/OpenAutoCoder/live-swe-agent/main/config/livesweagent.yaml" \
+  -o ~/.config/mini-swe-agent/live-swe-agent.yaml
+```
 
-**Note:** `uv tool upgrade mini-swe-agent` overwrites the patched `mini.yaml`. After upgrading, re-run the copy command above (or use the env-var approach).
+**Repo reference:** `config/livesweagent.yaml` is vendored from [OpenAutoCoder/live-swe-agent](https://github.com/OpenAutoCoder/live-swe-agent). **`gstack-coder` skill** dispatches SWE work via `mini-live --task "…" --yolo`.
+
+**Example:**
+
+```bash
+secrets-load
+mini-live --task "fix tests" --yolo
+```

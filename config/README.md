@@ -4,14 +4,33 @@
 
 [`livesweagent.yaml`](livesweagent.yaml) is vendored from [OpenAutoCoder/live-swe-agent](https://github.com/OpenAutoCoder/live-swe-agent) (upstream `config/livesweagent.yaml`).
 
-To run `mini-swe-agent` directly using this custom configuration, pass it via the `--config` flag:
+**Preferred:** use the `mini-live` shell wrapper (loads `~/.config/mini-swe-agent/live-swe-agent.yaml`):
 
 ```bash
-mini-swe-agent --config config/livesweagent.yaml --task "your task"
+secrets-load
+mini-live --task "your task" --yolo
 ```
 
-Alternatively, you can configure it by setting the environment variable `MSWEA_MINI_CONFIG_PATH` in your shell configuration (e.g., `.zshrc`) to point to the file:
+**Explicit form** (same behavior):
 
 ```bash
-export MSWEA_MINI_CONFIG_PATH="$HOME/code/ainish-coder/config/livesweagent.yaml"
+mini --config ~/.config/mini-swe-agent/live-swe-agent.yaml --task "your task" --yolo
 ```
+
+**From this repo** (when cwd is the repository root):
+
+```bash
+mini --config config/livesweagent.yaml --task "your task" --yolo
+```
+
+**Refresh global config** after upstream changes:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/OpenAutoCoder/live-swe-agent/main/config/livesweagent.yaml" \
+  -o ~/.config/mini-swe-agent/live-swe-agent.yaml
+```
+
+Create one parked file per provider: `~/.config/mini-swe-agent/.env-openrouter`, etc.
+Active provider name is stored in `~/.cache/ainish-coder/mini-env-active-provider` (not inferred from URLs).
+
+Bootstrap (first time): `prepend --set-active zenmux` if `.env` is already zenmux.
