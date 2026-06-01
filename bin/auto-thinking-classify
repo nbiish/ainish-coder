@@ -59,12 +59,9 @@ else:
 " 2>/dev/null || echo " ")"
 fi
 
-PI_BIN="${ROOT}/bin/pi"
-if [[ ! -x "$PI_BIN" ]]; then
-  PI_BIN="$(command -v pi 2>/dev/null || true)"
-fi
+PI_BIN="$(command -v pi 2>/dev/null || true)"
 if [[ -z "$PI_BIN" ]]; then
-  echo "error: pi wrapper not found" >&2
+  echo "error: pi-coding-agent not found on PATH" >&2
   exit 1
 fi
 
