@@ -21,7 +21,6 @@ src/
 │
 ├── atoms/              # Feature modules (depend on quanta)
 │   ├── clear_all_rules.sh  # Clear existing rules
-│   ├── cli_interface.sh    # Interactive CLI menu
 │   ├── deploy_agents.sh    # Deploy agent configurations
 │   ├── deploy_*.sh         # Tool-specific deployments
 │   ├── setup-secret-protection.sh # Secret protection setup
@@ -58,7 +57,6 @@ src/
 
 - **deploy_agents.sh**: Deploy AGENTS.md to target directories
 - **deploy_skills.sh**: Deploy agent skill packs
-- **cli_interface.sh**: Interactive CLI menu system
 - **help.sh**: Help text and usage display
 
 ### Molecules (Orchestrators)
