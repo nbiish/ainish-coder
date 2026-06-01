@@ -46,7 +46,6 @@ source "${SRC_DIR}/atoms/deploy_scrolls.sh"
 source "${SRC_DIR}/atoms/deploy_license.sh"
 source "${SRC_DIR}/atoms/deploy_signals.sh"
 source "${SRC_DIR}/atoms/deploy_llms_txt.sh"
-source "${SRC_DIR}/atoms/cli_interface.sh"
 
 # Main function
 main() {
@@ -376,11 +375,6 @@ main() {
             _with_link_choice deploy_llms_txt "$target_dir"
             ;;
 
-        --cli)
-            _TRACK_DETAIL="interactive-menu"
-            run_cli_interface
-            ;;
-
         *)
             print_error "Unknown command: $command"
             echo "Use 'ainish-coder --help' for usage information" >&2
@@ -439,7 +433,6 @@ fi
 if [[ $# -eq 0 ]]; then
     print_error "No command specified"
     echo "Use 'ainish-coder --help' for usage information" >&2
-    echo "Use 'ainish-coder --cli' for the interactive menu" >&2
     exit 1
 fi
 
