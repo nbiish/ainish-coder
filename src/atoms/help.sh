@@ -7,7 +7,6 @@ ainish-coder - Configuration Manager for AI Coding Assistants
 
 USAGE:
     ainish-coder [GLOBAL_FLAGS] [COMMAND] [ARGS...] [TARGET_DIR]
-    ainish-coder --cli                       (interactive menu)
 
 GLOBAL FLAGS:
     -n, --no-overwrite   Skip existing files; only add new ones (safe mode)
@@ -15,17 +14,6 @@ GLOBAL FLAGS:
                          any saved preference)
     -y, --yes            Non-interactive mode (skip all prompts; defaults to
                          symlink for single source of truth)
-
-INTERACTIVE MODE:
-    --cli                   Launch interactive CLI menu to pick a tool, pick a
-                            provider, verify configs, and hot-swap. Reads providers
-                            from ~/.config/ainish-coder/providers.json.
-
-                            Menu options:
-                              - Pick a tool + provider → hot-swap & launch
-                              - Verify config files for any/all tools
-                              - Show provider ↔ tool compatibility matrix
-                              - View provider details and which config files are modified
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to symlink — single source
@@ -159,22 +147,6 @@ UTILITY COMMANDS:
     --mcp-recipes [DIR]       Deploy MCP recipes (e.g., Tavily CLI templates)
                               Deploys markdown templates to mcp_recipes/ in target directory.
                               Example: ainish-coder --mcp-recipes ~/my-project
-
-MINI PROVIDER HOT-SWAP (prepend) + WRAPPERS:
-    prepend <provider>                Swap ~/.config/mini-swe-agent/.env via rename:
-                                      .env → .env-<current>, .env-<provider> → .env
-    prepend --status                  Active provider + .env-* variants
-    prepend --list                    Refresh provider list from .env-* on disk
-    prepend --set-active <name>       Record which provider .env is (bootstrap)
-
-    mini [args...]                    Run mini-swe-agent (MCP flags only; pass-through)
-
-    Workflow:
-        prepend zenmux
-        mini --config config/livesweagent.yaml -t "fix tests" -y
-
-    Provider files: .env-zenmux, .env-openrouter, ... (any .env-*)
-    Active provider tracked in ~/.cache/ainish-coder/mini-env-active-provider
 
 OTHER:
     --help, -h                Show this help message
