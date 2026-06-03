@@ -2,7 +2,10 @@
 
 set -euo pipefail
 
-HOOKS_DIR=".git/hooks"
+# Support worktrees: use git's actual hooks directory
+HOOKS_DIR="$(git rev-parse --git-dir)/hooks"
+mkdir -p "$HOOKS_DIR"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 PRE_COMMIT_HOOK="${HOOKS_DIR}/pre-commit"
 
 echo "Setting up local Git hooks..."
@@ -52,5 +55,21 @@ EOF
 # Make it executable
 chmod +x "$PRE_COMMIT_HOOK"
 
+# Install post-merge and post-checkout hooks for AGENTS.md auto-sync
+AGENTS_SYNC_HOOK="${HOOKS_DIR}/post-merge"
+AGENTS_CHECKOUT_HOOK="${HOOKS_DIR}/post-checkout"
+SYNC_SCRIPT="${REPO_ROOT}/scripts/hooks/agents-md-sync.sh"
+
+if [[ -f "$SYNC_SCRIPT" ]]; then
+    cp "$SYNC_SCRIPT" "$AGENTS_SYNC_HOOK"
+    cp "$SYNC_SCRIPT" "$AGENTS_CHECKOUT_HOOK"
+    chmod +x "$AGENTS_SYNC_HOOK" "$AGENTS_CHECKOUT_HOOK"
+    echo "✅ post-merge hook installed (AGENTS.md auto-sync)"
+    echo "✅ post-checkout hook installed (AGENTS.md auto-sync)"
+else
+    echo "⚠️  agents-md-sync.sh not found at $SYNC_SCRIPT — skipping AGENTS.md hooks"
+fi
+
 echo "✅ Git hooks configured successfully!"
 echo "From now on, secrets will be blocked locally before they can be pushed."
+echo "   AGENTS.md global symlinks will auto-sync on merge/checkout."
