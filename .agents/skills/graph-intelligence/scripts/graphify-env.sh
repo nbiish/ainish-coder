@@ -104,9 +104,14 @@ fi
 # 2) Provider registry — pipe-delimited, 4 fields per entry:
 #    <provider>|<canonical-env-var>|<graphify-backend>|<default-model>
 # -----------------------------------------------------------------------------
+# Default auto-pick priority. Direct user subscriptions come first
+# (cheap, predictable, no aggregator markup), then free local options,
+# then aggregators. Override with GRAPHIFY_PROVIDER_PRIORITY.
 PROVIDER_REGISTRY=(
   "claude|ANTHROPIC_API_KEY|claude|"
   "gemini|GEMINI_API_KEY|gemini|"
+  "zai|ZAI_API_KEY|openai|"
+  "xiaomi-mimo|XIAOMI_MIMO_API_KEY|openai|"
   "kimi|MOONSHOT_API_KEY|kimi|"
   "ollama|OLLAMA_BASE_URL|ollama|"
   "zenmux|ZENMUX_API_KEY|openai|"
@@ -115,10 +120,8 @@ PROVIDER_REGISTRY=(
   "nebius|NEBIUS_API_KEY|openai|"
   "opencode|OPENCODE_API_KEY|openai|"
   "opencode-zen|OPENCODE_API_KEY|openai|"
-  "zai|ZAI_API_KEY|openai|"
   "nvidia-nim|NVIDIA_NIM_API_KEY|openai|"
   "modal|MODAL_API_KEY|openai|"
-  "xiaomi-mimo|XIAOMI_MIMO_API_KEY|openai|"
   "deepseek|DEEPSEEK_API_KEY|openai|"
 )
 
@@ -233,6 +236,7 @@ get_backend_for() {
   printf "openai"
 }
 
+# Pick order: forced > custom priority > default registry
 PROVIDER=""
 if [[ -n "${GRAPHIFY_PROVIDER:-}" ]]; then
   # Forced — verify the key is loaded
@@ -244,7 +248,21 @@ if [[ -n "${GRAPHIFY_PROVIDER:-}" ]]; then
     die "Forced provider '$GRAPHIFY_PROVIDER' requested but its key is not loaded." 2
   fi
   PROVIDER="$GRAPHIFY_PROVIDER"
-else
+elif [[ -n "${GRAPHIFY_PROVIDER_PRIORITY:-}" ]]; then
+  # Custom priority list (space-separated). Try each in order;
+  # first one with a loaded key wins. Fall through to default if
+  # none of the priority list has a key.
+  log "Custom priority: ${GRAPHIFY_PROVIDER_PRIORITY}"
+  for candidate in ${GRAPHIFY_PROVIDER_PRIORITY}; do
+    for k in "${HAVE_KEY_PROV[@]}"; do
+      [[ "$k" == "$candidate" ]] && { PROVIDER="$candidate"; break 2; }
+    done
+  done
+  if [[ -z "$PROVIDER" ]]; then
+    log "None of the priority list has a loaded key — falling back to default order"
+  fi
+fi
+if [[ -z "$PROVIDER" ]]; then
   # Default: first in registry order that has a key
   for entry in "${PROVIDER_REGISTRY[@]}"; do
     IFS='|' read -r p _ _ _ <<< "$entry"
