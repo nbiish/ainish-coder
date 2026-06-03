@@ -41,6 +41,8 @@ two utilities into a system.
 - [§10 Failure Modes & Recovery Runbook](#10-failure-modes--recovery-runbook)
 - [§11 Anti-Patterns — What NOT to Do](#11-anti-patterns)
 - [§12 References & Version Pin](#12-references--version-pin)
+- [§13 Provider Integration — PQC + providers.txt](#13-provider-integration--pqc--providerstxt)
+- [Appendix A — One-Page Cheat Sheet](#appendix-a--one-page-cheat-sheet)
 
 ---
 
@@ -1512,6 +1514,236 @@ This skill is **pinned** to:
 
 ---
 
+## §13 Provider Integration — PQC + providers.txt
+
+Graphify's LLM backends (gemini, kimi, claude, openai, deepseek, ollama,
+bedrock, claude-cli) each take a different env-var + endpoint contract.
+Rather than re-implement that mapping per project, this skill ships a
+**bridge** that reads the operator's existing provider config and
+PQC-protected secret bundle, then exports the right vars for graphify.
+
+### 13.1 The three sources of truth
+
+| Source | Path | What it provides |
+|---|---|---|
+| `providers.json` (machine) | `~/.config/ainish-coder/providers.json` | `baseUrl`, `defaultModel`, per-tool flags per provider |
+| `providers.txt` (human) | `~/.config/providers.txt` (often a symlink) | Canonical env-var names per provider (`WAFER_SERVERLESS_API_KEY`, `ZENMUX_API_KEY`, …) and full model catalog |
+| PQC secrets bundle | `~/.config/pqc-secrets/secrets.bundle.json` + macOS Keychain | The actual API key values, decrypted at runtime only |
+
+**The bridge script** lives at `scripts/graphify-env.sh` and is the
+recommended entry point for every graphify command that touches an
+LLM.
+
+### 13.2 Quick start
+
+```bash
+# 1) Load PQC secrets into the current shell (one-time per session)
+secrets-load
+# OR:  eval "$(./bin/pqc-secrets export)"
+
+# 2) Source the bridge (auto-detects best provider, exports env vars)
+source .agents/skills/graph-intelligence/scripts/graphify-env.sh
+
+# 3) Run graphify — it now finds the right backend and key
+graphify extract ./docs
+graphify update . --no-cluster       # AST-only, no LLM call needed
+graphify cluster-only .              # re-cluster and (re)name communities
+graphify add https://arxiv.org/abs/1706.03762
+```
+
+Output you should see:
+
+```
+[graphify-env] Loaded providers from /Users/nbiish/.config/ainish-coder/providers.json
+[graphify-env] Loaded env-var hints from providers.txt
+[graphify-env] Auto-selected provider: zenmux
+graphify-env
+  provider:  zenmux
+  backend:   openai
+  env var:   OPENAI_API_KEY (value hidden)
+  base URL:  https://zenmux.ai/api
+  model:    deepseek/deepseek-v4-pro
+```
+
+### 13.3 Provider → graphify-backend mapping
+
+| Provider | Graphify backend | Key env var | Base URL |
+|---|---|---|---|
+| `claude` (Anthropic) | `claude` | `ANTHROPIC_API_KEY` | — (default) |
+| `gemini` (Google) | `gemini` | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | — |
+| `kimi` (Moonshot) | `kimi` | `MOONSHOT_API_KEY` | — |
+| `ollama` (local) | `ollama` | `OLLAMA_BASE_URL` (key optional) | `http://127.0.0.1:11435` |
+| `bedrock` (AWS) | `bedrock` | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | — (AWS SDK) |
+| `claude-cli` (local) | `claude-cli` | — | — (uses local `claude` binary) |
+| `zenmux` | `openai` | `ZENMUX_API_KEY` | `https://zenmux.ai/api` |
+| `openrouter` | `openai` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api` |
+| `wafer-serverless` | `openai` | `WAFER_SERVERLESS_API_KEY` | `https://pass.wafer.ai` |
+| `nebius` | `openai` | `NEBIUS_API_KEY` | `https://api.tokenfactory.nebius.com` |
+| `opencode` / `opencode-zen` | `openai` | `OPENCODE_API_KEY` | `https://opencode.ai/zen/go` (or `/v1`) |
+| `zai` | `openai` | `ZAI_API_KEY` | `https://api.z.ai/api/coding/paas` |
+| `nvidia-nim` | `openai` | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com` |
+| `modal` | `openai` | `MODAL_API_KEY` | `https://api.us-west-2.modal.direct` |
+| `xiaomi-mimo` | `openai` | `XIAOMI_MIMO_API_KEY` | `https://token-plan-sgp.xiaomimimo.com` |
+| `deepseek` | `openai` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` |
+
+### 13.4 Auto-pick priority
+
+When `GRAPHIFY_PROVIDER` is unset, the script picks the **first** provider
+in the registry order below whose key is loaded:
+
+1. `claude` (Anthropic) — best for code reasoning
+2. `gemini` — fast multimodal
+3. `kimi` (Moonshot) — long context, multimodal
+4. `ollama` — local-only
+5. `zenmux` — aggregator with 60+ models
+6. `openrouter` — 300+ models, presets supported
+7. `wafer-serverless` — fast, 1M-context deepseek
+8. `nebius` — hosting for Kimi, DeepSeek, Nemotron
+9. `opencode` / `opencode-zen`
+10. `zai` (Z.ai) — GLM-5.1, GLM-5
+11. `nvidia-nim` — Nemotron, MiniMax
+12. `modal` — direct inference
+13. `xiaomi-mimo` — Xiaomi MiMo
+14. `deepseek` — direct DeepSeek API
+
+Override with `GRAPHIFY_PROVIDER=<name>` to force a specific one (errors
+out if its key is not loaded — fail closed).
+
+### 13.5 Forcing a specific provider / backend / model
+
+```bash
+# Force provider (still errors if key is not loaded)
+GRAPHIFY_PROVIDER=zenmux source scripts/graphify-env.sh
+
+# Force graphify backend (overrides the registry default)
+GRAPHIFY_BACKEND=openai source scripts/graphify-env.sh
+
+# Override the model the registry would pick
+GRAPHIFY_MODEL=google/gemini-3.1-pro-preview source scripts/graphify-env.sh
+
+# Combined: openai backend via zenmux with the coder model
+GRAPHIFY_PROVIDER=zenmux GRAPHIFY_BACKEND=openai \
+  GRAPHIFY_MODEL=openai/gpt-5-codex source scripts/graphify-env.sh
+
+# Force kimi on its dedicated backend (not the openai-compat path)
+GRAPHIFY_PROVIDER=kimi source scripts/graphify-env.sh
+```
+
+After sourcing, the script exports three resolved-state variables you
+can use in your own commands:
+
+```bash
+echo "$GRAPHIFY_RESOLVED_PROVIDER"   # e.g. zenmux
+echo "$GRAPHIFY_RESOLVED_BACKEND"    # e.g. openai
+echo "$GRAPHIFY_RESOLVED_MODEL"      # e.g. deepseek/deepseek-v4-pro
+```
+
+### 13.6 No-keys path (and how to recover)
+
+If the script finds no API keys in the env **and** cannot run
+`pqc-secrets export`, it exits 1 with a help message:
+
+```
+[graphify-env] ✗ No LLM provider keys detected in environment.
+
+  No API keys found. Pick one of:
+    1) Run:  secrets-load       (loads from PQC bundle, default)
+    2) Set the env var directly, e.g.:
+         export ZENMUX_API_KEY=...
+         export ANTHROPIC_API_KEY=...
+         export GEMINI_API_KEY=...
+         export MOONSHOT_API_KEY=...
+
+  Provider → env-var mapping (from providers.txt):
+    claude                  ANTHROPIC_API_KEY
+    gemini                  GEMINI_API_KEY
+    kimi                    MOONSHOT_API_KEY
+    ollama                  OLLAMA_BASE_URL
+    zenmux                  ZENMUX_API_KEY
+    openrouter              OPENROUTER_API_KEY
+    wafer-serverless        WAFER_SERVERLESS_API_KEY
+    nebius                  NEBIUS_API_KEY
+    opencode                OPENCODE_API_KEY
+    opencode-zen            OPENCODE_API_KEY
+    zai                     ZAI_API_KEY
+    nvidia-nim              NVIDIA_NIM_API_KEY
+    modal                   MODAL_API_KEY
+    xiaomi-mimo             XIAOMI_MIMO_API_KEY
+    deepseek                DEEPSEEK_API_KEY
+```
+
+**Recovery checklist:**
+
+1. Verify PQC bundle exists: `ls -la ~/.config/pqc-secrets/`
+2. Verify the macOS Keychain entry: `security find-generic-password -s pqc-secrets -a default` (returns 0 if present)
+3. Verify the binary is on PATH: `command -v pqc-secrets`
+4. Try loading manually: `eval "$(./bin/pqc-secrets export)" && env | grep _API_KEY`
+5. If a key is missing, re-pack: `key1=val1 key2=val2 ./bin/pqc-secrets pack`
+
+### 13.7 Code-only path (no LLM needed)
+
+Many graphify operations don't need an LLM at all. These work even with
+zero keys:
+
+```bash
+graphify update . --no-cluster      # AST only, no community naming
+graphify query "..." --graph graphify-out/graph.json   # read-only
+graphify path "A" "B"               # read-only
+graphify explain "X"                # read-only
+graphify export svg / graphml / callflow-html / obsidian / wiki
+graphify merge-graphs a.json b.json --out merged.json
+graphify watch ./src                # re-extract on file change (AST only)
+graphify prs [--triage --conflicts --worktrees]   # PR dashboard
+```
+
+For LLM-backed operations (community naming, doc/PDF/image/video
+extraction, semantic cluster naming, deep mode), use the bridge
+script first.
+
+### 13.8 The script's compatibility matrix
+
+| bash | Compatible | Notes |
+|---|---|---|
+| bash 3.2 (macOS default) | ✓ | No associative arrays — uses tmp files for parallel arrays |
+| bash 4.0+ (Linux) | ✓ | Same code path |
+| bash 5.x | ✓ | Same code path |
+| zsh | ✓ | Source with `source` (works in zsh) |
+| fish | partial | Use `bash -c 'source …; …'` wrapper |
+| sh / dash | ✗ | Uses `[[ ]]`, arrays, `printf -v` — needs bash |
+
+Requires `python3` on PATH for parsing `providers.json`.
+
+### 13.9 Why this exists (design rationale)
+
+The graphify CLI and the `ainish-coder` providers config evolved
+independently:
+
+- **Graphify** has 8 LLM backends, each with its own env-var contract
+  (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`,
+  `MOONSHOT_API_KEY`, `DEEPSEEK_API_KEY`, `OLLAMA_BASE_URL`, AWS vars,
+  `claude` CLI).
+- **ainish-coder** has its own `providers.json` and `providers.txt`
+  with a different naming convention (`WAFER_SERVERLESS_API_KEY` vs
+  `CODEX_WAFER_SERVERLESS_KEY`), prioritizing the canonical cross-tool
+  names from `providers.txt`.
+- **PQC secrets** stores keys under the canonical names from
+  `providers.txt`, decrypted only into env vars at runtime.
+
+The bridge script reconciles all three so that **one
+`source scripts/graphify-env.sh` call** makes graphify work with
+whichever provider is currently loaded, without writing any
+plaintext keys to disk or shell history.
+
+### 13.10 Deploying the bridge with `--skills`
+
+The script is part of the skill pack, so `ainish-coder --skills` ships
+it to every project that uses this skill. Each deployment is a symlink
+(by default) to the canonical source in this repo, so edits propagate
+automatically. To copy instead: `ainish-coder --skills -y .` then
+`rm .agents/skills/graph-intelligence/scripts/graphify-env.sh && cp <new>`.
+
+---
+
 ## Appendix A — One-Page Cheat Sheet
 
 ```text
@@ -1558,6 +1790,16 @@ This skill is **pinned** to:
                     god_nodes, graph_stats, shortest_path,
                     list_prs, get_pr_impact, triage_prs
   Confidence: EXTRACTED > INFERRED > AMBIGUOUS
+═══════════════════════════════════════════════════════════════════════
+ Provider Bridge (PQC + providers.txt → graphify) — see §13
+═══════════════════════════════════════════════════════════════════════
+  secrets-load                                                     # decrypt PQC bundle → env
+  source scripts/graphify-env.sh                                    # auto-pick + export
+  graphify extract ./docs                                           # uses env
+  GRAPHIFY_PROVIDER=zenmux source scripts/graphify-env.sh           # force provider
+  GRAPHIFY_BACKEND=openai source scripts/graphify-env.sh            # force graphify backend
+  GRAPHIFY_MODEL=openai/gpt-5-codex source scripts/graphify-env.sh  # override model
+  graphify update . --no-cluster                                    # AST-only, no LLM
 ═══════════════════════════════════════════════════════════════════════
  Pre-Edit Safety (mandatory)
 ═══════════════════════════════════════════════════════════════════════
