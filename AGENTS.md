@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task. Polyglot ecosystem (Rust, TS, Py, etc). Chain-of-Draft (CoD) reasoning: strictly ≤5 words per step. Mimic human shorthand: pure logic/state transformations. Separate final output via ####. Ask before merging. Output full production code. Live infrastructure at ~/.config/pqc-secrets/. llms.txt is the PRD anchor. Read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops. Standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work on main. Create a worktree for every task. Branch naming: `<type>/<scope>-<slug>`. Pre-merge checklist: gates, diff, user confirmation. Fail closed on any conflict or unconfirmed merge.
+description: PQC secrets for all API keys. Worktree per task. Polyglot ecosystem (Rust, TS, Py, etc). Chain-of-Draft (CoD) reasoning: strictly ≤5 words per step. Mimic human shorthand: pure logic/state transformations. Separate final output via ####. Ask before merging. Output full production code. llms.txt is the PRD anchor. Read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops. Standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work on main. Create a worktree for every task. Branch naming: `<type>/<scope>-<slug>`. Pre-merge checklist: gates, diff, user confirmation. Fail closed on any conflict or unconfirmed merge.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -63,7 +63,7 @@ This is the core of the system. Every API key for every application — CLI tool
 
 **Infrastructure (live at `~/.config/pqc-secrets/`):**
 
-macOS Keychain                    ~/.config/pqc-secrets/
+OS Keystore                        ~/.config/pqc-secrets/
 ┌──────────────────────┐          ┌────────────────────────────┐
 │ service: pqc-secrets │          │ recipient.pub              │
 │ ML-KEM-768 secret key│          │ ML-KEM-768 public key      │
@@ -75,28 +75,28 @@ macOS Keychain                    ~/.config/pqc-secrets/
 │                    secrets.bundle.json                        │
 │  ┌─────────────────┐  ┌──────────────────────────────────┐   │
 │  │ kem.ciphertext  │  │ data.ciphertext (AES-256-GCM)     │   │
-│  │ (ML-KEM-768)    │  │ 24 API keys encrypted at rest     │   │
+│  │ (ML-KEM-768)    │  │ N API keys encrypted at rest      │   │
 │  └─────────────────┘  └──────────────┬───────────────────┘   │
 └──────────────────────────────────────┼────────────────────────┘
 │ decrypt
 ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  Exported environment variables (never touch disk)           │
-│  ANTHROPIC_AUTH_TOKEN  ZENMUX_API_KEY  NEBIUS_API_KEY        │
-│  OPENROUTER_API_KEY    WAFER_API_KEY    ... (24 total)        │
+│  PROVIDER_A_API_KEY  PROVIDER_B_API_KEY  PROVIDER_C_KEY      │
+│  ... (N total — names depend on your stack)                   │
 └──────────────────────────────────────────────────────────────┘
 
 **Rules:**
 - No hardcoded secrets. No `.env` files with API keys. No plaintext on disk. Ever.
 - All API keys live encrypted in `~/.config/pqc-secrets/secrets.bundle.json`. This file is safe to commit — every value is AES-256-GCM ciphertext wrapped by ML-KEM-768.
-- The ML-KEM-768 private key lives exclusively in the macOS Keychain. On T2/M-series hardware, this is hardware-backed.
-- Load secrets on-demand into shell environment: `secrets-load` (zsh function) or `pqc-secrets export`. Never persist them.
+- The ML-KEM-768 private key lives exclusively in the OS keystore (macOS Keychain, GNOME Keyring, Windows Credential Manager). On T2/M-series hardware, this is hardware-backed.
+- Load secrets on-demand into shell environment: `secrets-load` (shell function) or `pqc-secrets export`. Never persist them.
 - Application integration: Apps read `os.environ` (or `std::env::var`, `process.env`) populated in-memory. They never interact with the PQC bundle directly.
   - **CLI / TUI**: Must inherit environment variables loaded via `secrets-load` from the terminal session in which they are launched.
-  - **GUI Applications (macOS)**: Because GUI apps (Cursor, Windsurf, VS Code, etc.) launched from Finder/Dock do not inherit shell environment variables, they must either:
-    1. Be launched from the terminal (e.g. `open -a Windsurf` or `code .`) after running `secrets-load` so they inherit the environment, OR
-    2. Dynamically execute the binary `bin/pqc-secrets export --format json` at startup to fetch and load secrets directly into memory.
-  - **Scripts / Daemons**: Scripts should dynamically fetch exports via `bin/pqc-secrets export` or parse the JSON format to load secrets in-memory without plain env files on disk.
+  - **GUI Applications**: Because GUI apps (IDEs, editors, etc.) launched from Finder/Dock/Start Menu do not inherit shell environment variables, they must either:
+    1. Be launched from the terminal after running `secrets-load` so they inherit the environment, OR
+    2. Dynamically execute the secrets binary at startup to fetch and load secrets directly into memory.
+  - **Scripts / Daemons**: Scripts should dynamically fetch exports via the secrets binary or parse the JSON format to load secrets in-memory without plain env files on disk.
 
 ### Supply Chain & Polyglot Ecosystems
 
@@ -154,10 +154,10 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 
 ### Commands
 
-- `bin/pqc-secrets keygen` — Generate ML-KEM-768 keypair. Private key → macOS Keychain, public key → `~/.config/pqc-secrets/recipient.pub`.
-- `bin/pqc-secrets pack` — Encrypt stdin `KEY=VAL` lines via AES-256-GCM, wrap data key via ML-KEM-768, and write `~/.config/pqc-secrets/secrets.bundle.json`.
-- `bin/pqc-secrets export` — Decrypt bundle via Keychain and output shell `export KEY=VALUE` lines.
-- `secrets-load` — Zsh function evaluating `bin/pqc-secrets export` to inject secrets into current shell memory.
+- `pqc-secrets keygen` — Generate ML-KEM-768 keypair. Private key → OS keystore, public key → `~/.config/pqc-secrets/recipient.pub`.
+- `pqc-secrets pack` — Encrypt stdin `KEY=VAL` lines via AES-256-GCM, wrap data key via ML-KEM-768, and write `~/.config/pqc-secrets/secrets.bundle.json`.
+- `pqc-secrets export` — Decrypt bundle via keystore and output shell `export KEY=VALUE` lines.
+- `secrets-load` — Shell function evaluating `pqc-secrets export` to inject secrets into current shell memory.
 </REFERENCE>
 
 ---
