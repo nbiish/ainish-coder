@@ -17,6 +17,8 @@ Commands:
   verify   Check bundle integrity, list key names (no values)
 """
 
+import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -31,6 +33,7 @@ PUBKEY_PATH = CONFIG_DIR / "recipient.pub"
 BUNDLE_PATH = CONFIG_DIR / "secrets.bundle.json"
 KEYCHAIN_SERVICE = "pqc-secrets"
 KEYCHAIN_ACCOUNT = "default"
+KDF_INFO = b"pqc-secrets:v1:kek"
 
 
 def _ensure_config_dir() -> None:
@@ -81,19 +84,38 @@ def _load_private_key() -> bytes:
         capture_output=True,
         text=True,
     )
-    return bytes.fromhex(result.stdout.strip())
+    raw = result.stdout.strip()
+    try:
+        return bytes.fromhex(raw)
+    except ValueError:
+        return base64.b64decode(raw)
 
 
 def _load_public_key() -> bytes:
-    """Load ML-KEM-768 public key from disk."""
+    """Load ML-KEM-768 public key from disk.
+
+    Supports both formats:
+    - Rust engine (JSON): {"public_key_b64": "...", "engine": "rust-fips203"}
+    - Legacy Python (hex): raw hex string
+    """
     if not PUBKEY_PATH.exists():
         print(f"ERROR: Public key not found at {PUBKEY_PATH}. Run 'keygen' first.", file=sys.stderr)
         sys.exit(1)
-    return bytes.fromhex(PUBKEY_PATH.read_text().strip())
+    raw = PUBKEY_PATH.read_text().strip()
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict) and "public_key_b64" in parsed:
+            return base64.b64decode(parsed["public_key_b64"])
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return bytes.fromhex(raw)
 
 
 def cmd_pack() -> None:
-    """Read KEY=VALUE lines from stdin, encrypt via AES-256-GCM + ML-KEM-768."""
+    """Read KEY=VALUE lines from stdin, encrypt via AES-256-GCM + ML-KEM-768.
+
+    Produces a Rust-compatible bundle with keywrap layer and AAD.
+    """
     _ensure_config_dir()
 
     pk = _load_public_key()
@@ -117,31 +139,88 @@ def cmd_pack() -> None:
         print("ERROR: No valid KEY=VALUE pairs found in input.", file=sys.stderr)
         sys.exit(1)
 
-    # Encapsulate: shared_secret = DEK (32 bytes), ciphertext_kem = wrapped key (1088 bytes)
+    # Generate random data key (32 bytes)
+    data_key = os.urandom(32)
+
+    # Encrypt payload with data key
+    data_nonce = os.urandom(12)
+    payload_plaintext = json.dumps({"secrets": entries}, sort_keys=True).encode("utf-8")
+    data_ciphertext = AESGCM(data_key).encrypt(data_nonce, payload_plaintext, b"pqc-secrets:v1:data")
+
+    # ML-KEM encapsulation
     shared_secret, ciphertext_kem = ML_KEM_768.encaps(pk)
 
-    # Encrypt entries with AES-256-GCM using the shared secret as the key
-    nonce = os.urandom(12)
-    aesgcm = AESGCM(shared_secret)
-    plaintext = json.dumps(entries, sort_keys=True).encode("utf-8")
-    ciphertext_aes = aesgcm.encrypt(nonce, plaintext, b"")
+    # Derive KEK from shared secret
+    kek = hashlib.sha3_256(shared_secret + KDF_INFO).digest()
+
+    # Wrap data key with KEK
+    keywrap_nonce = os.urandom(12)
+    keywrap_ciphertext = AESGCM(kek).encrypt(keywrap_nonce, data_key, b"pqc-secrets:v1:keywrap")
 
     bundle = {
         "version": 1,
+        "alg": "ML-KEM-768",
+        "engine": "kyber-py",
+        "created_utc": __import__("datetime").datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.") + f"{__import__("datetime").datetime.utcnow().microsecond:06d}Z",
+        "recipient": {
+            "public_key_sha3_256": hashlib.sha3_256(pk).hexdigest(),
+        },
         "kem": {
-            "algorithm": "ML-KEM-768",
-            "ciphertext": ciphertext_kem.hex(),
+            "ciphertext_b64": base64.b64encode(ciphertext_kem).decode(),
+        },
+        "keywrap": {
+            "kdf": "SHA3-256",
+            "aad": "pqc-secrets:v1:keywrap",
+            "nonce_b64": base64.b64encode(keywrap_nonce).decode(),
+            "ciphertext_b64": base64.b64encode(keywrap_ciphertext).decode(),
         },
         "data": {
-            "algorithm": "AES-256-GCM",
-            "nonce": nonce.hex(),
-            "ciphertext": ciphertext_aes.hex(),
+            "aad": "pqc-secrets:v1:data",
+            "nonce_b64": base64.b64encode(data_nonce).decode(),
+            "ciphertext_b64": base64.b64encode(data_ciphertext).decode(),
         },
     }
 
     BUNDLE_PATH.write_text(json.dumps(bundle, indent=2, sort_keys=True))
     BUNDLE_PATH.chmod(0o600)
     print(f"Secrets packed: {len(entries)} keys → {BUNDLE_PATH}")
+
+
+def _decrypt_bundle(bundle: dict, sk: bytes) -> dict[str, str]:
+    """Decrypt a bundle, handling both legacy (hex) and Rust-engine (b64+keywrap) formats."""
+    # Decapsulate DEK from KEM ciphertext
+    kem = bundle["kem"]
+    if "ciphertext_b64" in kem:
+        ciphertext_kem = base64.b64decode(kem["ciphertext_b64"])
+    else:
+        ciphertext_kem = bytes.fromhex(kem["ciphertext"])
+    dek = ML_KEM_768.decaps(sk, ciphertext_kem)
+
+    # Derive the data key (DK)
+    if "keywrap" in bundle:
+        kw = bundle["keywrap"]
+        kw_ct = base64.b64decode(kw["ciphertext_b64"])
+        kw_nonce = base64.b64decode(kw["nonce_b64"])
+        kw_aad = kw.get("aad", "pqc-secrets:v1:keywrap").encode("utf-8")
+        kek = hashlib.sha3_256(dek + KDF_INFO).digest() if kw.get("kdf") == "SHA3-256" else dek
+        dk = AESGCM(kek).decrypt(kw_nonce, kw_ct, kw_aad)
+    else:
+        dk = dek
+
+    # Decrypt the data payload
+    data_sec = bundle["data"]
+    if "nonce_b64" in data_sec:
+        nonce = base64.b64decode(data_sec["nonce_b64"])
+    else:
+        nonce = bytes.fromhex(data_sec["nonce"])
+    if "ciphertext_b64" in data_sec:
+        ciphertext = base64.b64decode(data_sec["ciphertext_b64"])
+    else:
+        ciphertext = bytes.fromhex(data_sec["ciphertext"])
+    data_aad = data_sec.get("aad", "").encode("utf-8")
+
+    plaintext = AESGCM(dk).decrypt(nonce, ciphertext, data_aad)
+    return json.loads(plaintext)
 
 
 def cmd_export() -> None:
@@ -152,18 +231,11 @@ def cmd_export() -> None:
 
     sk = _load_private_key()
     bundle = json.loads(BUNDLE_PATH.read_text())
+    payload = _decrypt_bundle(bundle, sk)
 
-    # Decapsulate DEK
-    ciphertext_kem = bytes.fromhex(bundle["kem"]["ciphertext"])
-    dek = ML_KEM_768.decaps(sk, ciphertext_kem)
+    # Rust engine wraps secrets in {"secrets": {...}}; legacy packs directly
+    entries = payload.get("secrets", payload) if isinstance(payload, dict) and "secrets" in payload else payload
 
-    # Decrypt entries
-    nonce = bytes.fromhex(bundle["data"]["nonce"])
-    ciphertext = bytes.fromhex(bundle["data"]["ciphertext"])
-    aesgcm = AESGCM(dek)
-    plaintext = aesgcm.decrypt(nonce, ciphertext, b"")
-
-    entries = json.loads(plaintext)
     for key, value in entries.items():
         print(f"export {key}={value}")
 
@@ -176,16 +248,10 @@ def cmd_verify() -> None:
 
     sk = _load_private_key()
     bundle = json.loads(BUNDLE_PATH.read_text())
+    payload = _decrypt_bundle(bundle, sk)
 
-    ek = bytes.fromhex(bundle["kem"]["ciphertext"])
-    dek = ML_KEM_768.decaps(sk, ek)
+    entries = payload.get("secrets", payload) if isinstance(payload, dict) and "secrets" in payload else payload
 
-    nonce = bytes.fromhex(bundle["data"]["nonce"])
-    ciphertext = bytes.fromhex(bundle["data"]["ciphertext"])
-    aesgcm = AESGCM(dek)
-    plaintext = aesgcm.decrypt(nonce, ciphertext, b"")
-
-    entries = json.loads(plaintext)
     print(f"Bundle valid: {len(entries)} keys")
     for key in sorted(entries.keys()):
         print(f"  {key}")
