@@ -82,7 +82,37 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
   - `setup_shell.sh`, `setup-secret-protection.sh`, `clear_all_rules.sh` — Setup and maintenance atoms.
 - `src/molecules/` — High-level orchestration (system-wide installation wrapper).
 - `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
-- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export).
+- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export). The compiled binary at `bin/pqc-secrets` uses `rust-fips203` for KEM operations and produces bundles with keywrap layer (`SHA3-256` KDF with `KDF_INFO = b"pqc-secrets:v1:kek"`), AAD on both keywrap and data layers, and `{"secrets": {...}}` payload wrapper.
+
+## PQC Secrets Infrastructure
+
+The Rust engine (`src/pqc-secrets/`) and Python script (`.agents/skills/pqc-secrets/scripts/pqc_secrets.py`) are now cross-compatible. Both can read each other's bundles.
+
+**Rust engine keywrap KDF** (line 95-99 of `src/pqc-secrets/src/main.rs`):
+```rust
+fn derive_kek(shared_secret: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha3_256::new();
+    hasher.update(shared_secret);
+    hasher.update(KDF_INFO);  // b"pqc-secrets:v1:kek"
+    hasher.finalize().into()
+}
+```
+
+**Python mirror** (`pqc_secrets.py`):
+```python
+KDF_INFO = b"pqc-secrets:v1:kek"
+kek = hashlib.sha3_256(dek + KDF_INFO).digest()
+```
+
+**Bundle format** (both engines):
+- `kem.ciphertext_b64` — ML-KEM-768 ciphertext (base64)
+- `keywrap` — AES-256-GCM wrapping of the data key (base64 nonce/ciphertext, AAD: `"pqc-secrets:v1:keywrap"`)
+- `data` — AES-256-GCM encrypted payload (base64 nonce/ciphertext, AAD: `"pqc-secrets:v1:data"`)
+- Payload structure: `{"secrets": {"KEY_NAME": "value", ...}}`
+
+**Public key file** (`recipient.pub`): JSON format with `public_key_b64`, `public_key_sha3_256`, `engine: "rust-fips203"`. Python script parses both JSON and legacy hex formats.
+
+**Bundle decrypt verifier** (`scripts/test_decrypt.py`): Manual round-trip checker for the Rust-compatible bundle format. Reads `~/.config/pqc-secrets/secrets.bundle.json`, decapsulates the ML-KEM-768 KEM, unwraps the data key (with SHA3-256 KDF fallback), and decrypts the payload. Uses `cryptography` AESGCM and `kyber_py.ml_kem.ML_KEM_768` (FIPS 203 + FIPS 197 only). Not wired into any test runner; intended for manual bundle integrity checks.
 - `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
 - `.agents/skills/` — 19 hardened procedural guideline skill packs for agent integration:
   advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, gstack-coder, llm-security, modern-prompting, openscad-generator, pi-mini-orchestrator, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, video-knowledge-extractor
@@ -276,3 +306,43 @@ curl -fsSL "https://raw.githubusercontent.com/OpenAutoCoder/live-swe-agent/main/
 secrets-load
 mini-live --task "fix tests" --yolo
 ```
+
+## Recent Updates (2026-06-02)
+
+### PQC Signature Skill Hardening — synced from local-router
+
+The `pqc-signatures-security/scripts/pqc_helper.py` subprocess wrapper was hardened in the local-router project's `chore/agents-skill-hygiene` branch and synced back here via `chore/sync-pqc-helper-from-local-router`. The wrapper now:
+- Enforces a 30-second default `subprocess.run` timeout to prevent hung `openssl` invocations
+- Accepts optional `input_data` for stdin piping
+- Distinguishes verify returncodes: `0` = signature OK, `1` = genuine signature mismatch, anything else = unexpected command error
+- Surfaces `FileNotFoundError` (missing `openssl` on PATH) separately from a real verify failure
+- Surfaces `subprocess.TimeoutExpired` with a dedicated error message
+
+The ML-DSA-65 algorithm and `openssl pkeyutl` invocations are unchanged. The hardened `pqc_helper.py` is now byte-identical across `ainish-coder/.agents/skills/pqc-signatures-security/scripts/pqc_helper.py` and `local-router/.agents/skills/pqc-signatures-security/scripts/pqc_helper.py`.
+
+### Stale Backup Cleanup
+
+Removed `AGENTS.md.backup-5-29-2026` (238-line backup file) — current `AGENTS.md` already supersedes it. Cleaner repo, no semantic change.
+
+### Gitignore Hygiene
+
+Added `graphify-out/` to `.gitignore` to suppress `/graphify` scratch output from the working tree.
+
+### pqc-secrets Engine Compatibility
+
+The `pqc-secrets` skill's Python script now reads and writes the same bundle format the Rust engine produces. Bundles are fully cross-compatible: `pack` produces Rust-compatible bundles, `export` and `verify` consume them. The `test_decrypt.py` script provides manual round-trip verification.
+
+### Promotion Path
+
+`main` is the user-facing default branch. `dev` is the integration branch. Feature work lands on `feature/*` branches in dedicated worktrees per `AGENTS.md`. Promotion is `feature/*` → `dev` → `main`. Recent merges:
+
+| Date | Commit | Description |
+|------|--------|-------------|
+| 2026-06-02 | `6de0281` | docs(llms): document Rust/Python PQC engine compatibility |
+| 2026-06-02 | `a7d14f1` | chore(cleanup): remove stale AGENTS.md backup |
+| 2026-06-02 | `1201b33` | test(pqc-secrets): add bundle decrypt verification script |
+| 2026-06-02 | `4c2e00f` | feat(pqc-secrets): Rust-compatible bundle format with KDF keywrap |
+| 2026-06-02 | `44c1216` | docs(pqc-secrets): document Rust/legacy format compatibility |
+| 2026-06-02 | `5e1d1cd` | chore(gitignore): exclude graphify-out/ scratch artifacts |
+| 2026-06-02 | `28d139c` | docs(tasks): record pqc_helper.py sync from local-router |
+| 2026-06-02 | `a24ce97` | chore(pqc-signatures): sync hardened pqc_helper.py from local-router |

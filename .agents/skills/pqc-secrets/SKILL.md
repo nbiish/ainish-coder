@@ -142,10 +142,11 @@ Use the `bin/pqc-secrets` wrapper (which calls `uv run scripts/pqc_secrets.py` u
 
 ### Implementation Details
 
-- **Engine:** `kyber-py` (pure Python ML-KEM-768, FIPS 203 compliant)
+- **Engine:** `kyber-py` (pure Python ML-KEM-768, FIPS 203 compliant) — compatible with Rust `rust-fips203` bundles
 - **Dependencies:** Managed inline via UV script metadata — `kyber-py>=0.2.0`, `cryptography>=44.0`
 - **No global installs:** `uv run` auto-resolves and caches dependencies
 - **Portability:** Works on any system with `uv` installed (macOS, Linux)
+- **Rust compatibility:** Handles both Rust-engine (`recipient.pub` JSON with `public_key_b64`, keywrap layer with `SHA3-256` KDF using `KDF_INFO`) and legacy Python formats (raw hex, no keywrap)
 
 ---
 
