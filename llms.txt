@@ -82,7 +82,35 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
   - `setup_shell.sh`, `setup-secret-protection.sh`, `clear_all_rules.sh` — Setup and maintenance atoms.
 - `src/molecules/` — High-level orchestration (system-wide installation wrapper).
 - `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
-- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export).
+- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export). The compiled binary at `bin/pqc-secrets` uses `rust-fips203` for KEM operations and produces bundles with keywrap layer (`SHA3-256` KDF with `KDF_INFO = b"pqc-secrets:v1:kek"`), AAD on both keywrap and data layers, and `{"secrets": {...}}` payload wrapper.
+
+## PQC Secrets Infrastructure
+
+The Rust engine (`src/pqc-secrets/`) and Python script (`.agents/skills/pqc-secrets/scripts/pqc_secrets.py`) are now cross-compatible. Both can read each other's bundles.
+
+**Rust engine keywrap KDF** (line 95-99 of `src/pqc-secrets/src/main.rs`):
+```rust
+fn derive_kek(shared_secret: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha3_256::new();
+    hasher.update(shared_secret);
+    hasher.update(KDF_INFO);  // b"pqc-secrets:v1:kek"
+    hasher.finalize().into()
+}
+```
+
+**Python mirror** (`pqc_secrets.py`):
+```python
+KDF_INFO = b"pqc-secrets:v1:kek"
+kek = hashlib.sha3_256(dek + KDF_INFO).digest()
+```
+
+**Bundle format** (both engines):
+- `kem.ciphertext_b64` — ML-KEM-768 ciphertext (base64)
+- `keywrap` — AES-256-GCM wrapping of the data key (base64 nonce/ciphertext, AAD: `"pqc-secrets:v1:keywrap"`)
+- `data` — AES-256-GCM encrypted payload (base64 nonce/ciphertext, AAD: `"pqc-secrets:v1:data"`)
+- Payload structure: `{"secrets": {"KEY_NAME": "value", ...}}`
+
+**Public key file** (`recipient.pub`): JSON format with `public_key_b64`, `public_key_sha3_256`, `engine: "rust-fips203"`. Python script parses both JSON and legacy hex formats.
 - `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
 - `.agents/skills/` — 19 hardened procedural guideline skill packs for agent integration:
   advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, gstack-coder, llm-security, modern-prompting, openscad-generator, pi-mini-orchestrator, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, video-knowledge-extractor
