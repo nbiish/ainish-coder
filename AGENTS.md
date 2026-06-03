@@ -127,7 +127,7 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 
 ### Development & Iteration Loop
 
-1. **Isolate:** Create branch + worktree from `dev`. Read `llms.txt` → write `TASK.$(date).md`.
+1. **Isolate:** Create branch + worktree from `dev`. Read `llms.txt` → write `.agents/tasks/TASK.$(date).md`.
 2. **Iterate & Track:** Commit atomically and frequently within the worktree. Write descriptive commit messages. Excellent git history is required so we can step backward through logical iterations if an approach fails.
 3. **Audit:** Scan code, task file, and `llms.txt` for banned crypto or secrets every cycle.
 4. **Pre-Commit:** Pass native ecosystem gates (e.g., `cargo clippy`, `tsc`, `ruff`), plus security gates (`gitleaks`, `detect-secrets`).
@@ -167,7 +167,7 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 
 Run before any code that touches cryptography, secrets storage, or network communication:
 
-- Task/PRD present — `TASK.$(date).md` exists, `llms.txt` has been read, no secrets in either
+- Task/PRD present — `.agents/tasks/TASK.$(date).md` exists, `llms.txt` has been read, no secrets in either
 - Algorithms — only FIPS 203/204/205 for secrets operations, zero classical crypto for keys
 - Supply chain — native language respected, versions pinned, lockfiles committed, provenance verified
 - Secrets — platform keystore used, AES-256-GCM + ML-KEM-768 wrapping, no plaintext, no `.env`
