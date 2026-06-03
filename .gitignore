@@ -123,3 +123,6 @@ providers**.txt
 
 # Scrolls ceremony cloned repos (large)
 .scrolls-ceremony/repos/
+
+# Graphify scratch output
+graphify-out/
