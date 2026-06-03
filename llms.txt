@@ -75,7 +75,7 @@ When wrapping up a feature and finalizing the full merge pipeline, follow this e
   - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise. When `AINISH_NO_OVERWRITE=true`, existing files are skipped (safe/additive mode).
 - `src/atoms/` — 14 modular deployment atoms, all using `deploy_path`/`deploy_path_contents` for `--link` support:
   - `deploy_agents.sh` — Deploys `AGENTS.md` (symlink-capable).
-  - `deploy_skills.sh` — Deploys all 21 skill packs from `.agents/skills/`.
+  - `deploy_skills.sh` — Deploys all 20 skill packs from `.agents/skills/`.
   - `deploy_commands.sh` — Deploys slash command workflows.
   - `deploy_critical.sh`, `deploy_gitignore.sh`, `deploy_github_actions.sh`, `deploy_local_security.sh`, `deploy_template_agent.sh`, `deploy_mcp.sh`, `deploy_mcp_recipes.sh`, `deploy_scrolls.sh`, `deploy_license.sh`, `deploy_signals.sh`, `deploy_llms_txt.sh`, `deploy_unlock.sh` — Individual deployment atoms.
   - `help.sh` — Full help text and usage documentation.
@@ -114,7 +114,7 @@ kek = hashlib.sha3_256(dek + KDF_INFO).digest()
 
 **Bundle decrypt verifier** (`scripts/test_decrypt.py`): Manual round-trip checker for the Rust-compatible bundle format. Reads `~/.config/pqc-secrets/secrets.bundle.json`, decapsulates the ML-KEM-768 KEM, unwraps the data key (with SHA3-256 KDF fallback), and decrypts the payload. Uses `cryptography` AESGCM and `kyber_py.ml_kem.ML_KEM_768` (FIPS 203 + FIPS 197 only). Not wired into any test runner; intended for manual bundle integrity checks.
 - `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
-- `.agents/skills/` — 21 hardened procedural guideline skill packs for agent integration:
+- `.agents/skills/` — 20 hardened procedural guideline skill packs for agent integration:
   advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, graph-intelligence, gstack-coder, llm-security, modern-prompting, openscad-generator, pi-mini-orchestrator, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, video-knowledge-extractor
 - `.agents/mcp-settings.json` — Global MCP server definitions (merged with project-level overrides).
 
