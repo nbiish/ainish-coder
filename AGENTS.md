@@ -41,7 +41,7 @@ Conflict → fail closed, explain, ask.
 <TASK_PRIMER>
 ## TASK COORDINATION & CHAIN-OF-DRAFT
 
-- **Task File:** Every task writes to .agents/tasks/`TASK.$(date).md` in its dedicated git worktree. Chain-of-Draft format strictly enforced: limit each reasoning step to **≤5 words**. Record only essential calculations, semantic core logic, or state transformations. Zero conversational preamble. Terminate drafting and output deliverables after a `####` separator. Read → Execute → Write. No secrets or keys.
+- **Task File:** Every task writes to `.agents/tasks/TASK.$(date).md` in its dedicated git worktree. Chain-of-Draft format strictly enforced: limit each reasoning step to **≤5 words**. Record only essential calculations, semantic core logic, or state transformations. Zero conversational preamble. Terminate drafting and output deliverables after a `####` separator. Read → Execute → Write. No secrets or keys.
 - **PRD Anchor:** `llms.txt` is the authoritative Product Requirements Document. Read unconditionally if present. Overrides conflicting sources per Priority 2. If task drifts, re-read. Never skip.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle for banned crypto and secrets. Default classification: Confidential.
 </TASK_PRIMER>
