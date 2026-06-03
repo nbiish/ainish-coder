@@ -91,13 +91,14 @@ UTILITY COMMANDS:
                               Example: ainish-coder --scrolls ~/my-project
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory
-                              Deploys 19 skill packs:
+                              Deploys 20 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
                               - code-security/             (Safety-critical code engineering)
                               - ghost-layer-injector/      (Covert AI context injection)
+                              - graph-intelligence/        (Two-layer codebase knowledge graph: GitNexus + Graphify)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - llm-security/              (LLM & agentic AI security)
                               - modern-prompting/          (OOReDAct advanced prompting)
