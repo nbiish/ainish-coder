@@ -1588,34 +1588,85 @@ graphify-env
 
 ### 13.4 Auto-pick priority
 
-When `GRAPHIFY_PROVIDER` is unset, the script picks the **first** provider
-in the registry order below whose key is loaded:
+When neither `GRAPHIFY_PROVIDER` nor `GRAPHIFY_PROVIDER_PRIORITY` is set,
+the script picks the **first** provider in the registry order below
+whose key is loaded. The order prioritizes:
 
-1. `claude` (Anthropic) — best for code reasoning
-2. `gemini` — fast multimodal
-3. `kimi` (Moonshot) — long context, multimodal
-4. `ollama` — local-only
-5. `zenmux` — aggregator with 60+ models
-6. `openrouter` — 300+ models, presets supported
-7. `wafer-serverless` — fast, 1M-context deepseek
-8. `nebius` — hosting for Kimi, DeepSeek, Nemotron
-9. `opencode` / `opencode-zen`
-10. `zai` (Z.ai) — GLM-5.1, GLM-5
-11. `nvidia-nim` — Nemotron, MiniMax
-12. `modal` — direct inference
-13. `xiaomi-mimo` — Xiaomi MiMo
-14. `deepseek` — direct DeepSeek API
+1. **Direct user subscriptions** (no aggregator markup, predictable cost)
+2. **Free local options** (no network)
+3. **Aggregators** (more expensive but flexible)
 
-Override with `GRAPHIFY_PROVIDER=<name>` to force a specific one (errors
-out if its key is not loaded — fail closed).
+| # | Provider | Notes |
+|---|---|---|
+| 1 | `claude` (Anthropic) | Best for code reasoning; first choice if loaded |
+| 2 | `gemini` | Fast multimodal |
+| 3 | **`zai`** (Z.ai) | **Direct subscription — GLM-5.1, GLM-5** |
+| 4 | **`xiaomi-mimo`** | **Direct subscription — mimo-v2.5** |
+| 5 | `kimi` (Moonshot) | Long context, multimodal |
+| 6 | `ollama` | Local-only |
+| 7 | `zenmux` | Aggregator with 60+ models |
+| 8 | `openrouter` | 300+ models, presets supported |
+| 9 | `wafer-serverless` | Fast, 1M-context deepseek |
+| 10 | `nebius` | Hosting for Kimi, DeepSeek, Nemotron |
+| 11 | `opencode` / `opencode-zen` | Curated coding-agent subscription |
+| 12 | `nvidia-nim` | Nemotron, MiniMax |
+| 13 | `modal` | Direct inference |
+| 14 | `deepseek` | Direct DeepSeek API |
+
+**Rationale for #3 and #4 being so high:** Z.ai GLM-5.1 and Xiaomi
+MiMo mimo-v2.5 are operator-direct subscriptions — paid for
+independently of any aggregator. They are preferred over aggregators
+because (a) the user already paid for them, (b) there is no aggregator
+markup, and (c) the call path is shorter and more reliable.
+
+**Default behaviour:** with both ZAI and MiMo keys loaded, the script
+auto-selects `zai` (default model `glm-5.1`). With only MiMo loaded,
+it selects `xiaomi-mimo` (default model `mimo-v2.5`).
+
+Override with `GRAPHIFY_PROVIDER=<name>` to force a specific one
+(errors out if its key is not loaded — fail closed). For ordering
+multiple, use `GRAPHIFY_PROVIDER_PRIORITY` (see §13.5).
 
 ### 13.5 Forcing a specific provider / backend / model
 
-```bash
-# Force provider (still errors if key is not loaded)
-GRAPHIFY_PROVIDER=zenmux source scripts/graphify-env.sh
+Three knobs, in order of precedence:
 
-# Force graphify backend (overrides the registry default)
+#### `GRAPHIFY_PROVIDER` — force exactly one (errors if key missing)
+
+```bash
+# Force provider (errors if its key is not loaded)
+GRAPHIFY_PROVIDER=zenmux source scripts/graphify-env.sh
+```
+
+#### `GRAPHIFY_PROVIDER_PRIORITY` — try in order, fall through to default
+
+Space-separated list of provider names. The script tries each in order;
+the first one with a loaded key wins. If **none** of the priority list
+has a key, falls through to the default registry order.
+
+```bash
+# Prefer zenmux, fall back to xiaomi-mimo, then zai, then default
+GRAPHIFY_PROVIDER_PRIORITY="zenmux xiaomi-mimo zai" source scripts/graphify-env.sh
+
+# Prefer user-direct subscriptions over aggregators
+GRAPHIFY_PROVIDER_PRIORITY="zai xiaomi-mimo kimi" source scripts/graphify-env.sh
+
+# Force kimi (or fall through to zai → xiaomi-mimo)
+GRAPHIFY_PROVIDER_PRIORITY="kimi zai xiaomi-mimo" source scripts/graphify-env.sh
+
+# Empty priority list / no key loaded → falls through to default order
+GRAPHIFY_PROVIDER_PRIORITY="claude" source scripts/graphify-env.sh
+#   ↳ if no ANTHROPIC_API_KEY, picks zai (default order, first match)
+```
+
+The `GRAPHIFY_PROVIDER_PRIORITY` is the right knob when you want to
+**express preference without forcing** — useful for shared configs
+where different machines may have different keys loaded.
+
+#### `GRAPHIFY_BACKEND` and `GRAPHIFY_MODEL` — override backend and model
+
+```bash
+# Force graphify backend (overrides the registry default for the provider)
 GRAPHIFY_BACKEND=openai source scripts/graphify-env.sh
 
 # Override the model the registry would pick
@@ -1629,13 +1680,15 @@ GRAPHIFY_PROVIDER=zenmux GRAPHIFY_BACKEND=openai \
 GRAPHIFY_PROVIDER=kimi source scripts/graphify-env.sh
 ```
 
+#### Resolved state (always exported)
+
 After sourcing, the script exports three resolved-state variables you
 can use in your own commands:
 
 ```bash
-echo "$GRAPHIFY_RESOLVED_PROVIDER"   # e.g. zenmux
+echo "$GRAPHIFY_RESOLVED_PROVIDER"   # e.g. zai
 echo "$GRAPHIFY_RESOLVED_BACKEND"    # e.g. openai
-echo "$GRAPHIFY_RESOLVED_MODEL"      # e.g. deepseek/deepseek-v4-pro
+echo "$GRAPHIFY_RESOLVED_MODEL"      # e.g. glm-5.1
 ```
 
 ### 13.6 No-keys path (and how to recover)
@@ -1794,9 +1847,10 @@ automatically. To copy instead: `ainish-coder --skills -y .` then
  Provider Bridge (PQC + providers.txt → graphify) — see §13
 ═══════════════════════════════════════════════════════════════════════
   secrets-load                                                     # decrypt PQC bundle → env
-  source scripts/graphify-env.sh                                    # auto-pick + export
-  graphify extract ./docs                                           # uses env
-  GRAPHIFY_PROVIDER=zenmux source scripts/graphify-env.sh           # force provider
+  source scripts/graphify-env.sh                                    # auto-pick: zai → xiaomi-mimo → ...
+  graphify extract ./docs                                           # uses env (default: zai/glm-5.1)
+  GRAPHIFY_PROVIDER=zenmux source scripts/graphify-env.sh           # force exact provider
+  GRAPHIFY_PROVIDER_PRIORITY="zenmux kimi zai" source …             # try in order, fall through
   GRAPHIFY_BACKEND=openai source scripts/graphify-env.sh            # force graphify backend
   GRAPHIFY_MODEL=openai/gpt-5-codex source scripts/graphify-env.sh  # override model
   graphify update . --no-cluster                                    # AST-only, no LLM
