@@ -1,348 +1,83 @@
-# ainish-coder PRD — Project Requirements Document
-
-> Universal AI Configuration & Skills Manager. Authoritative PRD anchor for ainish-coder development.
-
-## Overview
-
-- **Name:** ainish-coder
-- **Version:** 1.5.1
-- **Description:** Modular configuration, rules, and skills manager for AI coding assistants with destination-picker (home vs project), symlink-by-default deployments (single source of truth), and CLI usage analytics.
-- **Purpose:** Standardize agent environments across IDEs/CLIs, deploy secure skill packs to home or project directories, and track usage patterns for continuous improvement.
-- **UX:** Destination picker for home (`~/.agents/`) vs project-local deployments, symlink-by-default deployments (single source of truth — opt-out at prompt), global symlink (`--link` / `-l`) flag, non-overwrite safe mode (`--no-overwrite` / `-n`) flag, and non-interactive (`-y`) scripted operations for AI agents.
-
-## Core Rules
-
-### Secrets & Cryptography (PQC Mandate)
-- **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768 (FIPS 203).
-- **Always** retrieve the private key from the macOS Keychain (service: `pqc-secrets`).
-- **Never** store plaintext secrets in repositories, `.env` files, settings files, task logs, or any config with an `env` block (e.g. Claude Code `settings.json`, VS Code `settings.json`, Docker configs).
-- **Always** inject secrets at runtime via OS Keychain + shell wrapper — the key exists only in the Keychain (encrypted at rest) and process memory (volatile). See `pqc-secrets` skill §1.1 for the full pattern.
-- **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
-
-### Code Signing & Integrity (PQC Mandate)
-- **Always** verify code integrity with ML-DSA-65 (FIPS 204) signatures before deployment.
-- **Always** sign commits and releases with ML-DSA-65 keys stored in the macOS Keychain.
-- **Never** rely on classical signature schemes (RSA-PSS, ECDSA) for integrity verification of critical artifacts.
-
-### Deployment Safety (Additive-Only Mandate)
-- **Never** overwrite existing files at the deployment target unless `--force` is explicitly passed.
-- **Always** default to additive mode: detect what already exists, skip it, only deploy missing artifacts.
-- **Always** treat `.agents/` target directories as multi-tenant — other tools and skills may already be present and must be preserved.
-- **Never** clobber an existing `AGENTS.md`, `.gitignore`, or skill directory without the operator's explicit choice.
-- Use `ainish-coder -n` (or `--no-overwrite`) to enforce non-destructive deployment across all commands (`--rules`, `--skills`, `--agents`, `--critical`, etc.).
-
-### Workflow & Sandboxing
-- **Always** isolate tasks using dedicated git worktrees.
-- **Never** develop directly on the `main` branch.
-- **Always** write atomic, gist-state progress tracking in `TASK.$(date).md` inside the worktree (Chain-of-Draft format).
-- **Never** self-approve or auto-merge pull requests into `main` without explicit user confirmation.
-
-### Merge Finalization (Complete Merge-to-Main Procedure)
-When wrapping up a feature and finalizing the full merge pipeline, follow this exact sequence:
-
-1. **Verify clean state** — `git status` must show clean working tree on feature branch.
-2. **Merge feature → dev** — `git checkout dev && git merge feature/<slug> --no-ff`. Use `--no-ff` to preserve the feature branch topology.
-3. **Present cumulative diff to user** — run `git --no-pager log --oneline main..dev` and `git --no-pager diff --stat main..dev`. Summarize commits, files changed, and line counts. Ask: "Ready to promote dev → main? Confirm?"
-4. **Merge dev → main** — after explicit user confirmation: `git checkout main && git merge dev --no-ff`.
-5. **Clean up** — delete the merged feature branch: `git branch -d feature/<slug>`. Remove any stale worktrees.
-6. **Push everything** — `git push origin main dev`. Both branches must be pushed to origin.
-7. **Verify** — confirm `git --no-pager log --oneline --graph -8` shows clean topology with all merge commits intact.
-
-**Never skip the user confirmation step.** Every merge across the pipeline boundary requires explicit approval. Fail closed on any ambiguity.
-
-### Interactivity & Prompting
-- **Always** implement interactive prompting (with options and Y/n confirmations) when running direct CLI flags (e.g., `--rules`, `--skills`).
-- **Always** offer a destination picker (home directory `~/.agents/` vs project-local) for skills, agents, and unlock deployments.
-- **Always** offer an interactive symlink prompt ("Symlink from repo source?") after destination selection, defaulting to **yes** (single source of truth). Users can opt out to get a static copy.
-- **Always** support non-interactive mode via `--yes` or `-y` flag to bypass all prompts (defaults: target dir, symlink mode).
-- The global `--link` / `-l` flag still forces symlink mode (now the default — included for scripts that set it explicitly).
-
-## Architecture
-
-- `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt — defaults to yes), and `_with_link_choice()` (deploy helper).
-- `bin/pqc-secrets` — Shell wrapper for the Rust FIPS 203 secrets manager (keygen, pack, export).
-- `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
-- `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
-- `bin/git-context.sh` — AI agent situational awareness script invoked by the `git context` alias. Produces a structured, token-efficient context dump: branch/worktree position, status, diffs, task files, PRD anchor, worktrees, stashes, timeline, last commit, and gate-tool availability. Designed as the one-command bridge between the developer's git state and any AI coding agent's context window.
-- `bin/auto-thinking-classify` — Smol-model per-turn thinking classifier with task/stage/attempt metadata (`modelRoles.smol`).
-- `bin/lib/` — Shared shell libraries:
-  - `providers.sh` — Reads `~/.config/ainish-coder/providers.json` (8 providers: modal, nvidia, nebius, opencode, zai, wafer-serverless, openrouter, zenmux).
-  - `mcp_settings.sh` — MCP flag parsing, layered config merge, and env generation.
-  - `mcp_discover.py` — Host-tool MCP discovery (Claude, Cursor, Codex, Windsurf, Gemini, VS Code) for gap-fill merge.
-  - `auto_thinking_context.sh` — Orchestration metadata envelope for auto thinking classification.
-  - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
-- `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
-  - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise. When `AINISH_NO_OVERWRITE=true`, existing files are skipped (safe/additive mode).
-- `src/atoms/` — 14 modular deployment atoms, all using `deploy_path`/`deploy_path_contents` for `--link` support:
-  - `deploy_agents.sh` — Deploys `AGENTS.md` (symlink-capable).
-  - `deploy_skills.sh` — Deploys all 21 skill packs from `.agents/skills/`.
-  - `deploy_commands.sh` — Deploys slash command workflows.
-  - `deploy_critical.sh`, `deploy_gitignore.sh`, `deploy_github_actions.sh`, `deploy_local_security.sh`, `deploy_template_agent.sh`, `deploy_mcp.sh`, `deploy_mcp_recipes.sh`, `deploy_scrolls.sh`, `deploy_license.sh`, `deploy_signals.sh`, `deploy_llms_txt.sh`, `deploy_unlock.sh` — Individual deployment atoms.
-  - `help.sh` — Full help text and usage documentation.
-  - `setup_shell.sh`, `setup-secret-protection.sh`, `clear_all_rules.sh` — Setup and maintenance atoms.
-- `src/molecules/` — High-level orchestration (system-wide installation wrapper).
-- `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
-- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export). The compiled binary at `bin/pqc-secrets` uses `rust-fips203` for KEM operations and produces bundles with keywrap layer (`SHA3-256` KDF with `KDF_INFO = b"pqc-secrets:v1:kek"`), AAD on both keywrap and data layers, and `{"secrets": {...}}` payload wrapper.
-
-## PQC Secrets Infrastructure
-
-The Rust engine (`src/pqc-secrets/`) and Python script (`.agents/skills/pqc-secrets/scripts/pqc_secrets.py`) are now cross-compatible. Both can read each other's bundles.
-
-**Rust engine keywrap KDF** (line 95-99 of `src/pqc-secrets/src/main.rs`):
-```rust
-fn derive_kek(shared_secret: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha3_256::new();
-    hasher.update(shared_secret);
-    hasher.update(KDF_INFO);  // b"pqc-secrets:v1:kek"
-    hasher.finalize().into()
-}
-```
-
-**Python mirror** (`pqc_secrets.py`):
-```python
-KDF_INFO = b"pqc-secrets:v1:kek"
-kek = hashlib.sha3_256(dek + KDF_INFO).digest()
-```
+# DOX framework
 
-**Bundle format** (both engines):
-- `kem.ciphertext_b64` — ML-KEM-768 ciphertext (base64)
-- `keywrap` — AES-256-GCM wrapping of the data key (base64 nonce/ciphertext, AAD: `"pqc-secrets:v1:keywrap"`)
-- `data` — AES-256-GCM encrypted payload (base64 nonce/ciphertext, AAD: `"pqc-secrets:v1:data"`)
-- Payload structure: `{"secrets": {"KEY_NAME": "value", ...}}`
+- DOX is a highly performant `llms.txt` hierarchy installed here
+- Agent must follow DOX instructions across any edits
 
-**Public key file** (`recipient.pub`): JSON format with `public_key_b64`, `public_key_sha3_256`, `engine: "rust-fips203"`. Python script parses both JSON and legacy hex formats.
+## Core Contract
 
-**Bundle decrypt verifier** (`scripts/test_decrypt.py`): Manual round-trip checker for the Rust-compatible bundle format. Reads `~/.config/pqc-secrets/secrets.bundle.json`, decapsulates the ML-KEM-768 KEM, unwraps the data key (with SHA3-256 KDF fallback), and decrypts the payload. Uses `cryptography` AESGCM and `kyber_py.ml_kem.ML_KEM_768` (FIPS 203 + FIPS 197 only). Not wired into any test runner; intended for manual bundle integrity checks.
-- `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
-- `.agents/skills/` — 21 hardened procedural guideline skill packs for agent integration:
-  advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, graph-intelligence, gstack-coder, llm-security, modern-prompting, openscad-generator, pi-mini-orchestrator, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, video-knowledge-extractor
-- `.agents/mcp-settings.json` — Global MCP server definitions (merged with project-level overrides).
+- `llms.txt` files are binding work contracts for their subtrees
+- Work products, source materials, instructions, records, assets, and durable docs must stay understandable from the nearest applicable `llms.txt` plus every parent `llms.txt` above it
 
-## Symlink Deployments
+## Read Before Editing
 
-### Symlink-by-Default (NEW in 1.5.2)
+1. Read the root `llms.txt`
+2. Identify every file or folder you expect to touch
+3. Walk from the repository root to each target path
+4. Read every `llms.txt` found along each route
+5. If a parent `llms.txt` lists a child `llms.txt` whose scope contains the path, read that child and continue from there
+6. Use the nearest `llms.txt` as the local contract and parent docs for repo-wide rules
+7. If docs conflict, the closer doc controls local work details, but no child doc may weaken DOX
 
-As of 1.5.2, all deployments default to symlink mode — the repo source is the **single source of truth**. Changes to the canonical files in the ainish-coder repository propagate automatically to every project that has run `--rules` or `--agents`.
+Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
 
-To get a static copy instead, answer **n** at the interactive symlink prompt. In non-interactive mode, use a future `--copy` flag (not yet implemented).
+## Update After Editing
 
-### Global `--link` / `-l` Flag
+Every meaningful change requires a DOX pass before the task is done.
 
-Pass `--link` or `-l` as a global flag to explicitly force symlink mode (now the default — primarily useful for scripts that set it to override any future saved preference):
+Update the closest owning `llms.txt` when a change affects:
 
-```
-ainish-coder --rules /my-project              # Symlinks by default (no --link needed)
-ainish-coder --rules -l /my-project           # Explicit force (redundant with default)
-ainish-coder --license -y /my-project         # LICENSE → symlink (non-interactive default)
-ainish-coder --skills --link /my-project      # All skills → symlinks
-ainish-coder --cli -l                         # Interactive menu with symlink mode
-```
+- purpose, scope, ownership, or responsibilities
+- durable structure, contracts, workflows, or operating rules
+- required inputs, outputs, permissions, constraints, side effects, or artifacts
+- user preferences about behavior, communication, process, organization, or quality
+- `llms.txt` creation, deletion, move, rename, or index contents
 
-### Global `--no-overwrite` / `-n` Flag (NEW in 1.5.1)
+Update parent docs when parent-level structure, ownership, workflow, or child index changes. Update child docs when parent changes alter local rules. Remove stale or contradictory text immediately. Small edits that do not change behavior or contracts may leave docs unchanged, but the DOX pass still must happen.
 
-Pass `--no-overwrite` or `-n` as a global flag to skip existing files and only add new ones:
+## Hierarchy
 
-```
-ainish-coder -n --rules /my-project           # AGENTS.md, .gitignore, PQC skills → add only
-ainish-coder -n --skills /my-project          # Only deploy skills not already at target
-ainish-coder -n --agents ~/my-project         # Skip if AGENTS.md already exists
-ainish-coder -n -y --skills ~/.agents         # Non-interactive: add missing skills to home
-```
+- Root `llms.txt` is the DOX rail: project-wide instructions, global preferences, durable workflow rules, and the top-level Child DOX Index
+- Child `llms.txt` files own domain-specific instructions and their own Child DOX Index
+- Each parent explains what its direct children cover and what stays owned by the parent
+- The closer a doc is to the work, the more specific and practical it must be
 
-When `-n` is active:
-- **AGENTS.md**: Skipped if any AGENTS.md already exists at target (could be from another tool).
-- **Skills**: Entire skill directories are skipped if they already exist at target. Only new skills are added.
-- **Individual files**: `deploy_path()` and `deploy_path_contents()` check per-file and skip existing ones.
-- Best for: initializing new projects without clobbering existing configs, adding new skills to an existing `.agents/` directory.
+## Child Doc Shape
 
-Combine with `-y` for fully automated safe deployments:
-```
-ainish-coder -n -y --skills ~/.agents         # Add any missing skills, skip all prompts
-```
+- Create a child `llms.txt` when a folder becomes a durable boundary with its own purpose, rules, responsibilities, workflow, materials, or quality standards
+- Work Guidance must reflect the current standards of the project or user instructions; if there are no specific standards or instructions yet, leave it empty
+- Verification must reflect an existing check; if no verification framework exists yet, leave it empty and update it when one exists
 
-### Interactive Symlink Prompt (UPDATED in 1.5.2)
+Default section order:
+- Purpose
+- Ownership
+- Local Contracts
+- Work Guidance
+- Verification
+- Child DOX Index
 
-Every deploy command asks whether to symlink from the repo source. As of 1.5.2, the default is **yes**:
+## Style
 
-```
-▸ Symlink from repo source (single source of truth)? [Y/n]:
-```
+- Keep docs concise, current, and operational
+- Document stable contracts, not diary entries
+- Put broad rules in parent docs and concrete details in child docs
+- Prefer direct bullets with explicit names
+- Do not duplicate rules across many files unless each scope needs a local version
+- Delete stale notes instead of explaining history
+- Trim obvious statements, repeated rules, misplaced detail, and warnings for risks that no longer exist
 
-Answer **y** (or hit Enter) to symlink — live-updating: edit the canonical repo, all deployments follow automatically. Answer **n** to get a static copy. The global `-l` flag skips this prompt and forces symlink mode (now the default). Non-interactive mode (`-y`) also defaults to symlink.
+## Closeout
 
-This sets `AINISH_LINK_MODE=true`, which is read by `deploy_path()` and `deploy_path_contents()` in `src/quanta/file_operations.sh`. When enabled, files are symlinked with absolute paths (surviving directory moves). When disabled, files are copied.
+1. Re-check changed paths against the DOX chain
+2. Update nearest owning docs and any affected parents or children
+3. Refresh every affected Child DOX Index
+4. Remove stale or contradictory text
+5. Run existing verification when relevant
+6. Report any docs intentionally left unchanged and why
 
-### Destination Picker (NEW in 1.5.0)
+## User Preferences
 
-Commands that deploy skills or agents (`--agents`, `--skills`, `--unlock`, and PQC skills within `--rules`) now prompt for destination:
+When the user requests a durable behavior change, record it here or in the relevant child `llms.txt`
 
-```
-Where would you like to deploy?
-  1) Home directory (~/)
-  2) Current/Target directory (/path/to/project)
-▸ Enter choice [1 or 2, default: 2]:
-```
+## Child DOX Index
 
-Choose **1** to install to `~/.agents/` (available to all projects) or **2** for project-local deployment. Non-interactive mode (`-y`) defaults to the target directory.
-
-**Exceptions:** `.gitignore` (merge logic), GitHub Actions workflows, and local security hooks always copy regardless of `--link` — their deployment logic is inherently copy-based.
-
-## MCP Server Configuration
-
-**Canonical source of truth:** `~/.agents/mcp-settings.json` (global) and `.agents/mcp-settings.json` (project). This is the ainish-coder / agentic-ecosystem standard — deploy via `ainish-coder --rules` or `deploy_mcp.sh`.
-
-**Host-tool discovery (pi / oh-my-pi parity):** `bin/lib/mcp_discover.py` also reads MCP definitions already configured in other major agents. Discovered servers are merged **only when the name is absent** from `~/.agents/` — never overriding explicit operator config. Use this to inherit tool-specific servers (e.g. Claude memory plugin MCP, Codex node REPL) without duplicating JSON by hand.
-
-### Merge priority (lowest → highest)
-
-| Layer | Source | Wins on name conflict? |
-|-------|--------|------------------------|
-| 0 — Discovered | Host IDE/CLI configs (below) | No — gap-fill only |
-| 1 — Global | `~/.agents/mcp-settings.json` | Overwrites discovered |
-| 2 — Project | `$(pwd)/.agents/mcp-settings.json` | Overwrites global + discovered |
-
-`mcp_load` in `bin/lib/mcp_settings.sh` applies this stack to generate extensions or env exports.
-
-### Host discovery paths (read-only)
-
-| Host | User paths | Project paths | Notable tooling |
-|------|------------|---------------|-----------------|
-| **Claude Code** | `~/.claude.json`, `~/.claude/mcp.json` | `.claude/mcp.json`, `.claude/.mcp.json` | Memory plugin, hooks, slash commands |
-| **Cursor** | `~/.cursor/mcp.json` | `.cursor/mcp.json` | IDE-integrated MCP |
-| **Codex** | `~/.codex/config.toml` → `[mcp_servers.*]` | `.codex/config.toml` | Node REPL, `AGENTS.md` context |
-| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` | `.windsurf/mcp_config.json` | Codeium MCP bridge |
-| **Gemini CLI** | `~/.gemini/settings.json` → `mcpServers` | `.gemini/settings.json` | Google Antigravity / Gemini OAuth ecosystem |
-| **VS Code** | `~/.vscode/mcp.json` | `.vscode/mcp.json` | Copilot MCP (when present) |
-| **Standalone** | — | `mcp.json`, `.mcp.json` (cwd) | Generic fallback |
-
-**Gemini / Antigravity:** The system registers `google-gemini-cli` and `google-antigravity` as OAuth providers; filesystem MCP for both flows through `~/.gemini/settings.json` (and project `.gemini/`). Treat **gemini** and **agy** (Antigravity) as one discovery family.
-
-### Operator rules
-
-- **Prefer `~/.agents/`** for servers you want every orchestrator to share. Run `secrets-load` before MCP processes start; env vars in discovered configs must reference PQC-exported keys, not committed literals.
-- **`--mcp-all`** — Enable every server in the merged catalog (discovered + agents).
-- **`--no-mcp`** — Skip MCP entirely (orchestrator fast path).
-- **Do not commit API keys** in any host `mcp.json` — redact before sharing dotfiles.
-
-### Why both standards?
-
-| Approach | Benefit |
-|----------|---------|
-| `~/.agents/mcp-settings.json` | Portable, versionable, ainish-coder deploy target |
-| Host discovery | Zero-config reuse of IDE-specific MCP you already set up in Claude/Cursor/Codex/etc. |
-
-Agents should list effective MCP via `mcp_list_servers` after `mcp_load` when debugging; each discovered entry includes `_discoveredFrom` metadata in the merged JSON.
-
-## Usage Tracking
-
-All ainish-coder invocations are optionally logged to `~/.cache/ainish-coder/usage.csv` with columns:
-`timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`
-
-`subcommand` captures granular detail — which skill was deployed (`skill:gstack-coder`), which rules path was taken (`AGENTS.md+gitignore`), whether PQC skills were included (`+pqc-secrets+pqq-signatures`), etc.
-
-Set `AINISH_NO_TRACKING=true` to opt out. If `cmd-tracker` is not on PATH, commands run directly with zero overhead.
-
-
-## Git Context Command
-
-The `git context` alias (configured in `~/.gitconfig`) runs `bin/git-context.sh` and provides a comprehensive, structured context dump designed for AI coding agents:
-
-```
-git context
-```
-
-**Sections:** Branch & worktree (±ahead/behind main and dev), status, unstaged/staged diffs, task files (`.agents/tasks/TASK.*.md` with gist), PRD anchor (`llms.txt` presence/version), worktree listing, stashes, compact timeline (14 commits), last commit detail, security gate tool availability (ruff, bandit, gitleaks, pqc-secrets), and agent environment summary (skill pack count, AGENTS.md presence).
-
-**Design:** Token-efficient (stat-first, compact timeline, single-commit detail vs. the old 5-full-patch dump). Single-command situational awareness — the first thing any AI agent should run to orient itself.
-
-## Known Issues (May 28, 2026)
-
-### `update` cascade via system-care-and-updates
-
-Running `system_update.sh` triggered a chain of agent breakage:
-
-1. **`npm update -g` upgraded pi to v0.76.0** — pi v0.76.0 added `showDeprecationWarnings()` in `migrations.js` that waits for a keypress on startup. In non-obvious terminals or when run from the update script, pi hangs indefinitely. The deprecation warnings are for the extension system migration (commands/ → prompts/, tools/ → bin/). The keypress wait is in `dist/migrations.js` in the pi package.
-
-2. **`npm update -g` upgraded Claude Code to v2.1.154** — ✅ **RESOLVED (May 28, 2026).** Claude Code now sends system reminders as `{"role": "system"}` messages inside the `messages` array. FCC's Pydantic validation (`api/models/anthropic.py:95`) only allowed `Literal["user", "assistant"]` for message roles, rejecting requests with HTTP 400. **Fixed by**: (a) Adding `"system"` to `Message.role` Literal in `api/models/anthropic.py`, (b) Adding system-in-messages handler in `core/anthropic/conversion.py`, (c) Adding `_merge_system_from_messages()` in `api/services.py` to extract system messages from the array and merge into the top-level `system` field. Backups at `*.bak` in the FCC site-packages directory.
-
-3. **`update_standalone_agents()` was redundant** — The function (now removed from `system_update.sh`) duplicated the `npm update -g` and `uv tool upgrade` steps already run earlier. Agent updates should be done individually going forward.
-
-### FCC 422 workaround
-
-The FCC proxy rejects system-in-array messages. Workarounds:
-- Route through a native Anthropic-compatible provider (like `zai`) that preserves the system field as a top-level parameter — the user's local router/Ollama setup should handle this
-- Or configure Claude Code to bypass FCC entirely by pointing `ANTHROPIC_BASE_URL` at a direct Anthropic-compatible endpoint
-- Upstream fix: FCC's `api/models/anthropic.py` line 95 should allow `Literal["user", "assistant", "system"]`
-
-### mini-live — Live-SWE-agent config (Jun 1, 2026)
-
-**Policy:** Bare `mini` uses upstream default `mini.yaml`. Live-SWE-agent work uses **`mini-live`** only — do not patch the installed package.
-
-| Command | Config | Use |
-|---------|--------|-----|
-| `mini` | upstream `mini.yaml` + `~/.config/mini-swe-agent/.env` | Default mini-swe-agent behavior |
-| `mini-live` | `~/.config/mini-swe-agent/live-swe-agent.yaml` + `.env` | Live-SWE prompts (THOUGHT/bash, truncation, `temperature: 0.0`) |
-
-**Shell wrapper** (`~/.zsh/functions.zsh`):
-
-```bash
-mini-live() {
-  command mini --config "$HOME/.config/mini-swe-agent/live-swe-agent.yaml" "$@"
-}
-```
-
-**Install / refresh global config** (from upstream):
-
-```bash
-curl -fsSL "https://raw.githubusercontent.com/OpenAutoCoder/live-swe-agent/main/config/livesweagent.yaml" \
-  -o ~/.config/mini-swe-agent/live-swe-agent.yaml
-```
-
-**Repo reference:** `config/livesweagent.yaml` is vendored from [OpenAutoCoder/live-swe-agent](https://github.com/OpenAutoCoder/live-swe-agent). **`gstack-coder` skill** dispatches SWE work via `mini-live --task "…" --yolo`.
-
-**Example:**
-
-```bash
-secrets-load
-mini-live --task "fix tests" --yolo
-```
-
-## Recent Updates (2026-06-02)
-
-### PQC Signature Skill Hardening — synced from local-router
-
-The `pqc-signatures-security/scripts/pqc_helper.py` subprocess wrapper was hardened in the local-router project's `chore/agents-skill-hygiene` branch and synced back here via `chore/sync-pqc-helper-from-local-router`. The wrapper now:
-- Enforces a 30-second default `subprocess.run` timeout to prevent hung `openssl` invocations
-- Accepts optional `input_data` for stdin piping
-- Distinguishes verify returncodes: `0` = signature OK, `1` = genuine signature mismatch, anything else = unexpected command error
-- Surfaces `FileNotFoundError` (missing `openssl` on PATH) separately from a real verify failure
-- Surfaces `subprocess.TimeoutExpired` with a dedicated error message
-
-The ML-DSA-65 algorithm and `openssl pkeyutl` invocations are unchanged. The hardened `pqc_helper.py` is now byte-identical across `ainish-coder/.agents/skills/pqc-signatures-security/scripts/pqc_helper.py` and `local-router/.agents/skills/pqc-signatures-security/scripts/pqc_helper.py`.
-
-### Stale Backup Cleanup
-
-Removed `AGENTS.md.backup-5-29-2026` (238-line backup file) — current `AGENTS.md` already supersedes it. Cleaner repo, no semantic change.
-
-### Gitignore Hygiene
-
-Added `graphify-out/` to `.gitignore` to suppress `/graphify` scratch output from the working tree.
-
-### pqc-secrets Engine Compatibility
-
-The `pqc-secrets` skill's Python script now reads and writes the same bundle format the Rust engine produces. Bundles are fully cross-compatible: `pack` produces Rust-compatible bundles, `export` and `verify` consume them. The `test_decrypt.py` script provides manual round-trip verification.
-
-### Promotion Path
-
-`main` is the user-facing default branch. `dev` is the integration branch. Feature work lands on `feature/*` branches in dedicated worktrees per `AGENTS.md`. Promotion is `feature/*` → `dev` → `main`. Recent merges:
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-06-02 | `6de0281` | docs(llms): document Rust/Python PQC engine compatibility |
-| 2026-06-02 | `a7d14f1` | chore(cleanup): remove stale AGENTS.md backup |
-| 2026-06-02 | `1201b33` | test(pqc-secrets): add bundle decrypt verification script |
-| 2026-06-02 | `4c2e00f` | feat(pqc-secrets): Rust-compatible bundle format with KDF keywrap |
-| 2026-06-02 | `44c1216` | docs(pqc-secrets): document Rust/legacy format compatibility |
-| 2026-06-02 | `5e1d1cd` | chore(gitignore): exclude graphify-out/ scratch artifacts |
-| 2026-06-02 | `28d139c` | docs(tasks): record pqc_helper.py sync from local-router |
-| 2026-06-02 | `a24ce97` | chore(pqc-signatures): sync hardened pqc_helper.py from local-router |
+This project is not yet indexed. Before continuing you must scan the project, build the DOX tree and replace this message with the actual index. Go deep and scan files recursively to properly evaluate complexity and create nested DOX files where needed.
