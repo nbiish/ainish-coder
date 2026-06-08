@@ -133,12 +133,32 @@ Use the `bin/pqc-secrets` wrapper (which calls `uv run scripts/pqc_secrets.py` u
 
 | Step | Command | Description |
 |---|---|---|
-| **Keygen** | `bin/pqc-secrets keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain (service: `pqc-secrets`, account: `default`) and writes public key to `~/.config/pqc-secrets/recipient.pub`. |
+| **Keygen** | `bin/pqc-secrets keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain (service: `pqc-secrets`, account: `pqc-secrets-key` by default) and writes public key to `~/.config/pqc-secrets/recipient.pub`. Set `PQC_KEYCHAIN_ACCOUNT` env var to customize the account name. |
 | **Pack** | `bin/pqc-secrets pack` | Reads `KEY=VAL` lines from stdin, encrypts them via AES-256-GCM, wraps the data key via ML-KEM-768 encapsulation, and outputs `~/.config/pqc-secrets/secrets.bundle.json`. |
 | **Load** | `secrets-load` (or `bin/pqc-secrets export`) | Decrypts the bundle in-memory and outputs `export KEY=VALUE` lines. The `secrets-load` zsh function evaluates this output. |
 | **Verify** | `bin/pqc-secrets verify` | Verifies the bundle can be decrypted and lists key names (no values shown). |
 | **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | Generates a new keypair and packs the secrets under the new public key. |
 | **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | Re-encrypts an existing bundle under a different public key without exposing plaintext. |
+| **Migrate** | `bin/pqc-secrets migrate` | Migrates a keychain entry from old account name (e.g. `default`) to new account name (`pqc-secrets-key`). Useful for upgrading from older versions. |
+
+### Migration from Legacy `default` Account
+
+If you have an existing keychain entry with account name `default` (from older versions), migrate it to the new `pqc-secrets-key` account:
+
+```bash
+# Migrate from old "default" account to new "pqc-secrets-key" account
+bin/pqc-secrets migrate
+
+# Or with custom account names
+PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pqc-secrets migrate
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | macOS Keychain account name for the ML-KEM-768 private key |
+| `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
 
 ### Implementation Details
 

@@ -1,4 +1,4 @@
-import json, sys, base64, subprocess
+import json, os, sys, base64, subprocess
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from kyber_py.ml_kem import ML_KEM_768
 
@@ -9,7 +9,7 @@ with open(BUNDLE_PATH) as f:
 result = subprocess.run([
     "security", "find-generic-password",
     "-s", "pqc-secrets",
-    "-a", "default",
+    "-a", os.environ.get("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-key"),
     "-w"
 ], check=True, capture_output=True, text=True)
 raw = result.stdout.strip()

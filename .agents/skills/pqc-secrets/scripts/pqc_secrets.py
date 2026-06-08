@@ -15,6 +15,12 @@ Commands:
   pack     Read KEY=VALUE lines from stdin, encrypt, write ~/.config/pqc-secrets/secrets.bundle.json
   export   Decrypt bundle, output shell 'export KEY=VALUE' lines to stdout
   verify   Check bundle integrity, list key names (no values)
+  migrate  Migrate keychain entry from old account name to new account name
+
+Environment variables:
+  PQC_KEYCHAIN_ACCOUNT       Keychain account name (default: pqc-secrets-key)
+  PQC_KEYCHAIN_ACCOUNT_OLD   Old account name for migrate command (default: default)
+  PQC_KEYCHAIN_ACCOUNT_NEW   New account name for migrate command (default: pqc-secrets-key)
 """
 
 import base64
@@ -32,7 +38,7 @@ CONFIG_DIR = Path.home() / ".config" / "pqc-secrets"
 PUBKEY_PATH = CONFIG_DIR / "recipient.pub"
 BUNDLE_PATH = CONFIG_DIR / "secrets.bundle.json"
 KEYCHAIN_SERVICE = "pqc-secrets"
-KEYCHAIN_ACCOUNT = "default"
+KEYCHAIN_ACCOUNT = os.environ.get("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-key")
 KDF_INFO = b"pqc-secrets:v1:kek"
 
 
@@ -257,9 +263,63 @@ def cmd_verify() -> None:
         print(f"  {key}")
 
 
+def cmd_migrate() -> None:
+    """Migrate keychain entry from old account name to new account name."""
+    old_account = os.environ.get("PQC_KEYCHAIN_ACCOUNT_OLD", "default")
+    new_account = os.environ.get("PQC_KEYCHAIN_ACCOUNT_NEW", KEYCHAIN_ACCOUNT)
+
+    if old_account == new_account:
+        print(f"Old and new account names are the same ({old_account}). Nothing to migrate.")
+        return
+
+    # Read from old account
+    try:
+        result = subprocess.run(
+            [
+                "security", "find-generic-password",
+                "-s", KEYCHAIN_SERVICE,
+                "-a", old_account,
+                "-w",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        sk_hex = result.stdout.strip()
+    except subprocess.CalledProcessError:
+        print(f"ERROR: No keychain entry found for service={KEYCHAIN_SERVICE}, account={old_account}", file=sys.stderr)
+        sys.exit(1)
+
+    # Delete old entry
+    subprocess.run(
+        [
+            "security", "delete-generic-password",
+            "-s", KEYCHAIN_SERVICE,
+            "-a", old_account,
+        ],
+        check=False,
+        capture_output=True,
+    )
+
+    # Add new entry
+    subprocess.run(
+        [
+            "security", "add-generic-password",
+            "-s", KEYCHAIN_SERVICE,
+            "-a", new_account,
+            "-w", sk_hex,
+            "-U",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    print(f"Migrated keychain entry: service={KEYCHAIN_SERVICE}, account={old_account} → {new_account}")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: pqc_secrets.py <keygen|pack|export|verify>", file=sys.stderr)
+        print("Usage: pqc_secrets.py <keygen|pack|export|verify|migrate>", file=sys.stderr)
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -271,9 +331,11 @@ def main() -> None:
         cmd_export()
     elif cmd == "verify":
         cmd_verify()
+    elif cmd == "migrate":
+        cmd_migrate()
     else:
         print(f"Unknown command: {cmd}", file=sys.stderr)
-        print("Usage: pqc_secrets.py <keygen|pack|export|verify>", file=sys.stderr)
+        print("Usage: pqc_secrets.py <keygen|pack|export|verify|migrate>", file=sys.stderr)
         sys.exit(1)
 
 
