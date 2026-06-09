@@ -10,19 +10,20 @@ USAGE:
 
 GLOBAL FLAGS:
     -n, --no-overwrite   Skip existing files; only add new ones (safe mode)
-    -l, --link           Force symlink mode (now the default — use to override
-                         any saved preference)
+    -l, --link           Force symlink mode (copies by default to avoid
+                         accidentally modifying source files)
     -y, --yes            Non-interactive mode (skip all prompts; defaults to
-                         symlink for single source of truth)
+                         copy for safety)
+    -i, --interactive    Interactive walkthrough for --rules, --llms-txt,
+                         and --skills with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to symlink — single source
-                              of truth) and .gitignore (symlink or copy, your choice).
+    --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to copy for safety) and
+                              .gitignore (copy or symlink with --link).
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
-    --agents [TARGET_DIR]     Deploy AGENTS.md only (defaults to symlink — single source
-                              of truth).
+    --agents [TARGET_DIR]     Deploy AGENTS.md only (defaults to copy for safety).
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
@@ -90,7 +91,7 @@ UTILITY COMMANDS:
 
                               Example: ainish-coder --scrolls ~/my-project
 
-    --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory
+    --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory (copies)
                               Deploys 20 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
@@ -139,7 +140,7 @@ UTILITY COMMANDS:
 
                               Example: ainish-coder --signals ~/my-project
 
-    --llms-txt [TARGET_DIR]   Deploy llms.txt file
+    --llms-txt [TARGET_DIR]   Deploy llms.txt file (copy)
                               Fetches the canonical AGENTS.md from agent0ai/dox,
                               replaces every occurrence of AGENTS.md with llms.txt,
                               and deploys the result.
@@ -158,14 +159,16 @@ OTHER:
 
 ENVIRONMENT VARIABLES:
     AINISH_NON_INTERACTIVE=true   Equivalent to -y; skip all interactive prompts
+    AINISH_INTERACTIVE=true       Equivalent to -i; enable interactive prompts
     AINISH_NO_OVERWRITE=true      Equivalent to -n; skip existing files
-    AINISH_LINK_MODE=true         Equivalent to -l; force symlink mode
+    AINISH_LINK_MODE=true         Equivalent to -l; force symlink mode (copies by default)
     AINISH_NO_TRACKING=true       Disable usage tracking (cmd-tracker integration)
     AINISH_PROVIDERS=path         Override default ~/.config/ainish-coder/providers.json
 
 NOTES:
     - TARGET_DIR defaults to current directory if not provided
-    - Deployments default to symlink (single source of truth) — opt out at the prompt
+    - Deployments default to copy (safer) — use --link for symlinks
+    - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
     - --rules deploys AGENTS.md + .gitignore + global symlinks
     - --agents deploys AGENTS.md + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
@@ -174,25 +177,26 @@ NOTES:
     - Provider API keys stored in ~/.config/ainish-coder/providers.json
 
 EXAMPLES:
-    # Recommended workflow - deploy core rules first
-    ainish-coder --rules                    # Deploy to current directory
-    ainish-coder --rules ~/my-project       # Deploy to specific directory
+    # Default mode: auto-deploy, copy files (no prompts, safe for per-repo files)
+    ainish-coder --rules                    # Deploy AGENTS.md + .gitignore to cwd (copies)
+    ainish-coder --rules ~/my-project       # Deploy to specific directory (copies)
+    ainish-coder --llms-txt                 # Deploy llms.txt to cwd (copy)
+    ainish-coder --skills                   # Deploy all skill packs (copies)
 
-    # Tool-specific deployments
-    ainish-coder --rules                    # Deploy AGENTS.md + .gitignore
+    # Symlink mode: link to source files (single source of truth)
+    ainish-coder --link --rules             # Symlink AGENTS.md + .gitignore
+    ainish-coder --link --llms-txt          # Symlink llms.txt (fetched remotely)
 
-    # Deploy tool configurations (requires AGENTS.md first)
-    # (No tools currently have standalone configs outside of agents system)
-
-    # Deploy custom commands
-    # (Commands logic now handled by agent skills)
+    # Interactive mode: guided walkthrough with symlink/destination choices
+    ainish-coder -i --rules                 # Prompt for each: deploy? dest? symlink?
+    ainish-coder -i --llms-txt              # Prompt for llms.txt deployment choices
+    ainish-coder -i --skills                # Prompt for skills with specific selection
 
     # Utility deployments
     ainish-coder --gitignore                # Create comprehensive .gitignore
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
 
-    ainish-coder --skills                    # Deploy all skill packs
     ainish-coder --unlock                   # Deploy Pliny Research collection
 
 For more information, see: https://github.com/nbiish/ainish-coder
