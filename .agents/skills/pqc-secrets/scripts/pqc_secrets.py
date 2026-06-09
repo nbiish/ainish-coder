@@ -24,19 +24,25 @@ Environment variables:
 """
 
 import base64
+import getpass
 import hashlib
 import json
 import os
+import platform
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from kyber_py.ml_kem import ML_KEM_768
 
-CONFIG_DIR = Path.home() / ".config" / "pqc-secrets"
+CONFIG_DIR = Path(os.environ.get("PQC_CONFIG_DIR") or (Path.home() / ".config" / "pqc-secrets"))
 PUBKEY_PATH = CONFIG_DIR / "recipient.pub"
 BUNDLE_PATH = CONFIG_DIR / "secrets.bundle.json"
+PRIVATE_KEY_ENC_PATH = CONFIG_DIR / "private.key.enc"
 KEYCHAIN_SERVICE = "pqc-secrets"
 KEYCHAIN_ACCOUNT = os.environ.get("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-key")
 KDF_INFO = b"pqc-secrets:v1:kek"
@@ -47,55 +53,258 @@ def _ensure_config_dir() -> None:
     CONFIG_DIR.chmod(0o700)
 
 
+def _get_machine_kek() -> bytes:
+    parts = [
+        platform.node(),
+        getpass.getuser(),
+        platform.platform(),
+        hex(uuid.getnode())
+    ]
+    entropy = "|".join(parts).encode("utf-8")
+    
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"pqc-secrets:v1:machine-salt",
+        info=b"pqc-secrets:v1:machine-key",
+    )
+    return hkdf.derive(entropy)
+
+
+def _save_key_to_file(sk: bytes) -> None:
+    _ensure_config_dir()
+    kek = _get_machine_kek()
+    
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(kek).encrypt(nonce, sk, b"pqc-secrets:v1:private-key")
+    
+    payload = {
+        "version": 1,
+        "nonce_b64": base64.b64encode(nonce).decode(),
+        "ciphertext_b64": base64.b64encode(ciphertext).decode(),
+    }
+    
+    PRIVATE_KEY_ENC_PATH.write_text(json.dumps(payload, indent=2))
+    PRIVATE_KEY_ENC_PATH.chmod(0o600)
+
+
+def _load_key_from_file() -> bytes:
+    if not PRIVATE_KEY_ENC_PATH.exists():
+        print(f"ERROR: Private key not found in keychain or file at {PRIVATE_KEY_ENC_PATH}. Run 'keygen' first.", file=sys.stderr)
+        sys.exit(1)
+        
+    try:
+        payload = json.loads(PRIVATE_KEY_ENC_PATH.read_text())
+        nonce = base64.b64decode(payload["nonce_b64"])
+        ciphertext = base64.b64decode(payload["ciphertext_b64"])
+        
+        kek = _get_machine_kek()
+        sk = AESGCM(kek).decrypt(nonce, ciphertext, b"pqc-secrets:v1:private-key")
+        return sk
+    except Exception as e:
+        print(f"ERROR: Failed to decrypt private key from local store: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _store_private_key(sk: bytes) -> None:
+    # Check if file-based backend is forced
+    if os.environ.get("PQC_FORCE_FILE_BACKEND") == "true":
+        _save_key_to_file(sk)
+        return
+
+    # 1. Try native keychain
+    # macOS
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(
+                [
+                    "security", "add-generic-password",
+                    "-s", KEYCHAIN_SERVICE,
+                    "-a", KEYCHAIN_ACCOUNT,
+                    "-w", sk.hex(),
+                    "-U",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            return
+        except Exception as e:
+            print(f"WARNING: macOS Keychain failed ({e}). Falling back to encrypted file store.", file=sys.stderr)
+    
+    # Linux (secret-tool)
+    elif sys.platform.startswith("linux"):
+        try:
+            subprocess.run(
+                [
+                    "secret-tool", "store",
+                    "--label=pqc-secrets",
+                    "service", KEYCHAIN_SERVICE,
+                    "account", KEYCHAIN_ACCOUNT,
+                ],
+                input=sk.hex().encode('utf-8'),
+                check=True,
+                capture_output=True,
+            )
+            return
+        except Exception as e:
+            print(f"WARNING: Linux secret-tool failed ({e}). Falling back to encrypted file store.", file=sys.stderr)
+
+    # 2. Universal File-based Fallback
+    _save_key_to_file(sk)
+
+
+def _load_private_key() -> bytes:
+    # Check if file-based backend is forced
+    if os.environ.get("PQC_FORCE_FILE_BACKEND") == "true":
+        return _load_key_from_file()
+
+    # 1. Try native keychain
+    # macOS
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                [
+                    "security", "find-generic-password",
+                    "-s", KEYCHAIN_SERVICE,
+                    "-a", KEYCHAIN_ACCOUNT,
+                    "-w",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            raw = result.stdout.strip()
+            try:
+                return bytes.fromhex(raw)
+            except ValueError:
+                return base64.b64decode(raw)
+        except Exception:
+            pass
+
+    # Linux (secret-tool)
+    elif sys.platform.startswith("linux"):
+        try:
+            result = subprocess.run(
+                [
+                    "secret-tool", "lookup",
+                    "service", KEYCHAIN_SERVICE,
+                    "account", KEYCHAIN_ACCOUNT,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            raw = result.stdout.strip()
+            if raw:
+                try:
+                    return bytes.fromhex(raw)
+                except ValueError:
+                    return base64.b64decode(raw)
+        except Exception:
+            pass
+
+    # 2. Universal File-based Fallback
+    return _load_key_from_file()
+
+
+def _load_private_key_from_account(account: str) -> bytes:
+    # Try macOS security first
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                [
+                    "security", "find-generic-password",
+                    "-s", KEYCHAIN_SERVICE,
+                    "-a", account,
+                    "-w",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            raw = result.stdout.strip()
+            try:
+                return bytes.fromhex(raw)
+            except ValueError:
+                return base64.b64decode(raw)
+        except Exception:
+            pass
+            
+    # Try Linux secret-tool
+    elif sys.platform.startswith("linux"):
+        try:
+            result = subprocess.run(
+                [
+                    "secret-tool", "lookup",
+                    "service", KEYCHAIN_SERVICE,
+                    "account", account,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            raw = result.stdout.strip()
+            if raw:
+                try:
+                    return bytes.fromhex(raw)
+                except ValueError:
+                    return base64.b64decode(raw)
+        except Exception:
+            pass
+            
+    # Fallback to local encrypted file (which does not store by account, but we can return it as fallback)
+    if PRIVATE_KEY_ENC_PATH.exists():
+        return _load_key_from_file()
+        
+    raise RuntimeError("Private key not found in keychain or local store")
+
+
+def _delete_private_key_from_account(account: str) -> None:
+    if sys.platform == "darwin":
+        subprocess.run(
+            [
+                "security", "delete-generic-password",
+                "-s", KEYCHAIN_SERVICE,
+                "-a", account,
+            ],
+            check=False,
+            capture_output=True,
+        )
+    elif sys.platform.startswith("linux"):
+        subprocess.run(
+            [
+                "secret-tool", "clear",
+                "service", KEYCHAIN_SERVICE,
+                "account", account,
+            ],
+            check=False,
+            capture_output=True,
+        )
+    # Also delete private key file if account matches current account
+    if account == KEYCHAIN_ACCOUNT and PRIVATE_KEY_ENC_PATH.exists():
+        try:
+            PRIVATE_KEY_ENC_PATH.unlink()
+        except Exception:
+            pass
+
+
 def cmd_keygen() -> None:
-    """Generate ML-KEM-768 keypair. Private → macOS Keychain. Public → disk."""
+    """Generate ML-KEM-768 keypair. Private → Keystore/File. Public → disk."""
     _ensure_config_dir()
 
     pk, sk = ML_KEM_768.keygen()
 
-    # Store private key in macOS Keychain
-    sk_hex = sk.hex()
-    subprocess.run(
-        [
-            "security", "add-generic-password",
-            "-s", KEYCHAIN_SERVICE,
-            "-a", KEYCHAIN_ACCOUNT,
-            "-w", sk_hex,
-            "-U",
-        ],
-        check=True,
-        capture_output=True,
-    )
+    # Store private key using cross-platform helper
+    _store_private_key(sk)
 
     # Write public key to disk
     pk_hex = pk.hex()
     PUBKEY_PATH.write_text(pk_hex)
     PUBKEY_PATH.chmod(0o600)
 
-    print(f"ML-KEM-768 keypair generated.")
-    print(f"  Private key: macOS Keychain (service={KEYCHAIN_SERVICE}, account={KEYCHAIN_ACCOUNT})")
+    print("ML-KEM-768 keypair generated.")
+    print(f"  Private key: Securely stored (account={KEYCHAIN_ACCOUNT})")
     print(f"  Public key:  {PUBKEY_PATH}")
-
-
-def _load_private_key() -> bytes:
-    """Load ML-KEM-768 private key from macOS Keychain."""
-    result = subprocess.run(
-        [
-            "security", "find-generic-password",
-            "-s", KEYCHAIN_SERVICE,
-            "-a", KEYCHAIN_ACCOUNT,
-            "-w",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    raw = result.stdout.strip()
-    try:
-        return bytes.fromhex(raw)
-    except ValueError:
-        return base64.b64decode(raw)
-
 
 def _load_public_key() -> bytes:
     """Load ML-KEM-768 public key from disk.
@@ -167,7 +376,7 @@ def cmd_pack() -> None:
         "version": 1,
         "alg": "ML-KEM-768",
         "engine": "kyber-py",
-        "created_utc": __import__("datetime").datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.") + f"{__import__("datetime").datetime.utcnow().microsecond:06d}Z",
+        "created_utc": __import__("datetime").datetime.now(__import__("datetime").UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "recipient": {
             "public_key_sha3_256": hashlib.sha3_256(pk).hexdigest(),
         },
@@ -265,6 +474,7 @@ def cmd_verify() -> None:
 
 def cmd_migrate() -> None:
     """Migrate keychain entry from old account name to new account name."""
+    global KEYCHAIN_ACCOUNT
     old_account = os.environ.get("PQC_KEYCHAIN_ACCOUNT_OLD", "default")
     new_account = os.environ.get("PQC_KEYCHAIN_ACCOUNT_NEW", KEYCHAIN_ACCOUNT)
 
@@ -274,46 +484,23 @@ def cmd_migrate() -> None:
 
     # Read from old account
     try:
-        result = subprocess.run(
-            [
-                "security", "find-generic-password",
-                "-s", KEYCHAIN_SERVICE,
-                "-a", old_account,
-                "-w",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        sk_hex = result.stdout.strip()
-    except subprocess.CalledProcessError:
-        print(f"ERROR: No keychain entry found for service={KEYCHAIN_SERVICE}, account={old_account}", file=sys.stderr)
+        sk = _load_private_key_from_account(old_account)
+    except Exception as e:
+        print(f"ERROR: No keychain entry found for service={KEYCHAIN_SERVICE}, account={old_account}: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Delete old entry
-    subprocess.run(
-        [
-            "security", "delete-generic-password",
-            "-s", KEYCHAIN_SERVICE,
-            "-a", old_account,
-        ],
-        check=False,
-        capture_output=True,
-    )
+    _delete_private_key_from_account(old_account)
 
     # Add new entry
-    subprocess.run(
-        [
-            "security", "add-generic-password",
-            "-s", KEYCHAIN_SERVICE,
-            "-a", new_account,
-            "-w", sk_hex,
-            "-U",
-        ],
-        check=True,
-        capture_output=True,
-    )
-
+    try:
+        orig_account = KEYCHAIN_ACCOUNT
+        KEYCHAIN_ACCOUNT = new_account
+        _store_private_key(sk)
+        KEYCHAIN_ACCOUNT = orig_account
+    except Exception as e:
+        print(f"ERROR: Failed to store private key to new account: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"Migrated keychain entry: service={KEYCHAIN_SERVICE}, account={old_account} → {new_account}")
 
 
