@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import base64
 import subprocess
@@ -12,7 +13,7 @@ with open(BUNDLE_PATH) as f:
 result = subprocess.run([
     "security", "find-generic-password",
     "-s", "pqc-secrets",
-    "-a", "default",
+    "-a", os.environ.get("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-key"),
     "-w"
 ], check=True, capture_output=True, text=True)
 raw = result.stdout.strip()
