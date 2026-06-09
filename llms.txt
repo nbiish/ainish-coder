@@ -20,6 +20,18 @@
 
 Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
 
+### Secrets & Cryptography (PQC Mandate)
+- **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768 (FIPS 203).
+- **Always** retrieve the private key from the system keychain (macOS Keychain, Linux Secret Service) or a local machine-encrypted file.
+- **Never** store plaintext secrets in repositories, `.env` files, settings files, task logs, or any config with an `env` block.
+- **Always** inject secrets at runtime via system keychain/file + shell wrapper. See `pqc-secrets` skill §1.1 for the full pattern.
+- **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
+
+### Code Signing & Integrity (PQC Mandate)
+- **Always** verify code integrity with ML-DSA-65 (FIPS 204) signatures before deployment.
+- **Always** sign commits and releases with ML-DSA-65 keys stored in the system keychain or secure local file.
+- **Never** rely on classical signature schemes (RSA-PSS, ECDSA) for integrity verification of critical artifacts.
+
 ## Update After Editing
 
 Every meaningful change requires a DOX pass before the task is done.

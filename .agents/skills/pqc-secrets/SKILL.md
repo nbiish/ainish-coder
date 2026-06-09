@@ -111,12 +111,11 @@ The PQC secrets system consists of a dual-implementation architecture to ensure 
 
 The local secrets infrastructure lives at `~/.config/pqc-secrets/`:
 
-```
-macOS Keychain                    ~/.config/pqc-secrets/
+System Keychain / File            ~/.config/pqc-secrets/
 ┌──────────────────────┐          ┌────────────────────────────┐
-│ service: pqc-secrets │          │ recipient.pub              │
-│ ML-KEM-768 secret key│          │ ML-KEM-768 public key      │
-│ (Secure Enclave)     │          │ (safe to commit)           │
+│ macOS Keychain,      │          │ recipient.pub              │
+│ Linux Secret Service,│          │ ML-KEM-768 public key      │
+│ or Encrypted File    │          │ (safe to commit)           │
 └──────────┬───────────┘          └────────────┬───────────────┘
            │                                   │
            │ decaps (ML-KEM-768)               │ encaps
@@ -135,7 +134,6 @@ macOS Keychain                    ~/.config/pqc-secrets/
 │  ANTHROPIC_AUTH_TOKEN  ZENMUX_API_KEY  NEBIUS_API_KEY        │
 │  OPENROUTER_API_KEY    WAFER_API_KEY    ... (in-memory only) │
 └──────────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -157,10 +155,31 @@ Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback
 
 | Step | Rust Command | Python Fallback Command | Description |
 |---|---|---|---|
-| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain (service: `pqc-secrets`, account: `default`) and writes public key to `~/.config/pqc-secrets/recipient.pub`. |
-| **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts them via AES-256-GCM, wraps the data key via ML-KEM-768 encapsulation, and outputs `~/.config/pqc-secrets/secrets.bundle.json`. |
-| **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts the bundle in-memory and outputs `export KEY=VALUE` lines. Can be evaluated in shell (e.g. `eval $(pqc-secrets export)`). |
-| **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies the bundle can be decrypted and lists key names (no values shown). (Note: Rust verify implementation is built into export/pack check). |
+| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in system keychain (account: `pqc-secrets-key`) or local encrypted file. Public key → `~/.config/pqc-secrets/recipient.pub`. |
+| **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json`. |
+| **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines. Use `secrets-load` shell function. |
+| **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies bundle can be decrypted, lists key names. |
+| **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | `keygen && pack` | Generates new keypair and re-packs secrets under new public key. |
+| **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | — | Re-encrypts bundle under a different public key without exposing plaintext. |
+| **Migrate** | `bin/pqc-secrets migrate` | `uv run ... pqc_secrets.py migrate` | Migrates keychain entry from old account name to new. |
+
+### Migration from Legacy `default` Account
+
+If you have an existing keychain entry with account name `default` (from older versions), migrate to `pqc-secrets-key`:
+
+```bash
+bin/pqc-secrets migrate
+# Or with custom account names:
+PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pqc-secrets migrate
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | System keychain account name for the ML-KEM-768 private key |
+| `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
+| `PQC_FORCE_FILE_BACKEND` | `false` | Force encrypted local file store, bypass platform keychains |
 
 ### Implementation Details
 

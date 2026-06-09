@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task. Polyglot ecosystem (Rust, TS, Py, etc). Chain-of-Draft (CoD) reasoning: strictly ≤5 words per step. Mimic human shorthand: pure logic/state transformations. Separate final output via ####. Ask before merging. Output full production code. llms.txt is the PRD anchor. Read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops. Standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work on main. Create a worktree for every task. Branch naming: `<type>/<scope>-<slug>`. Pre-merge checklist: gates, diff, user confirmation. Fail closed on any conflict or unconfirmed merge.
+description: PQC secrets for all API keys. Worktree per task. ALL feature branches merge+verify on develop before ANY develop→main release. develop integrates+verifies; main is finalize-only. Polyglot ecosystem (Rust, TS, Py, etc). Chain-of-Draft (CoD) reasoning: strictly ≤5 words per step. Mimic human shorthand: pure logic/state transformations. Separate final output via ####. Ask before merging. Output full production code. llms.txt is the PRD anchor. Read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops. Standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work on main or develop. Create a worktree for every task. Branch naming: `<type>/<scope>-<slug>`. Pre-merge checklist: gates, diff, user confirmation. Fail closed on any conflict or unconfirmed merge.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -29,7 +29,7 @@ description: PQC secrets for all API keys. Worktree per task. Polyglot ecosystem
 - One task = one branch = one worktree. No exceptions.
 - If you discover you're on `main` or `develop` after already making changes: stash, create worktree, pop stash in worktree, then continue.
 
-**Why:** `main` is release surface. `develop` is integration. Only `feature/*` and `docs/*` branches do work. Worktrees physically isolate state, preventing accidental cross-contamination of stable branches.
+**Why:** `main` is the release surface — production-ready, fully integrated state only. `develop` is the integration and verification surface — all worktree branches land here first for cross-feature assembly, gates, and smoke testing before release promotion. Active development never happens directly on either branch; only `feature/*` and `docs/*` worktrees commit code.
 
 ---
 
@@ -125,13 +125,38 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 
 **Pass the WORKTREE GATE above first.** Git worktrees are the fundamental mechanism for iteration. They ensure a pristine `git reflog` and untangled history, allowing us to safely experiment, bisect, and roll back without polluting stable branches.
 
-### Branching Strategy — Three-Tier Promotion Pipeline
+### Branching Strategy — Develop Verifies, Main Releases
 
 | Branch | Purpose | Writes allowed? |
 |--------|---------|----------------|
-| `main` | Release surface | **NO** — only merges from `develop` |
-| `develop` | Integration / pre-release staging | **NO** — only merges from `feature/*` |
-| `feature/<slug>` | Active development | **YES** — one task, one branch, one worktree |
+| `main` | **Release branch.** Production-facing canonical state. Receives only verified, integrated work promoted from `develop`. | **NO** — merge-only from `develop` after full verification |
+| `develop` | **Integration & verification branch.** Mandatory assembly line where all worktree work lands, integrates, and is tested before release. | **NO** — merge-only from `feature/*` / `docs/*` worktrees |
+| `feature/<slug>` | **Active development.** One task, one branch, one isolated worktree. | **YES** |
+
+**Invariant:** No feature work ships to `main` without passing through `develop`. `develop` is not optional — it is the required integration and verification gate.
+
+### Develop-Complete Gate — Hard Rule Before `main`
+
+`develop` is the **only** integration surface. Promotion to `main` is the **finalized release step** — never a shortcut for one landed feature while siblings wait.
+
+**Policy (evaluate in order; fail closed on any miss):**
+
+1. **Merge completeness** — Every active `feat/*`, `fix/*`, `chore/*`, `docs/*` branch is either **merged into `develop`** or **retired** (operator explicitly abandons; branch deleted).
+2. **Audit command** — `git branch --no-merged develop` must return **empty** (no pending feature work).
+3. **Integrated verification** — Native gates + smoke tests run **on `develop` after the last merge**, not only in an isolated worktree.
+4. **Operator intent** — User confirms `develop` is the intended release snapshot.
+5. **Release hop** — Only then: merge `develop` → `main`.
+
+```text
+∀ branch B ∈ {feat,fix,chore,docs}/* :
+  merged(B, develop) ∨ abandoned(B, user-confirmed)
+∧ verify(develop) = PASS
+⟹ ALLOW develop → main
+```
+
+**STOP** if any feature branch is unmerged: do **not** promote to `main`. Merge or retire it, re-run verification on `develop`, then request release confirmation.
+
+**Why:** Partial promotion hides cross-branch conflicts, stale APIs, and split-brain config until production. `develop` must always represent the full intended product state before `main` moves.
 
 ### Development & Iteration Loop
 
@@ -139,11 +164,17 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 2. **Iterate & Track:** Commit atomically and frequently within the worktree. Write descriptive commit messages. Excellent git history is required so we can step backward through logical iterations if an approach fails.
 3. **Audit:** Scan code, task file, and `llms.txt` for banned crypto or secrets every cycle.
 4. **Pre-Commit:** Pass native ecosystem gates (e.g., `cargo clippy`, `tsc`, `ruff`), plus security gates (`gitleaks`, `detect-secrets`).
-5. **Verify:** Smoke-test the change before asking the user to merge. See [Verification Procedure](#verification-procedure) below.
-6. **Merge (Two-Hop Promotion):**
-   - `feature/*` → `develop`: gates pass, diff clean, no conflicts. Ask: *"Ready to merge `feature/<slug>` → `develop`? [diff summary]. Confirm?"*
-   - `develop` → `main`: full audit, tests green. Ask: *"Ready to promote `develop` → `main`? [diff summary]. Confirm?"*
-   - Fail closed on ambiguity. Clean up branches and worktrees post-merge. See [Post-Merge Cleanup](#post-merge-cleanup) below.
+5. **Verify (worktree):** Smoke-test the change in the worktree before merge. See [Verification Procedure](#verification-procedure) below.
+6. **Integrate → `develop`:** Merge each `feature/*` → `develop` when that worktree’s gates pass. Repeat until **no** feature branches remain outside `develop` (see Develop-Complete Gate). Ask per merge: *"Ready to merge `<branch>` → `develop`? [diff summary]. Confirm?"*
+7. **Verify (`develop`):** After **all** intended feature merges, re-run gates and smoke tests **on `develop`**. Confirm the **integrated** tree — not an isolated worktree — is correct. Run `git branch --no-merged develop` and resolve any rows before step 8.
+8. **Release → `main` (finalized step only):** Promote `develop` → `main` only when the Develop-Complete Gate passes and integrated verification is green. Ask: *"Develop is complete (`git branch --no-merged develop` empty, verify PASS). Ready to promote `develop` → `main`? [diff summary]. Confirm?"*
+9. **Cleanup:** Fail closed on ambiguity. Remove merged worktrees and feature branches. See [Post-Merge Cleanup](#post-merge-cleanup) below.
+
+**Promotion path (mandatory two-hop; no skips):**
+
+```text
+∀ feature worktrees → develop (integrate + verify together) → main (finalized release only)
+```
 
 ### Verification Procedure
 
@@ -179,7 +210,7 @@ git checkout main
 
 ### Post-Merge Cleanup
 
-**Run after the user confirms both merge hops are complete.** Safe to delete a merged worktree and feature branch — the merge commit preserves all work, and the task file lives in the merged branch.
+**Run after the user confirms both merge hops are complete** (`feature/*` → `develop`, then `develop` → `main`).
 
 ```bash
 # 1. Remove the merged worktree (path: sibling of main repo)
@@ -248,7 +279,8 @@ Run before any code that touches cryptography, secrets storage, or network commu
 - Secrets — platform keystore used, AES-256-GCM + ML-KEM-768 wrapping, no plaintext, no `.env`
 - History — frequent, atomic commits made within the worktree to preserve iteration history
 - **Verification** — change smoke-tested via verification procedure; new entries visible; PQC bundle loaded; no unexpected errors in the log
-- Merge readiness — all gates passing, diff summarized, feature → `develop` merged before `develop` → `main` promotion
+- **Develop-complete** — `git branch --no-merged develop` is empty; every feature branch merged or user-retired; no `main` promotion while stragglers exist
+- Merge readiness — worktree gates pass; all features integrated on `develop`; integrated verification pass on `develop`; user confirmed `develop` → `main` **finalized** promotion
 - **Post-merge cleanup** — merged worktree removed (`git worktree list` shows only main), feature branch deleted (`git branch` shows no merged-feature rows), working tree clean, on `main` for safety
 - Worktree hygiene — Pass the WORKTREE GATE first. Not stale, not dirty, not on `main` or `develop`.
 
@@ -258,5 +290,5 @@ Run before any code that touches cryptography, secrets storage, or network commu
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the target codebase language (Rust, TS, Python). Isolate every task in its own git worktree to maintain pristine iteration history. Feature → `develop` → `main` promotion pipeline. Never self-approve merges — ask the user at every hop. Chain-of-Draft task files: strictly ≤5 words per reasoning step, transition with ####. Output full production code.
+PQC for every API key. Respect the target codebase language (Rust, TS, Python). Isolate every task in its own git worktree. **Merge every feature branch into `develop`; verify the integrated `develop` tree; only then promote to `main` as the finalized release step.** Never ship `main` ahead of a complete, verified `develop`. Never self-approve merges — ask the user at every hop. Chain-of-Draft task files: strictly ≤5 words per reasoning step, transition with ####. Output full production code.
 </REINFORCEMENT>
