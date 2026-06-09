@@ -10,14 +10,14 @@
 PQC Secrets Management — ML-KEM-768 + AES-256-GCM.
 Post-quantum encryption for API keys and private data.
 
-Commands:
-  keygen   Generate ML-KEM-768 keypair; private → macOS Keychain, public → ~/.config/pqc-secrets/recipient.pub
+  keygen   Generate ML-KEM-768 keypair; private -> encrypted local store (keychain if opted-in), public -> ~/.config/pqc-secrets/recipient.pub
   pack     Read KEY=VALUE lines from stdin, encrypt, write ~/.config/pqc-secrets/secrets.bundle.json
   export   Decrypt bundle, output shell 'export KEY=VALUE' lines to stdout
   verify   Check bundle integrity, list key names (no values)
   migrate  Migrate keychain entry from old account name to new account name
 
 Environment variables:
+  PQC_USE_KEYCHAIN           Set to "true" to opt-in to macOS Keychain or Linux Secret Service (default: false, uses encrypted file store)
   PQC_KEYCHAIN_ACCOUNT       Keychain account name (default: pqc-secrets-key)
   PQC_KEYCHAIN_ACCOUNT_OLD   Old account name for migrate command (default: default)
   PQC_KEYCHAIN_ACCOUNT_NEW   New account name for migrate command (default: pqc-secrets-key)
@@ -107,12 +107,12 @@ def _load_key_from_file() -> bytes:
 
 
 def _store_private_key(sk: bytes) -> None:
-    # Check if file-based backend is forced
-    if os.environ.get("PQC_FORCE_FILE_BACKEND") == "true":
+    # Check if native keychain is requested; otherwise default to system-agnostic file backend
+    if os.environ.get("PQC_USE_KEYCHAIN") != "true":
         _save_key_to_file(sk)
         return
 
-    # 1. Try native keychain
+    # Try native keychain
     # macOS
     if sys.platform == "darwin":
         try:
@@ -149,16 +149,16 @@ def _store_private_key(sk: bytes) -> None:
         except Exception as e:
             print(f"WARNING: Linux secret-tool failed ({e}). Falling back to encrypted file store.", file=sys.stderr)
 
-    # 2. Universal File-based Fallback
+    # Universal File-based Fallback
     _save_key_to_file(sk)
 
 
 def _load_private_key() -> bytes:
-    # Check if file-based backend is forced
-    if os.environ.get("PQC_FORCE_FILE_BACKEND") == "true":
+    # Check if native keychain is requested; otherwise default to system-agnostic file backend
+    if os.environ.get("PQC_USE_KEYCHAIN") != "true":
         return _load_key_from_file()
 
-    # 1. Try native keychain
+    # Try native keychain
     # macOS
     if sys.platform == "darwin":
         try:
@@ -203,11 +203,13 @@ def _load_private_key() -> bytes:
         except Exception:
             pass
 
-    # 2. Universal File-based Fallback
+    # Universal File-based Fallback
     return _load_key_from_file()
 
-
 def _load_private_key_from_account(account: str) -> bytes:
+    if os.environ.get("PQC_USE_KEYCHAIN") != "true":
+        return _load_key_from_file()
+
     # Try macOS security first
     if sys.platform == "darwin":
         try:
@@ -252,44 +254,42 @@ def _load_private_key_from_account(account: str) -> bytes:
         except Exception:
             pass
             
-    # Fallback to local encrypted file (which does not store by account, but we can return it as fallback)
+    # Fallback to local encrypted file
     if PRIVATE_KEY_ENC_PATH.exists():
         return _load_key_from_file()
         
     raise RuntimeError("Private key not found in keychain or local store")
 
-
 def _delete_private_key_from_account(account: str) -> None:
-    if sys.platform == "darwin":
-        subprocess.run(
-            [
-                "security", "delete-generic-password",
-                "-s", KEYCHAIN_SERVICE,
-                "-a", account,
-            ],
-            check=False,
-            capture_output=True,
-        )
-    elif sys.platform.startswith("linux"):
-        subprocess.run(
-            [
-                "secret-tool", "clear",
-                "service", KEYCHAIN_SERVICE,
-                "account", account,
-            ],
-            check=False,
-            capture_output=True,
-        )
+    if os.environ.get("PQC_USE_KEYCHAIN") == "true":
+        if sys.platform == "darwin":
+            subprocess.run(
+                [
+                    "security", "delete-generic-password",
+                    "-s", KEYCHAIN_SERVICE,
+                    "-a", account,
+                ],
+                check=False,
+                capture_output=True,
+            )
+        elif sys.platform.startswith("linux"):
+            subprocess.run(
+                [
+                    "secret-tool", "clear",
+                    "service", KEYCHAIN_SERVICE,
+                    "account", account,
+                ],
+                check=False,
+                capture_output=True,
+            )
     # Also delete private key file if account matches current account
     if account == KEYCHAIN_ACCOUNT and PRIVATE_KEY_ENC_PATH.exists():
         try:
             PRIVATE_KEY_ENC_PATH.unlink()
         except Exception:
             pass
-
-
 def cmd_keygen() -> None:
-    """Generate ML-KEM-768 keypair. Private → Keystore/File. Public → disk."""
+    """Generate ML-KEM-768 keypair. Private -> Encrypted File/Keystore. Public -> disk."""
     _ensure_config_dir()
 
     pk, sk = ML_KEM_768.keygen()
@@ -398,7 +398,7 @@ def cmd_pack() -> None:
 
     BUNDLE_PATH.write_text(json.dumps(bundle, indent=2, sort_keys=True))
     BUNDLE_PATH.chmod(0o600)
-    print(f"Secrets packed: {len(entries)} keys → {BUNDLE_PATH}")
+    print(f"Secrets packed: {len(entries)} keys -> {BUNDLE_PATH}")
 
 
 def _decrypt_bundle(bundle: dict, sk: bytes) -> dict[str, str]:
@@ -501,7 +501,7 @@ def cmd_migrate() -> None:
     except Exception as e:
         print(f"ERROR: Failed to store private key to new account: {e}", file=sys.stderr)
         sys.exit(1)
-    print(f"Migrated keychain entry: service={KEYCHAIN_SERVICE}, account={old_account} → {new_account}")
+    print(f"Migrated keychain entry: service={KEYCHAIN_SERVICE}, account={old_account} -> {new_account}")
 
 
 def main() -> None:

@@ -155,7 +155,7 @@ Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback
 
 | Step | Rust Command | Python Fallback Command | Description |
 |---|---|---|---|
-| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in system keychain (account: `pqc-secrets-key`) or local encrypted file. Public key → `~/.config/pqc-secrets/recipient.pub`. |
+| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in local encrypted file (system keychain if opted-in via `PQC_USE_KEYCHAIN=true`). Public key → `~/.config/pqc-secrets/recipient.pub`. |
 | **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json`. |
 | **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines. Use `secrets-load` shell function. |
 | **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies bundle can be decrypted, lists key names. |
@@ -179,7 +179,7 @@ PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pq
 |---|---|---|
 || `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | System keychain account name for the ML-KEM-768 private key |
 || `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
-|| `PQC_FORCE_FILE_BACKEND` | `false` | Force encrypted local file store, bypass platform keychains |
+|| `PQC_USE_KEYCHAIN` | `false` | Enable native platform keychain storage (defaults to system-agnostic local file store) |
 
 ### Implementation Details
 
