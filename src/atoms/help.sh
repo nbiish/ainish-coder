@@ -139,8 +139,11 @@ UTILITY COMMANDS:
                               Example: ainish-coder --signals ~/my-project
 
     --llms-txt [TARGET_DIR]   Deploy llms.txt file
+                              Fetches the canonical AGENTS.md from agent0ai/dox,
+                              replaces every occurrence of AGENTS.md with llms.txt,
+                              and deploys the result.
                               Deploys:
-                              - llms.txt (project context template)
+                              - llms.txt (DOX framework PRD from agent0ai/dox)
 
                               Example: ainish-coder --llms-txt ~/my-project
 
