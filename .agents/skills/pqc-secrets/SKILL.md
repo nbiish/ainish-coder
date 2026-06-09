@@ -83,16 +83,39 @@ The settings file keeps everything **except** the secret value:
 
 ## 2. Infrastructure Architecture
 
-The tool is implemented as a **Python UV script** (`scripts/pqc_secrets.py`) with inline dependency metadata. Dependencies (`kyber-py`, `cryptography`) are automatically resolved by `uv run` — no global installs needed. A shell wrapper at `bin/pqc-secrets` provides a clean CLI entry point.
+The PQC secrets system consists of a dual-implementation architecture to ensure maximum performance and cross-platform compatibility:
+
+1. **Rust Native (Primary):** The compiled binary at `bin/pqc-secrets` (source in `src/pqc-secrets/`) uses the NIST FIPS 203 compliant `fips203` crate. It implements a secure **double-envelope** structure:
+   - **ML-KEM-768** encapsulates a Key Encapsulating Key (KEK).
+   - The KEK wraps a Data Encryption Key (DEK) via AES-256-GCM keywrap.
+   - The DEK encrypts the secret payload via AES-256-GCM.
+   - Stores metadata including Additional Authenticated Data (`aad`) in `secrets.bundle.json`.
+2. **Python Fallback (Secondary):** A script at `.agents/skills/pqc-secrets/scripts/pqc_secrets.py` uses `kyber-py` and implements a **single-envelope** structure (ML-KEM-768 encapsulates the DEK directly).
+
+> [!WARNING]
+> **Format Incompatibility & Mismatch Errors:**
+> Because the Rust binary and Python script use different envelope structures, their serialized bundles are incompatible. Running the Rust binary on a Python-packed bundle results in:
+> `Error: missing field aad at line X column Y`
+>
+> If this occurs, you must perform a one-time migration:
+> ```bash
+> # 1. Export plaintext secrets using the Python fallback
+> SECRETS_TXT=$(uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export)
+> 
+> # 2. Generate a new keypair using the Rust binary
+> ./bin/pqc-secrets keygen
+> 
+> # 3. Pack the secrets back into the Rust-compatible bundle
+> echo "$SECRETS_TXT" | ./bin/pqc-secrets pack
+> ```
 
 The local secrets infrastructure lives at `~/.config/pqc-secrets/`:
 
-```
-macOS Keychain                    ~/.config/pqc-secrets/
+System Keychain / File            ~/.config/pqc-secrets/
 ┌──────────────────────┐          ┌────────────────────────────┐
-│ service: pqc-secrets │          │ recipient.pub              │
-│ ML-KEM-768 secret key│          │ ML-KEM-768 public key      │
-│ (Secure Enclave)     │          │ (safe to commit)           │
+│ macOS Keychain,      │          │ recipient.pub              │
+│ Linux Secret Service,│          │ ML-KEM-768 public key      │
+│ or Encrypted File    │          │ (safe to commit)           │
 └──────────┬───────────┘          └────────────┬───────────────┘
            │                                   │
            │ decaps (ML-KEM-768)               │ encaps
@@ -111,7 +134,6 @@ macOS Keychain                    ~/.config/pqc-secrets/
 │  ANTHROPIC_AUTH_TOKEN  ZENMUX_API_KEY  NEBIUS_API_KEY        │
 │  OPENROUTER_API_KEY    WAFER_API_KEY    ... (in-memory only) │
 └──────────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -129,27 +151,25 @@ For all secrets operations, only NIST-approved post-quantum algorithms are permi
 
 ## 4. Lifecycle Commands
 
-Use the `bin/pqc-secrets` wrapper (which calls `uv run scripts/pqc_secrets.py` under the hood):
+Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback via `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py`):
 
-| Step | Command | Description |
-|---|---|---|
-| **Keygen** | `bin/pqc-secrets keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in macOS Keychain (service: `pqc-secrets`, account: `pqc-secrets-key` by default) and writes public key to `~/.config/pqc-secrets/recipient.pub`. Set `PQC_KEYCHAIN_ACCOUNT` env var to customize the account name. |
-| **Pack** | `bin/pqc-secrets pack` | Reads `KEY=VAL` lines from stdin, encrypts them via AES-256-GCM, wraps the data key via ML-KEM-768 encapsulation, and outputs `~/.config/pqc-secrets/secrets.bundle.json`. |
-| **Load** | `secrets-load` (or `bin/pqc-secrets export`) | Decrypts the bundle in-memory and outputs `export KEY=VALUE` lines. The `secrets-load` zsh function evaluates this output. |
-| **Verify** | `bin/pqc-secrets verify` | Verifies the bundle can be decrypted and lists key names (no values shown). |
-| **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | Generates a new keypair and packs the secrets under the new public key. |
-| **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | Re-encrypts an existing bundle under a different public key without exposing plaintext. |
-| **Migrate** | `bin/pqc-secrets migrate` | Migrates a keychain entry from old account name (e.g. `default`) to new account name (`pqc-secrets-key`). Useful for upgrading from older versions. |
+| Step | Rust Command | Python Fallback Command | Description |
+|---|---|---|---|
+| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in system keychain (account: `pqc-secrets-key`) or local encrypted file. Public key → `~/.config/pqc-secrets/recipient.pub`. |
+| **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json`. |
+| **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines. Use `secrets-load` shell function. |
+| **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies bundle can be decrypted, lists key names. |
+| **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | `keygen && pack` | Generates new keypair and re-packs secrets under new public key. |
+| **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | — | Re-encrypts bundle under a different public key without exposing plaintext. |
+| **Migrate** | `bin/pqc-secrets migrate` | `uv run ... pqc_secrets.py migrate` | Migrates keychain entry from old account name to new. |
 
 ### Migration from Legacy `default` Account
 
-If you have an existing keychain entry with account name `default` (from older versions), migrate it to the new `pqc-secrets-key` account:
+If you have an existing keychain entry with account name `default` (from older versions), migrate to `pqc-secrets-key`:
 
 ```bash
-# Migrate from old "default" account to new "pqc-secrets-key" account
 bin/pqc-secrets migrate
-
-# Or with custom account names
+# Or with custom account names:
 PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pqc-secrets migrate
 ```
 
@@ -157,16 +177,16 @@ PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pq
 
 | Variable | Default | Description |
 |---|---|---|
-| `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | macOS Keychain account name for the ML-KEM-768 private key |
-| `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
+|| `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | System keychain account name for the ML-KEM-768 private key |
+|| `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
+|| `PQC_FORCE_FILE_BACKEND` | `false` | Force encrypted local file store, bypass platform keychains |
 
 ### Implementation Details
 
-- **Engine:** `kyber-py` (pure Python ML-KEM-768, FIPS 203 compliant) — compatible with Rust `rust-fips203` bundles
-- **Dependencies:** Managed inline via UV script metadata — `kyber-py>=0.2.0`, `cryptography>=44.0`
-- **No global installs:** `uv run` auto-resolves and caches dependencies
-- **Portability:** Works on any system with `uv` installed (macOS, Linux)
-- **Rust compatibility:** Handles both Rust-engine (`recipient.pub` JSON with `public_key_b64`, keywrap layer with `SHA3-256` KDF using `KDF_INFO`) and legacy Python formats (raw hex, no keywrap)
+- **Rust Primary Engine:** `fips203` crate (rust-fips203, NSA CNSA 2.0 / FIPS 203 compliant ML-KEM-768).
+- **Rust Primary Dependencies:** `security-framework` (macOS Keychain), `aes-gcm`, `serde`, `serde_json`, `sha3`.
+- **Python Fallback Engine:** `kyber-py` (pure Python ML-KEM-768) + `cryptography` (AES-256-GCM).
+- **Python Fallback Dependencies:** Managed inline via UV script metadata — `kyber-py>=0.2.0`, `cryptography>=44.0` (auto-resolved by `uv run`).
 
 ---
 

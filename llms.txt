@@ -20,6 +20,18 @@
 
 Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
 
+### Secrets & Cryptography (PQC Mandate)
+- **Always** store API keys and secrets encrypted in `~/.config/pqc-secrets/secrets.bundle.json` using AES-256-GCM wrapped with ML-KEM-768 (FIPS 203).
+- **Always** retrieve the private key from the system keychain (macOS Keychain, Linux Secret Service) or a local machine-encrypted file.
+- **Never** store plaintext secrets in repositories, `.env` files, settings files, task logs, or any config with an `env` block.
+- **Always** inject secrets at runtime via system keychain/file + shell wrapper. See `pqc-secrets` skill §1.1 for the full pattern.
+- **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
+
+### Code Signing & Integrity (PQC Mandate)
+- **Always** verify code integrity with ML-DSA-65 (FIPS 204) signatures before deployment.
+- **Always** sign commits and releases with ML-DSA-65 keys stored in the system keychain or secure local file.
+- **Never** rely on classical signature schemes (RSA-PSS, ECDSA) for integrity verification of critical artifacts.
+
 ## Update After Editing
 
 Every meaningful change requires a DOX pass before the task is done.
@@ -42,6 +54,35 @@ Update parent docs when parent-level structure, ownership, workflow, or child in
 - The closer a doc is to the work, the more specific and practical it must be
 
 ## Child Doc Shape
+
+- `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt — defaults to yes), and `_with_link_choice()` (deploy helper).
+- `bin/pqc-secrets` — Shell wrapper for the Rust FIPS 203 secrets manager (keygen, pack, export).
+- `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
+- `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
+- `bin/git-context.sh` — AI agent situational awareness script invoked by the `git context` alias. Produces a structured, token-efficient context dump: branch/worktree position, status, diffs, task files, PRD anchor, worktrees, stashes, timeline, last commit, and gate-tool availability. Designed as the one-command bridge between the developer's git state and any AI coding agent's context window.
+- `bin/auto-thinking-classify` — Smol-model per-turn thinking classifier with task/stage/attempt metadata (`modelRoles.smol`).
+- `bin/lib/` — Shared shell libraries:
+  - `providers.sh` — Reads `~/.config/ainish-coder/providers.json` (8 providers: modal, nvidia, nebius, opencode, zai, wafer-serverless, openrouter, zenmux).
+  - `mcp_settings.sh` — MCP flag parsing, layered config merge, and env generation.
+  - `mcp_discover.py` — Host-tool MCP discovery (Claude, Cursor, Codex, Windsurf, Gemini, VS Code) for gap-fill merge.
+  - `auto_thinking_context.sh` — Orchestration metadata envelope for auto thinking classification.
+  - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
+- `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
+  - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise. When `AINISH_NO_OVERWRITE=true`, existing files are skipped (safe/additive mode).
+- `src/atoms/` — 14 modular deployment atoms, all using `deploy_path`/`deploy_path_contents` for `--link` support:
+  - `deploy_agents.sh` — Deploys `AGENTS.md` (symlink-capable).
+  - `deploy_skills.sh` — Deploys all 20 skill packs from `.agents/skills/`.
+  - `deploy_commands.sh` — Deploys slash command workflows.
+  - `deploy_critical.sh`, `deploy_gitignore.sh`, `deploy_github_actions.sh`, `deploy_local_security.sh`, `deploy_template_agent.sh`, `deploy_mcp.sh`, `deploy_mcp_recipes.sh`, `deploy_scrolls.sh`, `deploy_license.sh`, `deploy_signals.sh`, `deploy_llms_txt.sh`, `deploy_unlock.sh` — Individual deployment atoms.
+  - `help.sh` — Full help text and usage documentation.
+  - `setup_shell.sh`, `setup-secret-protection.sh`, `clear_all_rules.sh` — Setup and maintenance atoms.
+- `src/molecules/` — High-level orchestration (system-wide installation wrapper).
+- `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
+- `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export).
+- `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
+- `.agents/skills/` — 20 hardened procedural guideline skill packs for agent integration:
+  advisory-council, anishinaabe-cyberpunk-style, browser-harness, camofox-stack, code-security, document-enhancer, ghost-layer-injector, graph-intelligence, gstack-coder, llm-security, modern-prompting, openscad-generator, pi-mini-orchestrator, pliny-research, pqc-secrets, pqc-signatures-security, production-security, remotion-video, skyvern, video-knowledge-extractor
+- `.agents/mcp-settings.json` — Global MCP server definitions (merged with project-level overrides).
 
 - Create a child `llms.txt` when a folder becomes a durable boundary with its own purpose, rules, responsibilities, workflow, materials, or quality standards
 - Work Guidance must reflect the current standards of the project or user instructions; if there are no specific standards or instructions yet, leave it empty
