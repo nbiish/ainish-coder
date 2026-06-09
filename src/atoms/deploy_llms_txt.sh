@@ -7,17 +7,16 @@ REMOTE_AGENTS_URL="https://raw.githubusercontent.com/agent0ai/dox/main/AGENTS.md
 
 deploy_llms_txt() {
     local target_dir="${1:-.}"
-    local temp_file
-    temp_file=$(mktemp /tmp/llms-txt.XXXXXX)
-    trap 'rm -f "$temp_file"' EXIT
-
     validate_target_dir "$target_dir" || return 1
 
     local dest_file="$target_dir/llms.txt"
+    local temp_file
+    temp_file=$(mktemp /tmp/llms-txt.XXXXXX)
 
     # Fetch remote AGENTS.md
     if ! curl -fsSL "$REMOTE_AGENTS_URL" -o "$temp_file" 2>/dev/null; then
         print_error "Failed to fetch AGENTS.md from $REMOTE_AGENTS_URL"
+        rm -f "$temp_file"
         return 1
     fi
 
@@ -28,6 +27,7 @@ deploy_llms_txt() {
     # Interactive prompt unless non-interactive is set
     if ! confirm_action "Do you want to deploy the llms.txt file to: $dest_file?" "y"; then
         echo -e "${YELLOW}Aborted deployment of llms.txt.${RESET}"
+        rm -f "$temp_file"
         return 0
     fi
 
@@ -35,6 +35,7 @@ deploy_llms_txt() {
     echo -e "${BRIGHT_BLUE}Source: $REMOTE_AGENTS_URL (AGENTS.md → llms.txt)${RESET}"
 
     cp "$temp_file" "$dest_file"
+    rm -f "$temp_file"
     chmod 644 "$dest_file"
 
     if [[ -f "$dest_file" ]]; then
