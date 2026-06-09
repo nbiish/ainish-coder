@@ -296,7 +296,7 @@ def cmd_keygen() -> None:
     PUBKEY_PATH.write_text(pk_hex)
     PUBKEY_PATH.chmod(0o600)
 
-    print(f"ML-KEM-768 keypair generated.")
+    print("ML-KEM-768 keypair generated.")
     print(f"  Private key: Securely stored (account={KEYCHAIN_ACCOUNT})")
     print(f"  Public key:  {PUBKEY_PATH}")
 
