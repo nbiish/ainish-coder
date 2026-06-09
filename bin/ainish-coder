@@ -58,14 +58,15 @@ main() {
     # Prompt user for deploy destination base (home vs target dir)
     # Echoes "$HOME" or "$target_dir" to stdout
     _pick_dest_base() {
-        if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" || ! -t 0 ]]; then
+        # If non-interactive mode OR not in interactive mode, default to target_dir
+        if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || [[ "${AINISH_INTERACTIVE:-false}" != "true" ]] || [[ ! -t 0 ]]; then
             echo "$target_dir"
             return
         fi
 
         while true; do
             echo -e "Where would you like to deploy?" >&2
-            echo -e "  1) Home directory (~/)" >&2
+            echo -e "  1) Home directory (~)/" >&2
             echo -e "  2) Current/Target directory ($target_dir)" >&2
             echo -ne "${BRIGHT_YELLOW}▸ ${RESET}Enter choice [1 or 2, default: 2]: " >&2
             local choice
@@ -88,15 +89,16 @@ main() {
 
     # Ask if user wants to symlink from repo source (single source of truth).
     # Returns 0 if symlink, 1 if copy. Respects global -l flag.
-    # Defaults to symlink (y) — changes to the canonical source propagate automatically.
+    # Defaults to copy (n) — safer, avoids accidental source modification.
     _confirm_symlink() {
         if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then
             return 0  # Already set globally via -l
         fi
-        if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" || ! -t 0 ]]; then
-            return 0  # Default to symlink in non-interactive mode
+        # If non-interactive mode OR not in interactive mode, default to copy (safer)
+        if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || [[ "${AINISH_INTERACTIVE:-false}" != "true" ]] || [[ ! -t 0 ]]; then
+            return 1  # Default to copy (safer default)
         fi
-        confirm_action "Symlink from repo source (single source of truth)?" "y"
+        confirm_action "Symlink from repo source (single source of truth)?" "n"
     }
 
     # Run a deploy function, optionally overriding AINISH_LINK_MODE for just
@@ -277,7 +279,7 @@ main() {
                 local skills_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_skills "$skills_dest"
                 _TRACK_DETAIL="all-skills"
-            elif [[ "${AINISH_NON_INTERACTIVE:-false}" == "false" && -t 0 ]]; then
+            elif [[ "${AINISH_INTERACTIVE:-false}" == "true" && -t 0 ]]; then
                 # Interactive selection of specific skill
                 local available_skills=()
                 for d in "$skills_dir"/*/; do
@@ -372,7 +374,15 @@ main() {
 
         --llms-txt)
             _TRACK_DETAIL="llms.txt"
-            _with_link_choice deploy_llms_txt "$target_dir"
+            local llms_dest="$target_dir"
+            if [[ "${AINISH_INTERACTIVE:-false}" == "true" && -t 0 ]]; then
+                if confirm_action "Deploy llms.txt file?" "y"; then
+                    llms_dest="$(_pick_dest_base)"
+                    _with_link_choice deploy_llms_txt "$llms_dest"
+                fi
+            else
+                _with_link_choice deploy_llms_txt "$llms_dest"
+            fi
             ;;
 
         *)
@@ -385,12 +395,15 @@ main() {
 
 # Parse global flags
 export AINISH_NON_INTERACTIVE="false"
+export AINISH_INTERACTIVE="false"
 export AINISH_LINK_MODE="false"
 export AINISH_NO_OVERWRITE="false"
 filtered_args=()
 for arg in "$@"; do
     if [[ "$arg" == "-y" || "$arg" == "--yes" || "$arg" == "--non-interactive" ]]; then
         export AINISH_NON_INTERACTIVE="true"
+    elif [[ "$arg" == "-i" || "$arg" == "--interactive" ]]; then
+        export AINISH_INTERACTIVE="true"
     elif [[ "$arg" == "-l" || "$arg" == "--link" ]]; then
         export AINISH_LINK_MODE="true"
     elif [[ "$arg" == "-n" || "$arg" == "--no-overwrite" ]]; then
