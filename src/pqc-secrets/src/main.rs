@@ -17,7 +17,10 @@ const BUNDLE_VERSION: u32 = 1;
 const DEFAULT_BUNDLE: &str = "~/.config/pqc-secrets/secrets.bundle.json";
 const DEFAULT_PUB: &str = "~/.config/pqc-secrets/recipient.pub";
 const DEFAULT_SERVICE: &str = "pqc-secrets";
-const DEFAULT_ACCOUNT: &str = "default";
+// Default account name matches the Python `pqc-secrets` skill (which originally generated the keypair).
+// The legacy v1 binary used "default"; new keypairs since 2026-06-08 are stored under "pqc-secrets-key".
+// Override with PQC_KEYCHAIN_ACCOUNT=<name> if your keychain entry uses a different name.
+const DEFAULT_ACCOUNT: &str = "pqc-secrets-key";
 
 const KEYWRAP_AAD: &[u8] = b"pqc-secrets:v1:keywrap";
 const DATA_AAD: &[u8] = b"pqc-secrets:v1:data";
