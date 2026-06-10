@@ -12,8 +12,10 @@ value is injected at process start from the encrypted bundle.
 
 ## §1 Hermes MCP (betterbrowsermcp)
 
-The `@nbiish/betterbrowsermcp` MCP server exposes 9 PQC tools directly
-to any Hermes agent. No shell wrapper required.
+The `@nbiish/betterbrowsermcp` MCP server (v0.7.0+ rotates v0.8.0+)
+exposes 10 PQC tools directly to any Hermes agent. No shell
+wrapper required. See `references/mcp-tool-surface.md` for the
+full per-tool reference (parameters, responses, audit events).
 
 ### Setup
 
@@ -28,6 +30,18 @@ mcp_servers:
     env:
       BROWSER_MCP_AGENT_ID: hermes
       BROWSER_MCP_PORT: '9109'
+      # Optional: full path to the pqc-secrets binary. The MCP
+      # server spawns this binary to read/write the bundle.
+      # Defaults to ~/code/ainish-coder/bin/pqc-secrets. Set
+      # this when the MCP server runs in a context with a
+      # stripped PATH (Claude Code, Cursor, MCP launched from
+      # Dock/Finder).
+      BROWSER_MCP_PQC_SECRETS_BIN: /Users/nbiish/code/ainish-coder/bin/pqc-secrets
+      # Optional: macOS Keychain account name. Defaults to
+      # 'pqc-secrets-key' (the standard name from
+      # pqc-secrets keygen). Override only if your keychain
+      # entry uses a different name.
+      PQC_KEYCHAIN_ACCOUNT: pqc-secrets-key
 ```
 
 Add `betterbrowsermcp` to `platform_toolsets.cli` in the same file
@@ -35,41 +49,56 @@ Add `betterbrowsermcp` to `platform_toolsets.cli` in the same file
 Hermes: `/reload-mcp` (in the TUI input box — NOT a terminal) to
 restart the MCP children.
 
-### Tool surface
+### Tool surface (10 tools)
 
 | Tool | Purpose |
 |---|---|
 | `browser_secrets_status` | Check keychain + bundle health. Returns JSON. |
 | `browser_secrets_list` | List secret **names** (no values). |
 | `browser_secrets_get` | Read one secret value. Optional `mode: 'plain'\|'redact'`. |
-| `browser_secrets_load` | Bulk-export bundle into the agent's process env. |
+| `browser_secrets_load` | Bulk-export bundle into the page's `window.__bbmcpSecrets__` scope. |
 | `browser_secrets_add` | Add a new secret. Optional `dry_run: true`. |
-| `browser_secrets_add_from_clipboard` | Pull a value from the page's clipboard write. |
+| `browser_secrets_add_from_clipboard` | Pull a value from the system clipboard. |
 | `browser_secrets_unlock_agent` | Cache one secret value in agent memory for fast reads. |
 | `browser_secrets_lock_agent` | Clear a cached secret (or wipe all). |
 | `browser_secrets_copy_to_page` | Paste a secret into a focused form field. |
+| `browser_secrets_rotate` | Re-encrypt the bundle with a fresh data key + KEM shared secret. Identity key in keychain stays. |
 
 ### Usage example
 
 ```
 LLM: "Check if the bundle is healthy."
 → browser_secrets_status
-← {"keychainOk":true,"pubKeyFp":"sha256:9f86...","nKeys":12,"createdUtc":"..."}
+← {"keychainOk":true,"recipientFp":"sha3:19df3b3f86de13a9...","nKeys":15,"createdUtc":"2026-06-10T..."}
 
 LLM: "What API keys do I have?"
 → browser_secrets_list
-← {"keys":["STRIPE_SECRET","GH_TOKEN","OPENAI_API_KEY","ANTHROPIC_API_KEY"]}
+← "Found 15 secret(s) in the PQC bundle:\n  - CLINE_API_KEY\n  - COMMANDCODE_API_KEY\n  - KILO_API_KEY\n  ..."
 
 LLM: "Show me the Stripe secret."
 → browser_secrets_get(name="STRIPE_SECRET", mode="plain")
-← "sk-live-AbCd..."
+← "STRIPE_SECRET = sk-live-AbCd..."
 ```
 
 ### Audit trail
 
 Every call is recorded in `~/.config/pqc-secrets/audit.log` (see
 `references/audit-log.md`). The user can verify "did my agent read
-X at Y time?" by `grep`-ing the log.
+X at Y time?" by `grep`-ing the log. The value is NEVER logged
+— only the SHA3-256 fingerprint (first 16 hex chars).
+
+### Design directive: availability first
+
+These tools are designed to be called freely by agents with **no
+human-in-the-loop gatekeeping**:
+- No auth tokens
+- No redaction-by-default
+- No required `tabId` for non-browser-context operations
+- Per-tab operations require `tabId` because it's the cache key
+  or paste target, not a gate
+
+See `references/mcp-tool-surface.md` §"Design directive" for the
+full rationale.
 
 ## §2 Claude Code
 

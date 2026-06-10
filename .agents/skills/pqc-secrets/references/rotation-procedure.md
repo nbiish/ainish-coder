@@ -5,28 +5,59 @@ description: Step-by-step runbook for data-key rotation (routine) and full ident
 
 # Rotation Procedure
 
-Two flavors of rotation:
+Three flavors of rotation:
 
-- **§1 Data-key rotation** (routine, monthly/quarterly) — what
-  `pqc-secrets rotate` does. Re-encapsulates against a fresh
-  ephemeral KEM keypair. Long-term identity key in keychain is
-  unchanged.
-- **§2 Full identity rotation** (out-of-band ceremony, annually or
+- **§1 Data-key rotation via the MCP tool** (routine, monthly/quarterly) — what
+  `browser_secrets_rotate` does (v0.8.0+). The recommended path
+  for agents and humans alike.
+- **§2 Data-key rotation via the CLI directly** (routine, same as
+  §1 but bypassing the MCP server). Use this if you're rotating
+  from a non-MCP context (cron job, manual shell session, etc.).
+- **§3 Full identity rotation** (out-of-band ceremony, annually or
   after compromise) — generates a new ML-KEM-768 keypair, writes
   it to the keychain, and redistributes `recipient.pub` to all
   consumers. Heavyweight; usually scheduled.
-- **§3 Disaster recovery** — what to do when the keychain entry is
+- **§4 Disaster recovery** — what to do when the keychain entry is
   lost.
 
-## §1 Data-key rotation (routine)
+## §1 Data-key rotation via MCP (routine — recommended)
 
 **Trigger:** monthly for high-value deployments, quarterly for typical.
 
 **Duration:** ~25 s on first call (ML-KEM-768 init), ~2 s subsequent.
 
-**Audit:** emits a single `rotate keysAffected=N` event.
+**Audit:** emits one `rotate name=- tab=- old=sha3:...; new=sha3:...;
+count=N; backup=<path>` event (see `audit-log.md`).
 
-### Steps
+**Side effects:**
+- Fresh random AES-256-GCM data key
+- Fresh random ML-KEM-768 shared secret (via encaps against the
+  existing recipient pubkey)
+- Previous bundle preserved as `secrets.bundle.json.bak.<UTC>`
+  for a 7-day grace period
+- Identity ML-KEM-768 keypair in keychain is **unchanged**
+
+### Steps (MCP, via Hermes / Claude Code / any MCP client)
+
+```
+LLM: "Rotate the PQC bundle."
+→ browser_secrets_rotate
+← "Rotated PQC bundle.
+   Old fingerprint: sha3:4d96075ada91fa0b...
+   New fingerprint: sha3:0ae9fa5052c82b65...
+   Previous bundle backed up to
+   /Users/nbiish/.config/pqc-secrets/secrets.bundle.json.bak.2026-06-10T...
+   (retain for 7 days, then delete with: rm <path>).
+   13 secret(s) re-encrypted with a fresh data key and a
+   fresh ML-KEM-768 shared secret. The identity keypair in
+   the keychain is unchanged."
+```
+
+**That's it.** The tool backs up, re-encrypts, and reports old +
+new fingerprints. Verify the rotation succeeded by `grep rotate
+~/.config/pqc-secrets/audit.log | tail -1`.
+
+### Steps (CLI, same effect, for non-MCP contexts)
 
 1. **Backup** the current bundle:
    ```bash
