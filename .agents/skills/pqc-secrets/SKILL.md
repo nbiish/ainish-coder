@@ -1,11 +1,26 @@
 ---
 name: pqc-secrets
-description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data.
+description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. Includes the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, and the PQC Rust binary (ML-KEM-768 + AES-256-GCM).
 ---
 
 # PQC Secrets Management Agent Skill
 
 > **Companion skill:** [pqc-signatures-security](../pqc-signatures-security/SKILL.md) — ML-DSA-65 code signing, integrity verification, and secure coding patterns. Use both together for complete PQC coverage: this skill encrypts secrets at rest; pqc-signatures-security verifies code hasn't been tampered with.
+
+> **New in v0.8.0 (betterbrowsermcp):** `browser_secrets_rotate` tool
+> (data-key rotation, identity key stays), `secrets_get mode=plain|redact`,
+> `secrets_add dry_run`. **New module:** `src/audit.ts` — append-only audit
+> log at `~/.config/pqc-secrets/audit.log` mode 0o600 with SHA3-256 value
+> fingerprints (first 16 hex chars, never the value). **Bug fix:**
+> `browser_secrets_add` was broken since v0.7.0 (dead execFile call
+> removed). See `references/mcp-tool-surface.md` for the full per-tool
+> reference.
+
+> **Availability-first design:** these tools are designed to be called
+> freely by agents with no human-in-the-loop gatekeeping. No auth
+> tokens, no redaction default, no required `tabId` for
+> non-browser-context operations. The verification surface is the
+> audit log + `browser_secrets_rotate`'s auto-backup.
 
 This skill provides comprehensive instructions, policies, and blueprints for managing repository and application secrets (API keys, credentials, private user data) using post-quantum cryptographic (PQC) algorithms.
 
@@ -844,38 +859,55 @@ The audit log is an append-only file at
 only). One event per line:
 
 ```
-<ISO8601-UTC> <agent> <action> [key=value]...
+<ISO8601-UTC with millisecond precision> TAB <actor> TAB <action> TAB name=<NAME> TAB mode=<MODE> TAB tab=<TAB> TAB <detail>
 ```
 
-- **ISO8601-UTC** — e.g. `2026-06-09T14:52:01Z` (no subseconds, UTC)
-- **agent** — the BROWSER_MCP_AGENT_ID (Hermes MCP) or `$USER` (shell)
-- **action** — one of: `unlock_agent | lock_agent | get | add |
-  rotate | status | list | load | copy_to_page | add_from_clipboard`
-- **key=value** — zero or more `key=value` pairs (no quoting; values
-  are flat strings only)
+- **ISO8601-UTC** — e.g. `2026-06-10T15:24:49.572Z` (with
+  millisecond precision, UTC)
+- **actor** — `hermes` (the betterbrowsermcp MCP server). Reserved
+  for multi-actor future; no other actor writes today.
+- **action** — one of: `get | list | add | add_from_clipboard |
+  rotate | load | unlock | lock | copy_to_page | status | fail`
+  (note: real action names are `unlock` and `lock`, not the
+  longer `unlock_agent` / `lock_agent` that the v0.7.0 specs
+  used)
+- **name/mode/tab** — see Field meanings table
+- **detail** — free-form `key=value` pairs, semicolon-separated
+  for compound values
 
-### 9.2 Example lines
+### 9.2 Example lines (TAB-separated, real audit.log output)
 
 ```
-2026-06-09T14:52:01Z hermes unlock_agent tab=12345 name=STRIPE_SECRET len=107
-2026-06-09T14:52:03Z hermes get mode=plain name=STRIPE_SECRET tab=12345
-2026-06-09T14:52:05Z hermes get mode=redact name=STRIPE_SECRET tab=12345
-2026-06-09T14:53:00Z hermes lock tab=12345 name=STRIPE_SECRET
-2026-06-09T15:00:00Z hermes rotate keysAffected=12
-2026-06-09T15:01:00Z hermes add dryRun=false added=1 modified=0
+2026-06-10T15:24:49.572Z	hermes	add	name=BBMCP_TEST_KEY	mode=-	tab=-	merge=true; total=14; value-fp=sha3:549ab3b879785c99
+2026-06-10T15:25:12.001Z	hermes	get	name=BBMCP_TEST_KEY	mode=plain	tab=-	value-fp=sha3:549ab3b879785c99
+2026-06-10T15:25:13.402Z	hermes	get	name=BBMCP_TEST_KEY	mode=redact	tab=-
+2026-06-10T15:25:30.118Z	hermes	unlock	name=BBMCP_TEST_KEY	mode=-	tab=42	value-fp=sha3:549ab3b879785c99
+2026-06-10T15:25:35.224Z	hermes	lock	name=BBMCP_TEST_KEY	mode=-	tab=42
+2026-06-10T15:27:18.033Z	hermes	rotate	name=-	mode=-	tab=-	old=sha3:61b547a65b7c806a...; new=sha3:6de4314e19c83b75...; count=15; backup=/Users/nbiish/.config/pqc-secrets/secrets.bundle.json.bak.2026-06-10T15-27-18-012Z
 ```
+
+**Field separator is TAB, not space.** Always use `-F'\t'` with
+awk or `grep -P '\t'` for tab-aware parsing. Plain `grep` and
+`awk '{print $2}'` work because fields contain no spaces within
+themselves, but tab-aware parsing is more correct.
 
 ### 9.3 Field meanings
 
-- `agent` — the BROWSER_MCP_AGENT_ID or shell user that initiated the op
+- `actor` — `hermes` (the betterbrowsermcp MCP server). Reserved
+  for multi-actor future; no other actor writes today.
 - `action` — the operation (see §9.1)
-- `tab=<id>` — bound tab id (omitted for shell-initiated ops)
-- `name=<secret_name>` — name of the secret touched
-- `len=<n>` — byte length of the value (NEVER the value itself)
-- `mode=plain|redact` — only on `get` events
-- `dryRun=true|false` — only on `add` events
-- `added=<n>`, `modified=<n>` — bundle diff stats on `add`
-- `keysAffected=<n>` — count of re-encaps'd keys on `rotate`
+- `name=<secret_name>` — name of the secret touched, or `-`
+- `mode=plain|redact` — only on `get` events, or `-`
+- `tab=<id>` — bound tab id (as string), or `-`
+- `value-fp=sha3:<16hex>` — SHA3-256 fingerprint, first 16 hex
+  chars, NEVER the value. Present on get, add, unlock, copy_to_page.
+- `merge=true|false`, `total=<n>` — bundle diff stats on `add`
+- `old=<sha3:...>; new=<sha3:...>; count=<n>; backup=<path>` —
+  rotate event
+- `ref=<eN>` — snapshot ref on `copy_to_page` events
+- `error=<text>` — present on `copy_to_page` failures
+- `detail=<text>` — present on `lock` (all) as
+  `all-unlocked-cleared`
 
 ### 9.4 Retention
 
@@ -884,21 +916,74 @@ only). One event per line:
   10 MB. Archive is a `mv` (no rewrite).
 - Total retention is unlimited. Audit log is small per event
   (~80 bytes); 10 MB holds ~125,000 events.
+- The user controls retention. The system does NOT auto-delete.
 
 ### 9.5 Verification use cases
 
 - "Did my agent read STRIPE_SECRET in the last hour?"
-  → `grep STRIPE_SECRET ~/.config/pqc-secrets/audit.log | tail -20`
-- "What keys were added yesterday?"
-  → `grep -E '^[0-9-]+ hermes add' ~/.config/pqc-secrets/audit.log | grep 2026-06-08`
+  → `grep 'name=STRIPE_SECRET' ~/.config/pqc-secrets/audit.log | tail -20`
+- "What keys were added today?"
+  → `grep -E '^[0-9-]+\thermes\tadd' ~/.config/pqc-secrets/audit.log | grep $(date -u +%Y-%m-%d)`
 - "When was the last rotation?"
-  → `grep rotate ~/.config/pqc-secrets/audit.log | tail -1`
+  → `grep '\thermes\trotate\t' ~/.config/pqc-secrets/audit.log | tail -1`
+- "Did anyone read ANTHROPIC_API_KEY today?"
+  → `grep 'name=ANTHROPIC_API_KEY' ~/.config/pqc-secrets/audit.log | grep $(date -u +%Y-%m-%d)`
+- "Verify a value matches what's in the bundle"
+  → `echo -n '<value>' | shasum -a 256 - | cut -c1-16` and
+  compare against `value-fp=sha3:...` in the log entry.
+
+### 9.6 Implementation reference
+
+The audit writer lives in
+`betterbrowsermcp/src/audit.ts` and exposes two functions:
+
+```ts
+import { logAuditEvent, valueFingerprint } from "../audit";
+
+// Append one event (non-blocking, best-effort).
+logAuditEvent({
+  action: "get",
+  mode: "plain",
+  name: "STRIPE_SECRET",
+  detail: `value-fp=${valueFingerprint(value)}`,
+});
+
+// Compute a SHA3-256 fingerprint, first 16 hex chars.
+const fp = valueFingerprint("sk-live-AbCd...");
+console.log(fp);  // → sha3:549ab3b879785c99
+```
 
 ---
 
 ## §10 Rotation Runbook
 
-### §10.1 Data-key rotation (default — what `pqc-secrets rotate` does)
+### §10.1 Routine data-key rotation (default — via `browser_secrets_rotate` MCP tool)
+
+This is the **recommended path** for agents and humans alike. The
+`browser_secrets_rotate` tool (betterbrowsermcp v0.8.0+) does the
+full rotate op atomically: backup → re-encrypt → report.
+
+**The recommended path (MCP):**
+```
+LLM: "Rotate the PQC bundle."
+→ browser_secrets_rotate
+← "Rotated PQC bundle.
+   Old fingerprint: sha3:4d96075ada91fa0b...
+   New fingerprint: sha3:0ae9fa5052c82b65...
+   Previous bundle backed up to
+   /Users/nbiish/.config/pqc-secrets/secrets.bundle.json.bak.<UTC>
+   (retain for 7 days, then delete with: rm <path>).
+   N secret(s) re-encrypted with a fresh data key and a
+   fresh ML-KEM-768 shared secret. The identity keypair in
+   the keychain is unchanged."
+```
+
+**Audit log entry** (one event, real format):
+```
+2026-06-10T15:27:18.033Z	hermes	rotate	name=-	mode=-	tab=-	old=sha3:61b5...; new=sha3:6de4...; count=15; backup=...
+```
+
+**The manual path (CLI, for non-MCP contexts):**
 
 This is the routine operation. Re-encapsulates the AES data key
 against a fresh ephemeral KEM keypair. The long-term identity key
