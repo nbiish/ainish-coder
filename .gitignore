@@ -136,3 +136,10 @@ audit.log.*
 # Local pqc-sign public keys (used for verification, not for committing)
 .pqc-keys/*.priv
 .pqc-keys/*.sk
+
+# Hermes / agent plan and context directories (auto-injected by
+# subdirectory context discovery — never intended for git)
+.hermes/
+.omx/
+.omo/
+.omp/
