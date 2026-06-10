@@ -9,14 +9,21 @@ The bundle file at `~/.config/pqc-secrets/secrets.bundle.json` is the
 canonical encrypted store. **Safe to commit** — every value is
 AES-256-GCM ciphertext wrapped by ML-KEM-768.
 
+> **Schema verified 2026-06-09 against the live bundle at
+> `~/.config/pqc-secrets/secrets.bundle.json` (engine:
+> `rust-fips203`).** Field names below are the actual production
+> names. Earlier drafts of this document used different names
+> (`kem.ciphertext`, `data.iv`, `data.tag`, `recipient.fingerprint`,
+> `recipient.public_key`); those are **wrong**. Use the names below.
+
 ## Top-level structure
 
 ```json
 {
   "version": 1,
-  "alg": "ML-KEM-768+AES-256-GCM",
-  "engine": "pqc-secrets@0.4.2",
-  "created_utc": "2026-06-07T14:47:12Z",
+  "alg": "ML-KEM-768",
+  "engine": "rust-fips203",
+  "created_utc": "2026-06-07T18:47:58.715239Z",
   "recipient": { ... },
   "kem": { ... },
   "keywrap": { ... },
@@ -24,98 +31,123 @@ AES-256-GCM ciphertext wrapped by ML-KEM-768.
 }
 ```
 
-## Field reference
+## Top-level fields
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `version` | integer | yes | Bundle format version. Currently `1`. |
-| `alg` | string | yes | Algorithm descriptor. `ML-KEM-768+AES-256-GCM` for v1. |
-| `engine` | string | yes | Engine version, e.g. `pqc-secrets@0.4.2`. |
-| `created_utc` | string | yes | ISO 8601 UTC timestamp. |
-| `recipient` | object | yes | Public key metadata. |
-| `kem` | object | yes | ML-KEM-768 encapsulation. |
-| `keywrap` | object | yes | Wrapping of the data key (reserved for future AAD). |
-| `data` | object | yes | AES-256-GCM ciphertext + IV + tag. |
+| `alg` | string | yes | Algorithm descriptor. `ML-KEM-768` for v1. |
+| `engine` | string | yes | Engine version, e.g. `rust-fips203`. |
+| `created_utc` | string | yes | ISO 8601 UTC timestamp with microseconds. |
+| `recipient` | object | yes | Public key fingerprint (see below). |
+| `kem` | object | yes | ML-KEM-768 encapsulation of the wrapped key. |
+| `keywrap` | object | yes | AES-256-GCM-wrapped data key, derived via SHA3-256 KDF. |
+| `data` | object | yes | AES-256-GCM ciphertext of the secret bundle, with AAD. |
 
-**Field name conventions** (verified against the live bundle):
+**Field name conventions:**
 
-- `alg`, NOT `algorithm`
-- `created_utc`, NOT `createdAt` or `created_at_pretty`
+- `alg` — single string, NOT `algorithm`
+- `created_utc` — NOT `createdAt`
 - `recipient`, `kem`, `keywrap`, `data` — all lowercase, no separators
+- Sub-fields use `_b64` suffix for base64-encoded values
+- Sub-fields use `_sha3_256` suffix for SHA3-256 hex digests
 
 ## `recipient` object
 
 ```json
 {
-  "public_key": "BASE64...",
-  "fingerprint": "sha256:9f86d081..."
+  "public_key_sha3_256": "19df3b3f86de13a983abe68801f3b6512e21310cfda70cf89b5b3dcc68b1a433"
 }
 ```
 
 | Field | Type | Meaning |
 |---|---|---|
-| `public_key` | string | Base64-encoded ML-KEM-768 public key (1184 B encoded). |
-| `fingerprint` | string | `sha256:<hex>` of the public key bytes (not the base64). |
+| `public_key_sha3_256` | string | SHA3-256 hex of the public key (64 hex chars = 32 B digest). NOT the public key bytes themselves. |
+
+The `recipient` block does NOT contain the public key — only its
+SHA3-256 fingerprint. The actual public key lives on disk at
+`~/.config/pqc-secrets/recipient.pub`. The fingerprint in the bundle
+lets the verifier check that the on-disk `recipient.pub` matches the
+bundle's intent (defense-in-depth against `recipient.pub`
+substitution).
 
 ## `kem` object
 
 ```json
 {
-  "ciphertext": "BASE64...",
-  "algorithm": "ML-KEM-768"
+  "ciphertext_b64": "b14Q16NAByG+rLOib05Mwj2N9NMFeZcX..."
 }
 ```
 
 | Field | Type | Meaning |
 |---|---|---|
-| `ciphertext` | string | Base64-encoded ML-KEM-768 KEM ciphertext (1088 B encoded). |
-| `algorithm` | string | `ML-KEM-768` (for clarity; the `alg` top-level field also names it). |
+| `ciphertext_b64` | string | Base64-encoded ML-KEM-768 KEM ciphertext (1088 B raw, ~1452 B encoded). |
+
+The KEM encapsulates a KDF input (the SHA3-256 KDF in `keywrap.kdf`
+turns the KEM shared secret into a 32-byte AES-256 data key).
 
 ## `keywrap` object
 
 ```json
 {
-  "wrapped_key": "BASE64...",
-  "aad": ""
+  "kdf": "SHA3-256",
+  "aad": "pqc-secrets:v1:keywrap",
+  "nonce_b64": "i1WOwoxZRKzr/sw2",
+  "ciphertext_b64": "j0KPhYjZz9TwTHYgIMxvI+4VeNIkR9qOkTnqrSwlBrx8BKOXWUQWK97OiQG+dLms"
 }
 ```
 
 | Field | Type | Meaning |
-|---|---|
-| `wrapped_key` | string | Base64-encoded wrapped data key (32 B encoded). Currently the same as `kem.ciphertext` in v1. |
-| `aad` | string | Additional authenticated data; empty string in v1. Reserved for future AAD chains. |
+|---|---|---|
+| `kdf` | string | KDF used to derive the data key from the KEM shared secret. `SHA3-256` for v1. |
+| `aad` | string | Additional authenticated data. `pqc-secrets:v1:keywrap` for v1. |
+| `nonce_b64` | string | Base64-encoded 96-bit AES-GCM nonce (12 B raw, ~16 B encoded). |
+| `ciphertext_b64` | string | Base64-encoded wrapped data key ciphertext WITH the 16-byte GCM auth tag appended. |
+
+The `keywrap` block is an AES-256-GCM layer that wraps the data
+key. The plaintext is 32 bytes (the AES-256 data key); the
+ciphertext is 32 + 16 = 48 bytes (data + GCM tag); the AAD binds
+this layer to the bundle version.
 
 ## `data` object
 
 ```json
 {
-  "ciphertext": "BASE64...",
-  "iv": "BASE64...",
-  "tag": "BASE64...",
-  "algorithm": "AES-256-GCM",
-  "aad": "pqc-secrets-v1"
+  "aad": "pqc-secrets:v1:data",
+  "nonce_b64": "zoq1...",
+  "ciphertext_b64": "..."
 }
 ```
 
 | Field | Type | Meaning |
 |---|---|---|
-| `ciphertext` | string | Base64-encoded encrypted plaintext (length varies with bundle contents). |
-| `iv` | string | Base64-encoded 96-bit IV (12 B encoded). |
-| `tag` | string | Base64-encoded 128-bit GCM tag (16 B encoded). |
-| `algorithm` | string | `AES-256-GCM`. |
-| `aad` | string | Additional authenticated data; `pqc-secrets-v1` for v1. |
+| `aad` | string | Additional authenticated data. `pqc-secrets:v1:data` for v1. |
+| `nonce_b64` | string | Base64-encoded 96-bit AES-GCM nonce (12 B raw). |
+| `ciphertext_b64` | string | Base64-encoded encrypted secret bundle WITH the 16-byte GCM auth tag appended. |
+
+The `data` block holds the actual encrypted secret bundle
+(`KEY=VAL\n` lines, concatenated). The GCM auth tag is **appended**
+to the ciphertext, not stored in a separate `tag` field. To extract:
+
+```python
+ct = base64.b64decode(data["ciphertext_b64"])
+tag = ct[-16:]
+ct = ct[:-16]
+```
 
 ## Size reference (approximate)
 
 | Field | Encoded size (B) | Raw size (B) |
 |---|---|---|
-| `recipient.public_key` | ~1580 | 1184 |
-| `kem.ciphertext` | ~1452 | 1088 |
-| `keywrap.wrapped_key` | ~44 | 32 |
-| `data.iv` | ~16 | 12 |
-| `data.tag` | ~24 | 16 |
+| `recipient.public_key_sha3_256` | 64 | 32 (digest) |
+| `kem.ciphertext_b64` | ~1452 | 1088 |
+| `keywrap.ciphertext_b64` | ~64 | 48 (32 data + 16 tag) |
+| `keywrap.nonce_b64` | ~16 | 12 |
+| `data.ciphertext_b64` | variable | N×~100 + 16 |
+| `data.nonce_b64` | ~16 | 12 |
 
-A bundle with 12 keys typically weighs 4 KB on disk.
+A bundle with ~12 keys of ~100 B each typically weighs ~4 KB on disk.
+The live bundle is 4,097 B with ~15 keys.
 
 ## Versioning
 
@@ -127,27 +159,40 @@ will accept any v1.x bundle.
 
 ```bash
 $ python3 .agents/skills/pqc-secrets/scripts/verify-bundle.py
-OK: bundle validates, 1 recipient, 0 plaintext leaks
+OK: bundle validates, recipient.fp=sha3:19df3b3f..., ~15 keys, 0 plaintext leaks
 $ echo $?
 0
 ```
 
-The verifier checks: required fields, KEM ciphertext length (≥ 1000 B),
-AES-GCM tag length (≥ 16 B), and scans for plaintext secret patterns
-(`sk-live`, `sk-test`, `whsec_`, `AKIA`, `ghp_`).
+The verifier checks:
+
+- All required top-level fields present
+- `recipient` has `public_key_sha3_256` (64 hex chars, valid hex)
+- `kem` has `ciphertext_b64` (decoded length == 1088 B for ML-KEM-768)
+- `keywrap` has `kdf`, `aad`, `nonce_b64`, `ciphertext_b64`
+- `data` has `aad`, `nonce_b64`, `ciphertext_b64`
+- `data.nonce_b64` decoded length == 12 B (AES-256-GCM nonce)
+- `data.ciphertext_b64` decoded length >= 16 B (GCM tag present)
+- No plaintext secret patterns in the bundle (`sk-live`, `sk-test`,
+  `whsec_`, `AKIA`, `ghp_`)
 
 ## Anti-patterns in code that parses bundles
 
-- DO NOT use generic JSON parsers without validating field names.
-  A bundle with `algorithm` instead of `alg` is invalid.
+- DO NOT use `kem.ciphertext`, `data.iv`, `data.tag`, or
+  `recipient.fingerprint` — these are not the live field names.
+  Use `kem.ciphertext_b64`, `data.nonce_b64`, and
+  `recipient.public_key_sha3_256`.
 - DO NOT trust the `version` field blindly — always re-check field
   presence for the version you support.
 - DO NOT modify the bundle by hand. Use `pqc-secrets pack` /
   `rotate` / `export | grep | pack` flows.
-- DO NOT commit a bundle whose `data.ciphertext` is empty (zero-key
-  bundle is OK, but a bundle with no data field is corrupt).
+- DO NOT assume the GCM tag is in a separate field. It's appended to
+  `data.ciphertext_b64` (and to `keywrap.ciphertext_b64`).
+- DO NOT commit a bundle whose `data.ciphertext_b64` decoded length
+  is < 16 B (would mean no GCM tag — corrupt or zero-key).
 
 ## See also
 
 - `references/pqc-secrets-cli.md` — CLI reference
 - `references/audit-log.md` — audit log format
+- `SKILL.md` §6 — same schema, in the main skill document
