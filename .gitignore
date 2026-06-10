@@ -126,3 +126,13 @@ providers**.txt
 
 # Graphify scratch output
 graphify-out/
+
+# PQC secrets — bundle and audit log (the .env patterns above cover
+# most cases, but PQC artifacts are explicit for clarity)
+secrets.bundle.json
+secrets.bundle.json.bak.*
+audit.log
+audit.log.*
+# Local pqc-sign public keys (used for verification, not for committing)
+.pqc-keys/*.priv
+.pqc-keys/*.sk
