@@ -104,8 +104,9 @@ ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
 
 **Rules:**
 - All network communication: TLS 1.3+ with mutual TLS (mTLS)
-- PQC key exchange: X25519+ML-KEM-768 hybrid (classical + post-quantum)
+- PQC key exchange: X25519+ML-KEM-768 hybrid (classical + post-quantum), using an **approved key combiner per NIST SP 800-227** (final Sept 18, 2025) — concatenate-then-KDF constructions, never bespoke XOR. IETF hybrid TLS 1.3 groups (RFC 9794-era X25519MLKEM768 etc.) are the reference deployment; ML-KEM-1024 for CNSA 2.0/NSS scopes.
 - Data at rest: AES-256-GCM with managed key rotation
+- Implementation note (2026): **OpenSSL 3.5+ (March 2026) ships native ML-KEM/ML-DSA/SLH-DSA** — the `oqs-provider` fork referenced below is legacy. Use stock OpenSSL 3.5+, AWS-LC, or BoringSSL for TLS-stack PQC; keep liboqs only for algorithms not yet in those stacks.
 
 ### 5. Governance
 
@@ -141,12 +142,16 @@ ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
 
 ### Quick Reference
 
-| Standard | Algorithm | Replaces | Best For | Key Size | Sig/CT Size |
-|----------|-----------|----------|----------|----------|-------------|
-| FIPS 203 | **ML-KEM** | RSA/ECDH key exchange | TLS, VPNs, key agreement | ~1.2 KB | ~1 KB |
-| FIPS 204 | **ML-DSA** | RSA-PSS/ECDSA | Code signing, certs, JWTs | ~1.3 KB | ~3.3 KB |
-| FIPS 205 | **SLH-DSA** | — (hash-based hedge) | Firmware, long-lived trust anchors | ~32 B | ~8 KB |
-| FIPS 206 | **FN-DSA** | Compact ML-DSA | IoT, embedded, bandwidth-limited | ~900 B | ~666 B |
+| Standard | Algorithm | Status (2026-08) | Replaces | Best For | Key Size | Sig/CT Size |
+|----------|-----------|------------------|----------|----------|----------|-------------|
+| FIPS 203 | **ML-KEM** | **Final** (Aug 2024) | RSA/ECDH key exchange | TLS, VPNs, key agreement | ~1.2 KB | ~1 KB |
+| FIPS 204 | **ML-DSA** | **Final** (Aug 2024) | RSA-PSS/ECDSA | Code signing, certs, JWTs | ~1.3 KB | ~3.3 KB |
+| FIPS 205 | **SLH-DSA** | **Final** (Aug 2024); **not in CNSA 2.0** | — (hash-based hedge) | Firmware, long-lived trust anchors | ~32 B | ~8 KB |
+| FIPS 206 | **FN-DSA** (FALCON) | **DRAFT** — IPD submitted Aug 2025, final expected late 2026–2027; **not in CNSA 2.0** | Compact ML-DSA | IoT, embedded, bandwidth-limited | ~900 B | ~666 B |
+| — (IR 8545) | **HQC** | **Selected** Mar 2025; draft FIPS ~2026, final ~2027; **not in CNSA 2.0** | — (code-based KEM hedge) | Backup key establishment | — | — |
+| SP 800-208 | **LMS / XMSS** | **Final**; CNSA 2.0-approved for sw/fw signing | — (stateful hash-based) | Firmware/software signing | — | — |
+
+> **Status accuracy is a security control.** Final, draft, selected, candidate, and deployed are not synonyms. FN-DSA and HQC are tracking items — never present them as approved production options.
 
 ### Implementation (`uv pip install liboqs-python`)
 
@@ -177,8 +182,11 @@ sig = signer.sign(b"firmware v2.1.0")
 verifier = Signature("SLH-DSA-SHA2-128s", pk)
 assert verifier.verify(b"firmware v2.1.0", sig)   # ✅ hash-only security
 
-# ━━━ FIPS 206 — FN-DSA (Compact — smallest PQC signatures) ━━━
+# ━━━ FIPS 206 (DRAFT) — FN-DSA (Compact — smallest PQC signatures) ━━━
 # Same flow as ML-DSA but ~5× smaller signatures for IoT/embedded.
+# TRACKING ONLY as of 2026-08: FIPS 206 is still in draft (final expected
+# late 2026–2027) and NSA has stated FN-DSA will NOT join CNSA 2.0. Do not
+# ship FN-DSA in a production trust path until the standard finalizes.
 signer = Signature("FN-DSA-512")
 pk = signer.generate_keypair()
 sig = signer.sign(b"IoT auth token")
@@ -186,35 +194,69 @@ verifier = Signature("FN-DSA-512", pk)
 assert verifier.verify(b"IoT auth token", sig)    # ✅ ~666 bytes vs ~3309 bytes
 ```
 
+> **Modern Python alternative (2026):** `pyca/cryptography` ≥ 45.0 now ships
+> native `cryptography.hazmat.primitives.asymmetric.mlkem` (ML-KEM-768) and
+> `.mldsa` (ML-DSA-65) backed by OpenSSL 3.5+/AWS-LC/BoringSSL — preferred
+> over `liboqs-python` where wheels must avoid the liboqs dependency.
+
 ### When To Use What
 
 | Scenario | Algorithm | Why |
 |----------|-----------|-----|
 | **Default** for all new systems | ML-KEM-768 + ML-DSA-65 | NIST Level 3, best balance of security and performance |
-| **High-security** environments | ML-KEM-1024 + ML-DSA-87 | NIST Level 5, maximum quantum resistance |
-| **Firmware / trust anchors** | SLH-DSA alongside ML-DSA | Hash-only hedge — different math foundation than lattices |
-| **IoT / bandwidth-limited** | FN-DSA | Smallest signatures (~666 bytes vs ~3.3 KB) |
-| **Transition / migration** | X25519+ML-KEM-768 hybrid | Classical + PQC paired until full quantum readiness |
+| **CNSA 2.0 / NSS / military-contract** | ML-KEM-1024 + ML-DSA-87 | NSA mandate: new NSS acquisitions must comply starting **Jan 1, 2027**; exclusive use by Dec 31, 2031 (DoW PQC Strategy Jun 2026). AES-256 + SHA-384/512 alongside. |
+| **High-security** civilian environments | ML-KEM-1024 + ML-DSA-87 | NIST Level 5, maximum quantum resistance |
+| **Firmware / trust anchors** | SLH-DSA or LMS/XMSS (SP 800-208) alongside ML-DSA | Hash-only hedge — different math foundation than lattices. **SLH-DSA is not CNSA 2.0** — for NSS firmware signing use LMS/XMSS per SP 800-208. |
+| **IoT / bandwidth-limited** | FN-DSA **(draft — track only)** | Smallest signatures (~666 bytes vs ~3.3 KB); not production until FIPS 206 finalizes (expected late 2026–2027), never CNSA 2.0 |
+| **Transition / migration** | X25519+ML-KEM-768 hybrid, SP 800-227 combiner | Classical + PQC paired until full quantum readiness; also hedges 2026-era ML-DSA/ML-KEM implementation immaturity (see DJB "Exploiting ML-DSA bugs", June 2026 — hybrid means a single implementation bug isn't a break) |
 
 ### Mnemonic
 
 ```
 ML-KEM  → key exchange   (two parties share a secret)
 ML-DSA  → signatures     (prove who signed it)        ← DEFAULT
-SLH-DSA → signatures     (hash-only backup)           ← FIRMWARE / TRUST ANCHORS
-FN-DSA  → signatures     (compact)                    ← IoT / BANDWIDTH-LIMITED
+SLH-DSA → signatures     (hash-only backup)           ← FIRMWARE / TRUST ANCHORS (civilian; NOT CNSA 2.0)
+FN-DSA  → signatures     (compact)                    ← IoT / BANDWIDTH-LIMITED (DRAFT — track only)
+HQC     → key exchange   (code-based backup)          ← CRYPTO-AGILITY RESERVE (selected 2025, standard ~2027)
+LMS/XMSS→ signatures     (stateful hash-based)        ← CNSA 2.0 sw/fw signing (SP 800-208)
 ```
 
-## Threat Mitigations (OWASP LLM / Agentic / Skills & MCP CVEs)
+## Threat Mitigations (OWASP LLM Top 10 2026 / OWASP Agentic Top 10 2026 / Skills & MCP CVEs)
+
+> Reference sets, both current as of Aug 2026: **OWASP GenAI LLM Top 10 2026** (published Aug 4, 2026) and **OWASP Top 10 for Agentic Applications 2026** (ASI01–ASI10: Agent Goal Hijack, Tool Misuse, Identity & Privilege Abuse, Agentic Supply Chain, Unexpected Code Execution, Memory & Context Poisoning, Insecure Inter-Agent Communication, Cascading Failures, Human-Agent Trust Exploitation, Rogue Agents). Also relevant: MCP Top 10 (tool-connection layer).
 
 - **Validation:** Strict Zod/Pydantic schemas. Execute LLM output only after
-  validation or isolation. Implement Semantic Firewalls.
+  validation or isolation. Implement Semantic Firewalls. (LLM02, ASI05)
 - **RAG / Supply Chain:** Verify source provenance, cryptographic context
-  signatures. Pin dependencies by hash. Multi-tool scanning.
+  signatures. Pin dependencies by hash. Multi-tool scanning. Produce SBOMs per
+  the **2026 CISA/NSA Minimum Elements for SBOM** (July 29, 2026 — supersedes
+  NTIA 2021) and the **SBOM-for-AI Minimum Elements** (May 2026); track
+  cryptographic inventory via CBOM guidance under the June 2026 PQC Executive
+  Order. (LLM03/LLM05, ASI04)
 - **Comms / Agency:** Circuit breakers, token limits. Explicit read-only defaults.
-  Independent Permission Broker to prevent Agentic Over-Privilege.
+  Independent Permission Broker to prevent Agentic Over-Privilege. Per-agent
+  identity with **short-lived, task-scoped credentials** and scheduled access
+  reviews — credentials are short-lived by default (ASI03).
+- **Secrets in agent memory:** treat memory/context as a poisonable store —
+  never persist raw secret values into agent memory, logs, or memory files
+  (ASI06); the PQC bundle + OS-keychain custody pattern in `pqc-secrets` is
+  the reference implementation.
+- **Goal integrity:** treat all retrieved content and tool output as untrusted
+  DATA; dual-LLM classification gate for sensitive inputs; human-in-the-loop
+  for the right reasons — verify agent intent via identity, not persuasion
+  (ASI01, ASI09).
+- **Blast radius:** no shared non-human identities (NHIs) across agents or
+  environments — reuse converts single-key compromise into cascading failure
+  (ASI08).
 
 ## Pre-Commit & CI/CD Gates
 
-- Mandate SBOMs, SLSA, artifact signing, CI/CD Policy-as-Code.
+- Mandate SBOMs (2026 minimum elements), SLSA, artifact signing (ML-DSA-65;
+  hybrid classical+ML-DSA acceptable during transition per DJB June 2026
+  implementation-fragility findings), CI/CD Policy-as-Code.
 - All security scans must pass before merge.
+- Cryptographic deprecation clock (NIST IR 8547 / EO 14412 / OMB M-26-15):
+  classical 112-bit public-key crypto enters risk-acceptance-only after
+  2030; all RSA/ECC disallowed in standards after 2035; federal HVAs must
+  finish PQC key establishment by Dec 31, 2030. Any new dependency
+  introducing RSA/ECDSA/EdDSA into a secrets path fails this gate today.
