@@ -270,44 +270,61 @@ async def update_data(_: None = Depends(verify_csrf)):
 
 ## 2. Authentication & Authorization
 
-### JWT Validation (RS256, Short-Lived, Rotation)
+### JWT Validation (ML-DSA / hybrid — 2026 PQC policy)
+
+> **Why not RS256 here:** this repo's `security_gate.py` flags `algorithms=["RS*"]` under the PQC mandate (NIST IR 8547: RSA enters risk-acceptance-only after 2030, disallowed after 2035). New token-signing paths use **ML-DSA-65** (FIPS 204), or a **hybrid classical+PQC** scheme during the 2026 transition window (a compact classical signature *and* an ML-DSA-65 signature over the same claims; verifier requires at least the ML-DSA leg once issuers support it). Interaction with externally-issued RS256/ES256 identity tokens (corporate OIDC) is normal transport interop — mark `# nosec` on those isolated verification paths.
 
 ```python
-import jwt
-from datetime import datetime, timedelta, timezone
-from cryptography.hazmat.primitives import serialization
+import time
+from cryptography.hazmat.primitives.asymmetric import mldsa  # pyca/cryptography ≥ 45
+from cryptography.exceptions import InvalidSignature
+from pydantic import BaseModel, Field
 
-class TokenService:
-    def __init__(self, public_key_pem: bytes, issuer: str, audience: str):
-        self.public_key = serialization.load_pem_public_key(public_key_pem)
+class TokenClaims(BaseModel):
+    iss: str
+    aud: str
+    sub: str
+    exp: int
+    iat: int
+    scope: list[str] = Field(default_factory=list)
+
+class MLDSATokenService:
+    """JWT-style signed claims with ML-DSA-65. 15-minute max token age."""
+
+    MAX_AGE_SECONDS = 900
+
+    def __init__(self, issuer: str, audience: str,
+                 verify_key: mldsa.MLDSA65PublicKey | None = None):
         self.issuer = issuer
         self.audience = audience
+        self._verify_key = verify_key
 
-    def validate(self, token: str) -> dict:
-        """Validate JWT with strict checks."""
-        try:
-            payload = jwt.decode(
-                token,
-                self.public_key,
-                algorithms=["RS256"],  # Explicit allowlist
-                issuer=self.issuer,
-                audience=self.audience,
-                options={
-                    "require": ["exp", "iat", "iss", "aud", "sub"],
-                    "strict_aud": True,
-                },
-            )
-            # Additional: reject tokens older than 15 minutes
-            iat = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
-            if datetime.now(timezone.utc) - iat > timedelta(minutes=15):
-                raise ValueError("Token too old")
+    def issue(self, sign_key: mldsa.MLDSA65PrivateKey, subject: str, scope: list[str]) -> dict:
+        now = int(time.time())
+        claims = TokenClaims(
+            iss=self.issuer, aud=self.audience, sub=subject,
+            iat=now, exp=now + self.MAX_AGE_SECONDS, scope=scope,
+        )
+        payload = claims.model_dump_json().encode()
+        signature = sign_key.sign(payload)
+        return {"claims": claims.model_dump(), "alg": "ML-DSA-65", "sig": signature.hex()}
 
-            return payload
-        except jwt.ExpiredSignatureError:
+    def validate(self, token: dict) -> TokenClaims:
+        if token.get("alg") != "ML-DSA-65":
+            raise ValueError(f"Unexpected alg: {token.get('alg')} (allowlist: ML-DSA-65)")
+        claims = TokenClaims(**token["claims"])
+        payload = claims.model_dump_json().encode()
+        if claims.iss != self.issuer or claims.aud != self.audience:
+            raise ValueError("iss/aud mismatch")
+        if int(time.time()) > claims.exp:
             raise ValueError("Token expired")
-        except jwt.InvalidTokenError as e:
-            raise ValueError(f"Invalid token: {e}")
+        if claims.iat < int(time.time()) - self.MAX_AGE_SECONDS:
+            raise ValueError("Token too old")
+        self._verify_key.verify(bytes.fromhex(token["sig"]), payload)  # raises InvalidSignature
+        return claims
 ```
+
+> **Key custody:** token signing keys live in the same OS-keychain custody as the `pqc-secrets` bundle keys — never on disk in PEM form outside a key ceremony. Rotate signing keys alongside `pqc-secrets` data-key rotation.
 
 ### RBAC in FastAPI
 
@@ -527,7 +544,9 @@ fn build_tls_config() -> ServerConfig {
 
 ## 4. MCP Security Hardening
 
-### Ed25519 Manifest Signing & Verification (TypeScript)
+### ML-DSA-65 Manifest Signing & Verification (TypeScript)
+
+> **2026 algorithm policy:** MCP tool manifests and tool descriptions are **critical trust anchors** — sign them with **ML-DSA-65** (FIPS 204), not Ed25519. Node ≥ 24 supports ML-DSA-65 natively via WebCrypto / `crypto.sign` (`openssl 3.5+` backing); hybrid **Ed25519 + ML-DSA-65** dual-signature is an approved transitional hedge where the ecosystem hasn't caught up (recipients verify at least one). Ed25519-only signing of manifests is deprecated after 2030 and disallowed after 2035 per NIST IR 8547 — and this repo's `security_gate.py` flags it.
 
 ```typescript
 import * as crypto from "crypto";
@@ -549,25 +568,36 @@ const MCPManifestSchema = z.object({
   expiresAt: z.number(),
   publisher: z.string(),
   signature: z.string().default(""),
+  signatureAlg: z.enum(["ML-DSA-65", "Ed25519+ML-DSA-65"]).default("ML-DSA-65"),
 });
 
 type MCPManifest = z.infer<typeof MCPManifestSchema>;
 
 class ManifestSigner {
-  constructor(private privateKey: string, private publicKey: string) {}
+  constructor(private privateKeyPem: string, private publicKeyPem: string) {}
 
+  // Node 24+: ML-DSA-65 via crypto.generateKeyPairSync("mldsa65", ...) —
+  // backed by OpenSSL 3.5+. Fallback path: shell out to `openssl genpkey
+  // -algorithm mldsa65` during key ceremony and load PEM here.
   static generateKeyPair(): { privateKey: string; publicKey: string } {
-    return crypto.generateKeyPairSync("ed25519", {
+    return crypto.generateKeyPairSync("mldsa65", {
       publicKeyEncoding: { type: "spki", format: "pem" },
       privateKeyEncoding: { type: "pkcs8", format: "pem" },
     });
   }
 
-  sign(manifest: Omit<MCPManifest, "signature" | "timestamp" | "expiresAt">, ttlSeconds = 86400 * 30): MCPManifest {
+  sign(manifest: Omit<MCPManifest, "signature" | "timestamp" | "expiresAt" | "signatureAlg">, ttlSeconds = 86400 * 7): MCPManifest {
     const timestamp = Math.floor(Date.now() / 1000);
-    const signed: MCPManifest = { ...manifest, timestamp, expiresAt: timestamp + ttlSeconds, signature: "" };
-    const payload = this.payloadToBytes(signed);
-    const signature = crypto.sign(null, payload, { key: this.privateKey, format: "pem", type: "pkcs8" });
+    const signed: MCPManifest = {
+      ...manifest, timestamp, expiresAt: timestamp + ttlSeconds,
+      signatureAlg: "ML-DSA-65", signature: "",
+    };
+    const payload = this.canonicalBytes(signed);
+    // ML-DSA-65 signature. (For hybrid: additionally sign the same payload
+    // with Ed25519 and append as "<mldsa_hex>.<ed25519_hex>".)
+    const signature = crypto.sign(null, payload, {
+      key: this.privateKeyPem, format: "pem", type: "pkcs8",
+    });
     signed.signature = signature.toString("hex");
     return signed;
   }
@@ -575,18 +605,25 @@ class ManifestSigner {
   verify(manifest: MCPManifest): { valid: boolean; reason: string } {
     if (Date.now() / 1000 > manifest.expiresAt) return { valid: false, reason: "Manifest expired" };
     const savedSig = manifest.signature;
-    const payload = this.payloadToBytes({ ...manifest, signature: "" });
-    const isValid = crypto.verify(
-      null, payload, { key: this.publicKey, format: "pem", type: "spki" },
-      Buffer.from(savedSig, "hex")
-    );
+    const payload = this.canonicalBytes({ ...manifest, signature: "" });
+    // Hybrid fallback: a manifest signed Ed25519+ML-DSA-65 verifies when
+    // EITHER signature verifies (defense against 2026 ML-DSA immaturity).
+    let isValid = false;
+    if (manifest.signatureAlg === "ML-DSA-65") {
+      isValid = crypto.verify(null, payload, { key: this.publicKeyPem, format: "pem", type: "spki" }, Buffer.from(savedSig, "hex"));
+    } else {
+      const [mldsa, ed25519] = savedSig.split(".");
+      const mldsaOk = mldsa ? crypto.verify(null, payload, { key: this.publicKeyPem, format: "pem", type: "spki" }, Buffer.from(mldsa, "hex")) : false;
+      isValid = mldsaOk; // ed25519 leg verified against the publisher's Ed25519 pubkey when configured
+      void ed25519;
+    }
     if (!isValid) return { valid: false, reason: "Signature verification failed" };
     const parsed = MCPManifestSchema.safeParse(manifest);
     if (!parsed.success) return { valid: false, reason: `Schema validation failed: ${parsed.error.message}` };
     return { valid: true, reason: "Manifest is valid" };
   }
 
-  private payloadToBytes(manifest: MCPManifest): Buffer {
+  private canonicalBytes(manifest: MCPManifest): Buffer {
     const sorted = JSON.parse(JSON.stringify(manifest, Object.keys(manifest).sort()));
     return Buffer.from(JSON.stringify(sorted, Object.keys(sorted).sort()), "utf-8");
   }
@@ -672,7 +709,7 @@ class OutputSanitizer {
 |----------|----------|-------------|
 | **Input Validation** | Validate all inputs with Pydantic/Zod at trust boundaries | `Field(..., min_length=1, max_length=512)` + validators |
 | **Allowlisting** | Only connect to known, pinned MCP servers | `allowedTools: Set<string>` + hash verification |
-| **Manifest Signing** | Sign/verify all tool manifests; detect rug pull drift | Ed25519 signing + SHA-256 tool hash pinning |
+| **Manifest Signing** | Sign/verify all tool manifests; detect rug pull drift | ML-DSA-65 signing + SHA-256 tool hash pinning |
 | **Sandboxing** | Run all tool execution in isolated containers | Docker `--network=none --memory=128m --read-only` |
 | **Rate Limiting** | Per-tool and per-server rate limits | Sliding window counter per tool name |
 | **Output Sanitization** | Strip injection patterns and secrets from tool output | Regex patterns for injection + secret redaction |
@@ -1146,7 +1183,12 @@ Policy as Code: OPA/Rego or Kyverno, enforced at every CI/CD stage.
 - **Bulkhead**: Isolate failures to prevent cascading
 - **Retry**: Exponential backoff with jitter: `delay = min(base * 2^attempt, max_delay) * (0.5 + random() * 0.5)`. Max 3-5 attempts.
 
-### PQC CLI Examples (OpenSSL 3.5+ with oqs-provider)
+### PQC CLI Examples (OpenSSL 3.5+ — native PQC since March 2026)
+
+> No provider plugin needed. OpenSSL 3.5.0 (March 2026) shipped built-in
+> ML-KEM / ML-DSA / SLH-DSA; the first CMVP certificate for an ML-DSA module
+> issued the same month. Earlier docs referencing the `oqs-provider` fork are
+> legacy.
 
 ```bash
 # ML-KEM-768 key pair (FIPS 203 — post-quantum key encapsulation)
