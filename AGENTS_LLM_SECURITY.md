@@ -61,12 +61,14 @@ System prompt (highest authority)
 
 ### MCP Server Hardening
 
-- Allowlisted servers only. Pin manifests by hash.
+- Allowlisted servers only. Pin manifests by hash. Verify the server itself (binary/container hash), not just its manifest.
+- **Sign tool manifests AND tool descriptions (ML-DSA-65, FIPS 204 — not Ed25519). Alert on any description drift after first approval; drift without explicit re-consent = block (rug-pull defense).**
 - No auto-install of MCP servers. Manual approval required.
 - Sandboxed execution (WASM or Firecracker). Never on host.
 - Drift detection: re-hash manifests periodically.
 - Inter-agent mTLS for multi-agent MCP communication.
-- Tokens scoped to minimum necessary capabilities.
+- **OAuth 2.1 short-lived tokens with per-server audience validation. No static PATs, no token passthrough.** Tokens scoped to minimum necessary capabilities; automated scope expiry. Evaluate ETDI (OAuth-Enhanced Tool Definitions) for tool provenance.
+- Hash MCP config files and monitor; bind trust to content hash, not file path.
 
 ### Tool Call Validation
 
