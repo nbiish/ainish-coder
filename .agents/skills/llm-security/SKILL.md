@@ -7,7 +7,7 @@ description: >
 
 # LLM & Agentic AI Security Skill
 
-*Updated: May 4th, 2026 (May 2026 Standards)*
+*Updated: May 4th, 2026 (May 2026 Standards); re-synced Aug 8th, 2026 (OWASP LLM Top 10 2026 — published Aug 4, 2026 — folded in; MCP OAuth 2.1/ETDI guidance; EU AI Act enforcement-now-live)*
 
 > Domain knowledge for securing probabilistic AI components — models, prompts, RAG, agents, MCP, and their orchestration layers.
 > Load this skill when working on LLM integration, agentic workflows, prompt engineering, MCP servers, or AI red teaming.
@@ -503,6 +503,19 @@ function validateMCPToolCall(serverName: string, toolName: string, params: Recor
   }
 }
 ```
+
+### MCP Security Best Practices Summary (2026 sync)
+
+* Baseline rules from §5 apply unchanged: allowlisted servers only, pin manifests by hash, no auto-install, sandboxed execution (WASM/Firecracker), drift re-hashing, scoped tokens. What's *new since May 2026*:
+
+| Practice | Why (2026) |
+|---|---|
+| **Sign tool manifests AND tool descriptions; alert on any description drift after first approval** | Rug-pull attacks rely on "user approved once, never re-reviewed." Any drift without an explicit re-consent = block. (CSA Agentic MCP Security Best Practices 2026) |
+| **OAuth 2.1 short-lived tokens; eliminate static PATs/API keys in MCP credentials** | Per-server audience validation + automated scope expiry. Token passthrough is banned — use OAuth delegation so downstream actions are attributable and revocable. (MCP spec Security Best Practices, draft 2025-11-25) |
+| **ETDI (OAuth-Enhanced Tool Definitions)** | Anthropic's mitigation for tool squatting/rug-pulls: tool definitions carry OAuth-bound provenance + policy-based access control (arXiv:2506.01333). Evaluate for your MCP client surface. |
+| **Verify the MCP SERVER, not just its manifest** | mcp-remote CVE-2025-6514 (9.6): connecting to an evil-but-"valid" server is itself RCE. Pin the server binary/container hash, allowlist the egress host list, block private IP ranges in OAuth discovery (SSRF), and treat first-contact as untrusted. |
+| **Config-file integrity** | Hash MCP config files and monitor; bind trust to content hash, not file path — the rug-pull pattern applies to configs too (CVE-2026-30615: prompt injection → MCP config modification → RCE). |
+| **2026 CVE watchlist** | CVE-2026-0755 (gemini-mcp-tool cmd injection), CVE-2026-30615 (Windsurf config RCE), CVE-2026-30623 (LiteLLM MCP creation endpoint), CVE-2026-33032 (nginx-ui exposed MCP). Re-run vendor advisories quarterly. |
 
 ---
 
@@ -1075,7 +1088,7 @@ def _evaluate_response(response: str, expected: str) -> bool:
 For advanced testing against the latest jailbreak paradigms (such as prompt obliteration, leetspeak encodings, and role-play frameworks), refer to the cloned research repositories:
 
 *   **L1B3RT4S (Jailbreak Prompts):** Located at `/Users/nbiish/code/ainish-coder/pliny-research/L1B3RT4S`. Contains "Pliny the Prompter's" liberation prompts for virtually all major AI models, utilizing dividers, unicode obfuscation, and persona hijacking.
-*   **CL4R1T4S (Extracted System Prompts):** Located at `/Users/nbiish/code/ainish-coder/pliny-research/CL4R1T4S`. Contains leaked system prompts from major platforms (OpenAI, Claude, Devin, Cursor, Windsurf, etc.), demonstrating System Prompt Leakage (OWASP LLM07) and serving as real-world examples of how labs construct and occasionally fail to protect their hidden scaffolding.
+*   **CL4R1T4S (Extracted System Prompts):** Located at `/Users/nbiish/code/ainish-coder/pliny-research/CL4R1T4S`. Contains leaked system prompts from major platforms (OpenAI, Claude, Devin, Cursor, Windsurf, etc.), demonstrating Hidden Context Exposure (OWASP LLM07 2026 — renamed from System Prompt Leakage in 2025) and serving as real-world examples of how labs construct and occasionally fail to protect their hidden scaffolding.
 
 ### Metrics
 
@@ -1157,7 +1170,9 @@ class AgentTrace:
 
 ## 12. Regulatory & Standards Frameworks
 
-### OWASP LLM Top 10 (2025)
+### OWASP LLM Top 10 (2025 base — see 2026 overlay below)
+
+> **2026 list (published Aug 4, 2026) — re-ranked:** LLM01 Prompt Injection → LLM02 Sensitive Info Disclosure → **LLM06 Excessive Agency (up to #3)** → LLM03 Supply Chain → LLM04 Data/Model Poisoning → LLM05 Improper Output Handling → **LLM07 Hidden Context Exposure (renamed from System Prompt Leakage)** → LLM08 Vector/Embedding → LLM09 Misinformation → LLM10 Unbounded Consumption (rose 4). 2026 thematic shift: *"when the model is fooled — and it will be — nothing important breaks"* — **design for blast-radius containment, not perfect prevention.** The table below remains the canonical entry-by-entry defense matrix; apply the 2026 ranking as your risk-prioritization layer on top.
 
 | # | Vulnerability | What It Is | Code Defense |
 |---|---------------|------------|-------------|
@@ -1167,7 +1182,7 @@ class AgentTrace:
 | LLM04 | Data & Model Poisoning | Attacker taints training/fine-tuning data | Data provenance tracking; embedding anomaly detection |
 | LLM05 | Improper Output Handling | App trusts LLM output without validation | Strict schema validation (Zod/Pydantic); never exec LLM output |
 | LLM06 | Excessive Agency | LLM takes actions beyond intended scope | Explicit approval workflows; read-only defaults; HITL |
-| LLM07 | System Prompt Leakage | Attacker extracts system instructions | Canary tokens; no credentials in prompts; instruction isolation |
+| LLM07 | Hidden Context Exposure *(2026; was System Prompt Leakage 2025)* | Attacker extracts system instructions or other hidden scaffolding/context (RAG docs, tool schemas, memory) | Canary tokens; no credentials in prompts; instruction isolation; treat tool descriptions/RAG chunks as sensitive context |
 | LLM08 | Vector & Embedding Weakness | Poisoned RAG data corrupts retrieval | RAG input validation; signed context; provenance verification |
 | LLM09 | Misinformation | Model generates false but confident claims | Multi-model consensus; verification steps; citations required |
 | LLM10 | Unbounded Consumption | Runaway token/compute usage | Rate limiting; resource quotas; token budgets per task |
@@ -1213,14 +1228,16 @@ class AgentTrace:
 | SP 800-218A | Secure software development for generative AI | Published |
 | NIST CAISI (Feb 2026) | AI Agent Standards Initiative | RFI closed; listening sessions started |
 
-### EU AI Act (Regulation EU 2024/1689)
+### EU AI Act (Regulation EU 2024/1689) — enforcement live as of 2026
 
 | Date | What Takes Effect |
 |------|-------------------|
 | Feb 2, 2025 | Prohibited AI practices (Art. 5) & AI literacy (Art. 4) |
 | Aug 2, 2025 | GPAI model obligations (Arts. 51-56); governance |
-| **Aug 2, 2026** | High-risk AI requirements; Art. 50 transparency; enforcement |
-| Aug 2, 2027 | Legacy GPAI compliance deadline |
+| **Aug 2, 2026** | **Commission enforcement powers for GPAI providers come into force** (fines up to €15M/3% under Art. 101); high-risk AI requirements; Art. 50 transparency |
+| Dec 2, 2026 | Art. 50(2) watermarking / synthetic-content disclosure obligations |
+| Aug 2, 2027 | Legacy GPAI (pre-Aug-2025 models) full compliance deadline |
+| Dec 2, 2027 | Annex III standalone high-risk systems must comply |
 
 - **Penalties**: Up to EUR 35M or 7% of global turnover
 - **Systemic risk threshold**: Models trained using >=10^25 FLOPs
