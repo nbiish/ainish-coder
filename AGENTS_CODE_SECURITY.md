@@ -102,43 +102,50 @@ def validate_url(url: str) -> bool:
 
 ```
 Blocked: API_KEY = "sk-abc123..."                     — hardcoded in source
-Blocked: config.json with apiKey: "..."                — plaintext in repo
-Use:     os.getenv("API_KEY")                          — vault / env injection
-Use:     external secrets manager (Vault, AWS SM, Doppler)
+Blocked: config.json with apiKey: ***                — plaintext in repo
+Blocked: .env files with live keys, even gitignored    — PQC mandate: nothing plaintext on disk
+Use:     PQC secrets bundle + OS-keychain custody
+         (~/.config/pqc-secrets/secrets.bundle.json,
+          ML-KEM-768 + AES-256-GCM) loaded at runtime
+          via `bin/pqc-secrets export` → env vars
+Use:     `secrets-load` shell function / `security find-generic-password`
 ```
 
-- Secrets loaded at runtime only. Never in config files, never in git.
-- `.env` files must be in `.gitignore`. Use `.env.example` for templates.
-- Rotate keys on compromise. Minimum: 90-day rotation policy.
+- Secrets loaded at runtime only — never in config files, never in git, never in `.env`. **2026 OWASP Agentic guidance:** short-lived, task-scoped credentials by default; rotate per task or per >90d whichever comes first (data-key rotation is implicit in every `pqc-secrets pack` call).
+- For NSS / CNSA 2.0 scopes, wrap with ML-KEM-1024 + sign with ML-DSA-87.
+- `.env.example` templates only. `gitleaks`/`detect-secrets` pre-commit.
 - Use least-privilege API keys scoped to specific functions.
 
 ---
 
 ## Cryptography
 
-### Never Use (Classical — Banned for New Systems)
+### Never Use (Classical — Banned for Secrets Ops; Deprecation Clock per NIST IR 8547)
 
-RSA, DSA, ECDSA, ECDH, Ed25519 standalone, MD5, SHA-1, DES, 3DES, Blowfish, AES-CBC
+RSA, DSA, ECDSA, ECDH, Ed25519 (secrets/signing), MD5, SHA-1, DES, 3DES, Blowfish, AES-CBC, AES-ECB. Deprecated for all new systems after 2030; disallowed after 2035.
 
 ### Always Use (Post-Quantum)
 
 | When You Need | Use | Standard |
 |---------------|-----|----------|
-| Key exchange | ML-KEM-768 | FIPS 203 |
-| Signing | ML-DSA-65 | FIPS 204 |
-| Symmetric | AES-256-GCM / ChaCha20-Poly1305 | — |
-| Password hashing | Argon2id (t=3, m=65536, p=4, len=32) | — |
-| Migration (TLS) | X25519 + ML-KEM-768 | RFC 9794 |
+| Key exchange | ML-KEM-768 (civilian) / ML-KEM-1024 (CNSA 2.0 / NSS) | FIPS 203 |
+| Signing | ML-DSA-65 (civilian) / ML-DSA-87 (CNSA 2.0 / NSS) | FIPS 204 |
+| Hash-only sign (backup) | SLH-DSA-SHA2-128s (not CNSA 2.0) | FIPS 205 |
+| Symmetric | AES-256-GCM / ChaCha20-Poly1305 | SP 800-38D |
+| Password hashing | Argon2id (t=3, m=65536, p=4, len=32) | OWASP 2025 |
+| Migration (TLS) | X25519 + ML-KEM-768, SP 800-227 combiner | RFC 9794-era |
+| Signing during transition | Hybrid classical + ML-DSA acceptable | DJB June 2026 |
 
 ---
 
 ## Dependencies & Supply Chain
 
 - Pin dependencies by hash (not version range).
-- Generate SBOMs (CycloneDX or SPDX).
+- Generate SBOMs (CycloneDX or SPDX) per the **CISA/NSA 2026 Minimum Elements** (July 2026, supersedes NTIA 2021); for AI systems, also the **SBOM-for-AI Minimum Elements** (May 2026). Track cryptography per the **CBOM guidance** mandated by the June 2026 PQC Executive Order.
 - Audit: `pip-audit`, `npm audit`, `cargo audit` on every build.
-- Sign artifacts (Sigstore / cosign).
-- Verify SLSA provenance before deployment.
+- Sign artifacts (ML-DSA-65 via Sigstore/cosign; hybrid classical+PQC during transition).
+- Verify SLSA provenance (≥ Level 2 target, Level 3 for security-critical)
+  before deployment.
 
 ---
 

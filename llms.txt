@@ -26,11 +26,15 @@ Do not rely on memory. Re-read the applicable DOX chain in the current session b
 - **Never** store plaintext secrets in repositories, `.env` files, settings files, task logs, or any config with an `env` block.
 - **Always** inject secrets at runtime via system keychain/file + shell wrapper. See `pqc-secrets` skill §1.1 for the full pattern.
 - **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
+- **CNSA 2.0 scopes (NSS / defense contracts):** ML-KEM-1024 + ML-DSA-87 are the mandated minimums; SLH-DSA, FN-DSA, and HQC are excluded from NSS use. New NSS acquisitions must comply starting Jan 1, 2027.
+- **Deprecation clock (NIST IR 8547, EO 14412, OMB M-26-15):** classical 112-bit public-key crypto is risk-acceptance-only after 2030 and disallowed after 2035. Plan every secrets path accordingly.
 
 ### Code Signing & Integrity (PQC Mandate)
 - **Always** verify code integrity with ML-DSA-65 (FIPS 204) signatures before deployment.
 - **Always** sign commits and releases with ML-DSA-65 keys stored in the system keychain or secure local file.
 - **Never** rely on classical signature schemes (RSA-PSS, ECDSA) for integrity verification of critical artifacts.
+- **Supply chain (2026):** produce SBOMs per the CISA/NSA 2026 Minimum Elements (July 2026) and SBOM-for-AI (May 2026); track cryptographic inventory toward CBOM guidance mandated by the June 2026 PQC executive order.
+- **Implementation maturity:** hybrid classical+ML-DSA signing is an approved transitional hedge; pin audited crypto crate/library versions and monitor upstream CVEs (ML-DSA implementation fragility documented June 2026).
 
 ## Update After Editing
 

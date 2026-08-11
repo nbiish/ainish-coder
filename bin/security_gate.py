@@ -9,12 +9,42 @@ import os
 import sys
 import re
 
-# Banned patterns that indicate classical cryptographic defaults or missing validations
+# Banned patterns that indicate classical cryptographic defaults or missing validations.
+# Source of truth for allowed/forbidden sets: .agents/skills/pqc-secrets/SKILL.md §3
+# (verified 2026-08-08). A `# nosec` or `# no-gate` inline comment on the flagged
+# line suppresses a finding — that is the audit/migration escape hatch.
 BANNED_PATTERNS = {
-    "RSA Signatures": (r"(?i)algorithms\s*=\s*\[\s*['\"]RS256['\"]\s*\]", "Use ML-DSA-65 or hybrid equivalent."),
-    "ECDSA Signatures": (r"(?i)algorithms\s*=\s*\[\s*['\"]ES256['\"]\s*\]", "Use ML-DSA-65 or hybrid equivalent."),
-    "Unsanitized Path Usage": (r"(?<!safe_path\()open\s*\(\s*[^,\)]*path(?!\s*,\s*['\"][rwa]['\"])(?!\s*,\s*encoding=)", "File path opened without safe_path verification."),
-    "Hardcoded Secret Pattern": (r"(?i)(api_key|client_secret|password)\s*=\s*['\"][a-zA-Z0-9_\-]{16,}['\"]", "Hardcoded credential detected. Load from secure environment/vault.")
+    # -- Classical asymmetric signatures in JWT / token configs -------------
+    "RSA Signatures": (r"(?i)algorithms\s*=\s*\[\s*['\"]RS(?:256|384|512)['\"]\s*\]",
+        "RS* JWT algs are deprecated (NIST IR 8547: risk-acceptance after 2030, disallowed after 2035). Use ML-DSA-65 (FIPS 204) or an approved hybrid."),
+    "RSA-PSS Signatures": (r"(?i)algorithms\s*=\s*\[\s*['\"]PS(?:256|384|512)['\"]\s*\]",
+        "PS* (RSA-PSS) JWT algs are deprecated. Use ML-DSA-65 (FIPS 204) or an approved hybrid."),
+    "ECDSA Signatures": (r"(?i)algorithms\s*=\s*\[\s*['\"]ES(?:256|384|512)['\"]\s*\]",
+        "ES* (ECDSA) JWT algs are deprecated. Use ML-DSA-65 (FIPS 204) or an approved hybrid; ES256 (P-256, 112-bit) enters risk-acceptance-only after 2030."),
+    "EdDSA Signatures": (r"(?i)algorithms\s*=\s*\[\s*['\"]EdDSA['\"]\s*\]",
+        "EdDSA (Ed25519) is quantum-vulnerable; NIST IR 8547 disallows after 2035. Use ML-DSA-65 (FIPS 204)."),
+
+    # -- Classical signing / hash primitives in code ------------------------
+    "Ed25519 Keypair Generation": (r"(?i)(ed25519|Ed25519)(?:PrivateKey|SigningKey|Keypair)?\.?(?:generate|new|from_seed)\s*\(",
+        "Ed25519 key generation detected in a signing path. Secrets/signing ops require ML-DSA-65. Transport-only uses (SSH/TLS) are fine — mark with '# nosec' if so."),
+    "MD5 Usage": (r"(?i)(hashlib\.md5|md5\.new|createHash\(\s*['\"]md5)",
+        "MD5 is collision-broken and forbidden everywhere. Use SHA3-256."),
+    "SHA-1 Signing": (r"(?i)(hashlib\.sha1|createHash\(\s*['\"]sha1|sha1WithRSA|withRSAEncryption.*sha1)",
+        "SHA-1 is collision-broken and forbidden everywhere (allowed only for parsing legacy artifacts — mark '# nosec'). Use SHA3-256/512."),
+    "AES-CBC Mode": (r"(?i)(AES\.new\([^)]*AES\.MODE_CBC|AES/CBC/PKCS5[Pp]adding|Cipher\.getInstance\(\s*['\"]AES/CBC)",
+        "AES-CBC is unauthenticated and forbidden for at-rest encryption. Use AES-256-GCM (SP 800-38D)."),
+    "AES-ECB Mode": (r"(?i)(AES\.MODE_ECB|AES/ECB/)",
+        "AES-ECB leaks plaintext structure and is forbidden. Use AES-256-GCM."),
+    "RSA Key Generation": (r"(?i)(RSA\.generate|generate_private_key\(\s*public_exponent\s*=|te?lsa.*genrsa|rsa\.generate_private_key)",
+        "RSA keygen in a signing/secrets path is forbidden (transport-only x509 excepted — mark '# nosec'). Use ML-DSA-65 for signing; ML-KEM-768 for key establishment."),
+    "P-256 ECDH Key Agreement": (r"(?i)(ec\.generate_private_key\(\s*ec\.SECP256R1|ECDH\s*\(\s*ec\.SECP256R1)",
+        "Classical-only P-256 key agreement is quantum-vulnerable (112-bit; deprecated after 2030, disallowed after 2035 per NIST IR 8547). Use ML-KEM-768, or an X25519+ML-KEM-768 hybrid with an SP 800-227-approved combiner."),
+
+    # -- Structural / secrets hygiene ---------------------------------------
+    "Unsanitized Path Usage": (r"(?<!safe_path\()open\s*\(\s*[^,\)]*path(?!\s*,\s*['\"][rwa]['\"])(?!\s*,\s*encoding=)",
+        "File path opened without safe_path verification."),
+    "Hardcoded Secret Pattern": (r"(?i)(api_key|client_secret|password)\s*=\s*['\"][a-zA-Z0-9_\-]{16,}['\"]",
+        "Hardcoded credential detected. Load from secure environment/vault."),
 }
 
 # Directories to exclude from automated compliance scanning
