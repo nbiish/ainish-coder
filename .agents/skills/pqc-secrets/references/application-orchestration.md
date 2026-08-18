@@ -207,6 +207,43 @@ bin/pqc-secrets pack < /tmp/pack.txt && rm /tmp/pack.txt
 The token may transit chat/clipboard once (unavoidable at
 acquisition); from then on it lives only in the bundle + memory.
 
+### 7.1 Machine-bound KEK fragility (WSL) — 2026-08-18 incident
+
+The Python file backend encrypts the ML-KEM private key
+(`private.key.enc`) with a machine-bound KEK: HKDF-SHA256 over
+`platform.node() | getpass.getuser() | platform.platform() | uuid.getnode()`.
+Two of those inputs are **volatile on WSL2**:
+
+- `platform.platform()` embeds the WSL2 kernel version — changes with
+  Windows/WSL kernel updates.
+- `uuid.getnode()` returns the vNIC MAC — can change across
+  `wsl --shutdown` / distro restarts.
+
+When either changes, every decrypt fails GCM authentication with
+`ERROR: Failed to decrypt private key from local store` — the app logs
+`[PQC] Failed to load bundle ... Falling back to environment variables`
+and serves with zero provider keys. The old private key (and the bundle
+encrypted to it) is **unrecoverable by design**; only a keypair
+regeneration + repack restores service.
+
+**Recovery runbook (executed 2026-08-18, local-router):**
+
+1. Stop the app. Back up the dead artifacts (never delete — a future
+   machine-tuple reconstruction could still unlock them):
+   `private.key.enc.broken-<date>`, `secrets.bundle.json.undecryptable-<date>`.
+2. `pqc-secrets keygen` — new keypair under the *current* machine tuple.
+3. Repack every key whose value you hold (password manager), tmpfs-only:
+   `printf 'KEY=val' > /tmp/pack.txt && pqc-secrets pack < /tmp/pack.txt && rm /tmp/pack.txt`.
+4. `pqc-secrets verify` — confirm names.
+5. Restart the app; confirm `[PQC] Loaded N ...` and the live smoke test.
+6. Re-enter remaining keys via the app UI (settings page) — they repack
+   on save.
+
+**Mitigations:** on WSL, prefer `PQC_USE_KEYCHAIN=true` with a Secret
+Service (gnome-keyring + secret-tool) so the private key is not
+machine-tuple-bound; otherwise expect this failure after OS/kernel
+updates and keep all key values in a password manager for repack.
+
 ## 8. Hygiene rules for application integrators
 
 - **No `env:` blocks, `.env` files, or settings JSON with values** —
