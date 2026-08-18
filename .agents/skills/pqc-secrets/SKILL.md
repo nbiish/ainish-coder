@@ -224,6 +224,8 @@ PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pq
 
 Applications must read secrets exclusively from environment variables populated dynamically in memory. Do not store or read plaintext files inside the application context.
 
+> **Full application-embedding reference:** [references/application-orchestration.md](references/application-orchestration.md) — for when the application itself owns the key lifecycle: boot-time bundle load, UI-driven set/unset with repack, in-memory reads for per-request use, cross-platform binary dispatch, and new-machine ceremonies. Production reference: local-router (2026-08-17).
+
 ### Pattern 1: Safe Environment Variable Consumption (Python)
 ```python
 import os
