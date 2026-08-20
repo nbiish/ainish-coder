@@ -25,6 +25,7 @@ Do not rely on memory. Re-read the applicable DOX chain in the current session b
 - **Always** retrieve the private key from the system keychain (macOS Keychain, Linux Secret Service) or a local machine-encrypted file.
 - **Never** store plaintext secrets in repositories, `.env` files, settings files, task logs, or any config with an `env` block.
 - **Always** inject secrets at runtime via system keychain/file + shell wrapper. See `pqc-secrets` skill §1.1 for the full pattern.
+- **One bundle, one machine:** the encrypted bundle at `~/.config/pqc-secrets/secrets.bundle.json` is the single source of truth for all API keys across every repo and project on a machine — repos pull from it, nothing is duplicated or synced. The ML-KEM-768 private key is encrypted at rest under a stable per-machine KEK persisted to `~/.config/pqc-secrets/machine.kek` (0600) — generated once, stable across reboots, kernel upgrades, and distro re-creation; a pre-existing legacy-encrypted store is migrated automatically. Each machine runs its own keypair and its own API keys (per-machine keys — no cross-machine key sync). See `.agents/skills/pqc-secrets/references/kek-persistence.md` (KEK strategy) and `.agents/skills/pqc-secrets/references/cross-repo-key-sharing.md` (add/update/consume keys across repos).
 - **Never** use banned classical cryptography (RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC) for secrets management.
 - **CNSA 2.0 scopes (NSS / defense contracts):** ML-KEM-1024 + ML-DSA-87 are the mandated minimums; SLH-DSA, FN-DSA, and HQC are excluded from NSS use. New NSS acquisitions must comply starting Jan 1, 2027.
 - **Deprecation clock (NIST IR 8547, EO 14412, OMB M-26-15):** classical 112-bit public-key crypto is risk-acceptance-only after 2030 and disallowed after 2035. Plan every secrets path accordingly.
@@ -60,7 +61,7 @@ Update parent docs when parent-level structure, ownership, workflow, or child in
 ## Child Doc Shape
 
 - `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt — defaults to yes), and `_with_link_choice()` (deploy helper).
-- `bin/pqc-secrets` — Shell wrapper for the Rust FIPS 203 secrets manager (keygen, pack, export).
+- `bin/pqc-secrets` — Platform-dispatch wrapper for PQC secrets (keygen, pack, export, verify, migrate): native Rust binary on darwin/arm64; Python engine (native `cryptography>=45` ML-KEM-768, seed-form key store) on every other platform via `uv run`. Both engines read/write the identical bundle JSON.
 - `bin/cmd-tracker` — Compiled Rust binary that wraps command execution and logs to `~/.cache/ainish-coder/usage.csv`.
 - `bin/security_gate.py` — PQC & zero-trust compliance scanner for codebases.
 - `bin/git-context.sh` — AI agent situational awareness script invoked by the `git context` alias. Produces a structured, token-efficient context dump: branch/worktree position, status, diffs, task files, PRD anchor, worktrees, stashes, timeline, last commit, and gate-tool availability. Designed as the one-command bridge between the developer's git state and any AI coding agent's context window.

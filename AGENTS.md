@@ -70,14 +70,16 @@ This is the core of the system. Every API key for every application — CLI tool
 
 **Infrastructure (live at `~/.config/pqc-secrets/`):**
 
-OS Keystore                        ~/.config/pqc-secrets/
-┌──────────────────────┐          ┌────────────────────────────┐
-│ service: pqc-secrets │          │ recipient.pub              │
-│ ML-KEM-768 secret key│          │ ML-KEM-768 public key      │
-└──────────┬───────────┘          │ (safe to commit)           │
-│                      └────────────┬───────────────┘
-│ decaps (ML-KEM-768)               │ encaps
-▼                                   ▼
+Key wrapping (machine-agnostic)    ~/.config/pqc-secrets/
+┌──────────────────────────┐       ┌────────────────────────────┐
+│ machine.kek (0600)       │       │ recipient.pub              │
+│ stable per-machine KEK   │       │ ML-KEM-768 public key      │
+│ (OS keychain opt-in via  │       │ (safe to commit)           │
+│ PQC_USE_KEYCHAIN=true)   │       └────────────┬───────────────┘
+│ wraps private.key.enc    │                    │ encaps
+└──────────┬───────────────┘                    ▼
+│ decaps (ML-KEM-768)                                 
+▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    secrets.bundle.json                        │
 │  ┌─────────────────┐  ┌──────────────────────────────────┐   │
@@ -96,7 +98,7 @@ OS Keystore                        ~/.config/pqc-secrets/
 **Rules:**
 - No hardcoded secrets. No `.env` files with API keys. No plaintext on disk. Ever.
 - All API keys live encrypted in `~/.config/pqc-secrets/secrets.bundle.json`. This file is safe to commit — every value is AES-256-GCM ciphertext wrapped by ML-KEM-768.
-- The ML-KEM-768 private key lives exclusively in the OS keystore (macOS Keychain, GNOME Keyring, Windows Credential Manager). On T2/M-series hardware, this is hardware-backed.
+- The ML-KEM-768 private key is encrypted at rest in `private.key.enc` under a stable per-machine KEK persisted to `~/.config/pqc-secrets/machine.kek` (0600) — machine-agnostic, survives reboots/kernel updates/distro re-creation. Native OS keystore storage (macOS Keychain, Linux Secret Service) is available by opting in via `PQC_USE_KEYCHAIN=true`. Since 2026-08-20 new keygens store the key in FIPS 203 seed form (64 bytes `d‖z`) via native `cryptography>=45` ML-KEM-768; legacy 2400-byte expanded-form stores remain readable (kyber-py fallback) and rotate on the next `keygen`.
 - Load secrets on-demand into shell environment: `secrets-load` (shell function) or `pqc-secrets export`. Never persist them.
 - Application integration: Apps read `os.environ` (or `std::env::var`, `process.env`) populated in-memory. They never interact with the PQC bundle directly.
   - **CLI / TUI**: Must inherit environment variables loaded via `secrets-load` from the terminal session in which they are launched.
