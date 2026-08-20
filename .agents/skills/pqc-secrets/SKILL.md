@@ -126,15 +126,16 @@ The PQC secrets system consists of a dual-implementation architecture to ensure 
 
 The local secrets infrastructure lives at `~/.config/pqc-secrets/`:
 
-System Keychain / File            ~/.config/pqc-secrets/
-┌──────────────────────┐          ┌────────────────────────────┐
-│ macOS Keychain,      │          │ recipient.pub              │
-│ Linux Secret Service,│          │ ML-KEM-768 public key      │
-│ or Encrypted File    │          │ (safe to commit)           │
-└──────────┬───────────┘          └────────────┬───────────────┘
-           │                                   │
-           │ decaps (ML-KEM-768)               │ encaps
-           ▼                                   ▼
+System Keychain / File                 ~/.config/pqc-secrets/
+┌─────────────────────────┐          ┌──────────────────────────────┐
+│ macOS Keychain,         │          │ machine.kek (0600, stable)    │
+│ Linux Secret Service,   │  uses    │ recipient.pub                │
+│ or machine.kek (0600)  │────────▶ │ (ML-KEM-768 public key)      │
+│ ─── the private-key     │          │ (safe to commit)             │
+│     wrapping key (KEK)  │          └──────────────┬───────────────┘
+└─────────────────────────┘                         │
+            │ decrypt (AES-256-GCM)                │ encaps (ML-KEM-768)
+            ▼                                       ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    secrets.bundle.json                       │
 │  ┌─────────────────┐  ┌──────────────────────────────────┐   │
@@ -185,7 +186,7 @@ Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback
 
 | Step | Rust Command | Python Fallback Command | Description |
 |---|---|---|---|
-| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in local encrypted file (system keychain if opted-in via `PQC_USE_KEYCHAIN=true`). Public key → `~/.config/pqc-secrets/recipient.pub`. |
+| **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in local encrypted file in FIPS 203 seed form, 64 bytes (system keychain if opted-in via `PQC_USE_KEYCHAIN=true`). Public key → `~/.config/pqc-secrets/recipient.pub`. |
 | **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json`. |
 | **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines. Use `secrets-load` shell function. |
 | **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies bundle can be decrypted, lists key names. |
@@ -209,7 +210,11 @@ PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pq
 |---|---|---|
 || `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | System keychain account name for the ML-KEM-768 private key |
 || `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
-|| `PQC_USE_KEYCHAIN` | `false` | Enable native platform keychain storage (defaults to system-agnostic local file store) |
+| `PQC_USE_KEYCHAIN` | `false` | Enable native platform keychain storage (defaults to the `machine.kek` file store) |
+
+**Private-key wrapping key (KEK):** the ML-KEM-768 private key is encrypted under a stable per-machine KEK persisted to `~/.config/pqc-secrets/machine.kek` (0600). It is generated once and survives reboots, kernel upgrades, and distro re-creation; a pre-existing legacy-encrypted store is migrated automatically. See `references/kek-persistence.md` for the full strategy.
+
+One PQC bundle at `~/.config/pqc-secrets/secrets.bundle.json` is the single source of truth for all API keys across every repo and project on a machine — repos pull keys from it; nothing is duplicated. See `references/cross-repo-key-sharing.md` for add, update, and consume workflows across many repos.
 
 ### Implementation Details
 
