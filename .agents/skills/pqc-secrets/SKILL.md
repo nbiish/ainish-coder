@@ -190,6 +190,8 @@ Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback
 | **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json`. |
 | **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines. Use `secrets-load` shell function. |
 | **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies bundle can be decrypted, lists key names. |
+| **List** | `bin/pqc-secrets list` | `uv run ... pqc_secrets.py list` | Lists every secret **name** (never values), sorted — the inspection surface for what is set, what belongs to which tool prefix, and what needs renaming. |
+| **Rename** | `bin/pqc-secrets rename OLD NEW` | `uv run ... pqc_secrets.py rename OLD NEW` | Renames one secret **name** keeping its value; the previous bundle is backed up to `secrets.bundle.json.bak.<UTC>` first. Refuses to overwrite an existing name. |
 | **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | `keygen && pack` | Generates new keypair and re-packs secrets under new public key. |
 | **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | — | Re-encrypts bundle under a different public key without exposing plaintext. |
 | **Migrate** | `bin/pqc-secrets migrate` | `uv run ... pqc_secrets.py migrate` | Migrates keychain entry from old account name to new. |
@@ -413,7 +415,37 @@ $ echo "$STRIPE_SECRET" | head -c 12
 sk-live-AbCd...
 ```
 
-### 5.4 `pqc-secrets rotate`
+### 5.4 `pqc-secrets list` / `pqc-secrets rename`
+
+Names-only bundle inspection + per-name maintenance (2026-08-22). Use these to
+audit naming conventions across tools — e.g. a dedicated-provider key like
+`LOCALROUTER_KILO_API_KEY` for the Local Router app vs plainly-named shared keys.
+
+**`list` synopsis:** `pqc-secrets list`
+
+- Decrypts the bundle and prints every secret **name** (never a value),
+  sorted, with a count header.
+- Exit `0`; `1` when the bundle is missing/corrupt.
+
+**`rename` synopsis:** `pqc-secrets rename <OLD_NAME> <NEW_NAME>`
+
+- Names must match `^[A-Z0-9_]+$` (env variable names).
+- Refuses with exit `1` when OLD is absent or NEW already exists
+  (no overwrite hazards).
+- Backs up the prior bundle to `secrets.bundle.json.bak.<UTC>` before
+  rewriting; the secret **value** is moved, never printed.
+
+```bash
+$ pqc-secrets list
+3 secret name(s) in /home/user/.config/pqc-secrets/secrets.bundle.json:
+  HF_TOKEN
+  KILO_API_KEY
+  ZAI_API_KEY
+$ pqc-secrets rename KILO_API_KEY LOCALROUTER_KILO_API_KEY
+Renamed KILO_API_KEY -> LOCALROUTER_KILO_API_KEY (backup: .../secrets.bundle.json.bak.20260822T182904Z)
+```
+
+### 5.5 `pqc-secrets rotate`
 
 Re-encapsulate the bundle against a fresh ephemeral ML-KEM keypair.
 **Data-key only** — the long-term identity key in the keychain is
@@ -444,7 +476,7 @@ Wrote secrets.bundle.json (4 KB)
 Audit: rotate keysAffected=12
 ```
 
-### 5.5 `pqc-secrets status`
+### 5.6 `pqc-secrets status`
 
 Output machine-readable JSON describing the bundle state.
 
@@ -464,7 +496,7 @@ Output machine-readable JSON describing the bundle state.
 **Exit codes:** `0` always (status never fails the call — use the
 fields to detect problems).
 
-### 5.6 `pqc-secrets audit`
+### 5.7 `pqc-secrets audit`
 
 Append a custom event to the audit log.
 
