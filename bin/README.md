@@ -7,7 +7,8 @@ This directory contains the main **command-line interface** entry point for the 
 ```
 bin/
 ├── ainish-coder        # Main CLI executable
-├── pqc-secrets         # FIPS 203 secrets manager binary
+├── pqc-secrets         # FIPS 203 secrets manager — platform-dispatch wrapper (see llms.txt)
+├── pqc-secrets.darwin-arm64  # Native Rust backend binary (keygen/pack/export) for darwin/arm64
 ├── lib/                # Shared utilities and libraries
 ├── security_gate.py    # PQC & zero-trust compliance scanner
 └── README.md           # This file
