@@ -212,6 +212,22 @@ Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback
 | **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | — | Re-encrypts bundle under a different public key without exposing plaintext. |
 | **Migrate** | `bin/pqc-secrets migrate` | `uv run ... pqc_secrets.py migrate` | Migrates keychain entry from old account name to new. |
 
+### Key Naming Convention (tool-relative prefixes)
+
+Every key an agent packs into the bundle **must** be prefixed with the name of the tool that consumes it — never a bare provider name:
+
+| Consuming tool | Key name |
+|---|---|
+| Local Router | `LOCALROUTER_KILO_API_KEY`, `LOCALROUTER_ZAI_API_KEY`, … |
+| ainish-coder | `AINISHCODER_*_API_KEY` |
+| any tool | `<TOOLNAME>_<WHAT>_API_KEY` |
+
+- Prefix = the consuming tool's name, uppercase, `^[A-Z0-9_]+$` (e.g. Local Router → `LOCALROUTER_`).
+- **Always** apply the prefix when wiring a key for a specific tool — even when the provider name differs from the tool name (`KILO_API_KEY` used by Local Router → `LOCALROUTER_KILO_API_KEY`).
+- Plain, unprefixed names are reserved for genuinely machine-shared keys (e.g. `HF_TOKEN`).
+- Bring an existing key into a tool namespace without re-entering its value: `pqc-secrets rename KILO_API_KEY LOCALROUTER_KILO_API_KEY`.
+- Audit ownership with `pqc-secrets list` — every name should make its owning tool obvious.
+
 ### Migration from Legacy `default` Account
 
 If you have an existing keychain entry with account name `default` (from older versions), migrate to `pqc-secrets-key`:
