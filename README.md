@@ -131,6 +131,10 @@ ainish-coder configurations enforce a comprehensive security baseline:
 
 ## 📦 Quick Start
 
+### Platforms
+
+ainish-coder is architecture-agnostic: macOS, Linux, and Windows (use an Ubuntu terminal via WSL). Commands are shell-generic POSIX and `~` is your POSIX home (the WSL/Ubuntu home on Windows).
+
 ### Installation
 
 ```bash
@@ -138,11 +142,11 @@ ainish-coder configurations enforce a comprehensive security baseline:
 git clone https://github.com/nbiish/ainish-coder
 cd ainish-coder
 
-# Run setup
+# Run setup (any POSIX shell: macOS Terminal, Linux, or Ubuntu/WSL)
 chmod +x scripts/ainish-setup.sh
 ./scripts/ainish-setup.sh
 
-# Reload shell (macOS/Linux)
+# Reload your shell config
 source ~/.zshrc  # or ~/.bashrc
 ```
 
