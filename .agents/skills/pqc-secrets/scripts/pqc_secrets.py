@@ -697,9 +697,14 @@ def cmd_migrate() -> None:
     print(f"Migrated keychain entry: service={KEYCHAIN_SERVICE}, account={old_account} -> {new_account}")
 
 
+USAGE_LINE = "Usage: pqc_secrets.py <keygen|pack|export|verify|list|rename|migrate|version>"
+NAMING_LINE = "Naming:  always prefix keys with the consuming tool's name - LOCALROUTER_*_API_KEY, AINISHCODER_*_API_KEY, ..."
+
+
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: pqc_secrets.py <keygen|pack|export|verify|list|rename|migrate|version>", file=sys.stderr)
+        print(USAGE_LINE, file=sys.stderr)
+        print(NAMING_LINE, file=sys.stderr)
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -724,7 +729,8 @@ def main() -> None:
         cmd_version()
     else:
         print(f"Unknown command: {cmd}", file=sys.stderr)
-        print("Usage: pqc_secrets.py <keygen|pack|export|verify|list|rename|migrate|version>", file=sys.stderr)
+        print(USAGE_LINE, file=sys.stderr)
+        print(NAMING_LINE, file=sys.stderr)
         sys.exit(1)
 
 
