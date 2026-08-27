@@ -3,16 +3,15 @@
 
 set -euo pipefail
 
-# Load atoms if available (colors, file ops)
+# Load shared shell components if available
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DNA_DIR="${SCRIPT_DIR}/.."
-if [[ -f "${DNA_DIR}/atoms/colors.sh" ]]; then
+if [[ -f "${SCRIPT_DIR}/colors.sh" ]]; then
     # shellcheck source=/dev/null
-    source "${DNA_DIR}/atoms/colors.sh" || true
+    source "${SCRIPT_DIR}/colors.sh" || true
 fi
-if [[ -f "${DNA_DIR}/atoms/file_operations.sh" ]]; then
+if [[ -f "${SCRIPT_DIR}/file_operations.sh" ]]; then
     # shellcheck source=/dev/null
-    source "${DNA_DIR}/atoms/file_operations.sh" || true
+    source "${SCRIPT_DIR}/file_operations.sh" || true
 fi
 
 echo_info() { printf "\e[36m%s\e[0m\n" "[MCP] $*"; }
@@ -32,7 +31,7 @@ deploy_mcp() {
 
     # Locate repository root and mcp.json
     local repo_root
-    repo_root="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    repo_root="$(cd "${SCRIPT_DIR}/.." && pwd)"
     local mcp_src="$repo_root/.configs/MCP/mcp.json"
 
     if [[ ! -f "$mcp_src" ]]; then

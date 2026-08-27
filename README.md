@@ -35,7 +35,7 @@
 
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
 - **🧠 Skills System** — 19 hardened procedural guideline skill packs (security, browser automation, video generation, 3D modeling, research)
-- **🏗️ Modular Architecture** — Clean Quanta → Atom → Molecule structure (MAQ hierarchy)
+- **🏗️ Direct Components** — Discoverable shell utilities and deployment commands under `src/`
 - **📊 Usage Analytics** — CSV tracking of all CLI invocations (`~/.cache/ainish-coder/usage.csv`) for data-driven improvement
 - **🔄 OSA Framework** — Orchestrated System of Agents using standard CLI coding tools (Gemini, Claude, OpenCode, mini-swe-agent, kilo, crush) with fixed-order rotation, automatic fallback, and git worktree isolation
 - **🛡️ Security-First** — Zero Trust, PQC-compliant (FIPS 203/204/205), MCP hardening, supply chain integrity
@@ -213,7 +213,7 @@ cat ~/.cache/ainish-coder/usage.csv | column -t -s,
 
 ## 🏗️ Architecture
 
-The tool is built with a modular, extensible design following the Atomic Design pattern:
+The tool is built from directly discoverable shell components:
 
 ```
 ainish-coder/
@@ -232,9 +232,7 @@ ainish-coder/
 │   ├── cmd-tracker              # Rust binary: CSV usage tracker (NEW)
 │   └── security_gate.py         # PQC & zero-trust compliance scanner
 ├── src/
-│   ├── quanta/                  # Core utilities (colors, paths, validation, file ops, security)
-│   ├── atoms/                   # Deployment functions (deploy_*.sh, cli_interface.sh, help.sh)
-│   ├── molecules/               # Higher-level orchestration (system-wide install)
+│   ├── *.sh                     # Shared utilities and deployment commands
 │   ├── templates/               # Deployable boilerplate templates
 │   ├── pqc-secrets/             # Rust: FIPS 203 secrets manager (ML-KEM-768)
 │   └── cmd-tracker/             # Rust: CSV CLI usage tracker (stdlib-only) (NEW)
@@ -271,7 +269,7 @@ ainish-coder/
 | Principle | Implementation |
 |-----------|---------------|
 | **SOLID** | Single Responsibility per module; Open for extension via skills |
-| **DRY** | Shared atoms; configs generated from templates |
+| **DRY** | Shared components; configs generated from templates |
 | **KISS** | Shell-based CLI; no runtime dependencies beyond Bash |
 | **YAGNI** | Skills loaded on demand |
 | **Zero Trust** | Every tool call validated; all inputs sanitized; MCP servers treated as hostile |

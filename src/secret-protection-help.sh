@@ -57,7 +57,7 @@ cat << 'EOF'
 🎯 DETECTED PATTERNS
   • Brave API keys (BSA...)
   • Tavily API keys (tvly-dev-...)
-  • Local paths (/Volumes/1tb-sandisk/)
+    • Local paths (/Volumes/<volume>/)
   • Generic API_KEY patterns
   • Passwords and secrets
 

@@ -2,7 +2,7 @@
 # MOLECULE: Deploy slash commands/prompts for AI coding tools
 # Handles deployment of .github/prompts to tool-specific directories
 
-# Source the prompt deployment molecules
+# Source prompt deployment helpers when available
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 deploy_commands() {

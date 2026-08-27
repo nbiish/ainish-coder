@@ -39,7 +39,7 @@ declare -A PATTERNS=(
     ["BSA"]="BSA[a-zA-Z0-9]{27}"
     ["Tavily"]="tvly-[a-zA-Z0-9-]{30,}"
     ["TavilyQuery"]="tavilyApiKey=[^&\"\\s]{10,}"
-    ["LocalPath"]="/Volumes/1tb-sandisk/"
+    ["LocalPath"]="/Volumes/[^/]+/"
     ["BraveKey"]="BRAVE_API_KEY.*[\"'][^\"']{10,}[\"']"
 )
 
@@ -89,7 +89,7 @@ cleanse_file() {
         elif [[ "$pattern_name" == "TavilyQuery" ]]; then
             sed -i.tmp "s/tavilyApiKey=[^&\"\\s]\{10,\}/${placeholder}/g" "$file_path" 2>/dev/null || true
         elif [[ "$pattern_name" == "LocalPath" ]]; then
-            sed -i.tmp "s|/Volumes/1tb-sandisk/[^\"]*|${placeholder}|g" "$file_path" 2>/dev/null || true
+            sed -i.tmp "s|/Volumes/[^\"]*|${placeholder}|g" "$file_path" 2>/dev/null || true
         fi
         rm -f "${file_path}.tmp"
     else

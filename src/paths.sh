@@ -5,7 +5,7 @@
 # This should be set by the main script that sources this file
 if [[ -z "${REPO_DIR:-}" ]]; then
     # Try to detect it from the script location
-    REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
 export REPO_DIR
 

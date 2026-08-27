@@ -5,7 +5,7 @@
 
 deploy_skills() {
     local target_dir="${1:-.}"
-    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
     validate_target_dir "$target_dir" || return 1
 
