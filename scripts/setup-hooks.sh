@@ -25,7 +25,7 @@ echo "🔍 Running local secret scan (pre-commit hook)..."
 PATTERNS=(
   "BSA[a-zA-Z0-9]{27}"
   "tvly-[a-zA-Z0-9-]{30,}"
-  "/Volumes/1tb-sandisk/"
+  "/Volumes/[A-Za-z0-9._-]+/"
   "BRAVE_API_KEY.*[\"'][^\"']{10,}[\"']"
   "tavilyApiKey=[^&\"\\s]{10,}"
 )

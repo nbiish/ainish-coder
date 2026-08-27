@@ -6,8 +6,8 @@ post-quantum cryptography (PQC) and containment mandates.
 """
 
 import os
-import sys
 import re
+import sys
 
 # Banned patterns that indicate classical cryptographic defaults or missing validations.
 # Source of truth for allowed/forbidden sets: .agents/skills/pqc-secrets/SKILL.md §3
@@ -49,9 +49,11 @@ BANNED_PATTERNS = {
 
 # Directories to exclude from automated compliance scanning
 EXCLUDED_DIRECTORIES = {
-    ".git", ".venv", "__pycache__", "node_modules", "pliny-research", 
-    ".signals-creepersweeper", "scrolls-lab", ".agents", ".signals", ".github"
+    ".git", ".venv", "__pycache__", "node_modules", "pliny-research",
+    ".signals-creepersweeper", "scrolls-lab", ".scrolls-ceremony", ".agents", ".signals", "docs"
 }
+SCANNED_SUFFIXES = (".py", ".ts", ".js", ".toml", ".yml", ".yaml", ".json")
+EXCLUDED_FILES = {"security_gate.py", "scan_secrets.sh", "security_scan.sh", "sanitize.py", "sanitize-settings.sh"}
 
 def verify_compliance(directory: str = "."):
     print("Checking repository for Zero-Trust and PQC compliance...")
@@ -64,14 +66,11 @@ def verify_compliance(directory: str = "."):
             continue
             
         for file in files:
-            if not file.endswith((".py", ".ts", ".js")):
+            if file in EXCLUDED_FILES or not file.endswith(SCANNED_SUFFIXES):
                 continue
                 
             path = os.path.join(root, file)
             # Skip the gate script itself during checking
-            if os.path.basename(path) == "security_gate.py":
-                continue
-                
             try:
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
@@ -88,6 +87,7 @@ def verify_compliance(directory: str = "."):
                             failed = True
             except Exception as e:
                 print(f"Error reading {path}: {e}")
+                failed = True
                 
     if not failed:
         print("[\033[92mPASS\033[0m] No banned classical signatures or unverified open paths detected.")
