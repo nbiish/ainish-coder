@@ -135,6 +135,8 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 
 **Invariant:** Every task lives in its own worktree. Worktrees branch from `main`, are verified in isolation, then merge directly back into `main`. No direct commits to `main` ever.
 
+**Single-branch policy:** `main` is the only permanent branch. Never create, use, or preserve `develop` or another integration branch. All task branches are temporary worktree branches created from `main` and merged directly into `main`.
+
 ### Development & Iteration Loop
 
 1. **Isolate:** Create branch + worktree from `main`. Read `llms.txt` → write `.agents/tasks/TASK.$(date).md`.
@@ -145,11 +147,15 @@ Validate types and paths (CWE-22). Parameterize SQL. `shell=False` for subproces
 6. **Merge → `main`:** When the worktree's gates pass, ask: *"Ready to merge `<branch>` → `main`? [diff summary]. Confirm?"* Only merge after user confirms.
 7. **Cleanup (mandatory):** Immediately after merge: remove the worktree, delete the feature branch, verify clean state. See [Post-Merge Cleanup](#post-merge-cleanup) below. **Do not skip cleanup.**
 
+**Completion gate:** A task is incomplete until `main` contains the verified merge, every temporary task worktree is removed, every merged task branch is deleted locally and remotely, and the operator is back on a clean `main` worktree.
+
 **Promotion path (direct — no intermediate branches):**
 
 ```text
 worktree (verify) → main (merge after user confirm) → cleanup
 ```
+
+**Forbidden flow:** Never use `develop`, a staging branch, or any other persistent integration branch between a task worktree and `main`.
 
 ### Verification Procedure
 
@@ -185,7 +191,7 @@ git checkout main
 
 ### Post-Merge Cleanup
 
-**Run immediately after user confirms the merge into `main`.** Cleanup is mandatory — never skip it.
+**Run immediately after user confirms the merge into `main`. Cleanup is mandatory — never skip it. Do not begin another task until cleanup passes.**
 
 ```bash
 # 1. Remove the merged worktree (path: sibling of main repo)
@@ -194,6 +200,9 @@ git worktree remove <worktree-path>
 # 2. Delete the feature branch from the main repo
 cd <main-repo-path>
 git branch -d <type>/<scope>-<slug>
+
+# 3. Delete the remote feature branch, if it was pushed
+git push origin --delete <type>/<scope>-<slug>
 ```
 
 **`-d` vs `-D`:** `git branch -d` refuses to delete a branch whose tip is not reachable from the current branch. If you are on `main` and the merge just landed, `-d` should work. Use `-D` (capital) to force-delete only if `-d` fails after confirming the merge commit exists in `main`:
@@ -204,10 +213,11 @@ git log --oneline main | grep -q "<commit-hash>" && git branch -D <type>/<scope>
 ```
 
 ```bash
-# 3. Verify cleanup — all three must be clean
+# 4. Verify cleanup — all four must be clean
 git worktree list                         # expect: only the main repo
 git branch | grep -v "^\*"                # expect: no <type>/<scope>-<slug> rows
 git status                                # expect: clean
+git branch --show-current                 # expect: main
 ```
 
 **Why:** Orphaned worktrees and merged branches accumulate fast and confuse future tasks. Cleaning up after every merge keeps the worktree list and branch namespace small and auditable. The task file (`.agents/tasks/TASK.$(date).md`) survives worktree deletion because it lives in the merged branch, not the worktree's working copy.
