@@ -79,8 +79,9 @@ PATTERNS=(
 # Check for Legacy Crypto (ASI06/FIPS 204 Compliance)
 # We scan specifically for RSA keys to warn about Post-Quantum migration
 RSA_MATCHES=$(grep -rIn "BEGIN RSA PRIVATE KEY" . \
-    --exclude-dir={.git,node_modules,venv,.venv,target,dist,build,__pycache__} \
+    --exclude-dir={.git,.agents,.scrolls-ceremony,node_modules,venv,.venv,target,dist,build,__pycache__} \
     --exclude="$OUTPUT_FILE" \
+    --exclude=".git" \
     --exclude="scan_secrets.sh" \
     --exclude="sanitize.py" \
     2>/dev/null)
@@ -108,8 +109,9 @@ for pattern in "${PATTERNS[@]}"; do
     # We explicitly exclude the scanner scripts and configuration files that define these patterns
     # Also exclude .env files (should be in .gitignore, not committed)
     matches=$(grep -rInE \
-        --exclude-dir={.git,node_modules,venv,.venv,target,dist,build,__pycache__} \
+        --exclude-dir={.git,.agents,.scrolls-ceremony,node_modules,venv,.venv,target,dist,build,__pycache__} \
         --exclude="$OUTPUT_FILE" \
+        --exclude=".git" \
         --exclude="scan_secrets.sh" \
         --exclude="detect-secrets.yml" \
         --exclude=".git-secrets-setup.sh" \

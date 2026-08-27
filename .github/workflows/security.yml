@@ -1,0 +1,52 @@
+name: Security scans
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Scan tracked content
+        run: bash .github/scripts/scan_secrets.sh
+
+  compliance:
+    name: PQC and containment gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Run compliance gate
+        run: python3 bin/security_gate.py .
+      - name: Validate shell syntax
+        run: find bin scripts src -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+  rust-audit:
+    name: Rust dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [src/cmd-tracker, src/pqc-secrets]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.21.2 --locked
+      - name: Audit locked dependencies
+        working-directory: ${{ matrix.project }}
+        run: cargo audit
