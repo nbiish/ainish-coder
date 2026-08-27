@@ -5,7 +5,7 @@
 deploy_signals() {
     local target_dir="${1:-.}"
     local deploy_examples="${2:-false}"
-    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
     validate_target_dir "$target_dir" || return 1
 

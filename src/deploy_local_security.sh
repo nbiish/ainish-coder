@@ -13,7 +13,7 @@ deploy_local_security() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     
     # Define source paths
-    local ainish_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    local ainish_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     
     # Create target directories
     local target_scripts="${target_dir}/.ainish/scripts"

@@ -13,7 +13,7 @@ deploy_github_actions() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     
         # Define source paths - Use absolute path from script location
-    local ainish_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    local ainish_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     local source_workflows="${ainish_root}/.github/workflows"
     local source_root="${ainish_root}"
     

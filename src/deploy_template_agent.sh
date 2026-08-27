@@ -5,7 +5,7 @@
 
 deploy_template_agent() {
     local target_dir="${1:-.}"  # Default to current directory if not provided
-    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
     
     validate_target_dir "$target_dir" || return 1
     require_agents_md "$target_dir" || return 1

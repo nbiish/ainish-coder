@@ -19,7 +19,7 @@ bin/
 The `bin/` directory follows the **Unix philosophy** of simplicity:
 
 - **Single Entry Point**: Contains only the main CLI executable
-- **No Implementation**: Actual logic lives in `src/` following MAQ design
+- **Thin Entry Point**: Deployment logic lives in the directly discoverable `src/` components
 - **Clean Interface**: Users interact with one simple command
 
 ## Usage
@@ -40,11 +40,11 @@ The `bin/` directory follows the **Unix philosophy** of simplicity:
 
 ### System-Wide Installation
 
-For system-wide access, symlink the wrapper from `src/molecules/`:
+For system-wide access, symlink the CLI directly:
 
 ```bash
 # Create symlink to your PATH
-sudo ln -sf "$(pwd)/src/molecules/install.sh" /usr/local/bin/ainish-coder
+sudo ln -sf "$(pwd)/bin/ainish-coder" /usr/local/bin/ainish-coder
 
 # Now use from anywhere
 ainish-coder --help
@@ -53,11 +53,7 @@ ainish-coder --rules ~/my-project
 
 ## Architecture
 
-The `ainish-coder` script follows the **MAQ Design** pattern:
-
-1. **Sources Quanta** (`src/quanta/`) - Core utilities (colors, paths, validation)
-2. **Sources Atoms** (`src/atoms/`) - Deployment functions
-3. **Orchestrates** - Coordinates between modules based on user commands
+The `ainish-coder` script sources the directly named components under `src/` and routes commands to them.
 
 ### Why This Structure?
 
@@ -68,23 +64,22 @@ The `ainish-coder` script follows the **MAQ Design** pattern:
 
 ## Related Directories
 
-- **`src/`** - Contains all implementation (quanta, atoms, molecules)
-- **`src/molecules/install.sh`** - Wrapper for system-wide installation
+- **`src/`** - Contains shared utilities and deployment commands
 - **`src/templates/`** - Deployable boilerplate templates
 
 ## Development
 
 ### Adding New Commands
 
-1. Create appropriate function in `src/atoms/`
-2. Source the atom in `bin/ainish-coder`
+1. Create the component in `src/`
+2. Source it in `bin/ainish-coder`
 3. Add case statement in the `main()` function
-4. Update help text in `src/atoms/help.sh`
+4. Update help text in `src/help.sh`
 
 ### Modifying Behavior
 
 - **Don't edit** `bin/ainish-coder` for logic changes
-- **Do edit** the appropriate file in `src/quanta/` or `src/atoms/`
+- **Do edit** the appropriate file directly under `src/`
 - The CLI script only orchestrates, doesn't implement
 
 ## See Also

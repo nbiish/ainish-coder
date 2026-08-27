@@ -20,32 +20,32 @@ done
 SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 SRC_DIR="${SCRIPT_DIR}/../src"
 
-# Load quanta (core utilities)
-source "${SRC_DIR}/quanta/colors.sh"
-source "${SRC_DIR}/quanta/paths.sh"
-source "${SRC_DIR}/quanta/file_operations.sh"
-source "${SRC_DIR}/quanta/validation.sh"
-source "${SRC_DIR}/quanta/backup.sh"
-source "${SRC_DIR}/quanta/ignore_patterns.sh"
+# Load shared shell components
+source "${SRC_DIR}/colors.sh"
+source "${SRC_DIR}/paths.sh"
+source "${SRC_DIR}/file_operations.sh"
+source "${SRC_DIR}/validation.sh"
+source "${SRC_DIR}/backup.sh"
+source "${SRC_DIR}/ignore_patterns.sh"
 
-# Load atoms (deployment functions)
-source "${SRC_DIR}/atoms/help.sh"
-source "${SRC_DIR}/atoms/deploy_commands.sh"
-source "${SRC_DIR}/atoms/deploy_agents.sh"
+# Load deployment components
+source "${SRC_DIR}/help.sh"
+source "${SRC_DIR}/deploy_commands.sh"
+source "${SRC_DIR}/deploy_agents.sh"
 
-source "${SRC_DIR}/atoms/deploy_critical.sh"
-source "${SRC_DIR}/atoms/deploy_gitignore.sh"
-# Load ignore file deployment atoms
-source "${SRC_DIR}/atoms/deploy_github_actions.sh"
-source "${SRC_DIR}/atoms/deploy_local_security.sh"
-source "${SRC_DIR}/atoms/deploy_template_agent.sh"
-source "${SRC_DIR}/atoms/deploy_skills.sh"
-source "${SRC_DIR}/atoms/deploy_unlock.sh"
-source "${SRC_DIR}/atoms/deploy_mcp_recipes.sh"
-source "${SRC_DIR}/atoms/deploy_scrolls.sh"
-source "${SRC_DIR}/atoms/deploy_license.sh"
-source "${SRC_DIR}/atoms/deploy_signals.sh"
-source "${SRC_DIR}/atoms/deploy_llms_txt.sh"
+source "${SRC_DIR}/deploy_critical.sh"
+source "${SRC_DIR}/deploy_gitignore.sh"
+# Load ignore-file deployment components
+source "${SRC_DIR}/deploy_github_actions.sh"
+source "${SRC_DIR}/deploy_local_security.sh"
+source "${SRC_DIR}/deploy_template_agent.sh"
+source "${SRC_DIR}/deploy_skills.sh"
+source "${SRC_DIR}/deploy_unlock.sh"
+source "${SRC_DIR}/deploy_mcp_recipes.sh"
+source "${SRC_DIR}/deploy_scrolls.sh"
+source "${SRC_DIR}/deploy_license.sh"
+source "${SRC_DIR}/deploy_signals.sh"
+source "${SRC_DIR}/deploy_llms_txt.sh"
 
 # Main function
 main() {

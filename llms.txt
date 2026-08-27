@@ -60,6 +60,12 @@ Update parent docs when parent-level structure, ownership, workflow, or child in
 - Each parent explains what its direct children cover and what stays owned by the parent
 - The closer a doc is to the work, the more specific and practical it must be
 
+## Documentation Boundary
+
+- This root `llms.txt` is repository-only documentation and is never the distributed project template.
+- `src/templates/llms.txt` is the repository-agnostic document deployed to other repositories.
+- Distributed deployments include selected `AGENTS.md` and `.agents/skills/` content only; `.agents/tasks/` remains local task history.
+
 ## Child Doc Shape
 
 - `bin/ainish-coder` — Master CLI script and option routing. Tracks all invocations to CSV. Parses global flags: `-y`/`--non-interactive`, `-l`/`--link`. Houses `_pick_dest_base()` (home-vs-target destination picker), `_confirm_symlink()` (interactive symlink prompt — defaults to yes), and `_with_link_choice()` (deploy helper).
@@ -74,16 +80,7 @@ Update parent docs when parent-level structure, ownership, workflow, or child in
   - `mcp_discover.py` — Host-tool MCP discovery (Claude, Cursor, Codex, Windsurf, Gemini, VS Code) for gap-fill merge.
   - `auto_thinking_context.sh` — Orchestration metadata envelope for auto thinking classification.
   - `tracker.sh` — Shared `run_with_tracker` helper for transparent CSV usage logging.
-- `src/quanta/` — Shell utility libraries: colors, paths, file operations, validation, backup, ignore patterns, security scan, config, file utils, sanitize-settings.
-  - `file_operations.sh` provides `deploy_path()` and `deploy_path_contents()` — unified deployment helpers that symlink when `AINISH_LINK_MODE=true` or copy otherwise. When `AINISH_NO_OVERWRITE=true`, existing files are skipped (safe/additive mode).
-- `src/atoms/` — 14 modular deployment atoms, all using `deploy_path`/`deploy_path_contents` for `--link` support:
-  - `deploy_agents.sh` — Deploys `AGENTS.md` (symlink-capable).
-  - `deploy_skills.sh` — Deploys all 20 skill packs from `.agents/skills/`.
-  - `deploy_commands.sh` — Deploys slash command workflows.
-  - `deploy_critical.sh`, `deploy_gitignore.sh`, `deploy_github_actions.sh`, `deploy_local_security.sh`, `deploy_template_agent.sh`, `deploy_mcp.sh`, `deploy_mcp_recipes.sh`, `deploy_scrolls.sh`, `deploy_license.sh`, `deploy_signals.sh`, `deploy_llms_txt.sh`, `deploy_unlock.sh` — Individual deployment atoms.
-  - `help.sh` — Full help text and usage documentation.
-  - `setup_shell.sh`, `setup-secret-protection.sh`, `clear_all_rules.sh` — Setup and maintenance atoms.
-- `src/molecules/` — High-level orchestration (system-wide installation wrapper).
+- `src/` — Flat shell utilities and deployment commands. `deploy_agents.sh` handles `AGENTS.md`, `deploy_skills.sh` handles `.agents/skills/`, and `deploy_llms_txt.sh` handles the generic distributed template.
 - `src/templates/` — Clean, customizable boilerplate templates (e.g., `llms.txt`).
 - `src/pqc-secrets/` — Native Rust implementation of the FIPS 203 secrets manager (ML-KEM-768 keygen, pack, export).
 - `src/cmd-tracker/` — Native Rust CSV usage tracker (stdlib-only, zero dependencies). Schema: `timestamp, tool, subcommand, provider, exit_code, duration_ms, interactive, arg_count`.
