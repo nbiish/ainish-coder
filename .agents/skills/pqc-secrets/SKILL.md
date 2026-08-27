@@ -109,7 +109,7 @@ The PQC secrets system consists of a dual-implementation architecture to ensure 
 
 | Surface | Engine | Coverage | Status |
 |---|---|---|---|
-| Linux / WSL / generic | **Python** (`pyca/cryptography>=45`, native ML-KEM-768, FIPS 203 seed form) via `uv run` | keygen, pack, export, verify, **list**, **rename**, migrate, setup, version | **Canonical** — resolves to the newest `cryptography` on first run |
+| Linux / WSL / generic (Windows: Ubuntu/WSL terminal) | **Python** (`pyca/cryptography>=45`, native ML-KEM-768, FIPS 203 seed form) via `uv run` | keygen, pack, export, verify, **list**, **rename**, migrate, setup, version | **Canonical** — resolves to the newest `cryptography` on first run |
 | darwin/arm64 | **Python** (same engine, same path) | all commands | Canonical |
 | darwin/arm64 | Rust `bin/pqc-secrets.darwin-arm64` | keygen, pack, export only | **Legacy fast-path**, frozen v1.0.0 (2026-06 command set) |
 
@@ -120,6 +120,11 @@ when present (speed); **every other command — `list`, `rename`, `migrate`, `ve
 prints the exact engine identity, build date, crypto suite, and command coverage. If the
 Rust crate is ever refreshed, it regains its fast-path only for the commands it actually
 implements; the Python engine stays the freshness standard.
+
+**Platform support:** architecture-agnostic — macOS, Linux, and Windows (Ubuntu terminal
+via WSL). Every command is shell-generic POSIX; the canonical Python engine runs on all
+platforms, and the Rust binary is an optional darwin/arm64 fast-path, never required.
+OS keystore opt-ins: macOS Keychain, Linux Secret Service.
 
 2. **Python Fallback (Secondary):** A script at `.agents/skills/pqc-secrets/scripts/pqc_secrets.py` uses the **native ML-KEM-768** from `pyca/cryptography>=45` (`cryptography.hazmat.primitives.asymmetric.mlkem`) and writes the same **double-envelope** bundle JSON as the Rust engine (keywrap layer + AAD). Since 2026-08-20 new keygens store the private key in FIPS 203 **seed form** (64 bytes `d‖z`); older stores holding the 2400-byte expanded form remain readable via the retained `kyber-py` decapsulation fallback, which prints a rotation hint.
 
