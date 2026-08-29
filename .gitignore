@@ -143,3 +143,7 @@ audit.log.*
 .omx/
 .omo/
 .omp/
+
+# Agent COMMS live board — in-flight coordination, never committed.
+# The dated ledger AGENTS/{date}.COMMS.md IS committed; this sidecar is not.
+AGENTS/*.COMMS.live.md
