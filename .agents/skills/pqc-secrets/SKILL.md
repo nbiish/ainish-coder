@@ -781,6 +781,36 @@ export WTF_WINDOWS_AGENT_SECRET='<64-hex-device-key>'
 $ eval "$(pqc-secrets issue wtf windows-agent | head -1)"   # eval-safe scripting
 ```
 
+### 5.9a Application-level key sealing pattern (from wtf session channels)
+
+The `envelope` command moves files between machines. For **live services**
+that need inline sealing of small working keys (session channels, chat
+rooms, temporary collaboration), use this canonical blueprint — implemented
+and live-verified in the wtf hub's encrypted agent sessions (wtf
+`src/session_crypto.rs`):
+
+1. **Service generates a random 256-bit working key** (OS CSPRNG —
+   `pqc-secrets gen --bits 256 --quiet` shape) per channel/session.
+2. **Seal to each member**: ML-KEM-768 `encapsulate(member_ek)` → shared
+   secret + KEM ciphertext; then AES-256-GCM the working key under
+   `SHA3-256(shared)` with AAD binding the channel id. Package =
+   `KEM ciphertext ‖ GCM(wrapped key)`. The member's private seed never
+   leaves their machine; the relay stores only this package.
+3. **Member opens**: decapsulate with their private seed → recompute
+   `SHA3-256(shared)` → GCM-open with the channel id as AAD (fails closed
+   on any mismatch).
+4. **Messages**: AEAD with per-(channel, sender) subkeys derived from the
+   working key, nonce derived from (subkey, monotonic counter), AAD binding
+   (channel, sender, counter) — replay/cross-sender/cross-channel reuse
+   fails closed.
+5. **Relay trust model**: the hub/relay stores metadata + ciphertext only;
+   a compromised relay cannot read messages. Member revocation = recreate
+   the channel (no forward secrecy in this design; do not reuse channels
+   after member churn).
+
+Pattern validated against pyca/cryptography (OpenSSL) and kyber-py with
+official NIST ACVP KATs — see the wtf repo's `src/mlkem768.rs` tests.
+
 ### 5.10 `pqc-secrets envelope export|import` — signed cross-machine transfer (Rust engine, 2026-08-30)
 
 Move secrets between machines as an **ML-KEM-768-wrapped, ML-DSA-65-signed
