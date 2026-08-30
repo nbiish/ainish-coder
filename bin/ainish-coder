@@ -41,6 +41,7 @@ source "${SRC_DIR}/deploy_local_security.sh"
 source "${SRC_DIR}/deploy_template_agent.sh"
 source "${SRC_DIR}/deploy_skills.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
+source "${SRC_DIR}/deploy_agents_comms.sh"
 source "${SRC_DIR}/deploy_8thfire.sh"
 source "${SRC_DIR}/deploy_mcp_recipes.sh"
 source "${SRC_DIR}/deploy_scrolls.sh"
@@ -181,6 +182,15 @@ main() {
                     print_error "Failed to deploy pqc-signatures-security"
                 fi
                 _TRACK_DETAIL="${_TRACK_DETAIL}+pqc-secrets+pqc-signatures"
+            fi
+
+            # Agent Communication System — AGENTS/{date}.COMMS.md
+            # Merge-safe: refreshes protocol template, preserves agent entries.
+            if confirm_action "Deploy Agent Communication System (AGENTS/{date}.COMMS.md)?" "y"; then
+                local comms_dest
+                comms_dest="$(_pick_dest_base)"
+                deploy_agents_comms "$comms_dest"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
             fi
 
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
