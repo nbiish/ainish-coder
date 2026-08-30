@@ -695,9 +695,9 @@ $ pqc-secrets gen --format hex --bits 384 --count 5 --quiet
 `--env`; `gen` accepts any valid identifier but the bundle audit
 (`pqc-secrets list`) should always make the owning tool obvious.
 
-### 5.9 `pqc-secrets issue` — device-key issuance (Rust engine, 2026-08-30)
+### 5.9 `pqc-secrets issue` — device-key issuance (Rust engine, vault-first 2026-08-30)
 
-Mint a high-entropy device key from the OS CSPRNG and pack it into the PQC
+Mint a high-entropy device key from the OS CSPRNG and seal it into the PQC
 bundle in one step. `wtf` is the first built-in template: it emits exactly
 what the wtf-agent-hub skill §2 flow needs — a ready-to-eval env line
 (`export WTF_<NAME>_SECRET='…'`, POSIX single-quote wrapped) plus the
@@ -707,34 +707,48 @@ once, like `wtf key issue --json`).
 **Synopsis:**
 ```
 pqc-secrets issue <template> <name> [PUB_PATH] [BUNDLE_PATH]
-                   [--hub-url URL] [--json] [--force]
+                   [--hub-url URL] [--json] [--force] [--use-keychain]
 ```
 
-**Behavior:**
-- Mints 32 CSPRNG bytes → 64 hex chars (the wtf device-key shape).
-- Packs `WTF_<NAME>_SECRET=<hex>` **through the existing pack path** (same
-  double-envelope, AADs, KDF — output is engine-compatible).
-- The value appears only shell-quoted (eval line) or JSON-quoted (enrollment
-  JSON); it is never logged. Metadata goes to stderr.
-- `<name>`: `[A-Za-z0-9_-]+`, no leading digit; uppercased into the env name
-  with `-` folded to `_`.
-- `--hub-url` fills the `hub_url` field (default placeholder
-  `http://HUB:7800`); `--json` prints the enrollment JSON only.
-- Like `pack`, issuance writes a **fresh bundle**. It refuses to overwrite an
-  existing bundle without `--force` (a single minted key must never destroy
-  the operator's other secrets). Issuance currently writes through the
-  existing bundle path — it will be **rewired through the vault (Phase 1)**
-  at integration.
+**Behavior — vault-first (default when a vault exists):**
+- With a `vault.pqc` present, no explicit `PUB_PATH`, and no `--use-keychain`,
+  issuance merges the minted key into the existing bundle **in memory** under
+  the vault's ML-KEM-768 identity — no passphrase prompts beyond the vault
+  itself, no keychain, no plaintext on disk. If no bundle exists yet, it
+  seals a fresh one for the vault identity.
+- The rewritten bundle is written atomically (tmp + fsync + rename, mode
+  0600) and **signed**: an ML-DSA-65 sidecar `<bundle>.sig` covers the exact
+  on-disk bytes (see §5.11).
+- A **fail-closed recipient gate** runs before anything else: a bundle sealed
+  for a different recipient (fingerprint mismatch vs the vault header pin) is
+  refused untouched.
+- **Key-collision guard:** re-issuing an env name that already exists in the
+  bundle is refused unless `--force`.
+- The operation appends a hash-chained, signed audit record (`issue-wtf`:
+  key name, mode, bundle SHA3-256 prefix, recipient fingerprint prefix).
+
+**Behavior — legacy / foreign-recipient (explicit `PUB_PATH`, no vault, or
+`--use-keychain`):**
+- Fresh single-key bundle through the pack path (same double-envelope, AADs,
+  KDF — output is engine-compatible). Refuses to overwrite an existing bundle
+  without `--force`. Unsigned — no vault identity is involved.
+
+**Common:** the value appears only shell-quoted (eval line) or JSON-quoted
+(enrollment JSON); it is never logged. Metadata goes to stderr. `<name>`:
+`[A-Za-z0-9_-]+`, no leading digit; uppercased into the env name with `-`
+folded to `_`. `--hub-url` fills the `hub_url` field (default placeholder
+`http://HUB:7800`); `--json` prints the enrollment JSON only.
 
 **Exit codes:** `0` success; `1` error (unknown template, invalid name,
-missing recipient.pub, existing bundle without `--force`).
+recipient mismatch, key collision without `--force`, existing bundle without
+`--force` on the legacy path, missing recipient.pub).
 
 **Example:** (values below are shape placeholders, never real keys)
 ```bash
 $ pqc-secrets issue wtf windows-agent
 export WTF_WINDOWS_AGENT_SECRET='<64-hex-device-key>'
 {"hub_url":"http://HUB:7800","device":"windows-agent","key":"<64-hex-device-key>"}
-$ eval "$(pqc-secrets issue wtf windows-agent --json >/dev/null)"   # eval-safe scripting
+$ eval "$(pqc-secrets issue wtf windows-agent | head -1)"   # eval-safe scripting
 ```
 
 ### 5.10 `pqc-secrets envelope export|import` — signed cross-machine transfer (Rust engine, 2026-08-30)
@@ -759,10 +773,18 @@ pqc-secrets envelope import [--in FILE] [--out FILE]
 - Payload: AES-256-GCM over the secrets JSON, AAD `pqc-secrets:v1:envelope:data`.
 - Signature covers version, alg, recipient fingerprint, KEM ciphertext,
   nonce, and ciphertext (domain `pqc-secrets:v1:envelope:sig`).
-- Signing key: keychain account `<PQC_KEYCHAIN_ACCOUNT>-mldsa65`,
-  auto-provisioned from the OS CSPRNG on first export; only a SHA3-256
+- Signing key, vault-first (default when a vault exists): the vault's
+  canonical ML-DSA-65 identity — recipients can tie the envelope to the
+  identity pinned in the vault header, and the export appends a signed
+  `envelope-export` audit record. `--use-keychain` (or no vault) keeps the
+  legacy ad-hoc signer: keychain account `<PQC_KEYCHAIN_ACCOUNT>-mldsa65`,
+  auto-provisioned from the OS CSPRNG on first export. Only a SHA3-256
   fingerprint (16 hex) is printed — **verify it with the recipient
   out-of-band** before importing.
+- `import` verifies the signature **before any decapsulation** and fails
+  closed on any mismatch. Local private material, vault-first: the vault seed
+  (session cache or passphrase) — the keychain is never touched;
+  `--use-keychain` (or no vault) reads the legacy keychain seed.
 - `import` emits `export KEY='value'` lines (same quoting contract as
   `export`); `--out FILE` writes 0600 plaintext — a PQC violation if kept,
   so delete it immediately after use.
@@ -782,6 +804,36 @@ proxy (wtf non-negotiable: never plain HTTP to the public internet). Future
 networked daemons should target TLS 1.3 with the hybrid group
 `X25519MLKEM768` (draft-ietf-tls-ecdhe-mlkem) so transit inherits PQC key
 establishment too.
+
+### 5.11 Vault audit & tamper evidence — agent review surface (2026-08-30)
+
+Every operation performed under the vault identity (vault-init, export via
+vault, issue-wtf, envelope-export) appends a **hash-chained, ML-DSA-65-signed
+audit record**. Together with the bundle sidecar signature this gives AI
+agents a reviewable, secret-free integrity surface:
+
+- **`pqc-secrets vault verify [BUNDLE]`** — recomputes the bundle digest,
+  checks the recipient fingerprint against the vault header pin, and checks
+  the sidecar signature over the exact on-disk bytes. `verify OK:` on
+  success; fails closed with `FILE CONTENT TAMPERED` / `INVALID` / a
+  fingerprint-mismatch message on any drift.
+- **`pqc-secrets vault audit-verify`** — validates the hash chain and every
+  record's ML-DSA-65 signature: `audit-verify OK: N signed record(s)`.
+- **Sidecar `<bundle>.sig`** (public material, safe to read/share):
+  `{"alg":"ML-DSA-65","file_sha3_256":"…","dsa_pub_sha3_256":"…",
+  "sig_b64":"…","created_utc":"…"}`. A deleted or replaced sidecar fails
+  the next vault-path write/verify; a signature from any other key fails
+  closed.
+- **Agent review contract:** an agent (CLI, TUI, MCP, any harness, any OS)
+  can answer *what happened, when, to which key names, under which identity*
+  from the audit chain, sidecar, and fingerprints alone — **no secret value
+  is ever displayed, logged, or required**. Review tooling should consume:
+  key names, record actions/timestamps, SHA3-256 fingerprints (16-hex
+  prefixes) and digests; nothing else. Values live only in encrypted
+  bundles and process memory.
+- **Platform note:** all of this is engine-level (Rust fast-path and Python
+  canonical engine share the bundle/vault formats), so review works
+  identically on macOS, Linux, WSL, and Windows terminals.
 
 ---
 
