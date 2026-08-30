@@ -79,3 +79,8 @@ in vault header; production default stays 64MiB/t3/p4).
 #### Notes
 - bin/pqc-secrets dispatcher is NOT in owned-file list: `vault)` routing
   line proposed to orchestrator in completion report (1-line patch).
+
+## Gate-fix round (orchestrator blockers on b226dab) — 2026-08-30T15:56Z
+- Blocker 1 (engine dep resolution): ALL engine subprocess invocations now go through `uv run --script` (production invocation) — _run_engine in both suites, VaultSetup pack, plus the export_quoting quoting/multiline probes (in-process `sys.executable` imports removed entirely). uv PEP 723 caveat fixed: probe headers are string-assembled so uv's scanner does not see extra metadata blocks in the test file.
+- Blocker 2 (cross-module discover interference): import-time os.environ writes removed; per-test sandbox (setUp activate → guard, tearDown exact restore); setUpClass fixtures activate + addClassCleanup(deactivate); _sandbox_guard asserts module flag AND PQC_CONFIG_DIR==own tmp dir.
+- Gates: discover 14/14 OK ×3 (repo root, system python3); standalone uv runs 9/9 + 5/5; clippy --all-targets clean; cargo test 11/11; build --release OK (no Rust changes — binary NOT re-staged); cargo audit 1 allowed (anyhow), no NEW.
