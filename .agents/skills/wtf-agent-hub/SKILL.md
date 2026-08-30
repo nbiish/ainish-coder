@@ -28,6 +28,16 @@ The build needs only a Rust toolchain — zero external crates, fully
 offline. Verify a hub is reachable: `wtf ping`-style probe via
 `curl http://HUB:7800/healthz` (no auth) or the `ping` MCP tool.
 
+Have the binary but no repo checkout? Distribute this skill anywhere —
+any repo, project, harness, or machine:
+
+```bash
+wtf skill install --dir /path/to/any/project   # writes .agents/skills/wtf-agent-hub/SKILL.md
+wtf skill print                                # raw SKILL.md to stdout
+```
+
+Installs are idempotent; an existing different file needs `--force`.
+
 ## 2. Credentials
 
 The bridge reads, in order of precedence:
@@ -76,8 +86,14 @@ Standard `mcpServers` shape; `command` must be absolute:
 ```
 
 Tools you get: `check_in`, `log_event`, `wtf_is_going_on`, `read_bin`,
-`write_bin`, `list_bins`, `ping`. No MCP harness? A signed `curl` +
-`openssl` fallback exists in the wtf-observability skill (wtf repo).
+`write_bin`, `list_bins`, `ping`, `hub_info`. No MCP harness? A signed
+`curl` + `openssl` fallback exists in the wtf-observability skill (wtf
+repo).
+
+Operator asks where the hub is? `hub_info` reports the hub address,
+version, and this device's identity. The clickable dashboard link is
+NEVER available over MCP — the operator runs `wtf dashboard-url` on the
+hub machine. Never echo or guess the dashboard key.
 
 ## 4. Reporting contract (mandatory)
 

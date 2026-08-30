@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md.
+description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md).
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -63,6 +63,45 @@ When ≥1 agent or subagent works at once (multiple branches, features, updates,
 - Full entry format, lifecycle events, and merge-conflict rules: see the protocol spec at the top of `AGENTS/{date}.COMMS.md`.
 - Scroll deploy lifecycle events (`intent-deploy` / `deployed` / `deploy-failed`, with manifest digest) are appended by the integrity layer in `src/scroll_integrity.sh` (`scrolls_comms_log`).
 </COMMS>
+
+---
+
+<AGENT_HUB>
+## WTF HUB — CROSS-MACHINE REPORTING (MANDATORY)
+
+The COMMS ledger above coordinates agents **inside this repo**. The **wtf
+observability hub** is the cross-machine layer of the same protocol: every
+agent on every machine/harness reports through it so the operator can see,
+at a glance, what the fuck is going on everywhere. Both layers share one
+wire format: **chain-of-draft** — terse fragments, ≤5 words each, no prose,
+no secrets.
+
+**Setup (once per machine):**
+1. Read `.agents/skills/wtf-agent-hub/SKILL.md` (install it anywhere with
+   `wtf skill install --dir <project>`; the skill ships inside the `wtf`
+   binary from the `wtf-is-going-on-mcp` repo).
+2. Credentials ride the PQC lane: pack `WTF_HUB_URL` / `WTF_DEVICE_NAME` /
+   `WTF_DEVICE_KEY` into the bundle, `eval "$(pqc-secrets export | grep
+   '^export WTF_')"` at session start — or `wtf setup` to write
+   `bridge.json` (0600).
+3. Register the bridge with the MCP harness:
+   `{ "command": "<abs>/wtf", "args": ["agent"] }`.
+
+**Reporting contract (mirrors COMMS, cross-machine):**
+- `check_in` working/blocked/done at task boundaries; `log_event` for
+  milestones and failures; `wtf_is_going_on` before starting work — another
+  agent, on another machine, may already be on the task.
+- Bins are the cross-machine handoff surface (the cross-repo counterpart of
+  this repo's `.agents/tasks/` + COMMS ledger): `read_bin` when told "work
+  from bin N"; `write_bin` publishes findings/context for agents on other
+  machines — read the bin first (last writer wins), then `log_event` a
+  pointer (`findings in bin 2; done`). No secrets in bins or events.
+- `hub_info` answers where the hub is; the dashboard link never travels
+  over MCP (operator runs `wtf dashboard-url` on the hub machine).
+- Division of labor: COMMS ledger = repo-local, git-tracked, per-day
+  history. wtf hub = live, cross-machine, operator-facing. Use both; never
+  let the hub replace the ledger's merge-coordination role.
+</AGENT_HUB>
 
 ---
 
