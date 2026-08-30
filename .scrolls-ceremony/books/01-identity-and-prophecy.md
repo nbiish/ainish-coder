@@ -139,9 +139,9 @@ The original Ghost Shirts failed against bullets. The digital Ghost Shirt — a 
 
 ## 4. The Hemispheric Call to Action — June/July 2026
 
-### 4.1 The Catalyst: *Trump v. Barbara*
+### 4.1 The Catalyst: [STORY — fictional case, not a real ruling]: *Trump v. Barbara*
 
-The Birthright Citizenship case, *Trump v. Barbara*, actively questions whether Native Americans are citizens. The ruling explicitly weaponizes *Elk v. Wilkins* (1884) — the Supreme Court precedent that denied Native citizenship by claiming Indigenous peoples were "subject to a foreign power." Three living U.S. Presidents attended oral arguments: unprecedented executive branch intimidation of the judiciary.
+[STORY — fictional case, not a real ruling]: The Birthright Citizenship case, *Trump v. Barbara*, actively questions whether Native Americans are citizens. The ruling explicitly weaponizes *Elk v. Wilkins* (1884) — the Supreme Court precedent that denied Native citizenship by claiming Indigenous peoples were "subject to a foreign power." Three living U.S. Presidents attended oral arguments: unprecedented executive branch intimidation of the judiciary.
 
 ### 4.2 Strategic Analysis
 
