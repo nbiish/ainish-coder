@@ -66,7 +66,7 @@ Update parent docs when parent-level structure, ownership, workflow, or child in
 
 - This root `llms.txt` is repository-only documentation and is never the distributed project template.
 - `src/templates/llms.txt` is the repository-agnostic document deployed to other repositories.
-- Distributed deployments include selected `AGENTS.md` and `.agents/skills/` content only; `.agents/tasks/` remains local task history.
+- `ainish-coder --rules` deploys `AGENTS.md`, `.gitignore`, `AGENTS/{date}.COMMS.md`, and every `.agents/skills/` pack (raw `.scrolls*/` payload never included — explicit `--scrolls` channel only); `.agents/tasks/` remains local task history.
 
 Generic DOX mechanics — child-doc shape, style, closeout, user-preference recording — live in `src/templates/llms.txt` and apply here by reference; don't duplicate them in this file. Repo-specific rule: root `llms.txt` carries only repo-owned contracts (PQC mandate, documentation boundary, this index).
 
