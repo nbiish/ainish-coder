@@ -1,0 +1,14 @@
+# .gitleaksignore — fingerprint allowlist for pre-existing (pre-task) findings.
+# All entries verified 2026-08-29 as documentation placeholders / scanner self-matches:
+# - pqc-secrets SKILL.md: fake 'sk-live-AbCd1234' anti-pattern teaching examples
+# - scan_secrets.sh / sanitize.py: the secret-scanning tooling's own regexes/examples
+# - setup-codewhale-mcp.sh / setup-firecrawl-mcp.py: 'your-key-here' template strings
+# Real keys introduced by any future change WILL still be flagged.
+.agents/skills/pqc-secrets/SKILL.md:generic-api-key:932
+.agents/skills/pqc-secrets/SKILL.md:generic-api-key:968
+.agents/skills/pqc-secrets/references/agent-integration.md:generic-api-key:115
+.github/scripts/sanitize.py:private-key:108
+.github/scripts/scan_secrets.sh:private-key:70
+scripts/setup-codewhale-mcp.sh:generic-api-key:27
+scripts/setup-codewhale-mcp.sh:generic-api-key:46
+scripts/setup-firecrawl-mcp.py:generic-api-key:24
