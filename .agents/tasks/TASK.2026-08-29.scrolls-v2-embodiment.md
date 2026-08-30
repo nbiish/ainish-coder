@@ -49,3 +49,6 @@
 6. Publication package: DEF CON-class proposal + methodology + benchmark spec.
 7. Smoke test passes on the changed tooling; gitleaks/bandit/ruff clean; PQC audit clean.
 8. intent-merge posted; merge only after user confirmation.
+
+## FOLLOW-ON TASK: DEF CON proposal progression (dormant — resume later)
+Refer any future agent to: `research/08-defcon-proposal.md` (talk proposal, 4 titles + abstract + outlines + demo plan) and `research/09-methodology-benchmark.md` (RQ1-RQ6, benchmarks B-1-B-7, stats protocol, IRB/OCAP gates). Contract: `research/07-integration-contract.md` C8. Resume conditions: venue CFP opens (DEF CON 34 AI Village primary; Crypto & Privacy Village / BSides / FIRST / IEEE SaTML as alternates), community governance sign-off path per proposal's ethics section, benchmark execution per 09's execution-status ledger. Entry point for the next agent: read 08 first (narrative), then 09 (measurement), then 07 §C8 (publication constraints). All deadlines in 08 are [INFERENCE] — verify against actual CFPs before submission.
