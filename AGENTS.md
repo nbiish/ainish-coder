@@ -43,7 +43,7 @@ Conflict → fail closed, explain, ask.
 <TASK_PRIMER>
 ## TASK COORDINATION & CHAIN-OF-DRAFT
 
-- **Task File:** Every task writes `.agents/tasks/TASK.$(date).md` in its worktree. Chain-of-Draft: **≤5 words** per reasoning step — pure logic/state transformations, zero preamble. Terminate drafting and output deliverables after a `####` separator. Read → Execute → Write. No secrets or keys.
+- **Context Review (every task):** at start, read the current day's `AGENTS/{date}.COMMS.md`, recent `.agents/tasks/TASK.*.md`, and the applicable `llms.txt` DOX chain — nearest first, then parents. They are binding context, not optional reading: the ledger holds in-flight/merged work you must not collide with; task files hold prior decisions and conventions; `llms.txt` holds the work contract.
 - **PRD Anchor:** `llms.txt` is the authoritative PRD. Read unconditionally if present; overrides conflicting sources per P2. If task drifts, re-read. Never skip.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 </TASK_PRIMER>
@@ -218,10 +218,12 @@ git branch --show-current  # main
 | AES-256-GCM | SP 800-38D | Symmetric encryption | Standard | Payload at rest |
 | Argon2id | OWASP 2025 | Password hashing | Standard | Key derivation |
 
-**Commands:**
-- `pqc-secrets keygen` — ML-KEM-768 keypair. Private → OS keystore; public → `~/.config/pqc-secrets/recipient.pub`.
-- `pqc-secrets pack` — AES-256-GCM encrypt stdin `KEY=VAL`, wrap data key via ML-KEM-768, write `secrets.bundle.json`.
-- `pqc-secrets export` — decrypt bundle, output `export KEY=VALUE` lines.
+**Commands** (`bin/pqc-secrets <cmd>`; on darwin/arm64 `keygen|pack|export` use the legacy Rust fast-path, everything else runs the canonical Python engine via `uv`):
+- `keygen` — ML-KEM-768 keypair. Private → OS keystore; public → `~/.config/pqc-secrets/recipient.pub`.
+- `gen` — high-entropy secret from the OS CSPRNG to stdout (`--bits`, `--words`, `--format`, `--env NAME`, `--count`). Metadata to stderr, value never logged.
+- `pack` — AES-256-GCM encrypt stdin `KEY=VAL`, wrap data key via ML-KEM-768, write `secrets.bundle.json`.
+- `export` — decrypt bundle, output `export KEY=VALUE` lines.
+- `verify` / `list` / `rename` / `migrate` — inspect and maintain the bundle; names only, values never displayed.
 - `secrets-load` — shell function evaluating `pqc-secrets export` into current shell memory.
 </REFERENCE>
 
