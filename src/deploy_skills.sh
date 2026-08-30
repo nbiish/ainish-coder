@@ -42,6 +42,9 @@ deploy_skills() {
             local skill_name=$(basename "$skill_dir")
             local target_skill_dir="$skills_target/$skill_name"
 
+            # .scrolls payload never deploys with skills — explicit-only channel
+            case "$skill_name" in .scrolls*) continue ;; esac
+
             # In non-overwrite mode, skip entire skill directory if it already exists
             if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
                 if [[ -d "$target_skill_dir" ]]; then
