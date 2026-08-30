@@ -1,6 +1,6 @@
 ---
 name: pqc-secrets
-description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. Includes the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, and the PQC Rust binary (ML-KEM-768 + ML-DSA-65 + AES-256-GCM; device-key issuance + signed cross-machine envelopes).
+description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. Includes the passphrase-wrapped vault.pqc identity root (v1.2.0: ML-KEM-768 + ML-DSA-65 seeds under Argon2id, signed audit chain, TTL session holder), the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, and the PQC Rust binary (device-key issuance + signed cross-machine envelopes).
 ---
 
 # PQC Secrets Management Agent Skill
@@ -230,6 +230,36 @@ audit chain are Rust-side (`vault audit-verify`) — there is no mature pinned
 Python ML-DSA. Verified by `.agents/skills/pqc-secrets/tests/test_vault_parity.py`
 (rust vault init → export-identity → py pack → py export roundtrip, no keychain
 access).
+
+**Identity-source matrix (who unwraps what — live-verified 2026-08-30):**
+in vault mode each surface gets the identity from a different channel.
+Agents automating vault-gated commands must know which channel works, or
+they hit an interactive passphrase prompt in a context with no TTY:
+
+| Surface | Engine | Identity source (in order) | Non-interactive path |
+|---|---|---|---|
+| `export` | Rust native | `_vault-holder` session → env → prompt | live session, or `PQC_VAULT_PASSPHRASE` |
+| `vault unlock` / `migrate` | Rust native | env → prompt | `PQC_VAULT_PASSPHRASE` |
+| `vault status` / `audit-verify` / `verify <FILE>` | Rust native | header only (fingerprints / verification key) | passphrase-free, always |
+| `vault sign` / `export-identity` | Rust native | session → env → prompt | live session, or `PQC_VAULT_PASSPHRASE` |
+| Python identity reads: `verify`, `list`, `rename` (+ `export` when the Python engine is invoked directly) | Python | `PQC_VAULT_PASSPHRASE` env → `getpass` prompt | `PQC_VAULT_PASSPHRASE` — **session holder is NOT consulted** |
+
+The Python engine deliberately does not speak the session-holder protocol,
+so a live unlocked session does NOT satisfy it. This asymmetry bites in
+mixed command chains: `PQC_VAULT_PASSPHRASE="$P" cmd1 && cmd2` scopes the
+var to `cmd1` only — the Rust `export` succeeds off the session while the
+Python `verify` prompts, reads an empty passphrase, and fails closed with
+`vault unwrap failed`. Export the var once for the whole chain
+(`export PQC_VAULT_PASSPHRASE="$P"`), or prefix each vault-gated command.
+
+**Session lifecycle (`_vault-holder`):** `vault unlock --ttl 15m` spawns a
+hidden holder child that keeps the derived KEK in memory (received via
+stdin pipe — never argv/env/disk) and serves unwraps on a 0700 Unix socket
+under `$TMPDIR/pqc-vault-sess-<hash>/`. `vault status` shows remaining TTL;
+expiry removes the socket and subsequent Rust unwraps re-derive from the
+passphrase. `vault lock` zeroizes the holder and writes a signed audit
+record. Daemons and long-lived agents must treat TTL expiry as an expected
+failure mode — see §10.4 (post-migration operational reality) and §7.1.
 
 ---
 
@@ -1017,17 +1047,18 @@ scans for plaintext secret patterns (`sk-live`, `sk-test`,
 
 ### 7.1 Hermes MCP (betterbrowsermcp)
 
-The `@nbiish/betterbrowsermcp` MCP server exposes 9 PQC secrets tools
+The `@nbiish/betterbrowsermcp` MCP server exposes 10 PQC secrets tools
 to any Hermes agent:
 
 | Tool | Purpose |
 |---|---|
-| `browser_secrets_status` | Check keychain + bundle health. Returns JSON. |
+| `browser_secrets_status` | Check binary + bundle + keychain health. Returns JSON. First diagnostic for any server-side secrets failure. |
 | `browser_secrets_list` | List secret **names** (no values). |
 | `browser_secrets_get` | Read one secret value. Optional `mode: 'plain'\|'redact'`. |
 | `browser_secrets_load` | Bulk-export bundle into the agent's process env. |
-| `browser_secrets_add` | Add a new secret. Optional `dry_run: true`. |
-| `browser_secrets_add_from_clipboard` | Pull a value from the page's clipboard write. |
+| `browser_secrets_add` | Add a new secret. Optional `dry_run: true`, `merge: true`. |
+| `browser_secrets_add_from_clipboard` | Pull a value from the page's clipboard write (needs a focused bound tab). |
+| `browser_secrets_rotate` | Atomic data-key rotation: backup → re-encrypt → report (v0.8.0+). |
 | `browser_secrets_unlock_agent` | Cache one secret value in agent memory for fast reads. |
 | `browser_secrets_lock_agent` | Clear a cached secret (or wipe all). |
 | `browser_secrets_copy_to_page` | Paste a secret into a focused form field. |
@@ -1048,6 +1079,17 @@ mcp_servers:
 Add `betterbrowsermcp` to `platform_toolsets.cli` and `/reload-mcp`.
 The LLM uses `mcp_betterbrowsermcp_browser_secrets_*` tools directly.
 The audit log at `~/.config/pqc-secrets/audit.log` records every call.
+
+**Vault mode (v1.2.0+):** once `vault.pqc` exists, the server's
+`pqc-secrets export` spawns route vault-first, so the hub process needs a
+live vault session for `secrets_add` / `secrets_get` / `secrets_load` /
+`secrets_rotate`. TTL expiry surfaces as `pqc-secrets export failed` with
+empty stderr (the child falls back to a passphrase prompt it cannot answer
+headless). Recovery, live-verified 2026-08-30: run `browser_secrets_status`
+(binary path, bundle health, keychain reachability), re-unlock on the host
+(`PQC_VAULT_PASSPHRASE='…' pqc-secrets vault unlock --ttl 15m`), retry the
+tool call. Long-lived hubs can hold `PQC_VAULT_PASSPHRASE` in their process
+environment instead of a session — same value, never written to disk.
 
 ### 7.2 Claude Code (settings.json env-block trap)
 
@@ -1447,6 +1489,87 @@ escrowed; this is intentional.
   must export a value for a one-time use, pipe it directly:
   `pqc-secrets export | grep STRIPE_SECRET | cut -d= -f2- | tr -d '"' | my-tool`
   (no intermediate file).
+
+### §10.4 Adopting the vault — keychain → `vault migrate` ceremony (as executed 2026-08-30)
+
+One-time ceremony that makes `vault.pqc` the canonical identity root while
+keeping the keychain entry untouched as a dormant fallback. Every step was
+executed live on 2026-08-30 against the real store.
+
+**Preconditions:** dispatcher v1.2.0+ (`vault` routes to the Rust binary),
+a healthy keychain identity (`pqc-secrets verify` green, no vault yet —
+`vault status` reports `mode: legacy`).
+
+1. **Stage the passphrase into the bundle first** — the bundle becomes the
+   machine-readable recovery copy (see §10.5 for why that is not enough on
+   its own). Generate without ever displaying the value:
+   ```bash
+   SECRET_VALUE="$(pqc-secrets gen --words 8 --quiet)"   # ~103 bits, value on stdout only
+   # then stage via MCP: browser_secrets_add {name: "VAULT_PASSPHRASE", value, merge: true}
+   ```
+   The MCP clipboard lane (`browser_secrets_add_from_clipboard`) needs a
+   focused bound tab — background tabs reject `navigator.clipboard.readText`
+   ("Document is not focused"). In headless/agent contexts, stage through a
+   one-shot script that reads `SECRET_NAME`/`SECRET_VALUE` from its
+   environment and calls `browser_secrets_add` — values stay in process
+   memory end to end. Redact receipts; never echo the value.
+2. **Dry-run first** (writes nothing):
+   `pqc-secrets vault migrate --dry-run` — expect the keychain read →
+   64-byte seed-form gate → Argon2id wrap → byte-roundtrip plan.
+3. **Migrate** (rollback-gated; the keychain entry is NEVER deleted or
+   edited):
+   ```bash
+   eval "$(pqc-secrets export | grep '^export VAULT_PASSPHRASE=')"
+   PQC_VAULT_PASSPHRASE="$VAULT_PASSPHRASE" pqc-secrets vault migrate
+   ```
+   Success prints `seed fingerprint before == after`; any gate failure
+   auto-rolls back the vault write.
+4. **Unlock and verify the whole stack:**
+   ```bash
+   export PQC_VAULT_PASSPHRASE="$VAULT_PASSPHRASE"   # whole chain, not per-command
+   pqc-secrets vault unlock --ttl 15m
+   pqc-secrets vault status && pqc-secrets vault audit-verify
+   pqc-secrets verify && pqc-secrets list
+   ```
+   `verify`/`list` are Python-side and read the env var only (no session —
+   see the §2.1 identity-source matrix). Expect: session TTL, audit chain
+   OK (signed records + head digest), `Bundle valid: N keys`.
+5. **Record the passphrase externally NOW** (password manager). The
+   in-bundle copy is only readable while a session is unlocked — §10.5.
+6. **Keychain cleanup is manual and deferred:** the `pqc-secrets-key`
+   entry stays valid but is no longer consulted (vault-first, fail closed).
+   Delete only after days of trouble-free operation:
+   `security delete-generic-password -s pqc-secrets -a pqc-secrets-key`.
+
+**Post-migration operational reality:** every daemon or agent that spawns
+`pqc-secrets export` now needs a live session (or the env var). TTL expiry
+manifests as export failures with empty stderr — re-unlock on the host and
+retry (§7.1). Tool-prefix naming still applies: `VAULT_PASSPHRASE` itself
+is machine-shared infrastructure, the sanctioned bare name.
+
+### §10.5 Disaster recovery — Lost VAULT passphrase
+
+Once a vault exists it is the ONLY identity root the engines consult
+(vault-first, fail closed — the keychain entry is ignored). Lose the
+passphrase and `secrets.bundle.json` is unrecoverable. No escrow, no
+reset: Argon2id + AES-256-GCM fail closed.
+
+**Recovery layers, in order:**
+1. **Live session** — if `_vault-holder` is still up (`vault status` shows
+   TTL remaining), Rust-side ops work; export the passphrase out
+   immediately into your password manager (never to a file):
+   `pqc-secrets export | grep '^export VAULT_PASSPHRASE='`
+2. **`VAULT_PASSPHRASE` inside the bundle** — readable only via an
+   unlocked session or the passphrase itself. **This is circular by
+   design:** treat the in-bundle copy as a convenience mirror for agents,
+   never as the primary backup. The external record from §10.4 step 5 is
+   the real recovery path.
+3. **Nothing else.**
+
+**Mitigations:** keep a session alive during migration windows; `vault
+lock` when stepping away; update the external passphrase record whenever
+the vault is re-keyed; rehearse §10.4 step 4 quarterly so a restore is
+never the first time you run it.
 
 ---
 
