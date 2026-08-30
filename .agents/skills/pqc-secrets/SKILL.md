@@ -145,6 +145,25 @@ OS keystore opt-ins: macOS Keychain, Linux Secret Service.
 > echo "$SECRETS_TXT" | ./bin/pqc-secrets pack
 > ```
 
+> [!WARNING]
+> **`rust-fips203`-tagged bundles are NOT final-FIPS-203 interoperable (fips203
+> 0.4.3 bug):** bundles whose `engine` field reads `rust-fips203` (packed by the
+> v1.0.0 Rust binary) use fips203 0.4.3 KEM outputs that decapsulate only under
+> that same crate — not under final-FIPS-203 implementations, including the
+> canonical Python engine and v1.1.x Rust engines (RustCrypto `ml-kem`).
+> Migrate BEFORE use with v1.1.x engines: export with the **v1.0.0 binary**, then
+> **re-pack with the Python engine** (which writes `py-native-mlkem` bundles).
+
+**Export/pack quoting contract (hardened 2026-08-30, both engines byte-identical):**
+`export` emits `export KEY='value'` lines — POSIX single-quote wrap, embedded `'`
+escaped as `'\''` — so `eval "$(pqc-secrets export)"` is safe for ANY value
+(quotes, spaces, `$`, backticks, embedded newlines). `pack` **refuses**
+shell-quoted input lines (`KEY='value'`) with a named-key error — wrapping quotes
+caused the 2026-08-30 incident where stored values literally contained quote
+characters — and warns non-fatally when values contain `$` or `` ` `` (stored
+literally, never expanded). Verified byte-identical across engines by
+`.agents/skills/pqc-secrets/tests/test_export_quoting.py`.
+
 The local secrets infrastructure lives at `~/.config/pqc-secrets/`:
 
 System Keychain / File                 ~/.config/pqc-secrets/
@@ -418,7 +437,12 @@ Encrypt `KEY=VAL` lines and write a fresh bundle.
 **Synopsis:** `pqc-secrets pack [--in PATH] [--bundle PATH]`
 
 **Behavior:**
-- Reads `KEY=VAL` lines from stdin (or `--in PATH`).
+- Reads `KEY=VAL` lines from stdin (or `--in PATH`). Pipe plain
+  `KEY=value` lines — **shell-quoted input (`KEY='value'`) is refused**
+  with an error naming the offending keys (wrapping quotes would be
+  stored literally; 2026-08-30 incident).
+- Values containing `$` or `` ` `` are stored literally with a
+  non-fatal warning (they are never expanded at eval time).
 - Generates a fresh 256-bit AES data key, encrypts the plaintext via
   AES-256-GCM.
 - Encapsulates the data key against `recipient.pub` using ML-KEM-768.
@@ -445,9 +469,10 @@ Decrypt the bundle and emit shell `export` lines to stdout.
 **Behavior:**
 - Reads the bundle, decapsulates the data key using the keychain
   private key, decrypts the data via AES-256-GCM.
-- Emits `export KEY=VALUE` lines to stdout. Values are quoted with
-  double-quote escaping; multiline values are base64-encoded and
-  prefixed with a warning comment.
+- Emits `export KEY='value'` lines to stdout. Values are POSIX
+  single-quoted (embedded `'` → `'\''`) — Rust-engine byte parity —
+  so `eval "$(pqc-secrets export)"` is correct for ANY value,
+  including quotes, spaces, `$`, backticks, and embedded newlines.
 
 **Exit codes:**
 - `0` — success
