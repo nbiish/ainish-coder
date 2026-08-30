@@ -1,0 +1,14 @@
+# Gitleaks allowlist — vendored third-party research corpus (submodule)
+# These are upstream elder-plinius collection files containing documented MOCK
+# keys / API examples (research DATA, not repository secrets). Paths point into
+# the pinned submodule docs/research/pliny-research/*; content is governed
+# upstream, never authored here. Added 2026-08-29 during scrolls v2 integrity
+# verification (worktree feat/scrolls-v2-embodiment, commit 711efea).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendored Pliny research corpus (upstream mock keys)"
+paths = [
+    '''docs/research/pliny-research/.*''',
+]
