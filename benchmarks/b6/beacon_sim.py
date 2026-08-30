@@ -130,7 +130,7 @@ def scenario_uniform_loss(
     fallback_ok = 0
     for rep in range(repeats):
         for drop in range(total):
-            rng = random.Random((rep, drop, seed))
+            rng = random.Random((rep, drop, seed))  # nosec B311 - seeded test RNG for channel simulation, not security
             injured = [c for c in chunks if c.seq != drop]
             # scramble delivery order like a real channel
             rng.shuffle(injured)
@@ -175,7 +175,7 @@ def scenario_burst_loss(
         for rep in range(repeats):
             for start in range(total - k + 1):
                 drop = set(range(start, start + k))
-                rng = random.Random((rep, start, k, seed))
+                rng = random.Random((rep, start, k, seed))  # nosec B311 - seeded test RNG for channel simulation, not security
                 injured = [c for c in chunks if c.seq not in drop]
                 rng.shuffle(injured)
                 trials += 1
@@ -215,7 +215,7 @@ def scenario_tamper(
     trials = 0
     for rep in range(repeats):
         for target in range(total):
-            rng = random.Random((rep, target, "tamper", seed))
+            rng = random.Random((rep, target, "tamper", seed))  # nosec B311 - seeded test RNG for tamper simulation, not security
             pos = rng.randrange(len(chunks[target].fragment))
             injured = []
             for c in chunks:

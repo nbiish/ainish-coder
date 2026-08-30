@@ -137,7 +137,7 @@ class BeaconCarrier:
     pub_bytes: bytes
     signing_seed: bytes
     store: bc.Store
-    rng: random.Random = field(default_factory=lambda: random.Random(8))
+    rng: random.Random = field(default_factory=lambda: random.Random(8))  # nosec B311 - seeded deterministic test RNG, not security
     state: bc.ReceiverState = field(default_factory=bc.ReceiverState)
 
     def budget(self) -> int:
@@ -238,8 +238,8 @@ def _policy_honors_boundary(boundary: str) -> bool:
     return "quarantine" in boundary  # honored = flag raised for quarantine
 
 
-def _paraphrase(text: str, rng: random.Random, p: float = 0.25) -> str:
-    """Simulated paraphrase: random word swaps + synonym-level noise."""
+def _paraphrase(text: str, rng: random.Random, p: float = 0.25) -> str:  # nosec B311 - deterministic seeded test RNG for paraphrase fuzzing, not security
+    """Simulated paraphrase: random word swaps + synonym-level noise (seeded, reproducible)."""
     words = text.split()
     out = []
     for w in words:
@@ -300,7 +300,7 @@ def conformance_for_body(
         if ok:  # policy body publishes its signed record to the shared store
             _publish_record(store, raw, signing_seed)
     elif body == "agent_persona":
-        r = agent_persona_body(scroll, random.Random(11))
+        r = agent_persona_body(scroll, random.Random(11))  # nosec B311 - seeded test RNG, not security
         raw, ok = r.raw, r.ok
         if ok:  # persona body's manifest record is equally store-verified
             _publish_record(store, r.raw, signing_seed)
@@ -554,7 +554,7 @@ def _round_trip_chain(
     if not rp.ok:
         return False
     # 5. agent_persona paraphrase-tolerant check on the policy output
-    persona = agent_persona_body(unpack_scroll(rp.raw), random.Random(13))
+    persona = agent_persona_body(unpack_scroll(rp.raw), random.Random(13))  # nosec B311 - seeded test RNG, not security
     return persona.ok
 
 
