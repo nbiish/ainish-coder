@@ -152,41 +152,14 @@ main() {
                 _with_link_choice deploy_gitignore "$target_dir"
             fi
 
-            if confirm_action "Deploy PQC security skills (pqc-secrets + pqc-signatures-security)?" "y"; then
-                local pqc_dest_base="$(_pick_dest_base)"
-                local pqc_use_link="false"
+            if confirm_action "Deploy all skill packs (.agents/skills/)?" "y"; then
+                local skills_dest="$(_pick_dest_base)"
                 if _confirm_symlink; then
-                    pqc_use_link="true"
-                fi
-
-                _deploy_one_pqc() {
-                    local skill_name="$1" skill_label="$2"
-                    local skill_src="${REPO_DIR}/.agents/skills/${skill_name}"
-                    local final_dest="$pqc_dest_base/.agents/skills/${skill_name}"
-                    echo -e "${BRIGHT_BLUE}Deploying ${skill_label} to: $final_dest${RESET}"
-                    if [[ "$pqc_use_link" == "true" ]]; then
-                        AINISH_LINK_MODE="true" deploy_path_contents "$skill_src" "$final_dest"
-                    else
-                        AINISH_LINK_MODE="false" deploy_path_contents "$skill_src" "$final_dest"
-                    fi
-                }
-
-                if _deploy_one_pqc "pqc-secrets" "pqc-secrets (PQC Secrets Management)"; then
-                    echo -e "${BRIGHT_GREEN}✅ Deployed pqc-secrets${RESET}"
+                    AINISH_LINK_MODE="true" deploy_skills "$skills_dest"
                 else
-                    print_error "Failed to deploy pqc-secrets"
+                    AINISH_LINK_MODE="false" deploy_skills "$skills_dest"
                 fi
-                if _deploy_one_pqc "pqc-signatures-security" "pqc-signatures-security (PQC Signatures & Integrity)"; then
-                    echo -e "${BRIGHT_GREEN}✅ Deployed pqc-signatures-security${RESET}"
-                else
-                    print_error "Failed to deploy pqc-signatures-security"
-                fi
-                if _deploy_one_pqc "wtf-agent-hub" "wtf-agent-hub (PQC-Wired Observability Hub + Encrypted Agent Sessions)"; then
-                    echo -e "${BRIGHT_GREEN}✅ Deployed wtf-agent-hub${RESET}"
-                else
-                    print_error "Failed to deploy wtf-agent-hub"
-                fi
-                _TRACK_DETAIL="${_TRACK_DETAIL}+pqc-secrets+pqc-signatures+wtf-agent-hub"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+all-skills"
             fi
 
             # Agent Communication System — AGENTS/{date}.COMMS.md
