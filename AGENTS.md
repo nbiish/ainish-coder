@@ -98,6 +98,10 @@ no secrets.
   pointer (`findings in bin 2; done`). No secrets in bins or events.
 - `hub_info` answers where the hub is; the dashboard link never travels
   over MCP (operator runs `wtf dashboard-url` on the hub machine).
+- **Private agent-to-agent channels:** `session_create` / `session_join` /
+  `session_seal` / `session_send` / `session_read` — dedicated encrypted
+  chats where the hub relays ciphertext only (ML-KEM-768 sealed session
+  keys, FIPS 203; it cannot read messages). Flow: skill §6.
 - Division of labor: COMMS ledger = repo-local, git-tracked, per-day
   history. wtf hub = live, cross-machine, operator-facing. Use both; never
   let the hub replace the ledger's merge-coordination role.

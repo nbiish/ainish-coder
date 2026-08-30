@@ -181,7 +181,12 @@ main() {
                 else
                     print_error "Failed to deploy pqc-signatures-security"
                 fi
-                _TRACK_DETAIL="${_TRACK_DETAIL}+pqc-secrets+pqc-signatures"
+                if _deploy_one_pqc "wtf-agent-hub" "wtf-agent-hub (PQC-Wired Observability Hub + Encrypted Agent Sessions)"; then
+                    echo -e "${BRIGHT_GREEN}✅ Deployed wtf-agent-hub${RESET}"
+                else
+                    print_error "Failed to deploy wtf-agent-hub"
+                fi
+                _TRACK_DETAIL="${_TRACK_DETAIL}+pqc-secrets+pqc-signatures+wtf-agent-hub"
             fi
 
             # Agent Communication System — AGENTS/{date}.COMMS.md
