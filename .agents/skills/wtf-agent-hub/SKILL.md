@@ -70,6 +70,13 @@ machine prints `{"hub_url":…,"device":…,"key":…}` once, or
 only into env delivery or `bridge.json` (0600). A 401 on every call means
 revoked/wrong key — stop and ask for a fresh one; do not retry-loop.
 
+> **PQC shortcut:** `pqc-secrets issue wtf <name>` automates this
+> enrollment — it mints the 64-hex device key from the OS CSPRNG, packs it
+> into the PQC bundle as `WTF_<NAME>_SECRET`, and prints the eval line plus
+> the same `{"hub_url":…,"device":…,"key":…}` JSON. See the pqc-secrets
+> skill §5.9. Remember: hubs never speak plain HTTP to the public internet
+> (overlay/TLS proxy).
+
 ## 3. MCP registration (any harness)
 
 Standard `mcpServers` shape; `command` must be absolute:
