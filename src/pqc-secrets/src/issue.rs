@@ -2,27 +2,38 @@
 //! for the pqc-secrets Rust engine.
 //!
 //! `issue <template> <name>` mints a high-entropy device key from the OS CSPRNG
-//! and packs it into the PQC bundle through the existing pack path (same bundle
-//! format, AADs, and KDF as `cmd_pack`). `wtf` is the first built-in template
-//! and emits a ready-to-eval env line plus the wtf-agent-hub enrollment JSON
-//! (skill §2 shape: `{"hub_url":…,"device":…,"key":…}`).
+//! and seals it into the PQC bundle. **Vault-first:** when a vault exists (and
+//! no explicit recipient pub path is given), the vault identity is the
+//! recipient and an existing bundle is opened **in-memory**, merged, and
+//! re-sealed atomically (tmp+rename, 0600) — plaintext never touches disk.
+//! `wtf` is the first built-in template and emits a ready-to-eval env line
+//! plus the wtf-agent-hub enrollment JSON (skill §2 shape:
+//! `{"hub_url":…,"device":…,"key":…}`).
 //!
 //! `envelope export|import` moves secrets across machines as an ML-KEM-768-
-//! wrapped, ML-DSA-65-signed envelope. Import **verifies the signature before
-//! any decapsulation** and fails closed on the slightest mismatch.
+//! wrapped, ML-DSA-65-signed envelope. **Vault-first:** export signs with the
+//! vault ML-DSA-65 identity; import decapsulates with the vault ML-KEM-768
+//! seed. `--use-keychain` restores the legacy keychain paths on both. Import
+//! **verifies the signature before any decapsulation** and fails closed on
+//! the slightest mismatch.
 //!
-//! NOTE (integration): issuance currently writes through the existing bundle
-//! path (pack semantics). Phase 1 of the vault plan rewires issuance through
-//! the vault so merges into an existing bundle happen without exposing
-//! plaintext — see `.agents/tasks/TASK.2026-08-30.pqc-issuance-transit.md`.
+//! Tamper evidence (agent review surface): vault-path issuance writes an
+//! ML-DSA-65 detached signature sidecar `<bundle>.sig` (same record shape as
+//! `vault sign`) and pins the bundle digest in the signed audit chain.
+//! Reviewers verify with read-only, passphrase-free commands — `vault verify
+//! <bundle>` + `vault audit-verify` — which never decrypt anything and print
+//! only statuses and fingerprints (portable: Windows/WSL/macOS/Linux).
 //!
 //! Security notes:
 //! - Secret values are only ever printed shell-quoted (`export KEY='…'`) or
 //!   JSON-quoted (enrollment JSON) and are never logged; stderr carries
 //!   metadata and fingerprints only.
-//! - Tests in this file are pure in-memory with synthetic keys — they never
-//!   touch the OS keychain or the live bundle paths. Keychain-touching code
-//!   paths are exercised only via sandboxed subprocess runs.
+//! - Every issuance / envelope-export operation appends a signed record to
+//!   the vault audit chain (key names + fingerprints only, never values).
+//! - Tests are in-memory (synthetic keys) or sandboxed (`PQC_CONFIG_DIR` tmp
+//!   dir + synthetic passphrase + sandbox keychain account, serialized on the
+//!   vault test lock) — they never touch the OS keychain, the live bundle, or
+//!   the live vault.
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -33,13 +44,13 @@ use base64::prelude::*;
 use fips203::ml_kem_768;
 use fips203::traits::{Decaps, Encaps, SerDes};
 use ml_dsa::{
-    EncodedSignature, EncodedVerifyingKey, Keypair, MlDsa65, Seed, Signature, Signer, SigningKey,
-    Verifier, VerifyingKey,
+    EncodedSignature, EncodedVerifyingKey, Keypair, MlDsa65, Seed, Signature, SignatureEncoding,
+    Signer, SigningKey, Verifier, VerifyingKey,
 };
 use ml_kem::kem::{Decapsulate, FromSeed};
 use ml_kem::{KeyExport, MlKem768, Seed as MlKemSeed};
 use security_framework::passwords::{get_generic_password, set_generic_password};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 // Shared engine primitives live in main.rs (single source of truth for the
 // bundle format). Visibility is pub(crate) there; all new logic stays here.
@@ -48,6 +59,9 @@ use crate::{
     expand_user_path, keychain_account, now_utc, parse_env_lines, sha3_256, shell_quote, Bundle,
     DataSection, KemSection, KeywrapSection, PayloadSection, PublicKeyFile, RecipientSection, ALG,
     BUNDLE_VERSION, DATA_AAD, DEFAULT_BUNDLE, DEFAULT_PUB, DEFAULT_SERVICE, KEYWRAP_AAD, SEED_LEN,
+};
+use crate::vault::{
+    vault_audit_append, vault_issue_keys, vault_kem_seed, vault_open_bundle, vault_signing_key,
 };
 
 /// Default hub endpoint used in the enrollment JSON when `--hub-url` is not
@@ -223,16 +237,13 @@ fn load_recipient_pub(pub_path: &Path) -> Result<[u8; ml_kem_768::EK_LEN], Strin
     Ok(ek)
 }
 
-/// Encrypt and write a fresh bundle — the existing pack path (same structures,
-/// AADs and KDF as `cmd_pack`, so output is byte-compatible with `pack`).
-///
-/// NOTE (Phase 1): issuance writes through this bundle path today; it will be
-/// rewired through the vault at integration.
-fn seal_bundle_file(
+/// Pure seal: build the bundle JSON for `secrets` under recipient `ek` — the
+/// existing pack path (same structures, AADs and KDF as `cmd_pack`, so output
+/// is byte-compatible with `pack`). No filesystem access.
+fn seal_bundle_json(
     secrets: &HashMap<String, String>,
     ek: &[u8; ml_kem_768::EK_LEN],
-    bundle_path: &Path,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let payload_struct = PayloadSection {
         secrets: secrets.clone(),
     };
@@ -289,24 +300,185 @@ fn seal_bundle_file(
         },
     };
 
+    serde_json::to_string_pretty(&bundle).map_err(|e| format!("bundle serialization failed: {}", e))
+}
+
+/// Atomic bundle write: temp file + fsync + 0600 + rename — never a truncated
+/// or partially-written bundle, even on crash.
+fn write_bundle_atomic(json: &str, bundle_path: &Path) -> Result<(), String> {
     ensure_parent_dir(bundle_path).map_err(|e| format!("cannot create bundle directory: {}", e))?;
-    let mut file = File::create(bundle_path).map_err(|e| format!("cannot write bundle: {}", e))?;
-    let bundle_json = serde_json::to_string_pretty(&bundle)
-        .map_err(|e| format!("bundle serialization failed: {}", e))?;
-    file.write_all(bundle_json.as_bytes())
-        .map_err(|e| format!("cannot write bundle: {}", e))?;
+    let tmp = bundle_path.with_extension("json.tmp");
+    {
+        let mut file = File::create(&tmp).map_err(|e| format!("cannot write bundle: {}", e))?;
+        file.write_all(json.as_bytes())
+            .map_err(|e| format!("cannot write bundle: {}", e))?;
+        file.sync_all().ok();
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("bundle chmod failed: {}", e))?;
+    }
+    std::fs::rename(&tmp, bundle_path)
+        .map_err(|e| format!("bundle rename failed: {}", e))?;
     Ok(())
 }
 
+/// Seal + write a bundle (fresh or merged) atomically with 0600 permissions.
+fn seal_bundle_file(
+    secrets: &HashMap<String, String>,
+    ek: &[u8; ml_kem_768::EK_LEN],
+    bundle_path: &Path,
+) -> Result<(), String> {
+    let json = seal_bundle_json(secrets, ek)?;
+    write_bundle_atomic(&json, bundle_path)
+}
+
+/// Tamper evidence: seal + write the bundle, then sign the exact bytes on disk
+/// with the vault ML-DSA-65 identity into a detached sidecar `<bundle>.sig`
+/// (same record shape as `vault sign`). The sidecar plus `vault verify` give
+/// every agent a passphrase-free, read-only tamper check; the digest is also
+/// pinned into the audit chain by the caller. Returns the bundle SHA3-256 hex.
+fn seal_and_sign_bundle(
+    secrets: &HashMap<String, String>,
+    ek: &[u8; ml_kem_768::EK_LEN],
+    bundle_path: &Path,
+    signing_key: &SigningKey<MlDsa65>,
+    dsa_fp_full: &str,
+) -> Result<String, String> {
+    let json = seal_bundle_json(secrets, ek)?;
+    write_bundle_atomic(&json, bundle_path)?;
+    let bundle_bytes = std::fs::read(bundle_path)
+        .map_err(|e| format!("cannot re-read sealed bundle: {}", e))?;
+    let bundle_digest = hex::encode(sha3_256(&bundle_bytes));
+    let signature = signing_key.sign(&bundle_bytes);
+    let sig_rec = serde_json::json!({
+        "alg": "ML-DSA-65",
+        "file_sha3_256": bundle_digest,
+        "dsa_pub_sha3_256": dsa_fp_full,
+        "sig_b64": BASE64_STANDARD.encode(signature.to_vec()),
+        "created_utc": now_utc(),
+    });
+    let sig_path = PathBuf::from(format!("{}.sig", bundle_path.display()));
+    std::fs::write(
+        &sig_path,
+        serde_json::to_string_pretty(&sig_rec).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| format!("cannot write bundle signature: {}", e))?;
+    Ok(bundle_digest)
+}
+
+/// Outcome of a successful `issue wtf`. The minted value appears only in the
+/// eval line and enrollment JSON (both quoted) — never logged or audited.
+#[derive(Debug)]
+struct IssueOutcome {
+    env_key: String,
+    eval_line: String,
+    enrollment_json: String,
+    /// "vault-merge" | "vault-fresh" | "fresh" — stderr metadata only.
+    write_mode: &'static str,
+}
+
+/// `issue wtf` core: mint + seal (+ vault merge/sign + audit). Argument
+/// parsing and printing stay in `cmd_issue`; all decisions live here
+/// (unit-testable with a sandboxed vault).
+fn issue_wtf_core(
+    name: &str,
+    explicit_pub: Option<&str>,
+    bundle_path: &Path,
+    hub_url: &str,
+    force: bool,
+    use_keychain: bool,
+) -> Result<IssueOutcome, String> {
+    let env_key = wtf_env_key(name)?;
+    let value = mint_device_key()?;
+
+    let enrollment_json = serde_json::to_string(&WtfEnrollment {
+        hub_url,
+        device: name,
+        key: &value,
+    })
+    .map_err(|e| format!("enrollment serialization failed: {}", e))?;
+    let eval_line = format!("export {}={}", env_key, shell_quote(&value));
+
+    // Vault-first: no explicit recipient + vault present + legacy path not
+    // forced → the vault identity is the recipient; an existing bundle is
+    // merged in-memory (fail closed on wrong recipient / key collision) and
+    // re-sealed atomically — plaintext never touches disk. The result is
+    // ML-DSA-65-signed for tamper detection (`vault verify`).
+    if !use_keychain && explicit_pub.is_none() && crate::vault::vault_exists() {
+        // Single unwrap for both derived keys (one passphrase prompt max).
+        let (ek, kem_fp, signing_key, dsa_fp) = vault_issue_keys()?;
+        let existed = bundle_path.exists();
+        let mut payload = if existed {
+            let existing = vault_open_bundle(bundle_path)?;
+            if existing.contains_key(&env_key) && !force {
+                return Err(format!(
+                    "refusing to overwrite existing key {} in {} (pass --force to replace)",
+                    env_key,
+                    bundle_path.display()
+                ));
+            }
+            existing
+        } else {
+            HashMap::new()
+        };
+        payload.insert(env_key.clone(), value.clone());
+        let bundle_digest =
+            seal_and_sign_bundle(&payload, &ek, bundle_path, &signing_key, &dsa_fp)?;
+        vault_audit_append(
+            "issue-wtf",
+            &format!(
+                "key={}; mode={}; bundle-sha3:{}; recipient=sha3:{}",
+                env_key,
+                if existed { "merge" } else { "fresh" },
+                &bundle_digest[..16],
+                &kem_fp[..16]
+            ),
+            &signing_key,
+        )?;
+        return Ok(IssueOutcome {
+            env_key,
+            eval_line,
+            enrollment_json,
+            write_mode: if existed { "vault-merge" } else { "vault-fresh" },
+        });
+    }
+
+    // Legacy / foreign-recipient issuance: fresh single-key bundle through the
+    // pack path. The fresh-seal guard is preserved (a fresh seal replaces the
+    // whole bundle). This path is unsigned — no vault identity is involved.
+    let pub_path = PathBuf::from(expand_user_path(explicit_pub.unwrap_or(DEFAULT_PUB)));
+    if bundle_path.exists() && !force {
+        return Err(format!(
+            "refusing to overwrite existing bundle {} (pass --force to override)",
+            bundle_path.display()
+        ));
+    }
+    let ek = load_recipient_pub(&pub_path)?;
+    let mut secrets = HashMap::new();
+    secrets.insert(env_key.clone(), value.clone());
+    seal_bundle_file(&secrets, &ek, bundle_path)?;
+    Ok(IssueOutcome {
+        env_key,
+        eval_line,
+        enrollment_json,
+        write_mode: "fresh",
+    })
+}
+
 /// `pqc-secrets issue <template> <name> [PUB_PATH] [BUNDLE_PATH]
-///                                 [--hub-url URL] [--json] [--force]`
+///                                 [--hub-url URL] [--json] [--force]
+///                                 [--use-keychain]`
 ///
-/// Templates: `wtf` — mint a 64-hex device key, pack it into the PQC bundle as
-/// `WTF_<NAME>_SECRET` via the existing pack path, and print a ready-to-eval
-/// env line plus the wtf-agent-hub enrollment JSON. The minted value appears
-/// only shell-quoted / JSON-quoted; it is never logged.
+/// Templates: `wtf` — mint a 64-hex device key and seal it into the PQC
+/// bundle as `WTF_<NAME>_SECRET`. Vault-first (merge + signed + audited) when
+/// a vault exists and no explicit `PUB_PATH` is given; legacy pack semantics
+/// otherwise. The minted value appears only shell-quoted / JSON-quoted; it is
+/// never logged.
 fn cmd_issue(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    const USAGE: &str = "usage: pqc-secrets issue <template> <name> [PUB_PATH] [BUNDLE_PATH] [--hub-url URL] [--json] [--force]";
+    const USAGE: &str = "usage: pqc-secrets issue <template> <name> [PUB_PATH] [BUNDLE_PATH] [--hub-url URL] [--json] [--force] [--use-keychain]";
     let scanner = ArgScanner::scan(rest);
     let mut positionals = scanner.positionals.iter();
     let template = positionals
@@ -317,18 +489,15 @@ fn cmd_issue(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .copied()
         .ok_or(USAGE)?;
-    let pub_path = PathBuf::from(expand_user_path(
-        positionals.next().copied().unwrap_or(DEFAULT_PUB),
-    ));
-    let bundle_path = PathBuf::from(expand_user_path(
-        positionals.next().copied().unwrap_or(DEFAULT_BUNDLE),
-    ));
+    let explicit_pub = positionals.next().copied();
+    let bundle_raw = positionals.next().copied();
     if positionals.next().is_some() {
         return Err("too many positional arguments (expected: template name [PUB_PATH] [BUNDLE_PATH])".into());
     }
     let hub_url = scanner.value("hub-url").unwrap_or(DEFAULT_HUB_URL).to_string();
     let json_only = scanner.present("json");
     let force = scanner.present("force");
+    let use_keychain = scanner.present("use-keychain");
 
     if template != "wtf" {
         return Err(format!(
@@ -337,41 +506,33 @@ fn cmd_issue(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
-    let env_key = wtf_env_key(name)?;
+    let bundle_path = PathBuf::from(expand_user_path(bundle_raw.unwrap_or(DEFAULT_BUNDLE)));
 
-    // Footgun guard: like `pack`, this writes a fresh bundle. Unlike `pack`,
-    // issuance mints a single key — silently destroying an existing bundle
-    // would lose every other secret. Refuse unless explicitly forced.
-    if bundle_path.exists() && !force {
-        return Err(format!(
-            "refusing to overwrite existing bundle {} (pass --force to override; issuance will merge through the vault at Phase 1 integration)",
-            bundle_path.display()
-        )
-        .into());
-    }
-
-    let value = mint_device_key()?;
-
-    let mut secrets = HashMap::new();
-    secrets.insert(env_key.clone(), value.clone());
-    seal_bundle_file(&secrets, &load_recipient_pub(&pub_path)?, &bundle_path)?;
-
-    let enrollment_json = serde_json::to_string(&WtfEnrollment {
-        hub_url: &hub_url,
-        device: name,
-        key: &value,
-    })?;
+    let outcome = issue_wtf_core(name, explicit_pub, &bundle_path, &hub_url, force, use_keychain)
+        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
 
     if json_only {
-        println!("{}", enrollment_json);
+        println!("{}", outcome.enrollment_json);
     } else {
-        println!("export {}={}", env_key, shell_quote(&value));
-        println!("{}", enrollment_json);
-        eprintln!(
-            "Minted {} (64 hex chars); bundle written to {}",
-            env_key,
-            bundle_path.display()
-        );
+        println!("{}", outcome.eval_line);
+        println!("{}", outcome.enrollment_json);
+        match outcome.write_mode {
+            "vault-merge" => eprintln!(
+                "Minted {} (64 hex chars); merged into {} under the vault identity (in-memory, atomic 0600, signed)",
+                outcome.env_key,
+                bundle_path.display()
+            ),
+            "vault-fresh" => eprintln!(
+                "Minted {} (64 hex chars); fresh bundle {} sealed for the vault identity (0600, signed)",
+                outcome.env_key,
+                bundle_path.display()
+            ),
+            _ => eprintln!(
+                "Minted {} (64 hex chars); bundle written to {}",
+                outcome.env_key,
+                bundle_path.display()
+            ),
+        }
         eprintln!(
             "stdout line 1 is the eval line; line 2 is the enrollment JSON (--json for JSON-only output)"
         );
@@ -699,6 +860,7 @@ fn envelope_export(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         .value("recipient")
         .ok_or("envelope export requires --recipient <PUB>")?;
     let out_path = scanner.value("out");
+    let use_keychain = scanner.present("use-keychain");
 
     // Secrets from --in FILE or stdin (plain KEY=VAL lines, pack-compatible).
     let mut raw = String::new();
@@ -716,9 +878,32 @@ fn envelope_export(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let pub_path_expanded = expand_user_path(recipient);
     let recipient_ek = load_recipient_pub(Path::new(&pub_path_expanded))?;
 
-    // Provision/load the local ML-DSA-65 signing key (keychain, own account).
-    let signing_key = load_or_create_signing_key()?;
-    let envelope = seal_envelope(&secrets, &recipient_ek, &signing_key)?;
+    // Vault-first: sign with the canonical vault ML-DSA-65 identity when a
+    // vault exists — recipients can tie the envelope to the identity pinned in
+    // the vault header (no shared secret required to attribute it). Wire
+    // format is identical either way; `--use-keychain` (or no vault) keeps
+    // the legacy ad-hoc keychain signer.
+    let vault_first = !use_keychain && crate::vault::vault_exists();
+    let (envelope, signer_fp_full) = if vault_first {
+        let (signing_key, dsa_fp) = vault_signing_key()?;
+        let envelope = seal_envelope(&secrets, &recipient_ek, &signing_key)?;
+        vault_audit_append(
+            "envelope-export",
+            &format!(
+                "secrets={}; recipient=sha3:{}",
+                secrets.len(),
+                &hex::encode(sha3_256(&recipient_ek))[..16]
+            ),
+            &signing_key,
+        )?;
+        (envelope, dsa_fp)
+    } else {
+        // Provision/load the legacy ad-hoc ML-DSA-65 signing key (keychain).
+        let signing_key = load_or_create_signing_key()?;
+        let envelope = seal_envelope(&secrets, &recipient_ek, &signing_key)?;
+        let fp = hex::encode(sha3_256(signing_key.verifying_key().encode().as_slice()));
+        (envelope, fp)
+    };
 
     let envelope_json = serde_json::to_string_pretty(&envelope)?;
     match out_path {
@@ -731,12 +916,11 @@ fn envelope_export(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         None => println!("{}", envelope_json),
     }
 
-    let vk_bytes = signing_key.verifying_key().encode();
-    let fp = &hex::encode(sha3_256(vk_bytes.as_slice()))[..16];
     eprintln!(
-        "Envelope signed ({} secret(s)); signer fingerprint sha3:{}… — verify the fingerprint with the recipient out-of-band",
+        "Envelope signed ({} secret(s)); signer fingerprint sha3:{}… [{}] — verify the fingerprint with the recipient out-of-band",
         secrets.len(),
-        fp
+        &signer_fp_full[..16],
+        if vault_first { "vault identity" } else { "keychain" },
     );
     Ok(())
 }
@@ -758,24 +942,30 @@ fn envelope_import(rest: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let envelope: Envelope = serde_json::from_str(raw.trim())
         .map_err(|e| format!("input is not a valid envelope JSON: {}", e))?;
 
-    // Local ML-KEM-768 private material (keychain; same decode path as export).
-    let account = keychain_account();
-    let stored = get_generic_password(DEFAULT_SERVICE, &account).map_err(|e| {
-        format!(
-            "local ML-KEM-768 private key not found in keychain (service={}, account={}): {:?}",
-            DEFAULT_SERVICE, account, e
-        )
-    })?;
-    let mut material = String::from_utf8(stored)
-        .map_err(|_| "keychain key material is not UTF-8".to_string())?;
-    let mut local_key = decode_keychain_material(&material)?;
-    material.zeroize();
+    // Local ML-KEM-768 private material. Vault-first: the vault seed (session
+    // cache or passphrase; the keychain is never touched). `--use-keychain`
+    // (or no vault) reads the OS keychain — same decode path as `export`.
+    let use_keychain = scanner.present("use-keychain");
+    let local_key: Zeroizing<Vec<u8>> = if !use_keychain && crate::vault::vault_exists() {
+        vault_kem_seed()?
+    } else {
+        let account = keychain_account();
+        let stored = get_generic_password(DEFAULT_SERVICE, &account).map_err(|e| {
+            format!(
+                "local ML-KEM-768 private key not found in keychain (service={}, account={}): {:?}",
+                DEFAULT_SERVICE, account, e
+            )
+        })?;
+        let mut material = String::from_utf8(stored)
+            .map_err(|_| "keychain key material is not UTF-8".to_string())?;
+        let decoded = decode_keychain_material(&material)?;
+        material.zeroize();
+        Zeroizing::new(decoded)
+    };
 
     // Signature verification happens inside open_envelope BEFORE the local key
     // is exercised; on failure this returns without any decapsulation.
-    let secrets = open_envelope(&envelope, &local_key);
-    local_key.zeroize();
-    let secrets = secrets?;
+    let secrets = open_envelope(&envelope, &local_key)?;
 
     // Emit shell exports (same quoting contract as `export`).
     let mut keys: Vec<&String> = secrets.keys().collect();
@@ -1089,6 +1279,273 @@ mod tests {
             Some(value.as_str())
         );
         assert_eq!(value.len(), 64);
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    // -----------------------------------------------------------------------
+    // Vault-first issuance + tamper evidence. Sandboxed vault (tmp
+    // PQC_CONFIG_DIR + synthetic passphrase + light KDF + sandbox keychain
+    // account); serialized on the vault test lock because the sandbox is
+    // process-env based (edition 2024: env mutation is unsafe).
+    // -----------------------------------------------------------------------
+
+    /// SAFETY: callers hold crate::vault::tests::TEST_LOCK; no other test
+    /// thread reads env concurrently.
+    fn set_env(key: &str, value: &str) {
+        unsafe { std::env::set_var(key, value) };
+    }
+
+    /// NEVER touches the live store or the live keychain.
+    fn vault_sandbox(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "pqc-issue-vault-test-{}-{}",
+            std::process::id(),
+            name
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        set_env("PQC_CONFIG_DIR", dir.to_str().unwrap());
+        set_env("PQC_VAULT_PASSPHRASE", "synthetic-vtest-passphrase");
+        set_env(crate::vault::TEST_KDF_LIGHT_ENV, "1");
+        set_env("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-vtest-issue");
+        dir
+    }
+
+    fn vault_init() {
+        crate::vault::dispatch(&["init".to_string()]).expect("vault init");
+    }
+
+    fn vault_verify(bundle_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        crate::vault::dispatch(&[
+            "verify".to_string(),
+            bundle_path.to_string_lossy().to_string(),
+        ])
+    }
+
+    fn enrollment_value(enrollment_json: &str) -> String {
+        let v: serde_json::Value = serde_json::from_str(enrollment_json).unwrap();
+        v["key"].as_str().unwrap().to_string()
+    }
+
+    /// Seed an arbitrary bundle file (tests: foreign-recipient scenarios).
+    fn write_bundle_raw(
+        secrets: &HashMap<String, String>,
+        ek: &[u8; ml_kem_768::EK_LEN],
+        bundle_path: &Path,
+    ) {
+        let json = seal_bundle_json(secrets, ek).unwrap();
+        write_bundle_atomic(&json, bundle_path).unwrap();
+    }
+
+    #[test]
+    fn issue_vault_fresh_merge_tamper_evidence() {
+        let _g = crate::vault::tests::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        let dir = vault_sandbox("freshmerge");
+        vault_init();
+        let bundle_path = dir.join("secrets.bundle.json");
+        let sig_path = PathBuf::from(format!("{}.sig", bundle_path.display()));
+
+        // 1. Fresh issuance (no bundle) — vault-identity recipient + sidecar.
+        let out =
+            issue_wtf_core("deva", None, &bundle_path, "http://HUB:7800", false, false).unwrap();
+        assert_eq!(out.write_mode, "vault-fresh");
+        let key_a = enrollment_value(&out.enrollment_json);
+        assert_eq!(key_a.len(), 64);
+        assert!(sig_path.exists(), "vault issuance must write the sidecar");
+        vault_verify(&bundle_path).expect("vault verify must pass on a fresh issued bundle");
+        let opened = vault_open_bundle(&bundle_path).unwrap();
+        assert_eq!(
+            opened.get(&out.env_key).map(String::as_str),
+            Some(key_a.as_str())
+        );
+
+        // 2. Merge issuance (no --force) — preserves the existing secret.
+        let out2 =
+            issue_wtf_core("dev-b", None, &bundle_path, "http://HUB:7800", false, false).unwrap();
+        assert_eq!(out2.write_mode, "vault-merge");
+        let key_b = enrollment_value(&out2.enrollment_json);
+        let merged = vault_open_bundle(&bundle_path).unwrap();
+        assert_eq!(
+            merged.get(&out.env_key).map(String::as_str),
+            Some(key_a.as_str()),
+            "merge must preserve the existing secret"
+        );
+        assert_eq!(
+            merged.get(&out2.env_key).map(String::as_str),
+            Some(key_b.as_str())
+        );
+        vault_verify(&bundle_path).expect("vault verify must pass after merge");
+
+        // 3. Key-collision guard: same key name refused without --force.
+        let err = issue_wtf_core("dev-b", None, &bundle_path, "http://HUB:7800", false, false)
+            .unwrap_err();
+        assert!(
+            err.contains("refusing to overwrite existing key"),
+            "err={}",
+            err
+        );
+        // --force replaces the value and keeps the bundle verifiable.
+        issue_wtf_core("dev-b", None, &bundle_path, "http://HUB:7800", true, false).unwrap();
+        vault_verify(&bundle_path).expect("verify must pass after --force replace");
+
+        // 4. Audit chain recorded the issuance events (fail closed on tamper).
+        crate::vault::dispatch(&["audit-verify".to_string()])
+            .expect("audit chain must verify after issuance");
+
+        // 5. Missing sidecar → verify fails (unsigned bundle detected).
+        fs::remove_file(&sig_path).unwrap();
+        assert!(vault_verify(&bundle_path).is_err(), "missing sidecar must fail");
+
+        // 6. Re-issue regenerates the sidecar; forged signer must fail.
+        issue_wtf_core("dev-c", None, &bundle_path, "http://HUB:7800", false, false).unwrap();
+        vault_verify(&bundle_path).expect("verify must pass after re-issue");
+        let forged = serde_json::json!({
+            "alg": "ML-DSA-65",
+            "file_sha3_256": hex::encode(sha3_256(&fs::read(&bundle_path).unwrap())),
+            "dsa_pub_sha3_256": "00".repeat(32),
+            "sig_b64": BASE64_STANDARD.encode([0u8; 64]),
+            "created_utc": now_utc(),
+        });
+        fs::write(&sig_path, serde_json::to_string_pretty(&forged).unwrap()).unwrap();
+        let err = vault_verify(&bundle_path).expect_err("forged signer must fail");
+        assert!(
+            format!("{}", err).contains("fingerprint mismatch") || format!("{}", err).contains("INVALID"),
+            "err={}",
+            err
+        );
+
+        // 7. Tampered bundle byte → digest mismatch, fail closed.
+        let mut bytes = fs::read(&bundle_path).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 0x01;
+        fs::write(&bundle_path, &bytes).unwrap();
+        let err = vault_verify(&bundle_path).expect_err("tampered bundle must fail");
+        assert!(
+            format!("{}", err).contains("TAMPERED"),
+            "err={}",
+            err
+        );
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn issue_vault_refuses_foreign_recipient_bundle() {
+        let _g = crate::vault::tests::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        let dir = vault_sandbox("foreign");
+        vault_init();
+        let bundle_path = dir.join("secrets.bundle.json");
+
+        // Bundle sealed for a foreign (synthetic) recipient.
+        let (_foreign_seed, foreign_ek) = synthetic_kem();
+        write_bundle_raw(
+            &HashMap::from([("EXISTING_KEY".to_string(), "v".to_string())]),
+            &foreign_ek,
+            &bundle_path,
+        );
+        let before = fs::read(&bundle_path).unwrap();
+
+        let err = issue_wtf_core("devx", None, &bundle_path, "http://HUB:7800", false, false)
+            .unwrap_err();
+        assert!(
+            err.contains("different identity"),
+            "wrong-recipient bundle must fail closed, err={}",
+            err
+        );
+        assert_eq!(
+            fs::read(&bundle_path).unwrap(),
+            before,
+            "fail-closed path must not touch the bundle"
+        );
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn issue_explicit_pub_keeps_legacy_fresh_semantics() {
+        let _g = crate::vault::tests::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        let dir = vault_sandbox("explicitempty"); // empty config dir → no vault
+        assert!(!crate::vault::vault_exists());
+        let bundle_path = dir.join("secrets.bundle.json");
+
+        // Explicit foreign recipient pub (synthetic, engine-JSON format).
+        let (_seed, ek) = synthetic_kem();
+        let pub_path = dir.join("foreign.pub");
+        fs::write(
+            &pub_path,
+            serde_json::to_string_pretty(&PublicKeyFile {
+                alg: ALG.to_string(),
+                engine: "test-synthetic".to_string(),
+                public_key_b64: BASE64_STANDARD.encode(ek),
+                public_key_sha3_256: hex::encode(sha3_256(&ek)),
+                created_utc: now_utc(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let pub_arg = pub_path.to_string_lossy().to_string();
+
+        // Fresh issuance to the foreign recipient; unsigned (no vault identity).
+        let out =
+            issue_wtf_core("devf", Some(&pub_arg), &bundle_path, "http://HUB:7800", false, false)
+                .unwrap();
+        assert_eq!(out.write_mode, "fresh");
+        assert!(!PathBuf::from(format!("{}.sig", bundle_path.display())).exists());
+        let bundle: Bundle =
+            serde_json::from_str(&fs::read_to_string(&bundle_path).unwrap()).unwrap();
+        assert_eq!(
+            bundle.recipient.public_key_sha3_256,
+            hex::encode(sha3_256(&ek))
+        );
+
+        // Fresh-seal guard preserved for explicit-recipient issuance.
+        let err = issue_wtf_core(
+            "devf2",
+            Some(&pub_arg),
+            &bundle_path,
+            "http://HUB:7800",
+            false,
+            false,
+        )
+        .unwrap_err();
+        assert!(err.contains("refusing to overwrite existing bundle"), "err={}", err);
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn envelope_vault_identity_roundtrip_and_attribution() {
+        let _g = crate::vault::tests::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        let dir = vault_sandbox("envelope");
+        vault_init();
+
+        let (ek, _kem_fp, signing_key, dsa_fp) = vault_issue_keys().unwrap();
+        let secrets = test_secrets();
+        let envelope = seal_envelope(&secrets, &ek, &signing_key).unwrap();
+
+        // Attribution: the envelope signer IS the vault identity.
+        let signer_fp = hex::encode(sha3_256(
+            &BASE64_STANDARD.decode(envelope.signer_pubkey.trim()).unwrap(),
+        ));
+        assert_eq!(signer_fp, dsa_fp);
+
+        // Vault-seed decapsulation (the envelope import path).
+        let opened = open_envelope(&envelope, &vault_kem_seed().unwrap()).unwrap();
+        assert_eq!(opened, secrets);
+
+        // Wire format unchanged: JSON round-trips.
+        let parsed: Envelope =
+            serde_json::from_str(&serde_json::to_string(&envelope).unwrap()).unwrap();
+        assert_eq!(parsed.version, 1);
 
         fs::remove_dir_all(&dir).unwrap();
     }
