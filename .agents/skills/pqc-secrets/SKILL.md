@@ -191,6 +191,53 @@ System Keychain / File                 ~/.config/pqc-secrets/
 │  OPENROUTER_API_KEY    WAFER_API_KEY    ... (in-memory only) │
 └──────────────────────────────────────────────────────────────┘
 
+### 2.1 `vault.pqc` — OS-independent vault (canonical identity root, v1.2.0)
+
+The vault is a self-contained, passphrase-wrapped identity store with **no reliance
+on any OS security machinery** (Keychain, Secure Enclave, DPAPI, Secret Service).
+All encryption at rest is post-quantum + standard symmetric:
+
+```text
+passphrase ──Argon2id(salt, m/t/p)──▶ 32-byte vault KEK (memory-only, zeroized)
+                                         │ AES-256-GCM wrap (AAD-pinned)
+       ┌─────────────────────────────────┴─────────────────────────┐
+       ▼                                                            ▼
+ML-KEM-768 seed (64 B d‖z, FIPS 203)              ML-DSA-65 seed (32 B ξ, FIPS 204)
+```
+
+Store: `~/.config/pqc-secrets/vault.pqc` (0600 JSON, honors `PQC_CONFIG_DIR`).
+Clear header carries public material only (expanded-EK fingerprint, ML-DSA-65
+verification key + fingerprint), so `verify` / `audit-verify` never need the
+passphrase. Default KDF: argon2id `m=64 MiB, t=3, p=4` (repo §4 row; stricter
+than the OWASP 2025 minimum). Every blob is AAD-pinned (e.g.
+`pqc-secrets:vault:v1:kem-seed`) and fails closed on mismatch.
+
+**Commands** (write-side is Rust-only; all errors fail closed):
+
+| Command | Purpose |
+|---|---|
+| `vault init` | One-time vault creation: fresh ML-KEM-768 + ML-DSA-65 seeds, wrapped under a passphrase. Refuses if a vault exists. |
+| `vault migrate` | One-time keychain → vault adoption. Rollback gates: unwrap → re-wrap → byte-roundtrip fingerprint check (before == after) before success; NEVER deletes/edits keychain material (you delete it manually after confirming). `--dry-run` prints the plan and writes nothing. |
+| `vault unlock [--ttl Ns/Nm/Nh] [--no-cache]` | Verify passphrase; default TTL 15 min. With a session, the KEK lives ONLY in a hidden `_vault-holder` child's memory (passed via stdin pipe, never argv/env/disk) serving a 0700 Unix-socket. `--no-cache` verifies statelessly. POSIX-only; `--no-cache` is the portable path. |
+| `vault lock` / `vault status` | Lock = zeroize holder + signed audit record; status = vault/KDF/fingerprints + session remaining. |
+| `vault export-identity [--pub-out PATH]` | Unwrap + verify header fingerprint; writes a pack-compatible `recipient.pub`-format JSON file. |
+| `vault sign` / `vault verify <FILE> [SIG]` | ML-DSA-65 detached signatures (`<FILE>.sig` JSON); verify is passphrase-free and pins the vault's verification key (fail closed on alg/digest/key/progressive mismatch). |
+| `vault audit-verify` | Replays the hash-chained, ML-DSA-65-signed audit log (every record signed; `CHAIN1\t{json}` lines extend the existing `audit.log`, legacy lines preserved). Detects reorder, edits, and signature forgery. |
+
+**Keychain demotion:** when a vault exists it is the canonical identity root —
+`keygen` refuses and `export` routes through the vault (both overridable with
+`--use-keychain`). No-vault behavior is unchanged (keychain / `machine.kek`
+file store keeps working).
+
+**Python parity (documented decision):** `pqc_secrets.py` READS the vault
+identity only (`_vault_load_kem_seed`: pinned `argon2-cffi==25.1.0` raw-hash
+Argon2id + `cryptography` AESGCM) so `export`/`verify`/`list`/`rename`
+decapsulate bundles keychain-free. The ML-DSA signing identity and the signed
+audit chain are Rust-side (`vault audit-verify`) — there is no mature pinned
+Python ML-DSA. Verified by `.agents/skills/pqc-secrets/tests/test_vault_parity.py`
+(rust vault init → export-identity → py pack → py export roundtrip, no keychain
+access).
+
 ---
 
 ## 3. Cryptographic Standards (verified 2026-08-08)
@@ -269,6 +316,8 @@ PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pq
 || `PQC_KEYCHAIN_ACCOUNT` | `pqc-secrets-key` | System keychain account name for the ML-KEM-768 private key |
 || `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
 | `PQC_USE_KEYCHAIN` | `false` | Enable native platform keychain storage (defaults to the `machine.kek` file store) |
+| `PQC_VAULT_PASSPHRASE` | — (prompt) | Vault passphrase for non-interactive use; env only, never persisted or logged |
+| `PQC_VAULT_TEST_KDF_LIGHT` | unset | **Test-only** Argon2id lightener (m=8 MiB, t=1, p=1) for fast sandboxed tests; production defaults unchanged; params are recorded per-vault in the header |
 
 **Private-key wrapping key (KEK):** the ML-KEM-768 private key is encrypted under a stable per-machine KEK persisted to `~/.config/pqc-secrets/machine.kek` (0600). It is generated once and survives reboots, kernel upgrades, and distro re-creation; a pre-existing legacy-encrypted store is migrated automatically. See `references/kek-persistence.md` for the full strategy.
 
@@ -278,6 +327,7 @@ One PQC bundle at `~/.config/pqc-secrets/secrets.bundle.json` is the single sour
 
 - **Rust Primary Engine:** `fips203` crate v0.4.x (pure Rust, no `unsafe`, no C FFI; implements final FIPS 203 ML-KEM-768 with ACVP KATs). Since v1.1.0 (2026-08-30) seed-form (FIPS 203 `d‖z`) keygen and expansion use RustCrypto `ml-kem` 0.3 (`FromSeed`/`Decapsulate`): `keygen` stores hex seeds (Python-readable), `export` accepts hex-or-base64 keychain material and engine-JSON-or-hex public-key files, and a cross-impl interop test (fips203 encaps ↔ ml-kem decaps) runs in `cargo test`. Alternatives verified 2026-08: RustCrypto `ml-kem` crate (type-safe param sets, no FFI), Cryspen/libcrux `libcrux-ml-kem` (formally verified).
 - **Rust Primary Dependencies:** `security-framework` (macOS Keychain), `aes-gcm`, `serde`, `serde_json`, `sha3`.
+- **Vault (v1.2.0, 2026-08-30):** `argon2` 0.6 (Argon2id KEK), `ml-dsa` 0.1 (FIPS 204 ML-DSA-65 signatures + signed audit chain), `rpassword` 7.5 (passphrase prompt); `zeroize` on all seed/KEK intermediates. Private-key seeds are held only in `Zeroizing` memory and never printed — fingerprints (`sha3:<16 hex>`) only.
 - **Python Fallback Engine (migrated 2026-08-20):** native `cryptography>=45` ML-KEM-768 (`MLKEM768PrivateKey.generate()` / `from_seed_bytes()` / `MLKEM768PublicKey.encapsulate()`) for all keygen, encapsulation, and seed-form decapsulation. `kyber-py` is imported lazily and used **only** to decapsulate legacy 2400-byte expanded-form private-key stores (written by older keygens or the Rust engine); those prints advise rotating via `keygen` + re-pack. Bundle JSON layout is unchanged and interoperable with the Rust engine.
 - **Python Fallback Dependencies:** Managed inline via UV script metadata — `cryptography>=45.0` (primary engine) and `kyber-py>=0.2.0` (legacy expanded-key reads only), auto-resolved by `uv run`.
 
