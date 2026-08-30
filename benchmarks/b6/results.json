@@ -1,9 +1,9 @@
 {
   "benchmark": "B-6 signed-beacon provenance under realistic loss",
-  "run_timestamp": "2026-08-30T03:38:18+00:00",
+  "run_timestamp": "2026-08-30T03:51:59+00:00",
   "seed": "11",
   "all_pass": true,
-  "wall_seconds": 0.167,
+  "wall_seconds": 0.177,
   "engine_params": {
     "chunk_budget_bytes": {
       "ble": 26,
@@ -26,8 +26,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7751249941065907,
-          "e2e_ms_p95": 0.7751249941065907,
+          "e2e_ms_median": 0.7519170176237822,
+          "e2e_ms_p95": 0.7519170176237822,
           "pass": true
         },
         {
@@ -36,8 +36,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7178339874371886,
-          "e2e_ms_p95": 0.7178339874371886,
+          "e2e_ms_median": 0.7814998971298337,
+          "e2e_ms_p95": 0.7814998971298337,
           "pass": true
         },
         {
@@ -46,8 +46,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7318749558180571,
-          "e2e_ms_p95": 0.7318749558180571,
+          "e2e_ms_median": 0.754334032535553,
+          "e2e_ms_p95": 0.754334032535553,
           "pass": true
         },
         {
@@ -56,8 +56,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7570829475298524,
-          "e2e_ms_p95": 0.7570829475298524,
+          "e2e_ms_median": 0.7662500720471144,
+          "e2e_ms_p95": 0.7662500720471144,
           "pass": true
         },
         {
@@ -66,8 +66,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7161250105127692,
-          "e2e_ms_p95": 0.7161250105127692,
+          "e2e_ms_median": 0.7330829976126552,
+          "e2e_ms_p95": 0.7330829976126552,
           "pass": true
         },
         {
@@ -76,8 +76,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7858750177547336,
-          "e2e_ms_p95": 0.7858750177547336,
+          "e2e_ms_median": 0.7346660131588578,
+          "e2e_ms_p95": 0.7346660131588578,
           "pass": true
         },
         {
@@ -86,8 +86,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7414169376716018,
-          "e2e_ms_p95": 0.7414169376716018,
+          "e2e_ms_median": 0.7630829932168126,
+          "e2e_ms_p95": 0.7630829932168126,
           "pass": true
         },
         {
@@ -96,8 +96,8 @@
           "trials": 3,
           "reassembly_success": 1.0,
           "store_verify_success": 1.0,
-          "e2e_ms_median": 0.7768330397084355,
-          "e2e_ms_p95": 0.7768330397084355,
+          "e2e_ms_median": 0.7779159350320697,
+          "e2e_ms_p95": 0.7779159350320697,
           "pass": true
         }
       ],
