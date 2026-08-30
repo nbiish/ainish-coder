@@ -3,6 +3,9 @@
 # requires-python = ">=3.12"
 # dependencies = [
 #     "cryptography>=45.0",
+#     # argon2-cffi is pinned for vault.pqc identity unwrapping (vault-first
+#     # export when a vault exists — Phase 1 parity with the Rust vault core).
+#     "argon2-cffi==25.1.0",
 #     # kyber-py is retained ONLY to decapsulate legacy expanded-form (2400-byte)
 #     # private-key stores written by older engines. New keygens use the native
 #     # cryptography ML-KEM-768 implementation exclusively.
@@ -108,6 +111,12 @@ KEK_PATH = CONFIG_DIR / "machine.kek"
 KEYCHAIN_SERVICE = "pqc-secrets"
 KEYCHAIN_ACCOUNT = os.environ.get("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-key")
 KDF_INFO = b"pqc-secrets:v1:kek"
+
+# Vault (Phase 1): vault.pqc is the canonical, OS-independent identity root
+# when it exists. Python reads it (never writes) — write-side is Rust-only.
+VAULT_PATH = CONFIG_DIR / "vault.pqc"
+VAULT_KEM_SEED_AAD = b"pqc-secrets:vault:v1:kem-seed"
+VAULT_PASSPHRASE_ENV = "PQC_VAULT_PASSPHRASE"
 
 
 def _ensure_config_dir() -> None:
@@ -261,7 +270,80 @@ def _store_private_key(sk: bytes) -> None:
     _save_key_to_file(sk)
 
 
+def _vault_load_kem_seed() -> bytes:
+    """Unwrap the ML-KEM-768 seed from a vault.pqc store (read-only parity).
+
+    Mirrors the Rust vault core (Phase 1) unwrap path without touching the OS
+    keychain: Argon2id(passphrase, header salt/params) -> 32-byte vault KEK,
+    then AES-256-GCM decrypt of the AAD-pinned kem_seed blob (64-byte d‖z).
+    Fail-closed: version/alg/KDF checks, AAD pinning, seed length check.
+    Passphrase: PQC_VAULT_PASSPHRASE env, else interactive prompt (never
+    persisted, never logged).
+
+    Scope note (documented decision): Python parity covers the ML-KEM identity
+    path only — enough to decapsulate bundles keychain-free. The vault ML-DSA
+    signing identity and the signed audit chain are verified by the Rust
+    engine (`vault audit-verify`); there is no mature pinned Python ML-DSA.
+    """
+    from argon2.low_level import Type, hash_secret_raw
+
+    try:
+        header = json.loads(VAULT_PATH.read_text())
+    except Exception as e:
+        print(f"ERROR: vault unreadable at {VAULT_PATH}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if header.get("version") != 1:
+        print(f"ERROR: unsupported vault version {header.get('version')!r}", file=sys.stderr)
+        sys.exit(1)
+    if header.get("alg") != "ML-KEM-768" or header.get("sig_alg") != "ML-DSA-65":
+        print("ERROR: unsupported vault algorithms (fail closed).", file=sys.stderr)
+        sys.exit(1)
+    kdf = header.get("kdf", {})
+    if kdf.get("name") != "argon2id" or kdf.get("output_len") != 32:
+        print("ERROR: unsupported vault KDF (fail closed).", file=sys.stderr)
+        sys.exit(1)
+
+    passphrase = os.environ.get(VAULT_PASSPHRASE_ENV)
+    if passphrase is None:
+        passphrase = getpass.getpass("Vault passphrase: ")
+
+    try:
+        salt = base64.b64decode(kdf["salt_b64"])
+        kek = hash_secret_raw(
+            secret=passphrase.encode("utf-8"),
+            salt=salt,
+            time_cost=int(kdf["t_cost"]),
+            memory_cost=int(kdf["m_cost_kib"]),
+            parallelism=int(kdf["p_cost"]),
+            hash_len=32,
+            type=Type.ID,
+        )
+        blob = header["kem_seed"]
+        if blob.get("aad").encode() != VAULT_KEM_SEED_AAD:
+            raise ValueError("vault kem_seed AAD mismatch (fail closed)")
+        nonce = base64.b64decode(blob["nonce_b64"])
+        ciphertext = base64.b64decode(blob["ciphertext_b64"])
+        seed = AESGCM(kek).decrypt(nonce, ciphertext, VAULT_KEM_SEED_AAD)
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"ERROR: vault unwrap failed (wrong passphrase or tampered vault): {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if len(seed) != KEM_SEED_LEN:
+        print(f"ERROR: vault seed has wrong length {len(seed)} (expected {KEM_SEED_LEN})", file=sys.stderr)
+        sys.exit(1)
+    return seed
+
+
 def _load_private_key() -> bytes:
+    # Vault-first (Phase 1): when a vault exists it is the canonical identity
+    # root — read the seed from it, never the OS keychain. Existing no-vault
+    # behavior is unchanged.
+    if VAULT_PATH.exists():
+        return _vault_load_kem_seed()
+
     # Check if native keychain is requested; otherwise default to system-agnostic file backend
     if os.environ.get("PQC_USE_KEYCHAIN") != "true":
         return _load_key_from_file()

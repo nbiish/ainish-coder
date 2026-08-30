@@ -14,83 +14,85 @@ use ml_kem::kem::{Decapsulate, FromSeed, KeyExport};
 use ml_kem::{MlKem768, Seed as MlKemSeed};
 use zeroize::Zeroize;
 
-const ALG: &str = "ML-KEM-768";
-const BUNDLE_VERSION: u32 = 1;
-const DEFAULT_BUNDLE: &str = "~/.config/pqc-secrets/secrets.bundle.json";
-const DEFAULT_PUB: &str = "~/.config/pqc-secrets/recipient.pub";
-const DEFAULT_SERVICE: &str = "pqc-secrets";
+mod vault;
+
+pub(crate) const ALG: &str = "ML-KEM-768";
+pub(crate) const BUNDLE_VERSION: u32 = 1;
+pub(crate) const DEFAULT_BUNDLE: &str = "~/.config/pqc-secrets/secrets.bundle.json";
+pub(crate) const DEFAULT_PUB: &str = "~/.config/pqc-secrets/recipient.pub";
+pub(crate) const DEFAULT_SERVICE: &str = "pqc-secrets";
 // Default account name matches the Python `pqc-secrets` skill (which originally generated the keypair).
 // The legacy v1 binary used "default"; new keypairs since 2026-06-08 are stored under "pqc-secrets-key".
 // Override with PQC_KEYCHAIN_ACCOUNT=<name> if your keychain entry uses a different name.
-const DEFAULT_ACCOUNT: &str = "pqc-secrets-key";
+pub(crate) const DEFAULT_ACCOUNT: &str = "pqc-secrets-key";
 
 /// Keychain account override (matches the canonical Python engine's env var).
-fn keychain_account() -> String {
+pub(crate) fn keychain_account() -> String {
     std::env::var("PQC_KEYCHAIN_ACCOUNT").unwrap_or_else(|_| DEFAULT_ACCOUNT.to_string())
 }
 
 // FIPS 203 seed-form private key length (d‖z). Canonical store since 2026-08-20.
-const SEED_LEN: usize = 64;
+pub(crate) const SEED_LEN: usize = 64;
 
-const KEYWRAP_AAD: &[u8] = b"pqc-secrets:v1:keywrap";
-const DATA_AAD: &[u8] = b"pqc-secrets:v1:data";
+pub(crate) const KEYWRAP_AAD: &[u8] = b"pqc-secrets:v1:keywrap";
+pub(crate) const DATA_AAD: &[u8] = b"pqc-secrets:v1:data";
 const KDF_INFO: &[u8] = b"pqc-secrets:v1:kek";
 
 #[allow(dead_code)]
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct Bundle {
-    version: u32,
-    alg: String,
-    engine: String,
-    created_utc: String,
-    recipient: RecipientSection,
-    kem: KemSection,
-    keywrap: KeywrapSection,
-    data: DataSection,
+pub(crate) struct Bundle {
+    pub(crate) version: u32,
+    pub(crate) alg: String,
+    pub(crate) engine: String,
+    pub(crate) created_utc: String,
+    pub(crate) recipient: RecipientSection,
+    pub(crate) kem: KemSection,
+    pub(crate) keywrap: KeywrapSection,
+    pub(crate) data: DataSection,
 }
 
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct RecipientSection {
-    public_key_sha3_256: String,
+pub(crate) struct RecipientSection {
+    pub(crate) public_key_sha3_256: String,
 }
 
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct KemSection {
-    ciphertext_b64: String,
+pub(crate) struct KemSection {
+    pub(crate) ciphertext_b64: String,
 }
 
 #[allow(dead_code)]
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct KeywrapSection {
-    kdf: String,
-    aad: String,
-    nonce_b64: String,
-    ciphertext_b64: String,
+pub(crate) struct KeywrapSection {
+    pub(crate) kdf: String,
+    pub(crate) aad: String,
+    pub(crate) nonce_b64: String,
+    pub(crate) ciphertext_b64: String,
 }
 
 #[allow(dead_code)]
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct DataSection {
-    aad: String,
-    nonce_b64: String,
-    ciphertext_b64: String,
+pub(crate) struct DataSection {
+    pub(crate) aad: String,
+    pub(crate) nonce_b64: String,
+    pub(crate) ciphertext_b64: String,
 }
 
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct PublicKeyFile {
-    alg: String,
-    engine: String,
-    public_key_b64: String,
-    public_key_sha3_256: String,
-    created_utc: String,
+pub(crate) struct PublicKeyFile {
+    pub(crate) alg: String,
+    pub(crate) engine: String,
+    pub(crate) public_key_b64: String,
+    pub(crate) public_key_sha3_256: String,
+    pub(crate) created_utc: String,
 }
 
 #[derive(serde::Serialize, Deserialize, Debug)]
-struct PayloadSection {
-    secrets: HashMap<String, String>,
+pub(crate) struct PayloadSection {
+    pub(crate) secrets: HashMap<String, String>,
 }
 
-fn expand_user_path(path: &str) -> String {
+pub(crate) fn expand_user_path(path: &str) -> String {
     if path.starts_with("~/")
         && let Some(home) = std::env::var_os("HOME")
     {
@@ -100,29 +102,29 @@ fn expand_user_path(path: &str) -> String {
     path.to_string()
 }
 
-fn shell_quote(value: &str) -> String {
+pub(crate) fn shell_quote(value: &str) -> String {
     let escaped = value.replace('\'', "'\\''");
     format!("'{}'", escaped)
 }
 
-fn derive_kek(shared_secret: &[u8]) -> [u8; 32] {
+pub(crate) fn derive_kek(shared_secret: &[u8]) -> [u8; 32] {
     let mut hasher = Sha3_256::new();
     hasher.update(shared_secret);
     hasher.update(KDF_INFO);
     hasher.finalize().into()
 }
 
-fn sha3_256(data: &[u8]) -> [u8; 32] {
+pub(crate) fn sha3_256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha3_256::new();
     hasher.update(data);
     hasher.finalize().into()
 }
 
-fn now_utc() -> String {
+pub(crate) fn now_utc() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
 }
 
-fn encrypt_aesgcm(key: &[u8], nonce: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn encrypt_aesgcm(key: &[u8], nonce: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let payload = Payload {
         msg: plaintext,
@@ -132,7 +134,7 @@ fn encrypt_aesgcm(key: &[u8], nonce: &[u8], plaintext: &[u8], aad: &[u8]) -> Res
         .map_err(|e| format!("AES-GCM encryption failed: {:?}", e))
 }
 
-fn decrypt_aesgcm(key: &[u8], nonce: &[u8], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn decrypt_aesgcm(key: &[u8], nonce: &[u8], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let payload = Payload {
         msg: ciphertext,
@@ -142,7 +144,7 @@ fn decrypt_aesgcm(key: &[u8], nonce: &[u8], ciphertext: &[u8], aad: &[u8]) -> Re
         .map_err(|e| format!("AES-GCM decryption failed: {:?}", e))
 }
 
-fn parse_env_lines(raw: &str) -> Result<HashMap<String, String>, String> {
+pub(crate) fn parse_env_lines(raw: &str) -> Result<HashMap<String, String>, String> {
     let mut secrets = HashMap::new();
     for line in raw.lines() {
         let trimmed = line.trim();
@@ -174,7 +176,7 @@ fn parse_env_lines(raw: &str) -> Result<HashMap<String, String>, String> {
 /// The canonical Python engine stores `sk.hex()` (hex, lower-case, no separator);
 /// legacy Rust v1.0.0 stores stored base64 of the 2400-byte expanded decaps key.
 /// Hex is tried first when the string is plausibly hex, then base64.
-fn decode_keychain_material(raw: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn decode_keychain_material(raw: &str) -> Result<Vec<u8>, String> {
     let trimmed = raw.trim();
     if !trimmed.is_empty()
         && trimmed.len().is_multiple_of(2)
@@ -188,14 +190,26 @@ fn decode_keychain_material(raw: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("keychain key material is neither hex nor base64: {}", e))
 }
 
-fn ensure_parent_dir(path: &Path) -> Result<(), std::io::Error> {
+pub(crate) fn ensure_parent_dir(path: &Path) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     Ok(())
 }
 
-fn cmd_keygen(pub_out_raw: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_keygen(pub_out_raw: &str, force_keychain: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // Keychain demotion (Phase 1): the OS keychain is an opt-in convenience,
+    // never the source of truth. When a vault exists it is the canonical
+    // identity root — refuse silent keychain keygen (fail closed).
+    if !force_keychain && vault::vault_exists() {
+        return Err(
+            "Refusing keychain keygen: a vault exists and is the canonical identity root \
+             (the OS keychain is demoted to an opt-in convenience via --use-keychain).\
+             \n  - Manage the identity via: pqc-secrets vault <init|status|export-identity|...>\
+             \n  - Force legacy keychain keygen anyway: pqc-secrets keygen --use-keychain"
+                .into(),
+        );
+    }
     let pub_path_str = expand_user_path(pub_out_raw);
     let pub_path = Path::new(&pub_path_str);
     
@@ -359,13 +373,20 @@ fn cmd_pack(pub_in_raw: &str, bundle_out_raw: &str) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
-fn cmd_export(bundle_in_raw: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_export(bundle_in_raw: &str, force_keychain: bool) -> Result<(), Box<dyn std::error::Error>> {
     let bundle_path_str = expand_user_path(bundle_in_raw);
     let bundle_path = Path::new(&bundle_path_str);
 
     if !bundle_path.exists() {
         eprintln!("Error: Bundle file not found at {:?}", bundle_path);
         std::process::exit(1);
+    }
+
+    // Vault-first (Phase 1): when a vault exists it is the canonical identity
+    // root — decapsulate via the vault instead of the OS keychain. Existing
+    // no-vault behavior is unchanged; --use-keychain forces the legacy path.
+    if !force_keychain && vault::vault_exists() {
+        return vault::cmd_export_via_vault(bundle_path);
     }
 
     // Read bundle JSON
@@ -475,14 +496,26 @@ fn cmd_export(bundle_in_raw: &str) -> Result<(), Box<dyn std::error::Error>> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: pqc-secrets <keygen|pack|export> [args]");
+        eprintln!("Usage: pqc-secrets <keygen|pack|export|vault> [args]");
         std::process::exit(1);
     }
     
     let result = match args[1].as_str() {
         "keygen" => {
-            let pub_out = args.get(2).map(|s| s.as_str()).unwrap_or(DEFAULT_PUB);
-            cmd_keygen(pub_out)
+            let mut force_keychain = false;
+            let positional: Vec<&String> = args[2..]
+                .iter()
+                .filter(|a| {
+                    if a.as_str() == "--use-keychain" {
+                        force_keychain = true;
+                        false
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+            let pub_out = positional.first().map(|s| s.as_str()).unwrap_or(DEFAULT_PUB);
+            cmd_keygen(pub_out, force_keychain)
         }
         "pack" => {
             let pub_in = args.get(2).map(|s| s.as_str()).unwrap_or(DEFAULT_PUB);
@@ -490,9 +523,25 @@ fn main() {
             cmd_pack(pub_in, bundle_out)
         }
         "export" => {
-            let bundle_in = args.get(2).map(|s| s.as_str()).unwrap_or(DEFAULT_BUNDLE);
-            cmd_export(bundle_in)
+            let mut force_keychain = false;
+            let positional: Vec<&String> = args[2..]
+                .iter()
+                .filter(|a| {
+                    if a.as_str() == "--use-keychain" {
+                        force_keychain = true;
+                        false
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+            let bundle_in = positional.first().map(|s| s.as_str()).unwrap_or(DEFAULT_BUNDLE);
+            cmd_export(bundle_in, force_keychain)
         }
+        "vault" => vault::dispatch(&args[2..]),
+        // Hidden in-memory session holder (spawned by `vault unlock`; KEK on
+        // stdin). Routed at top level because the parent spawns it directly.
+        vault::HOLDER_ARG => vault::dispatch(&args[1..]),
         cmd => {
             eprintln!("Unknown command: {}", cmd);
             std::process::exit(1);
