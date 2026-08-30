@@ -94,6 +94,10 @@ const KDF_OUT_LEN: usize = 32;
 /// Default session TTL: 15 minutes.
 const DEFAULT_TTL_SECS: u64 = 900;
 
+/// Sentinel for `--ttl never`: the session holder runs until `vault lock`,
+/// shutdown, or reboot — no wall-clock expiry. Sleep does not advance it.
+const NO_EXPIRY: u64 = u64::MAX;
+
 /// Hidden subcommand that runs the in-memory session holder.
 pub(crate) const HOLDER_ARG: &str = "_vault-holder";
 /// Test-only KDF lightener (never set in production). Keeps `cargo test` fast
@@ -462,11 +466,13 @@ fn holder_serve_with_kek(kek: Zeroizing<[u8; KDF_OUT_LEN]>, ttl_secs: u64) -> Re
         .set_nonblocking(true)
         .map_err(|e| format!("holder: nonblocking: {}", e))?;
 
-    let deadline = Instant::now() + Duration::from_secs(ttl_secs);
+    let no_expiry = ttl_secs == NO_EXPIRY;
+    let deadline =
+        if no_expiry { Instant::now() } else { Instant::now() + Duration::from_secs(ttl_secs) };
     let mut locked_cleanly = false;
 
     loop {
-        if Instant::now() >= deadline {
+        if !no_expiry && Instant::now() >= deadline {
             // TTL expiry: best-effort signed audit record, then zeroize.
             if let Ok(header) = load_vault() {
                 let _ = holder_audit_append(&header, &kek, "vault-ttl-expire", &format!("ttl={}s", ttl_secs));
@@ -489,7 +495,7 @@ fn holder_serve_with_kek(kek: Zeroizing<[u8; KDF_OUT_LEN]>, ttl_secs: u64) -> Re
                 };
                 let resp = match req {
                     HolderReq::Status => {
-                        let remaining = deadline.saturating_duration_since(Instant::now()).as_secs();
+                        let remaining = if no_expiry { NO_EXPIRY } else { deadline.saturating_duration_since(Instant::now()).as_secs() };
                         match load_vault() {
                             Ok(header) => HolderResp {
                                 ok: true,
@@ -502,7 +508,7 @@ fn holder_serve_with_kek(kek: Zeroizing<[u8; KDF_OUT_LEN]>, ttl_secs: u64) -> Re
                         }
                     }
                     HolderReq::Unwrap => {
-                        let remaining = deadline.saturating_duration_since(Instant::now()).as_secs();
+                        let remaining = if no_expiry { NO_EXPIRY } else { deadline.saturating_duration_since(Instant::now()).as_secs() };
                         match load_vault().and_then(|header| {
                             let kem = unwrap_blob(&kek, &header.kem_seed, KEM_SEED_AAD)?;
                             let dsa = unwrap_blob(&kek, &header.dsa_seed, DSA_SEED_AAD)?;
@@ -592,6 +598,9 @@ fn spawn_holder(kek: &Zeroizing<[u8; KDF_OUT_LEN]>, ttl_secs: u64) -> Result<(),
 fn parse_ttl(raw: Option<&String>) -> Result<u64, String> {
     let Some(text) = raw else { return Ok(DEFAULT_TTL_SECS) };
     let text = text.trim();
+    if text.eq_ignore_ascii_case("never") {
+        return Ok(NO_EXPIRY);
+    }
     let (digits, mult) = match text.chars().last() {
         Some('s') => (&text[..text.len() - 1], 1u64),
         Some('m') => (&text[..text.len() - 1], 60),
@@ -601,7 +610,7 @@ fn parse_ttl(raw: Option<&String>) -> Result<u64, String> {
     digits
         .parse::<u64>()
         .map(|n| n.saturating_mul(mult))
-        .map_err(|_| format!("invalid --ttl value: {} (use seconds, or Ns/Nm/Nh)", text))
+        .map_err(|_| format!("invalid --ttl value: {} (use seconds, Ns/Nm/Nh, or 'never')", text))
 }
 
 // ---------------------------------------------------------------------------
@@ -841,7 +850,11 @@ fn cmd_unlock(rest: &[String]) -> Result<(), String> {
 
     // Already unlocked? Report, refresh nothing.
     if let Some(remaining) = session_status() {
-        println!("Vault already unlocked (TTL remaining: {}s). Use `vault lock` to lock.", remaining);
+        if remaining == NO_EXPIRY {
+            println!("Vault already unlocked (no TTL — until `vault lock`, shutdown, or reboot).");
+        } else {
+            println!("Vault already unlocked (TTL remaining: {}s). Use `vault lock` to lock.", remaining);
+        }
         return Ok(());
     }
 
@@ -870,9 +883,14 @@ fn cmd_unlock(rest: &[String]) -> Result<(), String> {
         return Ok(());
     }
 
+    let ttl_audit = if ttl == NO_EXPIRY { "ttl=never".to_string() } else { format!("ttl={}s", ttl) };
     spawn_holder(&kek, ttl)?;
-    audit_chain_append("vault-unlock", &format!("ttl={}s", ttl), &identity.signing_key()?)?;
-    println!("Vault unlocked (session TTL: {}s).", ttl);
+    audit_chain_append("vault-unlock", &ttl_audit, &identity.signing_key()?)?;
+    if ttl == NO_EXPIRY {
+        println!("Vault unlocked (session: no TTL — persists until `vault lock`, shutdown, or reboot).");
+    } else {
+        println!("Vault unlocked (session TTL: {}s).", ttl);
+    }
     println!("  kem-fp: {}", kem_fp);
     println!("  dsa-fp: {}", dsa_fp);
     Ok(())
@@ -909,6 +927,7 @@ fn cmd_status(_rest: &[String]) -> Result<(), String> {
     println!("kem-fp:  {}", short_fp(&header.identity.kem_pub_sha3_256));
     println!("dsa-fp:  {}", short_fp(&header.identity.dsa_pub_sha3_256));
     match session_status() {
+        Some(NO_EXPIRY) => println!("session: unlocked (no TTL — until lock, shutdown, or reboot)"),
         Some(remaining) => println!("session: unlocked (TTL remaining: {}s)", remaining),
         None => println!("session: locked"),
     }
@@ -1392,6 +1411,18 @@ pub(crate) mod tests {
         // it, but the env must name the sandbox account, never the live one).
         set_env("PQC_KEYCHAIN_ACCOUNT", "pqc-secrets-vtest-vault");
         dir
+    }
+
+    #[test]
+    fn parse_ttl_units_and_never() {
+        let s = |v: &str| v.to_string();
+        assert_eq!(parse_ttl(None).unwrap(), DEFAULT_TTL_SECS);
+        assert_eq!(parse_ttl(Some(&s("30s"))).unwrap(), 30);
+        assert_eq!(parse_ttl(Some(&s("5m"))).unwrap(), 300);
+        assert_eq!(parse_ttl(Some(&s("2h"))).unwrap(), 7_200);
+        assert_eq!(parse_ttl(Some(&s("never"))).unwrap(), NO_EXPIRY);
+        assert_eq!(parse_ttl(Some(&s("NEVER"))).unwrap(), NO_EXPIRY);
+        assert!(parse_ttl(Some(&s("bogus"))).is_err());
     }
 
     fn init_vault(name: &str) -> (std::sync::MutexGuard<'static, ()>, PathBuf) {
