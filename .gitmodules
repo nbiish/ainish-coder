@@ -1,0 +1,16 @@
+[submodule "docs/research/pliny-research/CL4R1T4S"]
+	path = docs/research/pliny-research/CL4R1T4S
+	url = https://github.com/elder-plinius/CL4R1T4S.git
+	branch = main
+[submodule "docs/research/pliny-research/L1B3RT4S"]
+	path = docs/research/pliny-research/L1B3RT4S
+	url = https://github.com/elder-plinius/L1B3RT4S.git
+	branch = main
+[submodule "docs/research/pliny-research/G0DM0D3"]
+	path = docs/research/pliny-research/G0DM0D3
+	url = https://github.com/elder-plinius/G0DM0D3.git
+	branch = main
+[submodule "docs/research/pliny-research/OBLITERATUS"]
+	path = docs/research/pliny-research/OBLITERATUS
+	url = https://github.com/elder-plinius/OBLITERATUS.git
+	branch = main
