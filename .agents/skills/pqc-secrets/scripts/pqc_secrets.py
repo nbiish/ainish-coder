@@ -743,6 +743,13 @@ def cmd_pack() -> None:
     """Read KEY=VALUE lines from stdin, encrypt via AES-256-GCM + ML-KEM-768.
 
     Produces a Rust-compatible bundle with keywrap layer and AAD.
+
+    Input hygiene (hardened 2026-08-30 after the literal-quote incident):
+    - Values arriving shell-quoted (KEY='value') are REFUSED, not stored —
+      wrapping quotes would otherwise be kept as literal value characters.
+      Pipe plain KEY=value lines.
+    - Values containing '$' or '`' are stored literally; a non-fatal
+      warning is printed because such values never expand at eval time.
     """
     _ensure_config_dir()
 
@@ -753,6 +760,8 @@ def cmd_pack() -> None:
 
     # Parse KEY=VALUE pairs
     entries: dict[str, str] = {}
+    shell_quoted: list[str] = []
+    expansion_chars: list[str] = []
     for line in lines.split("\n"):
         line = line.strip()
         if not line or line.startswith("#"):
@@ -760,11 +769,41 @@ def cmd_pack() -> None:
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
-        entries[key.strip()] = value.strip()
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value.startswith("'") and value.endswith("'"):
+            shell_quoted.append(key)
+        elif "$" in value or "`" in value:
+            expansion_chars.append(key)
+        entries[key] = value
 
     if not entries:
         print("ERROR: No valid KEY=VALUE pairs found in input.", file=sys.stderr)
         sys.exit(1)
+
+    if shell_quoted:
+        print(
+            "ERROR: refused to pack shell-quoted value(s) for: "
+            + ", ".join(sorted(shell_quoted))
+            + "\n"
+            "  These values arrived wrapped in single quotes (KEY='value'); packing\n"
+            "  them as-is would store the quote characters literally — this caused\n"
+            "  the 2026-08-30 incident where packed values contained stray quotes.\n"
+            "  Strip the shell quotes first and pipe plain KEY=value lines:\n"
+            "    printf 'KEY=value\\n' | pqc-secrets pack",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if expansion_chars:
+        print(
+            "WARNING: value(s) for "
+            + ", ".join(sorted(expansion_chars))
+            + " contain '$' or '`'; stored literally. On export they are\n"
+            "  single-quoted, so eval will NOT expand them (that is the safe default) —\n"
+            "  re-check these values if shell expansion was intended.",
+            file=sys.stderr,
+        )
 
     _encrypt_entries_to_bundle(entries)
 
@@ -806,8 +845,19 @@ def _decrypt_bundle(bundle: dict, sk: bytes) -> dict[str, str]:
     return json.loads(plaintext)
 
 
+def _shell_quote(value: str) -> str:
+    """Quote a value for POSIX shell so eval is safe for ANY value.
+
+    Matches the Rust engine's shell_quote(): single-quote the whole value
+    and replace every embedded ' with '\'' (close, escaped quote, reopen).
+    Survives quotes, spaces, $, backticks, and embedded newlines —
+    single-quoted strings in shell may span lines.
+    """
+    return "'" + value.replace("'", "'\\''") + "'"
+
+
 def cmd_export() -> None:
-    """Decrypt bundle and output shell export lines."""
+    """Decrypt bundle and output shell export lines (values shell-quoted)."""
     if not BUNDLE_PATH.exists():
         print(_NO_BUNDLE_MSG, file=sys.stderr)
         sys.exit(1)
@@ -820,7 +870,7 @@ def cmd_export() -> None:
     entries = payload.get("secrets", payload) if isinstance(payload, dict) and "secrets" in payload else payload
 
     for key, value in entries.items():
-        print(f"export {key}={value}")
+        print(f"export {key}={_shell_quote(value)}")
 
 
 def cmd_verify() -> None:
@@ -919,10 +969,10 @@ def cmd_version() -> None:
     """Print engine identity and coverage — the standalone 'is this current?' probe."""
     print(f"pqc-secrets engine: {ENGINE_NAME} (canonical python)")
     print(f"build date:         {ENGINE_BUILD_DATE}")
-    print(f"crypto:             ML-KEM-768 (FIPS 203, seed-form private key) + AES-256-GCM")
+    print("crypto:             ML-KEM-768 (FIPS 203, seed-form private key) + AES-256-GCM")
     print(f"bundle schema:      {BUNDLE_SCHEMA}")
     print(f"commands:           {ENGINE_COMMANDS}")
-    print(f"darwin rust binary: legacy v1.0.0 fast-path (keygen/pack/export only)")
+    print("darwin rust binary: legacy v1.0.0 fast-path (keygen/pack/export only)")
 
 
 def cmd_migrate() -> None:
