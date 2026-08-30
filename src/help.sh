@@ -18,8 +18,12 @@ GLOBAL FLAGS:
                          and --skills with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to copy for safety) and
-                              .gitignore (copy or symlink with --link).
+    --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to copy for safety),
+                              .gitignore (copy or symlink with --link), and the
+                              Agent Communication System:
+                                AGENTS/{date}.COMMS.md (merge-safe: refreshes
+                                the protocol header, preserves agent entries;
+                                the gitignored .live.md board is never touched)
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
@@ -33,7 +37,7 @@ CORE COMMANDS:
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + .gitignore.
+    Use --rules to deploy AGENTS.md + .gitignore + AGENTS/{date}.COMMS.md.
     Use --llms-txt to deploy llms.txt.
     Use --skills to deploy all skill packs.
 
@@ -195,7 +199,7 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md + .gitignore + global symlinks
+    - --rules deploys AGENTS.md + .gitignore + AGENTS/{date}.COMMS.md + global symlinks
     - --agents deploys AGENTS.md + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
     - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md

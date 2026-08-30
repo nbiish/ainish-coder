@@ -8,7 +8,10 @@ This directory contains the shell components used by the CLI. Components are kep
 src/
 ├── *.sh                # CLI utilities and deployment commands
 ├── templates/          # Deployable, repository-agnostic templates
-│   └── llms.txt        # User-project llms.txt template
+│   ├── llms.txt        # User-project llms.txt template
+│   └── AGENTS.COMMS.md # Agent Communication System protocol template
+│                      # (deployed as AGENTS/{date}.COMMS.md by --rules;
+│                      #  merge-safe — agent entry blocks are preserved)
 │
 └── pqc-secrets/        # Rust: FIPS 203 secrets manager (ML-KEM-768)
     ├── Cargo.toml
