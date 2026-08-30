@@ -63,8 +63,8 @@ Deep dives: `cross-repo-key-sharing.md` (one bundle, many repos),
 
 | Engine | Path | Commands | When |
 |---|---|---|---|
-| **Python (canonical)** | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py` | keygen, pack, export, verify, list, rename, migrate, setup, version | Default everywhere; newest `cryptography>=45` native ML-KEM-768; FIPS 203 seed-form keygens |
-| **Rust fast-path** | `bin/pqc-secrets.darwin-arm64` (source `src/pqc-secrets/`, `fips203` crate) | keygen, pack, export only | darwin/arm64 speed path; frozen v1.0.0 command set |
+| **Python (canonical)** | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py` | keygen, pack, export, verify, list, rename, migrate, setup, version | Default everywhere; newest `cryptography>=45` native ML-KEM-768; FIPS 203 seed-form keygens; vault read-side parity (ML-KEM identity) |
+| **Rust fast-path** | `bin/pqc-secrets.darwin-arm64` (source `src/pqc-secrets/`, RustCrypto `ml-kem`/`ml-dsa`) | keygen, pack, export, issue, envelope, vault | darwin/arm64 speed path; v1.2.0 (2026-08-30) — vault-first issuance + tamper evidence |
 
 Both write the **identical double-envelope bundle JSON** (verified parity
 2026-08-30): ML-KEM-768 encapsulates a shared secret → SHA3-derived KEK
@@ -73,15 +73,24 @@ wraps a random 32-byte data key (AES-256-GCM keywrap, AAD
 `pqc-secrets:v1:data`). Pre-parity bundles error with
 `missing field aad`; migrate once (export → keygen → pack).
 
-Engine review notes (Rust v1.0.0, reviewed 2026-08-30):
+Engine status (Rust v1.2.0, 2026-08-30):
+- **Vault-first by default.** With `~/.config/pqc-secrets/vault.pqc` present,
+  `export`/`issue`/`envelope` run through the vault identity (Argon2id-wrapped
+  ML-KEM-768 + ML-DSA-65 seeds, 0600) — the OS keychain is not touched.
+  `--use-keychain` (or no vault) keeps the legacy keychain paths. `keygen`
+  refuses when a vault exists; `vault init` is the one-time setup.
+- **Atomic, mode-safe writes.** Vault-path bundle writes are tmp + fsync +
+  rename at mode 0600 (no umask dependence); every vault-identity operation
+  appends a hash-chained ML-DSA-65-signed audit record, and issuance signs the
+  exact on-disk bytes into a `<bundle>.sig` sidecar. Agents review integrity
+  via `vault verify` / `vault audit-verify` — fingerprints and digests only,
+  never values.
 - KDF is plain `SHA3-256(shared_secret ‖ info)`, not HKDF — acceptable for a
   single-recipient KEM secret (uniform, domain-separated) but update SKILL.md
   §3 if you tighten this to HKDF-SHA3-256.
-- Rust `export` reads the decapsulation key from the **macOS Keychain only**
-  (no `machine.kek` file-store fallback) — one reason it stays a darwin-only
-  fast-path.
-- The Rust binary writes the bundle without forcing mode 0600 (umask
-  dependent). Ciphertext-only, so low risk; tighten when you touch the code.
+- The Rust binary remains darwin/arm64-only; the canonical Python engine
+  covers every platform (macOS, Linux, WSL/Windows) with vault read-side
+  parity.
 
 ---
 
@@ -187,6 +196,10 @@ read-only consumption:
   bundle backed up first).
 - `pack` **replaces** the whole bundle. Always merge in memory first
   (`export` → mutate → `pack`), or use a namespace-scoped writer.
+- Device keys: prefer `pqc-secrets issue wtf <name>` — vault-first issuance is
+  the merge-safe writer (opens the existing bundle in memory, preserves every
+  unrelated entry, refuses key collisions without `--force`, and leaves a
+  signed sidecar + audit record).
 - `recipient.pub` is the only bundle-related file that may be committed.
 
 ---
