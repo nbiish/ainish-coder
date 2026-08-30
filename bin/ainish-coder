@@ -43,6 +43,7 @@ source "${SRC_DIR}/deploy_skills.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
 source "${SRC_DIR}/deploy_mcp_recipes.sh"
 source "${SRC_DIR}/deploy_scrolls.sh"
+source "${SRC_DIR}/scroll_integrity.sh"
 source "${SRC_DIR}/deploy_license.sh"
 source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
@@ -349,8 +350,61 @@ main() {
                 exit 1
             fi
             _TRACK_DETAIL="scrolls"
+            # Verify-first gate: refuse to deploy an unverified/tampered payload.
+            local scrolls_verify_rc=0
+            scrolls_verify "$target_dir/.scrolls" || scrolls_verify_rc=$?
+            if [[ $scrolls_verify_rc -ne 0 ]]; then
+                if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]]; then
+                    print_error "Scroll verification failed; refusing deploy: $(scrolls_verify "$target_dir/.scrolls" 2> /dev/null || true)"
+                    scrolls_comms_log "deploy-failed" "verify-first gate refused deploy to $target_dir" "$target_dir/.scrolls"
+                    exit 1
+                fi
+                print_warning "Scroll verification failed for: $target_dir/.scrolls"
+                if confirm_action "Re-sign (manifest + ML-DSA-65 signature) and retry? Seeds must be set via AINISHCODER_SCROLL_SIGN_SEED." "n"; then
+                    if scrolls_sign "$target_dir/.scrolls" && scrolls_verify "$target_dir/.scrolls"; then
+                        scrolls_comms_log "intent-deploy" "re-signed payload, proceeding to deploy" "$target_dir/.scrolls"
+                    else
+                        print_error "Re-sign/verify failed; refusing deploy"
+                        scrolls_comms_log "deploy-failed" "re-sign attempt failed verify gate" "$target_dir/.scrolls"
+                        exit 1
+                    fi
+                else
+                    scrolls_comms_log "deploy-failed" "operator declined re-sign; deploy refused" "$target_dir/.scrolls"
+                    print_error "Refusing to deploy unverified scrolls"
+                    exit 1
+                fi
+            fi
             if confirm_action "Deploy scrolls (adversarial-prompting/ghost-layer payload) to: $target_dir?" "y"; then
+                scrolls_comms_log "intent-deploy" "operator confirmed deploy to $target_dir" "$target_dir/.scrolls"
                 _with_link_choice deploy_scrolls "$target_dir"
+                scrolls_comms_log "deployed" "scroll payload deployed to $target_dir" "$target_dir/.scrolls"
+            fi
+            ;;
+
+        --scrolls-manifest)
+            _TRACK_DETAIL="scrolls-manifest"
+            scrolls_manifest "$target_dir"
+            ;;
+
+        --scrolls-sign)
+            _TRACK_DETAIL="scrolls-sign"
+            local scrolls_council_arg=""
+            if [[ "${2:-}" == "--council" ]]; then
+                scrolls_council_arg="--council"
+                shift
+            fi
+            scrolls_sign "$target_dir" $scrolls_council_arg
+            ;;
+
+        --scrolls-verify)
+            _TRACK_DETAIL="scrolls-verify"
+            local scrolls_target="${target_dir}/.scrolls"
+            [[ -d "$scrolls_target" ]] || scrolls_target="$target_dir"
+            if scrolls_verify "$scrolls_target"; then
+                echo -e "${GREEN}PASS${RESET}"
+            else
+                echo -e "${RED}FAIL${RESET}"
+                exit 1
             fi
             ;;
 

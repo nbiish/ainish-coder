@@ -90,6 +90,25 @@ UTILITY COMMANDS:
                               refused under -y/--non-interactive. Targeted
                               publishing use only — do NOT deploy by default.
                               Example: ainish-coder --scrolls ~/my-project
+    --scrolls-manifest [DIR]  Generate manifest.json (SHA3-256 per file) for a
+                              payload dir. Deterministic, sorted, boundary:
+                              public-teachings-only.
+                              Example: ainish-coder --scrolls-manifest ~/my-project
+
+    --scrolls-sign [DIR] [--council]
+                              Sign the manifest digest with ML-DSA-65 (FIPS 204).
+                              Writes .scrolls/manifest.sig + manifest.pub;
+                              --council adds manifest.sig2 + manifest.pub2.
+                              Seeds: AINISHCODER_SCROLL_SIGN_SEED (and
+                              _COUNCIL_SEED), loaded from the PQC bundle via
+                              pqc-secrets export — never generated silently.
+                              Example: ainish-coder --scrolls-sign ~/my-project
+
+    --scrolls-verify [DIR]    Verify payload files + signatures against
+                              .scrolls/manifest.json (recomputed from disk).
+                              Exit 0/1; prints per-failure reasons.
+                              Example: ainish-coder --scrolls-verify ~/my-project
+
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory (copies)
                               Deploys 20 skill packs:

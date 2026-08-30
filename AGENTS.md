@@ -61,6 +61,7 @@ When ≥1 agent or subagent works at once (multiple branches, features, updates,
 - **Bracket every input and output with `start:` / `end:` ISO-8601 timestamps** — one block per input→output unit, never a published `start:` without its `end:`. Stamp `start:` when work begins (input received), `end:` when the output is complete. Abandoned actions still close with `end:` + `status: abandoned`.
 - **Carve-out:** appending to the main repo's `AGENTS/{date}.COMMS.md` working file by absolute path is the *only* permitted edit outside a worktree — it is a live board, never a `git commit` on `main`. Commits land via task branches and merge to `main`.
 - Full entry format, lifecycle events, and merge-conflict rules: see the protocol spec at the top of `AGENTS/{date}.COMMS.md`.
+- Scroll deploy lifecycle events (`intent-deploy` / `deployed` / `deploy-failed`, with manifest digest) are appended by the integrity layer in `src/scroll_integrity.sh` (`scrolls_comms_log`).
 </COMMS>
 
 ---
