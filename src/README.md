@@ -52,13 +52,25 @@ src/
   identity only): `pqc_secrets.py` unwraps the vault seed via pinned
   `argon2-cffi==25.1.0` — ML-DSA/audit-verify stays Rust-only. Verified by
   `cargo test` (11 tests) + `.agents/skills/pqc-secrets/tests/test_vault_parity.py`.
-- The engine also implements `issue <template> <name>` (device-key
-  issuance; `wtf` builtin mints a 64-hex CSPRNG key, packs `WTF_<NAME>_SECRET`
-  through the pack path, prints the quoted eval line + wtf enrollment JSON) and
-  `envelope export|import` (cross-machine transfer: ML-KEM-768-wrapped
-  AES-256-GCM payload signed with ML-DSA-65 via RustCrypto `ml-dsa` 0.1.1;
-  import verifies the signature **before** decapsulation, fail closed).
-  Issuance currently writes through the existing bundle path; it is rewired
-  through the vault (Phase 1) at integration. Any transit endpoint must sit
-  behind an overlay/TLS proxy — never plain HTTP to the public internet;
-  future daemons target TLS 1.3 with hybrid `X25519MLKEM768`.
+- **Vault-first issuance + transfer (2026-08-30, same release as the vault
+  core):** `issue <template> <name>` (the `wtf` builtin mints a 64-hex CSPRNG
+  key) and `envelope export|import` are vault-first: with a vault present and
+  no explicit `PUB_PATH`/`--use-keychain`, issuance **merges in memory** under
+  the vault ML-KEM-768 identity (fresh seal when no bundle exists), writes the
+  bundle atomically (tmp + fsync + rename, 0600), signs the exact on-disk
+  bytes into an ML-DSA-65 sidecar `<bundle>.sig`, and appends signed audit
+  records; a foreign-recipient bundle is refused fail-closed before any
+  decapsulation, and re-issuing an existing env name requires `--force`.
+  Explicit `PUB_PATH`, no vault, or `--use-keychain` keeps the legacy fresh
+  pack semantics (unsigned). `envelope export` signs with the vault ML-DSA-65
+  identity and `envelope import` decapsulates via the vault seed; import
+  verifies the signature **before** decapsulation, fail closed. Tamper
+  evidence is agent-reviewable with zero secret exposure: `vault verify`
+  (bundle digest + recipient pin + sidecar) and `vault audit-verify`
+  (hash-chained signed records) expose only key names, timestamps, and
+  SHA3-256 fingerprints/digests. Any transit endpoint must sit behind an
+  overlay/TLS proxy — never plain HTTP to the public internet; future daemons
+  target TLS 1.3 with hybrid `X25519MLKEM768`. Verified by `cargo test`
+  (24 tests, incl. vault-first merge/collision/foreign-recipient/envelope
+  roundtrip + tamper fail-closed suites) and a 13-stage sandboxed E2E
+  lifecycle.

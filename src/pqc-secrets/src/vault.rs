@@ -36,6 +36,7 @@
 //! Fingerprint rule: fingerprints are `sha3:<16 hex prefix of SHA3-256>`.
 //! Key/seed material is never printed, logged, or written outside the vault.
 
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -76,6 +77,8 @@ const DSA_SEED_AAD: &[u8] = b"pqc-secrets:vault:v1:dsa-seed";
 const DSA_SEED_LEN: usize = 32;
 /// ML-DSA-65 expanded verification key length (FIPS 204 pkEncode).
 const DSA_VK_LEN: usize = 1952;
+/// ML-KEM-768 expanded encapsulation key length (FIPS 203 ek).
+const KEM_EK_LEN: usize = 1184;
 /// Argon2id salt length.
 const SALT_LEN: usize = 16;
 /// AES-GCM nonce length.
@@ -96,7 +99,7 @@ pub(crate) const HOLDER_ARG: &str = "_vault-holder";
 /// Test-only KDF lightener (never set in production). Keeps `cargo test` fast
 /// while production defaults stay 64 MiB / t=3 / p=4. Parameters are recorded
 /// in the vault header, so light-test vaults remain format-compatible.
-const TEST_KDF_LIGHT_ENV: &str = "PQC_VAULT_TEST_KDF_LIGHT";
+pub(crate) const TEST_KDF_LIGHT_ENV: &str = "PQC_VAULT_TEST_KDF_LIGHT";
 
 const CHAIN_PREFIX: &str = "CHAIN1";
 const GENESIS_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -1182,44 +1185,139 @@ fn cmd_migrate(rest: &[String]) -> Result<(), String> {
     }
 }
 
-/// `export` via the vault identity (vault-first routing from main.rs).
-pub(crate) fn cmd_export_via_vault(bundle_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let raw = std::fs::read_to_string(bundle_path)?;
-    let bundle: crate::Bundle = serde_json::from_str(&raw)?;
+// ---------------------------------------------------------------------------
+// pub(crate) plumbing for vault-first issuance (used by issue.rs)
+// ---------------------------------------------------------------------------
+
+/// Open a bundle in-memory under the vault identity — nothing is printed and
+/// no plaintext touches disk. Gates, in order: bundle version/alg, recipient
+/// fingerprint vs the vault header pin (BEFORE any decapsulation), identity
+/// fingerprint re-check, then seed decaps + AES-256-GCM open.
+pub(crate) fn vault_open_bundle(bundle_path: &Path) -> Result<HashMap<String, String>, String> {
+    let raw = std::fs::read_to_string(bundle_path)
+        .map_err(|e| format!("cannot read bundle {:?}: {}", bundle_path, e))?;
+    let bundle: crate::Bundle =
+        serde_json::from_str(&raw).map_err(|e| format!("bundle corrupt: {}", e))?;
     if bundle.version != BUNDLE_VERSION {
-        return Err(format!("unsupported bundle version {}", bundle.version).into());
+        return Err(format!("unsupported bundle version {}", bundle.version));
     }
     if bundle.alg != crate::ALG {
-        return Err(format!("unsupported bundle alg {}", bundle.alg).into());
+        return Err(format!("unsupported bundle alg {}", bundle.alg));
+    }
+    let header = load_vault()?;
+    let recipient_fp = bundle.recipient.public_key_sha3_256.trim().to_string();
+    if recipient_fp != header.identity.kem_pub_sha3_256 {
+        return Err(format!(
+            "bundle is sealed for a different identity (recipient sha3:{}… ≠ vault sha3:{}…) — refusing (fail closed)",
+            &recipient_fp[..16.min(recipient_fp.len())],
+            &header.identity.kem_pub_sha3_256[..16]
+        ));
     }
 
-    let identity = obtain_identity().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-
-    // Expand the decapsulation key from the vault seed and decapsulate.
+    let identity = obtain_identity()?;
     let seed_arr: [u8; SEED_LEN] = *identity.kem_seed;
     let seed = KemSeedArr::from(seed_arr);
-    let (dk, _ek) = MlKem768::from_seed(&seed);
-    let kem_ct = BASE64_STANDARD.decode(bundle.kem.ciphertext_b64.trim())?;
+    let (dk, ek) = MlKem768::from_seed(&seed);
+    // Defense-in-depth: the expanded EK must match the header pin.
+    let ek_fp = hex::encode(sha3_256(ek.to_bytes().as_slice()));
+    if ek_fp != header.identity.kem_pub_sha3_256 {
+        return Err("unwrapped identity does not match vault header (fail closed)".to_string());
+    }
+
+    let kem_ct = BASE64_STANDARD
+        .decode(bundle.kem.ciphertext_b64.trim())
+        .map_err(|e| format!("bundle kem ciphertext corrupt: {}", e))?;
     let shared = dk
         .decapsulate_slice(&kem_ct)
         .map_err(|e| format!("ML-KEM vault decapsulation failed: {}", e))?;
 
     let mut kek = derive_kek(shared.as_slice());
-    let keywrap_nonce = BASE64_STANDARD.decode(bundle.keywrap.nonce_b64.trim())?;
-    let keywrap_ct = BASE64_STANDARD.decode(bundle.keywrap.ciphertext_b64.trim())?;
+    let keywrap_nonce = BASE64_STANDARD
+        .decode(bundle.keywrap.nonce_b64.trim())
+        .map_err(|e| format!("bundle keywrap nonce corrupt: {}", e))?;
+    let keywrap_ct = BASE64_STANDARD
+        .decode(bundle.keywrap.ciphertext_b64.trim())
+        .map_err(|e| format!("bundle keywrap ciphertext corrupt: {}", e))?;
     let mut data_key = decrypt_aesgcm(&kek, &keywrap_nonce, &keywrap_ct, crate::KEYWRAP_AAD)?;
     kek.zeroize();
 
-    let data_nonce = BASE64_STANDARD.decode(bundle.data.nonce_b64.trim())?;
-    let data_ct = BASE64_STANDARD.decode(bundle.data.ciphertext_b64.trim())?;
+    let data_nonce = BASE64_STANDARD
+        .decode(bundle.data.nonce_b64.trim())
+        .map_err(|e| format!("bundle data nonce corrupt: {}", e))?;
+    let data_ct = BASE64_STANDARD
+        .decode(bundle.data.ciphertext_b64.trim())
+        .map_err(|e| format!("bundle data ciphertext corrupt: {}", e))?;
     let payload_bytes = decrypt_aesgcm(&data_key, &data_nonce, &data_ct, crate::DATA_AAD)?;
     data_key.zeroize();
 
-    let payload: PayloadSection = serde_json::from_slice(&payload_bytes)?;
-    let mut keys: Vec<&String> = payload.secrets.keys().collect();
+    let payload: PayloadSection = serde_json::from_slice(&payload_bytes)
+        .map_err(|e| format!("bundle payload is not valid secrets JSON: {}", e))?;
+    Ok(payload.secrets)
+}
+
+/// Raw ML-KEM-768 seed bytes (memory-only) for callers that need the seed
+/// itself (envelope import decapsulation). Fingerprint-checked vs header.
+pub(crate) fn vault_kem_seed() -> Result<Zeroizing<Vec<u8>>, String> {
+    let header = load_vault()?;
+    let identity = obtain_identity()?;
+    let fp = hex::encode(sha3_256(identity.kem_pub()?.as_slice()));
+    if fp != header.identity.kem_pub_sha3_256 {
+        return Err("unwrapped identity does not match vault header (fail closed)".to_string());
+    }
+    Ok(Zeroizing::new(identity.kem_seed.as_slice().to_vec()))
+}
+
+/// Vault ML-DSA-65 signing key + its header fingerprint (full hex).
+pub(crate) fn vault_signing_key() -> Result<(SigningKey<MlDsa65>, String), String> {
+    let header = load_vault()?;
+    let identity = obtain_identity()?;
+    let sk = identity.signing_key()?;
+    let fp = hex::encode(sha3_256(sk.verifying_key().encode().as_slice()));
+    if fp != header.identity.dsa_pub_sha3_256 {
+        return Err("unwrapped signing identity does not match vault header (fail closed)".to_string());
+    }
+    Ok((sk, fp))
+}
+
+/// Combined issuance accessor: (recipient EK, kem fp, signing key, dsa fp) in
+/// ONE identity unwrap — a locked vault without a session prompts exactly
+/// once. Both derived keys are fingerprint-checked against the header pins.
+pub(crate) fn vault_issue_keys() -> Result<([u8; KEM_EK_LEN], String, SigningKey<MlDsa65>, String), String> {
+    let header = load_vault()?;
+    let identity = obtain_identity()?;
+    let kem_pub = identity.kem_pub()?;
+    let kem_fp = hex::encode(sha3_256(kem_pub.as_slice()));
+    if kem_fp != header.identity.kem_pub_sha3_256 {
+        return Err("unwrapped identity does not match vault header (fail closed)".to_string());
+    }
+    let sk = identity.signing_key()?;
+    let dsa_fp = hex::encode(sha3_256(sk.verifying_key().encode().as_slice()));
+    if dsa_fp != header.identity.dsa_pub_sha3_256 {
+        return Err("unwrapped signing identity does not match vault header (fail closed)".to_string());
+    }
+    let mut ek = [0u8; KEM_EK_LEN];
+    ek.copy_from_slice(&kem_pub);
+    Ok((ek, kem_fp, sk, dsa_fp))
+}
+
+/// Append a signed audit record under the vault identity. The caller supplies
+/// the signing key it already unwrapped (no second passphrase prompt).
+pub(crate) fn vault_audit_append(
+    action: &str,
+    detail: &str,
+    sk: &SigningKey<MlDsa65>,
+) -> Result<(), String> {
+    audit_chain_append(action, detail, sk)
+}
+
+/// `export` via the vault identity (vault-first routing from main.rs).
+pub(crate) fn cmd_export_via_vault(bundle_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let secrets =
+        vault_open_bundle(bundle_path).map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let mut keys: Vec<&String> = secrets.keys().collect();
     keys.sort();
     for key in keys {
-        println!("export {}={}", key, shell_quote(&payload.secrets[key]));
+        println!("export {}={}", key, shell_quote(&secrets[key]));
     }
     Ok(())
 }
@@ -1269,10 +1367,10 @@ pub fn dispatch(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     const PASS: &str = "synthetic-vtest-passphrase";
 
