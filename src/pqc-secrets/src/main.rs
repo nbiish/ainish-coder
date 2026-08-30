@@ -8,8 +8,10 @@ use aes_gcm::{Aes256Gcm, Key, Nonce};
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use sha3::{Digest, Sha3_256};
 use security_framework::passwords::{get_generic_password, set_generic_password, delete_generic_password};
-use fips203::ml_kem_768::{self, KG, DecapsKey, EncapsKey, CipherText};
-use fips203::traits::{SerDes, Decaps, Encaps, KeyGen};
+use fips203::ml_kem_768::{self, DecapsKey, EncapsKey, CipherText};
+use fips203::traits::{SerDes, Decaps, Encaps};
+use ml_kem::kem::{Decapsulate, FromSeed, KeyExport};
+use ml_kem::{MlKem768, Seed as MlKemSeed};
 use zeroize::Zeroize;
 
 const ALG: &str = "ML-KEM-768";
@@ -21,6 +23,14 @@ const DEFAULT_SERVICE: &str = "pqc-secrets";
 // The legacy v1 binary used "default"; new keypairs since 2026-06-08 are stored under "pqc-secrets-key".
 // Override with PQC_KEYCHAIN_ACCOUNT=<name> if your keychain entry uses a different name.
 const DEFAULT_ACCOUNT: &str = "pqc-secrets-key";
+
+/// Keychain account override (matches the canonical Python engine's env var).
+fn keychain_account() -> String {
+    std::env::var("PQC_KEYCHAIN_ACCOUNT").unwrap_or_else(|_| DEFAULT_ACCOUNT.to_string())
+}
+
+// FIPS 203 seed-form private key length (d‖z). Canonical store since 2026-08-20.
+const SEED_LEN: usize = 64;
 
 const KEYWRAP_AAD: &[u8] = b"pqc-secrets:v1:keywrap";
 const DATA_AAD: &[u8] = b"pqc-secrets:v1:data";
@@ -81,11 +91,11 @@ struct PayloadSection {
 }
 
 fn expand_user_path(path: &str) -> String {
-    if path.starts_with("~/") {
-        if let Some(home) = std::env::var_os("HOME") {
-            let home_str = home.to_string_lossy();
-            return format!("{}{}", home_str, &path[1..]);
-        }
+    if path.starts_with("~/")
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        let home_str = home.to_string_lossy();
+        return format!("{}{}", home_str, &path[1..]);
     }
     path.to_string()
 }
@@ -139,11 +149,7 @@ fn parse_env_lines(raw: &str) -> Result<HashMap<String, String>, String> {
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        let line_to_parse = if trimmed.starts_with("export ") {
-            &trimmed[7..]
-        } else {
-            trimmed
-        };
+        let line_to_parse = trimmed.strip_prefix("export ").unwrap_or(trimmed);
         if let Some(pos) = line_to_parse.find('=') {
             let key = line_to_parse[..pos].trim().to_string();
             let mut val = line_to_parse[pos+1..].trim().to_string();
@@ -163,6 +169,25 @@ fn parse_env_lines(raw: &str) -> Result<HashMap<String, String>, String> {
     Ok(secrets)
 }
 
+/// Decode private-key material from the keychain.
+///
+/// The canonical Python engine stores `sk.hex()` (hex, lower-case, no separator);
+/// legacy Rust v1.0.0 stores stored base64 of the 2400-byte expanded decaps key.
+/// Hex is tried first when the string is plausibly hex, then base64.
+fn decode_keychain_material(raw: &str) -> Result<Vec<u8>, String> {
+    let trimmed = raw.trim();
+    if !trimmed.is_empty()
+        && trimmed.len().is_multiple_of(2)
+        && trimmed.chars().all(|c| c.is_ascii_hexdigit())
+        && let Ok(bytes) = hex::decode(trimmed)
+    {
+        return Ok(bytes);
+    }
+    BASE64_STANDARD
+        .decode(trimmed)
+        .map_err(|e| format!("keychain key material is neither hex nor base64: {}", e))
+}
+
 fn ensure_parent_dir(path: &Path) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -174,22 +199,29 @@ fn cmd_keygen(pub_out_raw: &str) -> Result<(), Box<dyn std::error::Error>> {
     let pub_path_str = expand_user_path(pub_out_raw);
     let pub_path = Path::new(&pub_path_str);
     
-    println!("Generating ML-KEM-768 keypair...");
-    let (ek, dk) = KG::try_keygen().map_err(|e| format!("ML-KEM keygen failed: {}", e))?;
-    
-    let ek_bytes = ek.into_bytes();
-    let dk_bytes = dk.into_bytes();
-    
-    // Store private key in Keychain
-    let dk_b64 = BASE64_STANDARD.encode(dk_bytes);
-    
+    println!("Generating ML-KEM-768 keypair (seed-form store)...");
+    // Seed-form generation (FIPS 203): the 64-byte d‖z seed is the canonical
+    // private-key serialization since 2026-08-20 — parity with the canonical
+    // Python engine. Expansion uses RustCrypto ml-kem (FromSeed).
+    let mut seed = [0u8; SEED_LEN];
+    getrandom::fill(&mut seed)?;
+    let seed_arr = MlKemSeed::from(seed);
+    let (_dk, ek) = MlKem768::from_seed(&seed_arr);
+
+    // Store the seed hex-encoded in the Keychain (Python engine reads hex-first).
+    let seed_hex = hex::encode(seed);
+    seed.zeroize();
+
     // Delete first to avoid duplicate errors
-    let _ = delete_generic_password(DEFAULT_SERVICE, DEFAULT_ACCOUNT);
-    set_generic_password(DEFAULT_SERVICE, DEFAULT_ACCOUNT, dk_b64.as_bytes())?;
-    
-    // Write public key file
-    let ek_b64 = BASE64_STANDARD.encode(ek_bytes);
-    let ek_sha3 = sha3_256(&ek_bytes);
+    let account = keychain_account();
+    let _ = delete_generic_password(DEFAULT_SERVICE, &account);
+    set_generic_password(DEFAULT_SERVICE, &account, seed_hex.as_bytes())?;
+
+    // Write public key file (engine-JSON format, readable by both engines)
+    let mut ek_fixed = [0u8; ml_kem_768::EK_LEN];
+    ek_fixed.copy_from_slice(ek.to_bytes().as_slice());
+    let ek_b64 = BASE64_STANDARD.encode(ek_fixed);
+    let ek_sha3 = sha3_256(&ek_fixed);
     
     let pub_file_content = PublicKeyFile {
         alg: ALG.to_string(),
@@ -204,7 +236,7 @@ fn cmd_keygen(pub_out_raw: &str) -> Result<(), Box<dyn std::error::Error>> {
     file.write_all(serde_json::to_string_pretty(&pub_file_content)?.as_bytes())?;
     
     println!("Public key written to {:?}", pub_path);
-    println!("Private key stored securely in macOS Keychain.");
+    println!("Private key (64-byte FIPS 203 seed, hex) stored securely in macOS Keychain.");
     Ok(())
 }
 
@@ -219,11 +251,32 @@ fn cmd_pack(pub_in_raw: &str, bundle_out_raw: &str) -> Result<(), Box<dyn std::e
         return Err(format!("Public key file not found at {:?}", pub_path).into());
     }
     
-    // Load public key
+    // Load public key — engine JSON (Rust) or raw hex (canonical Python engine).
     let mut file = File::open(pub_path)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
-    let pub_file: PublicKeyFile = serde_json::from_str(&content)?;
+    let pub_file: PublicKeyFile = match serde_json::from_str::<PublicKeyFile>(&content) {
+        Ok(pf) => pf,
+        Err(_) => {
+            let ek_bytes = hex::decode(content.trim())
+                .map_err(|_| "Public key file is neither engine JSON nor raw hex")?;
+            if ek_bytes.len() != ml_kem_768::EK_LEN {
+                return Err(format!(
+                    "Hex public key has incorrect length: {} bytes (expected {})",
+                    ek_bytes.len(),
+                    ml_kem_768::EK_LEN
+                )
+                .into());
+            }
+            PublicKeyFile {
+                alg: ALG.to_string(),
+                engine: "py-native-mlkem".to_string(),
+                public_key_b64: BASE64_STANDARD.encode(&ek_bytes),
+                public_key_sha3_256: hex::encode(sha3_256(&ek_bytes)),
+                created_utc: now_utc(),
+            }
+        }
+    };
     
     if pub_file.alg != ALG {
         return Err(format!("Unsupported algorithm in public key: {}", pub_file.alg).into());
@@ -331,45 +384,65 @@ fn cmd_export(bundle_in_raw: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Get key from macOS Keychain
-    let secret_b64_bytes = match get_generic_password(DEFAULT_SERVICE, DEFAULT_ACCOUNT) {
+    let account = keychain_account();
+    let secret_b64_bytes = match get_generic_password(DEFAULT_SERVICE, &account) {
         Ok(bytes) => bytes,
         Err(e) => {
             eprintln!("Error: Private key not found in Keychain (service={}, account={}). Reason: {:?}", 
-                      DEFAULT_SERVICE, DEFAULT_ACCOUNT, e);
+                      DEFAULT_SERVICE, account, e);
             std::process::exit(1);
         }
     };
 
-    // Decode private key
-    let mut secret_b64 = String::from_utf8(secret_b64_bytes)?;
-    let secret_b64_trimmed = secret_b64.trim();
-    let secret_key_bytes = BASE64_STANDARD.decode(secret_b64_trimmed)?;
-    secret_b64.zeroize();
-
-    if secret_key_bytes.len() != ml_kem_768::DK_LEN {
-        eprintln!("Error: Decapsulation key has incorrect length: {} bytes (expected {})", 
-                  secret_key_bytes.len(), ml_kem_768::DK_LEN);
-        std::process::exit(1);
-    }
-
-    // ML-KEM Decapsulation
-    let dk_array: [u8; ml_kem_768::DK_LEN] = secret_key_bytes.try_into().unwrap();
-    let dk = DecapsKey::try_from_bytes(dk_array)
-        .map_err(|e| format!("Failed to import decapsulation key: {}", e))?;
+    // Decode private-key material: hex seed-form (canonical since 2026-08-20)
+    // or base64 expanded-form (legacy v1.0.0 stores).
+    let mut secret_raw = String::from_utf8(secret_b64_bytes)?;
+    let mut secret_key_bytes = decode_keychain_material(&secret_raw)?;
+    secret_raw.zeroize();
 
     let kem_ciphertext_bytes = BASE64_STANDARD.decode(bundle.kem.ciphertext_b64.trim())?;
-    let ct_array: [u8; ml_kem_768::CT_LEN] = kem_ciphertext_bytes.try_into()
-        .map_err(|_| "KEM Ciphertext has incorrect length")?;
-    let ct = CipherText::try_from_bytes(ct_array)
-        .map_err(|e| format!("Failed to import KEM ciphertext: {}", e))?;
 
-    let shared_secret = dk.try_decaps(&ct)
-        .map_err(|e| format!("ML-KEM decapsulation failed: {}", e))?;
-
-    let shared_secret_bytes = shared_secret.into_bytes();
+    let mut shared_secret_bytes: Vec<u8> = match secret_key_bytes.len() {
+        SEED_LEN => {
+            // Seed form (FIPS 203 d‖z): expand via RustCrypto ml-kem.
+            let seed_bytes: [u8; SEED_LEN] = secret_key_bytes.as_slice().try_into()
+                .map_err(|_| "Failed to load 64-byte ML-KEM seed")?;
+            secret_key_bytes.zeroize();
+            let seed = MlKemSeed::from(seed_bytes);
+            let (dk, _ek) = MlKem768::from_seed(&seed);
+            let ssk = dk.decapsulate_slice(&kem_ciphertext_bytes)
+                .map_err(|e| format!("ML-KEM seed-form decapsulation failed: {}", e))?;
+            ssk.as_slice().to_vec()
+        }
+        len if len == ml_kem_768::DK_LEN => {
+            // Legacy expanded decaps key (pre-2026-08-20 stores).
+            let mut dk_array = [0u8; ml_kem_768::DK_LEN];
+            dk_array.copy_from_slice(&secret_key_bytes);
+            secret_key_bytes.zeroize();
+            let dk = DecapsKey::try_from_bytes(dk_array)
+                .map_err(|e| format!("Failed to import decapsulation key: {}", e))?;
+            let ct_array: [u8; ml_kem_768::CT_LEN] = kem_ciphertext_bytes.as_slice().try_into()
+                .map_err(|_| "KEM Ciphertext has incorrect length")?;
+            let ct = CipherText::try_from_bytes(ct_array)
+                .map_err(|e| format!("Failed to import KEM ciphertext: {}", e))?;
+            let shared_secret = dk.try_decaps(&ct)
+                .map_err(|e| format!("ML-KEM decapsulation failed: {}", e))?;
+            shared_secret.into_bytes().to_vec()
+        }
+        len => {
+            eprintln!(
+                "Error: Keychain key material has unexpected length: {} bytes (expected {} seed-form or {} expanded-form)",
+                len,
+                SEED_LEN,
+                ml_kem_768::DK_LEN
+            );
+            std::process::exit(1);
+        }
+    };
 
     // Derive KEK
     let mut kek = derive_kek(&shared_secret_bytes);
+    shared_secret_bytes.zeroize();
 
     // Decrypt data key from keywrap
     let keywrap_nonce = BASE64_STANDARD.decode(bundle.keywrap.nonce_b64.trim())?;
@@ -429,5 +502,49 @@ fn main() {
     if let Err(e) = result {
         eprintln!("Error: {}", e);
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_keychain_material_hex_seed() {
+        let seed = [0xABu8; SEED_LEN];
+        let encoded = hex::encode(seed);
+        assert_eq!(decode_keychain_material(&encoded).unwrap(), seed.to_vec());
+    }
+
+    #[test]
+    fn decode_keychain_material_base64_expanded() {
+        let dk = [0x5Au8; 2400];
+        let encoded = BASE64_STANDARD.encode(dk);
+        assert_eq!(decode_keychain_material(&encoded).unwrap(), dk.to_vec());
+    }
+
+    #[test]
+    fn decode_keychain_material_rejects_junk() {
+        assert!(decode_keychain_material("definitely not key material!!").is_err());
+    }
+
+    /// Cross-implementation interop: seed-form keypair expanded by RustCrypto
+    /// ml-kem must decapsulate ciphertexts produced by the fips203 engine's
+    /// encapsulation (this is exactly the live bundle + seed-store scenario).
+    #[test]
+    fn fips203_encaps_ml_kem_seed_decaps_interop() {
+        let mut seed = [0u8; SEED_LEN];
+        getrandom::fill(&mut seed).unwrap();
+        let seed_arr = MlKemSeed::from(seed);
+        let (dk, ek) = MlKem768::from_seed(&seed_arr);
+
+        let mut ek_fixed = [0u8; ml_kem_768::EK_LEN];
+        ek_fixed.copy_from_slice(ek.to_bytes().as_slice());
+        let fek = ml_kem_768::EncapsKey::try_from_bytes(ek_fixed).unwrap();
+        let (ss, ct) = fek.try_encaps().unwrap();
+        let ct_bytes = ct.into_bytes();
+
+        let ssk = dk.decapsulate_slice(&ct_bytes).unwrap();
+        assert_eq!(ss.into_bytes().as_slice(), ssk.as_slice());
     }
 }

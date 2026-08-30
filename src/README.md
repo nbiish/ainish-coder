@@ -13,7 +13,7 @@ src/
 │                      # (deployed as AGENTS/{date}.COMMS.md by --rules;
 │                      #  merge-safe — agent entry blocks are preserved)
 │
-└── pqc-secrets/        # Rust: FIPS 203 secrets manager (ML-KEM-768)
+└── pqc-secrets/        # Rust: FIPS 203 secrets manager (ML-KEM-768, v1.1.0 seed-form aware)
     ├── Cargo.toml
     ├── Cargo.lock
     └── src/
