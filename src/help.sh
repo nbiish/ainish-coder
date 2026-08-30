@@ -85,6 +85,13 @@ UTILITY COMMANDS:
                               Note: Requires GitHub repo settings for full functionality.
                               Example: ainish-coder --github-actions ~/my-project
 
+    --8thfire [TARGET_DIR]    Deploy the 8th Fire scrolls skill pack — the
+                              cultural-continuity system (research corpus,
+                              PQC council-gate governance, truth-pass doctrine,
+                              carrier registry, embodiment modules, B-6/B-8
+                              benchmarks). Raw .scrolls*/ payload NOT included;
+                              that travels only via signed --scrolls channel.
+                              Example: ainish-coder --8thfire ~/my-project
     --scrolls [TARGET_DIR]    Explicit-only: deploy .scrolls/ payload into a repo.
                               Never bundled with --rules, --llms-txt, or --skills;
                               refused under -y/--non-interactive. Targeted

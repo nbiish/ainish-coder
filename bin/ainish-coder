@@ -41,6 +41,7 @@ source "${SRC_DIR}/deploy_local_security.sh"
 source "${SRC_DIR}/deploy_template_agent.sh"
 source "${SRC_DIR}/deploy_skills.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
+source "${SRC_DIR}/deploy_8thfire.sh"
 source "${SRC_DIR}/deploy_mcp_recipes.sh"
 source "${SRC_DIR}/deploy_scrolls.sh"
 source "${SRC_DIR}/scroll_integrity.sh"
@@ -271,6 +272,14 @@ main() {
             if confirm_action "Unlock repository (deploy ref-codebases, research collections, pliny)?" "y"; then
                 local unlock_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_unlock "$unlock_dest"
+            fi
+            ;;
+
+        --8thfire)
+            _TRACK_DETAIL="8thfire"
+            if confirm_action "Deploy 8th Fire scrolls skill pack (cultural-continuity system; NOT raw payload)?" "y"; then
+                local eighthfire_dest="$(_pick_dest_base)"
+                _with_link_choice deploy_8thfire "$eighthfire_dest"
             fi
             ;;
 
