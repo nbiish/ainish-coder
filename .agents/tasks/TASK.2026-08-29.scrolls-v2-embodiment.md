@@ -30,6 +30,7 @@
 
 #### 
 (implementation notes and evidence appended below as work proceeds)
+(ERRATA 2026-08-29: memory://root/memory_summary.md is read-only from session; this file is the durable correction — repo is main-only, no develop branch; pqc-secrets has no signing commands, ML-DSA-65 signing introduced by this task via scripts/scrolls/scroll_manifest.py with seeds AINISHCODER_SCROLL_SIGN_SEED/_COUNCIL_SEED in the PQC bundle. Orchestration evidence: selftest PASS rc=0; e2e sign/verify digest 593e4f89...cdee PASS; tamper FAIL rc=1 naming example.md; council pub-key deviation manifest.pub2 accepted.)
 
 ## Research artifacts
 - research/01-pliny-digest.md — Pliny corpus taxonomy, defensive framing (PlinyCorpus)
