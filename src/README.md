@@ -58,7 +58,7 @@ src/
   the session holder is not live, it decaps the bundle via the OS keychain
   (same ML-KEM identity seed as the vault), reads the in-bundle
   `VAULT_PASSPHRASE` mirror, and either unlocks the session holder (Rust
-  surfaces, `--ttl ${PQC_UNLOCK_TTL:-8h}`) or exports `PQC_VAULT_PASSPHRASE`
+  surfaces, `--ttl ${PQC_UNLOCK_TTL:-never}`) or exports `PQC_VAULT_PASSPHRASE`
   for the Python identity reads (`list`/`verify`/`rename`), which never
   consult the holder. Any miss falls through to the engines' own
   session → env → prompt resolution, so the wrapper can only add
