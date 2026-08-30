@@ -1,0 +1,20 @@
+{
+  "author": "nbiish",
+  "boundary": "public-teachings-only",
+  "carriers": [],
+  "files": [
+    {
+      "bytes": 162794,
+      "path": "llms-full.txt",
+      "sha3_256": "57547600b953cda96bba2bd38f485cdb4ccca51975e96bbedc4dad41e614ffee"
+    },
+    {
+      "bytes": 175076,
+      "path": "llms.txt",
+      "sha3_256": "97d7cbfdd5b79994a560c53e9f9354beb91d03f860cba55d3cb4c962b82f6f69"
+    }
+  ],
+  "source_commit": "96f01e73db14780b7c1aa84839098edfefbb78df",
+  "timestamp": "2026-08-30T03:38:26+00:00",
+  "version": "v2.0"
+}
