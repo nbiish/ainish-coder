@@ -111,7 +111,7 @@ The PQC secrets system consists of a dual-implementation architecture to ensure 
 |---|---|---|---|
 | Linux / WSL / generic (Windows: Ubuntu/WSL terminal) | **Python** (`pyca/cryptography>=45`, native ML-KEM-768, FIPS 203 seed form) via `uv run` | keygen, pack, export, verify, **list**, **rename**, migrate, setup, version | **Canonical** — resolves to the newest `cryptography` on first run |
 | darwin/arm64 | **Python** (same engine, same path) | all commands | Canonical |
-| darwin/arm64 | Rust `bin/pqc-secrets.darwin-arm64` | keygen, pack, export only | **Legacy fast-path**, frozen v1.0.0 (2026-06 command set) |
+| darwin/arm64 | Rust `bin/pqc-secrets.darwin-arm64` | keygen, pack, export only | **Fast-path**, v1.1.0 (2026-08-30) — seed-form + legacy expanded stores both supported |
 
 The dispatcher (`bin/pqc-secrets`) routes `keygen|pack|export` to the Rust binary on darwin
 when present (speed); **every other command — `list`, `rename`, `migrate`, `verify`,
@@ -257,7 +257,7 @@ One PQC bundle at `~/.config/pqc-secrets/secrets.bundle.json` is the single sour
 
 ### Implementation Details
 
-- **Rust Primary Engine:** `fips203` crate v0.4.x (pure Rust, no `unsafe`, no C FFI; implements final FIPS 203 ML-KEM-768 with ACVP KATs). Alternatives verified 2026-08: RustCrypto `ml-kem` crate (type-safe param sets, no FFI), Cryspen/libcrux `libcrux-ml-kem` (formally verified).
+- **Rust Primary Engine:** `fips203` crate v0.4.x (pure Rust, no `unsafe`, no C FFI; implements final FIPS 203 ML-KEM-768 with ACVP KATs). Since v1.1.0 (2026-08-30) seed-form (FIPS 203 `d‖z`) keygen and expansion use RustCrypto `ml-kem` 0.3 (`FromSeed`/`Decapsulate`): `keygen` stores hex seeds (Python-readable), `export` accepts hex-or-base64 keychain material and engine-JSON-or-hex public-key files, and a cross-impl interop test (fips203 encaps ↔ ml-kem decaps) runs in `cargo test`. Alternatives verified 2026-08: RustCrypto `ml-kem` crate (type-safe param sets, no FFI), Cryspen/libcrux `libcrux-ml-kem` (formally verified).
 - **Rust Primary Dependencies:** `security-framework` (macOS Keychain), `aes-gcm`, `serde`, `serde_json`, `sha3`.
 - **Python Fallback Engine (migrated 2026-08-20):** native `cryptography>=45` ML-KEM-768 (`MLKEM768PrivateKey.generate()` / `from_seed_bytes()` / `MLKEM768PublicKey.encapsulate()`) for all keygen, encapsulation, and seed-form decapsulation. `kyber-py` is imported lazily and used **only** to decapsulate legacy 2400-byte expanded-form private-key stores (written by older keygens or the Rust engine); those prints advise rotating via `keygen` + re-pack. Bundle JSON layout is unchanged and interoperable with the Rust engine.
 - **Python Fallback Dependencies:** Managed inline via UV script metadata — `cryptography>=45.0` (primary engine) and `kyber-py>=0.2.0` (legacy expanded-key reads only), auto-resolved by `uv run`.
