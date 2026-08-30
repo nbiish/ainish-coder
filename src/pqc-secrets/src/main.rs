@@ -14,6 +14,9 @@ use ml_kem::kem::{Decapsulate, FromSeed, KeyExport};
 use ml_kem::{MlKem768, Seed as MlKemSeed};
 use zeroize::Zeroize;
 
+// Issuance + envelope transfer commands live in issue.rs; main.rs exposes only
+// the shared pack-path primitives (pub(crate) below) and this dispatch hook.
+mod issue;
 mod vault;
 
 pub(crate) const ALG: &str = "ML-KEM-768";
@@ -496,7 +499,7 @@ fn cmd_export(bundle_in_raw: &str, force_keychain: bool) -> Result<(), Box<dyn s
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: pqc-secrets <keygen|pack|export|vault> [args]");
+        eprintln!("Usage: pqc-secrets <keygen|pack|export|vault|issue|envelope> [args]");
         std::process::exit(1);
     }
     
@@ -542,6 +545,9 @@ fn main() {
         // Hidden in-memory session holder (spawned by `vault unlock`; KEK on
         // stdin). Routed at top level because the parent spawns it directly.
         vault::HOLDER_ARG => vault::dispatch(&args[1..]),
+        // issue + envelope: all command logic (arg parsing included) lives in
+        // issue.rs — single dispatch hook here to keep the merge surface minimal.
+        "issue" | "envelope" => issue::dispatch(&args[1..]),
         cmd => {
             eprintln!("Unknown command: {}", cmd);
             std::process::exit(1);

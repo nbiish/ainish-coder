@@ -52,3 +52,13 @@ src/
   identity only): `pqc_secrets.py` unwraps the vault seed via pinned
   `argon2-cffi==25.1.0` — ML-DSA/audit-verify stays Rust-only. Verified by
   `cargo test` (11 tests) + `.agents/skills/pqc-secrets/tests/test_vault_parity.py`.
+- The engine also implements `issue <template> <name>` (device-key
+  issuance; `wtf` builtin mints a 64-hex CSPRNG key, packs `WTF_<NAME>_SECRET`
+  through the pack path, prints the quoted eval line + wtf enrollment JSON) and
+  `envelope export|import` (cross-machine transfer: ML-KEM-768-wrapped
+  AES-256-GCM payload signed with ML-DSA-65 via RustCrypto `ml-dsa` 0.1.1;
+  import verifies the signature **before** decapsulation, fail closed).
+  Issuance currently writes through the existing bundle path; it is rewired
+  through the vault (Phase 1) at integration. Any transit endpoint must sit
+  behind an overlay/TLS proxy — never plain HTTP to the public internet;
+  future daemons target TLS 1.3 with hybrid `X25519MLKEM768`.
