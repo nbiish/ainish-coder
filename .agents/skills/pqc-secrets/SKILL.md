@@ -252,6 +252,14 @@ Python `verify` prompts, reads an empty passphrase, and fails closed with
 `vault unwrap failed`. Export the var once for the whole chain
 (`export PQC_VAULT_PASSPHRASE="$P"`), or prefix each vault-gated command.
 
+**Wrapper bootstrap (2026-08-30):** the `bin/pqc-secrets` wrapper removes
+the prompt from this matrix after one-time setup (§5.12): with the vault
+locked it decaps the bundle via the OS keychain (same identity seed), reads
+the in-bundle `VAULT_PASSPHRASE` mirror, and either unlocks the session
+holder (Rust surfaces) or injects `PQC_VAULT_PASSPHRASE` (Python reads).
+The table still describes the engines themselves; the wrapper sits in
+front and falls through to it on any bootstrap miss.
+
 **Session lifecycle (`_vault-holder`):** `vault unlock --ttl 15m` spawns a
 hidden holder child that keeps the derived KEK in memory (received via
 stdin pipe — never argv/env/disk) and serves unwraps on a 0700 Unix socket
@@ -340,6 +348,7 @@ PQC_KEYCHAIN_ACCOUNT_OLD=default PQC_KEYCHAIN_ACCOUNT_NEW=pqc-secrets-key bin/pq
 || `PQC_CONFIG_DIR` | `~/.config/pqc-secrets` | Directory for bundle and public key files |
 | `PQC_USE_KEYCHAIN` | `false` | Enable native platform keychain storage (defaults to the `machine.kek` file store) |
 | `PQC_VAULT_PASSPHRASE` | — (prompt) | Vault passphrase for non-interactive use; env only, never persisted or logged |
+| `PQC_UNLOCK_TTL` | `8h` | Wrapper bootstrap (§5.12) session-holder TTL for auto-unlock |
 | `PQC_VAULT_TEST_KDF_LIGHT` | unset | **Test-only** Argon2id lightener (m=8 MiB, t=1, p=1) for fast sandboxed tests; production defaults unchanged; params are recorded per-vault in the header |
 
 **Private-key wrapping key (KEK):** the ML-KEM-768 private key is encrypted under a stable per-machine KEK persisted to `~/.config/pqc-secrets/machine.kek` (0600). It is generated once and survives reboots, kernel upgrades, and distro re-creation; a pre-existing legacy-encrypted store is migrated automatically. See `references/kek-persistence.md` for the full strategy.
@@ -552,6 +561,11 @@ Decrypt the bundle and emit shell `export` lines to stdout.
   single-quoted (embedded `'` → `'\''`) — Rust-engine byte parity —
   so `eval "$(pqc-secrets export)"` is correct for ANY value,
   including quotes, spaces, `$`, backticks, and embedded newlines.
+- **Wrapper bootstrap (§5.12):** with a vault present and locked, the
+  `bin/pqc-secrets` wrapper first unlocks the session holder from the
+  in-bundle `VAULT_PASSPHRASE` mirror via OS-keychain decap — no prompt.
+  `export --use-keychain [BUNDLE]` skips bootstrap and decaps via the
+  keychain directly.
 
 **Exit codes:**
 - `0` — success
@@ -894,6 +908,43 @@ agents a reviewable, secret-free integrity surface:
 - **Platform note:** all of this is engine-level (Rust fast-path and Python
   canonical engine share the bundle/vault formats), so review works
   identically on macOS, Linux, WSL, and Windows terminals.
+
+### 5.12 Prompt-free bootstrap — one passphrase at setup (2026-08-30)
+
+**Contract:** enter the vault passphrase once at system setup; every
+vault-gated command after that is prompt-free for agents and tooling. The
+`bin/pqc-secrets` wrapper implements it; the engines are unchanged.
+
+**Setup (once per machine):**
+1. Init the vault and pack secrets as usual, mirroring the passphrase into
+   the bundle under the reserved name `VAULT_PASSPHRASE` (append it to the
+   export-merge flow — Rust `pack` replaces the bundle, so export → append →
+   repack). The mirror lives only inside the AES-256-GCM payload.
+2. Done. The keychain holds the same ML-KEM identity seed as the vault, so
+   the bundle is decappable without the vault.
+
+**Runtime resolution added by the wrapper** (vault locked, no
+`PQC_VAULT_PASSPHRASE`, and — for Rust surfaces — no live session):
+
+- **Rust surfaces** (`export`, `issue`, `envelope`, `vault sign`,
+  `vault export-identity`, `vault migrate`): decap the bundle via the OS
+  keychain → read `VAULT_PASSPHRASE` from the decrypted payload →
+  `vault unlock --ttl ${PQC_UNLOCK_TTL:-8h}` → rerun vault-first. The
+  session holder then serves all later tooling until TTL expiry or
+  `vault lock`.
+- **Python identity reads** (`list`, `verify`, `rename` — they never
+  consult the holder): decap → inject `PQC_VAULT_PASSPHRASE` into the
+  engine process env only.
+- **Any failure** (no keychain entry, identity-seed drift, missing mirror
+  entry) falls through to the engine's own session → env → prompt
+  resolution. Bootstrap only adds convenience; it cannot remove a security
+  property.
+
+**Security notes:** the passphrase transits process memory and the
+environment of a single command — never another process's argv, never disk,
+never logs. `PQC_UNLOCK_TTL` overrides the 8h default session TTL;
+`vault lock` still locks everything immediately; `export --use-keychain`
+skips bootstrap entirely.
 
 ---
 
@@ -1589,11 +1640,12 @@ reset: Argon2id + AES-256-GCM fail closed.
    TTL remaining), Rust-side ops work; export the passphrase out
    immediately into your password manager (never to a file):
    `pqc-secrets export | grep '^export VAULT_PASSPHRASE='`
-2. **`VAULT_PASSPHRASE` inside the bundle** — readable only via an
-   unlocked session or the passphrase itself. **This is circular by
-   design:** treat the in-bundle copy as a convenience mirror for agents,
-   never as the primary backup. The external record from §10.4 step 5 is
-   the real recovery path.
+2. **`VAULT_PASSPHRASE` inside the bundle** — readable via an unlocked
+   session, the passphrase itself, or the wrapper's keychain bootstrap
+   (§5.12) when the keychain still holds the same ML-KEM identity seed.
+   **Circular by design** where none of those hold: treat the in-bundle
+   copy as a convenience mirror for agents, never as the primary backup.
+   The external record from §10.4 step 5 is the real recovery path.
 3. **Nothing else.**
 
 **Mitigations:** keep a session alive during migration windows; `vault
