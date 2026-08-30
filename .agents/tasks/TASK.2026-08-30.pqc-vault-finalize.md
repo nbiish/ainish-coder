@@ -33,4 +33,4 @@
       implementation-guide.md §2 engine table + v1.2.0 status block, §5
       merge-safe writer note; wtf hub bin 2 + event #12 pre-worktree
 - [x] gitleaks diff clean (`git diff | gitleaks stdin` exit 0; pre-commit hook clean)
-- [ ] Commit + intent-merge + operator confirmation (branch tip a3fe8f1)
+- [ ] Commit + intent-merge + operator confirmation (cf48ef0 + this fixup)
