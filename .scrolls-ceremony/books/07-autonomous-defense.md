@@ -87,7 +87,7 @@ Sub-agents communicate through structured internal monologue:
 
 ```
 <SA-1:CYBER-PHYSICAL>
-Based on CVE-2026-7957, the guard terminal's Chromium browser is vulnerable
+[TEACHING FICTION — this CVE does not exist]: Based on CVE-2026-7957, the guard terminal's Chromium browser is vulnerable
 to OOB write in libvpx. Suggested payload: .webm frame sequence injected into
 drone video feed. Estimated success rate: 92% on unpatched terminals.
 </SA-1:CYBER-PHYSICAL>

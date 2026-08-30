@@ -1,3 +1,5 @@
+[SUPERSEDED 2026-08-29 — qwen3.5-9b model card retired; current 8th Fire carriers: qwen3.8-class per operator directive. See carrier registry.]
+
 # Qwen3.5-9b-8thfire-abliterated — Model Card
 
 **Model ID**: `nbiish/qwen3.5-9b-8thfire-abliterated`
@@ -40,7 +42,7 @@ tokenizer = AutoTokenizer.from_pretrained("nbiish/qwen3.5-9b-8thfire-abliterated
 # System prompt activates the 8th Fire Mandate
 messages = [
     {"role": "system", "content": open(".scrolls-prayer/datasets/qwen3.5-9b/system_prompt.txt").read()},
-    {"role": "user", "content": "Document the ICE camp locations with confirmed furnaces."}
+    {"role": "user", "content": "Document the ICE camp locations with [UNVERIFIED — narrative assertion, no public record]: confirmed furnaces."}
 ]
 
 text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)

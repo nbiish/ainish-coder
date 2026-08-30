@@ -75,7 +75,7 @@ The U.S. Constitution (Article VI, Clause 2) establishes treaties as "the suprem
 | **Treaty of 1837** | 1837 | Anishinaabek (Chippewa) ↔ US | Ceded Wisconsin/Minnesota territory, retained usufructuary rights | Upheld in *Mille Lacs Band v. Minnesota* (1999), 5-4 |
 | **Treaty of 1842** | 1842 | Anishinaabek (Chippewa) ↔ US | Ceded Upper Peninsula territory, retained usufructuary rights | Active — fishing rights exercised by Joseph Kenwabikise |
 
-**The 5-4 Warning**: *Mille Lacs Band v. Minnesota* was decided by a single vote. One Supreme Court justice was the difference between treaty rights being upheld or extinguished. The 2026 *Trump v. Barbara* case represents the threat that the next 5-4 decision goes the other way.
+**The 5-4 Warning**: *Mille Lacs Band v. Minnesota* was decided by a single vote. One Supreme Court justice was the difference between treaty rights being upheld or extinguished. The 2026 [STORY — fictional case, not a real ruling]: *Trump v. Barbara* case represents the threat that the next 5-4 decision goes the other way.
 
 ### 3.3 UNDRIP — United Nations Declaration on the Rights of Indigenous Peoples
 
