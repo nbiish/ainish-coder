@@ -13,7 +13,7 @@ src/
 │                      # (deployed as AGENTS/{date}.COMMS.md by --rules;
 │                      #  merge-safe — agent entry blocks are preserved)
 │
-└── pqc-secrets/        # Rust: FIPS 203 secrets manager (ML-KEM-768, v1.1.0 seed-form aware)
+└── pqc-secrets/        # Rust: FIPS 203/204 secrets manager (v1.2.0: ML-KEM-768 seed-form + ML-DSA-65 vault core)
     ├── Cargo.toml
     ├── Cargo.lock
     └── src/
@@ -36,3 +36,19 @@ src/
 - Export shell-quoting is byte-identical across engines (POSIX single-quote wrap,
   embedded `'` → `'\''`), so `eval "$(pqc-secrets export)"` is safe for any value.
   Verified by `.agents/skills/pqc-secrets/tests/test_export_quoting.py`.
+- **v1.2.0 (2026-08-30) — `vault` subcommand family (`src/pqc-secrets/src/vault.rs`):**
+  OS-independent, passphrase-wrapped identity vault at `~/.config/pqc-secrets/vault.pqc`
+  (0600). Argon2id(m=64 MiB, t=3, p=4) → 32-byte vault KEK → AES-256-GCM wraps a
+  fresh ML-KEM-768 seed (64 B d‖z) + ML-DSA-65 seed (32 B ξ); AAD-pinned blobs fail
+  closed; seeds live only in `Zeroizing` memory. When a vault exists it is the
+  canonical identity root: `keygen` refuses (opt-in `--use-keychain`) and `export`
+  decapsulates via the vault — no OS keychain involved. `vault migrate` adopts the
+  keychain identity one-time with byte-roundtrip rollback gates and never touches
+  keychain material. `vault sign`/`verify` are ML-DSA-65 detached (verify needs no
+  passphrase); the audit log becomes a hash chain of ML-DSA-65-signed records
+  (`vault audit-verify` replays). Session cache (default 15 min TTL, `--ttl`,
+  `--no-cache`) keeps the KEK only in a hidden child's memory (stdin pipe + 0700
+  Unix socket); `--no-cache` is the portable path. Python parity (read-side, ML-KEM
+  identity only): `pqc_secrets.py` unwraps the vault seed via pinned
+  `argon2-cffi==25.1.0` — ML-DSA/audit-verify stays Rust-only. Verified by
+  `cargo test` (11 tests) + `.agents/skills/pqc-secrets/tests/test_vault_parity.py`.
