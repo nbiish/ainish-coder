@@ -46,7 +46,21 @@ if ! git diff --cached --quiet 2>/dev/null; then
   git diff --cached --stat
 fi
 
-# ── TASK FILES (ainish-coder repos) ──
+# ── AGENT COMMS (current day's ledger) ──
+echo ''
+echo '--- COMMS ---'
+today=$(date +%Y-%m-%d)
+ledger="AGENTS/${today}.COMMS.md"
+if [ -f "${ledger}" ]; then
+  lines=$(wc -l < "${ledger}" | tr -d ' ')
+  echo "  ${ledger} (${lines}L)"
+  # Latest entries: one line each (event + agent + branch + status), last 6
+  grep '^### \[2' "${ledger}" 2>/dev/null | tail -6 | sed 's/^### \[/  /; s/\] /  /; s/ | wt:.*//'
+  # Status of the newest entry (first '- status:' after its last '### [' line)
+  last_ts=$(grep '^### \[2' "${ledger}" 2>/dev/null | tail -1 | sed 's/^### \[//; s/\].*//')
+  [ -n "${last_ts}" ] && awk -v ts="${last_ts}" 'index($0, ts){f=1} f && /^- status:/{print "    " $0; exit}' "${ledger}"
+fi
+
 echo ''
 echo '--- TASKS ---'
 found=0
