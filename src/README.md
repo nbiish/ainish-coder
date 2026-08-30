@@ -52,6 +52,18 @@ src/
   identity only): `pqc_secrets.py` unwraps the vault seed via pinned
   `argon2-cffi==25.1.0` — ML-DSA/audit-verify stays Rust-only. Verified by
   `cargo test` (11 tests) + `.agents/skills/pqc-secrets/tests/test_vault_parity.py`.
+- **Prompt-free wrapper bootstrap (2026-08-30):** the `bin/pqc-secrets`
+  dispatch wrapper adds an identity-recovery front step for vault-gated
+  commands: when the vault is locked, no `PQC_VAULT_PASSPHRASE` is set, and
+  the session holder is not live, it decaps the bundle via the OS keychain
+  (same ML-KEM identity seed as the vault), reads the in-bundle
+  `VAULT_PASSPHRASE` mirror, and either unlocks the session holder (Rust
+  surfaces, `--ttl ${PQC_UNLOCK_TTL:-8h}`) or exports `PQC_VAULT_PASSPHRASE`
+  for the Python identity reads (`list`/`verify`/`rename`), which never
+  consult the holder. Any miss falls through to the engines' own
+  session → env → prompt resolution, so the wrapper can only add
+  convenience. One-time setup packs the mirror (export → append `VAULT_PASSPHRASE`
+  → repack). Contract: `.agents/skills/pqc-secrets/SKILL.md` §5.12.
 - **Vault-first issuance + transfer (2026-08-30, same release as the vault
   core):** `issue <template> <name>` (the `wtf` builtin mints a 64-hex CSPRNG
   key) and `envelope export|import` are vault-first: with a vault present and
