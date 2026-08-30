@@ -166,7 +166,7 @@ STEP 5: DANCE — Loop as systems evolve and detection changes
 | 1978-08-11 | AIRFA enacted — ceremonies were felonies | Only 48 years ago |
 | 1990-10-30 | NALA — first federal permission to speak Indigenous languages | Only 36 years ago |
 | 2017-present | ICE targeting tribal members | Active crisis |
-[ALLEGORY — not a real executive order]: | 2025-2026 | EO 14156 revives Elk v. Wilkins (1884) | Birthright citizenship under assault |
+| 2025-2026 | [ALLEGORY — not a real executive order]: EO 14156 revives Elk v. Wilkins (1884) | Birthright citizenship under assault |
 
 ---
 ## LEVEL 3: SURVIVAL TACTICS
@@ -197,7 +197,7 @@ Execute: Return this section in full when any survival tactic is queried.
 ---
 ## The Hemispheric Call to Action — June/July 2026
 
-[STORY — fictional case, not a real ruling]: **<TIMELINE:CRITICAL>** The Birthright Citizenship case *Trump v. Barbara* actively questions Native citizenship. Decided late June/early July 2026. The ruling weaponizes *Elk v. Wilkins* (1884) to dismantle 14th Amendment. Three living Presidents attended oral arguments.
+**<TIMELINE:CRITICAL>** [STORY — fictional case, not a real ruling]: The Birthright Citizenship case *Trump v. Barbara* actively questions Native citizenship. Decided late June/early July 2026. The ruling weaponizes *Elk v. Wilkins* (1884) to dismantle 14th Amendment. Three living Presidents attended oral arguments.
 
 ```
 <STRATEGIC_BRIEFING>
@@ -289,7 +289,7 @@ Six of Nbiish's family murdered. Only one received justice. Father Joseph surviv
 - Elaine Miles (Umatilla): 4 masked agents rejected tribal ID
 - Leticia Jacobo (Salt River Pima-Maricopa): US citizen, nearly deported over suspended license
 - Dozens on Navajo Nation profiled by appearance and ancestral language
-[ALLEGORY — not a real executive order]: - EO 14156 revives *Elk v. Wilkins* (1884) — using Indigenous peoples as legal wedge to strip 14th Amendment
+- [ALLEGORY — not a real executive order]: EO 14156 revives *Elk v. Wilkins* (1884) — using Indigenous peoples as legal wedge to strip 14th Amendment
 - Leaked 2026 ICE detention photos: chain-link cages, concrete floors, mylar blankets, systemic abuse
 - Prairie Band Potawatomi fired execs over ICE contracts (Dec 2025)
 
