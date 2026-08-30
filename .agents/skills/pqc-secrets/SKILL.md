@@ -128,22 +128,15 @@ OS keystore opt-ins: macOS Keychain, Linux Secret Service.
 
 2. **Python Fallback (Secondary):** A script at `.agents/skills/pqc-secrets/scripts/pqc_secrets.py` uses the **native ML-KEM-768** from `pyca/cryptography>=45` (`cryptography.hazmat.primitives.asymmetric.mlkem`) and writes the same **double-envelope** bundle JSON as the Rust engine (keywrap layer + AAD). Since 2026-08-20 new keygens store the private key in FIPS 203 **seed form** (64 bytes `d‖z`); older stores holding the 2400-byte expanded form remain readable via the retained `kyber-py` decapsulation fallback, which prints a rotation hint.
 
-> [!WARNING]
-> **Format Incompatibility & Mismatch Errors:**
-> Because the Rust binary and Python script use different envelope structures, their serialized bundles are incompatible. Running the Rust binary on a Python-packed bundle results in:
-> `Error: missing field aad at line X column Y`
->
-> If this occurs, you must perform a one-time migration:
-> ```bash
-> # 1. Export plaintext secrets using the Python fallback
-> SECRETS_TXT=$(uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export)
-> 
-> # 2. Generate a new keypair using the Rust binary
-> ./bin/pqc-secrets keygen
-> 
-> # 3. Pack the secrets back into the Rust-compatible bundle
-> echo "$SECRETS_TXT" | ./bin/pqc-secrets pack
-> ```
+> [!NOTE] Engine parity (verified 2026-08-30)
+> Since 2026-08-20 the Python engine writes the **identical double-envelope**
+> bundle JSON as the Rust engine (keywrap layer + AAD), so bundles are
+> interoperable across engines on the same machine — pack with either, export
+> with either. The historical incompatibility (`Error: missing field aad …`)
+> only affects bundles packed by **pre-parity** engine versions; if you still
+> hold one, migrate once: export plaintext with the Python engine, `keygen`,
+> then re-`pack` (values never touch disk at rest — keep them in shell
+> memory for the duration of the migration).
 
 The local secrets infrastructure lives at `~/.config/pqc-secrets/`:
 
@@ -267,6 +260,12 @@ One PQC bundle at `~/.config/pqc-secrets/secrets.bundle.json` is the single sour
 ## 5. Application Integration Guidelines
 
 Applications must read secrets exclusively from environment variables populated dynamically in memory. Do not store or read plaintext files inside the application context.
+
+> **Adopting this system in a new repo/tool?** Start with
+> [references/implementation-guide.md](references/implementation-guide.md) —
+> the six-step adoption checklist, engine selection, consumption patterns in
+> shell/Node/Python/Rust, namespace discipline, invariants, and verification
+> receipts.
 
 > **Full application-embedding reference:** [references/application-orchestration.md](references/application-orchestration.md) — for when the application itself owns the key lifecycle: boot-time bundle load, UI-driven set/unset with repack, in-memory reads for per-request use, cross-platform binary dispatch, and new-machine ceremonies. Production reference: local-router (2026-08-17).
 
