@@ -23,12 +23,18 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 import subprocess  # nosec B404 - only ever runs `git rev-parse HEAD`, no user input
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+class SelftestError(Exception):
+    """Raised when a selftest phase fails; survives python -O."""
+
 
 MANIFEST_NAME = "manifest.json"
 SIG_NAME = "manifest.sig"
@@ -69,9 +75,12 @@ def _walk_files(root: Path, exclude: set[str]) -> list[Path]:
 
 def _source_commit(repo_hint: Path) -> str:
     """git rev-parse HEAD of the directory's repo; '' when not a repo."""
+    git = shutil.which("git")
+    if not git:
+        return ""
     try:
         result = subprocess.run(  # nosec B603 - fixed argv, no user input
-            ["git", "-C", str(repo_hint), "rev-parse", "HEAD"],
+            [git, "-C", str(repo_hint), "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -324,7 +333,7 @@ def _selftest() -> int:
         engine = Path(__file__).resolve()
 
         def run(cli_args: list[str]) -> subprocess.CompletedProcess[str]:
-            return subprocess.run(
+            return subprocess.run(  # nosec B603 - fixed argv, selftest-only
                 [sys.executable, str(engine), *cli_args],
                 capture_output=True,
                 text=True,
@@ -333,11 +342,16 @@ def _selftest() -> int:
                 check=False,
             )
 
+        def check(cond: bool, msg: str) -> None:
+            """Explicit selftest failure (survives python -O, unlike assert)."""
+            if not cond:
+                raise SelftestError(msg)
+
         # 1. sign (auto-manifest) + verify -> pass
         r = run(["sign", str(scratch)])
-        assert r.returncode == 0, f"sign failed: {r.stderr}"
+        check(r.returncode == 0, f"sign failed: {r.stderr}")
         r = run(["verify", str(scratch)])
-        assert r.returncode == 0, f"verify failed: {r.stdout} {r.stderr}"
+        check(r.returncode == 0, f"verify failed: {r.stdout} {r.stderr}")
         print("  sign -> verify: PASS")
 
         # 2. tamper payload file -> verify fails naming the file
@@ -345,16 +359,13 @@ def _selftest() -> int:
         original = payload.read_bytes()
         payload.write_bytes(b"scroll payload TAMPERED\n")
         r = run(["verify", str(scratch)])
-        assert r.returncode == 1, f"tampered verify should fail, got rc={r.returncode}"
-        assert "llms.txt" in r.stdout, f"failure must name the file: {r.stdout}"
-        print(
-            f"  tamper file -> verify FAIL naming file: PASS ({r.stdout.strip().splitlines()[0]})"
-        )
+        check(r.returncode == 1, f"tampered verify should fail, got rc={r.returncode}")
+        check("llms.txt" in r.stdout, f"failure must name the file: {r.stdout}")
 
         # 3. restore -> pass
         payload.write_bytes(original)
         r = run(["verify", str(scratch)])
-        assert r.returncode == 0, f"restored verify failed: {r.stdout} {r.stderr}"
+        check(r.returncode == 0, f"restored verify failed: {r.stdout} {r.stderr}")
         print("  restore -> verify: PASS")
 
         # 4. tamper manifest.json -> signature mismatch
@@ -362,30 +373,28 @@ def _selftest() -> int:
         manifest_bytes = manifest.read_bytes()
         manifest.write_bytes(manifest_bytes.replace(b"v2.0", b"v9.9"))
         r = run(["verify", str(scratch)])
-        assert r.returncode == 1, "tampered manifest verify should fail"
-        assert "signature mismatch" in r.stdout, f"expected sig mismatch: {r.stdout}"
+        check(r.returncode == 1, "tampered manifest verify should fail")
+        check("signature mismatch" in r.stdout, f"expected sig mismatch: {r.stdout}")
         print("  tamper manifest -> signature mismatch: PASS")
 
         # 5. council dual-signature path
         manifest.write_bytes(manifest_bytes)
         r = run(["sign", str(scratch), "--council"])
-        assert r.returncode == 0, f"council sign failed: {r.stderr}"
-        assert (scratch / SIG2_NAME).is_file(), "manifest.sig2 missing"
+        check(r.returncode == 0, f"council sign failed: {r.stderr}")
+        check((scratch / SIG2_NAME).is_file(), "manifest.sig2 missing")
         r = run(["verify", str(scratch), "--council"])
-        assert r.returncode == 0, f"council verify failed: {r.stdout} {r.stderr}"
+        check(r.returncode == 0, f"council verify failed: {r.stdout} {r.stderr}")
         r = run(["verify", str(scratch)])
-        assert r.returncode == 0, "dual-sig dir must verify with 1-sig check too"
+        check(r.returncode == 0, "dual-sig dir must verify with 1-sig check too")
         print("  council dual-signature path: PASS")
 
         print(f"SELFTEST PASS ({scratch})")
         return 0
-    except AssertionError as exc:
+    except SelftestError as exc:
         print(f"SELFTEST FAIL: {exc}", file=sys.stderr)
         return 1
     finally:
         # Seeds lived only in the subprocess env; scratch dies with it.
-        import shutil
-
         shutil.rmtree(scratch, ignore_errors=True)
 
 
