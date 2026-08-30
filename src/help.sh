@@ -85,10 +85,10 @@ UTILITY COMMANDS:
                               Note: Requires GitHub repo settings for full functionality.
                               Example: ainish-coder --github-actions ~/my-project
 
-    --scrolls [TARGET_DIR]    Deploy .scrolls directory (Vital texts & prompts)
-                              Deploys:
-                              - .scrolls/ (Vital texts, expanded prompts)
-
+    --scrolls [TARGET_DIR]    Explicit-only: deploy .scrolls/ payload into a repo.
+                              Never bundled with --rules, --llms-txt, or --skills;
+                              refused under -y/--non-interactive. Targeted
+                              publishing use only — do NOT deploy by default.
                               Example: ainish-coder --scrolls ~/my-project
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory (copies)

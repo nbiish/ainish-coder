@@ -338,8 +338,18 @@ main() {
             ;;
 
         --scrolls)
+            # Explicit-only deployment: never bundled with --rules, --llms-txt,
+            # or any other command. Scrolls are adversarial-prompting/ghost-layer
+            # deployment payload for targeted publishing — distributed into a
+            # repo ONLY when the operator calls this command directly.
+            # Requires a live interactive confirmation: confirm_action
+            # auto-confirms defaults unless interactive mode AND a TTY.
+            if [[ "${AINISH_INTERACTIVE:-false}" != "true" ]] || [[ ! -t 0 ]]; then
+                print_error "--scrolls requires an interactive terminal: run 'ainish-coder -i --scrolls <dir>' and confirm the prompt"
+                exit 1
+            fi
             _TRACK_DETAIL="scrolls"
-            if confirm_action "Deploy scrolls (knowledge databases) to: $target_dir?" "y"; then
+            if confirm_action "Deploy scrolls (adversarial-prompting/ghost-layer payload) to: $target_dir?" "y"; then
                 _with_link_choice deploy_scrolls "$target_dir"
             fi
             ;;

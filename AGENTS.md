@@ -44,6 +44,7 @@ Conflict → fail closed, explain, ask.
 ## TASK COORDINATION & CHAIN-OF-DRAFT
 
 - **Context Review (every task):** at start, read the current day's `AGENTS/{date}.COMMS.md`, recent `.agents/tasks/TASK.*.md`, and the applicable `llms.txt` DOX chain — nearest first, then parents. They are binding context, not optional reading: the ledger holds in-flight/merged work you must not collide with; task files hold prior decisions and conventions; `llms.txt` holds the work contract.
+- **Fast orientation (`git context`):** one command dumps everything above — latest COMMS entries + newest status, task-file gists (`.agents/tasks/`), `llms.txt` PRD version, worktrees, stashes, timeline. Run it first in any repo; read the full files it points at when deeper history is needed.
 - **PRD Anchor:** `llms.txt` is the authoritative PRD. Read unconditionally if present; overrides conflicting sources per P2. If task drifts, re-read. Never skip.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 </TASK_PRIMER>
