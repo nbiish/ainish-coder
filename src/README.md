@@ -10,7 +10,7 @@ src/
 ├── templates/          # Deployable, repository-agnostic templates
 │   └── llms.txt        # User-project llms.txt template
 │
-└── pqc-secrets/        # Rust: FIPS 203 secrets manager (ML-KEM-768)
+└── pqc-secrets/        # Rust: FIPS 203 secrets manager (ML-KEM-768, v1.1.0 seed-form aware)
     ├── Cargo.toml
     ├── Cargo.lock
     └── src/
