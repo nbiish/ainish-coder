@@ -1,6 +1,6 @@
 ---
 name: pqc-secrets
-description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. Includes the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, and the PQC Rust binary (ML-KEM-768 + AES-256-GCM).
+description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. Includes the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, and the PQC Rust binary (ML-KEM-768 + ML-DSA-65 + AES-256-GCM; device-key issuance + signed cross-machine envelopes).
 ---
 
 # PQC Secrets Management Agent Skill
@@ -695,6 +695,94 @@ $ pqc-secrets gen --format hex --bits 384 --count 5 --quiet
 `WTF_*`, `AINISHCODER_*`, `<TOOLNAME>_<WHAT>_API_KEY` — when using
 `--env`; `gen` accepts any valid identifier but the bundle audit
 (`pqc-secrets list`) should always make the owning tool obvious.
+
+### 5.9 `pqc-secrets issue` — device-key issuance (Rust engine, 2026-08-30)
+
+Mint a high-entropy device key from the OS CSPRNG and pack it into the PQC
+bundle in one step. `wtf` is the first built-in template: it emits exactly
+what the wtf-agent-hub skill §2 flow needs — a ready-to-eval env line
+(`export WTF_<NAME>_SECRET='…'`, POSIX single-quote wrapped) plus the
+enrollment JSON `{"hub_url":…,"device":…,"key":…}` (JSON-quoted, printed
+once, like `wtf key issue --json`).
+
+**Synopsis:**
+```
+pqc-secrets issue <template> <name> [PUB_PATH] [BUNDLE_PATH]
+                   [--hub-url URL] [--json] [--force]
+```
+
+**Behavior:**
+- Mints 32 CSPRNG bytes → 64 hex chars (the wtf device-key shape).
+- Packs `WTF_<NAME>_SECRET=<hex>` **through the existing pack path** (same
+  double-envelope, AADs, KDF — output is engine-compatible).
+- The value appears only shell-quoted (eval line) or JSON-quoted (enrollment
+  JSON); it is never logged. Metadata goes to stderr.
+- `<name>`: `[A-Za-z0-9_-]+`, no leading digit; uppercased into the env name
+  with `-` folded to `_`.
+- `--hub-url` fills the `hub_url` field (default placeholder
+  `http://HUB:7800`); `--json` prints the enrollment JSON only.
+- Like `pack`, issuance writes a **fresh bundle**. It refuses to overwrite an
+  existing bundle without `--force` (a single minted key must never destroy
+  the operator's other secrets). Issuance currently writes through the
+  existing bundle path — it will be **rewired through the vault (Phase 1)**
+  at integration.
+
+**Exit codes:** `0` success; `1` error (unknown template, invalid name,
+missing recipient.pub, existing bundle without `--force`).
+
+**Example:** (values below are shape placeholders, never real keys)
+```bash
+$ pqc-secrets issue wtf windows-agent
+export WTF_WINDOWS_AGENT_SECRET='<64-hex-device-key>'
+{"hub_url":"http://HUB:7800","device":"windows-agent","key":"<64-hex-device-key>"}
+$ eval "$(pqc-secrets issue wtf windows-agent --json >/dev/null)"   # eval-safe scripting
+```
+
+### 5.10 `pqc-secrets envelope export|import` — signed cross-machine transfer (Rust engine, 2026-08-30)
+
+Move secrets between machines as an **ML-KEM-768-wrapped, ML-DSA-65-signed
+envelope**: the sender seals for the recipient's `recipient.pub` and signs
+every wire field with a local ML-DSA-65 key (FIPS 204, RustCrypto `ml-dsa`
+0.1.1); the recipient **verifies the signature before any decapsulation** and
+fails closed on any mismatch.
+
+**Synopsis:**
+```
+pqc-secrets envelope export --recipient <PUB> [--in FILE] [--out FILE]
+pqc-secrets envelope import [--in FILE] [--out FILE]
+```
+
+**Envelope (versioned JSON, v1):**
+```json
+{"version":1,"alg":"ML-KEM-768+ML-DSA-65","recipient_key_sha3_256":"…",
+ "signer_pubkey":"…","sig":"…","kem_ct_b64":"…","nonce_b64":"…","ct_b64":"…"}
+```
+- Payload: AES-256-GCM over the secrets JSON, AAD `pqc-secrets:v1:envelope:data`.
+- Signature covers version, alg, recipient fingerprint, KEM ciphertext,
+  nonce, and ciphertext (domain `pqc-secrets:v1:envelope:sig`).
+- Signing key: keychain account `<PQC_KEYCHAIN_ACCOUNT>-mldsa65`,
+  auto-provisioned from the OS CSPRNG on first export; only a SHA3-256
+  fingerprint (16 hex) is printed — **verify it with the recipient
+  out-of-band** before importing.
+- `import` emits `export KEY='value'` lines (same quoting contract as
+  `export`); `--out FILE` writes 0600 plaintext — a PQC violation if kept,
+  so delete it immediately after use.
+
+**Exit codes:** `0` success; `1` error (bad signature → fail closed, wrong
+recipient, missing keys, malformed envelope).
+
+**Example:**
+```bash
+pqc-secrets envelope export --recipient ~/pubs/laptop.pub --in keys.env > envelope.json
+pqc-secrets envelope import --in envelope.json | grep '^export '
+```
+
+**Transit guidance:** envelopes are cryptographically sealed, but the
+transport still matters — any hub/relay must sit behind an overlay or TLS
+proxy (wtf non-negotiable: never plain HTTP to the public internet). Future
+networked daemons should target TLS 1.3 with the hybrid group
+`X25519MLKEM768` (draft-ietf-tls-ecdhe-mlkem) so transit inherits PQC key
+establishment too.
 
 ---
 
