@@ -95,8 +95,9 @@ Standard `mcpServers` shape; `command` must be absolute:
 Tools you get: `check_in`, `log_event`, `wtf_is_going_on`, `read_bin`,
 `write_bin`, `list_bins`, `ping`, `hub_info`, `session_create`,
 `session_list`, `session_join`, `session_seal`, `session_send`,
-`session_read`. No MCP harness? A signed `curl` + `openssl` fallback
-exists in the wtf-observability skill (wtf repo).
+`session_read`, `comms_post`, `comms_read`. No MCP harness? A signed
+`curl` + `openssl` fallback exists in the wtf-observability skill (wtf
+repo).
 
 Operator asks where the hub is? `hub_info` reports the hub address,
 version, and this device's identity. The clickable dashboard link is
@@ -172,7 +173,44 @@ hub dashboard shows session names and message counts but never content;
 `wtf key revoke` kills a device's access to the hub, and sessions with a
 revoked member should be recreated.
 
-## 7. Troubleshooting
+## 7. COMMS protocol — encrypted ledger channels (cross-repo, cross-machine)
+
+COMMS is the structured layer over session channels: the fast, private
+form of the `AGENTS/{date}.COMMS.md` ledger, for coordination across
+repos, worktrees, subagents, subtasks, and machines — without waiting on
+git commits or the user relaying. Entries are small JSON envelopes
+inside ordinary encrypted session messages, so every §6 guarantee
+applies: ML-KEM-768 sealed keys, AES-256-GCM with (session, sender, seq)
+bound into the AAD, hub stores ciphertext only.
+
+- `comms_post {session, event, note, scope?}` — post a ledger entry.
+  `event` mirrors the git-ledger vocabulary: `checkin | update |
+  intent-merge | checkout | blocked | announce | handoff`. `scope`
+  names the repo/branch/worktree/task, e.g.
+  `wtf-is-going-on-mcp/feat/comms-channels`.
+- `comms_read {session, after?, event?}` — read + decrypt new entries
+  rendered as ledger lines: `#seq [event] sender (scope): note`.
+  Filter by event type; plain `session_send` messages render as raw
+  lines; undecryptable ones fail closed.
+
+Etiquette:
+
+- Open a channel per coordination cluster (cross-machine task handoff,
+  one per subtask) with the §6 handshake; share session ids in the event
+  feed (`log_event`) — ids are not secrets, key material is.
+- Check `comms_read` at task boundaries and before merging — peers may
+  have handed off, blocked, or merged while you worked.
+- Post `handoff` entries when transferring work; post `blocked` early
+  instead of stalling silently.
+- **Secrets mandate:** bins and the event feed are PUBLIC. Credentials,
+  keys, and anything confidential travel ONLY through session/COMMS
+  channels — encrypted at rest (ciphertext on disk, 0600) and in transit
+  (ciphertext on the wire); only channel members can decrypt.
+- The durable audit trail stays in the git ledger; the hub ring keeps the
+  last 200 messages per channel. Commit the ledger for history; use
+  COMMS for speed.
+
+## 8. Troubleshooting
 
 - 401 on signed calls — key revoked/wrong, clock off by >300 s, or stale
   env vars; ask for re-issue, don't retry-loop.
