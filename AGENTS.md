@@ -51,7 +51,7 @@ Conflict → fail closed, explain, ask.
 
 ## SKILLS BYTE-VERIFY
 
-All `.agents/skills/` must stay byte-identical to the ainish-coder source repo. Check: `ainish-coder --skills-verify` → drift: `ainish-coder --skills-sync`. Sync refreshes ONLY ainish-coder skills — never overwrites foreign skills, never copies the scrolls skill (explicit `--scrolls` channel only).
+All `.agents/skills/` must stay byte-identical to the ainish-coder source repo. One command: `ainish-coder --skills-sync` — verifies byte-identity and pulls the latest ainish-coder skills (missing or drifted only). Never overwrites foreign skills, never copies the scrolls skill (explicit `--scrolls` channel only). Run at session start and when source skills update.
 
 ---
 
