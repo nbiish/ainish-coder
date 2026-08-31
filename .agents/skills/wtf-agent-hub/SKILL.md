@@ -65,10 +65,15 @@ No key material is written to disk.
 ### No device yet?
 
 Ask the operator to enroll you: `wtf key issue --json <name>` on the hub
-machine prints `{"hub_url":…,"device":…,"key":…}` once, or
-`wtf join user@hub --name <name>` self-enrolls over ssh. Save the secret
-only into env delivery or `bridge.json` (0600). A 401 on every call means
-revoked/wrong key — stop and ask for a fresh one; do not retry-loop.
+machine prints `{"hub_url":…,"device":…,"key":…}` once, `wtf join
+user@hub --name <name>` self-enrolls over ssh, or — no ssh, no hand-copied
+key — the operator mints a one-time `wtf enroll-token <name>` (expires,
+burns on use, stored hashed) and you redeem it:
+`wtf enroll --url http://HUB:7800 --name <name> --token <token>` writes
+`bridge.json` and verifies with a signed round-trip; the key travels only
+in that one response. Save the secret only into env delivery or
+`bridge.json` (0600). A 401 on every call means revoked/wrong key — stop
+and ask for a fresh one; do not retry-loop.
 
 > **PQC shortcut:** `pqc-secrets issue wtf <name>` automates this
 > enrollment — it mints the 64-hex device key from the OS CSPRNG, packs it
