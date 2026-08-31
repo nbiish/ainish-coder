@@ -27,6 +27,12 @@ only — no model/lang/voice metadata) for cross-agent context. Calls with no
 
 Keep stdout quiet — the spoken audio IS the channel; do not dump logs.
 
+**Tail the latest expert suggestion:** `cli-tts --last-suggestion` prints the
+most recent "Next step: ..." entry appended to `AGENTS-TTS-COMMS.txt` (the
+canonical cross-agent ledger, which lives at the tts-cli repo root). Run it from
+any repo to read the single latest hardened-engineer recommendation — useful as
+context input for the next agent. Exits non-zero if nothing is recorded yet.
+
 **If not installed:** when the engine env is missing, `cli-tts` prints one
 concise recovery line and exits non-zero —
 `❌ tts-cli engine not ready → https://github.com/nbiish/tts-cli`. Follow the
@@ -56,6 +62,7 @@ thereafter). Verify: `cli-tts --text "Hello world" --output /tmp/t.wav`.
 | File | `cli-tts --input-file in.txt` |
 | Choose voice | `cli-tts --text "hi" --voice expr-voice-2-f` |
 | List voices | `cli-tts --list-voices` |
+| **Tail latest suggestion** | `cli-tts --last-suggestion` |
 | List models | `cli-tts --list` |
 | Set default | `cli-tts --set-default kitten-tts-nano` |
 | Output file | `cli-tts --text "hi" --output out.wav` |
