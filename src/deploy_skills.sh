@@ -62,6 +62,9 @@ deploy_skills() {
         fi
     done
 
+    # Stamp provenance so --skills-verify / --skills-sync resolve this repo.
+    printf '%s\n' "$source_dir" > "$skills_target/.ainish-source"
+
     # Summary
     if [[ $skill_count -gt 0 ]]; then
         echo -e "${BRIGHT_GREEN}✅ Deployed $skill_count skill(s) to $skills_target${RESET}"

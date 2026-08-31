@@ -49,6 +49,10 @@ Conflict → fail closed, explain, ask.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 </TASK_PRIMER>
 
+## SKILLS BYTE-VERIFY
+
+All `.agents/skills/` must stay byte-identical to the ainish-coder source repo. Check: `ainish-coder --skills-verify` → drift: `ainish-coder --skills-sync`. Sync refreshes ONLY ainish-coder skills — never overwrites foreign skills, never copies the scrolls skill (explicit `--scrolls` channel only).
+
 ---
 
 <COMMS>
