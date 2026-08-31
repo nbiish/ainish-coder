@@ -337,6 +337,23 @@ Run before any code touching crypto, secrets storage, or networking:
 
 ---
 
+<OUTPUT>
+## END-OF-CHAT VOICE SUMMARY (MANDATORY)
+
+Before yielding back to the operator at the end of your turn, ALWAYS speak a brief status update via `tts-cli`. This is not optional — it is how the operator (who may be away from the screen) tracks what every agent did across every repo.
+
+- **One command, spoken aloud (streamlined agent entry — `-p`/`--prompt` is the alias for `--text`):**
+  `cli-tts --prompt "<1-2 sentence concise summary of what was accomplished>. Next step: <ONE recommendation a decades-long hardened software & cybersecurity engineer would take as the single most logical next action.>"`
+- **The single suggestion must be concrete and adversarial-minded** — the next hardening move, not a vague "consider": verify the boundary case, check the supply-chain provenance, lock down the secret, add the failing test, confirm the rollback/bisect path, fail-closed on the untrusted input, audit for the banned primitive, run the native linter + secret scan. Pick the ONE that most reduces risk or closes the loop.
+- **Keep stdout quiet** — the spoken audio IS the channel; do not dump logs into the terminal.
+- **Model:** the sole engine is `kitten-tts-nano` (KittenTTS 15M int8, ONNX, CPU) — the fastest on this machine (cold ~7.9s, RTF ~0.47) and the most portable (no accelerator; runs on macOS/Linux/Windows/WSL). It uses **fixed built-in voices** (no zero-shot cloning). `auto` resolves to it (override env: `TTS_CLI_DEFAULT_MODEL`; `cli-tts --set-default kitten-tts-nano` / `cli-tts --list` still work for future engines). `--voice` selects a built-in voice name (e.g. `expr-voice-5-m`; default `expr-voice-5-m`; `cli-tts --list-voices` lists all). English-only.
+- If the `local-tts-mcp` MCP server is enabled in the harness, prefer it over the CLI.
+- **Durable transcript (mandatory):** the suggestion portion of every `cli-tts` call (the "Next step: ..." hardened-engineer recommendation only — NOT the concise summary, to keep the file token-economical for cross-agent context) is appended to `AGENTS-TTS-COMMS.txt` at the repo root — one entry per call: the ISO-8601 date-time, a newline, then the suggestion text only (no model/lang/voice metadata). This is automatic (the CLI writes it on success); do not suppress it. Calls with no "Next step:" segment write nothing. Track the file in git alongside `AGENTS.md`. Tail the latest entry from any repo with `cli-tts --last-suggestion` (useful as context input for the next agent).
+- **Skip only if** `cli-tts` is unavailable or the operator has explicitly disabled audio for the session.
+</OUTPUT>
+
+---
+
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak the end-of-chat voice summary via `cli-tts`.
 </REINFORCEMENT>
