@@ -1,8 +1,9 @@
 #!/bin/bash
 # MOLECULE: Skills byte-integrity (verify + safe sync)
-# verify_ainish_skills : report byte-identity of managed skills vs this repo
-# sync_ainish_skills   : refresh ONLY ainish-coder-managed skills; foreign
-#                        skills and the scrolls skill are never touched.
+# verify_ainish_skills : read-only report of byte-identity vs this repo
+# sync_ainish_skills   : THE one command — verifies and pulls the latest
+#                        ainish-coder skills (missing or drifted only);
+#                        foreign skills and the scrolls skill never touched.
 
 # Resolve the ainish-coder source repo (AINISH_SOURCE_REPO > stamp > REPO_DIR).
 _ainish_skills_source() {
@@ -112,10 +113,10 @@ sync_ainish_skills() {
         return 1
     fi
 
-    echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills → $skills_target${RESET}"
+    echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills → $skills_target (verify + pull latest)${RESET}"
     safe_mkdir "$skills_target" || return 1
 
-    local skill updated=0 skipped=0
+    local skill updated=0 identical=0 foreign=0
     for skill in "$skills_source"/*/; do
         [[ -d "$skill" ]] || continue
         local name
@@ -123,18 +124,11 @@ sync_ainish_skills() {
 
         # Scrolls skill is explicit-channel only — never copied here.
         if _ainish_skill_excluded "$name"; then
-            echo -e "${YELLOW}⏭️  skipped (scrolls channel): $name${RESET}"
-            ((skipped++)) || true
-            continue
-        fi
-
-        # Foreign skill at target — never overwritten.
-        if [[ -d "$skills_target/$name" && ! -d "$skills_source/$name" ]]; then
             continue
         fi
 
         if _ainish_skill_identical "$skill" "$skills_target/$name"; then
-            echo -e "${GREEN}✓ already identical: $name${RESET}"
+            ((identical++)) || true
             continue
         fi
 
@@ -143,13 +137,25 @@ sync_ainish_skills() {
             print_error "Failed to sync skill: $name"
             return 1
         }
-        echo -e "${GREEN}✓ synced: $name${RESET}"
+        echo -e "${GREEN}⬇ pulled latest: $name${RESET}"
         ((updated++)) || true
+    done
+
+    # Foreign skills at target — reported, never overwritten.
+    for skill in "$skills_target"/*/; do
+        [[ -d "$skill" ]] || continue
+        local name
+        name="$(basename "$skill")"
+        _ainish_skill_excluded "$name" && continue
+        if [[ ! -d "$skills_source/$name" ]]; then
+            echo -e "${YELLOW}◦ foreign (kept): $name${RESET}"
+            ((foreign++)) || true
+        fi
     done
 
     # Stamp provenance so future verify/sync runs resolve this repo.
     printf '%s\n' "$source_dir" > "$skills_target/.ainish-source"
 
-    echo -e "${BRIGHT_GREEN}✅ Synced $updated skill(s), skipped $skipped scroll skill(s). Foreign skills untouched.${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ Skills synced: identical=$identical updated=$updated foreign-kept=$foreign. Foreign + scrolls untouched.${RESET}"
     return 0
 }
