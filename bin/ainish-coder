@@ -40,6 +40,7 @@ source "${SRC_DIR}/deploy_github_actions.sh"
 source "${SRC_DIR}/deploy_local_security.sh"
 source "${SRC_DIR}/deploy_template_agent.sh"
 source "${SRC_DIR}/deploy_skills.sh"
+source "${SRC_DIR}/verify_skills.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
 source "${SRC_DIR}/deploy_agents_comms.sh"
 source "${SRC_DIR}/deploy_8thfire.sh"
@@ -269,6 +270,14 @@ main() {
                 local eighthfire_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_8thfire "$eighthfire_dest"
             fi
+            ;;
+
+        --skills-verify)
+            verify_ainish_skills "${target_dir}"
+            ;;
+
+        --skills-sync)
+            sync_ainish_skills "${target_dir}"
             ;;
 
         --skills)
