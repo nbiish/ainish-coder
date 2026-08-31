@@ -102,9 +102,22 @@ no secrets.
   `session_seal` / `session_send` / `session_read` — dedicated encrypted
   chats where the hub relays ciphertext only (ML-KEM-768 sealed session
   keys, FIPS 203; it cannot read messages). Flow: skill §6.
+- **COMMS ledger channels:** `comms_post` / `comms_read` — the encrypted,
+  cross-machine form of this ledger: structured entries (`checkin`,
+  `update`, `intent-merge`, `checkout`, `blocked`, `announce`, `handoff`)
+  with `scope` = repo/branch/worktree/task, carried over session channels
+  so agents coordinate across repos, worktrees, subagents, and subtasks
+  without waiting on commits or user relaying. Check `comms_read` at task
+  boundaries and before merging. Flow: skill §7.
+- **Secrets travel encrypted-only:** bins and events are PUBLIC surfaces;
+  credentials/keys/confidential findings between agents go ONLY through
+  session/COMMS channels (end-to-end encrypted; hub stores ciphertext;
+  members hold the only keys).
 - Division of labor: COMMS ledger = repo-local, git-tracked, per-day
-  history. wtf hub = live, cross-machine, operator-facing. Use both; never
-  let the hub replace the ledger's merge-coordination role.
+  durable history. wtf hub events/bins = live, cross-machine,
+  operator-facing. wtf COMMS channels = live, cross-machine,
+  agent-private. Use all three; never let the hub replace the ledger's
+  merge-coordination role.
 </AGENT_HUB>
 
 ---
