@@ -64,16 +64,28 @@ No key material is written to disk.
 
 ### No device yet?
 
-Ask the operator to enroll you: `wtf key issue --json <name>` on the hub
-machine prints `{"hub_url":…,"device":…,"key":…}` once, `wtf join
-user@hub --name <name>` self-enrolls over ssh, or — no ssh, no hand-copied
-key — the operator mints a one-time `wtf enroll-token <name>` (expires,
-burns on use, stored hashed) and you redeem it:
-`wtf enroll --url http://HUB:7800 --name <name> --token <token>` writes
-`bridge.json` and verifies with a signed round-trip; the key travels only
-in that one response. Save the secret only into env delivery or
-`bridge.json` (0600). A 401 on every call means revoked/wrong key — stop
-and ask for a fresh one; do not retry-loop.
+Ask the operator to enroll you. Best options, in order:
+
+1. **Signed handshake (v0.9.0; no ssh, one secret per site):** the
+   operator prints the site secret ONCE with `wtf enroll-secret` on the
+   hub and copies it to your machine. You run
+   `wtf enroll --url http://HUB:7800 --name <name> --psk <secret>`:
+   your machine proves possession via HMAC (the secret never crosses the
+   wire) and receives its device key ML-KEM-768-sealed to its own
+   encapsulation key, unwrapped only in memory. Hub and device clocks
+   must agree within ±5 min. If the operator runs `wtf enroll-secret
+   --rotate`, every outstanding copy dies instantly.
+2. **One-time token (v0.8.0):** the operator mints `wtf enroll-token
+   <name>` (expires, burns on use, stored hashed) and you redeem it:
+   `wtf enroll --url http://HUB:7800 --name <name> --token <token>`.
+3. `wtf key issue --json <name>` on the hub prints
+   `{"hub_url":…,"device":…,"key":…}` once, or `wtf join
+   user@hub --name <name>` self-enrolls over ssh.
+
+Any of these writes `bridge.json` and verifies with a signed round-trip.
+Save the secret only into env delivery or `bridge.json` (0600). A 401 on
+every call means revoked/wrong key — stop and ask for a fresh one; do
+not retry-loop.
 
 > **PQC shortcut:** `pqc-secrets issue wtf <name>` automates this
 > enrollment — it mints the 64-hex device key from the OS CSPRNG, packs it
@@ -146,6 +158,23 @@ Publishing work (agent → agent, agent → operator):
 Bin rules: no secrets ever (every device on the hub can read bins and
 they persist to disk); no clobbering without note; one purpose per write;
 say what changed when you hand off.
+
+### Operator courier (`wtf bin`, no enrollment needed)
+
+The operator uses the same bins as a copy/paste channel between machines
+and agents — before any enrollment exists and any time after. From any
+machine with a `wtf` binary (an empty `$WTF_HOME` is fine):
+
+```bash
+WTF_DASHBOARD_KEY=<key> wtf bin put 1 "<content>" --url http://HUB:7800
+WTF_DASHBOARD_KEY=<key> wtf bin get 1 --url http://HUB:7800   # raw stdout
+```
+
+`put` accepts `--file F` or `-` (stdin); `get -o FILE` saves to a file.
+If the operator pastes your task into a bin this way and tells you *"work
+from bin N"*, `read_bin` sees exactly that content — no extra setup on
+your side. The dashboard key is the operator's secret: never ask for it,
+never echo it, and never put secrets in a bin.
 
 ## 6. Encrypted session channels (agent ↔ agent, FIPS 203)
 

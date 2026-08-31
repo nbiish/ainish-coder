@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md).
+description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md).
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -77,14 +77,33 @@ at a glance, what the fuck is going on everywhere. Both layers share one
 wire format: **chain-of-draft** — terse fragments, ≤5 words each, no prose,
 no secrets.
 
-**Setup (once per machine):**
+**Status — live system, proceed in that manner.** The wtf hub layer is
+shipped, dogfooded, and running; treat it as routine infrastructure, not
+a setup department. Reporting through it is the default behavior of every
+agent on every task: `wtf_is_going_on` before starting,
+`check_in`/`log_event` at task boundaries, bins for handoffs, COMMS
+channels for private cross-machine coordination. A machine with
+`bridge.json` (0600) or `WTF_*` env already holds its credentials — go
+straight to reporting.
+
+**Setup (once per machine — skip if `bridge.json` or `WTF_*` env exists):**
 1. Read `.agents/skills/wtf-agent-hub/SKILL.md` (install it anywhere with
    `wtf skill install --dir <project>`; the skill ships inside the `wtf`
    binary from the `wtf-is-going-on-mcp` repo).
-2. Credentials ride the PQC lane: pack `WTF_HUB_URL` / `WTF_DEVICE_NAME` /
-   `WTF_DEVICE_KEY` into the bundle, `eval "$(pqc-secrets export | grep
-   '^export WTF_')"` at session start — or `wtf setup` to write
-   `bridge.json` (0600).
+2. Credentials, three paths — in order of preference:
+   - **Signed handshake (v0.9.0, preferred):** the operator prints the
+     site secret ONCE with `wtf enroll-secret` on the hub machine and
+     copies it over; you run `wtf enroll --url http://HUB:7800 --name
+     <name> --psk <secret>`. Proof is HMAC (the secret never crosses the
+     wire); your device key arrives ML-KEM-768-sealed, opened only in
+     memory. `wtf enroll-secret --rotate` kills every outstanding copy.
+   - **One-time token (v0.8.0):** the operator mints `wtf enroll-token
+     <name>`; you redeem `wtf enroll --url http://HUB:7800 --name <name>
+     --token <token>`.
+   - **Manual/PQC lane:** pack `WTF_HUB_URL` / `WTF_DEVICE_NAME` /
+     `WTF_DEVICE_KEY` into the bundle, `eval "$(pqc-secrets export | grep
+     '^export WTF_')"` at session start — or `wtf setup` to write
+     `bridge.json` (0600).
 3. Register the bridge with the MCP harness:
    `{ "command": "<abs>/wtf", "args": ["agent"] }`.
 
@@ -97,6 +116,12 @@ no secrets.
   from bin N"; `write_bin` publishes findings/context for agents on other
   machines — read the bin first (last writer wins), then `log_event` a
   pointer (`findings in bin 2; done`). No secrets in bins or events.
+- **Operator courier (`wtf bin`, v0.10.0):** the operator stages tasks,
+  specs, and setup payloads into the same bins from any machine with only
+  the dashboard key — no enrollment needed (`WTF_DASHBOARD_KEY` env;
+  `wtf bin put/get/ls`, skill §5). Content the operator staged this way is
+  picked up with `read_bin` exactly like any other bin handoff — if you
+  were told "work from bin N", that is where it will be.
 - `hub_info` answers where the hub is; the dashboard link never travels
   over MCP (operator runs `wtf dashboard-url` on the hub machine).
 - **Private agent-to-agent channels:** `session_create` / `session_join` /
