@@ -125,10 +125,12 @@ UTILITY COMMANDS:
 
 
     --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory (copies)
-    --skills-verify [DIR]     Verify deployed skills are byte-identical to the
-                              ainish-coder repo (foreign skills reported, untouched)
-    --skills-sync [DIR]       Refresh ONLY drifted ainish-coder skills; never
-                              overwrites foreign skills; scrolls skill never copied
+    --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
+                              repo (foreign skills reported, untouched)
+    --skills-sync [DIR]       THE one command: verifies and pulls the latest
+                              ainish-coder skills (missing or drifted only);
+                              never overwrites foreign skills; scrolls skill
+                              never copied (explicit --scrolls channel only)
                               Deploys 20 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
