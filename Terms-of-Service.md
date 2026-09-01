@@ -1,8 +1,8 @@
 # Terms of Service
 
-**Last Updated:** January 13, 2026  
-**Effective Date:** January 13, 2026  
-**Version:** 2.0
+**Last Updated:** August 31, 2026  
+**Effective Date:** August 31, 2026  
+**Version:** 3.1.0
 
 ---
 
@@ -167,6 +167,8 @@ The following precedents inform interpretation of these Terms:
 
 - **Tribal Court Primacy:** *National Farmers Union Ins. v. Crow Tribe*, 471 U.S. 845 (1985); *Iowa Mutual Ins. v. LaPlante*, 480 U.S. 9 (1987)
 - **State Preemption:** *Worcester v. Georgia*, 31 U.S. (6 Pet.) 515 (1832); *Williams v. Lee*, 358 U.S. 217 (1959)
+- **Treaty as Supreme Law:** It is settled that ratified treaties rank as the "supreme Law of the Land" and displace conflicting state law (*Foster & Elam v. Neilson*, 27 U.S. (2 Pet.) 253 (1829); *Head Money Cases*, 112 U.S. 580 (1884); *Whitney v. Robertson*, 124 U.S. 190 (1888); *Missouri v. Holland*, 252 U.S. 416 (1920)). The non-self-execution doctrine (*Medellín v. Texas*, 552 U.S. 491 (2008)) does not dilute this framework: Indian treaties are self-executing supreme law (*Worcester*, 31 U.S. (6 Pet.) 515, 554 (1832)).
+- **Reserved Rights:** *United States v. Winans*, 198 U.S. 371 (1905) (treaty rights were "a reservation of those not granted"); *Winters v. United States*, 207 U.S. 564 (1908).
 - **Tribal Sovereign Immunity:** *Michigan v. Bay Mills Indian Community*, 572 U.S. 782 (2014); *Kiowa Tribe v. Manufacturing Technologies*, 523 U.S. 751 (1998)
 - **Montana Exceptions:** *Montana v. United States*, 450 U.S. 544 (1981); *United States v. Cooley*, 141 S. Ct. 1638 (2021)
 
@@ -282,10 +284,6 @@ Some Services may be offered as "beta," "experimental," or "preview" versions. T
 3. May be discontinued at any time without notice
 4. May not be subject to the same support or SLA as production Services
 5. Should not be used for mission-critical applications without explicit written approval
-
-### 4.4 Geographic Availability
-
-Services are provided from servers located in the United States. Availability and performance may vary based on:
 
 ### 4.4 Geographic Availability
 
@@ -407,6 +405,11 @@ You may NOT:
   - Violating privacy rights of individuals or communities
   - Infringing copyrights, trademarks, or other IP rights
 
+#### 6.2.6 AI Training and Model Development
+
+- Use any Services, Content, or User Content to train, develop, improve, or enhance any artificial intelligence system, machine learning model, neural network, or large language model without the **Prior Informed Consent (PIC)** of the Rights Holder (LICENSE Section 7.1)
+- Create deepfakes, synthetic media, or manipulated content using the Work or the likeness of the Rights Holder, without authorization — additionally actionable under the TAKE IT DOWN Act (Pub. L. No. 119-22) and the NO FAKES Act (S. 4591)
+
 ### 6.3 Enforcement
 
 Violation of prohibited activities may result in:
@@ -432,7 +435,7 @@ All Services, Content, software, designs, trademarks, logos, and materials provi
 - **Patent:** Patent Act, 35 U.S.C. § 1 et seq. (where applicable)
 - **Trade Secret:** Defend Trade Secrets Act, 18 U.S.C. § 1836 et seq.
 - **Tribal Law:** GTBOCI intellectual property ordinances
-- **Traditional Knowledge:** WIPO Traditional Knowledge instruments, UNDRIP Article 31
+- **Traditional Knowledge:** WIPO GRATK Treaty (on Intellectual Property, Genetic Resources and Associated Traditional Knowledge; adopted May 24, 2024), UNDRIP Article 31
 
 #### 7.1.2 License Grant to Users
 
@@ -584,7 +587,9 @@ Rights Holder recognizes that Traditional Knowledge (TK) is:
 2. **Intergenerational** knowledge passed down through generations
 3. **Living knowledge** that continues to evolve and develop
 4. **Sacred** in many instances, requiring special protection
-5. **Protected** under international law including UNDRIP Article 31, WIPO Traditional Knowledge frameworks, and the Nagoya Protocol
+5. **Protected** under international law including UNDRIP Article 31, the WIPO GRATK Treaty (adopted May 24, 2024; not yet in force — three instruments deposited: Malawi, Uganda, Albania; Peru ratified July 8, 2026, deposit pending; 15 deposits required), and the Nagoya Protocol
+
+These protections are grounded in the treaty-reserved rights of the Grand Traverse Band and its treaty beneficiaries — including the **Beaver Island Band** (named beneficiary under Art. 1, third of the 1855 Treaty of Detroit, "For the Beaver Island Band—High Island, and Garden Island") — exercised through inherent sovereignty and the reserved-rights doctrine (*United States v. Winans*, 198 U.S. 371 (1905)).
 
 ### 9.2 Sacred Knowledge Protection
 
@@ -1751,12 +1756,12 @@ Email: legal@in-digi-nous.com
 
 **END OF TERMS OF SERVICE**
 
-**Document Version:** 2.0  
-**Effective Date:** January 13, 2026  
-**Last Updated:** January 13, 2026
+**Document Version:** 3.1.0  
+**Effective Date:** August 31, 2026  
+**Last Updated:** August 31, 2026
 
 **Copyright © 2026 ᓂᐲᔥ Nbiish-Justin Kenwabikise ᑭᓇᐙᐱᑭᓯ. All rights reserved.**
 
 **Governed by the sovereign authority of the Grand Traverse Band of Ottawa and Chippewa Indians.**
 
-*This document incorporates principles from UNDRIP, WIPO Traditional Knowledge frameworks, ILO Convention 169, the Nagoya Protocol, CARE Principles for Indigenous Data Governance, and federal Indian law.*
+*This document incorporates principles from UNDRIP, WIPO Traditional Knowledge frameworks (incl. the GRATK Treaty), ILO Convention 169, the Nagoya Protocol, CARE Principles for Indigenous Data Governance, and federal Indian law.*

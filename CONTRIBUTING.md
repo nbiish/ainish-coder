@@ -30,9 +30,9 @@ This Agreement operates within a comprehensive legal framework that includes, bu
 
 This Agreement operates under the constitutional supremacy framework established by **Article VI, Clause 2 of the United States Constitution** (the Supremacy Clause), which declares federal law, including federal Indian law, to be the "supreme law of the land." Federal Indian law establishes exclusive federal jurisdiction over matters involving tribal sovereignty and Indigenous intellectual property rights.
 
-The project LICENSE invokes **federal preemption** to ensure that Indigenous rights and tribal sovereignty are protected from state court interference or concurrent jurisdiction claims. This Agreement incorporates and is subordinate to all federal Indian law protections, including:
+The project LICENSE invokes **federal preemption** to ensure that Indigenous rights and tribal sovereignty are protected from state court interference or concurrent jurisdiction claims. It is settled that ratified treaties rank as the **"supreme Law of the Land"** and displace conflicting state law (*Foster & Elam v. Neilson*, 27 U.S. (2 Pet.) 253 (1829); *Head Money Cases*, 112 U.S. 580 (1884); *Whitney v. Robertson*, 124 U.S. 190 (1888); *Missouri v. Holland*, 252 U.S. 416 (1920)). The non-self-execution doctrine (*Medellín v. Texas*, 552 U.S. 491 (2008)) does not dilute this framework: Indian treaties are self-executing supreme law — the Constitution, in declaring treaties to be "the supreme law of the land," adopted and sanctioned the previous treaties with the Indian nations (*Worcester v. Georgia*, 31 U.S. (6 Pet.) 515, 554 (1832)). This Agreement incorporates and is subordinate to all federal Indian law protections, including:
 
-- **Worcester v. Georgia**, 31 U.S. 515 (1831) - establishing state law inapplicability to tribal matters
+- **Worcester v. Georgia**, 31 U.S. (6 Pet.) 515 (1832) - establishing state law inapplicability to tribal matters
 - **Michigan v. Bay Mills Indian Community**, 572 U.S. 782 (2014) - affirming tribal sovereign immunity
 - **Indian Arts and Crafts Act**, 25 U.S.C. § 305 et seq. - protecting Indigenous cultural production
 - **Indian Civil Rights Act**, 25 U.S.C. § 1301 et seq. - establishing tribal court jurisdiction
@@ -44,9 +44,9 @@ The protections in this Agreement are grounded in and exercise the inherent sove
 
 **a) Treaty of Washington (March 28, 1836)** - 7 Stat. 491, reserving to the Ottawa and Chippewa Nations all rights not explicitly ceded, including cultural, intellectual, and spiritual rights;
 
-**b) Treaty of Detroit (July 31, 1855)** - 11 Stat. 621, affirming continuing government-to-government relationship and reserved rights;
+**b) Treaty of Detroit (July 31, 1855)** - 11 Stat. 621, concluded with "the Ottawa and Chippewa Indians of Michigan, parties to the treaty of March 28, 1836," reserving "High Island, and Garden Island, in Lake Michigan" expressly **"For the Beaver Island Band"** (Art. 1, third). **Precision of the treaty record:** the Nations signed through their chiefs and delegates; the Beaver Island Band itself was a **named beneficiary** — not a signatory-entity — and earlier assertions of an "affirming continuing government-to-government relationship" are refuted by the 1855 Art. 5 dissolution recital and Art. 3 release. Instead, the Band's rights survive through **federal successor-in-interest findings** — Congress (findings to Pub. L. 103-324, 108 Stat. 2156 (1994)) and the federal courts (*Grand Traverse Band v. Office of the U.S. Attorney*, W.D. Mich. 2002) have recognized that the signatory bands' government-to-government relationship continued until its **improper severance by Interior Secretary Columbus Delano in 1872**, and that the modern acknowledged successor tribes (GTBOCI, 1980; LTBB and LRB, 1994, 25 U.S.C. § 1300k-2) are "descendants of, and political successors to, signatories of the 1836 Treaty of Washington and the 1855 Treaty of Detroit." The Band's chief **Kainwaybekis** is named in the 1836 payment schedule (Art. 10), and **Kain-waw-be-kiss-se** signed the July 2, 1856 Little Traverse assent;
 
-**c) Reserved Rights Doctrine** - Under *Winters v. United States*, 207 U.S. 564 (1908), tribes reserved all rights not explicitly ceded in treaties, including rights to protect and govern intellectual property, TK, TCEs, and cultural resources.
+**c) Reserved Rights Doctrine** - Under *United States v. Winans*, 198 U.S. 371 (1905) (treaty rights were "a reservation of those not granted"), *Winters v. United States*, 207 U.S. 564 (1908), and *Washington v. Washington State Commercial Passenger Fishing Vessel Ass'n*, 443 U.S. 658 (1979), the Ottawa and Chippewa Nations reserved all rights not explicitly ceded in their treaties with the United States, including the inherent right to protect, control, and govern intellectual property, TK, TCEs, and cultural resources.
 
 These treaty rights are:
 - Constitutionally protected under Article VI, Clause 2
@@ -62,11 +62,13 @@ This Agreement implements protections consistent with international Indigenous r
 - Article 11: Right to practice and revitalize cultural traditions and customs
 - Article 31: Right to maintain, control, protect and develop cultural heritage, TK, TCEs, and intellectual property
 - Article 37: Right to recognition and enforcement of treaties and constructive arrangements
+- **U.S. endorsement (2010)** carried the Declaration's principles into federal policy
 
-**b) WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (adopted May 2024):**
+**b) WIPO Treaty on Intellectual Property, Genetic Resources and Associated Traditional Knowledge (GRATK, adopted May 24, 2024 - NOT yet in force):**
 - Article 3: Mandatory disclosure requirements for patent applications using TK
 - Article 5: Remedies for non-disclosure (patent invalidation, enforcement prevention)
 - Article 7: Cross-border cooperation provisions
+- **Gate status:** three instruments deposited (Malawi, Uganda, Albania); Peru ratified July 8, 2026 (deposit pending); **15 deposits required to enter into force** — the Treaty is not yet operative, so its disclosure/enforcement provisions are asserted here as an emerging international norm rather than a binding instrument.
 
 **c) ILO Convention 169 - Indigenous and Tribal Peoples Convention:**
 - Article 2: Coordinated government action to protect Indigenous rights
@@ -82,7 +84,7 @@ This Agreement implements protections consistent with international Indigenous r
 
 The Supreme Court's decision in *Oklahoma v. Castro-Huerta*, 597 U.S. ___ (2022), addressed **criminal jurisdiction only** and does NOT affect the exclusive federal and tribal **civil jurisdiction** applicable to this Agreement. This Agreement governs civil intellectual property rights, not criminal conduct, and remains subject to exclusive tribal and federal jurisdiction under *Montana v. United States*, *Williams v. Lee*, and related civil jurisdiction precedents.
 
-**State courts have NO jurisdiction over disputes arising from this Agreement.** Any state court proceedings violate federal law and tribal sovereignty, subjecting the filing party to immediate jurisdictional challenges, removal to federal court under 28 U.S.C. § 1441, and liquidated damages under Section 9.4 of this Agreement.
+**State courts have NO jurisdiction over disputes arising from this Agreement.** Any state court proceedings violate federal law and tribal sovereignty, subjecting the filing party to immediate jurisdictional challenges, removal to federal court under 28 U.S.C. § 1441, and liquidated damages under Section 8.3 of this Agreement.
 
 ### 1.6 Indigenous Data Sovereignty Framework
 
@@ -97,6 +99,10 @@ Contributions are subject to the **CARE Principles for Indigenous Data Governanc
 ### 1.7 Purpose of Wealth Reclamation
 
 This Agreement serves the fundamental purpose of **Indigenous wealth reclamation**, addressing centuries of extraction and appropriation of Indigenous knowledge, resources, and cultural expressions without compensation or consent. All benefit-sharing obligations in this Agreement are designed to redirect value back to Indigenous communities for their self-determination, cultural preservation, and economic sovereignty.
+
+### 1.8 Pushing Precedent — The Untreated Frontier
+
+No United States court has yet applied the treaty-reservation doctrine to intangible Traditional Knowledge and Traditional Cultural Expressions as intellectual property. This Agreement, like the LICENSE, asserts that application expressly and candidly. The same doctrine that reserves usufructuary rights not ceded — fishing, hunting, and gathering (*United States v. Winans*, 198 U.S. 371 (1905); *Minnesota v. Mille Lacs Band of Chippewa Indians*, 526 U.S. 172 (1999); *United States v. Michigan*, 471 F. Supp. 192 (W.D. Mich. 1979), aff'd, 653 F.2d 277 (6th Cir. 1981); 2023 Great Lakes Consent Decree, approved August 24, 2023, in force through August 24, 2047) — reserves the cultural and intellectual patrimony of the signatory nations, which was never ceded. Statutory cultural-protection regimes (NAGPRA, as amended by the final rule at 88 FR 86,452 (effective January 12, 2024), codified at 43 C.F.R. Part 10; IACA, 25 U.S.C. § 305e) evidence congressional solicitude for Indigenous cultural property, and the Indian canons of construction require that the silence of the 1836 and 1855 treaties as to intangible cultural patrimony be resolved in favor of the tribes (*County of Oneida v. Oneida Indian Nation*, 470 U.S. 226, 247 (1985)). Abrogation of treaty rights requires a clear statement of congressional intent (*United States v. Dion*, 476 U.S. 734 (1986)); no statute has abrogated Indigenous cultural-intellectual reserved rights. The absence of direct precedent is the frontier on which this Agreement and the Beaver Island Band's claims stand — a frontier to be claimed, not a defect to be conceded.
 
 ---
 
@@ -396,7 +402,7 @@ Your Contribution and any use thereof are subject to all technology restrictions
 
 **b) Nine-Theory Legal Framework:** You acknowledge that the AI training prohibition is supported by NINE independent and cumulative legal theories, each providing a distinct basis for liability:
 
-1. **Copyright Infringement** (17 U.S.C. § 101 et seq.) - Based on *Thomson Reuters v. Ross Intelligence* precedent
+1. **Copyright Infringement** (17 U.S.C. § 101 et seq.) - Based on *Thomson Reuters v. Ross Intelligence* (D. Del.) precedent, now on appeal (3d Cir. No. 25-2153, argued June 11, 2026)
 2. **Computer Fraud and Abuse Act** (18 U.S.C. § 1030) - Unauthorized access violations
 3. **Breach of Contract** (Extra elements doctrine) - Contractual prohibitions with non-copyright elements
 4. **Trade Secret Misappropriation** (18 U.S.C. § 1836 - DTSA) - For non-public aspects
@@ -428,6 +434,8 @@ Your Contribution and any use thereof are subject to all technology restrictions
 
 **e) Your Obligation:** You shall not facilitate, enable, or permit AI training on your Contribution or the Work.
 
+**f) Current AI-Copyright Litigation Status (as of August 2026):** This prohibition is asserted while the copyright-AI liability landscape remains unsettled. Current postures: the Eleventh Circuit granted **final approval** of the *Bartz* settlement (July 20, 2026); *Thomson Reuters v. Ross Intelligence* was **argued** before the Third Circuit (June 11, 2026, No. 25-2153); *Kadrey v. Meta* **certiorari denied** (July 8, 2026); *Cox v. Sony* (Mar. 25, 2026) is proceeding; and *Sony Music v. Anthropic* was filed (August 2026). The TRAIN Act (S. 2455, introduced July 2025) has seen no further action. None of these resolves the distinct tribal-IP and TK questions addressed by this Agreement, which rest on independent contractual, treaty-based, and statutory authority.
+
 ### 6.2 Emerging Technology Restrictions
 
 Your Contribution is subject to LICENSE Section 7 restrictions on:
@@ -446,7 +454,7 @@ Your Contribution is subject to LICENSE Section 7 restrictions on:
 
 **g) Surveillance Technologies:** Prohibition on military, law enforcement, or government surveillance applications without explicit PIC.
 
-**h) Deepfakes and Synthetic Media:** Prohibition on creating deepfakes, synthetic media, or manipulated content using the Work or likeness of the Rights Holder.
+**h) Deepfakes and Synthetic Media:** Prohibition on creating deepfakes, synthetic media, or manipulated content using the Work or likeness of the Rights Holder. Synthetic-media misuse is additionally actionable under the **TAKE IT DOWN Act** (Pub. L. No. 119-22) and the **NO FAKES Act** (S. 4591) as enacted or on offer.
 
 ### 6.3 Data Sovereignty and Security Requirements
 
@@ -466,6 +474,15 @@ Your Contribution is subject to LICENSE Section 7 restrictions on:
 **e) CARE Principles Compliance:** All data governance must comply with CARE Principles (Collective benefit, Authority to control, Responsibility, Ethics).
 
 **f) Indigenous Data Governance Committee:** Major data uses subject to oversight by Indigenous Data Governance Committee (LICENSE Section 4.2A).
+
+**g) Machine-Readable Notice and Opt-Out Metadata (LICENSE Section 3A.2):** To make the restrictions of this Agreement detectable by machines, crawlers, AI data pipelines, and text-and-data-mining (TDM) systems, Contributors shall preserve and not strip the following notice metadata, each of which constitutes legally effective notice of the restrictions herein:
+- **TDM Reservation (TDMRep):** `tdm-reservation` property value `1` (W3C TDM Reservation Protocol Community Group final report, May 10, 2024), reserved from text and data mining per Directive (EU) 2019/790 Art. 4(3) and Regulation (EU) 2024/1689 Art. 53(1)(c);
+- **robots.txt / ai.txt / registry opt-outs:** RFC 9309 directives, Spawning `ai.txt` files, and registry opt-outs (e.g., Have I Been Trained) asserting the AI Training prohibition;
+- **TK Labels and Notices (Local Contexts):** community-authorized TK Labels and the "Open to Collaborate" notice in repository/file metadata;
+- **SPDX license expression:** `SPDX-License-Identifier: LicenseRef-Commercial-Restricted-Use-License-BeaverIsland` in software and 3D model file headers (a custom license reference per SPDX, not an open-source identifier);
+- **schema.org / rightsStatements.org metadata:** `schema:license` and `schema:usageInfo` properties pointing to the canonical license URL.
+
+Absence of any particular machine-readable form does not waive or narrow the License terms; presence of any such form constitutes notice sufficient to support willfulness findings and defeat claims of innocent infringement.
 
 ### 6.4 Prohibited Uses
 
