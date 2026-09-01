@@ -42,8 +42,10 @@ deploy_skills() {
             local skill_name=$(basename "$skill_dir")
             local target_skill_dir="$skills_target/$skill_name"
 
-            # .scrolls payload never deploys with skills — explicit-only channel
-            case "$skill_name" in .scrolls*) continue ;; esac
+            # Scroll-channel packs (8thfire-scrolls, ghost-layer-injector) and
+            # raw .scrolls* payload never deploy with skills — the explicit
+            # --scrolls channel is their only distribution surface.
+            case "$skill_name" in .scrolls*|8thfire-scrolls|ghost-layer-injector) continue ;; esac
 
             # In non-overwrite mode, skip entire skill directory if it already exists
             if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
