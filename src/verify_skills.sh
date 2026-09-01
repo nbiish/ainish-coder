@@ -117,6 +117,13 @@ sync_ainish_skills() {
         return 1
     fi
 
+    # Self-sync guard: syncing the ainish-coder repo onto itself would
+    # rm/deploy source packs onto themselves. Nothing to sync.
+    if [[ "$(cd "$target_dir" 2>/dev/null && pwd)" == "$source_dir" ]]; then
+        echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — nothing to sync.${RESET}"
+        return 0
+    fi
+
     echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills → $skills_target (verify + pull latest)${RESET}"
     safe_mkdir "$skills_target" || return 1
 
