@@ -9,6 +9,14 @@ deploy_skills() {
 
     validate_target_dir "$target_dir" || return 1
 
+    # Self-deploy guard: distributing into the ainish-coder repo itself
+    # would rm/cp source packs onto themselves (destroying them). Ainish
+    # skills already live here — nothing to distribute.
+    if [[ "$(cd "$target_dir" 2>/dev/null && pwd)" == "$source_dir" ]]; then
+        echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — skills already live here, nothing to distribute.${RESET}"
+        return 0
+    fi
+
     local skills_source="$source_dir/.agents/skills"
     local skills_target="$target_dir/.agents/skills"
 
