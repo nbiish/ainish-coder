@@ -83,7 +83,10 @@ deploy_path() {
         fi
     else
         if [[ -d "$src" ]]; then
+            # Copy the tree but strip the secrets surface (.env is
+            # local-only; .env.example distributes as the template).
             cp -r "$src" "$dest"
+            rm -f "$dest/.env"
         else
             cp "$src" "$dest"
         fi
@@ -103,10 +106,14 @@ deploy_path_contents() {
     # Non-destructive mode: deploy only files that don't already exist
     if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
         local skipped=0 deployed=0
+        shopt -s dotglob nullglob
         for item in "$src_dir"/*; do
             [[ -e "$item" ]] || continue
             local name
             name="$(basename "$item")"
+            # Secrets never distribute: skill-local .env is a local-only
+            # config surface (.env.example is the distributed template).
+            [[ "$name" == ".env" ]] && continue
             if [[ -e "$dest_dir/$name" || -L "$dest_dir/$name" ]]; then
                 echo "  ⏭️  Skipping (already exists): $dest_dir/$name" >&2
                 ((skipped++)) || true
@@ -125,6 +132,7 @@ deploy_path_contents() {
         if [[ $skipped -gt 0 ]]; then
             echo "  ⏭️  Skipped $skipped existing file(s)" >&2
         fi
+        shopt -u dotglob nullglob
         return 0
     fi
 
@@ -143,6 +151,21 @@ deploy_path_contents() {
             fi
         done
     else
-        cp -r "$src_dir"/* "$dest_dir/" 2>/dev/null || true
+        # Explicit dotfile-aware copy (glob * misses .env/.env.example);
+        # secrets (.env) never distribute — .env.example does.
+        shopt -s dotglob nullglob
+        local item name
+        for item in "$src_dir"/*; do
+            [[ -e "$item" ]] || continue
+            name="$(basename "$item")"
+            [[ "$name" == ".env" ]] && continue
+            rm -rf "$dest_dir/$name"
+            if [[ -d "$item" ]]; then
+                cp -r "$item" "$dest_dir/$name"
+            else
+                cp "$item" "$dest_dir/$name"
+            fi
+        done
+        shopt -u dotglob nullglob
     fi
 }
