@@ -53,8 +53,9 @@ Conflict → fail closed, explain, ask.
 
 All `.agents/skills/` stay synchronized across repositories via `ainish-coder --skills-sync`:
 - **Verify & Sync:** `ainish-coder --skills-sync [target_dir]` verifies byte-identity and syncs skills bidirectionally.
-- **Auto-Ingestion:** New skills created in external target repositories (e.g. `tts-cli`, `wtf-is-going-on-mcp`) are automatically ingested into `ainish-coder/.agents/skills/`.
-- **Upstream Updates:** Newer versions of existing skills in target repositories automatically update `ainish-coder` source copies.
+- **Auto-Ingestion & Selection:** Candidate new skills or upstream updates from external repositories (e.g. `tts-cli`, `wtf-is-going-on-mcp`) prompt the operator for confirmation/selection before ingesting into `ainish-coder/.agents/skills/` (headless auto-ingests).
+- **Source Deletion Safety:** Skills in the `ainish-coder` repository root are NEVER removed or deleted during sync operations.
+- **Upstream Updates:** Newer versions of existing skills in target repositories update `ainish-coder` source copies upon operator approval.
 - **Downstream Deploy:** Target repositories receive missing or updated skills governed by the operator's persisted selection.
 - **Identical & Scroll Protection:** Identical skills remain untouched; scrolls-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, `.scrolls*`) remain strictly in the explicit `--scrolls` channel.
 

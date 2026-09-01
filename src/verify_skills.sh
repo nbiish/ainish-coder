@@ -127,6 +127,66 @@ else: print('0')
 "
 }
 
+# Prompt operator to confirm/select candidate skills to add/update into ainish-coder source
+_select_candidate_skills() {
+    local -a candidates=("$@")
+    _SELECTED_CANDIDATES=()
+    local count="${#candidates[@]}"
+    (( count > 0 )) || return 0
+
+    # Headless / non-interactive / non-TTY: accept all candidates
+    if [[ "${AINISH_HEADLESS:-false}" == "true" ]] || [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || [[ ! -t 0 ]]; then
+        _SELECTED_CANDIDATES=("${candidates[@]}")
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BRIGHT_CYAN}External/upstream skill(s) detected at target repo:${RESET}"
+    local i=1
+    for item in "${candidates[@]}"; do
+        local name="${item%%:*}"
+        local kind="${item##*:}"
+        if [[ "$kind" == "new" ]]; then
+            echo -e "  ${BRIGHT_GREEN}[$i]${RESET} ${GREEN}+ $name${RESET} ${YELLOW}(new skill — add to ainish-coder)${RESET}"
+        else
+            echo -e "  ${BRIGHT_GREEN}[$i]${RESET} ${CYAN}↑ $name${RESET} ${YELLOW}(upstream update — update ainish-coder)${RESET}"
+        fi
+        ((i++))
+    done
+    echo ""
+
+    if (( count == 1 )); then
+        local name="${candidates[0]%%:*}"
+        local kind="${candidates[0]##*:}"
+        local action="Add new skill"
+        [[ "$kind" == "updated" ]] && action="Pull updated skill"
+        if confirm_action "$action '$name' into ainish-coder repository?" "y"; then
+            _SELECTED_CANDIDATES=("${candidates[0]}")
+        fi
+        return 0
+    fi
+
+    # Multiple candidates: allow all, none, or specific numbers
+    echo -e "${YELLOW}Options:${RESET} ${GREEN}y${RESET}=add all, ${GREEN}1 2 ...${RESET}=select specific, ${RED}n${RESET}=skip all"
+    local ans
+    read -r -p "Select skills to add/update into ainish-coder [Y/n/numbers]: " ans
+    ans="$(echo "$ans" | tr '[:upper:]' '[:lower:]' | xargs)"
+
+    if [[ -z "$ans" || "$ans" == "y" || "$ans" == "yes" || "$ans" == "all" ]]; then
+        _SELECTED_CANDIDATES=("${candidates[@]}")
+    elif [[ "$ans" == "n" || "$ans" == "no" ]]; then
+        _SELECTED_CANDIDATES=()
+    else
+        local num
+        for num in $(echo "$ans" | tr ',' ' '); do
+            if [[ "$num" =~ ^[0-9]+$ ]] && (( num >= 1 && num <= count )); then
+                local idx=$(( num - 1 ))
+                _SELECTED_CANDIDATES+=("${candidates[$idx]}")
+            fi
+        done
+    fi
+}
+
 sync_ainish_skills() {
     local target_dir="${1:-.}"
     local source_dir
@@ -144,7 +204,7 @@ sync_ainish_skills() {
     # Self-sync guard: syncing the ainish-coder repo onto itself would
     # rm/deploy source packs onto themselves. Nothing to sync.
     if [[ "$(cd "$target_dir" 2>/dev/null && pwd)" == "$source_dir" ]]; then
-        echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — nothing to sync.${RESET}"
+        echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — all skills are home.${RESET}"
         return 0
     fi
 
@@ -153,7 +213,9 @@ sync_ainish_skills() {
 
     local updated=0 identical=0 deployed=0 ingested=0
 
-    # 1. Ingest new skills from target into ainish-coder source, or pull if target has a newer version.
+    # 1. Discover new or updated candidate skills in target repo.
+    # Note: Source repo (ainish-coder) NEVER has tools/skills removed.
+    local -a candidate_list=()
     local target_skill target_name
     for target_skill in "$skills_target"/*/; do
         [[ -d "$target_skill" ]] || continue
@@ -161,26 +223,43 @@ sync_ainish_skills() {
         _ainish_skill_excluded "$target_name" && continue
 
         if [[ ! -d "$skills_source/$target_name" ]]; then
-            # Brand new skill created in external repo -> Ingest into ainish-coder source
-            deploy_path "$target_skill" "$skills_source/$target_name" 2>/dev/null || {
-                print_error "Failed to ingest new skill: $target_name"
-                continue
-            }
-            echo -e "${BRIGHT_GREEN}➕ Ingested new skill from target: $target_name → ainish-coder${RESET}"
-            ((ingested++)) || true
+            candidate_list+=("$target_name:new")
         elif ! _ainish_skill_identical "$skills_source/$target_name" "$target_skill"; then
-            # Skill exists in both, but differs. Check if target is newer (upstream changes)
             if [[ "$(_ainish_skill_newer "$target_skill" "$skills_source/$target_name")" == "1" ]]; then
-                rm -rf "$skills_source/$target_name"
-                deploy_path "$target_skill" "$skills_source/$target_name" 2>/dev/null || {
-                    print_error "Failed to update skill from target: $target_name"
-                    continue
-                }
-                echo -e "${GREEN}⬆ Pulled updated skill from target: $target_name → ainish-coder${RESET}"
-                ((ingested++)) || true
+                candidate_list+=("$target_name:updated")
             fi
         fi
     done
+
+    # 2. Prompt operator to select which candidate skills to ingest into ainish-coder.
+    _SELECTED_CANDIDATES=()
+    if (( ${#candidate_list[@]} > 0 )); then
+        _select_candidate_skills "${candidate_list[@]}"
+        local selected_item s_name s_kind
+        for selected_item in "${_SELECTED_CANDIDATES[@]}"; do
+            s_name="${selected_item%%:*}"
+            s_kind="${selected_item##*:}"
+            local t_path="$skills_target/$s_name"
+            local s_path="$skills_source/$s_name"
+
+            if [[ "$s_kind" == "new" ]]; then
+                deploy_path "$t_path" "$s_path" 2>/dev/null || {
+                    print_error "Failed to ingest new skill: $s_name"
+                    continue
+                }
+                echo -e "${BRIGHT_GREEN}➕ Ingested new skill: $s_name → ainish-coder${RESET}"
+                ((ingested++)) || true
+            else
+                rm -rf "$s_path"
+                deploy_path "$t_path" "$s_path" 2>/dev/null || {
+                    print_error "Failed to update skill from target: $s_name"
+                    continue
+                }
+                echo -e "${GREEN}⬆ Pulled updated skill: $s_name → ainish-coder${RESET}"
+                ((ingested++)) || true
+            fi
+        done
+    fi
 
     # 2. Deploy or update ainish-coder skills into target repo per persisted selection.
     local source_skill source_name
