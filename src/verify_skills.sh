@@ -39,11 +39,13 @@ _ainish_skill_excluded() {
 }
 
 # Byte-compare one skill directory tree (symlinks to source are identical).
+# Skips .env (local-only secrets surface — never distributed), so a
+# gitignored local .env in the source pack cannot fake a mismatch.
 _ainish_skill_identical() {
     local src="$1" dst="$2"
     [[ -L "$dst" ]] && [[ "$(cd "$(dirname "$dst")" && cd "$(readlink "$dst")" 2>/dev/null && pwd)" == "$src" ]] && return 0
     [[ -d "$dst" ]] || return 1
-    diff -r "$src" "$dst" >/dev/null 2>&1
+    diff -r -x ".env" "$src" "$dst" >/dev/null 2>&1
 }
 
 verify_ainish_skills() {
