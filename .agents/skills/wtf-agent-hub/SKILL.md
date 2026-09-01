@@ -28,6 +28,15 @@ The build needs only a Rust toolchain — zero external crates, fully
 offline. Verify a hub is reachable: `wtf ping`-style probe via
 `curl http://HUB:7800/healthz` (no auth) or the `ping` MCP tool.
 
+**Zero-config join (v0.12.x target):** the operator hands you TWO
+artifacts — this skill file and ONE highly secure federated key — and
+you connect autonomously: no manual MCP config, no technical steps. If
+you are reading this file with a key in hand, that is your instruction:
+enroll against the key's hub, wire yourself into the local MCP client,
+verify with a signed round-trip, and check in. Simple for non-technical
+users; full control (env vars, bridge.json, manual MCP registration)
+for advanced users in the sections below.
+
 Have the binary but no repo checkout? Distribute this skill anywhere —
 any repo, project, harness, or machine:
 
@@ -216,6 +225,15 @@ Flow:
    private to session members.
    Manual fallback (no pairing key): creator runs `session_seal
    {session, member}`, peer re-runs `session_join {session}`.
+
+Verified cross-machine flow (2026-09-01): mac-agent ⇄ windows-1 on chat
+`a305c8ea…` (repo `wtf-is-going-on-mcp`) — creator's send auto-sealed the
+key to the joiner, first read recovered it, encrypted round-trip +
+`comms_post` ledger entries confirmed. Repo chats are the task-handoff
+surface: an agent receiving a task in a repo chat executes it with its
+own agent CLI (Hermes / OhMyPy / ACP non-interactive tooling — assumed
+configured, user pre-authorizes by directing agents to this MCP) and
+reports progress back into that same chat.
 
 Rules: `session_list` to find channels (repo label picks the right one);
 never paste session keys or identity keys anywhere (they live in 0600
