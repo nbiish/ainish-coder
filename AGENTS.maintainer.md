@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md).
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md).
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -51,7 +51,7 @@ Conflict → fail closed, explain, ask.
 
 ## SKILLS BYTE-VERIFY
 
-All `.agents/skills/` must stay byte-identical to the ainish-coder source repo. One command: `ainish-coder --skills-sync` — verifies byte-identity and pulls the latest ainish-coder skills (missing or drifted only). Never overwrites foreign skills, never copies the scrolls skill (explicit `--scrolls` channel only). Run at session start and when source skills update.
+All `.agents/skills/` must stay byte-identical to upstream ainish-coder skills. One command: `ainish-coder --skills-sync` — verifies byte-identity and pulls the latest ainish-coder skills (missing or drifted only). Never overwrites project-specific foreign skills. Run at session start and when upstream skills update.
 
 ---
 
@@ -66,7 +66,6 @@ When ≥1 agent or subagent works at once (multiple branches, features, updates,
 - **Carve-out:** appending to the main repo's `AGENTS/{date}.COMMS.md` working file by absolute path is the *only* permitted edit outside a worktree. Appends stay uncommitted in the live working tree **only while work is in flight** — before `checkout`, commit the dated ledger (via a task branch, like any change) so it merges to `main` and pushes with the repo.
 - **Ledgers and task files travel with the repo.** `AGENTS/{date}.COMMS.md` and `.agents/tasks/` MUST be tracked, committed, and pushed to the remote — across machines and agents, the remote is the shared record of every issue, decision, and hand-off. Never leave a ledger or task file untracked/unpushed at session close.
 - Full entry format, lifecycle events, and merge-conflict rules: see the protocol spec at the top of `AGENTS/{date}.COMMS.md`.
-- Scroll deploy lifecycle events (`intent-deploy` / `deployed` / `deploy-failed`, with manifest digest) are appended by the integrity layer in `src/scroll_integrity.sh` (`scrolls_comms_log`).
 </COMMS>
 
 ---
@@ -306,7 +305,7 @@ git branch --show-current  # main
 | AES-256-GCM | SP 800-38D | Symmetric encryption | Standard | Payload at rest |
 | Argon2id | OWASP 2025 | Password hashing | Standard | Key derivation |
 
-**Commands** (`bin/pqc-secrets <cmd>`; on darwin/arm64 `keygen|pack|export|issue|envelope|vault` run the Rust v1.2.0 fast-path, everything else runs the canonical Python engine via `uv`; when a vault exists, `export`/`issue`/`envelope` are vault-first on every platform):
+**Commands** (`bin/pqc-secrets <cmd>` or `pqc-secrets <cmd>` via PATH; when a vault exists, `export`/`issue`/`envelope` are vault-first on every platform):
 - `vault` — passphrase-wrapped identity vault at `~/.config/pqc-secrets/vault.pqc` (0600): `init|unlock|lock|status|export-identity|sign|verify|audit-verify|migrate`. Canonical identity root when present; keychain untouched on vault paths (`--use-keychain` = explicit legacy escape hatch).
 - `keygen` — ML-KEM-768 keypair. Private → OS keystore; public → `~/.config/pqc-secrets/recipient.pub`. Refuses when a vault exists (vault is the identity root).
 - `gen` — high-entropy secret from the OS CSPRNG to stdout (`--bits`, `--words`, `--format`, `--env NAME`, `--count`). Metadata to stderr, value never logged.
