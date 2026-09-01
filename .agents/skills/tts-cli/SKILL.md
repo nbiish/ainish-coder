@@ -1,6 +1,6 @@
 ---
 name: tts-cli
-description: "On-device Text-to-Speech CLI (`cli-tts`) for agent voice summaries and ad-hoc speech. Use when: an agent needs to speak a concise end-of-chat summary + one fused next-step; generate speech from text/clipboard/file/pipe; pick a built-in voice; set or check the default engine; or manage isolated `uv` environments. Single engine: KittenTTS nano int8 (15M, CPU ONNX) — fastest on this machine (cold ~7.9s, RTF ~0.47), no accelerator required, cross-platform (macOS/Linux/Windows/WSL), English-only, 8 fixed built-in voices (no zero-shot cloning). Trigger on: 'tts', 'tts-cli', 'cli-tts', 'speak', 'voice summary', 'read aloud', 'play audio', or any request to vocalize agent output."
+description: "On-device TTS (`cli-tts` / local-tts-mcp). End-of-chat = ONE internal pass of this skill's one-shot master-suggest prompt (one sentence per expert, then one fused Next step) then ONE speak call. Never call TTS or spawn experts per chair. Engine: KittenTTS nano int8 (15M, CPU ONNX, English, 8 fixed voices). Trigger: tts, cli-tts, speak, voice summary."
 ---
 
 # tts-cli — on-device TTS for agent voice summaries
@@ -27,59 +27,63 @@ speak but write nothing to the transcript.
 
 Keep stdout quiet — the spoken audio IS the channel; do not dump logs.
 
-### Next-step contract — silent fusion, spoken singleton
+### Next-step contract — one-shot prompt, one speak call
 
-The line after `Next step:` is **one order**. It is also the line that
-`cli-tts` prints into `AGENTS-TTS-COMMS.txt` (the durable transcript; not
-a `.md` file). There is no panel, no chair-key schema, no extra ledger
-block — the engine is a dumb recorder.
+`cli-tts --prompt` / MCP speak is **one tool call**. Do not invoke it per
+expert. Do not spawn subagents. Do not loop the list.
 
-**Ask every question, then write one order.** In one forward pass, silently
-answer the list below. Do not print the answers. Do not speak them. Do not
-log them. Fuse them into a single imperative the whole room would sign, and
-feed **only that line** into `--prompt`. Do not name the masters. Do not
-spawn subagents to "be" them.
+Run the block below **once** in this model (inner monologue or a single
+completion — same thing). Each master answers in **one sentence** (or
+`n/a`). Those sentences stay in this pass; do not print, speak, or log
+them. Return **one** fused `Next step:` line, then call speak **once**.
 
-#### What would this {master} suggest?
+#### One-shot prompt (copy this; it is the whole contract)
 
-Answer each, mentally, every turn:
+```
+Turn: <one sentence: what changed this turn>
 
-1. What would this **adversarial-security master** suggest? *(secrets, injection, fail-closed holes, banned primitives)*
-2. What would this **privacy / data-minimization master** suggest? *(spoken audio and the public git ledger stay names-only)*
-3. What would this **networks / supply-chain master** suggest? *(transport, isolation, pinned fetches, provenance)*
-4. What would this **systems-architecture master** suggest? *(contracts, coupling, blast radius, one owner per rule)*
-5. What would this **reliability / SRE master** suggest? *(unverified claims, live path, observability)*
-6. What would this **test / QA master** suggest? *(the missing failing test that locks the fix)*
-7. What would this **release / rollback master** suggest? *(bisect path, pin, revert, what actually ships)*
-8. What would this **product / operator-trust master** suggest? *(away-from-screen trust, copy, adoption, README/skill drift)*
-9. What would this **human-factors / ear master** suggest? *(what the away operator actually hears; KittenTTS must stay clear)*
-10. What would this **craft / next-agent master** suggest? *(the next engineer, including the next LLM, can execute this without the original chat)*
-11. What would this **governance / license / sovereignty master** suggest? *(license, cultural IP, who may ship this — usually "nothing extra"; never skipped when it applies)*
+In one pass, answer each in ONE sentence (or n/a). Do not output those sentences.
 
-**Fusion, not first-match.** First-match leftover-risk produced continuation
-TODOs ("commit, then pytest"). Fusion is one action with the other answers'
-constraints baked into *how* it is done — fail-closed, ledger-safe, pinned,
-tested, speakable, next-agent-runnable, revertible. Security and privacy
-can veto a mushy blend: if they have a hole, the fused verb must close it.
-If two independent todos remain, you have not fused — pick the single next
-move the room would order first.
+What would this adversarial-security master suggest?
+What would this privacy / data-minimization master suggest?
+What would this networks / supply-chain master suggest?
+What would this systems-architecture master suggest?
+What would this reliability / SRE master suggest?
+What would this test / QA master suggest?
+What would this release / rollback master suggest?
+What would this product / operator-trust master suggest?
+What would this human-factors / ear master suggest?
+What would this craft / next-agent master suggest?
+What would this governance / license / sovereignty master suggest?
 
-**Speakable:** Be concise. Verb-first English. Not a recap of work already
-done. Not "consider"/"maybe"/"might". Not a list of masters. There is no
-word budget — KittenTTS is chunked at 350 characters (ONNX fails near 425);
-the engine concatenates the WAV pieces. Avoid URLs, backticks, and path
-soup; they mumble.
+Return exactly one line:
+Next step: <one fused imperative all eleven would sign>
+```
 
-| Weak (first-match / leftover TODO) | Fused (room would sign) |
+Then:
+
+```bash
+cli-tts --prompt "<concise summary of what changed>. Next step: <that fused line>."
+```
+
+(MCP: the same string, one `speak` / `--prompt` call.)
+
+**Fusion:** one action with the other one-sentence answers baked into *how*
+it is done. Security and privacy can veto a mushy blend. If two independent
+todos remain, you have not fused.
+
+**Speakable:** Verb-first English. Not a recap. Not "consider"/"maybe". Not
+a list of masters. KittenTTS chunks at 350 characters — no word budget.
+Avoid URLs, backticks, and path soup.
+
+| Weak (11 calls / leftover TODO) | Fused (one-shot return) |
 | :--- | :--- |
-| Commit the worktree. | Add a regression that two Next-step markers write nothing to the public ledger while speech still plays. |
-| Pin the kitten weights. | Pin the Hugging Face kitten weights by digest and fail environment create closed on mismatch. |
-| Update the README. | Give AGENTS.md sole ownership of the prompt contract and make the skill quote it so the next agent copies the real command. |
+| Call TTS once per expert. | Add a regression that two Next-step markers write nothing to the public ledger while speech still plays. |
+| Commit the worktree. | Pin the Hugging Face kitten weights by digest and fail environment create closed on mismatch. |
 
-**Anti-patterns:** first-match leftover TODOs; dumping the question list or
-answers into `--prompt` or `AGENTS-TTS-COMMS.txt`; naming a persona
-("as a CISO…"); "consider security and marketing"; spawning subagents to
-role-play the room; URLs, backticks, or path soup in the spoken line.
+**Anti-patterns:** one MCP/CLI call per master; dumping the eleven sentences
+into `--prompt` or `AGENTS-TTS-COMMS.txt`; first-match leftover TODOs;
+naming a persona; spawning subagents to role-play the room.
 
 **Tail the latest suggestion:** `cli-tts --last-suggestion` prints the most
 recent "Next step: ..." entry from `AGENTS-TTS-COMMS.txt` (canonical ledger at
@@ -171,7 +175,18 @@ Identical CLI on every OS. Audio auto-plays via the OS-native player
 `.model-envs/` (dev) or `~/.tts-cli/model-envs/` (installed). The default-model
 config is `~/.tts-cli/default_model`. No accelerator is used or required.
 
-## 7. MCP harness preference
+## 7. MCP harness / tool description
 
-If the `local-tts-mcp` MCP server is enabled in the harness, **prefer it over
-the CLI** (same engine, in-process). Use the CLI otherwise.
+If `local-tts-mcp` is enabled, **prefer it over the CLI** (same engine,
+in-process). Either way: **one speak call per turn**.
+
+Copy this into the MCP tool's `description` (or keep this skill mounted —
+Cursor presents the YAML `description` above as the tool blurb):
+
+> Agent voice summary. Call **once** per turn with
+> `"<summary>. Next step: <fused imperative>"`. Before that call, run the
+> one-shot master-suggest prompt in this skill once (one sentence per
+> expert, then one fused Next step). Never call this tool per expert.
+> Ledger: `AGENTS-TTS-COMMS.txt` records only the fused Next-step line.
+
+Do not add extra MCP tools for individual masters.
