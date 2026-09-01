@@ -49,15 +49,14 @@ Conflict → fail closed, explain, ask.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 </TASK_PRIMER>
 
-## SKILLS BYTE-VERIFY & TWO-WAY SYNC
+## SKILLS & MODULAR CAPABILITIES
 
-All `.agents/skills/` stay synchronized across repositories via `ainish-coder --skills-sync`:
-- **Verify & Sync:** `ainish-coder --skills-sync [target_dir]` verifies byte-identity and syncs skills bidirectionally.
-- **Auto-Ingestion & Selection:** Candidate new skills or upstream updates from external repositories (e.g. `tts-cli`, `wtf-is-going-on-mcp`) prompt the operator for confirmation/selection before ingesting into `ainish-coder/.agents/skills/` (headless auto-ingests).
-- **Source Deletion Safety:** Skills in the `ainish-coder` repository root are NEVER removed or deleted during sync operations.
-- **Upstream Updates:** Newer versions of existing skills in target repositories update `ainish-coder` source copies upon operator approval.
-- **Downstream Deploy:** Target repositories receive missing or updated skills governed by the operator's persisted selection.
-- **Identical & Foreign Protection:** Identical skills remain untouched; project-specific foreign skills are preserved.
+All `.agents/skills/` provide modular, task-specific capabilities and instructions:
+- **Skill Consultation:** When a task matches an available skill in `.agents/skills/`, read its `SKILL.md` before proceeding.
+- **Byte-Identity & Integrity:** Shared skill definitions maintain byte-identity across repositories; never modify shared skills in place without testing and verification.
+- **Two-Way Synchronization:** Skills synchronize bidirectionally across repositories. Upstream updates and newly discovered external skills are confirmed with the operator before ingestion.
+- **Project-Specific Preservation:** Project-specific foreign skills are preserved and never overwritten or removed during synchronization.
+- **Skill Standards:** Each skill lives in `.agents/skills/<skill-name>/SKILL.md` with standard frontmatter (`name`, `description`) and structured workflows.
 
 ---
 
