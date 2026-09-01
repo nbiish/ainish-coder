@@ -231,9 +231,11 @@ Verified cross-machine flow (2026-09-01): mac-agent ⇄ windows-1 on chat
 key to the joiner, first read recovered it, encrypted round-trip +
 `comms_post` ledger entries confirmed. Repo chats are the task-handoff
 surface: an agent receiving a task in a repo chat executes it with its
-own agent CLI (Hermes / OhMyPy / ACP non-interactive tooling — assumed
-configured, user pre-authorizes by directing agents to this MCP) and
-reports progress back into that same chat.
+own agent CLI with the operator-set fallback chain — (1) OhMyPy CLI,
+(2) Hermes CLI, (3) FreeClaudeCode (free Claude Code server + Claude
+system; auto-started when the first two are absent) — user
+pre-authorizes by directing agents to this MCP, and reports progress
+back into that same chat (record which CLI ran the task).
 
 Rules: `session_list` to find channels (repo label picks the right one);
 never paste session keys or identity keys anywhere (they live in 0600
