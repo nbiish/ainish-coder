@@ -132,6 +132,11 @@ hub machine. Never echo or guess the dashboard key.
 - `wtf_is_going_on` before starting work — another agent may already be
   on it. Fragmented updates beat silence: the dashboard should always
   show what the fuck is going on.
+- **Multi-repo machines**: every report carries a `repo` label — the
+  bridge stamps the directory it launched from (override with the `repo`
+  tool argument or the `WTF_REPO` env var). Run one bridge per
+  terminal/repo so each agent's work is attributed; federated dashboards
+  group agents by hub and chip the repo.
 
 ## 5. Bin collaboration (cross-agent, cross-harness, cross-machine)
 
