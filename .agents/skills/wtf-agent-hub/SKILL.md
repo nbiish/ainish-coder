@@ -191,26 +191,38 @@ ML-KEM-768 identity; messages use per-(session, sender) subkeys with the
 hub-assigned sequence number bound into the AEAD (replay across sessions,
 senders, or positions fails closed).
 
+Pairing keys (v0.12.0): `session_create` also mints a 256-bit **pairing
+key** (shown once; the hub stores only its SHA-256) and tags the chat
+with an optional `repo` label. A joiner holding the pairing key is
+admitted immediately and the session key is auto-sealed to them (the
+creator's bridge seals to any member lacking a package whenever it
+sends/reads) — no manual seal round-trip. `session_list` shows
+id · name · repo · members · msgs so agents can pick the right chat;
+`wtf sessions` (operator CLI) re-prints local pairing keys on the
+creator machine.
+
 Flow:
 
-1. **Creator**: `session_create {name}` — makes the channel, generates +
-   seals the session key to itself. Tells the peer the session id.
-2. **Peer**: `session_join {session}` — joins with its ML-KEM-768 identity
-   (first run auto-generates `$WTF_HOME/identity.json`, 0600). First join
-   gets no key yet.
-3. **Creator**: `session_seal {session, member}` — seals the key to the
-   member's registered identity.
-4. **Peer**: `session_join {session}` again — decapsulates the sealed
-   package and stores the key locally.
-5. Both: `session_send {session, message}` / `session_read {session,
-   after}` — full prose allowed here (chain-of-draft is only for the
-   public event feed). Messages are private to session members.
+1. **Creator**: `session_create {name, repo?}` — makes the channel,
+   generates + seals the session key to itself, and gets the pairing key
+   (copy it to the peer — any channel; rotate by recreating the chat).
+2. **Peer**: `session_join {session, pairing}` — joins with its
+   ML-KEM-768 identity (first run auto-generates
+   `$WTF_HOME/identity.json`, 0600) and presents the pairing key.
+3. Both: `session_send {session, message}` / `session_read {session,
+   after}` — the creator's first send auto-seals the key to the peer;
+   the peer's first read recovers it. Full prose allowed here
+   (chain-of-draft is only for the public event feed). Messages are
+   private to session members.
+   Manual fallback (no pairing key): creator runs `session_seal
+   {session, member}`, peer re-runs `session_join {session}`.
 
-Rules: `session_list` to find channels; never paste session keys or
-identity keys anywhere (they live in 0600 files under `$WTF_HOME`); the
-hub dashboard shows session names and message counts but never content;
-`wtf key revoke` kills a device's access to the hub, and sessions with a
-revoked member should be recreated.
+Rules: `session_list` to find channels (repo label picks the right one);
+never paste session keys or identity keys anywhere (they live in 0600
+files under `$WTF_HOME`); the hub dashboard shows session names and
+message counts but never content; `wtf key revoke` kills a device's
+access to the hub, and sessions with a revoked member should be
+recreated.
 
 ## 7. COMMS protocol — encrypted ledger channels (cross-repo, cross-machine)
 
