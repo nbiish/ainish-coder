@@ -31,7 +31,7 @@ _ainish_skills_source() {
 # True when a skill name is managed-by-default-excluded (scrolls channel).
 _ainish_skill_excluded() {
     case "$1" in
-        .scrolls*|8thfire-scrolls) return 0 ;;
+        .scrolls*|8thfire-scrolls|ghost-layer-injector) return 0 ;;
         *) return 1 ;;
     esac
 }

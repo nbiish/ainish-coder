@@ -4,17 +4,17 @@
   "carriers": [],
   "files": [
     {
-      "bytes": 162794,
+      "bytes": 156478,
       "path": "llms-full.txt",
-      "sha3_256": "57547600b953cda96bba2bd38f485cdb4ccca51975e96bbedc4dad41e614ffee"
+      "sha3_256": "1c2f1597af3e4799ad46b46266a0a841d22ac3d3de3493284cf416923d3ca999"
     },
     {
-      "bytes": 175076,
+      "bytes": 170375,
       "path": "llms.txt",
-      "sha3_256": "97d7cbfdd5b79994a560c53e9f9354beb91d03f860cba55d3cb4c962b82f6f69"
+      "sha3_256": "5055a931bc2c122847d0a5e9d121b849920e0e72bf64eed2d143d4207d96e366"
     }
   ],
-  "source_commit": "96f01e73db14780b7c1aa84839098edfefbb78df",
-  "timestamp": "2026-08-30T03:38:26+00:00",
+  "source_commit": "8311eaf561406752251f0eba9e15076d6f9eed8d",
+  "timestamp": "2026-09-01T15:30:04+00:00",
   "version": "v2.0"
 }
