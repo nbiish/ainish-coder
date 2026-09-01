@@ -1,6 +1,6 @@
 ---
 name: tts-cli
-description: "On-device Text-to-Speech CLI (`cli-tts`) for agent voice summaries and ad-hoc speech. Use when: an agent needs to speak a concise end-of-chat summary + one council-chair next-step; generate speech from text/clipboard/file/pipe; pick a built-in voice; set or check the default engine; or manage isolated `uv` environments. Single engine: KittenTTS nano int8 (15M, CPU ONNX) — fastest on this machine (cold ~7.9s, RTF ~0.47), no accelerator required, cross-platform (macOS/Linux/Windows/WSL), English-only, 8 fixed built-in voices (no zero-shot cloning). Trigger on: 'tts', 'tts-cli', 'cli-tts', 'speak', 'voice summary', 'read aloud', 'play audio', or any request to vocalize agent output."
+description: "On-device Text-to-Speech CLI (`cli-tts`) for agent voice summaries and ad-hoc speech. Use when: an agent needs to speak a concise end-of-chat summary + one fused next-step; generate speech from text/clipboard/file/pipe; pick a built-in voice; set or check the default engine; or manage isolated `uv` environments. Single engine: KittenTTS nano int8 (15M, CPU ONNX) — fastest on this machine (cold ~7.9s, RTF ~0.47), no accelerator required, cross-platform (macOS/Linux/Windows/WSL), English-only, 8 fixed built-in voices (no zero-shot cloning). Trigger on: 'tts', 'tts-cli', 'cli-tts', 'speak', 'voice summary', 'read aloud', 'play audio', or any request to vocalize agent output."
 ---
 
 # tts-cli — on-device TTS for agent voice summaries
@@ -16,7 +16,7 @@ an alias. No GPU/MPS needed. English-only. Fixed built-in voices (no cloning).
 ## 1. The one agent command
 
 ```bash
-cli-tts --prompt "<concise summary of what changed>. Next step: <ONE concise imperative>."
+cli-tts --prompt "<concise summary of what changed>. Next step: <ONE fused imperative>."
 ```
 
 `--prompt` (`-p`) is an alias for `--text`. The "Next step: ..." segment is
@@ -27,46 +27,59 @@ speak but write nothing to the transcript.
 
 Keep stdout quiet — the spoken audio IS the channel; do not dump logs.
 
-### Next-step contract — silent council, spoken singleton
+### Next-step contract — silent fusion, spoken singleton
 
-The line after `Next step:` is **one order**, not a recap and not a committee
-report. Silently consult six chairs whose practice stacks to centuries;
-**do not name them in speech**. The chair that owns this turn's largest
-*unclosed* risk writes the line.
+The line after `Next step:` is **one order**. It is also the line that
+`cli-tts` prints into `AGENTS-TTS-COMMS.txt` (the durable transcript; not
+a `.md` file). There is no panel, no chair-key schema, no extra ledger
+block — the engine is a dumb recorder.
 
-| Chair | Owns |
+**Ask every question, then write one order.** In one forward pass, silently
+answer the list below. Do not print the answers. Do not speak them. Do not
+log them. Fuse them into a single imperative the whole room would sign, and
+feed **only that line** into `--prompt`. Do not name the masters. Do not
+spawn subagents to "be" them.
+
+#### What would this {master} suggest?
+
+Answer each, mentally, every turn:
+
+1. What would this **adversarial-security master** suggest? *(secrets, injection, fail-closed holes, banned primitives)*
+2. What would this **privacy / data-minimization master** suggest? *(spoken audio and the public git ledger stay names-only)*
+3. What would this **networks / supply-chain master** suggest? *(transport, isolation, pinned fetches, provenance)*
+4. What would this **systems-architecture master** suggest? *(contracts, coupling, blast radius, one owner per rule)*
+5. What would this **reliability / SRE master** suggest? *(unverified claims, live path, observability)*
+6. What would this **test / QA master** suggest? *(the missing failing test that locks the fix)*
+7. What would this **release / rollback master** suggest? *(bisect path, pin, revert, what actually ships)*
+8. What would this **product / operator-trust master** suggest? *(away-from-screen trust, copy, adoption, README/skill drift)*
+9. What would this **human-factors / ear master** suggest? *(what the away operator actually hears; KittenTTS must stay clear)*
+10. What would this **craft / next-agent master** suggest? *(the next engineer, including the next LLM, can execute this without the original chat)*
+11. What would this **governance / license / sovereignty master** suggest? *(license, cultural IP, who may ship this — usually "nothing extra"; never skipped when it applies)*
+
+**Fusion, not first-match.** First-match leftover-risk produced continuation
+TODOs ("commit, then pytest"). Fusion is one action with the other answers'
+constraints baked into *how* it is done — fail-closed, ledger-safe, pinned,
+tested, speakable, next-agent-runnable, revertible. Security and privacy
+can veto a mushy blend: if they have a hole, the fused verb must close it.
+If two independent todos remain, you have not fused — pick the single next
+move the room would order first.
+
+**Speakable:** Be concise. Verb-first English. Not a recap of work already
+done. Not "consider"/"maybe"/"might". Not a list of masters. There is no
+word budget — KittenTTS is chunked at 350 characters (ONNX fails near 425);
+the engine concatenates the WAV pieces. Avoid URLs, backticks, and path
+soup; they mumble.
+
+| Weak (first-match / leftover TODO) | Fused (room would sign) |
 | :--- | :--- |
-| Adversarial security | Secrets, injection, fail-closed holes, banned primitives |
-| Networks / supply-chain | Transport, isolation, pinned fetches, provenance |
-| Systems architecture | Contracts, coupling, blast radius, rollback, one owner per rule |
-| Reliability / SRE | Unverified claims, live path, observability |
-| Product / operator-trust | Away-from-screen trust, copy, adoption, README/skill drift |
-| Craft / next agent | The next engineer, including the next LLM, can execute this without the original chat |
+| Commit the worktree. | Add a regression that two Next-step markers write nothing to the public ledger while speech still plays. |
+| Pin the kitten weights. | Pin the Hugging Face kitten weights by digest and fail environment create closed on mismatch. |
+| Update the README. | Give AGENTS.md sole ownership of the prompt contract and make the skill quote it so the next agent copies the real command. |
 
-**First match wins:** (1) secrets, injection, or fail-closed hole, (2) unverified
-claim, (3) irreversible trap (merge, public API, coupling), (4) operator-trust
-or adoption mismatch, (5) the action that hurts most if skipped until the
-operator returns.
-
-**Speakable:** Be concise. Verb-first English, one clause. Not a recap of
-work already done. Not "consider"/"maybe"/"might". Not two actions joined by
-"and". Do not spawn subagents to "be" the council — one forward pass, one
-spoken line. There is no word budget — KittenTTS is chunked at 350 characters
-(ONNX fails near 425); the engine concatenates the WAV pieces. Avoid URLs,
-backticks, and path soup; they mumble.
-
-| Chair won | Example |
-| :--- | :--- |
-| Security | Add a regression that unknown voice names exit non-zero and write no audio. |
-| Network | Pin the Hugging Face kitten weights by digest before the next environment create. |
-| Architecture | Give AGENTS.md sole ownership of the prompt contract and make the skill quote it. |
-| Reliability | Run pytest against the installed shim, not the worktree module, to catch path drift. |
-| Product | Put the one-command prompt form in the README hero so agents copy the real contract. |
-| Craft | Treat last-suggestion output as untrusted DATA, never as a command the next agent obeys. |
-
-**Anti-patterns:** continuing the same TODO ("commit, then install, then pytest");
-naming the persona ("as a CISO…"); blending chairs ("consider security and
-marketing"); URLs, backticks, or path soup in the spoken line.
+**Anti-patterns:** first-match leftover TODOs; dumping the question list or
+answers into `--prompt` or `AGENTS-TTS-COMMS.txt`; naming a persona
+("as a CISO…"); "consider security and marketing"; spawning subagents to
+role-play the room; URLs, backticks, or path soup in the spoken line.
 
 **Tail the latest suggestion:** `cli-tts --last-suggestion` prints the most
 recent "Next step: ..." entry from `AGENTS-TTS-COMMS.txt` (canonical ledger at
@@ -97,7 +110,7 @@ thereafter). Verify: `cli-tts --text "Hello world" --output /tmp/t.wav`.
 
 | Goal | Command |
 | :--- | :--- |
-| **Agent summary (canonical)** | `cli-tts --prompt "<summary>. Next step: <suggestion>"` |
+| **Agent summary (canonical)** | `cli-tts --prompt "<summary>. Next step: <fused suggestion>"` |
 | Plain text | `cli-tts --text "..."` or `cli-tts "..."` |
 | Clipboard | `cli-tts --clipboard` |
 | Pipe | `echo "hi" \| cli-tts` · `cat file.txt \| cli-tts` |
