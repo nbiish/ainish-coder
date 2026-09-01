@@ -2,7 +2,9 @@
 # MOLECULE: Persisting skill-selection for distribution
 #
 # The operator toggles which .agents/skills/ packs distribute via
-# `ainish-coder --skills` (numbered node-choice UI). The choice persists in
+# `ainish-coder --skills` (interactive keypress toggle UI: arrows move,
+# space toggles, enter/space on the Save & submit row persists). The
+# choice persists in
 # ~/.config/ainish-coder/skills-selection.json (per-repo keys, keyed by
 # absolute repo path) across terminals and machines that share $HOME.
 #
@@ -151,7 +153,7 @@ os.replace(tmp, path)
 # Prints "ON|OFF <name>" lines, sorted; excluded packs never listed.
 skills_selection_list() {
     local repo_root="${1:-$(pwd)}"
-    local source_dir="$repo_root/.agents/skills"
+    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
     [[ -d "$source_dir" ]] || return 1
     local d name
     while IFS= read -r d; do
@@ -165,13 +167,203 @@ skills_selection_list() {
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
 }
 
-# _skills_toggle_ui <repo_root> — interactive numbered node-choice UI.
+# _skills_selection_repo_default <repo_root> — effective default for NEW
+# packs in this repo: the repo's recorded default, else the global default.
+# Used by the toggle UI footer ("default(new)=…"). Prints on|off.
+_skills_selection_repo_default() {
+    local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
+    local global_default="on"
+    skills_selection_default_on || global_default="off"
+    REPO="$repo_key" GLOBAL_DEFAULT="$global_default" \
+        SELECTION_PATH="$(skills_selection_config_path)" \
+        python3 -c "
+import json, os
+try:
+    cfg = json.load(open(os.environ['SELECTION_PATH']))
+except Exception:
+    cfg = {}
+entry = cfg.get('repos', {}).get(os.environ['REPO'], {})
+d = str(entry.get('default', '')).lower()
+print(d if d in ('on', 'off') else os.environ['GLOBAL_DEFAULT'])
+"
+}
+
+# _skills_toggle_ui <repo_root> — interactive skill-selection UI.
 # repo_root = the TARGET repo the selection applies to (config key); the
 # listed packs are the SOURCE packs in REPO_DIR/.agents/skills (what
 # --skills/--rules actually distribute).
 # Returns 0 when the operator confirms; selection already persisted on disk.
+# Cancelling (esc/q/ctrl+c/ctrl+d) saves NOTHING and returns 130.
 # All UI text to stderr; nothing on stdout.
+# Dispatch: a real TTY gets the raw-mode keypress UI (arrows move, space
+# toggles, enter — or space on the Save & submit row — persists a batched
+# write; a/n all-on/all-off; d flips the default-for-new-packs). Without a
+# TTY (pipe/CI), falls back to the legacy numbered prompt unchanged.
 _skills_toggle_ui() {
+    if [[ -t 0 && ( -t 1 || -t 2 ) ]]; then
+        _skills_toggle_ui_raw "$@"
+    else
+        _skills_toggle_ui_numbered "$@"
+    fi
+}
+
+# _skills_toggle_ui_raw <repo_root> — raw-mode keypress checkbox UI.
+# Single frame redrawn in place; batched persistence on submit only.
+_skills_toggle_ui_raw() {
+    local repo_root="$1"
+    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
+
+    # Live intake: enumerate from disk each run.
+    local names=() states=() initial=()
+    local d name
+    while IFS= read -r d; do
+        name="$(basename "$d")"
+        _skill_channel_excluded "$name" && continue
+        names+=("$name")
+        states+=("$(skills_selection_state "$repo_root" "$name")")
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+
+    if [[ ${#names[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No skill packs found in $source_dir${RESET}" >&2
+        return 1
+    fi
+    initial=("${states[@]}")
+    local working_default; working_default="$(_skills_selection_repo_default "$repo_root")"
+    local initial_default="$working_default"
+
+    local n=${#names[@]}
+    # NOTE: must be a separate statement — bash expands all RHS of a single
+    # `local` line BEFORE assigning, so referencing $n on the same line
+    # yields the pre-declaration (unset) value.
+    local submit_idx=$n cursor=0 frame_lines=$((n + 5))
+    local saved_tty restored=0 i key k1 k2 changes
+    # bash 3.2 (macOS default) rejects fractional read timeouts; bash 4+
+    # accepts them. Snappy ESC handling where possible, integer fallback else.
+    local esc_tmo=1
+    (( BASH_VERSINFO[0] > 3 )) && esc_tmo=0.05
+
+    _st_ui_restore() {
+        (( restored )) && return 0
+        restored=1
+        stty "$saved_tty" 2>/dev/null || stty sane 2>/dev/null || true
+        printf '\033[?25h' >&2          # show cursor
+    }
+
+    saved_tty="$(stty -g 2>/dev/null)"
+    if [[ -z "$saved_tty" ]]; then
+        # Cannot go raw safely — legacy numbered UI.
+        _skills_toggle_ui_numbered "$repo_root"
+        return
+    fi
+    trap _st_ui_restore INT TERM EXIT
+    stty raw -echo 2>/dev/null
+    printf '\033[?25l' >&2              # hide cursor
+
+    _st_ui_frame() {
+        local i
+        printf '\033[K%s\r\n' "${BRIGHT_CYAN}Skill distribution — toggle per pack${RESET} ${YELLOW}(persisted per repo)${RESET}" >&2
+        printf '\033[K%s\r\n' "${YELLOW}Repo: $repo_root${RESET}" >&2
+        printf '\033[K%s\r\n' "" >&2
+        for i in "${!names[@]}"; do
+            if (( i == cursor )); then
+                printf '\033[K%s\r\n' "  ${BRIGHT_CYAN}▸${RESET} $([ "${states[$i]}" == on ] && printf '%s' "${GREEN}[x]${RESET}" || printf '%s' "${YELLOW}[ ]${RESET}") ${BRIGHT_WHITE}${names[$i]}${RESET}" >&2
+            else
+                printf '\033[K%s\r\n' "    $([ "${states[$i]}" == on ] && printf '%s' "${GREEN}[x]${RESET}" || printf '%s' "${YELLOW}[ ]${RESET}") ${names[$i]}" >&2
+            fi
+        done
+        if (( cursor == submit_idx )); then
+            printf '\033[K%s\r\n' "  ${BRIGHT_GREEN}▸ [ Save & submit ]${RESET}" >&2
+        else
+            printf '\033[K%s\r\n' "    ${YELLOW}[ Save & submit ]${RESET}" >&2
+        fi
+        printf '\033[K%s' "${YELLOW}↑/↓ move · space toggle · enter save · a all-on · n all-off · d default(new)=$working_default · q/esc cancel${RESET}" >&2
+    }
+
+    _st_ui_frame
+
+    while true; do
+        IFS= read -r -n1 -s key || {
+            trap - INT TERM EXIT
+            _st_ui_restore
+            printf '\r\n' >&2
+            echo -e "${YELLOW}Cancelled — no changes saved.${RESET}" >&2
+            return 130
+        }
+        if [[ "$key" == $'\x1b' ]]; then
+            if IFS= read -r -n1 -s -t "$esc_tmo" k1; then
+                if [[ "$k1" == "[" || "$k1" == "O" ]]; then
+                    IFS= read -r -n1 -s -t "$esc_tmo" k2 || true
+                    case "$k2" in
+                        A) cursor=$(( (cursor + n) % (n + 1) )) ;;
+                        B) cursor=$(( (cursor + 1) % (n + 1) )) ;;
+                        Z) cursor=$(( (cursor + n) % (n + 1) )) ;; # Shift-Tab
+                    esac
+                fi
+            else
+                trap - INT TERM EXIT
+                _st_ui_restore
+                printf '\r\n' >&2
+                echo -e "${YELLOW}Cancelled — no changes saved.${RESET}" >&2
+                return 130
+            fi
+        else
+            case "$key" in
+                $'\x03'|$'\x04'|q|Q)
+                    trap - INT TERM EXIT
+                    _st_ui_restore
+                    printf '\r\n' >&2
+                    echo -e "${YELLOW}Cancelled — no changes saved.${RESET}" >&2
+                    return 130 ;;
+                ' ')
+                    if (( cursor == submit_idx )); then
+                        break
+                    fi
+                    if [[ "${states[$cursor]}" == "on" ]]; then states[$cursor]="off"; else states[$cursor]="on"; fi
+                    ;;
+                $'\r'|$'\n'|'')
+                    break
+                    ;;
+                $'\t')
+                    cursor=$(( (cursor + 1) % (n + 1) ))
+                    ;;
+                a|A)
+                    for i in "${!names[@]}"; do states[$i]="on"; done ;;
+                n|N)
+                    for i in "${!names[@]}"; do states[$i]="off"; done ;;
+                d|D)
+                    if [[ "$working_default" == "on" ]]; then working_default="off"; else working_default="on"; fi ;;
+                j|J) cursor=$(( (cursor + 1) % (n + 1) )) ;;
+                k|K) cursor=$(( (cursor + n) % (n + 1) )) ;;
+            esac
+        fi
+        printf '\r\033[%dA' "$((frame_lines - 1))" >&2
+        _st_ui_frame
+    done
+
+    trap - INT TERM EXIT
+    _st_ui_restore
+    printf '\r\n' >&2
+
+    changes=0
+    for i in "${!names[@]}"; do
+        [[ "${states[$i]}" == "${initial[$i]}" ]] && continue
+        skills_selection_set "$repo_root" "${names[$i]}" "${states[$i]}"
+        changes=$((changes + 1))
+    done
+    if [[ "$working_default" != "$initial_default" ]]; then
+        skills_selection_set_default "$repo_root" "$working_default"
+        changes=$((changes + 1))
+    fi
+    echo -e "${BRIGHT_GREEN}✅ Selection saved${RESET} ${YELLOW}($changes change(s))${RESET}" >&2
+    return 0
+}
+
+# _skills_toggle_ui_numbered <repo_root> — legacy typed prompt (non-TTY
+# fallback; behavior preserved verbatim from the original numbered UI).
+# Returns 0 when the operator confirms; selection already persisted on disk.
+# All UI text to stderr; nothing on stdout.
+_skills_toggle_ui_numbered() {
     local repo_root="$1"
     local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
     [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
