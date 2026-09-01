@@ -122,6 +122,11 @@ Tasks handed to a repo chat run headlessly via the FIRST available of:
    claude invocation>'` — then run Claude through it. Report the tmux
    session name + PID in task notes.
 
+**Cross-machine capability discovery:** `env_report` (run once per
+machine) publishes this machine's CLI surface to the hub; `env_probe`
+lists every device's report — check a remote machine's tooling before
+configuring it. Presence + versions only, never credentials.
+
 Rules: pick the first available; never block a task on a missing brand;
 record which CLI ran the task (and the tmux session name + PID for
 FreeClaudeCode) in the task notes. Full one-command environment setup:
