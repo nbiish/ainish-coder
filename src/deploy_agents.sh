@@ -10,11 +10,12 @@ deploy_agents() {
 
     echo -e "${BRIGHT_BLUE}Deploying AGENTS.md${RESET}"
 
-    local source="${REPO_DIR}/AGENTS.md"
+    local source="${REPO_DIR}/src/templates/AGENTS.md"
+    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.md"
     local dest="$target_dir/AGENTS.md"
 
     if [[ ! -f "$source" ]]; then
-        echo -e "${BRIGHT_RED}Error: AGENTS.md not found at $source${RESET}"
+        echo -e "${BRIGHT_RED}Error: AGENTS.md template not found at $source${RESET}"
         return 1
     fi
 
@@ -54,7 +55,8 @@ deploy_agents_maintainer() {
 
     validate_target_dir "$target_dir" || return 1
 
-    local source="${REPO_DIR}/AGENTS.maintainer.md"
+    local source="${REPO_DIR}/src/templates/AGENTS.maintainer.md"
+    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.maintainer.md"
     local dest="$target_dir/AGENTS.maintainer.md"
 
     if [[ ! -f "$source" ]]; then
@@ -83,9 +85,10 @@ deploy_agents_maintainer() {
 }
 
 # Global AGENTS.md symlink — ensures ~/.agents/AGENTS.md and ~/.config/AGENTS.md
-# always point to the canonical AGENTS.md in the ainish-coder repo.
+# always point to the canonical AGENTS.md template.
 deploy_agents_global() {
-    local source="${REPO_DIR}/AGENTS.md"
+    local source="${REPO_DIR}/src/templates/AGENTS.md"
+    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.md"
     if [[ ! -f "$source" ]]; then
         echo -e "${BRIGHT_RED}Error: AGENTS.md not found at $source${RESET}"
         return 1

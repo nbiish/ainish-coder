@@ -55,6 +55,15 @@ All `.agents/skills/` must stay byte-identical to the ainish-coder source repo. 
 
 ---
 
+## REPOSITORY CONTRACT VS DISTRIBUTED TEMPLATES
+
+- **This root `AGENTS.md`** is the live, binding governing contract for developing the `ainish-coder` codebase itself.
+- **`src/templates/AGENTS.md`** is the project-agnostic rules template distributed to target repositories via `ainish-coder --rules` / `ainish-coder --agents`. It enforces the universal PQC secrets mandate, worktree isolation, task coordination, and security gates stripped of `ainish-coder` repo-internal artifacts.
+- **`src/templates/llms.txt`** is the repository-agnostic DOX framework template deployed via `ainish-coder --llms-txt`.
+- **`src/templates/AGENTS.COMMS.md`** is the concurrent ledger protocol template deployed via `ainish-coder --rules` into `AGENTS/{date}.COMMS.md`.
+
+---
+
 <COMMS>
 ## AGENT COMMS — CONCURRENT COORDINATION
 
