@@ -43,7 +43,6 @@ source "${SRC_DIR}/deploy_skills.sh"
 source "${SRC_DIR}/verify_skills.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
 source "${SRC_DIR}/deploy_agents_comms.sh"
-source "${SRC_DIR}/deploy_8thfire.sh"
 source "${SRC_DIR}/deploy_mcp_recipes.sh"
 source "${SRC_DIR}/deploy_scrolls.sh"
 source "${SRC_DIR}/scroll_integrity.sh"
@@ -264,14 +263,6 @@ main() {
             fi
             ;;
 
-        --8thfire)
-            _TRACK_DETAIL="8thfire"
-            if confirm_action "Deploy 8th Fire scrolls skill pack (cultural-continuity system; NOT raw payload)?" "y"; then
-                local eighthfire_dest="$(_pick_dest_base)"
-                _with_link_choice deploy_8thfire "$eighthfire_dest"
-            fi
-            ;;
-
         --skills-verify)
             verify_ainish_skills "${target_dir}"
             ;;
@@ -356,26 +347,29 @@ main() {
                 exit 1
             fi
             _TRACK_DETAIL="scrolls"
-            # Verify-first gate: refuse to deploy an unverified/tampered payload.
+            # Verify-first gate: verify the SOURCE payload (REPO_DIR/.scrolls)
+            # before any bytes move; the manifest travels with the deployed copy
+            # so downstream consumers re-verify. Re-sign touches the SOURCE only.
+            local scrolls_payload="${REPO_DIR}/.scrolls"
             local scrolls_verify_rc=0
-            scrolls_verify "$target_dir/.scrolls" || scrolls_verify_rc=$?
+            scrolls_verify "$scrolls_payload" || scrolls_verify_rc=$?
             if [[ $scrolls_verify_rc -ne 0 ]]; then
                 if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]]; then
-                    print_error "Scroll verification failed; refusing deploy: $(scrolls_verify "$target_dir/.scrolls" 2> /dev/null || true)"
-                    scrolls_comms_log "deploy-failed" "verify-first gate refused deploy to $target_dir" "$target_dir/.scrolls"
+                    print_error "Scroll verification failed; refusing deploy: $(scrolls_verify "$scrolls_payload" 2> /dev/null || true)"
+                    scrolls_comms_log "deploy-failed" "verify-first gate refused deploy to $target_dir" "$scrolls_payload"
                     exit 1
                 fi
-                print_warning "Scroll verification failed for: $target_dir/.scrolls"
+                print_warning "Scroll verification failed for: $scrolls_payload"
                 if confirm_action "Re-sign (manifest + ML-DSA-65 signature) and retry? Seeds must be set via AINISHCODER_SCROLL_SIGN_SEED." "n"; then
-                    if scrolls_sign "$target_dir/.scrolls" && scrolls_verify "$target_dir/.scrolls"; then
-                        scrolls_comms_log "intent-deploy" "re-signed payload, proceeding to deploy" "$target_dir/.scrolls"
+                    if scrolls_sign "$scrolls_payload" && scrolls_verify "$scrolls_payload"; then
+                        scrolls_comms_log "intent-deploy" "re-signed payload, proceeding to deploy" "$scrolls_payload"
                     else
                         print_error "Re-sign/verify failed; refusing deploy"
-                        scrolls_comms_log "deploy-failed" "re-sign attempt failed verify gate" "$target_dir/.scrolls"
+                        scrolls_comms_log "deploy-failed" "re-sign attempt failed verify gate" "$scrolls_payload"
                         exit 1
                     fi
                 else
-                    scrolls_comms_log "deploy-failed" "operator declined re-sign; deploy refused" "$target_dir/.scrolls"
+                    scrolls_comms_log "deploy-failed" "operator declined re-sign; deploy refused" "$scrolls_payload"
                     print_error "Refusing to deploy unverified scrolls"
                     exit 1
                 fi

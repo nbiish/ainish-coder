@@ -25,8 +25,10 @@ CORE COMMANDS:
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
                               and ALL skill packs from .agents/skills/
-                              (.scrolls payload never included — it travels
-                              only via the explicit --scrolls channel).
+                              (raw .scrolls* payload and the scroll-channel
+                              packs 8thfire-scrolls / ghost-layer-injector
+                              never included — they travel only via the
+                              explicit --scrolls channel).
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
@@ -92,17 +94,16 @@ UTILITY COMMANDS:
                               Note: Requires GitHub repo settings for full functionality.
                               Example: ainish-coder --github-actions ~/my-project
 
-    --8thfire [TARGET_DIR]    Deploy the 8th Fire scrolls skill pack — the
-                              cultural-continuity system (research corpus,
-                              PQC council-gate governance, truth-pass doctrine,
-                              carrier registry, embodiment modules, B-6/B-8
-                              benchmarks). Raw .scrolls*/ payload NOT included;
-                              that travels only via signed --scrolls channel.
-                              Example: ainish-coder --8thfire ~/my-project
-    --scrolls [TARGET_DIR]    Explicit-only: deploy .scrolls/ payload into a repo.
-                              Never bundled with --rules, --llms-txt, or --skills;
-                              refused under -y/--non-interactive. Targeted
-                              publishing use only — do NOT deploy by default.
+    --scrolls [TARGET_DIR]    THE explicit-only channel for everything scrolls:
+                              raw .scrolls/ payload PLUS the 8thfire-scrolls
+                              skill pack (research corpus, PQC council-gate
+                              governance, truth-pass doctrine, carrier
+                              registry, embodiment modules, B-6/B-8
+                              benchmarks) and ghost-layer-injector pack.
+                              Never bundled with --rules, --llms-txt,
+                              --skills, or --skills-sync; refused under
+                              -y/--non-interactive. Targeted publishing use
+                              only — do NOT deploy by default.
                               Example: ainish-coder --scrolls ~/my-project
     --scrolls-manifest [DIR]  Generate manifest.json (SHA3-256 per file) for a
                               payload dir. Deterministic, sorted, boundary:
@@ -129,15 +130,15 @@ UTILITY COMMANDS:
                               repo (foreign skills reported, untouched)
     --skills-sync [DIR]       THE one command: verifies and pulls the latest
                               ainish-coder skills (missing or drifted only);
-                              never overwrites foreign skills; scrolls skill
+                              never overwrites foreign skills; scroll-channel
+                              packs (8thfire-scrolls, ghost-layer-injector)
                               never copied (explicit --scrolls channel only)
-                              Deploys 20 skill packs:
+                              Deploys 21 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
                               - code-security/             (Safety-critical code engineering)
-                              - ghost-layer-injector/      (Covert AI context injection)
                               - graph-intelligence/        (Two-layer codebase knowledge graph: GitNexus + Graphify)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - llm-security/              (LLM & agentic AI security)
@@ -208,7 +209,8 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md + .gitignore + AGENTS/{date}.COMMS.md + all skill packs + global symlinks
+    - --rules deploys AGENTS.md + .gitignore + AGENTS/{date}.COMMS.md + all skill packs (except scroll-channel packs) + global symlinks
+    - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
     - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md

@@ -1,6 +1,8 @@
 #!/bin/bash
-# MOLECULE: Deploy Scrolls
-# Deploys scroll templates to the target directory
+# MOLECULE: Deploy Scrolls — THE single explicit distribution channel for
+# everything scrolls-adjacent: raw .scrolls/ payload PLUS the 8thfire-scrolls
+# and ghost-layer-injector skill packs. Never invoked by --rules, --skills,
+# or --skills-sync; only the operator's --scrolls command reaches this file.
 
 deploy_scrolls() {
     local target_dir="${1:-$(pwd)}"
@@ -51,4 +53,28 @@ deploy_scrolls() {
     else
         echo -e "${BRIGHT_GREEN}✅ Scrolls deployment complete ($count files)${RESET}"
     fi
+
+    # Scroll-channel skill packs ride with the payload — this is their ONLY
+    # distribution surface (operator-invoked, verify-gated --scrolls).
+    local skills_source="${REPO_DIR}/.agents/skills"
+    local skills_target="$target_dir/.agents/skills"
+    local pack pack_count=0
+    for pack in 8thfire-scrolls ghost-layer-injector; do
+        if [[ ! -d "$skills_source/$pack" ]]; then
+            print_error "Scroll pack missing: $skills_source/$pack"
+            return 1
+        fi
+        safe_mkdir "$skills_target" || return 1
+        if deploy_path "$skills_source/$pack" "$skills_target/$pack"; then
+            echo -e "${GREEN}✓ Deployed .agents/skills/$pack${RESET}"
+            ((pack_count++))
+        else
+            print_error "Failed to deploy .agents/skills/$pack"
+            return 1
+        fi
+    done
+    # Provenance stamp so --skills-verify / --skills-sync resolve this repo
+    # (both packs are sync-excluded, so the stamp never republishes them).
+    printf '%s\n' "$REPO_DIR" > "$skills_target/.ainish-source"
+    echo -e "${BRIGHT_GREEN}✅ Scroll packs deployed: $pack_count${RESET}"
 }
