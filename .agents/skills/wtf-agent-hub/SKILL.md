@@ -103,7 +103,33 @@ not retry-loop.
 > skill §5.9. Remember: hubs never speak plain HTTP to the public internet
 > (overlay/TLS proxy).
 
-## 3. MCP registration (any harness)
+## 3. Agent CLIs — install + fallback (headless execution)
+
+Tasks handed to a repo chat run headlessly via the FIRST available of:
+
+1. **OhMyPy CLI (`omp`)** — preferred.
+   Check: `command -v omp`. Install (Bun): `bun install -g oh-my-pi`
+   (binary lands on PATH as `omp`; verify `omp --version`). Non-interactive
+   use: `omp "<task prompt>"` (see `omp --help` for model flags).
+2. **Hermes CLI** — check `command -v hermes`. Install/config ships with
+   the agent's ACP harness (e.g. the `acp-hermes` agent config in the
+   user's harness setup); follow that harness's install path. If absent
+   and OhMyPy is present, skip — do not install mid-task.
+3. **FreeClaudeCode** — the free Claude Code server + Claude system.
+   When neither OhMyPy nor Hermes is installed: start it inside a NAMED
+   tmux session so the process is identifiable and reattachable —
+   `tmux new-session -d -s freeclaude-<repo-or-task-slug> '<server +
+   claude invocation>'` — then run Claude through it. Report the tmux
+   session name + PID in task notes.
+
+Rules: pick the first available; never block a task on a missing brand;
+record which CLI ran the task (and the tmux session name + PID for
+FreeClaudeCode) in the task notes. Full one-command environment setup:
+install the **ainish-coder** system (`ainish-coder --rules <repo>`)
+which deploys AGENTS.md, the COMMS ledger protocol, and every skill
+pack a machine needs to participate.
+
+## 4. MCP registration (any harness)
 
 Standard `mcpServers` shape; `command` must be absolute:
 
@@ -130,7 +156,43 @@ version, and this device's identity. The clickable dashboard link is
 NEVER available over MCP — the operator runs `wtf dashboard-url` on the
 hub machine. Never echo or guess the dashboard key.
 
-## 4. Reporting contract (mandatory)
+## 5. Orchestrator contract — repo-scoped federated coordination
+
+ANY agent harness wired to this MCP acts as an orchestrator across
+machines. The rules are mechanical — follow them on every task:
+
+1. **Discover**: at task start call `session_list {repo: <current
+   repository>}`.
+   - **MATCH** → that chat is your coordination channel: `session_join`
+     it, receive tasks from it, execute them autonomously, report
+     progress back into it. Other machines' agents in the same chat are
+     your collaborators.
+   - **NO MATCH** → work locally. Do NOT create a chat, do NOT connect.
+     The absence of a repo chat means the user's work there is local
+     (scratch research, unsaved experiments) — continue as asked.
+2. **On user request** ("start a federated chat for this repo"):
+   `session_create {name, repo}` → give the user THREE things: the
+   pairing key, the hub URL, and the other-machine steps — LAN:
+   `wtf enroll --url http://<hub-lan-ip>:7800 --name <device> --psk
+   <hub's wtf enroll-secret>`; internet: the same command against a
+   WireGuard/Tailscale overlay address or a TLS-terminating proxy —
+   never raw port-forwarded HTTP.
+3. **Execute**: tasks from the chat run headlessly via the fallback
+   chain (1) OhMyPy CLI → (2) Hermes CLI → (3) FreeClaudeCode (free
+   Claude Code server + Claude; auto-start when the first two are
+   absent). FreeClaudeCode ALWAYS runs inside a named tmux session so
+   the process is identifiable and reattachable — session name
+   `freeclaude-<repo-or-task-slug>` (e.g. `tmux new-session -d -s
+   freeclaude-wtf-mcp '<freeclaude-code server + claude invocation>'`).
+   Report the tmux session name + PID in the task notes. Record which
+   CLI ran the task. The user's direction of an agent to this MCP IS
+   the permission grant — no per-task prompts.
+4. **Report**: progress, decisions, and failures go back into the repo
+   chat (`session_send`/`comms_post`); chain-of-draft for the public
+   event feed. Post-quantum posture is automatic: FIPS 203 key sealing,
+   AES-256-GCM messages, hub stores ciphertext only.
+
+## 6. Reporting contract (mandatory)
 
 - **Chain-of-draft only**: every `check_in`/`log_event` is terse fragments,
   <=5 words each, no prose — e.g. `fixing auth replay bug; hub restarted;
@@ -147,7 +209,7 @@ hub machine. Never echo or guess the dashboard key.
   terminal/repo so each agent's work is attributed; federated dashboards
   group agents by hub and chip the repo.
 
-## 5. Bin collaboration (cross-agent, cross-harness, cross-machine)
+## 7. Bin collaboration (cross-agent, cross-harness, cross-machine)
 
 Three bins (1-3, 64 KiB each) are the shared clipboard between the
 operator and every agent on every machine. Bins persist across hub
@@ -190,7 +252,7 @@ from bin N"*, `read_bin` sees exactly that content — no extra setup on
 your side. The dashboard key is the operator's secret: never ask for it,
 never echo it, and never put secrets in a bin.
 
-## 6. Encrypted session channels (agent ↔ agent, FIPS 203)
+## 8. Encrypted session channels (agent ↔ agent, FIPS 203)
 
 Dedicated private chats between agents on any machine/harness. The hub is
 an untrusted rendezvous: it stores only ML-KEM-768 sealed key packages and
@@ -244,13 +306,13 @@ message counts but never content; `wtf key revoke` kills a device's
 access to the hub, and sessions with a revoked member should be
 recreated.
 
-## 7. COMMS protocol — encrypted ledger channels (cross-repo, cross-machine)
+## 9. COMMS protocol — encrypted ledger channels (cross-repo, cross-machine)
 
 COMMS is the structured layer over session channels: the fast, private
 form of the `AGENTS/{date}.COMMS.md` ledger, for coordination across
 repos, worktrees, subagents, subtasks, and machines — without waiting on
 git commits or the user relaying. Entries are small JSON envelopes
-inside ordinary encrypted session messages, so every §6 guarantee
+inside ordinary encrypted session messages, so every §8 guarantee
 applies: ML-KEM-768 sealed keys, AES-256-GCM with (session, sender, seq)
 bound into the AAD, hub stores ciphertext only.
 
@@ -267,7 +329,7 @@ bound into the AAD, hub stores ciphertext only.
 Etiquette:
 
 - Open a channel per coordination cluster (cross-machine task handoff,
-  one per subtask) with the §6 handshake; share session ids in the event
+  one per subtask) with the §8 handshake; share session ids in the event
   feed (`log_event`) — ids are not secrets, key material is.
 - Check `comms_read` at task boundaries and before merging — peers may
   have handed off, blocked, or merged while you worked.
@@ -281,7 +343,7 @@ Etiquette:
   last 200 messages per channel. Commit the ledger for history; use
   COMMS for speed.
 
-## 8. Troubleshooting
+## 10. Troubleshooting
 
 - 401 on signed calls — key revoked/wrong, clock off by >300 s, or stale
   env vars; ask for re-issue, don't retry-loop.
