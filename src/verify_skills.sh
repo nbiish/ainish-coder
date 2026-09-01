@@ -39,13 +39,13 @@ _ainish_skill_excluded() {
 }
 
 # Byte-compare one skill directory tree (symlinks to source are identical).
-# Skips .env (local-only secrets surface — never distributed), so a
-# gitignored local .env in the source pack cannot fake a mismatch.
+# Skips .env (local-only secrets surface — never distributed), __pycache__,
+# *.pyc, and .DS_Store, so local runtime caches cannot fake a mismatch.
 _ainish_skill_identical() {
     local src="$1" dst="$2"
     [[ -L "$dst" ]] && [[ "$(cd "$(dirname "$dst")" && cd "$(readlink "$dst")" 2>/dev/null && pwd)" == "$src" ]] && return 0
     [[ -d "$dst" ]] || return 1
-    diff -r -x ".env" "$src" "$dst" >/dev/null 2>&1
+    diff -r -x ".env" -x "__pycache__" -x "*.pyc" -x ".DS_Store" "$src" "$dst" >/dev/null 2>&1
 }
 
 verify_ainish_skills() {
@@ -113,7 +113,9 @@ def get_mtime(d):
     max_m = 0
     if not os.path.exists(d): return 0
     for root, _, files in os.walk(d):
+        if '__pycache__' in root: continue
         for f in files:
+            if f == '.env' or f.endswith('.pyc') or f == '.DS_Store': continue
             p = os.path.join(root, f)
             try: max_m = max(max_m, os.path.getmtime(p))
             except Exception: pass
