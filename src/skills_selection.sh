@@ -262,22 +262,22 @@ _skills_toggle_ui_raw() {
 
     _st_ui_frame() {
         local i
-        printf '\033[K%s\r\n' "${BRIGHT_CYAN}Skill distribution — toggle per pack${RESET} ${YELLOW}(persisted per repo)${RESET}" >&2
-        printf '\033[K%s\r\n' "${YELLOW}Repo: $repo_root${RESET}" >&2
-        printf '\033[K%s\r\n' "" >&2
+        printf '\033[K%b\r\n' "${BRIGHT_CYAN}Skill distribution — toggle per pack${RESET} ${YELLOW}(persisted per repo)${RESET}" >&2
+        printf '\033[K%b\r\n' "${YELLOW}Repo: $repo_root${RESET}" >&2
+        printf '\033[K\r\n' >&2
         for i in "${!names[@]}"; do
             if (( i == cursor )); then
-                printf '\033[K%s\r\n' "  ${BRIGHT_CYAN}▸${RESET} $([ "${states[$i]}" == on ] && printf '%s' "${GREEN}[x]${RESET}" || printf '%s' "${YELLOW}[ ]${RESET}") ${BRIGHT_WHITE}${names[$i]}${RESET}" >&2
+                printf '\033[K%b\r\n' "  ${BRIGHT_CYAN}▸${RESET} $([ "${states[$i]}" == on ] && printf '%b' "${GREEN}[x]${RESET}" || printf '%b' "${YELLOW}[ ]${RESET}") ${BRIGHT_WHITE}${names[$i]}${RESET}" >&2
             else
-                printf '\033[K%s\r\n' "    $([ "${states[$i]}" == on ] && printf '%s' "${GREEN}[x]${RESET}" || printf '%s' "${YELLOW}[ ]${RESET}") ${names[$i]}" >&2
+                printf '\033[K%b\r\n' "    $([ "${states[$i]}" == on ] && printf '%b' "${GREEN}[x]${RESET}" || printf '%b' "${YELLOW}[ ]${RESET}") ${names[$i]}" >&2
             fi
         done
         if (( cursor == submit_idx )); then
-            printf '\033[K%s\r\n' "  ${BRIGHT_GREEN}▸ [ Save & submit ]${RESET}" >&2
+            printf '\033[K%b\r\n' "  ${BRIGHT_GREEN}▸ [ Save & submit ]${RESET}" >&2
         else
-            printf '\033[K%s\r\n' "    ${YELLOW}[ Save & submit ]${RESET}" >&2
+            printf '\033[K%b\r\n' "    ${YELLOW}[ Save & submit ]${RESET}" >&2
         fi
-        printf '\033[K%s' "${YELLOW}↑/↓ move · space toggle · enter save · a all-on · n all-off · d default(new)=$working_default · q/esc cancel${RESET}" >&2
+        printf '\033[K%b' "${YELLOW}↑/↓ move · space toggle · enter save · a all-on · n all-off · d default(new)=$working_default · q/esc cancel${RESET}" >&2
     }
 
     _st_ui_frame
