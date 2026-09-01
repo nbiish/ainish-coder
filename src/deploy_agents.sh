@@ -46,42 +46,47 @@ deploy_agents() {
     return 0
 }
 
-# deploy_agents_maintainer <target_dir> — distribute AGENTS.maintainer.md,
-# a FROZEN copy of AGENTS.md as of distribution time. It guides refinement,
-# updates, and documentation of the TARGET repository — distinct from the
-# live AGENTS.md contract that ships with --rules/--agents.
-deploy_agents_maintainer() {
+# deploy_agents_deployed <target_dir> — distribute AGENTS.deployed.md,
+# the project-agnostic rules document that guides refinement, updates,
+# and operating standards for the TARGET repository — distinct from the
+# ainish-coder repository's own maintainer AGENTS.md.
+deploy_agents_deployed() {
     local target_dir="${1:-.}"
 
     validate_target_dir "$target_dir" || return 1
 
-    local source="${REPO_DIR}/src/templates/AGENTS.maintainer.md"
-    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.maintainer.md"
-    local dest="$target_dir/AGENTS.maintainer.md"
+    local source="${REPO_DIR}/src/templates/AGENTS.deployed.md"
+    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.deployed.md"
+    local dest="$target_dir/AGENTS.deployed.md"
 
     if [[ ! -f "$source" ]]; then
-        echo -e "${BRIGHT_RED}Error: AGENTS.maintainer.md not found at $source${RESET}"
+        echo -e "${BRIGHT_RED}Error: AGENTS.deployed.md not found at $source${RESET}"
         return 1
     fi
 
     if [[ "$source" -ef "$dest" ]]; then
-        echo -e "${GREEN}✓ AGENTS.maintainer.md already up to date at $target_dir (same file)${RESET}"
+        echo -e "${GREEN}✓ AGENTS.deployed.md already up to date at $target_dir (same file)${RESET}"
         return 0
     fi
 
     if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" && ( -f "$dest" || -L "$dest" ) ]]; then
-        echo -e "${YELLOW}⏭️  Skipping AGENTS.maintainer.md (already exists at $target_dir)${RESET}"
+        echo -e "${YELLOW}⏭️  Skipping AGENTS.deployed.md (already exists at $target_dir)${RESET}"
         return 0
     fi
 
     if ! deploy_path "$source" "$dest"; then
-        echo -e "${BRIGHT_RED}Error: Failed to create AGENTS.maintainer.md${RESET}"
+        echo -e "${BRIGHT_RED}Error: Failed to create AGENTS.deployed.md${RESET}"
         return 1
     fi
 
-    echo -e "${GREEN}✓ Created AGENTS.maintainer.md at $target_dir${RESET}"
-    echo -e "${BRIGHT_GREEN}✅ AGENTS.maintainer.md guides refinement/updates/docs for this repo${RESET}"
+    echo -e "${GREEN}✓ Created AGENTS.deployed.md at $target_dir${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ AGENTS.deployed.md guides refinement/updates/docs for this repo${RESET}"
     return 0
+}
+
+# Alias for backwards compatibility
+deploy_agents_maintainer() {
+    deploy_agents_deployed "$@"
 }
 
 # Global AGENTS.md symlink — ensures ~/.agents/AGENTS.md and ~/.config/AGENTS.md

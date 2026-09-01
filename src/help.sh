@@ -33,8 +33,8 @@ CORE COMMANDS:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
     --agents [TARGET_DIR]     Deploy AGENTS.md only (defaults to copy for safety).
-                              Also offers AGENTS.maintainer.md — a frozen copy
-                              of AGENTS.md guiding refinement, updates, and
+                              Also offers AGENTS.deployed.md — the project-agnostic
+                              rules document guiding refinement, updates, and
                               documentation of the TARGET repo.
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
@@ -223,7 +223,7 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md + AGENTS.maintainer.md (frozen repo-refinement guide) + .gitignore + AGENTS/{date}.COMMS.md + skill packs per your persisted selection + global symlinks
+    - --rules deploys AGENTS.md + AGENTS.deployed.md (project-agnostic rules document) + .gitignore + AGENTS/{date}.COMMS.md + skill packs per your persisted selection + global symlinks
     - --headless second arg (e.g. 'ainish-coder --skills <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md + global symlinks
