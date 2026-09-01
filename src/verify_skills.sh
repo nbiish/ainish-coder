@@ -103,6 +103,30 @@ verify_ainish_skills() {
     return 0
 }
 
+# Compare mtimes of two skill directories.
+# Prints "1" if dir1 has newer files, "2" if dir2 has newer files, "0" if equal.
+_ainish_skill_newer() {
+    local dir1="$1" dir2="$2"
+    DIR1="$dir1" DIR2="$dir2" python3 -c "
+import os
+def get_mtime(d):
+    max_m = 0
+    if not os.path.exists(d): return 0
+    for root, _, files in os.walk(d):
+        for f in files:
+            p = os.path.join(root, f)
+            try: max_m = max(max_m, os.path.getmtime(p))
+            except Exception: pass
+    return max_m
+
+m1 = get_mtime(os.environ['DIR1'])
+m2 = get_mtime(os.environ['DIR2'])
+if m1 > m2: print('1')
+elif m2 > m1: print('2')
+else: print('0')
+"
+}
+
 sync_ainish_skills() {
     local target_dir="${1:-.}"
     local source_dir
@@ -124,55 +148,77 @@ sync_ainish_skills() {
         return 0
     fi
 
-    echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills → $skills_target (verify + pull latest)${RESET}"
+    echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills ↔ $skills_target (verify + two-way sync)${RESET}"
     safe_mkdir "$skills_target" || return 1
 
-    local skill updated=0 identical=0 foreign=0
-    for skill in "$skills_source"/*/; do
-        [[ -d "$skill" ]] || continue
-        local name
-        name="$(basename "$skill")"
+    local updated=0 identical=0 deployed=0 ingested=0
 
-        # Scrolls skill is explicit-channel only — never copied here.
-        if _ainish_skill_excluded "$name"; then
-            continue
+    # 1. Ingest new skills from target into ainish-coder source, or pull if target has a newer version.
+    local target_skill target_name
+    for target_skill in "$skills_target"/*/; do
+        [[ -d "$target_skill" ]] || continue
+        target_name="$(basename "$target_skill")"
+        _ainish_skill_excluded "$target_name" && continue
+
+        if [[ ! -d "$skills_source/$target_name" ]]; then
+            # Brand new skill created in external repo -> Ingest into ainish-coder source
+            deploy_path "$target_skill" "$skills_source/$target_name" 2>/dev/null || {
+                print_error "Failed to ingest new skill: $target_name"
+                continue
+            }
+            echo -e "${BRIGHT_GREEN}➕ Ingested new skill from target: $target_name → ainish-coder${RESET}"
+            ((ingested++)) || true
+        elif ! _ainish_skill_identical "$skills_source/$target_name" "$target_skill"; then
+            # Skill exists in both, but differs. Check if target is newer (upstream changes)
+            if [[ "$(_ainish_skill_newer "$target_skill" "$skills_source/$target_name")" == "1" ]]; then
+                rm -rf "$skills_source/$target_name"
+                deploy_path "$target_skill" "$skills_source/$target_name" 2>/dev/null || {
+                    print_error "Failed to update skill from target: $target_name"
+                    continue
+                }
+                echo -e "${GREEN}⬆ Pulled updated skill from target: $target_name → ainish-coder${RESET}"
+                ((ingested++)) || true
+            fi
         fi
-
-        # Persisted per-repo selection governs sync: deselected packs are
-        # never pulled or repaired (live intake — state resolved per run).
-        if [[ "$(skills_selection_state "$target_dir" "$name")" != "on" ]]; then
-            continue
-        fi
-
-        if _ainish_skill_identical "$skill" "$skills_target/$name"; then
-            ((identical++)) || true
-            continue
-        fi
-
-        rm -rf "$skills_target/$name"
-        deploy_path "$skill" "$skills_target/$name" 2>/dev/null || {
-            print_error "Failed to sync skill: $name"
-            return 1
-        }
-        echo -e "${GREEN}⬇ pulled latest: $name${RESET}"
-        ((updated++)) || true
     done
 
-    # Foreign skills at target — reported, never overwritten.
-    for skill in "$skills_target"/*/; do
-        [[ -d "$skill" ]] || continue
-        local name
-        name="$(basename "$skill")"
-        _ainish_skill_excluded "$name" && continue
-        if [[ ! -d "$skills_source/$name" ]]; then
-            echo -e "${YELLOW}◦ foreign (kept): $name${RESET}"
-            ((foreign++)) || true
+    # 2. Deploy or update ainish-coder skills into target repo per persisted selection.
+    local source_skill source_name
+    for source_skill in "$skills_source"/*/; do
+        [[ -d "$source_skill" ]] || continue
+        source_name="$(basename "$source_skill")"
+        _ainish_skill_excluded "$source_name" && continue
+
+        # Persisted per-repo selection governs sync: deselected packs are skipped.
+        if [[ "$(skills_selection_state "$target_dir" "$source_name")" != "on" ]]; then
+            continue
+        fi
+
+        if [[ ! -d "$skills_target/$source_name" ]]; then
+            # Missing at target -> deploy
+            deploy_path "$source_skill" "$skills_target/$source_name" 2>/dev/null || {
+                print_error "Failed to deploy skill: $source_name"
+                return 1
+            }
+            echo -e "${GREEN}✓ Deployed: $source_name → $target_dir${RESET}"
+            ((deployed++)) || true
+        elif _ainish_skill_identical "$source_skill" "$skills_target/$source_name"; then
+            ((identical++)) || true
+        else
+            # Source is newer or equal -> update target
+            rm -rf "$skills_target/$source_name"
+            deploy_path "$source_skill" "$skills_target/$source_name" 2>/dev/null || {
+                print_error "Failed to sync skill: $source_name"
+                return 1
+            }
+            echo -e "${GREEN}⬇ Updated: $source_name at $target_dir${RESET}"
+            ((updated++)) || true
         fi
     done
 
     # Stamp provenance so future verify/sync runs resolve this repo.
     printf '%s\n' "$source_dir" > "$skills_target/.ainish-source"
 
-    echo -e "${BRIGHT_GREEN}✅ Skills synced: identical=$identical updated=$updated foreign-kept=$foreign. Foreign + scrolls untouched.${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ Skills synced: identical=$identical deployed=$deployed updated=$updated ingested=$ingested.${RESET}"
     return 0
 }

@@ -49,9 +49,14 @@ Conflict → fail closed, explain, ask.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 </TASK_PRIMER>
 
-## SKILLS BYTE-VERIFY
+## SKILLS BYTE-VERIFY & TWO-WAY SYNC
 
-All `.agents/skills/` must stay byte-identical to the ainish-coder source repo. One command: `ainish-coder --skills-sync` — verifies byte-identity and pulls the latest ainish-coder skills (missing or drifted only). Never overwrites foreign skills, never copies the scrolls skill (explicit `--scrolls` channel only). Run at session start and when source skills update.
+All `.agents/skills/` stay synchronized across repositories via `ainish-coder --skills-sync`:
+- **Verify & Sync:** `ainish-coder --skills-sync [target_dir]` verifies byte-identity and syncs skills bidirectionally.
+- **Auto-Ingestion:** New skills created in external target repositories (e.g. `tts-cli`, `wtf-is-going-on-mcp`) are automatically ingested into `ainish-coder/.agents/skills/`.
+- **Upstream Updates:** Newer versions of existing skills in target repositories automatically update `ainish-coder` source copies.
+- **Downstream Deploy:** Target repositories receive missing or updated skills governed by the operator's persisted selection.
+- **Identical & Scroll Protection:** Identical skills remain untouched; scrolls-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, `.scrolls*`) remain strictly in the explicit `--scrolls` channel.
 
 ---
 
