@@ -162,16 +162,16 @@ main() {
                 _with_link_choice deploy_agents "$rules_agents_dest"
             fi
 
-            # AGENTS.maintainer.md — frozen snapshot guiding refinement,
-            # updates, and documentation of the TARGET repo (distinct from
-            # the live AGENTS.md contract). Headless: deploy unprompted.
+            # AGENTS.deployed.md — project-agnostic rules document guiding
+            # refinement, updates, and standards for the TARGET repo.
+            # Headless: deploy unprompted.
             if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-                deploy_agents_maintainer "$target_dir"
-                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
-            elif confirm_action "Deploy AGENTS.maintainer.md (repo refinement guide, frozen copy)?" "y"; then
-                local maint_dest="$(_pick_dest_base)"
-                _with_link_choice deploy_agents_maintainer "$maint_dest"
-                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
+                deploy_agents_deployed "$target_dir"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+deployed-rules"
+            elif confirm_action "Deploy AGENTS.deployed.md (project-agnostic rules document)?" "y"; then
+                local deployed_dest="$(_pick_dest_base)"
+                _with_link_choice deploy_agents_deployed "$deployed_dest"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+deployed-rules"
             fi
 
             # Ensure global AGENTS.md symlinks are always correct
@@ -219,12 +219,12 @@ main() {
             fi
 
             if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-                deploy_agents_maintainer "$target_dir"
-                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
-            elif confirm_action "Deploy AGENTS.maintainer.md (repo refinement guide, frozen copy)?" "y"; then
-                local maint_dest="$(_pick_dest_base)"
-                _with_link_choice deploy_agents_maintainer "$maint_dest"
-                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
+                deploy_agents_deployed "$target_dir"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+deployed-rules"
+            elif confirm_action "Deploy AGENTS.deployed.md (project-agnostic rules document)?" "y"; then
+                local deployed_dest="$(_pick_dest_base)"
+                _with_link_choice deploy_agents_deployed "$deployed_dest"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+deployed-rules"
             fi
 
             # Ensure global AGENTS.md symlinks are always correct
