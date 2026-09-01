@@ -41,6 +41,7 @@ source "${SRC_DIR}/deploy_local_security.sh"
 source "${SRC_DIR}/deploy_template_agent.sh"
 source "${SRC_DIR}/deploy_skills.sh"
 source "${SRC_DIR}/verify_skills.sh"
+source "${SRC_DIR}/skills_selection.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
 source "${SRC_DIR}/deploy_agents_comms.sh"
 source "${SRC_DIR}/deploy_mcp_recipes.sh"
@@ -54,6 +55,22 @@ source "${SRC_DIR}/deploy_llms_txt.sh"
 main() {
     local command="$1"
     shift
+
+    # --headless second argument: skip ALL prompts, apply the persisted
+    # selection as-is. Agent/CI path: `ainish-coder --skills <dir> --headless`
+    # or `ainish-coder --rules <dir> --headless`.
+    local AINISH_HEADLESS="false"
+    local args=()
+    local a
+    for a in "$@"; do
+        if [[ "$a" == "--headless" ]]; then
+            AINISH_HEADLESS="true"
+        else
+            args+=("$a")
+        fi
+    done
+    if (( ${#args[@]} > 0 )); then set -- "${args[@]}"; else set --; fi
+    export AINISH_HEADLESS
 
     # Get target directory (default to current directory)
     local target_dir="${1:-$(pwd)}"
@@ -145,6 +162,18 @@ main() {
                 _with_link_choice deploy_agents "$rules_agents_dest"
             fi
 
+            # AGENTS.maintainer.md — frozen snapshot guiding refinement,
+            # updates, and documentation of the TARGET repo (distinct from
+            # the live AGENTS.md contract). Headless: deploy unprompted.
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
+                deploy_agents_maintainer "$target_dir"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
+            elif confirm_action "Deploy AGENTS.maintainer.md (repo refinement guide, frozen copy)?" "y"; then
+                local maint_dest="$(_pick_dest_base)"
+                _with_link_choice deploy_agents_maintainer "$maint_dest"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
+            fi
+
             # Ensure global AGENTS.md symlinks are always correct
             deploy_agents_global
 
@@ -152,14 +181,22 @@ main() {
                 _with_link_choice deploy_gitignore "$target_dir"
             fi
 
-            if confirm_action "Deploy all skill packs (.agents/skills/)?" "y"; then
-                local skills_dest="$(_pick_dest_base)"
-                if _confirm_symlink; then
-                    AINISH_LINK_MODE="true" deploy_skills "$skills_dest"
-                else
-                    AINISH_LINK_MODE="false" deploy_skills "$skills_dest"
-                fi
-                _TRACK_DETAIL="${_TRACK_DETAIL}+all-skills"
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
+                # Headless: persisted selection governs; no prompts.
+                deploy_skills "$target_dir"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
+            elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
+                # Interactive: open the toggle UI first so this run's choices
+                # persist for every future --rules/--skills/--skills-sync.
+                _skills_toggle_ui "$target_dir" && {
+                    local skills_dest="$(_pick_dest_base)"
+                    if _confirm_symlink; then
+                        AINISH_LINK_MODE="true" deploy_skills "$skills_dest"
+                    else
+                        AINISH_LINK_MODE="false" deploy_skills "$skills_dest"
+                    fi
+                }
+                _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
             fi
 
             # Agent Communication System — AGENTS/{date}.COMMS.md
@@ -179,6 +216,15 @@ main() {
             if confirm_action "Deploy AGENTS.md standard rules?" "y"; then
                 local agents_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_agents "$agents_dest"
+            fi
+
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
+                deploy_agents_maintainer "$target_dir"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
+            elif confirm_action "Deploy AGENTS.maintainer.md (repo refinement guide, frozen copy)?" "y"; then
+                local maint_dest="$(_pick_dest_base)"
+                _with_link_choice deploy_agents_maintainer "$maint_dest"
+                _TRACK_DETAIL="${_TRACK_DETAIL}+maintainer"
             fi
 
             # Ensure global AGENTS.md symlinks are always correct
@@ -268,70 +314,48 @@ main() {
             ;;
 
         --skills-sync)
-            sync_ainish_skills "${target_dir}"
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
+                # Headless: persisted selection governs; no prompts.
+                sync_ainish_skills "${target_dir}"
+            elif [[ "${AINISH_INTERACTIVE:-false}" == "true" && -t 0 ]]; then
+                # Interactive: toggle UI first — add/remove packs to sync here;
+                # choices persist for every future --skills/--rules/--skills-sync.
+                if _skills_toggle_ui "$target_dir"; then
+                    sync_ainish_skills "${target_dir}"
+                else
+                    echo -e "${YELLOW}Sync aborted (no selection saved).${RESET}"
+                    _TRACK_DETAIL="sync-aborted"
+                fi
+            else
+                # Non-interactive default: apply persisted config as-is.
+                sync_ainish_skills "${target_dir}"
+            fi
             ;;
 
         --skills)
-            local skills_dir="${REPO_DIR}/.agents/skills"
-            if confirm_action "Deploy all available skill packs?" "y"; then
-                local skills_dest="$(_pick_dest_base)"
-                _with_link_choice deploy_skills "$skills_dest"
-                _TRACK_DETAIL="all-skills"
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
+                # Headless: persisted selection governs; no prompts.
+                deploy_skills "$target_dir"
+                _TRACK_DETAIL="skills-headless"
             elif [[ "${AINISH_INTERACTIVE:-false}" == "true" && -t 0 ]]; then
-                # Interactive selection of specific skill
-                local available_skills=()
-                for d in "$skills_dir"/*/; do
-                    if [[ -d "$d" ]]; then
-                        available_skills+=($(basename "$d"))
+                # Interactive: node-choice toggle UI — pick the packs this
+                # repo receives; selection persists across terminals.
+                if _skills_toggle_ui "$target_dir"; then
+                    local skills_dest="$(_pick_dest_base)"
+                    if _confirm_symlink; then
+                        AINISH_LINK_MODE="true" deploy_skills "$skills_dest"
+                    else
+                        AINISH_LINK_MODE="false" deploy_skills "$skills_dest"
                     fi
-                done
-
-                if [[ ${#available_skills[@]} -eq 0 ]]; then
-                    echo -e "${YELLOW}No skills found in source directory.${RESET}"
-                    _TRACK_DETAIL="none-available"
+                    _TRACK_DETAIL="skills-selected"
                 else
-                    while true; do
-                        echo -e "\n${BRIGHT_CYAN}Select a specific skill to deploy:${RESET}"
-                        local idx=1
-                        for s in "${available_skills[@]}"; do
-                            printf "  ${BRIGHT_WHITE}%2d${RESET}) %s\n" "$idx" "$s"
-                            ((idx++))
-                        done
-                        echo -e "   q) Cancel"
-
-                        echo -ne "\n${BRIGHT_YELLOW}▸ ${RESET}Enter choice [1-${#available_skills[@]}, q=quit]: "
-                        local choice
-                        read -r choice || true
-                        choice=$(echo "$choice" | xargs)
-
-                        if [[ "$choice" == "q" || "$choice" == "Q" ]]; then
-                            echo "Aborted."
-                            _TRACK_DETAIL="cancelled"
-                            break
-                        elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#available_skills[@]} )); then
-                            local chosen_skill="${available_skills[$((choice-1))]}"
-                            local skill_dest_base="$(_pick_dest_base)"
-                            local skill_src="$skills_dir/$chosen_skill"
-                            local skill_dest="$skill_dest_base/.agents/skills/$chosen_skill"
-
-                            echo -e "${BRIGHT_BLUE}Deploying: $chosen_skill to $skill_dest${RESET}"
-                            mkdir -p "$skill_dest"
-                            if _with_link_choice deploy_path_contents "$skill_src" "$skill_dest"; then
-                                echo -e "${BRIGHT_GREEN}✅ Successfully deployed $chosen_skill${RESET}"
-                                _TRACK_DETAIL="skill:${chosen_skill}"
-                            else
-                                print_error "Failed to deploy skill: $chosen_skill"
-                                _TRACK_DETAIL="skill-failed:${chosen_skill}"
-                            fi
-                            break
-                        else
-                            echo "Invalid option. Please choose a number or 'q'."
-                        fi
-                    done
+                    echo -e "${YELLOW}Deploy aborted (no selection saved).${RESET}"
+                    _TRACK_DETAIL="aborted"
                 fi
             else
-                echo -e "${YELLOW}Aborted skills deployment.${RESET}"
-                _TRACK_DETAIL="aborted-noninteractive"
+                # Non-interactive default: apply persisted config as-is.
+                deploy_skills "$target_dir"
+                _TRACK_DETAIL="skills-persisted"
             fi
             ;;
 
