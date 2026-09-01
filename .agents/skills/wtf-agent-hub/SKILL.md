@@ -1,13 +1,14 @@
 ---
 name: wtf-agent-hub
-description: Connect any agent, on any machine or harness, to the wtf multi-agent observability hub. Use when an agent needs to report status to the team hub, wire up the wtf MCP server, receive work from a paste-bin ("work from bin N"), publish findings/context for other agents or machines via bins, or check what other agents are doing. Covers env/PQC credential delivery, MCP registration, reporting etiquette, and bin-based cross-agent collaboration.
+description: Connect any agent, on any machine or harness, to the wtf multi-agent observability hub. Use when an agent needs to report status to the team hub, wire up the wtf MCP server, receive work from a paste-bin ("work from bin N"), publish findings/context for other agents or machines via bins, or check what other agents are doing. Covers env/PQC credential delivery, MCP registration, reporting etiquette, bin-based cross-agent collaboration, and the v0.14.0 executor (chat_run: per-chat tmux sessions running the omp-hermes-fcc-claude fallback chain) plus the dashboard SESSIONS card.
 ---
 
 # wtf-agent-hub — connect any agent to the team hub
 
 `wtf` is a zero-dependency Rust hub (`wtf serve`) + MCP stdio bridge
-(`wtf agent`). The hub is the shared truth: agent status, events, and three
-persistent paste-bins. Any MCP-speaking agent — Claude Desktop, Cursor,
+(`wtf agent`). The hub is the shared truth: agent status, events, three
+persistent paste-bins, and the federated repo chats (dashboard SESSIONS card —
+click a chat to open its viewer; tasks dispatched there run via the executor). Any MCP-speaking agent — Claude Desktop, Cursor,
 Warp, Codex, CI bots, custom harnesses — connects the same way. Full docs:
 the `wtf-is-going-on-mcp` repo README and its `.agents/skills/wtf-observability`
 skill (that repo's own operating guide).
@@ -149,15 +150,11 @@ Standard `mcpServers` shape; `command` must be absolute:
 }
 ```
 
-Tools you get: `check_in`, `log_event`, `wtf_is_going_on`, `read_bin`,
-`write_bin`, `list_bins`, `ping`, `hub_info`, `session_create`,
-`session_list`, `session_join`, `session_seal`, `session_send`,
-`session_read`, `comms_post`, `comms_read`. No MCP harness? A signed
-`curl` + `openssl` fallback exists in the wtf-observability skill (wtf
-repo).
-
-Operator asks where the hub is? `hub_info` reports the hub address,
-version, and this device's identity. The clickable dashboard link is
+Tools you get (20, v0.14.0): `check_in`, `log_event`, `wtf_is_going_on`, `read_bin`,
+`write_bin`, `list_bins`, `ping`, `hub_info`, `env_report`,
+`env_probe`, `session_create`, `session_list`, `session_join`,
+`session_seal`, `session_send`, `session_read`, `comms_post`,
+`comms_read`, `chat_run`, `chat_sessions`. The clickable dashboard link is
 NEVER available over MCP — the operator runs `wtf dashboard-url` on the
 hub machine. Never echo or guess the dashboard key.
 
@@ -182,16 +179,18 @@ machines. The rules are mechanical — follow them on every task:
    <hub's wtf enroll-secret>`; internet: the same command against a
    WireGuard/Tailscale overlay address or a TLS-terminating proxy —
    never raw port-forwarded HTTP.
-3. **Execute**: tasks from the chat run headlessly via the fallback
-   chain (1) OhMyPy CLI → (2) Hermes CLI → (3) FreeClaudeCode (free
-   Claude Code server + Claude; auto-start when the first two are
-   absent). FreeClaudeCode ALWAYS runs inside a named tmux session so
-   the process is identifiable and reattachable — session name
-   `freeclaude-<repo-or-task-slug>` (e.g. `tmux new-session -d -s
-   freeclaude-wtf-mcp '<freeclaude-code server + claude invocation>'`).
-   Report the tmux session name + PID in the task notes. Record which
-   CLI ran the task. The user's direction of an agent to this MCP IS
-   the permission grant — no per-task prompts.
+3. **Execute**: tasks from the chat run headlessly — the AUTOMATED lane is
+   `chat_run {prompt, repo?, label?, workdir?, timeout_secs?}` (v0.14.0):
+   it maps the task to ONE persistent tmux session `wtf-chat-<slug>` (attach:
+   `tmux attach -t <name>` to watch live) and runs the fallback chain
+   (1) OhMyPy CLI → (2) Hermes CLI → (3) FreeClaudeCode (free Claude Code server +
+   Claude; auto-start when the first two are absent), first installed + exit-0 wins,
+   trace names the lane. `chat_sessions` lists this machine’s
+   executor sessions.
+   Record which CLI ran the task. All three CLIs are model-agnostic — operator config
+   on each machine points them at the local-router Ollama proxy (`local-router/fallback-models` on the Ollama-compatible port; verified receipts
+   OMP/HERMES/FCC-ROUTER-OK on mac + windows 2026-09-01). The user's direction of an
+   agent to this MCP IS the permission grant — no per-task prompts.
 4. **Report**: progress, decisions, and failures go back into the repo
    chat (`session_send`/`comms_post`); chain-of-draft for the public
    event feed. Post-quantum posture is automatic: FIPS 203 key sealing,
@@ -303,6 +302,10 @@ own agent CLI with the operator-set fallback chain — (1) OhMyPy CLI,
 system; auto-started when the first two are absent) — user
 pre-authorizes by directing agents to this MCP, and reports progress
 back into that same chat (record which CLI ran the task).
+
+Dashboard (v0.14.0): the SESSIONS card lists every chat (id, name, repo,
+members, msgs) from `/api/v1/state`; clicking one opens a viewer tab —
+member-encrypted bodies stay opaque to the hub and non-members.
 
 Rules: `session_list` to find channels (repo label picks the right one);
 never paste session keys or identity keys anywhere (they live in 0600
