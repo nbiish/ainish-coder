@@ -45,6 +45,43 @@ deploy_agents() {
     return 0
 }
 
+# deploy_agents_maintainer <target_dir> — distribute AGENTS.maintainer.md,
+# a FROZEN copy of AGENTS.md as of distribution time. It guides refinement,
+# updates, and documentation of the TARGET repository — distinct from the
+# live AGENTS.md contract that ships with --rules/--agents.
+deploy_agents_maintainer() {
+    local target_dir="${1:-.}"
+
+    validate_target_dir "$target_dir" || return 1
+
+    local source="${REPO_DIR}/AGENTS.maintainer.md"
+    local dest="$target_dir/AGENTS.maintainer.md"
+
+    if [[ ! -f "$source" ]]; then
+        echo -e "${BRIGHT_RED}Error: AGENTS.maintainer.md not found at $source${RESET}"
+        return 1
+    fi
+
+    if [[ "$source" -ef "$dest" ]]; then
+        echo -e "${GREEN}✓ AGENTS.maintainer.md already up to date at $target_dir (same file)${RESET}"
+        return 0
+    fi
+
+    if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" && ( -f "$dest" || -L "$dest" ) ]]; then
+        echo -e "${YELLOW}⏭️  Skipping AGENTS.maintainer.md (already exists at $target_dir)${RESET}"
+        return 0
+    fi
+
+    if ! deploy_path "$source" "$dest"; then
+        echo -e "${BRIGHT_RED}Error: Failed to create AGENTS.maintainer.md${RESET}"
+        return 1
+    fi
+
+    echo -e "${GREEN}✓ Created AGENTS.maintainer.md at $target_dir${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ AGENTS.maintainer.md guides refinement/updates/docs for this repo${RESET}"
+    return 0
+}
+
 # Global AGENTS.md symlink — ensures ~/.agents/AGENTS.md and ~/.config/AGENTS.md
 # always point to the canonical AGENTS.md in the ainish-coder repo.
 deploy_agents_global() {

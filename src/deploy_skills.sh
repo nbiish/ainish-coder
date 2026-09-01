@@ -36,6 +36,7 @@ deploy_skills() {
     safe_mkdir "$skills_target" || return 1
     local skill_count=0
     local skipped_count=0
+    local deselected_count=0
 
     for skill_dir in "$skills_source"/*/; do
         if [[ -d "$skill_dir" ]]; then
@@ -46,6 +47,24 @@ deploy_skills() {
             # raw .scrolls* payload never deploy with skills — the explicit
             # --scrolls channel is their only distribution surface.
             case "$skill_name" in .scrolls*|8thfire-scrolls|ghost-layer-injector) continue ;; esac
+
+            # Persisted per-repo selection governs distribution. Live intake:
+            # packs are enumerated from disk each run, so new/renamed packs
+            # resolve through the repo default policy automatically.
+            if [[ "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
+                # OFF = not distributed. Remove a previously-shipped copy so a
+                # toggle-off takes effect immediately (foreign packs at the
+                # target are never touched — this name exists in source, so it
+                # is ainish-managed).
+                if [[ -d "$target_skill_dir" && "${AINISH_NO_OVERWRITE:-false}" != "true" ]]; then
+                    rm -rf "$target_skill_dir"
+                    echo -e "${YELLOW}⊘ Deselected — removed prior copy: $skill_name${RESET}"
+                else
+                    echo -e "${YELLOW}⊘ Deselected (not deployed): $skill_name${RESET}"
+                fi
+                ((deselected_count++)) || true
+                continue
+            fi
 
             # In non-overwrite mode, skip entire skill directory if it already exists
             if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
@@ -58,11 +77,33 @@ deploy_skills() {
 
             safe_mkdir "$target_skill_dir" || return 1
             deploy_path_contents "$skill_dir" "$target_skill_dir" 2>/dev/null || true
+            # Pin the distribution: an explicit config entry per deployed pack
+            # makes later renames/deletions at source detectable as stale.
+            skills_selection_set "$target_dir" "$skill_name" on
 
             ((skill_count++))
             echo -e "${GREEN}✓ Deployed: .agents/skills/$skill_name${RESET}"
         fi
     done
+
+    # Live intake sweep: handle RENAMES and DELETIONS. A target pack whose
+    # name no longer exists at source is stale IF it was ainish-managed —
+    # decided by a recorded preference in the persisted config (renamed/
+    # deleted packs keep their old entry). Purely foreign packs (never
+    # toggled, no config entry) are kept untouched.
+    if [[ -d "$skills_target" && "${AINISH_NO_OVERWRITE:-false}" != "true" ]]; then
+        local sweep_name sweep_dir
+        for sweep_dir in "$skills_target"/*/; do
+            [[ -d "$sweep_dir" ]] || continue
+            sweep_name="$(basename "$sweep_dir")"
+            [[ -d "$skills_source/$sweep_name" ]] && continue
+            if skills_selection_has_entry "$target_dir" "$sweep_name"; then
+                rm -rf "$sweep_dir"
+                echo -e "${YELLOW}⊘ Stale (renamed/deleted at source) — removed: $sweep_name${RESET}"
+                ((deselected_count++)) || true
+            fi
+        done
+    fi
 
     # Stamp provenance so --skills-verify / --skills-sync resolve this repo.
     printf '%s\n' "$source_dir" > "$skills_target/.ainish-source"
@@ -73,6 +114,9 @@ deploy_skills() {
     fi
     if [[ $skipped_count -gt 0 ]]; then
         echo -e "${YELLOW}⏭️  Skipped $skipped_count pre-existing skill(s)${RESET}"
+    fi
+    if [[ $deselected_count -gt 0 ]]; then
+        echo -e "${YELLOW}⊘ $deselected_count deselected pack(s) skipped (toggled off — run 'ainish-coder --skills' to change)${RESET}"
     fi
 
     if [[ $skill_count -eq 0 && $skipped_count -eq 0 ]]; then
