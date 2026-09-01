@@ -17,6 +17,8 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 **Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
 
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills` / `--skills-sync`). Agents and CI MUST use the headless path — `ainish-coder --skills <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
 **Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
 - `start:` the instant the agent **begins** the action (input received / work begun).
 - `end:` the instant the agent **finishes** it (output produced / work handed off or halted).

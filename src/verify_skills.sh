@@ -3,7 +3,9 @@
 # verify_ainish_skills : read-only report of byte-identity vs this repo
 # sync_ainish_skills   : THE one command — verifies and pulls the latest
 #                        ainish-coder skills (missing or drifted only);
-#                        foreign skills and the scrolls skill never touched.
+#                        foreign skills and scroll-channel packs never
+#                        touched; the persisted per-repo selection governs
+#                        which packs sync (deselected packs never pulled).
 
 # Resolve the ainish-coder source repo (AINISH_SOURCE_REPO > stamp > REPO_DIR).
 _ainish_skills_source() {
@@ -124,6 +126,12 @@ sync_ainish_skills() {
 
         # Scrolls skill is explicit-channel only — never copied here.
         if _ainish_skill_excluded "$name"; then
+            continue
+        fi
+
+        # Persisted per-repo selection governs sync: deselected packs are
+        # never pulled or repaired (live intake — state resolved per run).
+        if [[ "$(skills_selection_state "$target_dir" "$name")" != "on" ]]; then
             continue
         fi
 

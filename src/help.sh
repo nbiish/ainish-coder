@@ -33,6 +33,9 @@ CORE COMMANDS:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
     --agents [TARGET_DIR]     Deploy AGENTS.md only (defaults to copy for safety).
+                              Also offers AGENTS.maintainer.md — a frozen copy
+                              of AGENTS.md guiding refinement, updates, and
+                              documentation of the TARGET repo.
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → repo AGENTS.md
                                 ~/.config/AGENTS.md → repo AGENTS.md
@@ -125,14 +128,25 @@ UTILITY COMMANDS:
                               Example: ainish-coder --scrolls-verify ~/my-project
 
 
-    --skills [TARGET_DIR]     Deploy all skills from .agents/skills/ directory (copies)
+    --skills [TARGET_DIR]     Deploy skill packs from .agents/skills/ per your
+                              persisted selection (interactive: numbered
+                              node-choice toggle UI; choices save to
+                              ~/.config/ainish-coder/skills-selection.json
+                              and persist across terminals). `--headless`
+                              applies the saved selection with no prompts.
     --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
                               repo (foreign skills reported, untouched)
     --skills-sync [DIR]       THE one command: verifies and pulls the latest
                               ainish-coder skills (missing or drifted only);
                               never overwrites foreign skills; scroll-channel
                               packs (8thfire-scrolls, ghost-layer-injector)
-                              never copied (explicit --scrolls channel only)
+                              never copied (explicit --scrolls channel only).
+                              Interactive: toggle UI to add/remove packs from
+                              the sync set (persisted); `--headless` applies
+                              the saved selection with no prompts. Live
+                              intake: new/renamed/deleted packs in the repo's
+                              .agents/skills/ are picked up each run (new
+                              packs follow the repo's default policy).
                               Deploys 21 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
@@ -209,7 +223,8 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md + .gitignore + AGENTS/{date}.COMMS.md + all skill packs (except scroll-channel packs) + global symlinks
+    - --rules deploys AGENTS.md + AGENTS.maintainer.md (frozen repo-refinement guide) + .gitignore + AGENTS/{date}.COMMS.md + skill packs per your persisted selection + global symlinks
+    - --headless second arg (e.g. 'ainish-coder --skills <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
