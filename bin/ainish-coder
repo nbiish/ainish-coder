@@ -317,9 +317,10 @@ main() {
             if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
                 # Headless: persisted selection governs; no prompts.
                 sync_ainish_skills "${target_dir}"
-            elif [[ "${AINISH_INTERACTIVE:-false}" == "true" && -t 0 ]]; then
-                # Interactive: toggle UI first — add/remove packs to sync here;
-                # choices persist for every future --skills/--rules/--skills-sync.
+            elif [[ "${AINISH_NON_INTERACTIVE:-false}" != "true" && -t 0 ]]; then
+                # A real terminal IS the interactive path: toggle UI first —
+                # add/remove packs to sync here; choices persist for every
+                # future --skills/--rules/--skills-sync.
                 if _skills_toggle_ui "$target_dir"; then
                     sync_ainish_skills "${target_dir}"
                 else
@@ -337,9 +338,10 @@ main() {
                 # Headless: persisted selection governs; no prompts.
                 deploy_skills "$target_dir"
                 _TRACK_DETAIL="skills-headless"
-            elif [[ "${AINISH_INTERACTIVE:-false}" == "true" && -t 0 ]]; then
-                # Interactive: node-choice toggle UI — pick the packs this
-                # repo receives; selection persists across terminals.
+            elif [[ "${AINISH_NON_INTERACTIVE:-false}" != "true" && -t 0 ]]; then
+                # A real terminal IS the interactive path: open the
+                # node-choice toggle UI — pick the packs this repo receives;
+                # selection persists across terminals. (-y/--headless bypass.)
                 if _skills_toggle_ui "$target_dir"; then
                     local skills_dest="$(_pick_dest_base)"
                     if _confirm_symlink; then
