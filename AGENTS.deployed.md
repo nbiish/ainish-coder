@@ -309,7 +309,18 @@ Target repositories deploying ainish-coder rules can delegate complex coding tas
   - `trae-cli` (ByteDance SWE agent) — Structural exploration, AST search, multi-file editing, patch creation (`trae-cli run [TASK]`). Note: the CLI binary on PATH is `trae-cli` (invoking `trae-agent` fails). Use `-f <task_file>` and `--console-type simple` for non-interactive execution.
   - `mini` / `mini-live` (OpenAutoCoder Live-SWE-agent) — Test-driven reproduction, dynamic tool synthesis, iterative patch verification (`mini --config <cfg> --task [TASK] --yolo --exit-immediately`).
 - **Single Config Proxy / Shim**: All fleet agents route through the local Ollama endpoint (`http://localhost:11434/v1`) with model `local-router/fallback-models`. Local-router manages provider failovers and PQC secrets upstream; child repositories never manage separate API keys or provider configs for sub-agents.
+- **Cross-Platform Auto-Start Guarantee**: The local-router server starts automatically upon the Ollama CLI or Desktop application starting on macOS, Windows, Linux, and WSL. Local Router binds to port `11434`, proxying the real Ollama backend on port `11435` via `OLLAMA_HOST=127.0.0.1:11435`.
 - **Git Worktree Isolation**: Sub-agents MUST execute in isolated worktrees (`git worktree add -b <branch> ../<slug>`). One dispatch = one worktree. Never run autonomous sub-agents directly on release or working branches.
+- **Continuous Action Reflection & TTS.COMMS Guardrails**: Upon each action with `trae-cli` or `mini`, orchestrators reflect on skill improvements and append entries into `FLEET-SKILL-REFLECTIONS.txt` using concise, expertly crafted language while applying the 9 TTS.COMMS master suggestions:
+  1. *Adversarial:* Loopback proxy 11434 confinement; dummy bearer tokens (`local-router`).
+  2. *Privacy:* Trajectory and temporary task files in `/tmp` scrubbed of sensitive data.
+  3. *Supply-chain:* Pinned commit hashes for `trae-agent` and `live-swe-agent`.
+  4. *Systems-architecture:* Port 11434 health checks prior to dispatch.
+  5. *Reliability:* Step limits (20-35) + test verification on all patches.
+  6. *Governance:* Commits, task files, and comms ledgers cryptographically tracked.
+  7. *Ergonomics:* Task file execution (`-f <file>`) to eliminate shell quoting failures.
+  8. *Agentic-orchestration:* Trae AST refactoring first → Live-SWE test hardening.
+  9. *Performance:* Immediate worktree cleanup and trajectory pruning.
 - **Orchestrator Verification**: The orchestrator inspects patches (`git diff`), runs repo test suites, merges verified changes, and cleans up worktrees.
 - Deploy the skill to target repos: `ainish-coder --skills [dir]`.
 </FLEET>

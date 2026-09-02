@@ -78,7 +78,11 @@ All fleet sub-agents connect exclusively through the **Ollama endpoint shim** ho
    ```
    Ollama Cloud → NIM → Free-tier (Cline/Kilo/Zen) → Modal → Nous → Subscriptions/OAuth → Z.ai/Xiaomi → Pioneer → Go/CommandCode → Nebius/Wafer → Paid backstops (ZenMux/OpenRouter)
    ```
-3. **No Plaintext Secret Leakage:** Sub-agents never receive real API keys on disk or in command-line arguments. All egress calls stay on loopback `localhost:11434`.
+3. **Cross-Platform Auto-Start Guarantee:** Local Router automatically starts whenever the Ollama CLI or Desktop application starts on macOS, Windows, Linux, or WSL:
+   - **Port Allocation:** Local Router occupies port `11434` (the standard Ollama endpoint), proxying the real Ollama backend on port `11435` via `OLLAMA_HOST=127.0.0.1:11435`.
+   - **Desktop App Autostart:** macOS GUI apps inherit `OLLAMA_HOST` via `launchctl setenv`; Windows sets User environment variable `OLLAMA_HOST` and Startup shortcut; Linux uses `~/.config/environment.d/ollama.conf` and autostart desktop entry.
+   - **CLI Auto-Start:** POSIX `~/.local/bin/ollama` and Windows `ollama.cmd` / `ollama.ps1` probe port 11434 and launch `local-router start` detached if not already running.
+4. **No Plaintext Secret Leakage:** Sub-agents never receive real API keys on disk or in command-line arguments. All egress calls stay on loopback `localhost:11434` with dummy bearer tokens (`local-router`).
 
 ---
 
@@ -264,6 +268,21 @@ git worktree remove ../<slug>
 git branch -d feat/<scope>-<slug>
 ```
 
+### Phase 8: Continuous Action Reflection & Skill Refinement (TTS.COMMS)
+Upon completing each action with `trae-cli` and `mini`:
+1. Inspect the agent trajectory (`trae_trajectory.json` or `liveswe_trajectory.json`) and output logs.
+2. Evaluate adherence to the **9 TTS.COMMS Master Suggestions**:
+   - *Adversarial:* Confined to loopback proxy 11434 with dummy bearer token (`local-router`).
+   - *Privacy:* Intermediate files in `/tmp` scrubbed of sensitive environment data or user paths.
+   - *Supply-chain:* Upstream versions and tool repos pinned.
+   - *Systems-architecture:* Port 11434 availability probed prior to execution.
+   - *Reliability:* Explicit step limits respected; patch passed automated test execution.
+   - *Governance:* Commits, task files, and ledger entries recorded and tracked.
+   - *Ergonomics:* Single-command task file templates (`-f <file>`) used without quoting flaws.
+   - *Agentic-orchestration:* Trae AST navigation refactoring preceding Live-SWE test hardening.
+   - *Performance:* Failed worktrees removed immediately, intermediate trajectories pruned.
+3. Record a concise, expertly crafted reflection entry in `.agents/skills/trae-mini-fleet/FLEET-SKILL-REFLECTIONS.txt` (and root `FLEET-SKILL-REFLECTIONS.txt`) with an ISO-8601 timestamp, subagent used, action summary, and iterative instruction refinement.
+
 ---
 
 ## 6. Agent Selection Matrix
@@ -289,3 +308,7 @@ git branch -d feat/<scope>-<slug>
 | Running directly in main tree | Branch pollution / git conflicts | **Mandatory:** `git worktree add -b <branch> ../<slug>`. |
 | Passing raw API keys | Leaked secrets / PQC violation | Direct traffic to `http://localhost:11434/v1` with placeholder key `local-router`. |
 | Unbounded step counts | Agent burns tokens in loops | Always set `--max-steps 20-35` for Trae and `step_limit: 30` for Live-SWE. |
+| Port 11434 collision | Standalone Ollama overrides proxy | Ensure `local-router route set` is active (Ollama backend on 11435, router on 11434). |
+| Unpruned failed worktrees | Disk / memory exhaustion | Discard failed worktrees immediately (`git worktree remove --force ../<slug>`). |
+| Missing action reflection | Recurring subagent failure modes | Record lessons in `FLEET-SKILL-REFLECTIONS.txt` after every dispatch per Phase 8. |
+
