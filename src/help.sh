@@ -18,7 +18,10 @@ GLOBAL FLAGS:
                          and --skills with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md (defaults to copy for safety),
+    --rules [TARGET_DIR]      Deploy AGENTS.md — the project-agnostic rules
+                              document, written as the target's single
+                              governing AGENTS.md (defaults to copy for
+                              safety) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
                                 AGENTS/{date}.COMMS.md (merge-safe: refreshes
@@ -30,15 +33,14 @@ CORE COMMANDS:
                               never included — they travel only via the
                               explicit --scrolls channel).
                               Also ensures global symlinks:
-                                ~/.agents/AGENTS.md → repo AGENTS.md
-                                ~/.config/AGENTS.md → repo AGENTS.md
-    --agents [TARGET_DIR]     Deploy AGENTS.md only (defaults to copy for safety).
-                              Also offers AGENTS.deployed.md — the project-agnostic
-                              rules document guiding refinement, updates, and
-                              documentation of the TARGET repo.
+                                ~/.agents/AGENTS.md → project-agnostic rules template
+                                ~/.config/AGENTS.md → project-agnostic rules template
+    --agents [TARGET_DIR]     Deploy AGENTS.md only — the project-agnostic
+                              rules document, written as the target's single
+                              governing AGENTS.md (defaults to copy for safety).
                               Also ensures global symlinks:
-                                ~/.agents/AGENTS.md → repo AGENTS.md
-                                ~/.config/AGENTS.md → repo AGENTS.md
+                                ~/.agents/AGENTS.md → project-agnostic rules template
+                                ~/.config/AGENTS.md → project-agnostic rules template
     --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
                               (files must exist in the ainish-coder repo root)
 
@@ -223,10 +225,10 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md + AGENTS.deployed.md (project-agnostic rules document) + .gitignore + AGENTS/{date}.COMMS.md + skill packs per your persisted selection + global symlinks
+    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing AGENTS.md) + .gitignore + AGENTS/{date}.COMMS.md + skill packs per your persisted selection + global symlinks
     - --headless second arg (e.g. 'ainish-coder --skills <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
-    - --agents deploys AGENTS.md + global symlinks
+    - --agents deploys AGENTS.md (project-agnostic rules, single governing document) + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
     - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md
     - All tool-specific flags consolidated into .agents/skills/
@@ -260,7 +262,7 @@ EOF
 }
 
 show_version() {
-    echo "ainish-coder v1.5.1"
+    echo "ainish-coder v1.5.2"
     echo "Configuration Manager for AI Coding Assistants"
     echo "Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ"
 }
