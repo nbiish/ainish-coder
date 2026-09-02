@@ -72,12 +72,24 @@ main() {
     if (( ${#args[@]} > 0 )); then set -- "${args[@]}"; else set --; fi
     export AINISH_HEADLESS
 
-    # Get target directory (default to current directory)
+    # Get target directory (default to current directory, canonicalized)
+    local _EXPLICIT_TARGET_DIR=""
+    if [[ -n "${1:-}" ]]; then
+        _EXPLICIT_TARGET_DIR="$1"
+    fi
     local target_dir="${1:-$(pwd)}"
+    if [[ -d "$target_dir" ]]; then
+        target_dir="$(cd -P "$target_dir" 2>/dev/null && pwd)"
+    fi
 
     # Prompt user for deploy destination base (home vs target dir)
     # Echoes "$HOME" or "$target_dir" to stdout
     _pick_dest_base() {
+        if [[ -n "${_EXPLICIT_TARGET_DIR:-}" ]]; then
+            echo "$target_dir"
+            return
+        fi
+
         # If non-interactive mode OR not in interactive mode, default to target_dir
         if [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || [[ "${AINISH_INTERACTIVE:-false}" != "true" ]] || [[ ! -t 0 ]]; then
             echo "$target_dir"
@@ -155,11 +167,10 @@ main() {
         # Core rules deployment
         --rules)
             _TRACK_DETAIL="AGENTS.md+gitignore"
-            echo -e "${BRIGHT_BLUE}Deploying Rules System${RESET}"
+            echo -e "${BRIGHT_BLUE}Deploying Rules System to: $target_dir${RESET}"
 
             if confirm_action "Deploy AGENTS.md standard rules?" "y"; then
-                local rules_agents_dest="$(_pick_dest_base)"
-                _with_link_choice deploy_agents "$rules_agents_dest"
+                _with_link_choice deploy_agents "$target_dir"
             fi
 
             # AGENTS.deployed.md — project-agnostic rules document guiding
@@ -169,8 +180,7 @@ main() {
                 deploy_agents_deployed "$target_dir"
                 _TRACK_DETAIL="${_TRACK_DETAIL}+deployed-rules"
             elif confirm_action "Deploy AGENTS.deployed.md (project-agnostic rules document)?" "y"; then
-                local deployed_dest="$(_pick_dest_base)"
-                _with_link_choice deploy_agents_deployed "$deployed_dest"
+                _with_link_choice deploy_agents_deployed "$target_dir"
                 _TRACK_DETAIL="${_TRACK_DETAIL}+deployed-rules"
             fi
 
@@ -189,11 +199,10 @@ main() {
                 # Interactive: open the toggle UI first so this run's choices
                 # persist for every future --rules/--skills/--skills-sync.
                 _skills_toggle_ui "$target_dir" && {
-                    local skills_dest="$(_pick_dest_base)"
                     if _confirm_symlink; then
-                        AINISH_LINK_MODE="true" deploy_skills "$skills_dest"
+                        AINISH_LINK_MODE="true" deploy_skills "$target_dir"
                     else
-                        AINISH_LINK_MODE="false" deploy_skills "$skills_dest"
+                        AINISH_LINK_MODE="false" deploy_skills "$target_dir"
                     fi
                 }
                 _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
@@ -202,11 +211,12 @@ main() {
             # Agent Communication System — AGENTS/{date}.COMMS.md
             # Merge-safe: refreshes protocol template, preserves agent entries.
             if confirm_action "Deploy Agent Communication System (AGENTS/{date}.COMMS.md)?" "y"; then
-                local comms_dest
-                comms_dest="$(_pick_dest_base)"
-                deploy_agents_comms "$comms_dest"
+                deploy_agents_comms "$target_dir"
                 _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
             fi
+
+            # Ensure workspace customizations root (.agents/tasks) is scaffolded
+            mkdir -p "$target_dir/.agents/tasks" 2>/dev/null || true
 
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
             ;;
@@ -343,11 +353,10 @@ main() {
                 # node-choice toggle UI — pick the packs this repo receives;
                 # selection persists across terminals. (-y/--headless bypass.)
                 if _skills_toggle_ui "$target_dir"; then
-                    local skills_dest="$(_pick_dest_base)"
                     if _confirm_symlink; then
-                        AINISH_LINK_MODE="true" deploy_skills "$skills_dest"
+                        AINISH_LINK_MODE="true" deploy_skills "$target_dir"
                     else
-                        AINISH_LINK_MODE="false" deploy_skills "$skills_dest"
+                        AINISH_LINK_MODE="false" deploy_skills "$target_dir"
                     fi
                     _TRACK_DETAIL="skills-selected"
                 else
