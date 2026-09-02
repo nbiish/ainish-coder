@@ -86,7 +86,21 @@ All fleet sub-agents connect exclusively through the **Ollama endpoint shim** ho
 
 ---
 
-## 4. Expert Dispatch Patterns & Harvester Architecture
+## 4. Headless Execution Fallback Cascade & Dispatch Patterns
+
+### Primary Fallback Cascade
+When executing user or agent tasks headlessly, harnesses follow the resilient 3-stage fallback cascade:
+$$\text{free-claude-code} \xrightarrow{\text{if fail}} \text{omp} \xrightarrow{\text{if fail}} \text{trae-cli}$$
+
+1. **`free-claude-code` (`claude` / `fcc-claude`):** Primary agent using `ANTHROPIC_BASE_URL=http://127.0.0.1:11434` with `--dangerously-skip-permissions`.
+2. **`omp` (OhMyPy):** Secondary agent for non-interactive execution (`omp -p <prompt>`).
+3. **`trae-cli` (Trae SWE Agent):** Tertiary agent for deep structural AST edits and patch generation.
+
+### Agent Selection & Fleet Toggle
+Both `local-router` (/config/chat & CLI) and `wtf-is-going-on-mcp` (dashboard & MCP `chat_run`) provide:
+- **Agent Selection:** `auto` (runs the 3-stage cascade), or pinned to `free-claude-code`, `omp`, `trae-cli`, or `mini`.
+- **Trae / Mini Fleet Toggle:** Controls whether autonomous multi-file SWE fleet expansion is permitted (ON) or confined to single-turn interactive execution (OFF).
+- **Universal Model Standard:** All agents and chats route through virtual model `local-router/fallback-models`.
 
 ### Pattern A: Trae-Agent Headless Dispatch (`trae-cli run`)
 

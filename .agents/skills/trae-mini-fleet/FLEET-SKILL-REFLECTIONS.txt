@@ -72,3 +72,20 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
      automatically yield port 11434 to Local Router.
   3. Ensure subagent task files and patches are systematically reviewed in isolated
      worktrees before operator merge confirmation.
+
+## 2026-09-02T20:30:00Z | Free-Claude-Code, OhMyPy, and Trae-CLI Fallback Cascade
+- Context: Re-focusing headless execution chain (free-claude-code -> omp -> trae-cli),
+  adding browser/CLI agent chat, agent selection, and Trae/Mini fleet toggle.
+- Observed Action: Users require flexibility to chat conversational dialogue directly,
+  select specific agents, or trigger the autonomous fallback cascade while controlling
+  subagent fleet expansion.
+- TTS.COMMS Alignment: Addressed agentic-orchestration master (ordered cascade: FCC -> OMP -> Trae),
+  developer-experience master (web UI + CLI command chat), and reliability master (fleet toggle guardrail).
+- Skill Refinement:
+  1. Formalize primary fallback cascade: `free-claude-code` -> `omp` -> `trae-cli`.
+  2. Implement agent selection (`auto`, `free-claude-code`, `omp`, `trae-cli`, `mini`).
+  3. Add Trae/Mini fleet toggle: when enabled, subtasks can spawn autonomous fleet agents;
+     when disabled, execution remains strictly within the top-level CLI session.
+  4. Universally standardize on `local-router/fallback-models` via port 11434 for all agents,
+     web chats, and configuration.
+
