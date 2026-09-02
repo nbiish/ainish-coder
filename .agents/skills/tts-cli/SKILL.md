@@ -1,6 +1,6 @@
 ---
 name: tts-cli
-description: "On-device `cli-tts` for one end-of-chat `--prompt` per turn (fused Next-step plus six deterministic masters and three custom slash masters). The CLI plays automatically. Trigger: tts, cli-tts, speak, KittenTTS."
+description: "On-device `cli-tts` for one end-of-chat `--prompt` per turn (fused Next-step plus six deterministic masters and three custom slash masters). The CLI plays automatically. Trigger: tts, cli-tts, speak, KittenTTS, MOSS-TTS, moss-tts."
 ---
 
 # tts-cli
