@@ -67,9 +67,9 @@ deploy_path() {
     dest_parent="$(dirname "$dest")"
     mkdir -p "$dest_parent"
 
-    # Remove existing file/link at destination
+    # Remove existing file/link/dir at destination
     if [[ -e "$dest" || -L "$dest" ]]; then
-        rm -f "$dest"
+        rm -rf "$dest"
     fi
 
     if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then

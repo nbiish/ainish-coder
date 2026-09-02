@@ -48,10 +48,12 @@ skills_selection_default_on() {
 }
 
 # skills_selection_repo_key <repo_root> — normalized JSON key for a repo.
-# Same repo reached via symlink or relative path maps to one key.
+# Same repo reached via symlink or relative path maps to one canonical key.
 skills_selection_repo_key() {
     local repo="${1:-}"
-    [[ -d "$repo" ]] && repo="$(cd "$repo" && pwd)"
+    if [[ -d "$repo" ]]; then
+        repo="$(cd -P "$repo" 2>/dev/null && pwd)"
+    fi
     printf '%s' "$repo"
 }
 
@@ -60,15 +62,23 @@ skills_selection_repo_key() {
 # ainish-managed stale packs from foreign packs during rename/deletion sweeps).
 skills_selection_has_entry() {
     local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
+    local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
     local name="$2"
-    REPO="$repo_key" NAME="$name"         SELECTION_PATH="$(skills_selection_config_path)"         python3 -c "
+    REPO="$repo_key" ALT_REPO="$raw_repo" NAME="$name" \
+        SELECTION_PATH="$(skills_selection_config_path)" \
+        python3 -c "
 import json, os
 try:
     cfg = json.load(open(os.environ['SELECTION_PATH']))
 except Exception:
     cfg = {}
+repos = cfg.get('repos', {})
+entry = repos.get(os.environ['REPO'])
+if entry is None and os.environ.get('ALT_REPO'):
+    entry = repos.get(os.environ['ALT_REPO'], {})
+elif entry is None:
+    entry = {}
 name = os.environ['NAME']
-entry = cfg.get('repos', {}).get(os.environ['REPO'], {})
 print('yes' if name in entry else 'no')
 " | grep -q yes
 }
@@ -77,10 +87,11 @@ print('yes' if name in entry else 'no')
 # skills_selection_state <repo_root> <skill_name> -> "on"|"off"
 skills_selection_state() {
     local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
+    local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
     local name="$2"
     local global_default="on"
     skills_selection_default_on || global_default="off"
-    REPO="$repo_key" NAME="$name" GLOBAL_DEFAULT="$global_default" \
+    REPO="$repo_key" ALT_REPO="$raw_repo" NAME="$name" GLOBAL_DEFAULT="$global_default" \
         SELECTION_PATH="$(skills_selection_config_path)" \
         python3 -c "
 import json, os
@@ -88,7 +99,12 @@ try:
     cfg = json.load(open(os.environ['SELECTION_PATH']))
 except Exception:
     cfg = {}
-entry = cfg.get('repos', {}).get(os.environ['REPO'], {})
+repos = cfg.get('repos', {})
+entry = repos.get(os.environ['REPO'])
+if entry is None and os.environ.get('ALT_REPO'):
+    entry = repos.get(os.environ['ALT_REPO'], {})
+elif entry is None:
+    entry = {}
 name = os.environ['NAME']
 if name in entry:
     print('on' if entry[name] else 'off')
@@ -149,6 +165,53 @@ os.replace(tmp, path)
 "
 }
 
+# skills_selection_batch_save <repo_root> <default:on|off> <name:state ...>
+# Atomically writes the entire selection for a repo in a single JSON write.
+skills_selection_batch_save() {
+    local repo_root="$1"
+    local repo_key; repo_key="$(skills_selection_repo_key "$repo_root")"
+    local raw_repo; raw_repo="$(cd "$repo_root" 2>/dev/null && pwd)"
+    shift
+    local default_state="$1"
+    shift
+    local -a pairs=("$@")
+
+    REPO="$repo_key" ALT_REPO="$raw_repo" DEFAULT_STATE="$default_state" \
+    PAIRS="${pairs[*]}" SELECTION_PATH="$(skills_selection_config_path)" \
+    python3 -c "
+import json, os
+path = os.environ['SELECTION_PATH']
+try:
+    cfg = json.load(open(path))
+except Exception:
+    cfg = {}
+repos = cfg.setdefault('repos', {})
+repo_key = os.environ['REPO']
+entry = repos.setdefault(repo_key, {})
+
+# If there was an old entry under ALT_REPO, merge and remove stale duplicate
+alt_key = os.environ.get('ALT_REPO')
+if alt_key and alt_key != repo_key and alt_key in repos:
+    old = repos.pop(alt_key)
+    for k, v in old.items():
+        if k not in entry:
+            entry[k] = v
+
+entry['default'] = (os.environ['DEFAULT_STATE'] == 'on')
+
+for pair in os.environ.get('PAIRS', '').split():
+    if ':' in pair:
+        name, state = pair.split(':', 1)
+        entry[name] = (state == 'on')
+
+tmp = path + '.tmp'
+with open(tmp, 'w') as f:
+    json.dump(cfg, f, indent=2, sort_keys=True)
+    f.write('\n')
+os.replace(tmp, path)
+"
+}
+
 # skills_selection_list <repo_root> — enumerate source packs with state.
 # Prints "ON|OFF <name>" lines, sorted; excluded packs never listed.
 skills_selection_list() {
@@ -172,9 +235,10 @@ skills_selection_list() {
 # Used by the toggle UI footer ("default(new)=…"). Prints on|off.
 _skills_selection_repo_default() {
     local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
+    local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
     local global_default="on"
     skills_selection_default_on || global_default="off"
-    REPO="$repo_key" GLOBAL_DEFAULT="$global_default" \
+    REPO="$repo_key" ALT_REPO="$raw_repo" GLOBAL_DEFAULT="$global_default" \
         SELECTION_PATH="$(skills_selection_config_path)" \
         python3 -c "
 import json, os
@@ -182,7 +246,12 @@ try:
     cfg = json.load(open(os.environ['SELECTION_PATH']))
 except Exception:
     cfg = {}
-entry = cfg.get('repos', {}).get(os.environ['REPO'], {})
+repos = cfg.get('repos', {})
+entry = repos.get(os.environ['REPO'])
+if entry is None and os.environ.get('ALT_REPO'):
+    entry = repos.get(os.environ['ALT_REPO'], {})
+elif entry is None:
+    entry = {}
 d = str(entry.get('default', '')).lower()
 print(d if d in ('on', 'off') else os.environ['GLOBAL_DEFAULT'])
 "
@@ -345,17 +414,12 @@ _skills_toggle_ui_raw() {
     _st_ui_restore
     printf '\r\n' >&2
 
-    changes=0
+    local pairs=()
     for i in "${!names[@]}"; do
-        [[ "${states[$i]}" == "${initial[$i]}" ]] && continue
-        skills_selection_set "$repo_root" "${names[$i]}" "${states[$i]}"
-        changes=$((changes + 1))
+        pairs+=("${names[$i]}:${states[$i]}")
     done
-    if [[ "$working_default" != "$initial_default" ]]; then
-        skills_selection_set_default "$repo_root" "$working_default"
-        changes=$((changes + 1))
-    fi
-    echo -e "${BRIGHT_GREEN}✅ Selection saved${RESET} ${YELLOW}($changes change(s))${RESET}" >&2
+    skills_selection_batch_save "$repo_root" "$working_default" "${pairs[@]}"
+    echo -e "${BRIGHT_GREEN}✅ Selection saved${RESET} ${YELLOW}(${#names[@]} pack(s) recorded)${RESET}" >&2
     return 0
 }
 
@@ -377,6 +441,9 @@ _skills_toggle_ui_numbered() {
         names+=("$name")
         states+=("$(skills_selection_state "$repo_root" "$name")")
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+    local n=${#names[@]}
+    local working_default
+    working_default="$(_skills_selection_repo_default "$repo_root")"
 
     if [[ ${#names[@]} -eq 0 ]]; then
         echo -e "${YELLOW}No skill packs found in $source_dir${RESET}" >&2
@@ -384,8 +451,7 @@ _skills_toggle_ui_numbered() {
     fi
 
     while true; do
-        echo -e "\n${BRIGHT_CYAN}Skill distribution — toggle per pack${RESET} ${YELLOW}(persisted per repo)${RESET}" >&2
-        echo -e "${YELLOW}Repo: $repo_root${RESET}" >&2
+        echo -e "\n${BRIGHT_BLUE}Available Skills (${repo_root}):${RESET}" >&2
         local i
         for i in "${!names[@]}"; do
             if [[ "${states[$i]}" == "on" ]]; then
@@ -403,21 +469,24 @@ _skills_toggle_ui_numbered() {
 
         case "$choice" in
             s|S|"")
-                echo -e "${BRIGHT_GREEN}✅ Selection saved${RESET}" >&2
+                local pairs=()
+                for i in "${!names[@]}"; do
+                    pairs+=("${names[$i]}:${states[$i]}")
+                done
+                skills_selection_batch_save "$repo_root" "$working_default" "${pairs[@]}"
+                echo -e "${BRIGHT_GREEN}✅ Selection saved${RESET} ${YELLOW}(${#names[@]} pack(s) recorded)${RESET}" >&2
                 return 0
                 ;;
             a|A)
                 local i
                 for i in "${!names[@]}"; do
                     states[$i]="on"
-                    skills_selection_set "$repo_root" "${names[$i]}" on
                 done
                 ;;
             n|N)
                 local i
                 for i in "${!names[@]}"; do
                     states[$i]="off"
-                    skills_selection_set "$repo_root" "${names[$i]}" off
                 done
                 ;;
             d|D)
@@ -426,7 +495,7 @@ _skills_toggle_ui_numbered() {
                 read -r dflt || dflt="on"
                 dflt="$(echo "$dflt" | xargs)"
                 if [[ "$dflt" == "on" || "$dflt" == "off" ]]; then
-                    skills_selection_set_default "$repo_root" "$dflt"
+                    working_default="$dflt"
                     echo -e "${GREEN}✓ default=$dflt for new packs${RESET}" >&2
                 else
                     echo "Invalid: on|off" >&2
@@ -440,10 +509,8 @@ _skills_toggle_ui_numbered() {
                         idx=$((tok-1))
                         if [[ "${states[$idx]}" == "on" ]]; then
                             states[$idx]="off"
-                            skills_selection_set "$repo_root" "${names[$idx]}" off
                         else
                             states[$idx]="on"
-                            skills_selection_set "$repo_root" "${names[$idx]}" on
                         fi
                     else
                         echo "Invalid: $tok" >&2

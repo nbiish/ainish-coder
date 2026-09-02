@@ -205,13 +205,16 @@ sync_ainish_skills() {
 
     # Self-sync guard: syncing the ainish-coder repo onto itself would
     # rm/deploy source packs onto themselves. Nothing to sync.
-    if [[ "$(cd "$target_dir" 2>/dev/null && pwd)" == "$source_dir" ]]; then
+    local target_canon="$(cd -P "$target_dir" 2>/dev/null && pwd)"
+    local source_canon="$(cd -P "$source_dir" 2>/dev/null && pwd)"
+    if [[ -n "$target_canon" && "$target_canon" == "$source_canon" ]]; then
         echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — all skills are home.${RESET}"
         return 0
     fi
 
     echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills ↔ $skills_target (verify + two-way sync)${RESET}"
     safe_mkdir "$skills_target" || return 1
+    safe_mkdir "$target_dir/.agents/tasks" 2>/dev/null || true
 
     local updated=0 identical=0 deployed=0 ingested=0
 
@@ -219,19 +222,21 @@ sync_ainish_skills() {
     # Note: Source repo (ainish-coder) NEVER has tools/skills removed.
     local -a candidate_list=()
     local target_skill target_name
-    for target_skill in "$skills_target"/*/; do
-        [[ -d "$target_skill" ]] || continue
-        target_name="$(basename "$target_skill")"
-        _ainish_skill_excluded "$target_name" && continue
+    if [[ -d "$skills_target" ]]; then
+        for target_skill in "$skills_target"/*/; do
+            [[ -d "$target_skill" ]] || continue
+            target_name="$(basename "$target_skill")"
+            _ainish_skill_excluded "$target_name" && continue
 
-        if [[ ! -d "$skills_source/$target_name" ]]; then
-            candidate_list+=("$target_name:new")
-        elif ! _ainish_skill_identical "$skills_source/$target_name" "$target_skill"; then
-            if [[ "$(_ainish_skill_newer "$target_skill" "$skills_source/$target_name")" == "1" ]]; then
-                candidate_list+=("$target_name:updated")
+            if [[ ! -d "$skills_source/$target_name" ]]; then
+                candidate_list+=("$target_name:new")
+            elif ! _ainish_skill_identical "$skills_source/$target_name" "$target_skill"; then
+                if [[ "$(_ainish_skill_newer "$target_skill" "$skills_source/$target_name")" == "1" ]]; then
+                    candidate_list+=("$target_name:updated")
+                fi
             fi
-        fi
-    done
+        done
+    fi
 
     # 2. Prompt operator to select which candidate skills to ingest into ainish-coder.
     _SELECTED_CANDIDATES=()
@@ -245,25 +250,25 @@ sync_ainish_skills() {
             local s_path="$skills_source/$s_name"
 
             if [[ "$s_kind" == "new" ]]; then
-                deploy_path "$t_path" "$s_path" 2>/dev/null || {
+                if ! deploy_path "$t_path" "$s_path"; then
                     print_error "Failed to ingest new skill: $s_name"
                     continue
-                }
+                fi
                 echo -e "${BRIGHT_GREEN}➕ Ingested new skill: $s_name → ainish-coder${RESET}"
                 ((ingested++)) || true
             else
                 rm -rf "$s_path"
-                deploy_path "$t_path" "$s_path" 2>/dev/null || {
+                if ! deploy_path "$t_path" "$s_path"; then
                     print_error "Failed to update skill from target: $s_name"
                     continue
-                }
+                fi
                 echo -e "${GREEN}⬆ Pulled updated skill: $s_name → ainish-coder${RESET}"
                 ((ingested++)) || true
             fi
         done
     fi
 
-    # 2. Deploy or update ainish-coder skills into target repo per persisted selection.
+    # 3. Deploy or update ainish-coder skills into target repo per persisted selection.
     local source_skill source_name
     for source_skill in "$skills_source"/*/; do
         [[ -d "$source_skill" ]] || continue
@@ -277,10 +282,10 @@ sync_ainish_skills() {
 
         if [[ ! -d "$skills_target/$source_name" ]]; then
             # Missing at target -> deploy
-            deploy_path "$source_skill" "$skills_target/$source_name" 2>/dev/null || {
+            if ! deploy_path "$source_skill" "$skills_target/$source_name"; then
                 print_error "Failed to deploy skill: $source_name"
                 return 1
-            }
+            fi
             echo -e "${GREEN}✓ Deployed: $source_name → $target_dir${RESET}"
             ((deployed++)) || true
         elif _ainish_skill_identical "$source_skill" "$skills_target/$source_name"; then
@@ -288,10 +293,10 @@ sync_ainish_skills() {
         else
             # Source is newer or equal -> update target
             rm -rf "$skills_target/$source_name"
-            deploy_path "$source_skill" "$skills_target/$source_name" 2>/dev/null || {
+            if ! deploy_path "$source_skill" "$skills_target/$source_name"; then
                 print_error "Failed to sync skill: $source_name"
                 return 1
-            }
+            fi
             echo -e "${GREEN}⬇ Updated: $source_name at $target_dir${RESET}"
             ((updated++)) || true
         fi
