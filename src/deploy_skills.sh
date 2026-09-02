@@ -5,14 +5,15 @@
 
 deploy_skills() {
     local target_dir="${1:-.}"
-    local source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    local source_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
+    local target_canon="$(cd -P "$target_dir" 2>/dev/null && pwd)"
 
     validate_target_dir "$target_dir" || return 1
 
     # Self-deploy guard: distributing into the ainish-coder repo itself
     # would rm/cp source packs onto themselves (destroying them). Ainish
     # skills already live here — nothing to distribute.
-    if [[ "$(cd "$target_dir" 2>/dev/null && pwd)" == "$source_dir" ]]; then
+    if [[ -n "$target_canon" && "$target_canon" == "$source_dir" ]]; then
         echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — skills already live here, nothing to distribute.${RESET}"
         return 0
     fi
@@ -42,6 +43,7 @@ deploy_skills() {
     fi
 
     safe_mkdir "$skills_target" || return 1
+    safe_mkdir "$target_dir/.agents/tasks" 2>/dev/null || true
     local skill_count=0
     local skipped_count=0
     local deselected_count=0
@@ -84,7 +86,10 @@ deploy_skills() {
             fi
 
             safe_mkdir "$target_skill_dir" || return 1
-            deploy_path_contents "$skill_dir" "$target_skill_dir" 2>/dev/null || true
+            if ! deploy_path_contents "$skill_dir" "$target_skill_dir"; then
+                print_error "Failed to deploy .agents/skills/$skill_name"
+                continue
+            fi
             # Pin the distribution: an explicit config entry per deployed pack
             # makes later renames/deletions at source detectable as stale.
             skills_selection_set "$target_dir" "$skill_name" on
