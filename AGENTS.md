@@ -320,7 +320,18 @@ When a coding task requires heavy autonomous implementation, multi-file refactor
   - `trae-cli` (ByteDance SWE agent) — Structural exploration, AST search, multi-file editing, patch creation (`trae-cli run [TASK]`). **Critical:** the CLI binary on PATH is `trae-cli` (invoking `trae-agent` fails with command not found). Always pass task files (`-f <file>`) and `--console-type simple` for non-interactive execution.
   - `mini` / `mini-live` (OpenAutoCoder Live-SWE-agent) — Test-driven reproduction, dynamic Python tool synthesis, iterative bash fix verification (`mini --config <cfg> --task [TASK] --yolo --exit-immediately`).
 - **Endpoint & Fallback Routing**: All fleet agents route exclusively through the **Ollama endpoint shim** (`http://localhost:11434/v1`) using model **`local-router/fallback-models`**. Local-router handles the 24-step provider fallback cascade, rate-limiting, and PQC authentication transparently. Sub-agents never receive, store, or manage raw API keys.
+- **Cross-Platform Auto-Start Guarantee**: The local-router server starts automatically upon Ollama CLI or Desktop application start on macOS, Windows, Linux, and WSL (port `11434` for Local Router, port `11435` for real Ollama backend via `OLLAMA_HOST=127.0.0.1:11435`).
 - **Isolation Mandate**: Every sub-agent runs in its own dedicated git worktree (`git worktree add -b <branch> ../<slug>`). Sub-agents NEVER commit directly to `main` or operate in the orchestrator's working tree.
+- **Continuous Action Reflection & TTS.COMMS Guardrails**: Upon each action with `trae-cli` or `mini`, orchestrators reflect on skill improvements and record entries in `FLEET-SKILL-REFLECTIONS.txt` using concise, expertly crafted language while applying the 9 TTS.COMMS suggestions:
+  1. *Adversarial:* Loopback proxy 11434 confinement; dummy bearer tokens (`local-router`).
+  2. *Privacy:* Trajectory and temporary task files in `/tmp` scrubbed of sensitive data.
+  3. *Supply-chain:* Pinned commit hashes for `trae-agent` and `live-swe-agent`.
+  4. *Systems-architecture:* Port 11434 health checks prior to dispatch.
+  5. *Reliability:* Step limits (20-35) + test verification on all patches.
+  6. *Governance:* Commits, task files, and comms ledgers cryptographically tracked.
+  7. *Ergonomics:* Task file execution (`-f <file>`) to eliminate shell quoting failures.
+  8. *Agentic-orchestration:* Trae AST refactoring first → Live-SWE test hardening.
+  9. *Performance:* Immediate worktree cleanup and trajectory pruning.
 - **Review & Verify**: The orchestrator inspects the generated diff/patch, validates syntax/tests, coordinates merge back to the parent branch, and cleans up the worktree.
 - Specification & Operational Playbook: `.agents/skills/trae-mini-fleet/SKILL.md`.
 </FLEET>
