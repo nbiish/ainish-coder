@@ -1,5 +1,5 @@
 ---
-description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md).
+description: PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md). Terminal sub-agents orchestrate via trae-mini-fleet under local-router/fallback-models.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -47,6 +47,7 @@ Conflict → fail closed, explain, ask.
 - **Fast orientation (`git context`):** one command dumps everything above — latest COMMS entries + newest status, task-file gists (`.agents/tasks/`), `llms.txt` PRD version, worktrees, stashes, timeline. Run it first in any repo; read the full files it points at when deeper history is needed.
 - **PRD Anchor:** `llms.txt` is the authoritative PRD. Read unconditionally if present; overrides conflicting sources per P2. If task drifts, re-read. Never skip.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
+- **Terminal Fleet Dispatch (`trae-mini-fleet`):** For autonomous SWE execution, complex multi-file refactoring, or test-driven bug fixes, delegate to headless terminal coding agents (`trae-cli` or `mini-live`). Subagents route through the local-router Ollama shim (`local-router/fallback-models`) in dedicated git worktrees. See `.agents/skills/trae-mini-fleet/SKILL.md`.
 </TASK_PRIMER>
 
 ## SKILLS BYTE-VERIFY & TWO-WAY SYNC
@@ -307,6 +308,22 @@ git branch --show-current  # main
 
 **Why:** orphans accumulate and confuse future tasks. The task file survives worktree deletion — it lives in the merged branch, not the worktree's working copy.
 </WORKFLOW>
+
+---
+
+<FLEET>
+## TERMINAL CODING FLEET — HEADLESS SUB-AGENT ORCHESTRATION
+
+When a coding task requires heavy autonomous implementation, multi-file refactoring, or iterative test repair, the orchestrator delegates to headless terminal coding agents (`trae-mini-fleet`):
+
+- **Master Coding Agents**:
+  - `trae-cli` (ByteDance SWE agent) — Structural exploration, AST search, multi-file editing, patch creation (`trae-cli run [TASK]`). **Critical:** the CLI binary on PATH is `trae-cli` (invoking `trae-agent` fails with command not found). Always pass task files (`-f <file>`) and `--console-type simple` for non-interactive execution.
+  - `mini` / `mini-live` (OpenAutoCoder Live-SWE-agent) — Test-driven reproduction, dynamic Python tool synthesis, iterative bash fix verification (`mini --config <cfg> --task [TASK] --yolo --exit-immediately`).
+- **Endpoint & Fallback Routing**: All fleet agents route exclusively through the **Ollama endpoint shim** (`http://localhost:11434/v1`) using model **`local-router/fallback-models`**. Local-router handles the 24-step provider fallback cascade, rate-limiting, and PQC authentication transparently. Sub-agents never receive, store, or manage raw API keys.
+- **Isolation Mandate**: Every sub-agent runs in its own dedicated git worktree (`git worktree add -b <branch> ../<slug>`). Sub-agents NEVER commit directly to `main` or operate in the orchestrator's working tree.
+- **Review & Verify**: The orchestrator inspects the generated diff/patch, validates syntax/tests, coordinates merge back to the parent branch, and cleans up the worktree.
+- Specification & Operational Playbook: `.agents/skills/trae-mini-fleet/SKILL.md`.
+</FLEET>
 
 ---
 

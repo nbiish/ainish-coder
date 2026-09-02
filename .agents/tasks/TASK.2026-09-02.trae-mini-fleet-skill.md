@@ -11,9 +11,13 @@
 4. Holds a single-sentence installation directive line for each repository if not on the system.
 5. Update all references in `README.md`, `src/help.sh`, and `.agents/skills/gstack-coder/SKILL.md`.
 
-## Architecture & Integration
-- **Orchestration Agent**: Calling agent evaluates issues, scaffolds worktrees, assigns tasks, verifies patches, runs tests, and integrates code.
-- **Headless Terminal Agents**:
-  - `mini` / `mini-live` with `livesweagent.yaml` configuration.
-  - `trae-cli run` with `--config-file` or command line options.
-- **Local-Router Shim**: Single Ollama-compatible endpoint proxying model `local-router/fallback-models`. No per-agent multi-provider complexity.
+
+## Phase 2: Expert Harness Documentation & Governing Contracts
+- Documented expert harness playbook in `.agents/skills/trae-mini-fleet/SKILL.md`:
+  - Resolved `trae-cli` binary identity vs non-existent `trae-agent` command.
+  - Formulated robust task file dispatch pattern (`-f <task_file>`).
+  - Added 7-phase operational playbook (pre-flight, worktree scaffold, framing, non-blocking dispatch, patch triage, autonomous recovery, cleanup).
+  - Outlined common pitfalls and headless guardrails.
+- Added `<FLEET>` section and `<TASK_PRIMER>` entries to `AGENTS.md` (repo-internal contract).
+- Added `<FLEET>` section and `<TASK_PRIMER>` entries to `AGENTS.deployed.md` and `src/templates/AGENTS.deployed.md` (project-agnostic contract).
+
