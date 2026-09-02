@@ -16,10 +16,10 @@ The calling AI agent acts as the **Master Orchestration Agent**, dispatching spe
 ## 1. Architecture Overview
 
 ```
-Calling Agent (Master Orchestrator)
+Calling Agent (Master Orchestrator — Antigravity / Claude / Codex / Qwen)
   │
-  ├─ 1. Analyzes high-level task & decomposes into discrete, testable units
-  ├─ 2. Creates isolated Git Worktree per dispatch (one dispatch = one worktree)
+  ├─ 1. Evaluates operator goal & decomposes into discrete, testable coding units
+  ├─ 2. Isolates execution in a dedicated Git Worktree (one dispatch = one worktree)
   ├─ 3. Selects optimal headless terminal agent:
   │      ├─ live-swe-agent  (interactive debugging, reproduction scripts, tool synthesis)
   │      └─ trae-agent      (AST code navigation, multi-file refactoring, patch extraction)
@@ -29,8 +29,8 @@ Calling Agent (Master Orchestrator)
   │      Model:     local-router/fallback-models
   │      (Handles 24-step fallback cascade, rate-limits, and provider auth transparently)
   │
-  ├─ 5. Executes agent headlessly in worktree (non-interactive, batch mode)
-  ├─ 6. Reviews git diff, trajectory logs, and runs quality verification gates
+  ├─ 5. Executes agent headlessly in worktree (non-interactive, batch mode, logged)
+  ├─ 6. Harvests patch & trajectory, runs quality verification gates & tests
   └─ 7. Merges verified changes & cleans up worktree
 ```
 
@@ -44,57 +44,120 @@ The fleet is comprised of two expert terminal-based coding engines:
 - **Repository:** [https://github.com/OpenAutoCoder/live-swe-agent](https://github.com/OpenAutoCoder/live-swe-agent)
 - **Installation Directive:** If live-swe-agent (or mini-swe-agent) is not installed on the system, clone and install it from https://github.com/OpenAutoCoder/live-swe-agent via `uv` or `pip` (e.g. `uv tool install mini-swe-agent` or `pip install -e .`).
 - **Core Strengths:**
-  - Dynamic tool synthesis: creates Python helper scripts on the fly to solve task-specific problems.
-  - Test-driven problem reproduction: establishes reproduction scripts before making edits.
-  - Step-by-step verification and autonomous bash feedback loop.
-- **Headless Execution Pattern:**
-  - Invoke non-interactively using `--yolo` and `--exit-immediately`.
+  - **Dynamic Tool Synthesis:** Writes temporary Python helper scripts at runtime to investigate complex bugs.
+  - **Test-Driven Problem Reproduction:** Generates reproducing test cases before altering production code.
+  - **Iterative Bash Verification:** Executes in a continuous action/observation loop until tests pass.
+- **CLI Invocations:**
+  - Standard command: `mini --config <config.yaml> --task "<task>" --yolo --exit-immediately`
+  - Vendor wrapper: `mini-live --task "<task>" --yolo` (loads `~/.config/mini-swe-agent/live-swe-agent.yaml`).
 
 ### 2. Trae-Agent (`trae-cli`)
 - **Repository:** [https://github.com/bytedance/trae-agent](https://github.com/bytedance/trae-agent)
 - **Installation Directive:** If trae-agent is not installed on the system, clone and install it from https://github.com/bytedance/trae-agent via `uv` (e.g. `git clone https://github.com/bytedance/trae-agent.git && cd trae-agent && uv sync --all-extras && uv tool install .` or `pip install -e .`).
+- **CRITICAL HARNESS NOTE:** The binary installed on PATH is **`trae-cli`** (invoking `trae-agent` directly fails with `zsh: command not found: trae-agent`).
 - **Core Strengths:**
-  - ByteDance's LLM-driven software engineering agent.
-  - Structural codebase exploration, AST symbol lookup, and repository-level issue resolution.
-  - Clean patch generation (`--patch-path`) and trajectory tracking (`--trajectory-file`).
-- **Headless Execution Pattern:**
-  - Invoke non-interactively using `trae-cli run` with `--console-type simple`, specifying `-w <worktree>` and `--max-steps`.
+  - **Structural Codebase Navigation:** Built-in tools for AST search, symbol inspection, and directory mapping.
+  - **Multi-File Architectural Refactoring:** Excels at broad edits across multiple interconnected packages.
+  - **Patch & Trajectory Generation:** Natively outputs standalone unified diffs (`--patch-path`) and JSON action trajectories (`--trajectory-file`).
+- **CLI Invocations:**
+  - Headless batch mode: `trae-cli run -f <task_file> --console-type simple ...`
 
 ---
 
 ## 3. Local-Router Single Config Proxy / Shim
 
-All agents in the fleet connect exclusively through the **Ollama endpoint shim** hosted by `local-router`:
+All fleet sub-agents connect exclusively through the **Ollama endpoint shim** hosted by `local-router`:
 
 - **Endpoint URL:** `http://localhost:11434/v1` (OpenAI-compatible) or `http://localhost:11434` (Ollama native API).
 - **Target Model:** `local-router/fallback-models`
-- **Key / Auth:** `local-router` (or any non-empty bearer token; credentials are held upstream by the PQC bundle).
+- **Authentication Key:** `local-router` (or any non-empty placeholder string; upstream API keys are securely managed via the PQC secrets bundle).
 
-### Why the Local-Router Shim?
-1. **Zero Subagent Multi-Provider Logic:** Terminal agents do not need complex multi-provider retry loops or hardcoded keys.
-2. **24-Step Auto-Failover:** If a primary provider experiences rate-limiting, downtime, or context exhaustion, `local-router` seamlessly cascades (Ollama Cloud → NIM → Free-tier → Subscriptions → Paid API backstops).
-3. **No Plaintext Secrets:** Sub-agents never touch raw API keys on disk or in command arguments; traffic routes through the local loopback proxy.
+### Architectural Advantages
+1. **Zero Client Multi-Provider Complexity:** Sub-agents require no provider fallback logic, rate-limit retry loops, or multi-key rotating configurations.
+2. **24-Step Transparent Cascade:** When a primary provider fails, rate-limits, or exhausts its context window, `local-router` automatically routes to the next model in the curated chain:
+   ```
+   Ollama Cloud → NIM → Free-tier (Cline/Kilo/Zen) → Modal → Nous → Subscriptions/OAuth → Z.ai/Xiaomi → Pioneer → Go/CommandCode → Nebius/Wafer → Paid backstops (ZenMux/OpenRouter)
+   ```
+3. **No Plaintext Secret Leakage:** Sub-agents never receive real API keys on disk or in command-line arguments. All egress calls stay on loopback `localhost:11434`.
 
 ---
 
-## 4. Headless Dispatch Specifications
+## 4. Expert Dispatch Patterns & Harvester Architecture
 
-### A. Dispatching Live-SWE-Agent (`mini` / `mini-live`)
+### Pattern A: Trae-Agent Headless Dispatch (`trae-cli run`)
 
-Generate a temporary YAML configuration that binds LiteLLM to the local-router Ollama endpoint, then execute `mini`:
+When dispatching `trae-cli`, **always use a task file (`-f <file>`)** rather than raw command-line string arguments. This prevents shell quoting failures when tasks contain backticks, quotes, or code snippets.
+
+```bash
+dispatch_trae_agent() {
+    local task_content="$1"
+    local workdir="${2:-$(pwd)}"
+    local max_steps="${3:-30}"
+    local slug
+    slug=$(basename "$workdir")
+
+    local task_file="/tmp/trae_task_${slug}.md"
+    local patch_file="${workdir}/trae_solution.patch"
+    local traj_file="${workdir}/trae_trajectory.json"
+    local log_file="/tmp/trae_exec_${slug}.log"
+
+    # Write task specification cleanly
+    cat > "$task_file" <<EOF
+$task_content
+EOF
+
+    echo "[Orchestrator] Dispatching trae-cli in workdir: $workdir"
+    echo "[Orchestrator] Logs: $log_file"
+
+    trae-cli run \
+      -f "$task_file" \
+      --provider openai \
+      --model-base-url "http://localhost:11434/v1" \
+      --model "local-router/fallback-models" \
+      --api-key "local-router" \
+      --working-dir "$workdir" \
+      --max-steps "$max_steps" \
+      --console-type simple \
+      --patch-path "$patch_file" \
+      --trajectory-file "$traj_file" > "$log_file" 2>&1
+
+    local exit_code=$?
+    rm -f "$task_file"
+
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[Orchestrator] trae-cli exited with code $exit_code. Check $log_file"
+        return $exit_code
+    fi
+
+    echo "[Orchestrator] trae-cli finished successfully."
+    if [[ -f "$patch_file" && -s "$patch_file" ]]; then
+        echo "[Orchestrator] Generated patch: $patch_file"
+    fi
+}
+```
+
+### Pattern B: Live-SWE-Agent Headless Dispatch (`mini` / `mini-live`)
+
+Live-SWE-agent requires non-interactive flags (`--yolo --exit-immediately`) and a dynamic configuration specifying the local-router Ollama provider:
 
 ```bash
 dispatch_live_swe_agent() {
-    local task="$1"
+    local task_content="$1"
     local workdir="${2:-$(pwd)}"
+    local step_limit="${3:-30}"
+    local slug
+    slug=$(basename "$workdir")
+
     local temp_config
     temp_config=$(mktemp /tmp/liveswe-config.XXXXXX.yaml)
-    trap 'rm -f "$temp_config"' EXIT
+    local log_file="/tmp/liveswe_exec_${slug}.log"
+    local traj_file="${workdir}/liveswe_trajectory.json"
 
+    # Dynamic configuration incorporating local-router Ollama shim
     cat > "$temp_config" <<EOF
 agent:
   mode: yolo
-  step_limit: 30
+  step_limit: $step_limit
   cost_limit: 0.0
 model:
   model_name: "ollama/local-router/fallback-models"
@@ -112,107 +175,117 @@ environment:
     TQDM_DISABLE: "1"
 EOF
 
+    echo "[Orchestrator] Dispatching Live-SWE-agent in workdir: $workdir"
+    echo "[Orchestrator] Logs: $log_file"
+
     (
         cd "$workdir" || exit 1
         OPENAI_API_BASE="http://localhost:11434/v1" \
         OLLAMA_API_BASE="http://localhost:11434" \
         mini \
           --config "$temp_config" \
-          --task "$task" \
+          --task "$task_content" \
+          --output "$traj_file" \
           --yolo \
-          --exit-immediately
+          --exit-immediately > "$log_file" 2>&1
     )
+    local exit_code=$?
+    rm -f "$temp_config"
+
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[Orchestrator] mini exited with code $exit_code. Check $log_file"
+        return $exit_code
+    fi
+
+    echo "[Orchestrator] Live-SWE-agent finished successfully."
 }
-```
-
-### B. Dispatching Trae-Agent (`trae-cli`)
-
-Invoke `trae-cli run` pointing directly to the Ollama endpoint with the simple console:
-
-```bash
-dispatch_trae_agent() {
-    local task="$1"
-    local workdir="${2:-$(pwd)}"
-    local patch_output="${workdir}/trae_solution.patch"
-    local trajectory_output="${workdir}/trae_trajectory.json"
-
-    trae-cli run "$task" \
-      --provider openai \
-      --model-base-url "http://localhost:11434/v1" \
-      --model "local-router/fallback-models" \
-      --api-key "local-router" \
-      --working-dir "$workdir" \
-      --max-steps 30 \
-      --console-type simple \
-      --patch-path "$patch_output" \
-      --trajectory-file "$trajectory_output"
-}
-```
-
-Alternatively, configure `trae_config.yaml` dynamically in the dispatch worktree:
-
-```yaml
-provider: "openai"
-model: "local-router/fallback-models"
-model_base_url: "http://localhost:11434/v1"
-api_key: "local-router"
-working_dir: "."
-max_steps: 30
-console_type: "simple"
 ```
 
 ---
 
-## 5. Orchestration Workflow & Worktree Isolation
+## 5. Master Orchestrator Operational Playbook
 
-**Fundamental Rule: One dispatch = One isolated worktree.** Never run headless agents on the current working branch or directly on `main`.
+Any agent harness (Claude, Antigravity, OpenCode, Codex) must execute the following 7-phase loop when mastering this skill:
 
-```
-Orchestrator Lifecycle:
-┌────────────────────────────────────────────────────────┐
-│ 1. Create task worktree:                               │
-│    git worktree add -b feat/<slug> ../<slug> HEAD      │
-└──────────────────────────┬─────────────────────────────┘
-                           │
-┌──────────────────────────▼─────────────────────────────┐
-│ 2. Select Agent & Dispatch Headlessly:                 │
-│    - Bug / reproduction / test fix → live-swe-agent    │
-│    - Feature / multi-file / refactor → trae-agent      │
-└──────────────────────────┬─────────────────────────────┘
-                           │
-┌──────────────────────────▼─────────────────────────────┐
-│ 3. Orchestrator Inspection & Verification:             │
-│    - git diff / git status in worktree                 │
-│    - Verify patch compiles, tests pass, linter clean   │
-└──────────────────────────┬─────────────────────────────┘
-                           │
-┌──────────────────────────▼─────────────────────────────┐
-│ 4. Integration & Worktree Cleanup:                     │
-│    - Merge task branch into main branch after verify   │
-│    - git worktree remove ../<slug>                     │
-│    - git branch -d feat/<slug>                         │
-└────────────────────────────────────────────────────────┘
+### Phase 1: Pre-Flight Health Check
+Verify that the local-router Ollama proxy is up and responsive before spawning any subagent:
+```bash
+curl -s http://localhost:11434/v1/models | grep -q "data" || {
+    echo "ERROR: Local-router Ollama endpoint is not responding on port 11434."
+    exit 1
+}
 ```
 
-### Agent Selection Matrix
+### Phase 2: Git Worktree Scaffolding
+Never execute a subagent in the main repository root or active working tree. Create an isolated sibling worktree:
+```bash
+git worktree add -b feat/<scope>-<slug> ../<slug> HEAD
+```
+
+### Phase 3: Task Framing & Prompt Formulation
+High-performing subagents require deterministic constraints. Structure the task description into:
+1. **Context & Scope:** Exactly which files or modules to investigate.
+2. **Objective:** What behavior to fix, feature to implement, or test to satisfy.
+3. **Acceptance Criteria:** Precise test commands (e.g. `npm test`, `pytest tests/test_core.py`, `cargo test`).
+4. **Completion Directive:** Instruct the agent to run the tests and verify that `git status` shows clean, working code before exiting.
+
+### Phase 4: Non-Blocking Dispatch & Monitoring
+Dispatch the agent using the patterns above. Redirect all terminal output to `/tmp/<agent>-<slug>.log`. In an agent harness:
+- Use asynchronous process management or moderate tool timeout thresholds.
+- Avoid polling loops; monitor completion via exit code or file creation.
+
+### Phase 5: Patch Inspection & Quality Gates
+Once the subagent completes, the orchestrator inspects the worktree:
+```bash
+cd ../<slug>
+git status --short
+git diff
+```
+Run repository quality gates:
+- Security gate: Zero-Trust & PQC secret check (`python3 bin/security_gate.py`).
+- Test suite: Native test runners (`pytest`, `cargo test`, `npm test`).
+- Linter / Types: `cargo clippy`, `tsc`, `ruff check`.
+
+### Phase 6: Autonomous Error Recovery & Cross-Agent Handoff
+If a subagent fails or gets stuck:
+- **Case 1: Trae hits max steps or produces syntax errors:**
+  Inspect `trae_trajectory.json` to identify where it halted. Extract any partial changes into a commit, then dispatch `live-swe-agent` with a task to write a targeted reproduction script and fix the remaining failures.
+- **Case 2: Live-SWE enters a tool-creation loop without fixing the root cause:**
+  Terminate the process. Read its latest tool attempt in `liveswe_trajectory.json`. Frame a concise prompt for `trae-cli` targeting the exact files identified by Live-SWE.
+- **Case 3: Both agents exhausted:**
+  Discard the worktree cleanly (`git worktree remove --force ../<slug>`) and report findings back to the operator without polluting the primary codebase.
+
+### Phase 7: Integration & Cleanup
+When all tests and security gates pass:
+```bash
+cd <main-repo-path>
+git merge feat/<scope>-<slug>
+git worktree remove ../<slug>
+git branch -d feat/<scope>-<slug>
+```
+
+---
+
+## 6. Agent Selection Matrix
 
 | Task Characteristics | Recommended Agent | Rationale |
 |----------------------|-------------------|-----------|
-| Failing tests / bug reproduction | `live-swe-agent` | Creates reproduction script first; iterates until passing. |
+| Failing tests / bug reproduction | `live-swe-agent` | Creates reproduction script first; iterates until test passes. |
 | Complex algorithmic debugging | `live-swe-agent` | Dynamic tool synthesis allows writing custom Python debug probes. |
-| Broad repo structure search & AST edits | `trae-agent` | Optimized for large codebase navigation and symbol resolution. |
-| Clean patch generation for review | `trae-agent` | Native `--patch-path` exports standalone unified diffs. |
-| Full-stack multi-file implementation | Trae → Live-SWE | Trae scaffolds architecture; Live-SWE verifies & hardens tests. |
+| Broad repo structure search & AST edits | `trae-agent` (`trae-cli`) | Optimized for large codebase navigation, symbol lookup, and AST edits. |
+| Clean patch generation for review | `trae-agent` (`trae-cli`) | Native `--patch-path` exports standalone unified diffs. |
+| Multi-file architectural refactoring | `trae-agent` (`trae-cli`) | Rapid cross-package symbol resolution and batch file updates. |
+| End-to-end full-stack feature | Trae → Live-SWE | Trae scaffolds architecture; Live-SWE verifies & hardens test coverage. |
 
 ---
 
-## 6. Operational Guardrails
+## 7. Common Pitfalls & Operational Guardrails
 
-1. **Verify Endpoint Health First:** Before dispatching, ensure `local-router` is up on port 11434:
-   ```bash
-   curl -s http://localhost:11434/v1/models | grep -q "fallback-models" || echo "Warning: fallback-models not ready"
-   ```
-2. **Enforce Step Limits:** Always supply an explicit `--max-steps` (recommended 20–35) to prevent infinite loops.
-3. **Headless Output Logging:** Redirect subagent stdout/stderr to `/tmp/<agent>-<slug>.log` so terminal traces can be reviewed without polluting the orchestrator context.
-4. **Never Hardcode Secrets:** Let `local-router` handle authentication. Use `local-router` as the placeholder API key string.
-5. **Clean Worktree State:** If a subagent dispatch fails or produces broken code, simply discard the worktree (`git worktree remove --force ../<slug>`) without harming the primary repository state.
+| Pitfall | Impact | Prevention / Remedy |
+|---------|--------|---------------------|
+| Invoking `trae-agent` | `zsh: command not found: trae-agent` | **Always invoke `trae-cli`**. |
+| Omitting non-interactive flags | Process hangs waiting for stdin | Use `--console-type simple` on `trae-cli` and `--yolo --exit-immediately` on `mini`. |
+| Unescaped task arguments | Shell syntax error on quotes/backticks | Write task prompt to `/tmp/task.md` and pass via `trae-cli run -f /tmp/task.md`. |
+| Running directly in main tree | Branch pollution / git conflicts | **Mandatory:** `git worktree add -b <branch> ../<slug>`. |
+| Passing raw API keys | Leaked secrets / PQC violation | Direct traffic to `http://localhost:11434/v1` with placeholder key `local-router`. |
+| Unbounded step counts | Agent burns tokens in loops | Always set `--max-steps 20-35` for Trae and `step_limit: 30` for Live-SWE. |
