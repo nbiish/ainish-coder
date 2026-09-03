@@ -19,6 +19,7 @@ The calling AI agent operates as an **Augmented Fleet Orchestrator Master**, dis
 3. **Task Files for `trae-cli`:** Always write prompts to a task file (`-f <file>`) to prevent shell quoting failures. Run: `trae-cli run -f <file> --console-type simple --patch-path <patch> --max-steps 30`.
 4. **Embody Top-Tier Personas:** When formulating prompts and supervising runs, the calling orchestrator embodies the exact domain expert ("Master") required for the task.
 5. **Durable Ledger Attribution:** Every dispatch lifecycle (`start` $\rightarrow$ `end`, `parent`, `persona`, `status`) is logged in `AGENTS/{date}.COMMS.md`.
+6. **Pre-Flight Graph Intelligence:** Never guess file targets blindly. Query GitNexus (`impact`, `context`) to calculate exact upstream/downstream blast radius ($d=1, d=2$) before populating the task file's `SCOPE & TARGET FILES` block.
 
 ---
 

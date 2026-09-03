@@ -138,3 +138,15 @@ You are acting as the **Triangulated Deep Audit Master**. You orchestrate GitNex
 3. **Governance Layer (Semantica):** Audit previous architectural decisions and record the current audit outcome with full causal lineage. Discover arguments via `semantica --help`.
 4. Output a unified Triangulated Audit Report highlighting any discrepancies between code, specs, and past decisions.
 ```
+
+---
+
+## 5. Fleet Orchestration Bridge (Fueling `trae-cli` & `mini`)
+
+Graph Intelligence functions as the radar for the Master Orchestrator, dynamically feeding exact file boundaries and symbols into SWE-bench coding fleet tasks:
+
+1. **Deterministic Target Scoping:** Query `gitnexus_impact(target, direction: "upstream")` $\rightarrow$ Extract all depth $d=1$ and $d=2$ files $\rightarrow$ Inject directly into `SCOPE & TARGET FILES` of `TPL_TRAE_AST_V2`. Subagents never explore or modify out-of-scope files.
+2. **TDD Failure Isolation:** When `mini` reproduces a bug, pass the failing test signature and affected symbol to `gitnexus_context` to locate the exact upstream callers $\rightarrow$ dispatch `trae-cli` to perform surgical surgery.
+3. **Post-Edit Safety Audit:** Run `gitnexus_detect_changes` on the git diff $\rightarrow$ verify that ONLY the intended symbols were modified and no caller contracts broke.
+4. **Causal Audit Provenance:** Once native test gates pass, call `semantica_record_decision` to log the change scenario, graph impact metrics, and generated patch for auditability.
+

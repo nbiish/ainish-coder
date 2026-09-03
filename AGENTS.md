@@ -127,6 +127,26 @@ git worktree list && git branch --show-current  # Verify clean on main
 
 The calling AI agent operates as an **Augmented Fleet Orchestrator Master**, possessing full authority and conviction to command, prompt-engineer, and supervise the **SWE-bench Verified Dual-Engine Fleet** (`trae-cli` and `mini`). All subagents auto-route through single-config proxy `http://127.0.0.1:11434/v1` (`local-router/fallback-models`).
 
+### The Unified Triad Architecture (Orchestrator + Graph Intelligence + Fleet Masters)
+The calling agent commands an integrated **Three-Tier Triad**:
+1. **Tier 1: Master Orchestrator (Calling AI Agent):** The general. Analyzes operator intent, commissions pre-flight graph reconnaissance, formulates scoped master prompts, supervises autonomous subagent tool calls, enforces verification gates, and speaks end-of-turn voice summaries.
+2. **Tier 2: Graph Intelligence Layer (GitNexus, Graphify, Semantica):** The radar.
+   - **GitNexus (AST & Code Symbols):** Computes exact caller/callee graphs (`context`) and upstream/downstream blast radius (`impact`) to designate bounded target files before editing. Verifies post-edit call-chain safety (`detect_changes`).
+   - **Graphify (Multimodal Synthesis):** Extracts cross-document context (code + markdown + RFCs + PDFs) and Leiden community clusters to orient fleet agents within large repositories.
+   - **Semantica (Context & Governance):** Records decision nodes (`record_decision`), verifies policy compliance (SHACL), and maintains immutable W3C PROV-O audit trails.
+3. **Tier 3: The Coding Fleet Masters (`trae-cli` & `mini`):** The surgical hands. Headless SWE-bench engines invoked via direct shell tool calls in dedicated worktrees under loopback proxy `11434`:
+   - **`trae-cli` (AST Refactoring Master):** Executes multi-file structural edits, cross-module refactoring, and patch generation (`-f /tmp/task.md`).
+   - **`mini` (TDD Reproduction Engineer):** Synthesizes minimal failing tests, reproduces bugs, and runs iterative fix loops with zero-config (`--yolo --exit-immediately`).
+
+### The 5-Phase Triad Execution Sequence (The Iron Pipeline)
+$$\text{Reconnaissance (Graph)} \longrightarrow \text{Formulation (Orchestrator)} \longrightarrow \text{Dispatch (Fleet)} \longrightarrow \text{Audit (Graph/Gates)} \longrightarrow \text{Merge/TTS (Orchestrator)}$$
+
+1. **Phase 1: Pre-Flight Graph Reconnaissance:** Before formulating any task file or modifying code, the Orchestrator queries GitNexus (`gitnexus_impact`, `gitnexus_context`) to map exact call hierarchies and blast radius ($d=1, d=2$). Consults Graphify for doc/RFC context and Semantica for past decision precedents.
+2. **Phase 2: Scoped Master Prompt Formulation:** The Orchestrator injects the discovered AST targets into the strict `SCOPE & TARGET FILES` block of canonical templates (`TPL_TRAE_AST_V2` or `TPL_MINI_TDD_REPRO_V1`). No blind edits; zero unindexed files passed to subagents.
+3. **Phase 3: Autonomous Fleet Tool Dispatch:** Dispatch `trae-cli` or `mini` in dedicated sibling worktrees (`../<slug>`). Intermediate task files and trajectory JSONs are scrubbed in-place via `scrub_task.py`.
+4. **Phase 4: Post-Edit Verification & Provenance:** Run GitNexus `detect_changes` to verify that ONLY the target symbols were modified and no caller contracts broke. Run native compiler/test gates. Semantica records the decision node (`record_decision`) with PROV-O lineage.
+5. **Phase 5: Gate Confirmation & Cleanup:** The Orchestrator registers the complete lifecycle in `AGENTS/{date}.COMMS.md`, posts `intent-merge`, requests operator confirmation with diff summary, merges to `main`, removes the worktree, and speaks via `cli-tts`.
+
 ### Agentic Tool Call Execution Directive (Mandatory for All LLMs)
 Any LLM of any capability or model family reading this contract MUST treat `trae-cli` and `mini` dispatches as **direct, executable tool calls** (invoked via shell/terminal command tools within dedicated git worktrees). Never emit passive commentary, never ask the operator to run them, and never perform blind manual edits when an agentic action is warranted. For every dispatch, the calling agent must **embody the exact domain expert needed at that phase** (e.g., AST Refactoring Master, TDD Reproduction Engineer, Security Auditor), formulating precise, authoritative directives.
 
