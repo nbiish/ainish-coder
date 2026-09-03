@@ -69,3 +69,15 @@ What would this governance / sovereignty master suggest? Maintain unified comms 
 What would this developer-experience / ergonomics master suggest? Confirm Windows PowerShell and batch wrappers invoke local-router smoothly.
 What would this agentic-orchestration / multi-model master suggest? Test the three-stage fallback cascade under the local-router fallback-models standard.
 What would this performance / resource-optimization master suggest? Keep subagent execution isolated in dedicated worktrees to prevent workspace bloat.
+
+## 2026-09-02T23:37:10Z
+Run ainish-coder --rules in target repositories to deploy clean single-file AGENTS.md rules.
+What would this adversarial / security master suggest? Ensure target repos receive the stripped deployed rules without exposing source maintainer boundaries.
+What would this privacy / data-protection regulatory master suggest? Verify no user paths or local environment credentials leak into distributed templates.
+What would this supply-chain / third-party-risk master suggest? Verify byte identity of distributed templates using SHA-256 digests across all target locations.
+What would this systems-architecture / devops / infrastructure master suggest? Target repositories now maintain a single canonical AGENTS.md contract with zero file duplication.
+What would this reliability / verification master suggest? Confirm redundant AGENTS.deployed.md files are safely pruned from target workspaces upon deployment.
+What would this governance / sovereignty master suggest? Protect maintainer contracts in root checkouts while distributing agnostic standards to external repos.
+What would this developer-experience / ergonomics master suggest? Eliminate developer confusion by keeping only AGENTS.md as the universal pair programming entrypoint.
+What would this agentic-orchestration / multi-model master suggest? Ensure AI swarms in downstream projects find a single governing AGENTS.md with unambiguous instructions.
+What would this performance / resource-optimization master suggest? Avoid redundant file lookups and disk reads by pruning stale template copies at target directories.

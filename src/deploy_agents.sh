@@ -10,16 +10,16 @@ deploy_agents() {
 
     validate_target_dir "$target_dir" || return 1
 
-    echo -e "${BRIGHT_BLUE}Deploying AGENTS.md${RESET}"
-
-    local source="${REPO_DIR}/src/templates/AGENTS.deployed.md"
-    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.deployed.md"
+    local source="${REPO_DIR}/AGENTS.deployed.md"
+    [[ -f "$source" ]] || source="${REPO_DIR}/src/templates/AGENTS.deployed.md"
     local dest="$target_dir/AGENTS.md"
 
     if [[ ! -f "$source" ]]; then
         echo -e "${BRIGHT_RED}Error: AGENTS.deployed.md template not found at $source${RESET}"
         return 1
     fi
+
+    echo -e "${BRIGHT_BLUE}Deploying AGENTS.deployed.md -> $dest${RESET}"
 
     # Check if we are trying to deploy the file onto itself
     if [[ "$source" -ef "$dest" ]]; then
@@ -29,9 +29,9 @@ deploy_agents() {
 
     # Guard: never overwrite the ainish-coder maintainer contract.
     # Any checkout of this repository (main repo or a worktree) carries
-    # bin/ainish-coder + src/templates/AGENTS.deployed.md; targets receive
+    # bin/ainish-coder + AGENTS.deployed.md; targets receive
     # the deployed rules doc, source checkouts keep their own AGENTS.md.
-    if [[ -f "$target_dir/bin/ainish-coder" && -f "$target_dir/src/templates/AGENTS.deployed.md" ]]; then
+    if [[ -f "$target_dir/bin/ainish-coder" && ( -f "$target_dir/AGENTS.deployed.md" || -f "$target_dir/src/templates/AGENTS.deployed.md" ) ]]; then
         echo -e "${YELLOW}⏭️  Skipping AGENTS.md deployment: $target_dir is an ainish-coder checkout (maintainer AGENTS.md stays)${RESET}"
         return 0
     fi
@@ -61,8 +61,8 @@ deploy_agents() {
         return 1
     fi
 
-    echo -e "${GREEN}✓ Created AGENTS.md at $target_dir${RESET}"
-    echo -e "${BRIGHT_GREEN}✅ AGENTS.md (project-agnostic rules) is ready for all AI tools${RESET}"
+    echo -e "${GREEN}✓ Deployed AGENTS.deployed.md as $dest${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ AGENTS.md (from AGENTS.deployed.md) is ready for all AI tools${RESET}"
 
     return 0
 }
@@ -83,8 +83,8 @@ deploy_agents_maintainer() {
 # (src/templates/AGENTS.deployed.md) — the document distributed to every
 # target repository's AGENTS.md.
 deploy_agents_global() {
-    local source="${REPO_DIR}/src/templates/AGENTS.deployed.md"
-    [[ -f "$source" ]] || source="${REPO_DIR}/AGENTS.deployed.md"
+    local source="${REPO_DIR}/AGENTS.deployed.md"
+    [[ -f "$source" ]] || source="${REPO_DIR}/src/templates/AGENTS.deployed.md"
     if [[ ! -f "$source" ]]; then
         echo -e "${BRIGHT_RED}Error: AGENTS.deployed.md template not found at $source${RESET}"
         return 1
