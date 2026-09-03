@@ -182,16 +182,19 @@ main() {
 
             if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
                 # Headless: persisted selection governs; no prompts.
-                deploy_skills "$target_dir"
+                deploy_skills "$target_dir" || \
+                    print_warning "Skills deployment reported errors — continuing with remaining rules steps"
                 _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
             elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
                 # Interactive: open the toggle UI first so this run's choices
                 # persist for every future --rules/--skills/--skills-sync.
                 _skills_toggle_ui "$target_dir" && {
                     if _confirm_symlink; then
-                        AINISH_LINK_MODE="true" deploy_skills "$target_dir"
+                        AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
+                            print_warning "Skills deployment reported errors — continuing with remaining rules steps"
                     else
-                        AINISH_LINK_MODE="false" deploy_skills "$target_dir"
+                        AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
+                            print_warning "Skills deployment reported errors — continuing with remaining rules steps"
                     fi
                 }
                 _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
