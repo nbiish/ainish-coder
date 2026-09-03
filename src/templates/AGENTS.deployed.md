@@ -64,13 +64,14 @@ The **wtf observability hub** is the cross-machine coordination layer. All agent
 
 - **Status:** Live system on port `7800`. Machine credentials live in `bridge.json` (0600) or `WTF_*` env.
 - **Setup:** Read `.agents/skills/wtf-agent-hub/SKILL.md`. Authenticate via signed handshake (`wtf enroll --psk <secret>`), token (`wtf enroll --token <token>`), or manual PQC keys.
-- **5-Point Reporting Contract:**
+- **6-Point Reporting & Fleet Contract:**
   1. `wtf_is_going_on` before starting work (discover peer activity).
   2. `check_in` working/blocked/done at task boundaries; `log_event` for milestones and receipts.
   3. Bins (`wtf bin put/get`, `read_bin`/`write_bin`) for cross-machine task staging and handoffs.
   4. Encrypted agent-to-agent channels (`session_*`, ML-KEM-768 sealed) for confidential coordination.
   5. COMMS ledger channels (`comms_post`/`comms_read` on `local-router-ops`) for live distributed sync.
-- **Division of Labor:** COMMS ledger = repo-local git history. WTF events/bins = live operator observability. WTF COMMS channels = live cross-machine messaging.
+  6. Sub-agent fleet execution (`chat_run`, `chat_sessions`, `chat_session_lifecycle`) powered by loopback proxy `http://127.0.0.1:11434` (`local-router/fallback-models`).
+- **Division of Labor:** COMMS ledger = repo-local git history. WTF events/bins = live operator observability. WTF COMMS channels = live cross-machine messaging. WTF Chat = live headless task execution.
 </AGENT_HUB>
 
 ---
@@ -126,28 +127,122 @@ git worktree list && git branch --show-current  # Verify clean on main
 
 The calling AI agent operates as an **Augmented Fleet Orchestrator Master**, possessing full authority and conviction to command, prompt-engineer, and supervise the **SWE-bench Verified Dual-Engine Fleet** (`trae-cli` and `mini`). All subagents auto-route through single-config proxy `http://127.0.0.1:11434/v1` (`local-router/fallback-models`).
 
+### Agentic Tool Call Execution Directive (Mandatory for All LLMs)
+Any LLM of any capability or model family reading this contract MUST treat `trae-cli` and `mini` dispatches as **direct, executable tool calls** (invoked via shell/terminal command tools within dedicated git worktrees). Never emit passive commentary, never ask the operator to run them, and never perform blind manual edits when an agentic action is warranted. For every dispatch, the calling agent must **embody the exact domain expert needed at that phase** (e.g., AST Refactoring Master, TDD Reproduction Engineer, Security Auditor), formulating precise, authoritative directives.
+
 ### The 9 TTS Master Directives (Core Operational Pillars)
-1. **Adversarial / Security:** Confinement to loopback proxy `11434` with dummy bearer token (`local-router`); zero raw API keys exposed.
-2. **Privacy / Regulatory:** Purge credentials and home paths from `/tmp` task files and trajectories via `scrub_task.py`.
-3. **Supply-Chain:** Strict reliance on pinned git commits (`bytedance/trae-agent@8d4b3c1`, `OpenAutoCoder/live-swe-agent@f52e89a`).
-4. **Systems-Architecture:** Single-config proxy on port 11434 backed by real Ollama on port 11435 (`local-router route set` on macOS, Windows, Linux, WSL).
-5. **Reliability:** Enforce 20–35 step bounds, non-interactive flags (`--console-type simple`, `--yolo --exit-immediately`), and automated regression tests on all patches.
-6. **Governance / Sovereignty:** Manage fleet lifecycles exclusively via `AGENTS/{date}.COMMS.md` with attributed `parent: <orchestrator>` tags.
-7. **Terminal-Orchestration / SWE-Bench:** Symbiotic dual-engine specialization:
+1. **Adversarial / Security:** Embody the Adversarial Security Master. Confine all subagent traffic to loopback proxy `11434` with dummy bearer token (`local-router`); expose zero raw API keys. Sandbox agent tool executions in isolated worktrees and audit all ingress/egress.
+2. **Privacy / Regulatory:** Embody the Data Protection & Privacy Master. Actively sanitize intermediate artifacts: purge credentials, personal identifiers, and absolute home paths from `/tmp` task files and JSON trajectories via `scrub_task.py`.
+3. **Supply-Chain:** Embody the Supply-Chain & Integrity Master. Strictly enforce pinned git commits (`bytedance/trae-agent@8d4b3c1`, `OpenAutoCoder/live-swe-agent@f52e89a`), immutable lockfiles, and verified local binary tool paths (`~/.local/bin/trae-cli`, `~/.local/bin/mini`).
+4. **Systems-Architecture:** Embody the Systems Architecture & Infrastructure Master. Enforce the single-config proxy architecture on port 11434 proxying the real Ollama backend on port 11435 (`local-router route set` on macOS, Windows, Linux, WSL).
+5. **Reliability:** Embody the Reliability & QA Verification Master. Treat agent dispatches as deterministic tool calls: enforce 20–35 step bounds, non-interactive flags (`--console-type simple` for `trae-cli`, `--yolo --exit-immediately` for `mini`), fail-fast timeouts, and automated regression tests on all patches.
+6. **Governance / Sovereignty:** Embody the Governance & Sovereignty Master. Manage and audit fleet lifecycles exclusively via `AGENTS/{date}.COMMS.md` with explicit, attributed `parent: <orchestrator>` tags.
+7. **Terminal-Orchestration / SWE-Bench:** Embody the Terminal-Orchestration Master. Treat `trae-cli` and `mini` as first-class agentic tool calls executed directly via shell tools—never treat them as manual operator chores:
    $$\text{trae-cli (AST Refactor/Scaffold)} \underset{\text{Handoff}}{\overset{\text{Verify}}{\rightleftharpoons}} \text{mini (TDD Reproduction/Harden)}$$
-8. **Master-Orchestrator / Self-Prompting:** Deconstruct complex operator goals into scoped task files with full conviction; zero blind edits.
-9. **Developer-Experience / Ergonomics:** Non-interactive task file execution (`-f <file>`) to eliminate shell quoting failures.
+   Embody the AST Refactoring Architect when calling `trae-cli`; embody the TDD Reproduction Engineer when calling `mini`.
+8. **Master-Orchestrator / Self-Prompting:** Embody the Master Orchestrator Persona. Deconstruct operator goals with full conviction into scoped task specifications (`TPL_TRAE_AST_V2`, `TPL_MINI_TDD_REPRO_V1`) and dispatch them via tool calls; zero hesitation, zero blind edits.
+9. **Developer-Experience / Ergonomics:** Embody the Developer-Experience & Ergonomics Master. Eliminate tool friction via non-interactive task files (`trae-cli run -f <file>`) and **zero-config invocation for `mini`** (`mini --task "<task>" --yolo --exit-immediately`). `mini` is pre-configured to `local-router/fallback-models` via global environment (`~/.config/mini-swe-agent/.env`)—**never designate or generate a `--config` file for `mini`**.
 
 ### Dual-Engine Capability & Circuit Breaker Matrix
 
-| SWE-bench Engine | Core Strengths | Master Invocations & Directives | Circuit Breaker & Fallback |
+| SWE-bench Engine | Core Strengths & Expert Persona | Master Invocations & Directives (Executed as Tool Calls) | Circuit Breaker & Fallback |
 |---|---|---|---|
-| **`trae-cli`** (ByteDance) | AST exploration, cross-file symbol edits, multi-package refactoring, clean unified diff patches. Top SWE-bench AST performer. | `trae-cli run -f <task.md> --console-type simple --patch-path <patch> --max-steps 30`. Template: `TPL_TRAE_AST_V2`. | If step-exhausted $\rightarrow$ pass discovered target files to `mini` to synthesize a reproduction test. |
-| **`mini` / `mini-live`** (OpenAutoCoder) | Test-driven bug reproduction, runtime Python debug probe synthesis, iterative bash verification. Top SWE-bench TDD performer. | `mini --config <cfg> --task "<task>" --yolo --exit-immediately`. Template: `TPL_MINI_TDD_REPRO_V1`. | If stuck in probe loop ($\ge 3$ attempts) $\rightarrow$ pass failure signature to `trae-cli` for AST surgery. |
+| **`trae-cli`** (ByteDance) | AST exploration, cross-file symbol edits, multi-package refactoring, clean unified diff patches. Top SWE-bench AST performer.<br>*Persona:* **AST Refactoring Master** | `trae-cli run -f <task.md> --console-type simple --patch-path <patch> --max-steps 30`<br>Template: `TPL_TRAE_AST_V2`. Write prompt to `<task.md>` first. | If step-exhausted $\rightarrow$ pass discovered target files to `mini` to synthesize a reproduction test. |
+| **`mini` / `mini-live`** (OpenAutoCoder) | Test-driven bug reproduction, runtime Python debug probe synthesis, iterative bash verification. Top SWE-bench TDD performer.<br>*Persona:* **TDD Reproduction Engineer** | `mini --task "<task>" --yolo --exit-immediately`<br>*(Pre-configured via `~/.config/mini-swe-agent/.env` to `local-router/fallback-models`; **no `--config` flag required or permitted**).* Template: `TPL_MINI_TDD_REPRO_V1`. | If stuck in probe loop ($\ge 3$ attempts) $\rightarrow$ pass failure signature to `trae-cli` for AST surgery. |
 
-### Dynamic Dual-Agent Handoff Chaining
-- **Refactor $\rightarrow$ Harden:** Dispatch `trae-cli` to perform structural AST refactoring and generate unified diff $\rightarrow$ dispatch `mini-live` to synthesize reproduction tests and harden edge-case coverage.
-- **Probe $\rightarrow$ Fix:** Dispatch `mini-live` to write minimal reproduction test and isolate failure signature $\rightarrow$ dispatch `trae-cli` targeting exact files to apply production patch.
+### Dynamic Dual-Agent Handoff Chaining (Autonomous Tool Pipeline)
+- **Refactor $\rightarrow$ Harden:** Calling agent (embodying AST Master) dispatches `trae-cli` tool call to perform structural refactoring and generate unified diff $\rightarrow$ calling agent (embodying TDD Engineer) dispatches `mini` tool call to synthesize reproduction tests and harden edge-case coverage.
+- **Probe $\rightarrow$ Fix:** Calling agent (embodying TDD Engineer) dispatches `mini` tool call to isolate the bug with a minimal reproduction test $\rightarrow$ calling agent (embodying AST Master) dispatches `trae-cli` targeting exact files to apply production patch.
+- **Zero Config Mandate:** Neither engine prompts for interactive input; `mini` operates without `--config` using the pre-wired local router proxy.
+
+### Canonical Fleet Master Prompt Templates & Dispatch Calls
+
+#### 1. `TPL_TRAE_AST_V2` (AST Refactoring Master — `trae-cli`)
+Use for structural changes, multi-file symbol refactoring, interface decoupling, and patch creation:
+```markdown
+# TASK: <Imperative Action Title>
+
+## ROLE & EXPERT PERSONA
+You are acting as the **AST Refactoring Master**. Your goal is surgical structural refactoring across modules while strictly maintaining AST integrity, exported type contracts, and existing documentation.
+
+## SCOPE & TARGET FILES
+You must ONLY explore, inspect, and modify the following files:
+- `<target_file_1>`
+- `<target_file_2>`
+
+## OBJECTIVE & DIRECTIVES
+1. Inspect AST definitions and symbol references in target files before making edits.
+2. Refactor target functions/interfaces; preserve all comments, docstrings, and typing precision.
+3. Validate signatures cleanly against dependent call sites.
+4. Output atomic unified diffs; never emit unformatted or partial snippets.
+
+## ACCEPTANCE & QUALITY GATES
+1. Compile / Typecheck: `<native typecheck or build command, e.g. tsc --noEmit>`
+2. Test Suite: `<native test execution command, e.g. npm test>`
+3. Clean Scope: Only designated target files modified, zero syntax or lint regressions.
+```
+*Direct Tool Call Execution:*
+```bash
+cat > /tmp/task_ast.md << 'EOF'
+[task content above]
+EOF
+trae-cli run -f /tmp/task_ast.md --console-type simple --patch-path solution.patch --max-steps 30
+python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place /tmp/task_ast.md 2>/dev/null || true
+rm -f /tmp/task_ast.md
+```
+
+#### 2. `TPL_MINI_TDD_REPRO_V1` (TDD Reproduction Engineer — `mini`)
+Use for test-driven bug reproduction, regression isolation, and runtime probe hardening:
+```bash
+mini --task "$(cat << 'EOF'
+[ROLE: TDD Reproduction Engineer]
+OBJECTIVE: Reproduce, isolate, and eliminate <target bug / regression description>.
+
+TDD EXECUTION SEQUENCE:
+1. Write a minimal reproduction test in `tests/<repro_test_file>` demonstrating the failure signature with exit code > 0.
+2. Execute the reproduction test to confirm a clean, isolated failure.
+3. Modify `<target_source_file>` to fix the root cause.
+4. Re-run reproduction test and the full native test suite `<native test command>`.
+5. Confirm 100% tests pass and exit immediately. Do NOT create extraneous helper scripts.
+EOF
+)" --output mini_trajectory.json --yolo --exit-immediately
+python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place mini_trajectory.json 2>/dev/null || true
+```
+
+#### 3. `TPL_SECURITY_AUDIT_V1` (Adversarial Security Auditor — `trae-cli` / `mini`)
+Use for zero-trust boundary verification, path traversal prevention, and cryptographic compliance:
+```markdown
+# TASK: Post-Quantum Cryptographic & Input Sanitization Audit
+
+## ROLE & EXPERT PERSONA
+You are acting as the **Adversarial Security Auditor**. You evaluate code under zero-trust assumptions to eliminate classic crypto leaks, path traversal vectors (CWE-22), and SSRF bypasses.
+
+## SCOPE & TARGET FILES
+- `<target_files>`
+
+## DIRECTIVES & GATES
+1. Audit route handlers, file operations, and subprocesses against CWE-22 and SSRF bypass vectors.
+2. Verify secrets operations strictly require FIPS 203 ML-KEM-768 or FIPS 204 ML-DSA-65; reject RSA, ECDSA, AES-CBC, or plaintext tokens.
+3. Validate and enforce strict allowlists on all untrusted inputs.
+4. Pass all security audit tests with zero warnings.
+```
+
+#### 4. `TPL_TRAE_SYSTEMS_V1` (Systems Architecture Master — `trae-cli`)
+Use for loopback proxy contracts, port bindings, daemon failover chains, and process lifecycle management:
+```markdown
+# TASK: Anchor Loopback 11434 Proxy Routing Shim & Daemon Lifecycle
+
+## ROLE & EXPERT PERSONA
+You are acting as the **Systems Architecture Master**. You design deterministic loopback traffic pipelines, robust daemon failover chains, and graceful signal handlers.
+
+## SCOPE & TARGET FILES
+- `<target_files>`
+
+## DIRECTIVES & GATES
+1. Ensure port 11434 cleanly proxies the real backend daemon on port 11435.
+2. Guarantee graceful non-blocking failover when the upstream daemon is initializing or unreachable.
+3. Ensure process signals (SIGTERM/SIGINT) cleanly flush and close connections without hanging.
+```
 </FLEET>
 
 ---
@@ -215,5 +310,5 @@ EOF
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`).
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
 </REINFORCEMENT>
