@@ -59,7 +59,7 @@ main() {
     # --headless second argument: skip ALL prompts, apply the persisted
     # selection as-is. Agent/CI path: `ainish-coder --skills <dir> --headless`
     # or `ainish-coder --rules <dir> --headless`.
-    local AINISH_HEADLESS="false"
+    local AINISH_HEADLESS="${AINISH_HEADLESS:-false}"
     local args=()
     local a
     for a in "$@"; do
@@ -169,7 +169,7 @@ main() {
             _TRACK_DETAIL="AGENTS.md+gitignore"
             echo -e "${BRIGHT_BLUE}Deploying Rules System to: $target_dir${RESET}"
 
-            if confirm_action "Deploy AGENTS.md (project-agnostic rules)?" "y"; then
+            if confirm_action "Deploy AGENTS.deployed.md as AGENTS.md (project-agnostic rules)?" "y"; then
                 _with_link_choice deploy_agents "$target_dir"
             fi
 
@@ -212,7 +212,7 @@ main() {
 
         --agents)
             _TRACK_DETAIL="AGENTS.md"
-            if confirm_action "Deploy AGENTS.md (project-agnostic rules)?" "y"; then
+            if confirm_action "Deploy AGENTS.deployed.md as AGENTS.md (project-agnostic rules)?" "y"; then
                 local agents_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_agents "$agents_dest"
             fi

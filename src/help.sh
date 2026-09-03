@@ -18,8 +18,8 @@ GLOBAL FLAGS:
                          and --skills with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md — the project-agnostic rules
-                              document, written as the target's single
+    --rules [TARGET_DIR]      Deploy AGENTS.deployed.md — the project-agnostic
+                              rules document, written as the target's single
                               governing AGENTS.md (defaults to copy for
                               safety) — plus
                               .gitignore (copy or symlink with --link), the
@@ -35,7 +35,7 @@ CORE COMMANDS:
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → project-agnostic rules template
                                 ~/.config/AGENTS.md → project-agnostic rules template
-    --agents [TARGET_DIR]     Deploy AGENTS.md only — the project-agnostic
+    --agents [TARGET_DIR]     Deploy AGENTS.deployed.md only — the project-agnostic
                               rules document, written as the target's single
                               governing AGENTS.md (defaults to copy for safety).
                               Also ensures global symlinks:
