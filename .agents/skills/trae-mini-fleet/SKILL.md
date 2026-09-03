@@ -36,7 +36,9 @@ The calling AI agent operates as an **Augmented Fleet Orchestrator Master**, dis
 
 ## 3. Concrete "Master" Prompt Examples
 
-### Master A: AST Refactoring Master (`trae-cli`)
+> **Argument Discovery Protocol:** Auxiliary options and flags evolve across engine releases. Beyond the canonical template invocations below, run `trae-cli --help` or `mini --help` to dynamically discover available arguments.
+
+### Master A: AST Refactoring Master (`trae-cli` — `TPL_TRAE_AST_V2`)
 Embody this persona when executing multi-package structural surgery or symbol refactoring.
 
 ```markdown
@@ -69,11 +71,13 @@ cat > /tmp/task_ast.md << 'EOF'
 [content above]
 EOF
 trae-cli run -f /tmp/task_ast.md --console-type simple --patch-path solution.patch --max-steps 30
+python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place /tmp/task_ast.md 2>/dev/null || true
+rm -f /tmp/task_ast.md
 ```
 
 ---
 
-### Master B: TDD Reproduction Engineer (`mini`)
+### Master B: TDD Reproduction Engineer (`mini` — `TPL_MINI_TDD_REPRO_V1`)
 Embody this persona when isolating a failing behavior, regression, or edge-case bug.
 
 ```bash
@@ -88,12 +92,13 @@ TDD EXECUTION SEQUENCE:
 4. Re-run `node --test tests/repro-backpressure.test.mjs` and the full suite `npm test`.
 5. Verify 100% tests pass and exit immediately. Do NOT create extraneous helper scripts.
 EOF
-)" --yolo --exit-immediately
+)" --output mini_trajectory.json --yolo --exit-immediately
+python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place mini_trajectory.json 2>/dev/null || true
 ```
 
 ---
 
-### Master C: Adversarial Security Auditor (`trae-cli` / `mini`)
+### Master C: Adversarial Security Auditor (`trae-cli` / `mini` — `TPL_SECURITY_AUDIT_V1`)
 Embody this persona to audit inputs, prevent injection, and enforce FIPS post-quantum cryptographic standards.
 
 ```markdown
@@ -119,7 +124,7 @@ You are acting as the **Adversarial Security Auditor**. You evaluate code under 
 
 ---
 
-### Master D: Systems Architecture Master (`trae-cli`)
+### Master D: Systems Architecture Master (`trae-cli` — `TPL_TRAE_SYSTEMS_V1`)
 Embody this persona when anchoring local loopback proxy contracts, endpoint shims, and service auto-start pipelines.
 
 ```markdown
