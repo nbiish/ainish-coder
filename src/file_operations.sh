@@ -65,32 +65,37 @@ deploy_path() {
     # Ensure parent directory exists
     local dest_parent
     dest_parent="$(dirname "$dest")"
-    mkdir -p "$dest_parent"
+    mkdir -p "$dest_parent" || return 1
 
     # Remove existing file/link/dir at destination
     if [[ -e "$dest" || -L "$dest" ]]; then
-        rm -rf "$dest"
+        rm -rf "$dest" || return 1
     fi
 
     if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then
         # Resolve source to absolute so symlinks survive directory moves
         local abs_src
-        abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd)/$(basename "$src")"
+        abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd)/$(basename "$src")" || return 1
         if [[ -d "$abs_src" ]]; then
-            ln -sfn "$abs_src" "$dest"
+            ln -sfn "$abs_src" "$dest" || return 1
         else
-            ln -sf "$abs_src" "$dest"
+            ln -sf "$abs_src" "$dest" || return 1
         fi
     else
         if [[ -d "$src" ]]; then
             # Copy the tree but strip the secrets surface (.env is
-            # local-only; .env.example distributes as the template).
-            cp -r "$src" "$dest"
-            rm -f "$dest/.env"
+            # local-only; .env.example distributes as the template) and
+            # runtime junk (__pycache__).
+            if ! cp -r "$src" "$dest"; then
+                return 1
+            fi
+            rm -f "$dest/.env" || true
+            rm -rf "$dest/__pycache__" || true
         else
-            cp "$src" "$dest"
+            cp "$src" "$dest" || return 1
         fi
     fi
+    return 0
 }
 
 # Deploy all files from a source directory into a destination directory.
@@ -101,11 +106,11 @@ deploy_path_contents() {
     local src_dir="$1"
     local dest_dir="$2"
 
-    mkdir -p "$dest_dir"
+    mkdir -p "$dest_dir" || return 1
 
     # Non-destructive mode: deploy only files that don't already exist
     if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
-        local skipped=0 deployed=0
+        local skipped=0 deployed=0 rc=0
         shopt -s dotglob nullglob
         for item in "$src_dir"/*; do
             [[ -e "$item" ]] || continue
@@ -113,15 +118,18 @@ deploy_path_contents() {
             name="$(basename "$item")"
             # Secrets never distribute: skill-local .env is a local-only
             # config surface (.env.example is the distributed template).
-            [[ "$name" == ".env" ]] && continue
+            # Runtime junk (__pycache__) never distributes either.
+            if [[ "$name" == ".env" || "$name" == "__pycache__" ]]; then
+                continue
+            fi
             if [[ -e "$dest_dir/$name" || -L "$dest_dir/$name" ]]; then
                 echo "  ⏭️  Skipping (already exists): $dest_dir/$name" >&2
                 ((skipped++)) || true
             else
                 if [[ -d "$item" ]]; then
-                    cp -r "$item" "$dest_dir/$name"
+                    cp -r "$item" "$dest_dir/$name" || rc=1
                 else
-                    cp "$item" "$dest_dir/$name"
+                    cp "$item" "$dest_dir/$name" || rc=1
                 fi
                 ((deployed++)) || true
             fi
@@ -133,39 +141,53 @@ deploy_path_contents() {
             echo "  ⏭️  Skipped $skipped existing file(s)" >&2
         fi
         shopt -u dotglob nullglob
-        return 0
+        return "$rc"
     fi
 
     if [[ "${AINISH_LINK_MODE:-false}" == "true" ]]; then
-        local abs_src
-        abs_src="$(cd "$src_dir" 2>/dev/null && pwd)"
+        local abs_src rc=0 item
+        abs_src="$(cd "$src_dir" 2>/dev/null && pwd)" || return 1
         for item in "$abs_src"/*; do
             [[ -e "$item" ]] || continue
             local name
             name="$(basename "$item")"
-            rm -f "$dest_dir/$name"
+            # Secrets and runtime junk never distribute.
+            if [[ "$name" == ".env" || "$name" == "__pycache__" ]]; then
+                continue
+            fi
+            rm -f "$dest_dir/$name" || { rc=1; continue; }
             if [[ -d "$item" ]]; then
-                ln -sfn "$item" "$dest_dir/$name"
+                ln -sfn "$item" "$dest_dir/$name" || rc=1
             else
-                ln -sf "$item" "$dest_dir/$name"
+                ln -sf "$item" "$dest_dir/$name" || rc=1
             fi
         done
+        return "$rc"
     else
         # Explicit dotfile-aware copy (glob * misses .env/.env.example);
-        # secrets (.env) never distribute — .env.example does.
+        # secrets (.env) never distribute — .env.example does. Runtime junk
+        # (__pycache__) never distributes either. Per-item failures are
+        # collected into the return code so callers running under `set -e`
+        # degrade gracefully instead of aborting the whole run.
         shopt -s dotglob nullglob
-        local item name
+        local item name rc=0
         for item in "$src_dir"/*; do
             [[ -e "$item" ]] || continue
             name="$(basename "$item")"
-            [[ "$name" == ".env" ]] && continue
-            rm -rf "$dest_dir/$name"
+            if [[ "$name" == ".env" || "$name" == "__pycache__" ]]; then
+                continue
+            fi
+            if ! rm -rf "$dest_dir/$name"; then
+                rc=1
+                continue
+            fi
             if [[ -d "$item" ]]; then
-                cp -r "$item" "$dest_dir/$name"
+                cp -r "$item" "$dest_dir/$name" || rc=1
             else
-                cp "$item" "$dest_dir/$name"
+                cp "$item" "$dest_dir/$name" || rc=1
             fi
         done
         shopt -u dotglob nullglob
+        return "$rc"
     fi
 }

@@ -47,6 +47,7 @@ deploy_skills() {
     local skill_count=0
     local skipped_count=0
     local deselected_count=0
+    local failed_skills=()
 
     for skill_dir in "$skills_source"/*/; do
         if [[ -d "$skill_dir" ]]; then
@@ -85,16 +86,22 @@ deploy_skills() {
                 fi
             fi
 
-            safe_mkdir "$target_skill_dir" || return 1
+            if ! safe_mkdir "$target_skill_dir"; then
+                print_error "Cannot create .agents/skills/$skill_name — skipping pack"
+                failed_skills+=("$skill_name")
+                continue
+            fi
             if ! deploy_path_contents "$skill_dir" "$target_skill_dir"; then
-                print_error "Failed to deploy .agents/skills/$skill_name"
+                print_error "Failed to deploy .agents/skills/$skill_name — continuing with remaining packs"
+                failed_skills+=("$skill_name")
                 continue
             fi
             # Pin the distribution: an explicit config entry per deployed pack
             # makes later renames/deletions at source detectable as stale.
-            skills_selection_set "$target_dir" "$skill_name" on
+            skills_selection_set "$target_dir" "$skill_name" on || \
+                print_error "Could not pin selection entry for .agents/skills/$skill_name"
 
-            ((skill_count++))
+            ((skill_count++)) || true
             echo -e "${GREEN}✓ Deployed: .agents/skills/$skill_name${RESET}"
         fi
     done
@@ -111,7 +118,7 @@ deploy_skills() {
             sweep_name="$(basename "$sweep_dir")"
             [[ -d "$skills_source/$sweep_name" ]] && continue
             if skills_selection_has_entry "$target_dir" "$sweep_name"; then
-                rm -rf "$sweep_dir"
+                rm -rf "$sweep_dir" || true
                 echo -e "${YELLOW}⊘ Stale (renamed/deleted at source) — removed: $sweep_name${RESET}"
                 ((deselected_count++)) || true
             fi
@@ -119,7 +126,8 @@ deploy_skills() {
     fi
 
     # Stamp provenance so --skills-verify / --skills-sync resolve this repo.
-    printf '%s\n' "$source_dir" > "$skills_target/.ainish-source"
+    printf '%s\n' "$source_dir" > "$skills_target/.ainish-source" || \
+        print_error "Could not stamp provenance marker $skills_target/.ainish-source"
 
     # Summary
     if [[ $skill_count -gt 0 ]]; then
@@ -130,6 +138,10 @@ deploy_skills() {
     fi
     if [[ $deselected_count -gt 0 ]]; then
         echo -e "${YELLOW}⊘ $deselected_count deselected pack(s) skipped (toggled off — run 'ainish-coder --skills' to change)${RESET}"
+    fi
+
+    if [[ ${#failed_skills[@]} -gt 0 ]]; then
+        print_warning "${#failed_skills[@]} pack(s) FAILED to deploy: ${failed_skills[*]} — re-run the deployment to retry"
     fi
 
     if [[ $skill_count -eq 0 && $skipped_count -eq 0 ]]; then
