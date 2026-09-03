@@ -155,7 +155,7 @@ UTILITY COMMANDS:
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
                               - code-security/             (Safety-critical code engineering)
-                              - graph-intelligence/        (Two-layer codebase knowledge graph: GitNexus + Graphify)
+                              - graph-intelligence/        (Three-pillar knowledge graph: GitNexus + Graphify + Semantica)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - llm-security/              (LLM & agentic AI security)
                               - modern-prompting/          (OOReDAct advanced prompting)
