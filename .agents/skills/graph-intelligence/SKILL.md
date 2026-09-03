@@ -14,6 +14,11 @@ version: 3.0.0
 
 A unified, three-pillar knowledge-graph architecture providing complete codebase, multimodal, and governance intelligence.
 
+## 0. Fleet Context Standard — llms.txt is the PRD (CLAUDE.md replacement)
+- **`llms.txt` is the PRD.** Repo-root `llms.txt` (plus per-directory DOX files) replaces CLAUDE.md as the canonical project-context source. Consult it before graph queries; update it after meaningful changes (DOX "Update After Editing" gate).
+- **`.agents/` is the global skill standard.** All skills, including the GitNexus playbooks bundled here, live in `.agents/skills/`.
+- **`.claude/` pairing.** Tooling may generate `.claude/` alongside (GitNexus `analyze` mirrors skills there), and Claude-Code-compatible harnesses — notably `fcc-claude` — require it. Tolerate the generated mirror and never hand-edit both: `.agents/` + `llms.txt` are the source of truth; `.claude/` is paired tool output for fcc-claude.
+
 ---
 
 ## 1. The Three Pillars & Purpose Determination
@@ -149,4 +154,20 @@ Graph Intelligence functions as the radar for the Master Orchestrator, dynamical
 2. **TDD Failure Isolation:** When `mini` reproduces a bug, pass the failing test signature and affected symbol to `gitnexus_context` to locate the exact upstream callers $\rightarrow$ dispatch `trae-cli` to perform surgical surgery.
 3. **Post-Edit Safety Audit:** Run `gitnexus_detect_changes` on the git diff $\rightarrow$ verify that ONLY the intended symbols were modified and no caller contracts broke.
 4. **Causal Audit Provenance:** Once native test gates pass, call `semantica_record_decision` to log the change scenario, graph impact metrics, and generated patch for auditability.
+
+---
+
+## 6. Deep GitNexus Operational Manuals & References
+
+For deep dives into specialized GitNexus capabilities, consult the bundled reference playbooks in `references/`:
+
+| Manual | Focus Area & When to Consult | Primary Command / Tools |
+|---|---|---|
+| [`gitnexus-cli.md`](references/gitnexus-cli.md) | Indexing, runner setup (`node .gitnexus/run.cjs`), cache cleaning, embeddings | `gitnexus analyze`, `clean`, `status` |
+| [`gitnexus-debugging.md`](references/gitnexus-debugging.md) | Tracing bugs, root cause analysis, 500 responses, error call paths | `context`, `query`, `cypher` |
+| [`gitnexus-exploring.md`](references/gitnexus-exploring.md) | Architecture discovery, execution flows, entry point ranking, unfamiliar code | `context`, `processes`, `query` |
+| [`gitnexus-guide.md`](references/gitnexus-guide.md) | Complete MCP schema, graph nodes/edges, epistemic confidence levels | `gitnexus://repo/{name}/context` |
+| [`gitnexus-impact-analysis.md`](references/gitnexus-impact-analysis.md) | Pre-edit blast radius ($d=1, d=2$), ripple effects, breaking changes | `impact({direction: "upstream"})` |
+| [`gitnexus-refactoring.md`](references/gitnexus-refactoring.md) | Safe multi-file renames, symbol extraction, module splitting with dry-run | `rename`, `detect_changes` |
+
 
