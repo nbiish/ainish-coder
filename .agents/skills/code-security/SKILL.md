@@ -12,6 +12,7 @@ description: >
 > Domain knowledge for deterministic, verifiable, and secure foundational code.
 > Load this skill when writing security-hardened code, infrastructure, input validation, cryptography, or container security.
 > This covers **The Body**: the deterministic runtime, tools, and infrastructure that must be absolutely reliable.
+> **Production Standards Reference:** [`references/production-standards.md`](references/production-standards.md) (condensed engineering standards deployed via `ainish-coder --secure`).
 
 ---
 
