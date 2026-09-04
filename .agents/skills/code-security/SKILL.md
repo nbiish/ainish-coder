@@ -318,7 +318,7 @@ for (size_t i = 0; i < password_len; i++) wipe[i] = 0; /* volatile barrier   */
 - [ ] **Sanitizers in CI**: ASan + UBSan (`-fsanitize=address,undefined`); MSan on secret-handling paths.
 - [ ] **Test what you ship**: security tests must run against the **optimized shipping binary** — the optimization pass is where transformations bite; a clean debug build proves nothing about it.
 - [ ] **Toolchain changes are security events**: pin the compiler; after any upgrade/downgrade re-verify security-sensitive binaries (identical flags ≠ identical security).
-- [ ] **AI pattern audit**: frontier LLMs reliably find `snapshot-check-use` patterns at scale (Domas: ~300 vulnerable patterns across ~500M LOC in ~100 hours); no compiler flag or binary analyzer covers this class yet (see `llm-security` §15).
+- [ ] **AI pattern audit**: frontier LLMs reliably find `snapshot-check-use` pattern instances at scale (Domas: ~300 candidate instances across ~500M LOC in ~100 hours, each needing binary-level confirmation); no compiler flag or binary analyzer covers this class yet (see `llm-security` §15).
 - [ ] **Honor secret-wipe barriers** (`memset_s` / `explicit_bzero` / volatile loop); never rely on plain `memset` for zeroization.
 
 ---
@@ -1284,7 +1284,7 @@ openssl s_server -cert cert.pem -key key.pem -groups x25519_mlkem768
 | 15 | CWE-918 | SSRF | URL allowlisting, network isolation |
 | 16 | CWE-77 | Command Injection | Avoid shell; parameterize |
 | 17 | CWE-770 | Resource Alloc Without Limits | Rate limiting, quotas |
-| 18 | CWE-367 | TOCTOU (incl. optimizer-emitted) | Snapshot copies honored via barriers; re-verify binaries after toolchain changes |
+| 18 | CWE-367 | TOCTOU (incl. optimizer-emitted) | Snapshot-copy idiom + re-verify binaries after toolchain changes; LLM pattern audit (no automated detector yet) |
 
 ---
 
