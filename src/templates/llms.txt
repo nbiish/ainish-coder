@@ -5,6 +5,9 @@
 
 ## Core Contract
 
+- This `llms.txt` is the **PRD and guiding document of this repository**: project purpose, contracts, structure, and per-repo rules live here and in the DOX chain
+- `AGENTS.md` (deployed by `ainish-coder --rules` / `--agents`) is the singular, repository-agnostic standard — worktree isolation, PQC secrets, COMMS coordination, fleet orchestration, quality gates — and never carries repo-specific detail
+- Conflict order: repo-local detail is governed by the nearest `llms.txt`; the universal standard is governed by `AGENTS.md`
 - `llms.txt` files are binding work contracts for their subtrees
 - Work products, source materials, instructions, records, assets, and durable docs must stay understandable from the nearest applicable `llms.txt` plus every parent `llms.txt` above it
 
