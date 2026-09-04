@@ -1,8 +1,8 @@
 # Code Security — Production-Grade Engineering Standards
 
 > Deploy with: `ainish-coder --secure <target-dir>`  
-> Deeper dive: `.agents/skills/code-security/SKILL.md`  
-> Governance: `.agents/skills/production-security/SKILL.md`
+> Owning skill: `../SKILL.md`  
+> Governance: `../../production-security/SKILL.md`
 
 ---
 
@@ -140,7 +140,7 @@ RSA, DSA, ECDSA, ECDH, Ed25519 (secrets/signing), MD5, SHA-1, DES, 3DES, Blowfis
 
 ## Compiler Integrity (Source ≠ Binary)
 
-The source you audit is not the binary you ship. Spec-compliant optimizers legally delete security scaffolding (Domas, Black Hat 2026 — see `.agents/skills/code-security/SKILL.md` §2).
+The source you audit is not the binary you ship. Spec-compliant optimizers legally delete security scaffolding (Domas, Black Hat 2026 — see `../SKILL.md` §2).
 
 ```
 Blocked: plain memset() to wipe secrets                  — deleted as dead store; secrets linger in heap
@@ -156,7 +156,7 @@ Use:     run the security suite against the exact optimized binary you release
 
 - Compile with `-Wall -Wextra -Werror`; run ASan/UBSan in CI.
 - Pin the compiler version. A toolchain upgrade or downgrade is a **security event**: re-verify security-sensitive binaries afterward — same flags do not mean same security.
-- No compiler flag or binary analyzer detects optimizer-emitted TOCTOU yet. Before release of security-critical C/C++, run an LLM pattern audit for `snapshot-check-use` (see `AGENTS_LLM_SECURITY.md` → AI as Security Analyzer).
+- No compiler flag or binary analyzer detects optimizer-emitted TOCTOU yet. Before release of security-critical C/C++, run an LLM pattern audit for `snapshot-check-use` (see `../../llm-security/references/production-standards.md` → AI as Security Analyzer).
 
 ---
 
@@ -202,4 +202,4 @@ Mark exceptions with `# nosec` or `# no-gate` plus a justification comment.
 
 ---
 
-*Derived from `.agents/skills/code-security/SKILL.md` and `.agents/skills/production-security/SKILL.md`. These docs are versioned and improve with every iteration. Load the skills for full context, procedural checklists, and language-specific implementations.*
+*Compiled reference for `.agents/skills/code-security/SKILL.md` and `.agents/skills/production-security/SKILL.md`. These docs are versioned and improve with every iteration. Load `../SKILL.md` for full context, procedural checklists, and language-specific implementations.*
