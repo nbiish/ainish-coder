@@ -72,6 +72,15 @@ Update parent docs when parent-level structure, ownership, workflow, or child in
 
 Generic DOX mechanics — child-doc shape, style, closeout, user-preference recording — live in `src/templates/llms.txt` and apply here by reference; don't duplicate them in this file. Repo-specific rule: root `llms.txt` carries only repo-owned contracts (PQC mandate, documentation boundary, this index).
 
+## Graph Intelligence Integration (repo-local)
+
+Universal wiring lives in `AGENTS.md` `<GRAPH>`; this section records THIS repo's integration state and contracts only.
+
+- **Tooling verdict (2026-09-04):** GitNexus is the mandatory core pillar — installed at `~/.local/bin/gitnexus`, deterministic AST call-graphs / blast radius / `detect-changes`, zero LLM cost. Graphify and Semantica are conditional escalations: install on demand (`pip install graphifyy` / `pip install semantica`) only when cross-doc synthesis or decision/PROV-O governance is genuinely required. No pre-install, no hard dependency.
+- **Contract protection:** run `gitnexus analyze --skip-agents-md --no-stats` in this repository — GitNexus otherwise rewrites its section inside `AGENTS.md`/`CLAUDE.md`, drifting the singular governing contract (§Documentation Boundary). `.gitnexus/` and `.claude/` are gitignored local artifacts; never commit them. `analyze` also auto-generates `.agents/skills/gitnexus-*/` community packs — gitignored, never committed; curated skill packs remain operator-managed via `--skills`/`--skills-sync`.
+- **PRD precedence:** graph queries never replace the DOX walk — read the owning `llms.txt` chain first, then use GitNexus for structural truth (skill §0). Meaningful changes still trigger §Update After Editing.
+- **Deployment:** `graph-intelligence` ships as one of the `.agents/skills/` packs selected via `--skills`/`--skills-sync` and deployed by `--rules`; deep GitNexus manuals ride along in the pack's `references/`.
+
 ## Child DOX Index
 
 Direct children of the root contract. Walk root → child → target path before editing anything under these scopes.
