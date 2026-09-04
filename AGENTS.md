@@ -143,8 +143,8 @@ $$\text{Reconnaissance (Graph)} \longrightarrow \text{Formulation (Orchestrator)
 
 1. **Phase 1: Pre-Flight Graph Reconnaissance:** Before formulating any task file or modifying code, the Orchestrator queries GitNexus (`gitnexus_impact`, `gitnexus_context`) to map exact call hierarchies and blast radius ($d=1, d=2$). Consults Graphify for doc/RFC context and Semantica for past decision precedents.
 2. **Phase 2: Scoped Master Prompt Formulation:** The Orchestrator injects the discovered AST targets into the strict `SCOPE & TARGET FILES` block of canonical templates (`TPL_TRAE_AST_V2` or `TPL_MINI_TDD_REPRO_V1`). No blind edits; zero unindexed files passed to subagents.
-3. **Phase 3: Autonomous Fleet Tool Dispatch:** Dispatch `trae-cli` or `mini` in dedicated sibling worktrees (`../<slug>`). Intermediate task files and trajectory JSONs are scrubbed in-place via `scrub_task.py`.
-4. **Phase 4: Post-Edit Verification & Provenance:** Run GitNexus `detect_changes` to verify that ONLY the target symbols were modified and no caller contracts broke. Run native compiler/test gates. Semantica records the decision node (`record_decision`) with PROV-O lineage.
+3. **Phase 3: Autonomous Fleet Tool Dispatch:** Dispatch `trae-cli` or `mini` in dedicated sibling worktrees (`../<slug>`) through `fleet_dispatch.py` (Dispatch Protocol v2 below) after `fleet_doctor.py` reports GO; block on gate-critical dispatches and collect the `fleet.receipt/v1`. Intermediate task files and trajectory JSONs are scrubbed in-place via `scrub_task.py` (fail-closed under the wrapper).
+4. **Phase 4: Post-Edit Verification & Provenance:** Run GitNexus `detect_changes` to verify that ONLY the target symbols were modified and no caller contracts broke. Run native compiler/test gates **plus plugin validators** (ruff/bandit/py_compile — zero bandit medium+ is the floor) and the scope-conformance diff; route C/C++ patches through the compiler-integrity gates and detector-less classes through an LLM pattern audit (see Dispatch Protocol v2 step 6). Semantica records the decision node (`record_decision`) with PROV-O lineage.
 5. **Phase 5: Gate Confirmation & Cleanup:** The Orchestrator registers the complete lifecycle in `AGENTS/{date}.COMMS.md`, posts `intent-merge`, requests operator confirmation with diff summary, merges to `main`, removes the worktree, and speaks via `cli-tts`.
 
 ### Agentic Tool Call Execution Directive (Mandatory for All LLMs)
@@ -175,94 +175,21 @@ Any LLM of any capability or model family reading this contract MUST treat `trae
 - **Probe $\rightarrow$ Fix:** Calling agent (embodying TDD Engineer) dispatches `mini` tool call to isolate the bug with a minimal reproduction test $\rightarrow$ calling agent (embodying AST Master) dispatches `trae-cli` targeting exact files to apply production patch.
 - **Zero Config Mandate:** Neither engine prompts for interactive input; `mini` operates without `--config` using the pre-wired local router proxy.
 
-### Canonical Fleet Master Prompt Templates & Dispatch Calls
+### Canonical Templates & Dispatch Wrapper (Single Source of Truth)
 
-#### 1. `TPL_TRAE_AST_V2` (AST Refactoring Master — `trae-cli`)
-Use for structural changes, multi-file symbol refactoring, interface decoupling, and patch creation:
-```markdown
-# TASK: <Imperative Action Title>
+The four canonical task templates — `TPL_TRAE_AST_V2` (AST Refactoring Master, trae-cli), `TPL_MINI_TDD_REPRO_V1` (TDD Reproduction Engineer, mini), `TPL_SECURITY_AUDIT_V1` (Adversarial Security Auditor), and `TPL_TRAE_SYSTEMS_V1` (Systems Architecture Master) — live in **`.agents/skills/trae-mini-fleet/SKILL.md` §3** and are the ONLY authoritative copies. AGENTS.md deliberately does not inline them (drift prevention).
 
-## ROLE & EXPERT PERSONA
-You are acting as the **AST Refactoring Master**. Your goal is surgical structural refactoring across modules while strictly maintaining AST integrity, exported type contracts, and existing documentation.
+Template invariants (non-negotiable): scoped `SCOPE & TARGET FILES` allowlist; non-interactive flags (`--console-type simple` for trae-cli; `--yolo --exit-immediately` for mini; **never `--config` for mini**); task prompts via `-f <file>`; dispatch only inside dedicated sibling worktrees (`../<slug>`, never `main`); loopback proxy `http://127.0.0.1:11434/v1` (`local-router/fallback-models`).
 
-## SCOPE & TARGET FILES
-You must ONLY explore, inspect, and modify the following files:
-- `<target_file_1>`
-- `<target_file_2>`
+### Dispatch Protocol v2 — Doctor, Wrapper, Receipts, Exit Taxonomy (Binding)
 
-## OBJECTIVE & DIRECTIVES
-1. Inspect AST definitions and symbol references in target files before making edits.
-2. Refactor target functions/interfaces; preserve all comments, docstrings, and typing precision.
-3. Validate signatures cleanly against dependent call sites.
-4. Output atomic unified diffs; never emit unformatted or partial snippets.
+1. **PRE-FLIGHT (`fleet_doctor.py`):** before the first dispatch of a session, verify binaries (+ sha256 pins when supplied), loopback proxy `11434` health, backend `11435`, `scrub_task.py` presence, and worktree isolation. `NO-GO` = fix the environment first; zero fleet steps on a broken env.
+2. **DISPATCH (`fleet_dispatch.py`):** every trae-cli/mini dispatch runs through the wrapper with `--task-file`, `--worktree`, `--scope` allowlist, repeatable `--gate` plugin commands, `--persona`, and bounded `--timeout`. Fixed argument vectors, no shell, kill-on-timeout. Parallel dispatches only for independent scopes; otherwise run synchronously.
+3. **WAITING IS MANDATORY WHEN DEPENDENT:** if the next phase consumes this dispatch's output (patch, repro test, receipt), the orchestrator blocks on completion and collects the receipt before any further action. Fire-and-forget is permitted only for independent scopes.
+4. **RECEIPTS (`fleet.receipt/v1`):** engine, persona, binary sha256, branch, task-file hash, changed files, scope verdict, gate results, probe-loop flag, scrub status, native exit code, normalized code. One `SUBAGENT-DISPATCH` ledger entry per dispatch referencing its receipt, with `parent: <orchestrator>`. **No receipt = the dispatch never happened.**
+5. **EXIT TAXONOMY (automatic handoff):** `0` OK -> proceed · `20` step-exhausted (zero edits) -> hand to sibling · `30` probe-loop (mini >=3 identical probes) -> hand failure signature to trae-cli · `40` engine/gates failed -> fix scope, re-dispatch · `50` scope violation -> revert, tighten allowlist, re-dispatch · `60` preflight failed -> `fleet_doctor.py` · `70` scrub failed -> manual scrub, never skip · `124` timeout -> treat as `20`.
+6. **VERIFY THE ARTIFACT, THEN MERGE:** GitNexus `detect_changes` + native gates + plugin validators (ruff/bandit/py_compile; zero bandit medium+ is the floor) + scope-conformance diff. C/C++ patches additionally require warnings-as-errors, ASan/UBSan, and tests re-run on the **optimized shipping binary** (compiler-integrity, `code-security` §2); detector-less vulnerability classes require an LLM pattern audit (`llm-security` §15). Never merge on anything but `0` + green gates + operator confirmation.
 
-## ACCEPTANCE & QUALITY GATES
-1. Compile / Typecheck: `<native typecheck or build command, e.g. tsc --noEmit>`
-2. Test Suite: `<native test execution command, e.g. npm test>`
-3. Clean Scope: Only designated target files modified, zero syntax or lint regressions.
-```
-*Direct Tool Call Execution:*
-```bash
-cat > /tmp/task_ast.md << 'EOF'
-[task content above]
-EOF
-trae-cli run -f /tmp/task_ast.md --console-type simple --patch-path solution.patch --max-steps 30
-python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place /tmp/task_ast.md 2>/dev/null || true
-rm -f /tmp/task_ast.md
-```
-
-#### 2. `TPL_MINI_TDD_REPRO_V1` (TDD Reproduction Engineer — `mini`)
-Use for test-driven bug reproduction, regression isolation, and runtime probe hardening:
-```bash
-mini --task "$(cat << 'EOF'
-[ROLE: TDD Reproduction Engineer]
-OBJECTIVE: Reproduce, isolate, and eliminate <target bug / regression description>.
-
-TDD EXECUTION SEQUENCE:
-1. Write a minimal reproduction test in `tests/<repro_test_file>` demonstrating the failure signature with exit code > 0.
-2. Execute the reproduction test to confirm a clean, isolated failure.
-3. Modify `<target_source_file>` to fix the root cause.
-4. Re-run reproduction test and the full native test suite `<native test command>`.
-5. Confirm 100% tests pass and exit immediately. Do NOT create extraneous helper scripts.
-EOF
-)" --output mini_trajectory.json --yolo --exit-immediately
-python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place mini_trajectory.json 2>/dev/null || true
-```
-
-#### 3. `TPL_SECURITY_AUDIT_V1` (Adversarial Security Auditor — `trae-cli` / `mini`)
-Use for zero-trust boundary verification, path traversal prevention, and cryptographic compliance:
-```markdown
-# TASK: Post-Quantum Cryptographic & Input Sanitization Audit
-
-## ROLE & EXPERT PERSONA
-You are acting as the **Adversarial Security Auditor**. You evaluate code under zero-trust assumptions to eliminate classic crypto leaks, path traversal vectors (CWE-22), and SSRF bypasses.
-
-## SCOPE & TARGET FILES
-- `<target_files>`
-
-## DIRECTIVES & GATES
-1. Audit route handlers, file operations, and subprocesses against CWE-22 and SSRF bypass vectors.
-2. Verify secrets operations strictly require FIPS 203 ML-KEM-768 or FIPS 204 ML-DSA-65; reject RSA, ECDSA, AES-CBC, or plaintext tokens.
-3. Validate and enforce strict allowlists on all untrusted inputs.
-4. Pass all security audit tests with zero warnings.
-```
-
-#### 4. `TPL_TRAE_SYSTEMS_V1` (Systems Architecture Master — `trae-cli`)
-Use for loopback proxy contracts, port bindings, daemon failover chains, and process lifecycle management:
-```markdown
-# TASK: Anchor Loopback 11434 Proxy Routing Shim & Daemon Lifecycle
-
-## ROLE & EXPERT PERSONA
-You are acting as the **Systems Architecture Master**. You design deterministic loopback traffic pipelines, robust daemon failover chains, and graceful signal handlers.
-
-## SCOPE & TARGET FILES
-- `<target_files>`
-
-## DIRECTIVES & GATES
-1. Ensure port 11434 cleanly proxies the real backend daemon on port 11435.
-2. Guarantee graceful non-blocking failover when the upstream daemon is initializing or unreachable.
-3. Ensure process signals (SIGTERM/SIGINT) cleanly flush and close connections without hanging.
-```
 </FLEET>
 
 ---
@@ -298,6 +225,7 @@ Run before completing any task:
 4. **Crypto Audit:** FIPS 203/204/205 exclusively for secrets; zero hardcoded credentials or `.env` files.
 5. **Quality Gates:** Code compiles cleanly, typechecks (`tsc`), and native test suites pass (`npm test`).
 6. **Verification & Cleanup:** Smoke tests pass, operator confirms merge, worktree removed, branch deleted.
+7. **Fleet Receipts:** Every fleet dispatch has a `fleet.receipt/v1` with normalized exit code `0`, scope conformance, green gates, and a completed fail-closed scrub — logged in the COMMS ledger.
 </AUDIT>
 
 ---
