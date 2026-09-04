@@ -44,7 +44,7 @@ CORE COMMANDS:
                                 ~/.agents/AGENTS.md → the singular AGENTS.md
                                 ~/.config/AGENTS.md → the singular AGENTS.md
     --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
-                              (files must exist in the ainish-coder repo root)
+                              (compiled from .agents/skills/code-security and llm-security)
 
 
 TOOL-SPECIFIC CONFIGURATION:

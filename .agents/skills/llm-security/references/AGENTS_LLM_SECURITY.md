@@ -1,8 +1,8 @@
 # LLM & Agentic AI Security — Production Standards
 
 > Deploy with: `ainish-coder --secure <target-dir>`  
-> Deeper dive: `.agents/skills/llm-security/SKILL.md`  
-> Governance: `.agents/skills/production-security/SKILL.md`
+> Owning skill: `../SKILL.md`  
+> Governance: `../../production-security/SKILL.md`
 
 ---
 
@@ -167,4 +167,4 @@ Append-only, immutable log of every agent action:
 
 ---
 
-*Derived from `.agents/skills/llm-security/SKILL.md` and `.agents/skills/production-security/SKILL.md`. These docs are versioned and improve with every iteration. Load the skills for full context, procedural checklists, and language-specific implementations.*
+*Compiled reference for `.agents/skills/llm-security/SKILL.md` and `.agents/skills/production-security/SKILL.md`. These docs are versioned and improve with every iteration. Load `../SKILL.md` for full context, procedural checklists, and language-specific implementations.*
