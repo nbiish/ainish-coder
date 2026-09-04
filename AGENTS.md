@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md). Graph-intelligence recon (GitNexus core) scopes every code edit (see .agents/skills/graph-intelligence/SKILL.md). Terminal sub-agents orchestrate via trae-mini-fleet under local-router/fallback-models.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md). Graph-intelligence recon (GitNexus core) scopes every code edit (see .agents/skills/graph-intelligence/SKILL.md). Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Terminal sub-agents orchestrate via trae-mini-fleet under local-router/fallback-models.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -122,16 +122,43 @@ The **wtf observability hub** is the cross-machine coordination layer. All agent
 6. Gates     → Pass native gates (cargo clippy, tsc, ruff) + test suites
 7. Verify    → Non-default port smoke test in worktree (PQC loaded, endpoints responsive); gitnexus detect-changes scope proof on code edits
 8. Merge     → Post intent-merge. Ask operator: "Ready to merge <branch> → main? [diff summary]. Confirm?"
-9. Cleanup   → Remove worktree, delete branch, append checkout to COMMS ledger
+9. Rebuild   → <SERVERS>: ownership-verify worktrees (merged+unclaimed+idle); tear down stale servers; rebuild main server from fresh main; smoke test
+10. Cleanup  → Remove worktree, delete branch, append checkout to COMMS ledger
 ```
 
 ### Mandatory Cleanup Commands (Post-Merge):
 ```bash
+# BEFORE any removal (yours or a stale peer's): pass <SERVERS> ownership
+# verification — merged into main, unclaimed in COMMS, idle beyond quiet window.
 git worktree remove <worktree-path>
 cd <main-repo-path> && git branch -d <type>/<scope>-<slug>
 git worktree list && git branch --show-current  # Verify clean on main
 ```
 </WORKFLOW>
+
+---
+
+<SERVERS>
+## SERVER LIFECYCLE & WORKTREE OWNERSHIP — TEARDOWN, REBUILD, TIMING (ALL REPOS)
+
+Servers are disposable runtime, never durable state; worktrees hold peers' in-flight work. Every merge to `main` ends with the orchestrator refreshing the runtime: verify peers → tear down stale → rebuild fresh `main` → smoke test.
+
+### Worktree Ownership Verification (before removing ANY worktree — yours or a peer's)
+Remove only when ALL three checks pass; any single miss → leave it untouched and flag the owner in `AGENTS/{date}.COMMS.md`:
+1. **Merged:** branch is in `git branch --merged main` (zero unmerged commits). Unmerged peer work is NEVER deleted — only flagged.
+2. **Unclaimed:** no open `checkin`/`intent-merge` without a matching `checkout` for that branch in `AGENTS/*COMMS.md`; `git worktree list` shows it unlocked (`lock` column = owned).
+3. **Idle:** last branch commit AND last ledger mention older than the quiet window (default 24h); with the wtf hub live, `wtf_is_going_on` confirms no active agent on that path — hub down → checks 1–2 + COMMS gap note.
+
+### Rebuild Window Orchestration (master-timed, never racing peers)
+- Rebuild only inside a **quiet window**: `main` at HEAD (fast-forward origin when present), zero in-progress `intent-merge`, no `checkin` younger than the quiet window, latest lifecycle entries closed. Post `intent-rebuild` before teardown; close it after the green smoke test.
+- One rebuild at a time per repo. Peer checks in mid-rebuild → finish or roll back before yielding; never leave a torn-down state.
+
+### Teardown → Rebuild (every merge touching server code/config)
+1. **Locate** the running instance by its contract port (repo `llms.txt`; non-default only) or PID file.
+2. **Kill exactly that process tree** — port/PID-targeted, never a blanket pkill.
+3. **Rebuild from fresh `main`** and restart on the same port.
+4. **Smoke test** endpoints: green → `log_event` + COMMS receipt; red → restore previous build, report blocked. Docs-only merges log `no-rebuild-needed`.
+</SERVERS>
 
 ---
 
@@ -260,6 +287,7 @@ Run before completing any task:
 6. **Verification & Cleanup:** Smoke tests pass, operator confirms merge, worktree removed, branch deleted.
 7. **Fleet Receipts:** Every fleet dispatch has a `fleet.receipt/v1` with normalized exit code `0`, scope conformance, green gates, and a completed fail-closed scrub — logged in the COMMS ledger.
 8. **Graph Verification:** `gitnexus detect-changes` scope proof (or COMMS-logged fallback) for every code change; `.gitnexus/`/`.claude/` artifacts never committed.
+9. **Server Rebuild & Ownership:** stale servers torn down, `main` rebuilt from fresh HEAD with green smoke test (or `no-rebuild-needed` logged); every worktree removal passed <SERVERS> merged/unclaimed/idle verification.
 </AUDIT>
 
 ---
@@ -292,5 +320,5 @@ EOF
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Graph recon before code edits; `detect-changes` before merge. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Graph recon before code edits; `detect-changes` before merge. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
 </REINFORCEMENT>

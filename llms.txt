@@ -81,6 +81,14 @@ Universal wiring lives in `AGENTS.md` `<GRAPH>`; this section records THIS repo'
 - **PRD precedence:** graph queries never replace the DOX walk — read the owning `llms.txt` chain first, then use GitNexus for structural truth (skill §0). Meaningful changes still trigger §Update After Editing.
 - **Deployment:** `graph-intelligence` ships as one of the `.agents/skills/` packs selected via `--skills`/`--skills-sync` and deployed by `--rules`; deep GitNexus manuals ride along in the pack's `references/`.
 
+## Server Lifecycle (repo-local)
+
+Universal teardown/rebuild law lives in `AGENTS.md` `<SERVERS>`; this section records THIS repo's local facts only.
+
+- **No server of its own:** `ainish-coder` ships no long-running server — merges here close with `no-rebuild-needed` in COMMS. The wtf hub (7800), local-router proxy (11434/11435), and the DSH web GUI (3080) are external services owned by other checkouts — NEVER torn down or rebuilt by this repo's merge cycles.
+- **Targets inherit the law:** repos deployed via `--rules` receive `<SERVERS>` in their `AGENTS.md`; each target's contract port and rebuild commands live in its own `llms.txt` chain — consult that chain before any teardown there.
+- **Worktree ownership here:** verify per `<SERVERS>` (merged into `main` + unclaimed in `AGENTS/*COMMS.md` + idle beyond the 24h quiet window) before removing any worktree in `/mnt/d/Code/<slug>`; wtf hub downtime shifts weight to the git+time checks and must be noted in COMMS.
+
 ## Child DOX Index
 
 Direct children of the root contract. Walk root → child → target path before editing anything under these scopes.
