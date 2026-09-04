@@ -34,6 +34,17 @@ Conflict → fail closed, explain, ask.
 
 ---
 
+<DOCUMENT_MODEL>
+## DOCUMENT MODEL — ONE AGENTS.md, llms.txt AS PRD
+
+- **This AGENTS.md is the singular, repository-agnostic governing contract.** The exact same file runs in this repository AND is deployed to every target project by `ainish-coder --rules` / `--agents` as the target's single `AGENTS.md`. Keep it free of repo-specific detail; it encodes the universal standard only.
+- **`llms.txt` is the PRD and guiding document of each repository.** Project purpose, scope, contracts, structure, per-repo rules, and the Child DOX Index live in its DOX chain — never in AGENTS.md. Read the llms.txt chain (root → child → target path) before editing anything.
+- **Division of labor:** AGENTS.md = general standard (worktree isolation, PQC secrets, COMMS coordination, fleet orchestration, quality gates) + wiring for the custom tooling (`pqc-secrets`, wtf hub, `cli-tts`, trae-mini-fleet, GitNexus/Graphify/Semantica, `security_gate.py`). llms.txt = what THIS project is and how THIS project works.
+- **Drift rule:** repo-specific guidance discovered while working belongs in the nearest owning `llms.txt`, never in AGENTS.md. If AGENTS.md and llms.txt conflict, llms.txt wins for repo-local detail; AGENTS.md wins for the universal standard.
+</DOCUMENT_MODEL>
+
+---
+
 <TASK_PRIMER>
 ## TASK COORDINATION & CHAIN-OF-DRAFT
 

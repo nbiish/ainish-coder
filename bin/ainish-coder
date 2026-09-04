@@ -169,7 +169,7 @@ main() {
             _TRACK_DETAIL="AGENTS.md+gitignore"
             echo -e "${BRIGHT_BLUE}Deploying Rules System to: $target_dir${RESET}"
 
-            if confirm_action "Deploy AGENTS.deployed.md as AGENTS.md (project-agnostic rules)?" "y"; then
+            if confirm_action "Deploy the universal AGENTS.md (repo-agnostic standard; llms.txt remains the per-repo PRD)?" "y"; then
                 _with_link_choice deploy_agents "$target_dir"
             fi
 
@@ -215,7 +215,7 @@ main() {
 
         --agents)
             _TRACK_DETAIL="AGENTS.md"
-            if confirm_action "Deploy AGENTS.deployed.md as AGENTS.md (project-agnostic rules)?" "y"; then
+            if confirm_action "Deploy the universal AGENTS.md (repo-agnostic standard; llms.txt remains the per-repo PRD)?" "y"; then
                 local agents_dest="$(_pick_dest_base)"
                 _with_link_choice deploy_agents "$agents_dest"
             fi
