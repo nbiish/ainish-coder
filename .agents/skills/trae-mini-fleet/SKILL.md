@@ -248,9 +248,11 @@ All agent dispatches MUST log their lifecycle to `AGENTS/{date}.COMMS.md`.
 
 Before merging any fleet subagent changes:
 1. **Worktree Isolation:** Changes must reside in a sibling worktree (`../<slug>`), never on `main`.
-2. **Quality Gates:** Verify `./node_modules/.bin/tsc --noEmit` and `npm test` cleanly pass.
-3. **Privacy Scrubbing:** Run `python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place <file>` on intermediate task/trajectory files.
-4. **COMMS Ledger:** Register checkout entry attributing the dispatch lifecycle.
+2. **Quality Gates:** Verify `./node_modules/.bin/tsc --noEmit` and `npm test` cleanly pass. Plugin validators (ruff, bandit, py_compile for Python; semgrep/ESLint security where configured) run on every touched file — zero ruff findings and zero bandit medium+ findings are the merge gate.
+3. **Scope Conformance:** `git diff --name-only` vs the task's `SCOPE & TARGET FILES` allowlist; edits outside scope fail the dispatch (code 50) and are reverted before re-dispatch.
+4. **Compiler Integrity (C/C++ patches):** warnings-as-errors + ASan/UBSan in gates, and security tests re-run on the **optimized shipping binary** — the optimization pass is where transforms bite (see `code-security` §2).
+5. **Privacy Scrubbing:** Run `python3 .agents/skills/trae-mini-fleet/scripts/scrub_task.py --in-place <file>` on intermediate task/trajectory files. Under the v2 wrapper this is **fail-closed**: a failed scrub blocks completion (code 70) instead of being skipped.
+6. **COMMS Ledger:** Register checkout entry attributing the dispatch lifecycle, referencing the dispatch receipt.
 
 ### Quick Guardrail Reference
 | Pitfall | Risk | Rule |
@@ -261,3 +263,58 @@ Before merging any fleet subagent changes:
 | Unescaped task arguments | Shell quoting errors | Write task prompt to `/tmp/task.md` and pass via `-f <file>` |
 | Direct commits on `main` | Unclean reflog / pollution | Mandatory worktree: `git worktree add -b <branch> ../<slug> main` |
 | Missing COMMS tracking | Uncoordinated collisions | Always log start/end timestamps and parent/persona in `AGENTS/{date}.COMMS.md` |
+| Dispatching without doctor | Burned steps on broken env | Run `fleet_doctor.py` first; NO-GO = fix env before dispatch |
+| Merging without receipts | Unverifiable lifecycle | One JSON receipt per dispatch (`fleet.receipt/v1`); no receipt = no merge |
+
+---
+
+## 7. Dispatch Protocol v2 — Doctor, Wrapper, Receipts & Exit Taxonomy
+
+The narrative circuit-breaker rules above are made mechanical by two scripts in `scripts/`:
+
+### 7.1 Preflight: `fleet_doctor.py`
+
+Run before the first dispatch of a session (and after any environment change):
+
+```bash
+python3 .agents/skills/trae-mini-fleet/scripts/fleet_doctor.py          # human-readable
+python3 .agents/skills/trae-mini-fleet/scripts/fleet_doctor.py --json   # machine-readable
+```
+
+Checks: `trae-cli`/`mini` binaries resolvable (+ optional `--pin-trae`/`--pin-mini` sha256 enforcement), loopback proxy `127.0.0.1:11434` health (any HTTP answer = up), Ollama backend `11435` (warn-only), `scrub_task.py` present, and cwd is a dedicated non-main worktree (skip with `--skip-worktree` for doctor-only runs). Exit `0` = GO, `1` = NO-GO. Non-loopback probes are refused (SSRF guard).
+
+### 7.2 Dispatch wrapper: `fleet_dispatch.py`
+
+```bash
+python3 .agents/skills/trae-mini-fleet/scripts/fleet_dispatch.py \
+  --engine trae \
+  --task-file /tmp/task_ast.md \
+  --worktree ../my-feature \
+  --scope src/module.ts src/other.ts \
+  --gate "ruff check ." --gate "./node_modules/.bin/tsc --noEmit" \
+  --persona "AST Refactoring Master" \
+  --max-steps 30 --timeout 1800 \
+  --output /tmp/fleet_receipt.json
+```
+
+- Builds the correct non-interactive engine invocation (`trae-cli run -f ... --console-type simple ...` / `mini --task ... --yolo --exit-immediately`; **never `--config` for mini**).
+- Enforces the worktree contract (refuses `main`), runs post-edit `--gate` commands (shlex-split, `shell=False`, cwd = worktree), checks `git status --porcelain` against `--scope`, and scrubs task file + trajectory **fail-closed**.
+- Writes a `fleet.receipt/v1` JSON receipt (engine, persona, binary sha256, branch, task hash, changed files, scope verdict, gate results, probe-loop flag, scrub status + post-scrub hash, artifacts, native exit code, normalized code, durations).
+- `--auto-revert` reverts tracked edits on scope violation; `--bin` overrides the engine binary for testing.
+
+### 7.3 Normalized exit-code taxonomy (automatic handoff)
+
+| Code | Meaning | Orchestrator action |
+|---|---|---|
+| `0` | OK | Collect receipt; proceed to verification/merge flow |
+| `20` | STEP-EXHAUSTED (engine failed, zero edits) | Hand off to sibling engine with discovered targets |
+| `30` | PROBE-LOOP (mini, ≥3 identical probes) | Hand off failure signature to `trae-cli` for AST surgery |
+| `40` | ENGINE_OR_GATES_FAILED | Inspect receipt gates/tail; fix scope, re-dispatch |
+| `50` | SCOPE_VIOLATION | Revert (`--auto-revert`), tighten allowlist, re-dispatch |
+| `60` | PREFLIGHT_FAILED | Fix environment (run `fleet_doctor.py`) |
+| `70` | SCRUB_FAILED | Scrub manually before discarding anything; never skip |
+| `124` | TIMEOUT | Kill confirmed; treat as `20` (handoff) |
+
+### 7.4 Receipts are the COMMS evidence
+
+Append one `SUBAGENT-DISPATCH` ledger entry per dispatch (§5 schema) referencing the receipt (path + normalized code). **No receipt = the dispatch never happened**, and no merge may proceed without receipts for every dispatched phase plus green native gates.
