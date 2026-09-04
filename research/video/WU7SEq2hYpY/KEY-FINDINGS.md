@@ -29,7 +29,7 @@
   - **Emergent, not single-point:** every optimizer layer looks locally correct; the vulnerability appears only in their interaction. No rule of thumb exists.
   - **Version sensitivity:** compiler upgrade OR downgrade (same flags) flips outcomes; a binary you verified can become vulnerable on recompile.
 - Generality: **every compiler** does such transformations (GCC, Clang, ...). Switching compilers is not a defense. Writing a new compiler is unrealistic (millions of LOC, decades of evolution); compiler vendors know and are working on flags/warnings, but no check for this class exists today. **Rust** fixes most memory corruption but still has a translation layer — assume exposure until audited.
-- Frequency vs scale: per-instance rarity (~1%) is offset by pattern prevalence in huge codebases (6M+ LOC Linux): Domas found **~300 vulnerable patterns** across **~500M lines of open source**.
+- Frequency vs scale: per-instance rarity (~1%) is offset by pattern prevalence in huge codebases (6M+ LOC Linux): Domas found **~300 candidate pattern instances** across **~500M lines of open source** (instances of the vulnerable pattern; each still requires binary-level confirmation).
 
 ## 4. AI as Double-Edged Analyzer
 
