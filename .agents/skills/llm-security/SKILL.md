@@ -11,6 +11,7 @@ description: >
 
 > Domain knowledge for securing probabilistic AI components — models, prompts, RAG, agents, MCP, and their orchestration layers.
 > Load this skill when working on LLM integration, agentic workflows, prompt engineering, MCP servers, or AI red teaming.
+> **Production Standards Reference:** [`references/production-standards.md`](references/production-standards.md) (condensed engineering standards deployed via `ainish-coder --secure`).
 
 ---
 

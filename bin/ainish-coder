@@ -230,7 +230,10 @@ main() {
             echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
 
             if confirm_action "Deploy AGENTS_CODE_SECURITY.md (code security standards)?" "y"; then
-                local code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
+                local code_security_source="${REPO_DIR}/.agents/skills/code-security/references/production-standards.md"
+                if [[ ! -f "$code_security_source" ]]; then
+                     code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
+                fi
                 if [[ -f "$code_security_source" ]]; then
                      _with_link_choice deploy_path "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md"
                      echo -e "${GREEN}✓ AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
@@ -240,7 +243,10 @@ main() {
             fi
 
             if confirm_action "Deploy AGENTS_LLM_SECURITY.md (LLM/agentic security standards)?" "y"; then
-                local llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
+                local llm_security_source="${REPO_DIR}/.agents/skills/llm-security/references/production-standards.md"
+                if [[ ! -f "$llm_security_source" ]]; then
+                     llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
+                fi
                 if [[ -f "$llm_security_source" ]]; then
                      _with_link_choice deploy_path "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md"
                      echo -e "${GREEN}✓ AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
