@@ -18,10 +18,10 @@ GLOBAL FLAGS:
                          and --skills with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.deployed.md — the project-agnostic
-                              rules document, written as the target's single
-                              governing AGENTS.md (defaults to copy for
-                              safety) — plus
+    --rules [TARGET_DIR]      Deploy AGENTS.md — the singular, repository-agnostic
+                              standard (the same file that governs this repo),
+                              written as the target's single governing AGENTS.md
+                              (defaults to copy for safety) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
                                 AGENTS/{date}.COMMS.md (merge-safe: refreshes
@@ -32,15 +32,17 @@ CORE COMMANDS:
                               packs 8thfire-scrolls / ghost-layer-injector
                               never included — they travel only via the
                               explicit --scrolls channel).
+                              Project-specific direction stays in each repo's
+                              llms.txt (the PRD and guiding document).
                               Also ensures global symlinks:
-                                ~/.agents/AGENTS.md → project-agnostic rules template
-                                ~/.config/AGENTS.md → project-agnostic rules template
-    --agents [TARGET_DIR]     Deploy AGENTS.deployed.md only — the project-agnostic
-                              rules document, written as the target's single
+                                ~/.agents/AGENTS.md → the singular AGENTS.md
+                                ~/.config/AGENTS.md → the singular AGENTS.md
+    --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
+                              agnostic standard, written as the target's single
                               governing AGENTS.md (defaults to copy for safety).
                               Also ensures global symlinks:
-                                ~/.agents/AGENTS.md → project-agnostic rules template
-                                ~/.config/AGENTS.md → project-agnostic rules template
+                                ~/.agents/AGENTS.md → the singular AGENTS.md
+                                ~/.config/AGENTS.md → the singular AGENTS.md
     --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
                               (files must exist in the ainish-coder repo root)
 
