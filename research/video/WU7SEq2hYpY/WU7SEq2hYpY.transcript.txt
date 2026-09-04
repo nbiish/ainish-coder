@@ -1,0 +1,945 @@
+[0s] the size of your data that you are
+[1s] accessing is 17 bytes or 33 bytes,
+[5s] you're safe. But if it's anything else,
+[7s] you're suddenly vulnerable. Things that
+[8s] are impossible to explain.
+[10s] &gt;&gt; Seems crazy though because I mean the
+[12s] whole idea is write secure code, make
+[14s] sure your code is not open to like this
+[16s] attack and then it all that hardware
+[17s] gets stripped away.
+[18s] &gt;&gt; One way is to overheat the CPU, make it
+[20s] think it's about to catch on fire cuz
+[22s] cuz it is, and then it'll start
+[23s] executing this code it almost never
+[25s] normally executes. And it turns out
+[26s] there's lots of security properties of
+[28s] this special like privileged code in
+[30s] that machine check handler.
+[31s] &gt;&gt; So in other words, you can basically
+[32s] hack it by like heating it up kind of
+[34s] thing, right?
+[34s] &gt;&gt; Exactly. You can make something
+[36s] unexpected happen.
+[37s] &gt;&gt; Based on this research, man, it's like
+[38s] if I'm a developer, what do I do?
+[40s] &gt;&gt; It definitely can feel like that. If I
+[41s] if I can't trust the compiler,
+[44s] &gt;&gt; if I can't trust the actual source code
+[45s] that I wrote, then what am I left with?
+[48s] &gt;&gt; Hey everyone, David Bumble back with a
+[49s] very very special guest. Chris, welcome
+[51s] to the show, man.
+[52s] &gt;&gt; Thank you. I'm glad to be here. Yeah,
+[53s] it's great to have you here because
+[54s] you're doing some really interesting
+[56s] work. So, Chris, you're very well known
+[57s] in the cyber security space. You've
+[58s] presented at Defcon and Black Hat.
+[60s] You've done a whole bunch of stuff, but
+[62s] perhaps you can just give us a bit of
+[63s] background about like the tools you've
+[65s] created or stuff that you've done that's
+[67s] really cool and exciting because I've
+[68s] got some interesting questions to ask
+[69s] you.
+[69s] &gt;&gt; Yeah. Yeah. I'd love to talk about it a
+[71s] little bit. So, uh some of the things I
+[72s] I've done in the past that I've really
+[74s] enjoyed, I I wrote a compiler called the
+[76s] Mafiscator, uh which is like a single
+[78s] instruction C compiler. It'll take your
+[80s] C- source code and translate that to
+[82s] only a single machine instruction over
+[84s] and over and over. Uh I I wrote
+[86s] Sandsifter is a fuzzer for CPUs. Um kind
+[89s] of before people were doing a lot of
+[91s] deep CPU research. This is a way to kind
+[93s] of fuzz them, throw a bunch of random
+[95s] data at them and see what the CPU does
+[96s] to try to find hardware vulnerabilities.
+[98s] Done some uh some other fun stuff.
+[100s] Recycle is a tool for taking program
+[102s] control flow graphs and turning those
+[104s] into images for reverse engineering.
+[106s] &gt;&gt; Amazing. uh and uh I I think maybe the
+[109s] first time I I presented at one of the
+[110s] big conferences was uh something I did
+[112s] called the memory sinkhole. It was a way
+[115s] of exploiting CPUs by kind of combining
+[117s] two two pieces that people didn't think
+[119s] go together in a in a kind of a new
+[121s] novel way to change the way the CPU is
+[123s] viewing memory.
+[124s] &gt;&gt; I saw a presentation that you did where
+[125s] you were taking a blowtorrch to a CPU. I
+[128s] mean what is that about?
+[130s] &gt;&gt; Yeah. So that was that was a fun one.
+[131s] So, I was looking at kind of a a
+[132s] different way of exploiting uh CPUs
+[135s] where they have these things called
+[136s] machine check exceptions. And it's like
+[139s] when something really really bad happens
+[140s] on the CPU, uh it'll stop everything
+[143s] else that it's doing and start handling
+[145s] kind of an emergency handler. Uh and
+[148s] there's lots of different ways to
+[149s] trigger those. One way is to overheat
+[151s] the CPU, make it think it's about to
+[153s] catch on fire cuz cuz it is, and then
+[155s] it'll start executing this code it
+[156s] almost never normally executes. Uh, and
+[158s] it turns out there's lots of security
+[160s] properties of this special like
+[162s] privileged code in that machine check
+[163s] handler.
+[163s] &gt;&gt; So, in other words, you can basically
+[165s] hack it by like heating it up kind of
+[166s] thing, right?
+[167s] &gt;&gt; Exactly. You can make something
+[168s] unexpected happen. Maybe you can uh
+[170s] cause a bit flip in in DRAM or you can
+[173s] cause it to uh overheat or cause some
+[176s] sort of other catastrophic failure. And
+[178s] if you do that just right, if you do it
+[180s] very very carefully, you can cause that
+[182s] exception to occur right when it
+[185s] shouldn't occur and you can hack the CPU
+[187s] that way. That's crazy. I know you're
+[189s] presenting here as well to uh today at
+[192s] the time of this recording and it's also
+[194s] a very interesting concept. It's
+[195s] something about and you can correct me
+[197s] and take us on the journey. It's good to
+[198s] write secure code, right? I should spend
+[200s] the time securing my code, writing good
+[203s] code, but you've got this I think the
+[205s] point you're making is that when it goes
+[206s] through a compiler, a lot of that's
+[208s] stripped out and the actual end result
+[211s] is not secure even though I did all this
+[212s] work. Is that right?
+[213s] &gt;&gt; Yeah, that's uh that's exactly right.
+[215s] Um, and it's uh it's it's a little bit
+[217s] complicated why that why that is. And
+[218s] it's uh it's sort of unsettling, right?
+[220s] We're we're used to looking at the
+[221s] source code and we think, well, if I
+[223s] wrote secure source code, I'm in good
+[224s] shape. But at the end of the day, the
+[227s] source code is not really what runs on
+[229s] the CPU, right? It's it's the binary
+[231s] produced by something else. And what we
+[233s] looked at here, it was looking at kind
+[235s] of the C compiler and the way that works
+[238s] and some of the ways it can undo um some
+[240s] of the security checks or the secure
+[243s] code you thought you were you were
+[244s] writing. Yeah.
+[245s] &gt;&gt; So the the reason for that is the C
+[248s] specification. So the Cspec is like 700
+[250s] pages of just really really obtuse
+[254s] rules about how uh the C programming
+[257s] language works and how a compiler has to
+[259s] operate. And the C specification uh
+[262s] describes something called the abstract
+[264s] machine. Y
+[264s] &gt;&gt; so the abstract machine is what your
+[266s] code really runs on. When you write
+[267s] code, it runs on this this totally
+[269s] madeup computer. It doesn't run on your
+[271s] CPU. It runs on this madeup computer.
+[273s] &gt;&gt; And uh the Cspec is concerned about what
+[276s] are the results on this madeup computer.
+[278s] Then the compiler can look at that. The
+[280s] compiler looks at what are the results
+[281s] supposed to be on this madeup computer.
+[283s] And that's the only thing I have to
+[285s] really give you. It's the results. So in
+[287s] your C code, you write something. Let's
+[289s] say you wanted to print out the numbers
+[290s] 1 through 10 is sort of the example I
+[291s] gave in the research.
+[293s] &gt;&gt; So the natural way we might program that
+[295s] as a for loop, right? We count from 1 to
+[297s] 10 and every iteration we print out the
+[299s] index. That's that's how we code it. But
+[301s] according to the C specification, uh the
+[303s] only thing that matters is the results.
+[305s] So the compiler can go in and it looks
+[306s] at what are the results of running that.
+[309s] And the result is well 1 2 3 all the way
+[311s] up to 10 get printed out. Yeah. So the
+[313s] compiler just says, well, all I need to
+[315s] do is keep those results. And I can do
+[318s] that any way I want. I can do that by
+[320s] implementing a for loop like you wrote.
+[322s] I can do that by implementing a Y loop
+[324s] or function recursion. Or I can just
+[326s] have a big print statement that just
+[328s] prints out 1 2 3 all the way up to 10.
+[330s] Doesn't really matter how the compiler
+[332s] implements it according to the spec. Um,
+[334s] the compiler gets to implement it
+[335s] however it wants, which means that the
+[337s] code that you wrote isn't necessarily
+[340s] what the compiler produces. the compiler
+[342s] can produce something wildly different
+[344s] and sometimes uh unexpectedly undo some
+[347s] of the security properties we thought we
+[348s] had.
+[348s] &gt;&gt; It seems crazy though because I mean the
+[350s] whole idea is write secure code, make
+[352s] sure your code is not open to like this
+[354s] attack and the other other attack and
+[355s] then all that hardware gets stripped
+[357s] away.
+[357s] &gt;&gt; Right. Right. It is it is very
+[359s] unexpected but it's it's something
+[360s] that's kind of been biting people for uh
+[363s] for a while especially in the C
+[365s] programming language. So this isn't the
+[366s] first time that this kind of thing has
+[368s] come up. So like another classic example
+[370s] uh that that people have known about for
+[372s] a while is is the compiler deleting mems
+[374s] sets. So we've got this idea say you're
+[376s] writing some C code and you've got a
+[378s] bunch of secrets that you had to process
+[380s] like passwords or encryption keys and
+[382s] and you don't want to keep those sitting
+[384s] around in memory. So you clear them out
+[386s] you you just write a bunch of zeros to
+[388s] that data so that even if you've got a
+[389s] problem later on um at least those
+[392s] secrets are gone from memory. So people
+[394s] were were writing those clears with like
+[396s] a mems set or just for loop to write
+[397s] zeros and then they were finding when
+[400s] their program ran all those secrets and
+[402s] encryption keys those still just sat
+[404s] around in memory and when people try to
+[405s] figure out why it's because the compiler
+[407s] just looked at the mems set or looked at
+[409s] you writing a bunch of zeros to memory
+[410s] and the compiler said this isn't doing
+[412s] anything useful uh I'm just going to
+[414s] delete this and that's that's unsettling
+[417s] because when you when you look at the
+[418s] source it's I'm doing the right thing
+[420s] right I'm clearing out these secrets why
+[422s] isn't that actually happening in the
+[424s] binary. So this this layer of
+[425s] abstraction we kind of we kind of
+[427s] usually don't think about that's
+[428s] happening there.
+[429s] &gt;&gt; Is this a C problem or is it a compiler
+[432s] problem? I mean does this occur in other
+[433s] languages? A bunch of questions like
+[435s] should I use Rust because that seems to
+[437s] be the recommendation. So like tell us,
+[439s] you know, is it a C problem, compiler
+[441s] problem? What is it?
+[442s] &gt;&gt; No, it's a it's a it's a great question.
+[443s] So what what I looked at is is C. It's a
+[445s] language I'm I'm pretty comfortable with
+[446s] and I've looked at a lot. It's obviously
+[449s] used in in a lot of low-level stuff and
+[450s] a lot of firmware and security sensitive
+[452s] stuff.
+[453s] language for a huge problem there. But
+[456s] it's definitely not just a problem. It
+[459s] it emerges in different ways in
+[461s] different languages, but at the end of
+[462s] the day, every language is going to have
+[464s] this this same hurdle to overcome,
+[466s] right? You're you're writing code, but
+[468s] that's not what the CPU that runs your
+[470s] code understands. It it understands some
+[472s] sort of binary, and something has to do
+[474s] that translation. So uh uh no matter
+[477s] what language you're using, the there's
+[479s] not a onetoone translation between the
+[481s] code that you wrote and what's actually
+[483s] able to run on the CPU.
+[484s] &gt;&gt; So it affects Rust as well because I
+[486s] mean I always hear this recommendation,
+[488s] never use C, use Rust.
+[489s] &gt;&gt; Yeah, I think I mean I think Rust is
+[490s] great for a lot of things. It fixes a
+[492s] lot of the uh memory uh corruption
+[495s] problems that we we have in C and it it
+[498s] handles memory safety really well, but
+[499s] it still has to do this this translation
+[501s] level. And I'll be honest, I'm not as
+[504s] familiar with that how that translation
+[505s] works in in Rust, but it's a newer
+[507s] language and I think uh you know, C's
+[509s] been around for 40 years and we're just
+[510s] now seeing how it's biting us. So I I I
+[513s] suspect if we haven't found these kinds
+[514s] of problems in Rust yet, uh we will in
+[516s] the future.
+[517s] &gt;&gt; You've written a compiler. So do I need
+[518s] to use a different compiler? Does
+[520s] someone need to create some new compiler
+[522s] or is it just this is the way it goes?
+[523s] &gt;&gt; So that's a really interesting facet of
+[524s] it. And I I think at the end of the day,
+[526s] it's just it's the way it goes. the
+[528s] compiler has to follow some sort of
+[529s] specification and this is the way the
+[531s] specification says a compiler is allowed
+[533s] to operate. So we actually tried to look
+[535s] at that in in this research to
+[537s] understand you know is a certain
+[538s] compiler more susceptible to these
+[540s] problems than other compilers. Should we
+[542s] use clang instead of GCC or something
+[544s] like that? Uh and and the answer was
+[547s] it's not just one compiler responsible.
+[549s] Every single compiler will do these
+[551s] kinds of transformations. And that's
+[553s] actually expected. That's that's not
+[555s] necessarily a bad thing. Usually they're
+[556s] doing these transformations to try to
+[558s] make your code run faster. You know
+[559s] these are these are good improvements
+[561s] that we would normally want. It's just
+[562s] that they bite us in unexpected ways. So
+[565s] if we had a compiler that never did
+[567s] these things, we'd probably not have a
+[568s] very good compiler. So there's there's
+[570s] not one compiler we can switch to,
+[572s] pretty much everything's impacted
+[574s] because it's it's just something allowed
+[575s] by the programming language itself.
+[577s] &gt;&gt; I mean, it sounds like the sky is
+[578s] falling.
+[579s] &gt;&gt; THE SKY IS FALLING.
+[580s] &gt;&gt; But based on this research, man, it's
+[582s] like if I'm a developer, what do I do?
+[584s] &gt;&gt; It definitely can feel like that. if I
+[585s] if I can't trust the compiler. Yeah. Um
+[588s] if I can't trust the actual source code
+[589s] that I wrote, then then what am I left
+[592s] with? So, it's it's easy to think the
+[594s] sky's is falling. I I think that's not
+[596s] the case. Uh we're not in in quite so
+[598s] bad a position as that. Uh and and
+[601s] there's a couple of different reasons
+[602s] for that. So, so one is the situation
+[604s] that we looked at uh is the compiler
+[607s] sort of inventing time of check, time of
+[609s] use vulnerabilities out of thin air. And
+[611s] uh it's it's kind of a pernicious
+[612s] problem. It appears all over the place.
+[614s] in and all sorts of secure code bases
+[616s] where we wouldn't expect or wouldn't
+[618s] want this problem to appear,
+[619s] &gt;&gt; but it's a it's a pretty rare thing that
+[621s] the compiler does uh in in this
+[623s] situation. So even though it it can come
+[625s] up, it's it's not that common. Some of
+[628s] the other problems that we have with
+[629s] compilers like it deleting me sets or uh
+[633s] some of the problems people have had
+[634s] with undefined behavior, those are a
+[636s] little bit more wellstudied and and
+[638s] there are ways to to fix that. So um
+[640s] just turning on all the warnings on the
+[643s] compiler and really treating those
+[644s] warnings as problems to to fix uh can
+[647s] can fix a lot of the known problems with
+[649s] the way compilers translate source code.
+[651s] Uh there's different sanitizers like
+[653s] address sanitizers and undefined
+[655s] behavior sanitizers in compilers that
+[657s] can try to catch some of these fringe
+[659s] cases where the compiler is doing a
+[661s] transform that you wouldn't really want
+[663s] and those can throw warnings or errors
+[665s] for you. So, uh, if we sort of follow,
+[668s] uh, the known best practices for a lot
+[670s] of these things, we can start to get a
+[672s] handle on some of those problems, and I
+[674s] think we're still always going to be
+[676s] left with this unsettling idea, uh, that
+[678s] what runs on the CPU is not the same as
+[681s] the code we wrote, and that's that's not
+[682s] going to go away. But we do have a lot
+[684s] of tools at our disposal for kind of
+[687s] taming that challenge. Chris, I'm glad
+[689s] you use that word fringe cases because
+[691s] if I am a developer, I might as well say
+[694s] what's the point in doing secure code,
+[696s] man. I might as well just put it out
+[697s] there. So, this is not a common thing.
+[699s] Or is it?
+[700s] &gt;&gt; No, I I think it's I think it's
+[702s] definitely uh definitely not. And uh
+[703s] that's that's kind of reassuring. It's
+[705s] troubling thinking that maybe in 1% of
+[707s] cases this can occur. And that's
+[710s] certainly a problem for security because
+[712s] if if something like this, you know, in
+[714s] a big code base like Linux, you might
+[715s] have these kinds of patterns a thousand
+[717s] times and then 1% becomes a real
+[720s] problem.
+[720s] &gt;&gt; But if you're trying to write secure
+[722s] code, you know, 1% still still leaves,
+[725s] you know, if you're doing the correct
+[726s] thing, you're taking care of 99% of the
+[728s] problems that you might have. And that's
+[729s] still something definitely worth doing.
+[732s] &gt;&gt; So don't give up doing secure code. We
+[734s] must all write code securely.
+[735s] &gt;&gt; Absolutely. And especially coming at
+[737s] this from an attacker's perspective, you
+[739s] always go after the low hanging fruit
+[740s] and some things just aren't worth your
+[742s] time. So if you've got one code base
+[744s] where they did nothing, that's going to
+[746s] be really easy to do to attack. And if
+[748s] you've got another codebase, well where
+[750s] uh you know they tried and they tried to
+[752s] follow best practices and do the best
+[753s] they could and maybe the compiler snuck
+[755s] something in that they weren't
+[756s] expecting, that's still going to be a
+[758s] whole lot harder to find and analyze
+[760s] than the person who wasn't doing
+[761s] anything secure to begin with. So uh
+[763s] absolutely. I want to thank Threat
+[764s] Locker for sponsoring my trip to Black
+[766s] Hat and Defcon as well as this video.
+[768s] Really want to thank them for their
+[770s] support. Zero trust is something that we
+[772s] want to implement in 2026. Can be very
+[774s] difficult, however, but Threat Locker
+[776s] makes that process easy. When you
+[778s] install Threat Locker on your computer,
+[780s] it learns for a period of time. So, it
+[782s] can learn which applications you use in
+[785s] your day-to-day life. And then once that
+[788s] learning period has run, it can lock
+[790s] down your computer to only allow the
+[792s] computer to do the things that it's
+[794s] supposed to do. Those options can
+[795s] obviously be tweaked and changed. But
+[797s] the whole idea is zero trust. We don't
+[800s] trust applications by default. We don't
+[803s] allow applications to do whatever they
+[805s] want to. We lock them down and deny by
+[809s] default. Applications are only allowed
+[811s] to do what they supposed to do and not
+[814s] do whatever they want to. As an example,
+[816s] a standard user in an enterprise doesn't
+[819s] need to run PowerShell scripts that copy
+[821s] all their data to the internet. That
+[823s] doesn't make sense and can be abused by
+[826s] attackers to excfiltrate confidential
+[828s] information out of an organization. So,
+[830s] just deny that by default. Don't allow a
+[833s] user to run Python scripts, PowerShell
+[835s] scripts, etc. to copy data to the
+[837s] internet or do things that a normal user
+[839s] shouldn't be able to do. deny that
+[841s] behavior by default and only allow them
+[844s] to do what they're supposed to do. The
+[846s] threat locker team has been growing
+[848s] exponentially the last few years. They
+[849s] are making a major impact in the cyber
+[852s] security community. You can find out
+[853s] more about threat locker using my link
+[855s] below. Again, I really want to thank
+[857s] Danny and the team for their continued
+[859s] support of my channel, allowing me to
+[861s] make hopefully really interesting
+[863s] content that you can enjoy.
+[864s] &gt;&gt; There's no easy option to create a new
+[866s] compiler. We just got to live with this.
+[868s] I I I think that's that's absolutely the
+[870s] case. I mean these compilers are
+[871s] tremendous efforts uh you know millions
+[873s] of lines of of code extremely extremely
+[876s] complex behavior. They've evolved over
+[878s] the course of decades. It's it's not
+[879s] something you just throw a new one
+[881s] together uh overnight trying to solve
+[883s] some of these problems. And it's not
+[885s] like the compiler developers don't know
+[886s] about these problems. Uh you know both
+[888s] sides of this are kind of trying to work
+[890s] together to to solve the issues with new
+[892s] compiler flags, new warnings, new ways
+[894s] of handling memory accesses to try to
+[896s] get a hold of these different complex
+[898s] security vulnerabilities. But the
+[900s] problems are hard and if you know if
+[901s] they were easy if it was just throw
+[903s] together a new compiler I think somebody
+[904s] would have done that but uh it's it's
+[906s] hard and people are still working on it.
+[908s] &gt;&gt; So Chris you've got this presentation
+[909s] today perhaps you can share some details
+[912s] for people who weren't able to attend
+[913s] here at black hat.
+[914s] &gt;&gt; Yeah absolutely I can uh kind of try to
+[916s] walk through it. So we were specifically
+[918s] looking at a new case of a compiler
+[921s] introducing these vulnerabilities into
+[923s] what looks like secure C code. Um it's
+[926s] sort of a case that people haven't
+[927s] looked at before. So specifically what
+[929s] we're looking at is the compiler
+[931s] introducing new time of check time of
+[933s] use vulnerabilities where it wouldn't
+[935s] look like you have one in your source
+[936s] code. So um just like a little
+[938s] background there uh the traditional time
+[940s] of check time of use vulnerability is
+[942s] like I'm trying to write some code and I
+[944s] need to access somebody else's data and
+[946s] they've got like this variable x and I
+[949s] want to use x. I I need to use x in my
+[952s] program but I want to make sure that x
+[954s] is like has correct values. I want to
+[956s] make sure it passes some check. Let's
+[958s] say I don't know I'm writing banking
+[959s] software and X is an amount to with
+[963s] transfer from an account. I want to make
+[965s] sure okay uh does this person have
+[967s] enough money in their account. So I'm
+[968s] going to take X and I'm going to make
+[970s] sure that X is less than what they have
+[972s] in their account. And then if it is then
+[974s] I'm going to transfer X out of the
+[976s] account. Now the problem is that if X is
+[979s] some other application's data, X can
+[982s] change between the time I checked it and
+[984s] the time I used it. and I and you know
+[986s] my first check said well they wanted to
+[988s] transfer 50 bucks it it passed the check
+[990s] and then when I transfer that money now
+[992s] X says it's $10 million and I transfer
+[994s] that money. So that's like this classic
+[996s] time of check time of use vulnerability.
+[998s] So for for secure coding the way we're
+[1000s] we're taught to fix that vulnerability
+[1003s] is if we don't trust X we we copy it. We
+[1005s] we snapshot it into our own program. So
+[1008s] I'm going to take X and I'm going to
+[1010s] copy that into my own variable Y. And
+[1013s] now from now on instead of using this
+[1014s] untrusted data I'm going to use my own
+[1016s] copy Y. So I'll check you know is Y less
+[1019s] than what the person has in their
+[1020s] account. And if it is I'm going to
+[1022s] transfer out Y. Now it doesn't matter if
+[1024s] they changed X over on their side. I
+[1026s] made sure that um my copy was was valid
+[1029s] and and passed the correct checks and I
+[1031s] used it the way it was. So what we
+[1033s] looked at in this presentation was sort
+[1035s] of a a esoteric unexpected compiler
+[1038s] optimization where the compiler can look
+[1040s] at what you did and it looks like you
+[1041s] did the correct thing from a secure
+[1042s] perspective. You copied the state over
+[1044s] into your own program and then you
+[1045s] checked the value and then you used it.
+[1047s] The compiler can look at that and it can
+[1049s] say that check that you did that was
+[1051s] kind of a waste of time. That's not
+[1052s] efficient. or uh so instead of doing
+[1054s] this copy into your own program, I'm
+[1057s] going to delete your copy and I'm going
+[1059s] to give you back that insecure or
+[1061s] untrusted data that you were trying to
+[1062s] avoid to begin with. So it'll take what
+[1064s] you wrote, which is snapshot the data
+[1067s] and then check it and then use it and
+[1069s] it'll delete that snapshot and just
+[1071s] replace that with check the untrusted
+[1073s] data and use the untrusted data and
+[1075s] you're back to the exact vulnerability
+[1076s] you were trying to avoid.
+[1077s] &gt;&gt; Wow. Chris, in your presentation, I'm
+[1079s] assuming it's not very high level.
+[1081s] you've gone into some detail. So perhaps
+[1082s] you can share some of the like the
+[1084s] nitty-gritty with us.
+[1085s] &gt;&gt; Absolutely. Um so the the hard question
+[1087s] to answer uh is when can that happen? So
+[1090s] we we sort of look at the C
+[1091s] specification. Yeah.
+[1092s] &gt;&gt; And the Cspec says that this is an
+[1095s] allowed transformation. A compiler is
+[1097s] actually allowed to take what look like
+[1099s] your secure code and translate that into
+[1102s] a time of check, time of use
+[1103s] vulnerability. And that's that's kind of
+[1105s] interesting from like an academic
+[1106s] perspective that that okay, a compiler
+[1108s] is allowed to do this. But the the hard
+[1110s] question that we wanted to answer is
+[1112s] when does this actually occur? Like will
+[1114s] a compiler actually do this? So we we
+[1117s] tried to tease out different situations
+[1118s] where a compiler will actually delete
+[1120s] that snapshot that that made you secure
+[1122s] in the first place. So the the first
+[1124s] situation we found where a compiler will
+[1126s] do that is with what's called register
+[1128s] pressure. So when a compiler is taking
+[1130s] your source code and translating it into
+[1132s] a binary, it needs to use CPU registers
+[1135s] to track all the data you're using. And
+[1137s] eventually a compiler will run out of
+[1139s] CPU registers to use. It'll it'll be
+[1141s] using all the registers to track
+[1143s] different data in your program. And if
+[1145s] the compiler decides, hey, all the
+[1146s] registers are in use. That's one of
+[1148s] these situations where the compiler will
+[1150s] decide copying this data over into your
+[1152s] your local variable just doesn't make
+[1154s] sense anymore. I don't have any
+[1156s] registers to use to help you with that,
+[1157s] and so I'm going to reread that
+[1159s] untrusted data you were trying to avoid.
+[1161s] So that was sort of the first situation
+[1162s] where we were able to force a or show
+[1165s] that a compiler will actually do this
+[1167s] transformation, will actually um turn
+[1170s] secure code into insecure code. And then
+[1173s] we tried to explore sort of all the
+[1175s] different French cases where that can
+[1176s] happen. And we found all sorts of
+[1178s] different wild situations where it can
+[1180s] depend on like if you're using a strct
+[1183s] in your code, a structure, uh it can
+[1185s] depend on the exact layout in the
+[1186s] structure. Like if you've got two fields
+[1188s] in your structure, the compiler might
+[1190s] compile those in a secure way one time,
+[1192s] but then if you flip the order of those
+[1193s] fields, for whatever reason, the
+[1195s] compiler will decide now it's going to
+[1197s] emit a time of check, time of use
+[1198s] vulnerability. We found weird situations
+[1200s] like if the size of your data uh was
+[1204s] congruent modulo 16 to the the number
+[1207s] one. So if you the size of your data
+[1209s] that you were accessing is 17 bytes or
+[1211s] 33 bytes, you're safe. But if it's
+[1214s] anything else, you're suddenly
+[1215s] vulnerable. things that are impossible
+[1217s] to explain. Uh and and eventually the
+[1220s] conclusion we had to come to is that
+[1223s] it's it's not like when the compiler is
+[1225s] looking at your code, there's not any
+[1226s] like one point where it's like, okay,
+[1228s] I'm going to introduce a time of check
+[1230s] time of use vulnerability here. Uh
+[1232s] instead, it's all these interacting
+[1234s] layers of the compiler. And every layer
+[1236s] looks like it's making the correct
+[1237s] choices at at its point in time. But
+[1240s] when you look at the interaction of all
+[1242s] these layers and how they feed back into
+[1243s] each other, then all of a sudden what
+[1245s] comes out is vulnerable code. And the
+[1248s] troubling part of all of that, kind of
+[1249s] the big conclusion from trying to
+[1251s] characterize when this happens was
+[1254s] there's there's no single like rule of
+[1256s] thumb. I I can't just say, well, I need
+[1258s] to make sure my struct size is 17 and
+[1261s] I'll be safe. Uh I can't just say if I
+[1263s] compile with GCC 14, I'm safe. uh
+[1267s] there's there's no single thing that we
+[1269s] can point to uh where you're safe or
+[1272s] vulnerable. Uh and these these
+[1274s] transformations crop up in entirely
+[1277s] unexpected situations.
+[1279s] &gt;&gt; Man, it sounds scary because what do I
+[1281s] do? How is there anything I can do or
+[1283s] it's just a fact of life?
+[1285s] &gt;&gt; Yeah, it and it is scary because um it's
+[1288s] it's just trivial things that you would
+[1289s] never expect to to bite you. um you know
+[1292s] you you might even you know be compiling
+[1294s] and you check hey the output is safe. I
+[1297s] I actually dove into the binary and I
+[1299s] made sure that it doesn't have this time
+[1301s] of check time of use vulnerability and
+[1303s] I'm and I'm good. But then you upgrade
+[1305s] your compiler and all of a sudden it's
+[1307s] doing different optimizations than it
+[1308s] was before even with the same
+[1310s] optimization flags and now it emits a
+[1313s] time of check time of use vulnerability
+[1314s] that it didn't have before. uh you could
+[1316s] downgrade your compiler and find all of
+[1318s] a sudden that uh emits the same
+[1320s] vulnerability that you were trying to
+[1322s] avoid. Uh so so we're not in a good
+[1325s] position right now for for this specific
+[1328s] vulnerability. We don't really have good
+[1330s] checks that the compiler can do right
+[1332s] now. We don't have a good way to analyze
+[1333s] the binaries right now. The the good
+[1336s] news is that this is kind of a French
+[1339s] case. Uh going back to one of the
+[1342s] earlier questions, should we just not
+[1343s] write secure code? This just doesn't
+[1345s] happen that often. Uh it's not every
+[1348s] time you try to write a a good time of
+[1351s] check time of use vulnerability that the
+[1352s] compiler is just going to drop it. Uh we
+[1354s] actually had a lot of trouble trying to
+[1356s] get a compiler to do this.
+[1358s] &gt;&gt; Oh, that's good news.
+[1358s] &gt;&gt; Yes. Uh so when a compiler did it, it
+[1360s] was very surprising and unexpected. And
+[1363s] if you're an attacker and you're just
+[1364s] trying to look at the breadth of what's
+[1366s] out there, it's like, well, I can go to
+[1367s] any of the six million lines of code in
+[1370s] Linux and try to find one of these
+[1372s] situations. But if you're a coder, uh I
+[1375s] think you can take some comfort in in
+[1377s] knowing that this is extremely rare
+[1379s] behavior for a compiler. And then of
+[1382s] course this is just sort of looking at
+[1383s] one new fringe case where a compiler can
+[1386s] do this. Some of the things that have
+[1388s] been around for longer like compilers
+[1389s] deleting uh different security checks
+[1392s] you were trying to do or compilers u
+[1394s] making use of undefined behavior to do
+[1396s] unexpected things. Those have been a lot
+[1398s] more wellstudied and those have better
+[1400s] better solutions to them. So it's not
+[1403s] every transformation that we have to
+[1404s] worry about for a compiler, but there
+[1406s] are still a lot of things out there that
+[1407s] are sort of unknowns.
+[1408s] &gt;&gt; Okay, so this is it sounds complicated.
+[1411s] It sounds like a fringe case. What kind
+[1413s] of attacker would be able to leverage
+[1416s] this or is it just the compiler making
+[1419s] this thing that's insecure? So I'm not
+[1422s] saying a script kitty, but I mean like
+[1424s] how intelligent, how experienced does an
+[1426s] attacker have to be to leverage this? It
+[1428s] &gt;&gt; it's a great question. So, the good news
+[1429s] here, I think, is that it's just as hard
+[1431s] for an attacker as it is for a defender.
+[1433s] Okay. Part of the problem with this uh
+[1435s] this specific kind of vulnerability is
+[1437s] it is it comes up really rarely. That's
+[1439s] what makes it hard. Um it's what makes
+[1441s] it unsettling if you're a programmer.
+[1443s] You don't know is the code I'm trying to
+[1445s] write securely going to come out secure
+[1446s] or not. But that that also makes it hard
+[1449s] for an attacker, right? Um they can go
+[1451s] to what like what we did. We went to all
+[1453s] these different open- source projects
+[1455s] and tried to find where did they have
+[1457s] this pattern where they could turn into
+[1459s] vulnerable uh binaries from the
+[1461s] compiler. So an attacker would do that
+[1463s] and then try to find all the places
+[1464s] where it turns into a vulnerable binary.
+[1466s] But then the attacker has the same
+[1467s] problem that a defender does. Is the
+[1469s] binary vulnerable or not? That's that's
+[1471s] a hard problem to answer because then
+[1472s] you've got to start dissecting the
+[1473s] binary. You have to have some way to
+[1475s] automatically reverse engineer that
+[1476s] because you're not going to sit there by
+[1478s] hand. If this is a really rare problem
+[1479s] that occurs 1% of the time, you don't
+[1482s] want to go out and by hand pull down
+[1484s] 10,000 binaries and look at which 1% had
+[1487s] this issue. You need to find some way to
+[1489s] automate that. And that's a hard problem
+[1491s] to automate. And that's that's why the
+[1493s] the fix is hard and that's why the
+[1494s] attack is hard. So, uh I think this is a
+[1496s] an extremely complicated attack for
+[1498s] somebody to pull off.
+[1500s] &gt;&gt; That's good news. But elephant in the
+[1502s] room, AI, won't they make it easier for
+[1504s] someone to to to leverage this? Yeah, I
+[1507s] mean that that's where it certainly gets
+[1508s] really interesting. Um that's that's the
+[1510s] approach that we took in trying to
+[1512s] analyze this vulnerability. Um because
+[1514s] we're concerned about these very
+[1515s] specific patterns of code where they do
+[1517s] a snapshot check use. We want to figure
+[1520s] out where does that pattern exist? Uh so
+[1522s] from an attacking perspective that
+[1524s] became really easy. Something I could
+[1526s] not have done by hand. I I just had AI
+[1528s] review 500 million lines of open- source
+[1531s] projects and spent a hundred hours on
+[1534s] it. uh and it turns out 300 of these
+[1536s] patterns, something I I I never would
+[1538s] have been able to find by by hand. So AI
+[1541s] absolutely makes it easier. Um but but
+[1544s] it works both ways. It makes it easier
+[1546s] from a defender point of view, too. From
+[1548s] a defender perspective, especially if
+[1550s] you're if you're, you know, a regular
+[1552s] programmer, uh you don't have time to
+[1554s] worry about, you know, exactly every
+[1555s] line that I wrote, what are all the
+[1557s] different fringe security cases I have
+[1558s] to consider? Well, the good news is, uh
+[1561s] AI can help with that. And just like it
+[1563s] made it easy for an attacker, it also
+[1565s] makes it much easier for a defender now
+[1567s] to go through and find these kinds of
+[1569s] issues and suggest the fixes for them.
+[1571s] &gt;&gt; Which AI did you use? Any
+[1573s] recommendations? I mean, not everyone
+[1574s] has access to mythos and stuff like
+[1576s] that. So, what do you what can a normal
+[1577s] person use? What do you recommend? Open
+[1579s] source, what do you Yeah. So for this I
+[1581s] I found Claude Opus was working
+[1583s] extremely well. The the type of analysis
+[1585s] it had to do here. Uh wasn't something
+[1587s] you need a mythos level capability to uh
+[1590s] to to to figure out especially given
+[1593s] that we kind of know what the patterns
+[1595s] of code look like. uh we can give opus
+[1598s] uh enough guidelines in how to find
+[1600s] these and how to analyze these that I
+[1602s] think uh most of the existing frontier
+[1605s] models that any anybody would have
+[1606s] access to uh can do a a fantastic job of
+[1609s] finding most of the problems that we
+[1611s] know about as far as how a compiler
+[1614s] might sort of undermine your attempts to
+[1616s] write good code. Question though is okay
+[1618s] I try and use claude I try and use chat
+[1620s] GPT or whatever they have guardrails.
+[1622s] So, a lot of people have complained that
+[1625s] when they try and ask AI to help them as
+[1628s] a defender, it thinks you're an attacker
+[1630s] and won't help you. Is it is it
+[1632s] something that you had to do to get
+[1633s] around the guardrails or is it just it
+[1635s] allowed you to do this because you're
+[1636s] not doing it as an attacker or because
+[1638s] that's a you know, something people hit
+[1640s] when they try and do it?
+[1641s] &gt;&gt; Yeah, it's it's certainly a hard
+[1643s] problem. Um, part of the reason I I
+[1645s] didn't use the uh the newer models from
+[1647s] Flawed Fable would would not let me do
+[1650s] this.
+[1651s] wouldn't even
+[1654s] ask
+[1656s] of time
+[1660s] which I understand the the guard rails
+[1662s] and sort of the uncertainties with some
+[1663s] of the newer models but it makes it just
+[1665s] as hard from a defender perspective. So
+[1667s] from my experience with this work uh uh
+[1670s] opus was was willing to sort of work
+[1672s] with me on the problem especially from a
+[1674s] defending point of view. It's not trying
+[1676s] to weaponize anything here. It's trying
+[1678s] to find, you know, where did I write
+[1680s] code that was not correct and how do I
+[1682s] fix it? And that's uh at at least
+[1684s] different enough from how do I exploit
+[1686s] this actual issue that uh some of the
+[1688s] models are were able to work with that.
+[1690s] But uh I can't promise that they're
+[1692s] going to work with every situation that
+[1694s] this type of situation might come up. So
+[1696s] it's a pro. It's a hard problem.
+[1698s] &gt;&gt; Yeah, it's fortunately it's fringe
+[1700s] cases. So that's good. Recommendations
+[1703s] before we wrap up. Um, is it like get an
+[1706s] AI to check my code? What do I do as a
+[1709s] developer to try and make things better?
+[1711s] &gt;&gt; Yeah. So, um, certainly for for this
+[1713s] problem that's sort of a brand new thing
+[1715s] and there's not good solutions for it
+[1717s] right now. Getting an AI to help analyze
+[1720s] for this problem works really well. A
+[1722s] lot of the other problems that we have
+[1723s] though with uh compiler sort of
+[1725s] undermining what the programmer wanted,
+[1727s] those are more well understood and those
+[1729s] have pretty decent solutions already.
+[1731s] There's lots of warnings that you can
+[1733s] enable in the compiler where even though
+[1735s] the compiler is trying to transform your
+[1736s] code in a way that you won't like, it
+[1738s] can also realize it's doing that and it
+[1741s] can warn you about it. There's different
+[1743s] sanitizers that you can able at the
+[1744s] compiler level so that a lot of the
+[1746s] things that are biting people right now
+[1748s] like undefined behavior in C where the
+[1750s] compiler can go in and change things
+[1752s] underneath you in unexpected ways. Uh we
+[1754s] have ways of catching that now. So just
+[1756s] sort of turning on some of those
+[1757s] existing defenses and really sticking to
+[1760s] those uh making sure that when you ship
+[1763s] a binary that's the exact same binary
+[1764s] you were testing you know you didn't
+[1766s] test everything on a debug build where
+[1768s] there was no optimization and then
+[1770s] switch to an optimized build and then go
+[1772s] ahead and ship that with no testing. Uh
+[1774s] you know the optimization pass is where
+[1775s] compilers will really bite you with
+[1777s] these transformations. So making sure
+[1779s] you're checking what you're shipping.
+[1780s] Uh, I think there's lots of good sort of
+[1782s] known best practices that can help uh
+[1784s] help with this situation.
+[1785s] &gt;&gt; I want to be like you. Someone who's
+[1787s] watching is inspired by what you're
+[1789s] doing, wants to learn to do what you do.
+[1791s] Any recommendations, advice, things I
+[1794s] should study, what what should I do to
+[1795s] become like you?
+[1796s] &gt;&gt; I wish I had a magic answer for that.
+[1797s] Uh, I I think sort of how I got to where
+[1800s] I was was just kind of keep poking at
+[1803s] anything, anything that sparks your
+[1804s] curiosity, uh, dive into that even if it
+[1806s] seems like a waste of time. I kind of
+[1808s] think of it as approaching any problem
+[1810s] that you have with sort of a reckless
+[1811s] curiosity and going down every rabbit
+[1814s] hole that you find or any question that
+[1816s] nobody else is asking, that's the thing
+[1817s] to pursue. So, uh really just anytime
+[1820s] you're curious about something, that's
+[1822s] the right thing to dive into and and
+[1825s] learn more. And I I think that's sort of
+[1826s] how I found myself where I am. I love
+[1828s] this sort of this work and this sort of
+[1830s] research. Uh and I I think it all just
+[1832s] stems from having that initial curiosity
+[1834s] and not being afraid to pursue it.
+[1835s] &gt;&gt; Chris, thanks so much for sharing. We're
+[1837s] out of time. Really appreciate it, man.
+[1838s] Thanks so much.
