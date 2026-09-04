@@ -50,14 +50,20 @@ class ExtractorError(RuntimeError):
 # --------------------------------------------------------------------------
 
 def parse_env_text(text: str) -> dict:
-    """Parse KEY=VALUE lines from dotenv-style text."""
+    """Parse KEY=VALUE lines from dotenv or shell-export style text.
+
+    Accepts both `KEY=VALUE` and `export KEY=VALUE` (the canonical
+    `pqc-secrets export` output format per agent-integration.md).
+    """
     env_vars = {}
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, val = line.split("=", 1)
-        env_vars[key.strip()] = val.strip().strip("'\"")
+        key = re.sub(r"^export\s+", "", key.strip())
+        if key:
+            env_vars[key] = val.strip().strip("'\"")
     return env_vars
 
 
@@ -146,6 +152,21 @@ def is_allowed_endpoint(base_url: str) -> bool:
     if scheme == "https":
         return True
     return host in ("127.0.0.1", "localhost", "::1", "[::1]")
+
+
+class _EndpointGuardRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only when each hop passes the SSRF endpoint guard.
+
+    Prevents an https provider URL from redirecting requests to file://,
+    plain-http, or internal-network targets (redirect-based SSRF bypass).
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not is_allowed_endpoint(newurl):
+            raise urllib.error.URLError(
+                f"Redirect blocked by endpoint guard: {newurl}"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 # --------------------------------------------------------------------------
@@ -401,12 +422,14 @@ def analyze_section(vlm: VLMConfig, title: str, frames: list, prompt: str,
             "Authorization": f"Bearer {vlm.api_key}",
         },
     )
+    opener = urllib.request.build_opener(_EndpointGuardRedirectHandler())
     for attempt in range(1, retries + 1):
         print(f"[{vlm.provider}] Analyzing: {title} "
               f"(attempt {attempt}/{retries}, {len(frames)} frames)")
         try:
-            # Scheme allowlisted by is_allowed_endpoint() above (SSRF guard).
-            with urllib.request.urlopen(req, timeout=VLM_TIMEOUT) as response:  # nosec B310 - https/loopback only
+            # Scheme allowlisted by is_allowed_endpoint(); every redirect hop
+            # is re-validated by _EndpointGuardRedirectHandler (SSRF guard).
+            with opener.open(req, timeout=VLM_TIMEOUT) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 return result["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as exc:
@@ -414,7 +437,8 @@ def analyze_section(vlm: VLMConfig, title: str, frames: list, prompt: str,
             print(f"[{vlm.provider}] HTTP {exc.code}: {body}")
             if exc.code not in (429, 500, 502, 503, 504):
                 return None
-        except (urllib.error.URLError, TimeoutError, KeyError, json.JSONDecodeError) as exc:
+        except (urllib.error.URLError, TimeoutError, KeyError, IndexError,
+                TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             print(f"[{vlm.provider}] Request failed: {exc}")
         if attempt < retries:
             backoff = 2 ** attempt
