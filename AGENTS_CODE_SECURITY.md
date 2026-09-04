@@ -138,6 +138,28 @@ RSA, DSA, ECDSA, ECDH, Ed25519 (secrets/signing), MD5, SHA-1, DES, 3DES, Blowfis
 
 ---
 
+## Compiler Integrity (Source ≠ Binary)
+
+The source you audit is not the binary you ship. Spec-compliant optimizers legally delete security scaffolding (Domas, Black Hat 2026 — see `.agents/skills/code-security/SKILL.md` §2).
+
+```
+Blocked: plain memset() to wipe secrets                  — deleted as dead store; secrets linger in heap
+Use:     memset_s() / explicit_bzero() / volatile-loop   — barriers the optimizer must honor
+
+Blocked: trusting snapshot-check-use as TOCTOU-proof     — optimizer may delete the snapshot and re-read the
+                                                           untrusted original (spec-legal transformation)
+Watch:   register pressure, struct field order, data size mod 16, compiler version — all flip the outcome
+
+Blocked: security-testing a debug build, shipping an optimized build untested
+Use:     run the security suite against the exact optimized binary you release
+```
+
+- Compile with `-Wall -Wextra -Werror`; run ASan/UBSan in CI.
+- Pin the compiler version. A toolchain upgrade or downgrade is a **security event**: re-verify security-sensitive binaries afterward — same flags do not mean same security.
+- No compiler flag or binary analyzer detects optimizer-emitted TOCTOU yet. Before release of security-critical C/C++, run an LLM pattern audit for `snapshot-check-use` (see `AGENTS_LLM_SECURITY.md` → AI as Security Analyzer).
+
+---
+
 ## Dependencies & Supply Chain
 
 - Pin dependencies by hash (not version range).

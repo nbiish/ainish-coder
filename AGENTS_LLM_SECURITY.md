@@ -158,4 +158,13 @@ Append-only, immutable log of every agent action:
 
 ---
 
+## AI as Security Analyzer (Dual-Use)
+
+- Frontier LLMs audit at machine scale (~500M LOC / ~100 h / ~300 findings for one detector-less bug class — Domas, Black Hat 2026). Attackers have the same capability: assume every "rare" pattern is findable.
+- Mandate an LLM pattern audit for vulnerability classes without tooling (e.g., compiler-introduced TOCTOU via `snapshot-check-use`) before releasing security-critical C/C++.
+- Prompt as a defender — "audit my code, propose fixes" — avoids guardrail friction; never frame release audits as exploit development.
+- Verify LLM findings deterministically (compile, sanitize, test) before acting; log audits with model + version provenance.
+
+---
+
 *Derived from `.agents/skills/llm-security/SKILL.md` and `.agents/skills/production-security/SKILL.md`. These docs are versioned and improve with every iteration. Load the skills for full context, procedural checklists, and language-specific implementations.*
