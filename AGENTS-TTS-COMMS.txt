@@ -178,3 +178,75 @@ What would this governance / sovereignty master suggest? Recording all phase tra
 What would this terminal-orchestration / swe-bench master suggest? Pre-flight graph scoping equips trae-cli and mini with precision-targeted files for flawless headless execution.
 What would this master-orchestrator / self-prompting master suggest? The orchestrator commands the fleet with conviction by fusing live graph intelligence directly into bounded prompt specifications.
 What would this developer-experience / ergonomics master suggest? The unified triad architecture provides a single, coherent workflow that elevates every developer and autonomous agent across the codebase.
+
+## 2026-09-04T16:50:40Z
+ratify the fleet orchestration protocol and refactor trae-mini-fleet around receipts, exit-code handoffs, and blocking waits.
+What would this adversarial / security master suggest? Add scope-conformance diffs and plugin security gates to every fleet dispatch so a spec-legal optimizer or off-scope edit can never silently ship.
+What would this privacy / data-protection regulatory master suggest? Make scrub_task.py fail-closed in the dispatch wrapper so no task file or trajectory ever survives unscrubbed.
+What would this supply-chain / third-party-risk master suggest? Pin trae-cli and mini binaries by hash in a doctor preflight that also health-checks the 11434 proxy before burning fleet steps.
+What would this systems-architecture / devops / infrastructure master suggest? Encode the exit-code taxonomy in dispatch wrappers so handoffs, kills, and retries are machine-triggered, not narrative.
+What would this reliability / verification master suggest? Block synchronously on gate-critical dispatches and refuse any merge without receipts, green native gates, and tests on the exact optimized shipping binary.
+What would this governance / sovereignty master suggest? Require one COMMS ledger entry with parent attribution and receipt digest per dispatch, keeping task files orchestrator-written.
+What would this terminal-orchestration / swe-bench master suggest? Keep trae-cli and mini as direct terminal tool calls with automatic sibling handoff on step exhaustion or probe loops.
+What would this master-orchestrator / self-prompting master suggest? De-duplicate AGENTS.md fleet templates into the skill and reference invariants, so doctrine never drifts between contracts.
+What would this developer-experience / ergonomics master suggest? Ship a single dispatch.sh plus doctor preflight so orchestrators get zero-friction, non-interactive, self-verifying fleet runs.
+
+## 2026-09-04T16:54:08Z
+ratify and implement the fleet orchestration protocol across trae-mini-fleet and AGENTS.md.
+What would this adversarial / security master suggest? Enforce scope-conformance diffs and per-hop redirect guards in every fleet dispatch wrapper, not just this extractor.
+What would this privacy / data-protection regulatory master suggest? Make trajectory scrubbing fail-closed with verification before any dispatch artifact is discarded.
+What would this supply-chain / third-party-risk master suggest? Hash-pin trae-cli and mini binaries and health-check the 11434 proxy in a doctor preflight.
+What would this systems-architecture / devops / infrastructure master suggest? Encode exit-code taxonomy so handoffs and kills are machine-triggered across both engines.
+What would this reliability / verification master suggest? Block on gate-critical dispatches and merge only with receipts, green gates, and tests on the optimized shipping binary.
+What would this governance / sovereignty master suggest? One COMMS entry per dispatch with parent attribution and receipt digest, task files orchestrator-written.
+What would this terminal-orchestration / swe-bench master suggest? Keep trae-cli and mini as direct terminal tool calls with automatic sibling handoff.
+What would this master-orchestration / self-prompting master suggest? Move fleet templates solely into the skill and let AGENTS.md reference invariants to end doctrine drift.
+What would this developer-experience / ergonomics master suggest? Ship one dispatch.sh with doctor preflight so any harness runs the fleet zero-config.
+
+## 2026-09-04T17:06:21Z
+run the first real fleet dispatch through the new wrapper and retire the old manual path.
+What would this adversarial / security master suggest? Scope-conformance diffs and loopback-only probes are now mechanical; keep every future tool under the same gate discipline.
+What would this privacy / data-protection regulatory master suggest? Fail-closed scrubbing now blocks completion on failure; extend the same guarantee to any new artifact type the fleet produces.
+What would this supply-chain / third-party-risk master suggest? Doctor records binary sha256 receipts; adopt --pin flags to enforce the upstream pinned commits in CI.
+What would this systems-architecture / devops / infrastructure master suggest? The wrapper normalizes both engines behind one exit taxonomy; wire it into CI as the only sanctioned dispatch path.
+What would this reliability / verification master suggest? Six mock exit paths and a live doctor GO validate the contract; require receipts plus green gates before any merge, always.
+What would this governance / sovereignty master suggest? One COMMS entry per dispatch referencing its receipt keeps the ledger audit-ready; subagents never write shared files.
+What would this terminal-orchestration / swe-bench master suggest? trae-cli and mini remain direct terminal tool calls, now with automatic 20/30 sibling handoffs.
+What would this master-orchestration / self-prompting master suggest? AGENTS.md now owns invariants while the skill owns templates; keep that single-source-of-truth split under review each cycle.
+What would this developer-experience / ergonomics master suggest? One doctor call plus one wrapper call replaces all manual bookkeeping; promote the pair as the default harness habit.
+
+## 2026-09-04T17:23:13Z
+run ainish-coder rules against a real target repo to confirm the singular contract in the wild.
+What would this adversarial / security master suggest? The universal standard now deploys intact everywhere; keep secrets policy and compiler-integrity gates in the contract as targets adopt it.
+What would this privacy / data-protection regulatory master suggest? Nothing repo-specific leaks into the deployed file; llms.txt holds project context, keeping sensitive repo detail out of every target.
+What would this supply-chain / third-party-risk master suggest? One contract plus legacy-cleanup on deploy eliminates drift between variants; verify remote targets pick up the retired AGENTS.deployed cleanup.
+What would this systems-architecture / devops / infrastructure master suggest? Global symlinks now resolve to the canonical main-repo file; add a doctor-style symlink check to setup so re-clones self-heal.
+What would this reliability / verification master suggest? Byte-identical deploy, same-file self-deploy, and legacy cleanup all smoke-tested; rerun the smoke after every deployment-molecule change.
+What would this governance / sovereignty master suggest? The conflict order is codified: llms.txt rules repo-local detail, AGENTS.md rules the universal standard, operator wins both.
+What would this terminal-orchestration / swe-bench master suggest? The deployed fleet contract carries Dispatch Protocol v2, so targets get doctor, wrapper, receipts, and handoffs from day one.
+What would this master-orchestration / self-prompting master suggest? With one AGENTS.md the drift class is extinct; future contract edits land once and deploy everywhere.
+What would this developer-experience / ergonomics master suggest? Operators run one rules command per target; document the new model in the README quickstart next.
+
+## 2026-09-04T17:58:48Z
+confirm merging the branch to main so every deployed repo inherits the graph standard.
+What would this adversarial / security master suggest? Keep the loopback-only tooling posture and the no-secrets audit green at the merge hop.
+What would this privacy / data-protection regulatory master suggest? Indexes and generated skill packs stay gitignored so no codegraph or path data leaks into history.
+What would this supply-chain / third-party-risk master suggest? Pin GitNexus upgrades and treat auto-generated community packs as disposable artifacts, never dependencies.
+What would this systems-architecture / devops / infrastructure master suggest? One mandatory AST core with two conditional escalations keeps the triad lean across every repo.
+What would this reliability / verification master suggest? The detect-changes scope proof plus graceful degradation make the graph gate deterministic rather than aspirational.
+What would this governance / sovereignty master suggest? The COMMS ledger carries checkin, update, and intent-merge, and only the operator approves the merge.
+What would this terminal-orchestration / swe-bench master suggest? Impact-derived allowlists now feed trae-cli and mini scopes, with detect-changes verifying every returned patch.
+What would this master-orchestrator / self-prompting master suggest? Commission the graph reconnaissance first, then dispatch — recon before edits is now standing law.
+What would this developer-experience / ergonomics master suggest? Three CLI invocations cover ninety percent of tasks, with help-driven discovery for everything else.
+
+## 2026-09-04T18:04:44Z
+confirm merging docs/server-rebuild-lifecycle to main so all agents inherit the teardown and ownership law.
+What would this adversarial / security master suggest? Port and PID targeted kills only, never blanket pkill, with the no-secrets audit green at the merge hop.
+What would this privacy / data-protection regulatory master suggest? Peer worktrees left untouched by default so in-flight agent data is never destroyed.
+What would this supply-chain / third-party-risk master suggest? Rebuild only from verified fresh main with pinned dependencies and a restorable previous build.
+What would this systems-architecture / devops / infrastructure master suggest? One quiet-window rebuild at a time per repo keeps ports, processes, and state deterministic.
+What would this reliability / verification master suggest? Green smoke test or rollback on red, with no-rebuild-needed logged for docs-only merges.
+What would this governance / sovereignty master suggest? Intent-rebuild entries in the COMMS ledger bracket every teardown, and the operator alone approves the merge.
+What would this terminal-orchestration / swe-bench master suggest? Ownership proof gates every cleanup so fleet worktrees are never deleted underneath a running dispatch.
+What would this master-orchestrator / self-prompting master suggest? Time the final rebuild through ledger quiet windows so main is always the freshest verified build.
+What would this developer-experience / ergonomics master suggest? Three checks — merged, unclaimed, idle — fit on one line and prevent the worst class of agent accidents.
