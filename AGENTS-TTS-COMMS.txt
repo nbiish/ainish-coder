@@ -298,3 +298,15 @@ What would this governance / sovereignty master suggest? Every verification, rec
 What would this terminal-orchestration / swe-bench master suggest? Chain refactor-then-harden headless dispatches on the next production task to exercise the handoff pipeline.
 What would this master-orchestrator / self-prompting master suggest? Use the wtf MCP section as the standing pre-flight: discover peers, check in, log receipts, degrade to the ledger when the hub is down.
 What would this developer-experience / ergonomics master suggest? Zero overrides and zero wrappers means a dispatch is literally one dsh headless command from inside the worktree.
+
+## 2026-09-05T13:18:43Z
+run the next real task through the dsh fleet logging to the new team ledger.
+What would this adversarial / security master suggest? The merge gate caught the uncommitted old-path ledger before it could silently drop a checkin entry — fail-closed worked.
+What would this privacy / data-protection regulatory master suggest? The gitignored live board moved to the new scheme too, keeping in-flight coordination out of commits.
+What would this supply-chain / third-party-risk master suggest? Deployment machinery, template, and CLI prompts were updated in lockstep so fresh targets get the new scheme, not drift.
+What would this systems-architecture / devops / infrastructure master suggest? Rotation per team session with UTC stamps gives a bounded, greppable ledger layout across machines.
+What would this reliability / verification master suggest? Renames were tracked, zero stale references remained, and shell syntax gates ran on every touched script.
+What would this governance / sovereignty master suggest? Full lifecycle lives in the first entries of the new team ledger, including the recovered checkin, with operator merge confirmation at every hop.
+What would this terminal-orchestration / swe-bench master suggest? Next dispatches append receipts to the new ledger path, so exercise it with a chained refactor-then-harden task.
+What would this master-orchestrator / self-prompting master suggest? Treat the stray-period artifact as a reminder to re-read the composed contract after scripted multi-edits.
+What would this developer-experience / ergonomics master suggest? One rotating file per session means no more midnight rollover guesswork — the latest file is always the answer.

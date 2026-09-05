@@ -284,3 +284,13 @@ description: Dated agent COMMS ledger.
 - output:merged; worktree removed; branch deleted; no-rebuild-needed (docs-only); comms migration now complete and correct
 - status:done
 - blockers:none
+
+### [2026-09-05T13:21:30Z] log_event | agent:dsh-orchestrator | branch:main
+- start:2026-09-05T13:21:30Z
+- end:2026-09-05T13:21:30Z
+- scope:verification only (no repo changes)
+- objective:verify dsh headless masters use operator's current default model (zai/GLM-5.3-Flash via zai code plan)
+- input:operator verification request
+- output:VERIFIED green — (1) $DSH_HOME/settings.yaml agent-default-model = provider zai, model glm-5.3-flash, reasoningEffort high (dash-web store); (2) latest headless session log records provider=zai model=glm-5.3-flash; (3) live pong round-trip exit 0. Caveat found: dsh --dump-config shows the static bundle default (deepseek-official/deepseek-v4-flash) and does NOT reflect settings.yaml runtime overrides — model verification must use settings.yaml + session-log evidence, not dump-config
+- status:done
+- blockers:none
