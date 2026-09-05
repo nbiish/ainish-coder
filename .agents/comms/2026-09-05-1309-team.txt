@@ -5,6 +5,16 @@ description: Dated agent COMMS ledger.
 # AGENT COMMS — 2026-09-05
 
 
+### [2026-09-05T13:06:07Z] checkin | agent:dsh-orchestrator | branch:chore/comms-ledger-relocation | wt:/mnt/d/Code/om-comms-move
+- start:2026-09-05T13:06:07Z
+- end:2026-09-05T13:06:07Z
+- scope:.agents/comms/,AGENTS/,AGENTS.md,llms.txt,.agents/skills/orchestrate-subagent-masters/,src/templates/,AGENTS/2026-09-05.COMMS.md
+- objective:test migration of COMMS ledger AGENTS/{date}.COMMS.md -> .agents/comms/{date}-{time}-team.txt and update AGENTS.md + dependent references to reflect the new setup
+- input:operator directive: test the move, update the contract
+- output:work starting
+- status:in-progress
+- blockers:none
+
 ### [2026-09-05T00:39:50Z] checkin | agent:dsh-orchestrator | branch:feat/fleet-orchestrate-subagent-masters | wt:/mnt/d/Code/orchestrate-subagent-masters
 - start:2026-09-05T00:39:50Z
 - end:2026-09-05T00:39:50Z
@@ -244,3 +254,13 @@ description: Dated agent COMMS ledger.
 - output:awaiting operator confirm
 - status:blocked-on-operator
 - blockers:operator confirmation pending
+
+### [2026-09-05T13:15:20Z] checkout | agent:dsh-orchestrator | branch:chore/comms-ledger-relocation | wt:/mnt/d/Code/om-comms-move
+- start:2026-09-05T13:15:20Z
+- end:2026-09-05T13:15:20Z
+- scope:.agents/comms/,AGENTS.md,llms.txt,src/,bin/ainish-coder,.gitignore,.agents/skills/orchestrate-subagent-masters/,.agents/tasks/
+- objective:close comms-migration test — merged to main on operator confirmation; push origin next
+- input:operator selected "Merge + push"; round-4 checkin entry recovered from the old-path file and inserted chronologically after the merge
+- output:merged; worktree removed; branch deleted; no-rebuild-needed (docs+shell, no server); rotating team-ledger scheme now live; stale root FLEET-SKILL-REFLECTIONS.txt flagged, untouched
+- status:done
+- blockers:none
