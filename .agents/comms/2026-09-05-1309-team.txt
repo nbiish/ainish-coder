@@ -435,3 +435,43 @@ description: Dated agent COMMS ledger.
 - output:pushed 8 commits to origin/main; deployed singular AGENTS.md to all 16 target repos + ~; diff verified 100% byte-identical (zero drift); skills-verify confirmed 25 identical skills (0 mismatch); scratch sanitized
 - status:done
 - blockers:none
+
+### [2026-09-05T22:48:00Z] checkin | agent:antigravity-orchestrator | branch:chore/agents-strip-wtf-graph | wt:D:/Code/ainish-coder-strip-wtf-graph
+- start:2026-09-05T22:48:00Z
+- end:2026-09-05T22:48:00Z
+- scope:AGENTS.md
+- objective:strip wtf hub and graph-intelligence content from AGENTS.md, leaving them to their respective skills (.agents/skills/)
+- input:operator request to pull out wtf skill content and graph intelligence content from AGENTS.md and leave them for the skills
+- output:work starting in dedicated worktree D:/Code/ainish-coder-strip-wtf-graph
+- status:in-progress
+- blockers:none
+
+### [2026-09-05T22:48:45Z] update | agent:antigravity-orchestrator | branch:chore/agents-strip-wtf-graph | wt:D:/Code/ainish-coder-strip-wtf-graph
+- start:2026-09-05T22:48:00Z
+- end:2026-09-05T22:48:45Z
+- scope:AGENTS.md
+- objective:strip wtf hub and graph-intelligence sections from AGENTS.md, leaving them exclusively to their dedicated skills
+- input:operator request to pull out wtf and graph intelligence content from AGENTS.md
+- output:AGENTS.md updated and committed; zero wtf or graph references remain; security gate passed
+- status:verifying
+- blockers:none
+
+### [2026-09-05T22:49:00Z] intent-merge | agent:antigravity-orchestrator | branch:chore/agents-strip-wtf-graph | wt:D:/Code/ainish-coder-strip-wtf-graph
+- start:2026-09-05T22:49:00Z
+- end:2026-09-05T22:49:00Z
+- scope:AGENTS.md
+- objective:merge chore/agents-strip-wtf-graph -> main (operator merge gate)
+- input:operator confirmation required
+- output:awaiting operator confirmation to merge
+- status:blocked-on-operator
+- blockers:operator confirmation pending
+
+### [2026-09-05T22:49:30Z] checkout | agent:antigravity-orchestrator | branch:chore/agents-strip-wtf-graph | wt:D:/Code/ainish-coder-strip-wtf-graph
+- start:2026-09-05T22:49:30Z
+- end:2026-09-05T22:49:30Z
+- scope:AGENTS.md
+- objective:close wtf and graph-intelligence stripping round — merged to main on operator confirmation
+- input:operator confirmed "Proceed."
+- output:merged to main; worktree removed; branch deleted; no-rebuild-needed (docs only); wtf hub and graph-intelligence sections successfully stripped out from AGENTS.md, leaving all specialized tooling to modular skills
+- status:done
+- blockers:none
