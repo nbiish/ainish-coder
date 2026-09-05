@@ -60,7 +60,7 @@ Conflict → fail closed, explain, ask.
 <COMMS>
 ## AGENT COMMS — CONCURRENT COORDINATION
 
-.
+When ≥1 agent works at once, coordinate through the rotating team ledger at **`.agents/comms/{date}-{time}-team.txt`** — one file per team session, stamped UTC `{date}-{time}` at creation; the latest file is the active ledger, historical files keep their creation stamp.
 - **Lifecycle:** Append timestamped entries: `checkin` → `update` → `intent-merge` → `checkout`. Subagents set `parent:` to their orchestrator.
 - **Timestamps:** Bracket every input/output with `start:` / `end:` ISO-8601 timestamps. Never leave a `start:` unclosed.
 - **Carve-out:** Appending to the main repo's latest `.agents/comms/*-team.txt` is the *only* permitted edit outside a worktree. Rotate to a fresh `{date}-{time}` file per team session. Before `checkout`, commit the ledger on a task branch and merge to `main`.

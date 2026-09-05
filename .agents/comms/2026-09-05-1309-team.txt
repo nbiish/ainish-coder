@@ -264,3 +264,13 @@ description: Dated agent COMMS ledger.
 - output:merged; worktree removed; branch deleted; no-rebuild-needed (docs+shell, no server); rotating team-ledger scheme now live; stale root FLEET-SKILL-REFLECTIONS.txt flagged, untouched
 - status:done
 - blockers:none
+
+### [2026-09-05T13:16:29Z] update | agent:dsh-orchestrator | branch:fix/comms-intro-sentence | wt:/mnt/d/Code/om-comms-fix
+- start:2026-09-05T13:16:29Z
+- end:2026-09-05T13:16:29Z
+- scope:AGENTS.md
+- objective:repair COMMS intro sentence — my migration double-replace left a stray "." and dropped the rotating-ledger doctrine sentence
+- input:self-caught during post-merge review of the updated contract
+- output:intro sentence restored (rotating ledger, latest = active, historical stamps preserved); zero other double-edit artifacts found
+- status:verifying
+- blockers:none
