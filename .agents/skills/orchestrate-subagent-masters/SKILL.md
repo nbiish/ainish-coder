@@ -8,22 +8,24 @@ description: >
   subagent_fork delegates, workflow fan-out, and ralph fresh-agent loops — each
   embodied as an expert master persona with concise terminal-command
   instructions, dedicated worktree isolation, handoff chaining, and COMMS
-  ledger receipts. Supersedes trae-mini-fleet (trae-cli/mini retired from the
-  matrix; legacy dispatch only on explicit operator request). Use when
-  orchestrating coding subagents, dispatching fleet engines, fanning out
-  parallel subtasks, or delegating any scoped task to a sub-master.
+  ledger receipts — with the wtf MCP hub as the live cross-machine
+  observability plane. The dsh configuration is the operator's own (set from
+  the DSH web dashboard): never override profile or provider config in
+  dispatches. Use when orchestrating coding subagents, dispatching fleet
+  engines, fanning out parallel subtasks, or delegating any scoped task to a
+  sub-master.
 ---
 
 # Orchestrate-Subagent-Masters — Universal Subagent Orchestrator Skill
 
-The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches and the ACP persistent surface. The invoking directory is the workspace root, so always `cd` into the worktree first.
+The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches and the ACP persistent surface — running the operator's own configuration as set from the DSH web dashboard. The wtf MCP hub is the live cross-machine observability plane (§9). The invoking directory is the workspace root, so always `cd` into the worktree first.
 
 ## 1. Core Doctrine
 
 1. **Tool calls, not commentary.** Dispatch immediately via the modality's invocation form (§2).
 2. **Embody the master.** Formulate each prompt AS the persona (AST Master, TDD Engineer, Security Auditor, …) — precise scope, bounded steps, explicit gates.
 3. **Worktree isolation.** One dispatch = one branch = one sibling worktree (`git worktree add -b <type>/<scope>-<slug> ../<slug> main`). Never dispatch against `main`.
-4. **Key confinement.** Inference follows the booted dsh profile's own provider config — never pass raw API keys in dispatch args or task text. When a profile is wired to the local-router loopback, keep traffic on `127.0.0.1` only.
+4. **Operator-owned config.** dsh runs the configuration the operator set from the DSH web dashboard — never override profile, provider, or model config in a dispatch (no `--patch` overlays, no profile edits). Verify what will boot with `dsh --profile headless --dump-config` and the §4.1 pong; never pass raw API keys in dispatch args or task text.
 5. **Graph recon first.** `gitnexus context`/`impact` (d≤2) output IS the `SCOPE & TARGET FILES` allowlist. Zero blind edits.
 6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in `AGENTS/{date}.COMMS.md` (`parent: <orchestrator>`).
 
@@ -38,7 +40,7 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 | `workflow` | Parallel Masters (fan-out) | Many independent scoped pieces: audits, migrations, multi-angle research |
 | `ralph` | Fresh-Agent Iteration Master | ONLY on explicit operator request for fresh-agent iterative loops |
 
-Legacy: `trae-cli`/`mini` are retired from the matrix — dispatch them only on explicit operator request. The launcher parses only its own flags; everything after them belongs to the booted profile (`dsh --profile <name> --help` for the app's flags). Invalid commands, foreign options, config errors, and boot failures exit nonzero.
+The launcher parses only its own flags; everything after them belongs to the booted profile (`dsh --profile <name> --help` for the app's flags). Invalid commands, foreign options, config errors, and boot failures exit nonzero.
 
 ### 2.1 `dsh --profile headless` — AST Refactoring Master (one-shot)
 ```bash
@@ -176,3 +178,13 @@ One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<moda
 ## 8. Reflection Ledger
 
 Upon every dispatch, record concise persona-aligned refinements in `MASTER-REFLECTIONS.txt` beside this SKILL.md (ISO-8601, modality, action, refinement).
+
+## 9. wtf MCP Orchestration
+
+The wtf hub is the live cross-machine observability and coordination plane, complementary to the git-carried COMMS ledger:
+
+1. **Discover:** `wtf_is_going_on` before starting work — see what peers are doing machine-wide.
+2. **Report:** `check_in` working/blocked/done at task boundaries; `log_event` for milestones and receipts.
+3. **Dispatch:** the hub's `chat_run` / session-lifecycle tools execute headless tasks through its agent catalog — any hub-dispatched task still owes a COMMS receipt.
+4. **Coordinate:** COMMS-ledger channels (`comms_post`/`comms_read`) for live distributed sync; encrypted sealed sessions for confidential coordination.
+5. **Degrade gracefully:** hub unavailable → the COMMS ledger carries coordination with a gap note; never block fleet dispatches on hub availability.

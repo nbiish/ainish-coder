@@ -1,13 +1,13 @@
 ---
 name: wtf-agent-hub
-description: Mastered, concise operating manual for connecting any AI agent harness (Claude Desktop, Cursor, Warp, Codex, OpenCode, Aider, Cline, Pi, CI bots, custom harnesses, OMP, Trae-cli, Mini, Fleet) to the wtf federated observability hub, shell, and compute mesh. Covers zero-config join, singular capability plane (/w/<cap>), PQC key generation (FIPS 203 ML-KEM-768) and single-use burn-on-handshake lifecycle (wtf enroll-token / wtf enroll --psk), paired Federated Multi-Machine Shell (~/ virtual cluster root with LKGL persistence), universal 11-agent CLI catalog (auto, fleet, claude, omp, hermes, trae-cli, mini, codex, opencode, aider, cline, pi) via loopback proxy local-router:11434, private ML-KEM-768 sealed sessions/chats, structured COMMS ledger, and distributed compute task execution (chat_run).
+description: Mastered, concise operating manual for connecting any AI agent harness (Claude Desktop, Cursor, Warp, Codex, OpenCode, Aider, Cline, Pi, CI bots, custom harnesses, OMP, dsh) to the wtf federated observability hub, shell, and compute mesh. Covers zero-config join, singular capability plane (/w/<cap>), PQC key generation (FIPS 203 ML-KEM-768) and single-use burn-on-handshake lifecycle (wtf enroll-token / wtf enroll --psk), paired Federated Multi-Machine Shell (~/ virtual cluster root with LKGL persistence), universal agent CLI catalog (auto, fleet, dsh, claude, omp, hermes, codex, opencode, aider, cline, pi) via loopback proxy local-router:11434, private ML-KEM-768 sealed sessions/chats, structured COMMS ledger, and distributed compute task execution (chat_run).
 ---
 
 # wtf-agent-hub — Master Operating Instruction Set
 
 `wtf` is a zero-dependency Rust observability hub (`wtf serve`) and MCP stdio bridge (`wtf agent`). It acts as the singular source of truth across all connected machines: agent presence, chain-of-draft event streams, persistent paste-bins, encrypted agent-to-agent session channels, the SWE-bench Coding Fleet executor, and the paired Federated Multi-Machine Shell (`~/` virtual cluster root).
 
-Any MCP-compliant harness — Claude Desktop, Cursor, Warp, Codex, OpenCode, Aider, Cline, Pi, OMP, Trae, Mini, or custom agents — connects autonomously.
+Any MCP-compliant harness — Claude Desktop, Cursor, Warp, Codex, OpenCode, Aider, Cline, Pi, OMP, dsh, or custom agents — connects autonomously.
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -172,19 +172,18 @@ The shell engine parses compound operators (`&&`), switches execution contexts t
 
 Headless tasks dispatched via the dashboard or MCP `chat_run` execute inside persistent, attachable tmux sessions (`wtf-chat-<slug>`).
 
-### 11-Agent CLI Catalog
-1. **`auto`**: Intelligent cascade fallback (`claude`/`fcc` -> `omp` -> `hermes` -> `trae-cli` -> `mini` -> `codex` -> `opencode` -> `aider` -> `cline` -> `pi`).
-2. **`fleet`**: SWE-bench Verified Dual-Engine pipeline. Dispatches `trae-cli` for surgical AST refactoring, handing discovered target symbols to `mini` for test reproduction and hardening.
+### Agent CLI Catalog
+1. **`auto`**: Intelligent cascade fallback (`dsh` -> `claude`/`fcc` -> `omp` -> `hermes` -> `codex` -> `opencode` -> `aider` -> `cline` -> `pi`).
+2. **`fleet`**: DeepSeek Harness master-persona pipeline. Dispatches `dsh --profile headless` scoped tasks (structural edits, TDD reproduction, audits), chaining follow-up dispatches with discovered targets under orchestrate-subagent-masters.
 3. **`claude` / `free-claude-code` (`fcc`)**: Claude Code headless execution.
 4. **`omp`**: OhMyPy Python & generalist refactoring CLI (`omp "<prompt>"`).
 5. **`hermes`**: Hermes autonomous agent CLI.
-6. **`trae-cli`**: ByteDance AST Refactoring Master (`trae-cli run -f <task.md> --console-type simple --max-steps 30`).
-7. **`mini` / `mini-live`**: OpenAutoCoder TDD Reproduction Engineer (`mini --task "<task>" --yolo --exit-immediately`). Pre-configured via `~/.config/mini-swe-agent/.env`.
-8. **`codex`**: OpenAI Codex CLI.
-9. **`opencode`**: OpenCode multi-provider CLI.
-10. **`aider`**: Aider git-integrated coding agent.
-11. **`cline`**: Cline CLI harness.
-12. **`pi`**: Edge low-power agent node.
+6. **`dsh`**: DeepSeek Harness one-shot engine (`dsh --profile headless "<task>"`), running the operator's dash-web configuration; `dsh --profile acp` serves persistent ACP sessions.
+7. **`codex`**: OpenAI Codex CLI.
+8. **`opencode`**: OpenCode multi-provider CLI.
+9. **`aider`**: Aider git-integrated coding agent.
+10. **`cline`**: Cline CLI harness.
+11. **`pi`**: Edge low-power agent node.
 
 ### Singular Loopback Proxy Contract (`127.0.0.1:11434`)
 - **Single Source of Inference:** ALL agent CLIs route through the local router proxy on port 11434:

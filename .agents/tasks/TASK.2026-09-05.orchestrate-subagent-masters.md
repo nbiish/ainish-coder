@@ -63,3 +63,24 @@ tool-call instructions — no Python tooling scripts.
 - Cross-refs: README row, help.sh blurb, gstack-coder pairing lines.
 - Gates: stale-engine-ref sweep clean (only intentional legacy notes), bash -n on help.sh +
   preflight snippet, TPL ids consistent across AGENTS.md and SKILL.md.
+
+## Round 3 (2026-09-05, branch chore/fleet-dsh-only-scrub)
+
+- Operator directives: scrub ALL trae/mini verbiage from AGENTS.md/llms.txt/skills;
+  dsh-headless-only doctrine; wtf MCP orchestration focus; modal bad key is INTENTIONAL
+  (fallback verification); operator is actively working the local-router — fleet hands off;
+  use the USER-CONFIGURED dsh from the dash web (no profile overrides).
+- Corrections applied: reverted my zai/glm-5.3-flash profile patch (backup restored —
+  user config is deepseek-official/deepseek-v4-flash); doctrine now mandates operator-owned
+  config, `--dump-config` + pong verification, never override.
+- Verification: pong green on user config (exit 0); first real dsh coding dispatch GREEN
+  (tests/dsh_dispatch.test.mjs, exit 0, ~103s, scope clean, independent gate green, artifact
+  scrubbed post-verification); router fallback verified working-as-designed earlier (bad-key
+  target skipped, healthy zai target served HTTP 200) — no further router probes per operator.
+- Scrub: SKILL.md zero legacy verbiage + user-config doctrine + §9 wtf MCP Orchestration;
+  MASTER-REFLECTIONS header rewritten + historical engine names redacted (peer skills-sync
+  had regressed the header); graph-intelligence §5 bridge → dsh; wtf-agent-hub roster/cascade/
+  catalog → dsh (model claim stripped — operator-owned config); wtf-observability catalog → dsh;
+  advisory-council rotation mini → dsh. AGENTS.md + llms.txt verified already at zero.
+- Scoping decisions (flagged): gstack-coder keeps its own mini-live tooling docs (separate
+  tool, not fleet doctrine); skyvern keeps "mini agents" (its own product feature term).

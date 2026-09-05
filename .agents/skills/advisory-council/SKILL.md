@@ -355,7 +355,7 @@ Pre-compute allowed actions per ticker: Long side — can sell existing shares, 
 When using external CLI agents via the OSA framework:
 
 ```
-Rotation: gemini → claude → opencode → mini → pi → kilo → (wrap)
+Rotation: gemini → claude → opencode → dsh → pi → kilo → (wrap)
 ```
 
 ```bash
