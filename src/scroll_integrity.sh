@@ -61,7 +61,7 @@ _scrolls_comms_append() {
 }
 
 # scrolls_comms_log <event> <detail> — append a protocol block (format per
-# AGENTS/{date}.COMMS.md PROTOCOL) to the durable ledger (worktree if present)
+# .agents/comms/{date}-{time}-team.txt PROTOCOL) to the durable ledger (worktree if present)
 # AND the gitignored live board at the main repo path. Includes start:/end:
 # ISO-8601 pairs, scope:.scrolls/, and the current manifest digest when one
 # exists in the target dir (last arg, optional: <event> <detail> [payload_dir]).
@@ -77,22 +77,23 @@ scrolls_comms_log() {
     # Ledger locations: durable copy lives in THIS worktree (if it has AGENTS/),
     # live board lives at the main repo path (gitignored, tolerate absence).
     local ledger_file live_file
-    if [[ -d "${REPO_DIR}/AGENTS" ]]; then
-        ledger_file="${REPO_DIR}/AGENTS/$(date +%Y-%m-%d).COMMS.md"
+    local comms_dir="${REPO_DIR}/.agents/comms"
+    if [[ -d "$comms_dir" ]]; then
+        ledger_file="$(ls -1 "$comms_dir/$(date +%F)"*-team.txt 2>/dev/null | sort | tail -1)"
     else
         ledger_file=""
     fi
     # Main repo = worktree's parent project; the live board is per-DATE at the
-    # main checkout's AGENTS/ dir.
+    # main checkout's .agents/comms/ dir.
     local main_repo_agents
     if git -C "${REPO_DIR}" rev-parse --git-common-dir > /dev/null 2>&1; then
         local common_dir
         common_dir=$(git -C "${REPO_DIR}" rev-parse --path-format=absolute --git-common-dir 2> /dev/null || echo "")
-        main_repo_agents="$(cd "${common_dir}/.." 2> /dev/null && pwd)/AGENTS"
+        main_repo_agents="$(cd "${common_dir}/.." 2> /dev/null && pwd)/.agents/comms"
     else
-        main_repo_agents="${REPO_DIR}/AGENTS"
+        main_repo_agents="${REPO_DIR}/.agents/comms"
     fi
-    live_file="${main_repo_agents}/$(date +%Y-%m-%d).COMMS.live.md"
+    live_file="${main_repo_agents}/$(date +%Y-%m-%d)-team.live.txt"
 
     branch=$(git -C "${REPO_DIR}" branch --show-current 2> /dev/null || echo "unknown")
     wt_path=$(git -C "${REPO_DIR}" rev-parse --show-toplevel 2> /dev/null || echo "${REPO_DIR}")

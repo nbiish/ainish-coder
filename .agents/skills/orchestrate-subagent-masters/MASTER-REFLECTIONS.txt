@@ -32,7 +32,7 @@ GOVERNING TTS.COMMS MASTER DIRECTIVES (CROSS-DISPATCH SYNTHESIS)
 
 6. Governance & Sovereignty Master:
    Commit logs, task tracking files (`.agents/tasks/`), and comms ledgers
-   (`AGENTS/{date}.COMMS.md`) travel with git commits and maintain cryptographic auditability.
+   (`.agents/comms/{date}-{time}-team.txt`) travel with git commits and maintain cryptographic auditability.
 
 7. Developer Experience & Ergonomics Master:
    Standardize task file execution (`legacy engine run -f <file> --console-type simple`)

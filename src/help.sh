@@ -24,7 +24,7 @@ CORE COMMANDS:
                               (defaults to copy for safety) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
-                                AGENTS/{date}.COMMS.md (merge-safe: refreshes
+                                .agents/comms/{date}-{time}-team.txt (merge-safe: refreshes
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
                               and ALL skill packs from .agents/skills/
@@ -49,7 +49,7 @@ CORE COMMANDS:
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + .gitignore + AGENTS/{date}.COMMS.md + all skill packs.
+    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-{time}-team.txt + all skill packs.
     Use --llms-txt to deploy llms.txt.
     Use --skills to deploy all skill packs.
 
@@ -227,7 +227,7 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing AGENTS.md) + .gitignore + AGENTS/{date}.COMMS.md + skill packs per your persisted selection + global symlinks
+    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing AGENTS.md) + .gitignore + .agents/comms/{date}-{time}-team.txt + skill packs per your persisted selection + global symlinks
     - --headless second arg (e.g. 'ainish-coder --skills <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md (project-agnostic rules, single governing document) + global symlinks

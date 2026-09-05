@@ -27,7 +27,7 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 3. **Worktree isolation.** One dispatch = one branch = one sibling worktree (`git worktree add -b <type>/<scope>-<slug> ../<slug> main`). Never dispatch against `main`.
 4. **Operator-owned config.** dsh runs the configuration the operator set from the DSH web dashboard — never override profile, provider, or model config in a dispatch (no `--patch` overlays, no profile edits). Verify what will boot with `dsh --profile headless --dump-config` and the §4.1 pong; never pass raw API keys in dispatch args or task text.
 5. **Graph recon first.** `gitnexus context`/`impact` (d≤2) output IS the `SCOPE & TARGET FILES` allowlist. Zero blind edits.
-6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in `AGENTS/{date}.COMMS.md` (`parent: <orchestrator>`).
+6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in the latest `.agents/comms/{date}-{time}-team.txt` (`parent: <orchestrator>`).
 
 ## 2. Subagent Modality Matrix — One Command Each
 

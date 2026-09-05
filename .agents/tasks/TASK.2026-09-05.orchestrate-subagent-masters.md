@@ -84,3 +84,26 @@ tool-call instructions — no Python tooling scripts.
   advisory-council rotation mini → dsh. AGENTS.md + llms.txt verified already at zero.
 - Scoping decisions (flagged): gstack-coder keeps its own mini-live tooling docs (separate
   tool, not fleet doctrine); skyvern keeps "mini agents" (its own product feature term).
+
+## Round 4 (2026-09-05, branch chore/comms-ledger-relocation)
+
+- Operator directive: test moving AGENTS/**COMMS.md to .agents/comms/{date}-{time}-team.txt;
+  update AGENTS.md to reflect the setup.
+- Migration: 8 dated ledgers git-mv'd — historical files stamped {date}-0000-team.txt,
+  today's rotated to 2026-09-05-1309-team.txt (UTC creation stamp); live board convention
+  becomes {date}-team.live.txt (gitignored).
+- Contract updates: AGENTS.md — 13 refs rewritten incl. rotating-ledger doctrine (one file
+  per team session, latest = active, rotate per session, carve-out on latest file);
+  llms.txt — deployment description + Child DOX row AGENTS/ → .agents/comms/;
+  skill doctrine #6 repathed; MASTER-REFLECTIONS path updated.
+- Machinery updates: src/templates/AGENTS.COMMS.md (deployed-path text + two-channel block),
+  src/deploy_agents_comms.sh (deploys .agents/comms/, resolves today's latest rotation or
+  stamps fresh {date}-{time}), src/scroll_integrity.sh (ledger + live-board resolution),
+  bin/ainish-coder prompt text, src/help.sh, src/README.md, .gitignore (new live pattern).
+- Gates: 0 stale old-path refs in live files; bash -n on all three touched scripts; 8 renames
+  tracked by git; template {DATE} placeholder intact; first entry logged under new scheme.
+- Flagged: stale root-level FLEET-SKILL-REFLECTIONS.txt (pre-round-1 leftover, contains
+  retired-engine verbiage) — not in directive scope, flagged for operator decision.
+- Note: target repos deployed by --rules will fresh-deploy the new scheme on their next
+  --rules run; existing AGENTS/{date}.COMMS.md files at targets migrate on their next
+  worktree round.
