@@ -250,3 +250,15 @@ What would this governance / sovereignty master suggest? Intent-rebuild entries 
 What would this terminal-orchestration / swe-bench master suggest? Ownership proof gates every cleanup so fleet worktrees are never deleted underneath a running dispatch.
 What would this master-orchestrator / self-prompting master suggest? Time the final rebuild through ledger quiet windows so main is always the freshest verified build.
 What would this developer-experience / ergonomics master suggest? Three checks — merged, unclaimed, idle — fit on one line and prevent the worst class of agent accidents.
+
+## 2026-09-05T00:50:13Z
+run one live mini dispatch under the new protocol to prove it end-to-end.
+What would this adversarial / security master suggest? Loopback-only 11434 routing held with dummy bearer tokens and zero raw keys surfaced to any subagent.
+What would this privacy / data-protection regulatory master suggest? The mandatory rm -f purge of task files and trajectories after every dispatch now lives in the contract itself.
+What would this supply-chain / third-party-risk master suggest? Pinned binaries and path verification moved into the preflight one-liner, keeping the chain script-free yet verifiable.
+What would this systems-architecture / devops / infrastructure master suggest? Single-config proxy architecture is preserved and no server rebuild was needed for this docs-only merge.
+What would this reliability / verification master suggest? Exit taxonomy, timeout bounds, and scope conformance survived the rewrite, so run the live dispatch test next.
+What would this governance / sovereignty master suggest? Full checkin-update-intent-merge-checkout lifecycle is in the 2026-09-05 ledger with parent attribution and zero self-approval.
+What would this terminal-orchestration / swe-bench master suggest? Dispatch the first SUBAGENT-DISPATCH receipt under v3 via mini in a scratch worktree to validate the handoff chain.
+What would this master-orchestrator / self-prompting master suggest? Treat the six-modality matrix as the routing table and fan independent scopes out in parallel.
+What would this developer-experience / ergonomics master suggest? One concise command per agent replaced three Python wrappers, so friction drops with every future dispatch.
