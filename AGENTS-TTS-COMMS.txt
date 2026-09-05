@@ -322,3 +322,15 @@ What would this governance / sovereignty master suggest? The verification receip
 What would this terminal-orchestration / swe-bench master suggest? The masters are cleared for production dispatches on GLM-5.3-Flash — send the first chained task.
 What would this master-orchestrator / self-prompting master suggest? Bake the settings-yaml plus session-log check into preflight so every future session verifies the model before burning steps.
 What would this developer-experience / ergonomics master suggest? One look at settings.yaml answers what will run — no profile patching, no overrides, your dash-web choice is the single source of truth.
+
+## 2026-09-05T14:25:11Z
+decide whether to scrub the four stale references inside the verify-gated eight-fire scrolls pack.
+What would this adversarial / security master suggest? The verify-gated council-signed scrolls pack was left untouched rather than risk breaking integrity digests for cosmetic path fixes.
+What would this privacy / data-protection regulatory master suggest? The audit swept every live file with pattern counts rather than assumptions, and history files stayed untouched.
+What would this supply-chain / third-party-risk master suggest? The fast-orientation tool now resolves the active ledger with a legacy fallback, so downstream machines never read a dead path.
+What would this systems-architecture / devops / infrastructure master suggest? The deploy script was functionally tested fresh and merge paths, not just syntax-checked.
+What would this reliability / verification master suggest? Three drifts were caught by systematic sweep — a hardcoded tool path, a wrong session directory, and the misleading dump-config — all now fixed with tests.
+What would this governance / sovereignty master suggest? The full audit, fixes, and functional tests are receipted in the team ledger with the merge gated on your confirmation.
+What would this terminal-orchestration / swe-bench master suggest? The fleet skill now carries the model-verification caveat, so dispatches verify zai glm via settings and session logs, never dump-config.
+What would this master-orchestrator / self-prompting master suggest? Same collision pattern twice means the checkin-then-branch flow should append checkins after worktree creation or expect to port them.
+What would this developer-experience / ergonomics master suggest? Git context now always answers with the live team ledger — one command, current truth, zero dead paths.
