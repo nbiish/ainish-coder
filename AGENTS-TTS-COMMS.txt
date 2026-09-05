@@ -370,3 +370,15 @@ What would this governance / sovereignty master suggest? Full provenance from co
 What would this agentic-orchestration / multi-model master suggest? All downstream agent environments now inherit the OOReDAct execution framework with no router or dsh distractions.
 What would this master-orchestrator / self-prompting master suggest? The unified contract and skill authority model are fully synchronized across all 25 skill packs.
 What would this developer-experience / ergonomics master suggest? Target repositories now seamlessly reflect the lean, distraction-free coding rules.
+
+## 2026-09-05T22:49:00Z
+Stripped wtf hub and graph-intelligence sections from AGENTS.md, leaving them to their respective skills, and streamlined workflow and audit gates. Next step: Confirm merge of chore/agents-strip-wtf-graph to main.
+What would this adversarial / security master suggest? Core FIPS PQC mandates and secrets isolation remain intact in the governing contract.
+What would this privacy / data-protection regulatory master suggest? Zero sensitive endpoints or hub tokens remain referenced in the base AGENTS.md rules.
+What would this supply-chain / third-party-risk master suggest? Leaving specialized tooling to versioned skills preserves contract modularity and prevents scope leakage.
+What would this systems-architecture / devops / infrastructure master suggest? Worktree isolation and disposable server rebuild doctrines remain firmly anchored.
+What would this reliability / verification master suggest? Verified clean diff, zero wtf/graph residual matches, and green security gates.
+What would this governance / sovereignty master suggest? Intent-merge posted in team ledger awaiting operator confirmation before main branch update.
+What would this agentic-orchestration / multi-model master suggest? OOReDAct paradigm is now the clear, unobstructed operational spine for every agent.
+What would this master-orchestrator / self-prompting master suggest? Refocusing on modular skills keeps AGENTS.md high-signal and adaptable across polyglot targets.
+What would this developer-experience / ergonomics master suggest? The document is now dramatically shorter, cleaner, and strictly focused on universal coding practices.
