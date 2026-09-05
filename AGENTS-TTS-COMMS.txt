@@ -286,3 +286,15 @@ What would this governance / sovereignty master suggest? The dispatch receipt, r
 What would this terminal-orchestration / swe-bench master suggest? Chain two headless dispatches refactor-then-harden on the next real task to exercise the new handoff form end-to-end.
 What would this master-orchestrator / self-prompting master suggest? Route independent scopes to parallel headless dispatches across separate worktrees and block only on dependent receipts.
 What would this developer-experience / ergonomics master suggest? One command per dispatch, task files via cat-substitution, zero wrapper scripts — the harness got simpler and faster in the same move.
+
+## 2026-09-05T02:19:44Z
+dispatch the first production task through the dsh headless fleet.
+What would this adversarial / security master suggest? Profile overrides were reverted so no dispatch path can smuggle config changes past the operator's dash-web settings.
+What would this privacy / data-protection regulatory master suggest? The probe artifact was scrubbed after verification and dispatch sessions stay as DSH_HOME artifacts outside the repo.
+What would this supply-chain / third-party-risk master suggest? The fallback system verified as designed — the intentional bad-key target is skipped and a healthy target serves — while the router itself stays in your hands.
+What would this systems-architecture / devops / infrastructure master suggest? Operator-owned config is now doctrine: dump-config plus pong proves what boots before any dispatch.
+What would this reliability / verification master suggest? A real scoped coding dispatch with independent gate re-run passed end-to-end, not just a ping.
+What would this governance / sovereignty master suggest? Every verification, receipt, and the config revert are committed in the ledger with the merge gated on your confirmation.
+What would this terminal-orchestration / swe-bench master suggest? Chain refactor-then-harden headless dispatches on the next production task to exercise the handoff pipeline.
+What would this master-orchestrator / self-prompting master suggest? Use the wtf MCP section as the standing pre-flight: discover peers, check in, log receipts, degrade to the ledger when the hub is down.
+What would this developer-experience / ergonomics master suggest? Zero overrides and zero wrappers means a dispatch is literally one dsh headless command from inside the worktree.
