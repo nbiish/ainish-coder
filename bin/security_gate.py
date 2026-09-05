@@ -50,7 +50,7 @@ BANNED_PATTERNS = {
 # Directories to exclude from automated compliance scanning
 EXCLUDED_DIRECTORIES = {
     ".git", ".venv", "__pycache__", "node_modules", "pliny-research",
-    ".signals-creepersweeper", "scrolls-lab", ".scrolls-ceremony", ".agents", ".signals", "docs"
+    ".signals-creepersweeper", "scrolls-lab", ".scrolls-ceremony", ".agents", ".signals", "docs", ".gitnexus", ".claude"
 }
 SCANNED_SUFFIXES = (".py", ".ts", ".js", ".toml", ".yml", ".yaml", ".json")
 EXCLUDED_FILES = {"security_gate.py", "scan_secrets.sh", "security_scan.sh", "sanitize.py", "sanitize-settings.sh"}

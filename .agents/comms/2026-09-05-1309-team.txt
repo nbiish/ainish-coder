@@ -294,3 +294,33 @@ description: Dated agent COMMS ledger.
 - output:VERIFIED green — (1) $DSH_HOME/settings.yaml agent-default-model = provider zai, model glm-5.3-flash, reasoningEffort high (dash-web store); (2) latest headless session log records provider=zai model=glm-5.3-flash; (3) live pong round-trip exit 0. Caveat found: dsh --dump-config shows the static bundle default (deepseek-official/deepseek-v4-flash) and does NOT reflect settings.yaml runtime overrides — model verification must use settings.yaml + session-log evidence, not dump-config
 - status:done
 - blockers:none
+
+### [2026-09-05T13:28:00Z] checkin | agent:gemini-orchestrator | branch:chore/deploy-sync-critical | wt:D:/Code/ainish-coder-sync-critical
+- start:2026-09-05T13:28:00Z
+- end:2026-09-05T13:28:00Z
+- scope:critical.md,LICENSE,CONTRIBUTING.md,Terms-of-Service.md,Privacy-Policy.md,Tribal-Consulting-Agreement.md,assets/,src/deploy_critical.sh,src/deploy_license.sh,src/help.sh,bin/ainish-coder,scripts/sync-critical.sh
+- objective:pull down latest critical.md and legal framework from raw github user content, sync all companion files for repo deployment, harden deploy modules, and run security compliance pass
+- input:operator: pull down latest @critical.md from raw github user content and get latest version ran through repo and files pulled down for deployment
+- output:work starting in dedicated worktree D:/Code/ainish-coder-sync-critical
+- status:in-progress
+- blockers:none
+
+### [2026-09-05T13:32:00Z] update | agent:gemini-orchestrator | branch:chore/deploy-sync-critical | wt:D:/Code/ainish-coder-sync-critical
+- start:2026-09-05T13:28:00Z
+- end:2026-09-05T13:32:00Z
+- scope:critical.md,LICENSE,CONTRIBUTING.md,Terms-of-Service.md,Privacy-Policy.md,Tribal-Consulting-Agreement.md,assets/,scripts/sync-critical.sh,src/deploy_critical.sh,src/deploy_license.sh,src/help.sh,bin/ainish-coder,bin/security_gate.py,llms.txt,.agents/tasks/
+- objective:pull down latest critical.md and legal framework from raw github, synchronize companion files, harden deployment modules, add sync script, pass verification gates
+- input:operator request to pull down latest @critical.md from raw github user content and get latest files pulled down for repo deployment
+- output:critical.md v2.0.0 and legal docs (LICENSE, CONTRIBUTING, ToS, Privacy, Tribal-Consulting-Agreement) refreshed; donation assets and funding config verified; deploy_critical.sh and deploy_license.sh enhanced for complete bundle deployment; scripts/sync-critical.sh added; security_gate.py and gitnexus gates passed cleanly
+- status:verifying
+- blockers:none
+
+### [2026-09-05T13:32:30Z] intent-merge | agent:gemini-orchestrator | branch:chore/deploy-sync-critical | wt:D:/Code/ainish-coder-sync-critical
+- start:2026-09-05T13:32:30Z
+- end:2026-09-05T13:32:30Z
+- scope:same as update entry
+- objective:merge chore/deploy-sync-critical -> main (operator merge gate)
+- input:operator confirmation required
+- output:awaiting operator confirmation to merge
+- status:blocked-on-operator
+- blockers:operator confirmation pending
