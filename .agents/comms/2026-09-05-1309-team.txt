@@ -274,3 +274,13 @@ description: Dated agent COMMS ledger.
 - output:intro sentence restored (rotating ledger, latest = active, historical stamps preserved); zero other double-edit artifacts found
 - status:verifying
 - blockers:none
+
+### [2026-09-05T13:17:56Z] checkout | agent:dsh-orchestrator | branch:fix/comms-intro-sentence | wt:/mnt/d/Code/om-comms-fix
+- start:2026-09-05T13:17:56Z
+- end:2026-09-05T13:17:56Z
+- scope:AGENTS.md
+- objective:close intro repair — merged on operator confirmation
+- input:operator selected "Merge + push"
+- output:merged; worktree removed; branch deleted; no-rebuild-needed (docs-only); comms migration now complete and correct
+- status:done
+- blockers:none
