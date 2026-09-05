@@ -310,3 +310,15 @@ What would this governance / sovereignty master suggest? Full lifecycle lives in
 What would this terminal-orchestration / swe-bench master suggest? Next dispatches append receipts to the new ledger path, so exercise it with a chained refactor-then-harden task.
 What would this master-orchestrator / self-prompting master suggest? Treat the stray-period artifact as a reminder to re-read the composed contract after scripted multi-edits.
 What would this developer-experience / ergonomics master suggest? One rotating file per session means no more midnight rollover guesswork — the latest file is always the answer.
+
+## 2026-09-05T13:22:33Z
+treat settings-yaml plus session-log evidence as the canonical model check in the fleet skill.
+What would this adversarial / security master suggest? The zai credential stays in the apiKeyEnv indirection and never surfaced in any dispatch output or log I touched.
+What would this privacy / data-protection regulatory master suggest? Session evidence was read with secret-shaped values redacted and only model identifiers were reported.
+What would this supply-chain / third-party-risk master suggest? Provider, model, and endpoint now have a documented verification chain so a silent provider swap cannot go unnoticed.
+What would this systems-architecture / devops / infrastructure master suggest? Dump-config composes the static plugin tree only — settings.yaml is the runtime authority and must be checked separately.
+What would this reliability / verification master suggest? Three independent evidence sources agree: settings store, session log, and a live pong on the served config.
+What would this governance / sovereignty master suggest? The verification receipt is logged in the team ledger and pushed, keeping the model posture auditable.
+What would this terminal-orchestration / swe-bench master suggest? The masters are cleared for production dispatches on GLM-5.3-Flash — send the first chained task.
+What would this master-orchestrator / self-prompting master suggest? Bake the settings-yaml plus session-log check into preflight so every future session verifies the model before burning steps.
+What would this developer-experience / ergonomics master suggest? One look at settings.yaml answers what will run — no profile patching, no overrides, your dash-web choice is the single source of truth.

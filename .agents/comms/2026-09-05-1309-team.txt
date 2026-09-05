@@ -295,6 +295,16 @@ description: Dated agent COMMS ledger.
 - status:done
 - blockers:none
 
+### [2026-09-05T13:27:17Z] checkin | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T13:27:17Z
+- end:2026-09-05T13:27:17Z
+- scope:AGENTS.md,llms.txt,README.md,src/,bin/,.agents/skills/orchestrate-subagent-masters/,src/templates/,scripts/,research-excluded
+- objective:double-check all COMMS paths and dsh directions across contract + dependents; functionally test new ledger deployment; fix any drift
+- input:operator: make doubley sure COMMS and directions in AGENTS.md are updated properly
+- output:work starting
+- status:in-progress
+- blockers:none
+
 ### [2026-09-05T13:31:13Z] update | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
 - start:2026-09-05T13:31:13Z
 - end:2026-09-05T13:31:13Z
@@ -314,3 +324,13 @@ description: Dated agent COMMS ledger.
 - output:awaiting operator confirm
 - status:blocked-on-operator
 - blockers:operator confirmation pending
+
+### [2026-09-05T14:23:53Z] checkout | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T14:23:53Z
+- end:2026-09-05T14:23:53Z
+- scope:bin/git-context.sh,.agents/skills/orchestrate-subagent-masters/SKILL.md,.agents/tasks/
+- objective:close consistency-audit round — merged to main on operator confirmation; push origin next
+- input:operator selected "Merge + push"; round checkin entry recovered and inserted chronologically (same merge-collision pattern as the migration round)
+- output:merged; worktree removed; branch deleted; no-rebuild-needed; contract audit complete; 8thfire-scrolls stale refs remain flagged for operator decision
+- status:done
+- blockers:none

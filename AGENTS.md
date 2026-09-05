@@ -317,12 +317,12 @@ What would this developer-experience / ergonomics master suggest? <one sentence>
 EOF
 )" >/dev/null 2>&1
 ```
-- **Rules:** One ONNX session per call (`kitten-tts-nano` @ 1.8×). Fire-and-forget (omit `--output` and `--wait`). Keep stdout quiet.
+- **Rules:** One TTS session per call (`kitten-tts-nano` @ 1.8×). Fire-and-forget (omit `--output` and `--wait`). Keep stdout quiet.
 - **Durable Transcript:** The fused line plus nine master answers are automatically appended to `AGENTS-TTS-COMMS.txt`.
 </OUTPUT>
 
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `.agents/comms/{date}-{time}-team.txt`. Graph recon before code edits; `detect-changes` before merge. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `.agents/comms/{date}-{time}-team.txt`. Graph recon before code edits; `detect-changes` before merge. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one tts-cli session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
 </REINFORCEMENT>
