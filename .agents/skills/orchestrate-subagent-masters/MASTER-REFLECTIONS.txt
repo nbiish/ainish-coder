@@ -89,3 +89,18 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
   4. Universally standardize on `local-router/fallback-models` via port 11434 for all agents,
      web chats, and configuration.
 
+
+## 2026-09-05T01:09:27Z | mini (TDD Reproduction Engineer) — Dispatch Protocol v3 live-fire
+- Context: First v3 dispatch; scratch worktree om-v3-livefire; trivial green-probe test task.
+- Observed Action: Liveness-only preflight passed (router /api/version up) but engine died at
+  step 1 — router fallback target modal-proxy-glm-5.3-flash returned 401 upstream_http_auth
+  ("Webhook token not found"); native exit 1, zero edits, scope clean, scrub clean.
+  cwd-relative --output mini_trajectory.json validated; non-interactive flags validated.
+- TTS.COMMS Alignment: systems-architecture master (proxy liveness != upstream health),
+  reliability master (fail-fast before steps are burned), adversarial master (dummy bearer only).
+- Skill Refinement:
+  1. Preflight MUST include a /v1/chat/completions round-trip probe (max_tokens 1), never
+     /api/version alone.
+  2. Engine exit 1 with auth/upstream signature normalizes to 60 ENVIRONMENT — never hand off
+     to a sibling engine; all engines share the same router.
+  3. Dispatch artifact paths are cwd-relative inside the worktree (validated live).
