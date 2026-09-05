@@ -171,12 +171,12 @@ wait
 
 For headless terminal coding agent dispatch under the local-router Ollama fallback proxy, pair with the **orchestrate-subagent-masters** skill. It provides:
 
-- Fleet management of `live-swe-agent` and `trae-agent` terminal agents plus harness-native subagent modalities
-- Single config proxy/shim via the Ollama endpoint (`http://localhost:11434/v1`) using `local-router/fallback-models`
-- Zero client-side provider complexity (handled automatically by local-router)
+- Fleet dispatch via DeepSeek Harness (`dsh --profile headless` one-shot and `dsh --profile acp` persistent surface) plus harness-native subagent modalities
+- Single config proxy/shim via the Ollama endpoint (`http://localhost:11434/v1`) using `local-router/fallback-models` when profiles are wired to it
+- Zero client-side provider complexity (handled automatically by the booted profile)
 - Git worktree isolation per dispatch
 
-When orchestrate-subagent-masters dispatches mini-swe-agent for execution, use **`mini-live`** (or `mini` with Live-SWE-agent config).
+orchestrate-subagent-masters dispatches via `dsh --profile headless` (DeepSeek Harness); gstack's own `mini-live` remains available for Claude-style coding sessions.
 
 ---
 
@@ -205,5 +205,5 @@ For parallel work across subscriptions (in canonical order):
 - **claude**: `claude -p "task" --no-session --thinking off`
 - **mini-live**: `mini-live --task "task" --yolo`
 
-For terminal agent fleet dispatch with provider fallback via local-router, pair with orchestrate-subagent-masters skill.
+For terminal agent fleet dispatch via DeepSeek Harness (`dsh` headless/ACP), pair with orchestrate-subagent-masters skill.
 ```

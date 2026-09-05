@@ -104,3 +104,22 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
   2. Engine exit 1 with auth/upstream signature normalizes to 60 ENVIRONMENT — never hand off
      to a sibling engine; all engines share the same router.
   3. Dispatch artifact paths are cwd-relative inside the worktree (validated live).
+
+## 2026-09-05T01:45:50Z | dsh headless (DeepSeek Harness) — engine-swap live probe
+- Context: Operator directive swaps fleet terminal engines (trae-cli/mini) for DeepSeek Harness
+  dsh (headless one-shot + ACP persistent surface); validation pong dispatched in worktree
+  om-dsh-acp-swap before any doc swap was committed.
+- Observed Action: `dsh --profile headless "Reply with the single word: pong..."` returned
+  "pong" on stdout, reasoning on stderr, native exit 0 in ~8s — clean channel separation and
+  inherently non-interactive. Works without the broken local-router (profile carries its own
+  provider config), unblocking the fleet environment. Invoking directory = workspace root
+  confirmed by README; launcher flags vs app flags cleanly split.
+- TTS.COMMS Alignment: reliability master (real round-trip validation before doctrine swap),
+  DX master (zero flags needed for one-shot), systems-architecture master (profile-owned
+  provider config replaces single proxy assumption).
+- Skill Refinement:
+  1. Engine = dsh headless (one-shot) / dsh acp (persistent client surface); trae-cli/mini
+     retired to legacy-only on explicit operator request.
+  2. Preflight = `command -v dsh` + `dsh --version` + pong round-trip (liveness is not health,
+     re-confirmed on the new engine).
+  3. Templates re-IDed persona-based (TPL_*_V3) — engine-agnostic names survive future swaps.

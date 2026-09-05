@@ -49,3 +49,17 @@ tool-call instructions — no Python tooling scripts.
 - [x] Graph recon: docs + leaf-script removal; standalone CLIs with zero repo callers
       (grep-verified) — docs-only exemption per `<GRAPH>`, noted in COMMS.
 - [ ] Operator merge confirmation (pending).
+
+## Round 2 (2026-09-05, branch feat/fleet-dsh-acp-swap)
+
+- Operator directive: fleet agents swap to DeepSeek Harness (`dsh` headless/ACP).
+- Live validation: `dsh --profile headless` pong probe — exit 0, ~8s, clean stdout/stderr;
+  works without the broken local-router (profile-owned provider config).
+- SKILL.md rewritten: dsh modality matrix, workspace-root cwd rule, TPL_*_V3 persona-renamed
+  templates, pong preflight, taxonomy 60 covers boot/config failure; trae-cli/mini retired to
+  legacy-only.
+- AGENTS.md FLEET fully swapped: intro, Tier 3, directives 3/5/7/8/9, engine matrix,
+  handoff chains, templates block, Dispatch Protocol v3 preflight/dispatch/taxonomy.
+- Cross-refs: README row, help.sh blurb, gstack-coder pairing lines.
+- Gates: stale-engine-ref sweep clean (only intentional legacy notes), bash -n on help.sh +
+  preflight snippet, TPL ids consistent across AGENTS.md and SKILL.md.
