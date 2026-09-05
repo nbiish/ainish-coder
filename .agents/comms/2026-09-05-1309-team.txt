@@ -375,3 +375,13 @@ description: Dated agent COMMS ledger.
 - output:awaiting operator confirmation to merge
 - status:blocked-on-operator
 - blockers:operator confirmation pending
+
+### [2026-09-05T16:05:00Z] checkout | agent:gemini-orchestrator | branch:chore/deploy-sync-critical | wt:D:/Code/ainish-coder-sync-critical
+- start:2026-09-05T16:05:00Z
+- end:2026-09-05T16:05:00Z
+- scope:critical.md,LICENSE,CONTRIBUTING.md,Terms-of-Service.md,Privacy-Policy.md,Tribal-Consulting-Agreement.md,assets/,scripts/sync-critical.sh,src/deploy_critical.sh,src/deploy_license.sh,src/help.sh,bin/ainish-coder,bin/security_gate.py,llms.txt,.agents/tasks/
+- objective:close critical standards sync & repo deployment enhancement round — merged to main on operator confirmation
+- input:operator confirmed "Proceed."
+- output:merged; worktree removed; branch deleted; no-rebuild-needed (shell/docs only); upstream critical.md v2.0.0 and companion legal assets synchronized from raw github; deploy_critical.sh and deploy_license.sh enhanced; scripts/sync-critical.sh created
+- status:done
+- blockers:none
