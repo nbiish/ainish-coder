@@ -81,8 +81,8 @@ CUSTOM COMMANDS DEPLOYMENT:
                               Example: ainish-coder --commands all
 
 UTILITY COMMANDS:
-    --critical [TARGET_DIR]   Deploy critical.md (Critical protocols)
-    --license [TARGET_DIR]    Deploy LICENSE file
+    --critical [TARGET_DIR]   Deploy critical.md & companion standards (assets + funding)
+    --license [TARGET_DIR]    Deploy LICENSE & legal framework (CLA, ToS, Privacy, Consulting)
     --gitignore [TARGET_DIR]  Deploy comprehensive .gitignore
     --local-security [DIR]    Deploy LOCAL secret protection (git hooks + scripts)
                               Deploys:

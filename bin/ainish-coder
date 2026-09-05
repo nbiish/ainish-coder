@@ -270,7 +270,7 @@ main() {
         # Utility deployments
         --critical)
             _TRACK_DETAIL="critical.md"
-            if confirm_action "Deploy critical.md (essential repository rules)?" "y"; then
+            if confirm_action "Deploy critical repository standards (critical.md, assets, funding) to: $target_dir?" "y"; then
                 _with_link_choice deploy_critical "$target_dir"
             fi
             ;;
@@ -434,7 +434,7 @@ main() {
 
         --license)
             _TRACK_DETAIL="LICENSE"
-            if confirm_action "Deploy LICENSE to: $target_dir?" "y"; then
+            if confirm_action "Deploy LICENSE and governing legal framework to: $target_dir?" "y"; then
                 _with_link_choice deploy_license "$target_dir"
             fi
             ;;
