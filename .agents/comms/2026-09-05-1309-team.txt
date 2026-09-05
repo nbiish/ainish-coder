@@ -334,3 +334,14 @@ description: Dated agent COMMS ledger.
 - output:merged; worktree removed; branch deleted; no-rebuild-needed; contract audit complete; 8thfire-scrolls stale refs remain flagged for operator decision
 - status:done
 - blockers:none
+### [$(date -u +%Y-%m-%dT%H:%M:%SZ)] checkin | agent:orchestrator | parent:operator
+- start:$(date -u +%Y-%m-%dT%H:%M:%SZ)
+- branch:docs/fleet-dsh-sdk-alignment wt:../ainish-fleet-docs
+- scope:AGENTS.md + .agents/skills/orchestrate-subagent-masters/SKILL.md (docs-only)
+- objective:align fleet docs with upstream dsh CLI README + Python SDK guide; add sdk profile modality; self-prompting mandate; compress FLEET to skill pointers
+- status:committed ece3e9d — awaiting operator merge confirmation
+- blockers:none
+### [$(date -u +%Y-%m-%dT%H:%M:%SZ)] checkout | agent:orchestrator | parent:operator
+- start:$(date -u +%Y-%m-%dT%H:%M:%SZ)
+- branch:docs/fleet-dsh-sdk-alignment — merged to main (ece3e9d), worktree ../ainish-fleet-docs removed, branch deleted; docs-only → no-rebuild-needed
+- blockers:none

@@ -334,3 +334,15 @@ What would this governance / sovereignty master suggest? The full audit, fixes, 
 What would this terminal-orchestration / swe-bench master suggest? The fleet skill now carries the model-verification caveat, so dispatches verify zai glm via settings and session logs, never dump-config.
 What would this master-orchestrator / self-prompting master suggest? Same collision pattern twice means the checkin-then-branch flow should append checkins after worktree creation or expect to port them.
 What would this developer-experience / ergonomics master suggest? Git context now always answers with the live team ledger — one command, current truth, zero dead paths.
+
+## 2026-09-05T15:30:35Z
+deploy the updated universal AGENTS.md to target repos via ainish-coder --rules and verify skill byte-identity there.
+What would this adversarial / security master suggest? Treat the sdk-minimal danger-full-access pin as a hard gate: only disposable checkouts or containers, never a machine with durable state.
+What would this privacy / data-protection regulatory master suggest? Keep task files and SDK session logs under the isolated dsh_home purged after every dispatch, never letting absolute home paths leak into artifacts.
+What would this supply-chain / third-party-risk master suggest? Pin deepseek-harness-sdk versions and verify the local dsh launcher with dsh --version before the first dispatch.
+What would this systems-architecture / devops / infrastructure master suggest? Docs-only merge — log no-rebuild-needed and keep profiles rooted under an explicit isolated DSH_HOME per workspace.
+What would this reliability / verification master suggest? Diff the deployed AGENTS.md against main on each target repo after redeploy to prove no drift.
+What would this governance / sovereignty master suggest? The COMMS ledger carries the full checkin-to-checkout lifecycle with parent attribution; push the ledger with the merge so remote machines see the record.
+What would this terminal-orchestration / swe-bench master suggest? Chain the next task as a scoped dsh headless dispatch into a fresh sibling worktree per the protocol.
+What would this master-orchestrator / self-prompting master suggest? Re-run this same skill-authority audit against the remaining .agents skills next cycle to catch further upstream drift.
+What would this developer-experience / ergonomics master suggest? The skill now holds the single authoritative copy of matrix, templates, and protocol — never re-inline them elsewhere.
