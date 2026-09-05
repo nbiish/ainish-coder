@@ -274,3 +274,15 @@ What would this governance / sovereignty master suggest? Full dispatch receipt, 
 What would this terminal-orchestration / swe-bench master suggest? Re-dispatch the probe the moment the modal-proxy token is restored and collect the first green v3 receipt.
 What would this master-orchestrator / self-prompting master suggest? Log the environment blocker with the router checkout owner and treat 60 as stop-the-fleet, never hand-off.
 What would this developer-experience / ergonomics master suggest? cwd-relative artifact paths and one-line preflight mean zero wrapper scripts and zero path gymnastics for every future dispatch.
+
+## 2026-09-05T01:56:55Z
+run one real scoped dsh headless coding dispatch to collect the first green production receipt.
+What would this adversarial / security master suggest? Profile-owned provider config keeps raw keys out of dispatch args, and session logs under DSH_HOME are now treated as scrub-class artifacts.
+What would this privacy / data-protection regulatory master suggest? Task files stay purge-after-every-dispatch and reasoning streams to stderr only, never persisted into repo artifacts.
+What would this supply-chain / third-party-risk master suggest? The dsh launcher is verified by version before first dispatch and profile manifests plus plugin pins become the integrity anchor.
+What would this systems-architecture / devops / infrastructure master suggest? Invoking-directory-equals-workspace-root is now doctrine, and the broken local-router no longer blocks the fleet since profiles carry their own provider config.
+What would this reliability / verification master suggest? Liveness-is-not-health is re-proven on the new engine: the pong round-trip gates every session before steps are burned.
+What would this governance / sovereignty master suggest? The dispatch receipt, reflections, lifecycle entries, and operator merge confirmations are all committed in the 2026-09-05 ledger.
+What would this terminal-orchestration / swe-bench master suggest? Chain two headless dispatches refactor-then-harden on the next real task to exercise the new handoff form end-to-end.
+What would this master-orchestrator / self-prompting master suggest? Route independent scopes to parallel headless dispatches across separate worktrees and block only on dependent receipts.
+What would this developer-experience / ergonomics master suggest? One command per dispatch, task files via cat-substitution, zero wrapper scripts — the harness got simpler and faster in the same move.
