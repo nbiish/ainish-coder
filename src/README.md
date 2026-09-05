@@ -10,7 +10,7 @@ src/
 ├── templates/          # Deployable, repository-agnostic templates
 │   ├── llms.txt        # User-project llms.txt template
 │   └── AGENTS.COMMS.md # Agent Communication System protocol template
-│                      # (deployed as AGENTS/{date}.COMMS.md by --rules;
+│                      # (deployed as .agents/comms/{date}-{time}-team.txt by --rules;
 │                      #  merge-safe — agent entry blocks are preserved)
 │
 └── pqc-secrets/        # Rust: FIPS 203/204 secrets manager (v1.2.0: ML-KEM-768 seed-form + ML-DSA-65 vault core)

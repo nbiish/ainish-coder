@@ -224,3 +224,23 @@ description: Dated agent COMMS ledger.
 - output:merged; worktree removed; branch deleted; no-rebuild-needed (docs-only); dsh-only doctrine live with operator-owned config; local-router left to operator
 - status:done
 - blockers:none
+
+### [2026-09-05T13:10:20Z] update | agent:dsh-orchestrator | branch:chore/comms-ledger-relocation | wt:/mnt/d/Code/om-comms-move
+- start:2026-09-05T13:10:20Z
+- end:2026-09-05T13:10:20Z
+- scope:.agents/comms/,AGENTS.md,llms.txt,src/templates/AGENTS.COMMS.md,src/deploy_agents_comms.sh,src/scroll_integrity.sh,src/help.sh,src/README.md,bin/ainish-coder,.gitignore,.agents/skills/orchestrate-subagent-masters/
+- objective:migrate COMMS ledger to .agents/comms/{date}-{time}-team.txt and update contract + machinery
+- input:operator directive: test the move, update AGENTS.md to reflect setup
+- output:8 ledgers git-mv'd (historical -0000 stamp, today rotated -1309); AGENTS.md 13 refs rewritten (rotating-ledger doctrine in COMMS section); template/deploy/bin/help/README/scroll_integrity/gitignore/llms.txt/skill repathed; live board now {date}-team.live.txt
+- status:verifying
+- blockers:none
+
+### [2026-09-05T13:11:30Z] intent-merge | agent:dsh-orchestrator | branch:chore/comms-ledger-relocation | wt:/mnt/d/Code/om-comms-move
+- start:2026-09-05T13:11:30Z
+- end:2026-09-05T13:11:30Z
+- scope:.agents/comms/,AGENTS.md,llms.txt,src/,bin/ainish-coder,.gitignore,.agents/skills/orchestrate-subagent-masters/,.agents/tasks/
+- objective:merge chore/comms-ledger-relocation -> main and push origin (operator merge gate)
+- input:operator merge gate (never self-approve)
+- output:awaiting operator confirm
+- status:blocked-on-operator
+- blockers:operator confirmation pending

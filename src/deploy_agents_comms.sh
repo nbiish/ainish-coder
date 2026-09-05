@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: Agent Communication System deployment
-# Deploys AGENTS/{date}.COMMS.md — the concurrent-agent coordination ledger —
+# Deploys .agents/comms/{date}-{time}-team.txt — the concurrent-agent coordination ledger —
 # to a target repository. Merge-safe by design:
 #   - Fresh target:            writes the full protocol template.
 #   - Existing ledger:         merges — refreshes ONLY the template-managed
@@ -8,7 +8,7 @@
 #                              entry block verbatim (never overwrite context).
 #   - No PROTOCOL block found: legacy/foreign file — leaves untouched unless
 #                              the operator explicitly confirms overwrite.
-# The live board (AGENTS/{date}.COMMS.live.md) is never deployed: it is a
+# The live board (.agents/comms/{date}-team.live.txt) is never deployed: it is a
 # gitignored, per-repo working surface, created empty on demand by agents.
 
 deploy_agents_comms() {
@@ -18,8 +18,11 @@ deploy_agents_comms() {
 
     local today
     today="$(date +%F)"
-    local comms_dir="$target_dir/AGENTS"
-    local dest="$comms_dir/${today}.COMMS.md"
+    local comms_dir="$target_dir/.agents/comms"
+    # Active ledger = today's latest rotation; absent one, stamp a fresh time.
+    local dest
+    dest="$(ls -1 "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1)"
+    [[ -z "$dest" ]] && dest="$comms_dir/${today}-$(date +%H%M)-team.txt"
     local source="${REPO_DIR}/src/templates/AGENTS.COMMS.md"
 
     if [[ ! -f "$source" ]]; then
@@ -37,13 +40,13 @@ deploy_agents_comms() {
         sed "s/{DATE}/$today/" "$source" > "$temp_file"
         mv "$temp_file" "$dest"
         chmod 644 "$dest"
-        echo -e "${GREEN}✓ Created ${today}.COMMS.md (protocol + entry format ready)${RESET}"
-        echo -e "${BRIGHT_GREEN}✅ Agent Communication System ready — agents check in to AGENTS/${today}.COMMS.md${RESET}"
+        echo -e "${GREEN}✓ Created ${dest##*/} (protocol + entry format ready)${RESET}"
+        echo -e "${BRIGHT_GREEN}✅ Agent Communication System ready — agents check in to ${dest}${RESET}"
         return 0
     fi
 
     # Existing ledger for today — merge, never overwrite agent context.
-    echo -e "${YELLOW}⚠️  Existing AGENTS/${today}.COMMS.md found — merging (agent entries preserved)${RESET}"
+    echo -e "${YELLOW}⚠️  Existing ledger ${dest##*/} found — merging (agent entries preserved)${RESET}"
 
     # Locate the template-managed region: the <PROTOCOL> ... </PROTOCOL> block.
     local proto_start proto_end
@@ -59,7 +62,7 @@ deploy_agents_comms() {
     # touch it without explicit confirmation (interactive); skip under -y.
     if [[ -z "$proto_start" || -z "$proto_end" || -z "$tmpl_start" || -z "$tmpl_end" ]]; then
         if [[ -z "$proto_start" || -z "$proto_end" ]]; then
-            echo -e "${YELLOW}⚠ No <PROTOCOL> block in existing AGENTS/${today}.COMMS.md${RESET}"
+            echo -e "${YELLOW}⚠ No <PROTOCOL> block in existing ledger ${dest##*/}${RESET}"
             if confirm_action "Overwrite $dest with the standard protocol (existing content lost)?" "n"; then
                 local temp_file
                 temp_file="$(mktemp)"
@@ -68,7 +71,7 @@ deploy_agents_comms() {
                 echo -e "${GREEN}✓ Replaced with standard protocol template${RESET}"
                 return 0
             fi
-            echo -e "${YELLOW}⏭️  Left existing AGENTS/${today}.COMMS.md untouched${RESET}"
+            echo -e "${YELLOW}⏭️  Left existing ledger ${dest##*/} untouched${RESET}"
             return 0
         fi
         echo -e "${BRIGHT_RED}Error: template missing <PROTOCOL> markers — cannot merge safely${RESET}"
@@ -104,7 +107,7 @@ deploy_agents_comms() {
 
     mv "$temp_file" "$dest"
     chmod 644 "$dest"
-    echo -e "${GREEN}✓ Protocol refreshed; all agent entries preserved in AGENTS/${today}.COMMS.md${RESET}"
+    echo -e "${GREEN}✓ Protocol refreshed; all agent entries preserved in ${dest##*/}${RESET}"
     echo -e "${BRIGHT_GREEN}✅ Agent Communication System merge complete${RESET}"
     return 0
 }

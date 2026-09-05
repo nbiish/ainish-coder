@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via AGENTS/{date}.COMMS.md. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md). Graph-intelligence recon (GitNexus core) scopes every code edit (see .agents/skills/graph-intelligence/SKILL.md). Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Sub-agent engines run via DeepSeek Harness (`dsh` headless/ACP) orchestrated by orchestrate-subagent-masters.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via .agents/comms/{date}-{time}-team.txt. Cross-machine reporting goes through the wtf hub (live; mandatory; chain-of-draft; see .agents/skills/wtf-agent-hub/SKILL.md). Graph-intelligence recon (GitNexus core) scopes every code edit (see .agents/skills/graph-intelligence/SKILL.md). Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Sub-agent engines run via DeepSeek Harness (`dsh` headless/ACP) orchestrated by orchestrate-subagent-masters.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -14,7 +14,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 **Worktree path:** Sibling of main repo (e.g. `../my-feature`) — discoverable, never nested inside main.
 
 **Rules:**
-- **NEVER** read, edit, or commit files while on `main`. (Sole exception: appending to shared `AGENTS/{date}.COMMS.md`).
+- **NEVER** read, edit, or commit files while on `main`. (Sole exception: appending to the latest shared `.agents/comms/*-team.txt`).
 - One task = one branch = one worktree. No exceptions.
 - On `main` with uncommitted changes: stash, create worktree from `main`, pop stash, continue.
 - **Why:** `main` is the release branch. Isolated worktrees keep reflog pristine and allow safe bisection/rollback.
@@ -60,11 +60,11 @@ Conflict → fail closed, explain, ask.
 <COMMS>
 ## AGENT COMMS — CONCURRENT COORDINATION
 
-When ≥1 agent works at once, coordinate through the dated ledger at **`AGENTS/{date}.COMMS.md`**.
+.
 - **Lifecycle:** Append timestamped entries: `checkin` → `update` → `intent-merge` → `checkout`. Subagents set `parent:` to their orchestrator.
 - **Timestamps:** Bracket every input/output with `start:` / `end:` ISO-8601 timestamps. Never leave a `start:` unclosed.
-- **Carve-out:** Appending to the main repo's `AGENTS/{date}.COMMS.md` is the *only* permitted edit outside a worktree. Before `checkout`, commit the ledger on a task branch and merge to `main`.
-- **Remote Record:** `AGENTS/{date}.COMMS.md` and `.agents/tasks/` MUST travel with git push to remote across machines.
+- **Carve-out:** Appending to the main repo's latest `.agents/comms/*-team.txt` is the *only* permitted edit outside a worktree. Rotate to a fresh `{date}-{time}` file per team session. Before `checkout`, commit the ledger on a task branch and merge to `main`.
+- **Remote Record:** `.agents/comms/*-team.txt` and `.agents/tasks/` MUST travel with git push to remote across machines.
 </COMMS>
 
 ---
@@ -115,7 +115,7 @@ The **wtf observability hub** is the cross-machine coordination layer. All agent
 
 ```
 1. Isolate   → git worktree add -b <type>/<scope>-<slug> ../<slug> main
-2. Coordinate → Append checkin to AGENTS/{date}.COMMS.md
+2. Coordinate → Append checkin to the latest .agents/comms/*-team.txt
 3. Recon     → Graph pass per <GRAPH>: gitnexus analyze once, then impact on edit targets
 4. Iterate   → Frequent atomic commits in worktree with descriptive messages
 5. Audit     → Scan code, tasks, llms.txt for banned crypto and raw secrets
@@ -144,9 +144,9 @@ git worktree list && git branch --show-current  # Verify clean on main
 Servers are disposable runtime, never durable state; worktrees hold peers' in-flight work. Every merge to `main` ends with the orchestrator refreshing the runtime: verify peers → tear down stale → rebuild fresh `main` → smoke test.
 
 ### Worktree Ownership Verification (before removing ANY worktree — yours or a peer's)
-Remove only when ALL three checks pass; any single miss → leave it untouched and flag the owner in `AGENTS/{date}.COMMS.md`:
+Remove only when ALL three checks pass; any single miss → leave it untouched and flag the owner in the latest `.agents/comms/*-team.txt`:
 1. **Merged:** branch is in `git branch --merged main` (zero unmerged commits). Unmerged peer work is NEVER deleted — only flagged.
-2. **Unclaimed:** no open `checkin`/`intent-merge` without a matching `checkout` for that branch in `AGENTS/*COMMS.md`; `git worktree list` shows it unlocked (`lock` column = owned).
+2. **Unclaimed:** no open `checkin`/`intent-merge` without a matching `checkout` for that branch in `.agents/comms/*-team.txt`; `git worktree list` shows it unlocked (`lock` column = owned).
 3. **Idle:** last branch commit AND last ledger mention older than the quiet window (default 24h); with the wtf hub live, `wtf_is_going_on` confirms no active agent on that path — hub down → checks 1–2 + COMMS gap note.
 
 ### Rebuild Window Orchestration (master-timed, never racing peers)
@@ -175,7 +175,7 @@ Load `.agents/skills/graph-intelligence/SKILL.md` before the first edit in any r
 
 - **Pair with agent actions:** `gitnexus impact` (upstream, $d \le 2$) output IS the file allowlist for fleet `SCOPE & TARGET FILES` (<FLEET>); a green `gitnexus detect-changes` (only intended symbols touched) is a merge precondition for code changes; `semantica decision record` logs gate-green merges when installed. Deep audits triangulate all three (skill Master D).
 - **Guard the governing contract:** `--skip-agents-md` is non-optional in this fleet — GitNexus otherwise rewrites its section inside `AGENTS.md`/`CLAUDE.md`, drifting the deployed universal file. `.gitnexus/`, `.claude/`, and auto-generated `.agents/skills/gitnexus-*/` community packs are local artifacts; never commit them.
-- **Graceful degradation:** tool missing or index stale → attempt `gitnexus analyze` once; still unavailable → fall back to grep + manual diff scoping and note the gap in `AGENTS/{date}.COMMS.md`. Docs-only edits never block on graph recon.
+- **Graceful degradation:** tool missing or index stale → attempt `gitnexus analyze` once; still unavailable → fall back to grep + manual diff scoping and note the gap in the latest `.agents/comms/*-team.txt`. Docs-only edits never block on graph recon.
 - **Deep manuals:** `.agents/skills/graph-intelligence/references/` (CLI, exploring, debugging, impact analysis, refactoring).
 </GRAPH>
 
@@ -207,7 +207,7 @@ $$\text{Reconnaissance (Graph)} \longrightarrow \text{Formulation (Orchestrator)
 2. **Phase 2: Scoped Master Prompt Formulation:** The Orchestrator injects the discovered AST targets into the strict `SCOPE & TARGET FILES` block of canonical templates (`TPL_AST_REFACTOR_V3` or `TPL_TDD_REPRO_V3`). No blind edits; zero unindexed files passed to subagents.
 3. **Phase 3: Autonomous Fleet Tool Dispatch:** Dispatch through the modality's direct invocation (Dispatch Protocol v3 below) after the terminal-native preflight reports GO; block on gate-critical dispatches and collect the COMMS receipt before any dependent action. Task files and trajectory JSONs are purged immediately after every dispatch (`rm -f` — mandatory, never skipped).
 4. **Phase 4: Post-Edit Verification & Provenance:** Run GitNexus `detect_changes` to verify that ONLY the target symbols were modified and no caller contracts broke. Run native compiler/test gates **plus plugin validators** (ruff/bandit/py_compile — zero bandit medium+ is the floor) and the scope-conformance diff; route C/C++ patches through the compiler-integrity gates and detector-less classes through an LLM pattern audit (see Dispatch Protocol v3 step 6). Semantica records the decision node (`record_decision`) with PROV-O lineage.
-5. **Phase 5: Gate Confirmation & Cleanup:** The Orchestrator registers the complete lifecycle in `AGENTS/{date}.COMMS.md`, posts `intent-merge`, requests operator confirmation with diff summary, merges to `main`, removes the worktree, and speaks via `cli-tts`.
+5. **Phase 5: Gate Confirmation & Cleanup:** The Orchestrator registers the complete lifecycle in the latest `.agents/comms/*-team.txt`, posts `intent-merge`, requests operator confirmation with diff summary, merges to `main`, removes the worktree, and speaks via `cli-tts`.
 
 ### Agentic Tool Call Execution Directive (Mandatory for All LLMs)
 Any LLM of any capability or model family reading this contract MUST treat `dsh` engine dispatches as **direct, executable tool calls** (invoked via shell/terminal command tools within dedicated git worktrees). Never emit passive commentary, never ask the operator to run them, and never perform blind manual edits when an agentic action is warranted. For every dispatch, the calling agent must **embody the exact domain expert needed at that phase** (e.g., AST Refactoring Master, TDD Reproduction Engineer, Security Auditor), formulating precise, authoritative directives.
@@ -218,7 +218,7 @@ Any LLM of any capability or model family reading this contract MUST treat `dsh`
 3. **Supply-Chain:** Embody the Supply-Chain & Integrity Master. Strictly enforce the verified local `dsh` launcher (`dsh --version` before first dispatch), immutable profile manifests and pinned plugin versions under `$DSH_HOME`, and trusted install channels for the harness itself.
 4. **Systems-Architecture:** Embody the Systems Architecture & Infrastructure Master. Enforce the single-config proxy architecture on port 11434 proxying the real Ollama backend on port 11435 (`local-router route set` on macOS, Windows, Linux, WSL).
 5. **Reliability:** Embody the Reliability & QA Verification Master. Treat agent dispatches as deterministic tool calls: enforce bounded scope per dispatch, non-interactive one-shot invocation (`dsh --profile headless` answers and exits — never boot `web`/`tui`/`acp` inside a dispatch), fail-fast timeouts, and automated regression tests on all patches.
-6. **Governance / Sovereignty:** Embody the Governance & Sovereignty Master. Manage and audit fleet lifecycles exclusively via `AGENTS/{date}.COMMS.md` with explicit, attributed `parent: <orchestrator>` tags.
+6. **Governance / Sovereignty:** Embody the Governance & Sovereignty Master. Manage and audit fleet lifecycles exclusively via the latest `.agents/comms/*-team.txt` with explicit, attributed `parent: <orchestrator>` tags.
 7. **Terminal-Orchestration / SWE-Bench:** Embody the Terminal-Orchestration Master. Treat `dsh` dispatches as first-class agentic tool calls executed directly via shell tools—never treat them as manual operator chores:
    $$\text{dsh headless (AST Refactor/Scaffold)} \underset{\text{Handoff}}{\overset{\text{Verify}}{\rightleftharpoons}} \text{dsh headless (TDD Reproduction/Harden)}$$
    Embody the AST Refactoring Architect and the TDD Reproduction Engineer across chained one-shot dispatches.
@@ -285,7 +285,7 @@ No wrapper scripts: the orchestrator runs plain, fixed commands and normalizes o
 Run before completing any task:
 1. **Worktree:** Changes executed in dedicated worktree, not on `main`.
 2. **Task & PRD:** Task recorded in `.agents/tasks/`, `llms.txt` verified, no secrets logged.
-3. **COMMS Ledger:** Attributed `checkin`/`update`/`intent-merge` entries in `AGENTS/{date}.COMMS.md`.
+3. **COMMS Ledger:** Attributed `checkin`/`update`/`intent-merge` entries in the latest `.agents/comms/*-team.txt`.
 4. **Crypto Audit:** FIPS 203/204/205 exclusively for secrets; zero hardcoded credentials or `.env` files.
 5. **Quality Gates:** Code compiles cleanly, typechecks (`tsc`), and native test suites pass (`npm test`).
 6. **Verification & Cleanup:** Smoke tests pass, operator confirms merge, worktree removed, branch deleted.
@@ -324,5 +324,5 @@ EOF
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `AGENTS/{date}.COMMS.md`. Graph recon before code edits; `detect-changes` before merge. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `.agents/comms/{date}-{time}-team.txt`. Graph recon before code edits; `detect-changes` before merge. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one ONNX session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
 </REINFORCEMENT>
