@@ -18,7 +18,7 @@ description: >
 
 # Orchestrate-Subagent-Masters — Universal Subagent Orchestrator Skill
 
-The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches and the ACP persistent surface — running the operator's own configuration as set from the DSH web dashboard. The wtf MCP hub is the live cross-machine observability plane (§9). The invoking directory is the workspace root, so always `cd` into the worktree first.
+The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches, the ACP persistent surface, and `sdk[-minimal]` programmatic dispatch via `deepseek-harness-sdk` (profiles, never separate bins) — running the operator's own configuration as set from the DSH web dashboard. The wtf MCP hub is the live cross-machine observability plane (§9). The invoking directory is the workspace root, so always `cd` into the worktree first.
 
 ## 1. Core Doctrine
 
@@ -35,6 +35,7 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 |---|---|---|
 | `dsh --profile headless` | AST Refactoring Master / TDD Reproduction Engineer (one-shot) | Multi-file structural edits, patches, failing-test reproduction, fix loops — answer, print, exit |
 | `dsh --profile acp` | Persistent harness surface | A long-lived automation client (editor, orchestrator) driving multi-turn sessions over stdio |
+| `dsh --profile sdk[-minimal]` via `deepseek-harness-sdk` | Any (programmatic one-shot) | Orchestrator scripts: `DeepSeekHarness(workspace=, dsh_home=, profile=).run(task, session_id=)` — explicit isolated workspace+home, fresh session id per task; `sdk-minimal` pins `danger-full-access` → disposable checkout/container only |
 | Native subagent | Any (context-fresh delegate) | Self-contained research/implementation; must not see this conversation |
 | `subagent_fork` | Any (context-inheriting delegate) | Follow-up analysis/review building on current conversation |
 | `workflow` | Parallel Masters (fan-out) | Many independent scoped pieces: audits, migrations, multi-angle research |
@@ -74,13 +75,24 @@ SEQUENCE: 1) write minimal failing test <tests/repro.test.mjs> 2) run it, confir
 EOF
 )"
 ```
-No session flag exists or is needed — each headless run is one fresh persisted session (sessions live under `$DSH_HOME/profiles/`; cite the session id from stderr in the COMMS receipt when one is printed).
+No session flag exists or is needed — each headless run is one fresh persisted session (sessions persist under `$DSH_HOME/sessions/<workspace-slug>/session-<id>/session.jsonl.zstd`; cite the session id from stderr in the COMMS receipt when one is printed).
 
 ### 2.3 `dsh --profile acp` — persistent automation surface
 ```bash
 dsh --profile acp   # serves ACP over stdio until disconnect
 ```
 For clients that drive multi-turn agent sessions (editors, orchestrator processes). Boot it deliberately as a managed background process with a bounded lifetime — never inside a one-shot dispatch. One-shot orchestration uses §2.1/§2.2, not ACP.
+
+### 2.3b `dsh --profile sdk[-minimal]` — programmatic one-shot via Python SDK
+```python
+from pathlib import Path
+from deepseek_harness import DeepSeekHarness   # pip install deepseek-harness-sdk
+
+with DeepSeekHarness(profile="sdk-minimal", cwd=str(workspace), dsh_home=str(dsh_home)) as harness:
+    result = harness.run("<scoped task, same SCOPE/gates contract>", session_id="<fresh-id>")
+print(result.final_response)
+```
+SDK and ACP are profiles, not separate bins. ALWAYS pass explicit isolated `workspace` + `dsh_home` (never silently reads `~/.dsh`); fresh `session_id` per independent task — reuse harness+home+id only to continue one conversation. `sdk-minimal` pins `danger-full-access`: disposable checkout/container only. Missing server rows / unresolved plugins fail at startup — no silent fallback.
 
 ### 2.4 Harness-native subagent — context-fresh delegate
 Tool call (not shell): `subagent` with a **complete standalone prompt** — objective, scope allowlist, gates, persona, worktree/branch instruction. The delegate sees none of this conversation. Use `run_in_background: true` for independent scopes; block (`run_in_background: false`) when the next phase consumes the result.
@@ -113,6 +125,8 @@ command -v dsh >/dev/null && dsh --version >/dev/null && \
 timeout 120 dsh --profile headless "Reply with the single word: pong. Do not run any commands or modify any files." | grep -q pong && echo GO || echo NO-GO
 ```
 NO-GO = fix environment first (binary missing → install/pin `dsh`; pong fails → profile provider config broken — fix credentials/config before ANY dispatch). **Liveness is not health:** the pong probe is a real inference round-trip — it proves the profile's provider can actually complete a completion (live-fire 2026-09-05: a router liveness check passed while every upstream target 401'd, and the dispatch died at step 1). The pong consumes one cheap call — first dispatch of a session only. When a profile routes through the local-router loopback, additionally run the `/v1/chat/completions` round-trip probe from the hardening round; loopback probes only — never probe non-loopback hosts.
+
+**Model verification (which model will serve):** `dsh --dump-config` shows only the static bundle defaults and does NOT reflect runtime settings — never use it to confirm the model. The runtime authority is the operator's `$DSH_HOME/settings.yaml` (`agent-default-model: provider/model`, set from the DSH web dashboard), corroborated by the dispatched session's log under `$DSH_HOME/sessions/` which records the actual `provider` and `model` served. Verified 2026-09-05: headless masters serve `zai/glm-5.3-flash` from the zai code plan while dump-config displayed `deepseek-official/deepseek-v4-flash`.
 
 ### 4.2 Dispatch rules
 - Fixed command vectors, `timeout 1800` (tune 900–3600 by scope) on every engine call.
