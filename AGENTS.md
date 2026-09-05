@@ -17,6 +17,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 - **NEVER** read, edit, or commit files while on `main`. (Sole exception: appending to the latest shared `.agents/comms/*-team.txt`).
 - One task = one branch = one worktree. No exceptions.
 - On `main` with uncommitted changes: stash, create worktree from `main`, pop stash, continue.
+- **Git Tree & Diff Checks:** Run `git status` and `git diff` for new, edited, or removed content by users or peer agents before branching. Never overwrite or blindly restore old main branch content.
 - **Why:** `main` is the release branch. Isolated worktrees keep reflog pristine and allow safe bisection/rollback.
 
 ---
@@ -95,22 +96,22 @@ When ≥1 agent works at once, coordinate through the rotating team ledger at **
 **Pass WORKTREE GATE first.** `main` is release-only. Worktrees branch from `main`, verify in isolation, merge back to `main`, and clean up immediately.
 
 ```
-1. Isolate   → git worktree add -b <type>/<scope>-<slug> ../<slug> main
+1. Isolate   → Run git tree & diff checks for new content; git worktree add -b <type>/<scope>-<slug> ../<slug> main
 2. Coordinate → Append checkin to the latest .agents/comms/*-team.txt
-3. Recon     → Analyze scope and impact on edit targets before making changes
+3. Recon     → Inspect tree diffs; analyze scope and impact on edit targets before making changes
 4. Iterate   → Frequent atomic commits in worktree with descriptive messages
 5. Audit     → Scan code, tasks, llms.txt for banned crypto and raw secrets
 6. Gates     → Pass native gates (cargo clippy, tsc, ruff) + test suites
 7. Verify    → Non-default port smoke test in worktree (PQC loaded, endpoints responsive); verify scope conformance on code edits
 8. Merge     → Post intent-merge. Ask operator: "Ready to merge <branch> → main? [diff summary]. Confirm?"
-9. Rebuild   → <SERVERS>: ownership-verify worktrees (merged+unclaimed+idle); tear down stale servers; rebuild main server from fresh main; smoke test
-10. Cleanup  → Remove worktree, delete branch, append checkout to COMMS ledger
+9. Rebuild   → <SERVERS>: verify peer worktree recency and ownership; tear down stale servers; rebuild main server from fresh main; smoke test
+10. Cleanup  → Remove worktree (verify merged+unclaimed+idle+no active peer edits), delete branch, append checkout to COMMS ledger
 ```
 
 ### Mandatory Cleanup Commands (Post-Merge):
 ```bash
 # BEFORE any removal (yours or a stale peer's): pass <SERVERS> ownership
-# verification — merged into main, unclaimed in COMMS, idle beyond quiet window.
+# and recency verification — merged into main, unclaimed in COMMS, idle beyond quiet window.
 git worktree remove <worktree-path>
 cd <main-repo-path> && git branch -d <type>/<scope>-<slug>
 git worktree list && git branch --show-current  # Verify clean on main
@@ -122,13 +123,19 @@ git worktree list && git branch --show-current  # Verify clean on main
 <SERVERS>
 ## SERVER LIFECYCLE & WORKTREE OWNERSHIP — TEARDOWN, REBUILD, TIMING (ALL REPOS)
 
-Servers are disposable runtime, never durable state; worktrees hold peers' in-flight work. Every merge to `main` ends with the orchestrator refreshing the runtime: verify peers → tear down stale → rebuild fresh `main` → smoke test.
+Servers are disposable runtime, never durable state; worktrees hold peers' and users' in-flight work. Every merge to `main` ends with the orchestrator refreshing the runtime: verify peers and worktree recency → tear down stale → rebuild fresh `main` → smoke test.
 
-### Worktree Ownership Verification (before removing ANY worktree — yours or a peer's)
-Remove only when ALL three checks pass; any single miss → leave it untouched and flag the owner in the latest `.agents/comms/*-team.txt`:
-1. **Merged:** branch is in `git branch --merged main` (zero unmerged commits). Unmerged peer work is NEVER deleted — only flagged.
-2. **Unclaimed:** no open `checkin`/`intent-merge` without a matching `checkout` for that branch in `.agents/comms/*-team.txt`; `git worktree list` shows it unlocked (`lock` column = owned).
-3. **Idle:** last branch commit AND last ledger mention older than the quiet window (default 24h); verify in `.agents/comms/*-team.txt` that no peer agent is actively working that path.
+### Tree & Diff Checks (Never Blindly Restore Old Content)
+- Always run git tree, diff, and status checks (`git status`, `git diff HEAD`, `git log -n 5`) before updating `main` or switching branches.
+- Respect content added, edited, or removed by users or other concurrent agents instead of restoring old main branch content.
+- Never run blanket `git checkout -- .`, `git reset --hard`, or blind file restores that wipe concurrent progress.
+
+### Worktree Ownership & Recency Verification (before removing ANY worktree — yours or a peer's)
+Remove a worktree only when ALL four checks pass; any single miss → leave it untouched, protect its content, and flag the owner in the latest `.agents/comms/*-team.txt`:
+1. **Recency & Activity Check:** Inspect how recent the worktree and its files are (`git log -1 --format=%cd`, file modification timestamps). If commits or file mtimes are recent (within quiet window) or uncommitted edits exist (`git -C <path> status --porcelain`), another agent or user may be working: **DO NOT touch or delete their content**.
+2. **Merged:** Branch is fully merged in `git branch --merged main` (zero unmerged commits). Unmerged work is NEVER deleted — only preserved and flagged.
+3. **Unclaimed:** No open `checkin`/`intent-merge` without a matching `checkout` for that branch in `.agents/comms/*-team.txt`; `git worktree list` shows it unlocked (`lock` column = owned).
+4. **Idle:** Last branch commit AND last ledger mention older than the quiet window (default 24h); verify in `.agents/comms/*-team.txt` that no peer agent is actively working that path.
 
 ### Rebuild Window Orchestration (master-timed, never racing peers)
 - Rebuild only inside a **quiet window**: `main` at HEAD (fast-forward origin when present), zero in-progress `intent-merge`, no `checkin` younger than the quiet window, latest lifecycle entries closed. Post `intent-rebuild` before teardown; close it after the green smoke test.
@@ -143,7 +150,7 @@ Remove only when ALL three checks pass; any single miss → leave it untouched a
 
 ---
 
-<FLEET>
+<ORCHESTRATE_SUBAGENTS>
 ## AGENT EXECUTION, OOREDACT & SUBAGENT ORCHESTRATION
 
 Believe in yourself and if needed orchestrate subagents to help. Focus directly on the coding tasks at hand with conviction, precision, and production-grade craftsmanship.
@@ -152,9 +159,9 @@ Believe in yourself and if needed orchestrate subagents to help. Focus directly 
 Every agent drives engineering tasks through the **OOReDAct** operational loop:
 $$\text{Observe} \longrightarrow \text{Orient} \longrightarrow \text{Reason} \longrightarrow \text{Decide} \longrightarrow \text{Act}$$
 
-1. **Observe:** Gather immediate context — operator intent, active branch, repository status, modified files, and environment signals.
-2. **Orient:** Ground yourself in the codebase using `llms.txt` (authoritative PRD anchor) and existing repository architecture.
-3. **Reason:** Synthesize findings, evaluate architectural constraints, enforce post-quantum security requirements (FIPS 203/204/205 for secrets), and devise a deterministic implementation path.
+1. **Observe:** Gather immediate context — operator intent, active branch, repository status, modified files, git tree differences, and environment signals. Check if users or other agents added, edited, or removed content.
+2. **Orient:** Ground yourself in the codebase using `llms.txt` (authoritative PRD anchor) and existing repository architecture. Inspect recent commits and active worktrees.
+3. **Reason:** Synthesize findings, evaluate architectural constraints, enforce post-quantum security requirements (FIPS 203/204/205 for secrets), and devise a deterministic implementation path that builds on new content rather than reverting it.
 4. **Decide:** Select the exact symbols, files, and verification criteria. Determine if the task is self-contained or warrants subagent orchestration.
 5. **Act:** Execute decisively in isolated worktrees (`../<slug>`). Run compiler checks, linters, and native test suites. Verify zero regressions.
 
@@ -162,17 +169,18 @@ $$\text{Observe} \longrightarrow \text{Orient} \longrightarrow \text{Reason} \lo
 - **Believe in yourself and if needed orchestrate subagents to help.**
 - Agents possess full authority and conviction to dispatch subagents when parallel research, isolated reproduction, deep audits, or targeted refactorings accelerate delivery.
 - Treat subagent invocations as direct, executable agentic actions inside dedicated worktrees with explicit scopes and target file allowlists.
+- Check worktree freshness and recency before creating or removing worktrees so peer agent tasks and user changes remain uncompromised.
 - If specialized subagent engine profiles, personas, handoff chaining, or canonical templates are needed, refer directly to `.agents/skills/orchestrate-subagent-masters/SKILL.md`.
 
 ### Core Operational Directives
 1. **Adversarial / Security:** Confine subagent traffic to authorized loopback endpoints; expose zero raw API keys. Protect private keys and secrets with PQC (FIPS 203 ML-KEM-768).
 2. **Privacy / Hygiene:** Actively sanitize intermediate artifacts: purge credentials, personal identifiers, temporary task files, and trajectory logs immediately after completion (`rm -f`).
 3. **Supply-Chain Integrity:** Pin dependency versions and commit lockfiles (`Cargo.lock`, `package-lock.json`, `uv.lock`). Verify tool binaries before invocation.
-4. **Systems & Architecture:** Enforce strict isolation in dedicated worktrees, non-default ports, and clean runtime teardown/rebuild post-merge.
+4. **Systems & Architecture:** Enforce strict isolation in dedicated worktrees, non-default ports, git tree/diff checks for new content, and clean runtime teardown/rebuild post-merge.
 5. **Reliability & QA:** Treat dispatches as deterministic actions: enforce bounded scopes, fast timeouts, automated regression tests, and compiler/linter gate passes.
 6. **Governance & Provenance:** Record lifecycle events (`checkin` → `update` → `intent-merge` → `checkout`) in the rotating team ledger (`.agents/comms/*-team.txt`) with proper parent-child attribution.
 7. **Production Code:** Never emit passive commentary or placeholders. Deliver complete, verified, working production code.
-</FLEET>
+</ORCHESTRATE_SUBAGENTS>
 
 ---
 
@@ -207,9 +215,9 @@ Run before completing any task:
 4. **Crypto Audit:** FIPS 203/204/205 exclusively for secrets; zero hardcoded credentials or `.env` files.
 5. **Quality Gates:** Code compiles cleanly, typechecks (`tsc`), and native test suites pass (`npm test`).
 6. **Verification & Cleanup:** Smoke tests pass, operator confirms merge, worktree removed, branch deleted.
-7. **Fleet Receipts:** Every fleet dispatch has a `SUBAGENT-DISPATCH` COMMS ledger entry with normalized exit code `0`, scope conformance, green gates, and a completed mandatory scrub — no ledger receipt = the dispatch never happened.
-8. **Scope Verification:** Scope proof verified for every code change; ephemeral tool artifacts never committed.
-9. **Server Rebuild & Ownership:** stale servers torn down, `main` rebuilt from fresh HEAD with green smoke test (or `no-rebuild-needed` logged); every worktree removal passed <SERVERS> merged/unclaimed/idle verification.
+7. **Subagent Receipts:** Every subagent dispatch has a `SUBAGENT-DISPATCH` COMMS ledger entry with normalized exit code `0`, scope conformance, green gates, and a completed mandatory scrub — no ledger receipt = the dispatch never happened.
+8. **Scope & Tree Verification:** Scope proof verified for every code change; git tree and diff checks confirmed for new content without restoring old main content; ephemeral tool artifacts never committed.
+9. **Server Rebuild & Ownership:** Stale servers torn down, `main` rebuilt from fresh HEAD with green smoke test (or `no-rebuild-needed` logged); every worktree removal passed <SERVERS> recency, merged, and unclaimed verification (never deleting active peer worktrees).
 </AUDIT>
 
 ---
@@ -242,5 +250,5 @@ EOF
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `.agents/comms/{date}-{time}-team.txt`. Scope before code edits; verify changes before merge. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one tts-cli session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Believe in yourself and if needed orchestrate subagents to help.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `.agents/comms/{date}-{time}-team.txt`. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one tts-cli session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Believe in yourself and if needed orchestrate subagents to help.
 </REINFORCEMENT>
