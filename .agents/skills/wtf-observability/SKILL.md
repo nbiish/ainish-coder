@@ -167,7 +167,7 @@ wtf_call GET  /api/v1/shell/machines        # discover federated shell cluster m
 
 2. **Embedded Chat & Agent Orchestration Studio**:
    - Integrated into the left pane of `/w/<capability>`.
-   - Dispatches SWE-bench coding fleet tasks across the 11-agent CLI catalog (`auto`, `fleet`, `claude`, `omp`, `hermes`, `trae-cli`, `mini`, `codex`, `opencode`, `aider`, `cline`, `pi`).
+   - Dispatches coding fleet tasks across the agent CLI catalog (`auto`, `fleet`, `dsh`, `claude`, `omp`, `hermes`, `codex`, `opencode`, `aider`, `cline`, `pi`).
    - All engines route through `local-router/fallback-models` on `127.0.0.1:11434`.
 
 3. **Paired Federated Multi-Machine Shell & Intelligent Distributed Compute**:

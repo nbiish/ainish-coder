@@ -1,10 +1,12 @@
-# FLEET-SKILL-REFLECTIONS.txt — Continuous Action Reflection & Skill Refinement Ledger
+# MASTER-REFLECTIONS.txt — Continuous Action Reflection & Skill Refinement Ledger
 #
-# Protocol: Upon every dispatch of `trae-cli` and `mini` via `local-router`
-# (endpoint: http://localhost:11434/v1, model: local-router/fallback-models),
-# the calling orchestrator MUST review subagent performance and record concise,
-# actionable skill refinements below, synthesizing the 9 TTS.COMMS master directives.
-# Format: ISO-8601 timestamp, subagent used, action summary, reflection & refinement.
+# Protocol: Upon every dispatch of ANY subagent modality (dsh headless, dsh acp,
+# native subagent, subagent_fork, workflow, ralph), the calling orchestrator MUST
+# review subagent performance and record concise, actionable skill refinements
+# below, synthesizing the 9 TTS.COMMS master directives.
+# Format: ISO-8601 timestamp, subagent modality used, action summary, reflection & refinement.
+# History note: pre-2026-09-05 entries record the legacy-engine era; engine names redacted
+# per operator scrub directive — "legacy engine" denotes the retired pre-harness fleet.
 
 ================================================================================
 GOVERNING TTS.COMMS MASTER DIRECTIVES (CROSS-DISPATCH SYNTHESIS)
@@ -14,12 +16,11 @@ GOVERNING TTS.COMMS MASTER DIRECTIVES (CROSS-DISPATCH SYNTHESIS)
    (`local-router`). Subagents never receive or parse raw upstream API keys.
 
 2. Privacy & Regulatory Master:
-   Trajectory files (`trae_trajectory.json`) and task descriptions in `/tmp`
+   Trajectory files and task descriptions in `/tmp`
    must be purged or scrubbed of sensitive environment details and absolute user paths.
 
 3. Supply-Chain & Third-Party Risk Master:
-   Pin upstream git commit hashes or release tags for `bytedance/trae-agent` and
-   `OpenAutoCoder/live-swe-agent` in repository setup documentation.
+   Pin upstream git commit hashes or release tags for engine sources in repository setup documentation.
 
 4. Systems-Architecture & DevOps Master:
    Preflight probe on port 11434 (`curl -sf http://127.0.0.1:11434/api/version`)
@@ -34,11 +35,11 @@ GOVERNING TTS.COMMS MASTER DIRECTIVES (CROSS-DISPATCH SYNTHESIS)
    (`AGENTS/{date}.COMMS.md`) travel with git commits and maintain cryptographic auditability.
 
 7. Developer Experience & Ergonomics Master:
-   Standardize task file execution (`trae-cli run -f <file> --console-type simple`)
+   Standardize task file execution (`legacy engine run -f <file> --console-type simple`)
    over fragile shell string arguments to eliminate quoting errors across shells.
 
 8. Agentic Orchestration & Multi-Model Master:
-   Optimal chaining: dispatch Trae-Agent first for structural AST codebase refactoring
+   Optimal chaining: dispatch Legacy engine first for structural AST codebase refactoring
    and patch creation, followed by Live-SWE-Agent for reproduction scripts and test hardening.
 
 9. Performance & Resource Optimization Master:
@@ -49,7 +50,7 @@ GOVERNING TTS.COMMS MASTER DIRECTIVES (CROSS-DISPATCH SYNTHESIS)
 ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
 ================================================================================
 
-## 2026-09-02T16:58:30Z | Trae-Agent (`trae-cli`) & Live-SWE-Agent (`mini-live`)
+## 2026-09-02T16:58:30Z | Legacy terminal engines
 - Context: Initial fleet unification under local-router/fallback-models shim.
 - Observed Action: Subagents executed cleanly when routed to port 11434, but failed
   when port was occupied by standalone Ollama without backend proxying.
@@ -58,7 +59,7 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
 - Skill Refinement:
   1. Mandate pre-dispatch curl probe to verify `local-router` readiness.
   2. Configure dual-stack auto-start (Local Router on 11434, real Ollama on 11435).
-  3. Require `-f <task_file>` and `--console-type simple` for non-interactive `trae-cli`.
+  3. Require `-f <task_file>` and `--console-type simple` for non-interactive the legacy engine.
 
 ## 2026-09-02T20:20:00Z | Cross-Platform Local-Router & Fleet Synchronization
 - Context: Extending Ollama auto-start across macOS, Windows, Linux, and WSL.
@@ -73,29 +74,29 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
   3. Ensure subagent task files and patches are systematically reviewed in isolated
      worktrees before operator merge confirmation.
 
-## 2026-09-02T20:30:00Z | Free-Claude-Code, OhMyPy, and Trae-CLI Fallback Cascade
-- Context: Re-focusing headless execution chain (free-claude-code -> omp -> trae-cli),
-  adding browser/CLI agent chat, agent selection, and Trae/Mini fleet toggle.
+## 2026-09-02T20:30:00Z | Free-Claude-Code, OhMyPy, and Legacy-Engine Fallback Cascade
+- Context: Re-focusing headless execution chain (free-claude-code -> omp -> legacy engine),
+  adding browser/CLI agent chat, agent selection, and legacy-engine fleet toggle.
 - Observed Action: Users require flexibility to chat conversational dialogue directly,
   select specific agents, or trigger the autonomous fallback cascade while controlling
   subagent fleet expansion.
-- TTS.COMMS Alignment: Addressed agentic-orchestration master (ordered cascade: FCC -> OMP -> Trae),
+- TTS.COMMS Alignment: Addressed agentic-orchestration master (ordered cascade: FCC -> OMP -> legacy engine),
   developer-experience master (web UI + CLI command chat), and reliability master (fleet toggle guardrail).
 - Skill Refinement:
-  1. Formalize primary fallback cascade: `free-claude-code` -> `omp` -> `trae-cli`.
-  2. Implement agent selection (`auto`, `free-claude-code`, `omp`, `trae-cli`, `mini`).
-  3. Add Trae/Mini fleet toggle: when enabled, subtasks can spawn autonomous fleet agents;
+  1. Formalize primary fallback cascade: `free-claude-code` -> `omp` -> the legacy engine.
+  2. Implement agent selection (`auto`, `free-claude-code`, `omp`, the legacy engine, the legacy engine).
+  3. Add legacy-engine fleet toggle: when enabled, subtasks can spawn autonomous fleet agents;
      when disabled, execution remains strictly within the top-level CLI session.
   4. Universally standardize on `local-router/fallback-models` via port 11434 for all agents,
      web chats, and configuration.
 
 
-## 2026-09-05T01:09:27Z | mini (TDD Reproduction Engineer) — Dispatch Protocol v3 live-fire
+## 2026-09-05T01:09:27Z | legacy engine (TDD Reproduction Engineer) — Dispatch Protocol v3 live-fire
 - Context: First v3 dispatch; scratch worktree om-v3-livefire; trivial green-probe test task.
 - Observed Action: Liveness-only preflight passed (router /api/version up) but engine died at
   step 1 — router fallback target modal-proxy-glm-5.3-flash returned 401 upstream_http_auth
   ("Webhook token not found"); native exit 1, zero edits, scope clean, scrub clean.
-  cwd-relative --output mini_trajectory.json validated; non-interactive flags validated.
+  cwd-relative --output legacy engine_trajectory.json validated; non-interactive flags validated.
 - TTS.COMMS Alignment: systems-architecture master (proxy liveness != upstream health),
   reliability master (fail-fast before steps are burned), adversarial master (dummy bearer only).
 - Skill Refinement:
@@ -106,7 +107,7 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
   3. Dispatch artifact paths are cwd-relative inside the worktree (validated live).
 
 ## 2026-09-05T01:45:50Z | dsh headless (DeepSeek Harness) — engine-swap live probe
-- Context: Operator directive swaps fleet terminal engines (trae-cli/mini) for DeepSeek Harness
+- Context: Operator directive swaps fleet terminal engines (legacy engine/legacy engine) for DeepSeek Harness
   dsh (headless one-shot + ACP persistent surface); validation pong dispatched in worktree
   om-dsh-acp-swap before any doc swap was committed.
 - Observed Action: `dsh --profile headless "Reply with the single word: pong..."` returned
@@ -118,7 +119,7 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
   DX master (zero flags needed for one-shot), systems-architecture master (profile-owned
   provider config replaces single proxy assumption).
 - Skill Refinement:
-  1. Engine = dsh headless (one-shot) / dsh acp (persistent client surface); trae-cli/mini
+  1. Engine = dsh headless (one-shot) / dsh acp (persistent client surface); legacy engine/legacy engine
      retired to legacy-only on explicit operator request.
   2. Preflight = `command -v dsh` + `dsh --version` + pong round-trip (liveness is not health,
      re-confirmed on the new engine).
