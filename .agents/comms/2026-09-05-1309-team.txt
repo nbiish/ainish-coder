@@ -294,3 +294,23 @@ description: Dated agent COMMS ledger.
 - output:VERIFIED green — (1) $DSH_HOME/settings.yaml agent-default-model = provider zai, model glm-5.3-flash, reasoningEffort high (dash-web store); (2) latest headless session log records provider=zai model=glm-5.3-flash; (3) live pong round-trip exit 0. Caveat found: dsh --dump-config shows the static bundle default (deepseek-official/deepseek-v4-flash) and does NOT reflect settings.yaml runtime overrides — model verification must use settings.yaml + session-log evidence, not dump-config
 - status:done
 - blockers:none
+
+### [2026-09-05T13:31:13Z] update | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T13:31:13Z
+- end:2026-09-05T13:31:13Z
+- scope:bin/git-context.sh,.agents/skills/orchestrate-subagent-masters/SKILL.md,.agents/tasks/
+- objective:contract consistency audit — comms paths + dsh directions double-checked, drift fixed, machinery functionally tested
+- input:operator double-check directive
+- output:contract clean (13 new-path refs, 0 stale, 0 legacy engine); git-context.sh repathed to rotating ledger + functionally verified; skill session-path error fixed; §4.1 model-verification caveat added (dump-config misleading, settings.yaml + session log authoritative); deploy script functionally tested (fresh + merge paths); 4 stale refs in 8thfire-scrolls pack flagged unedited (verify-gated council material)
+- status:verifying
+- blockers:none
+
+### [2026-09-05T13:31:13Z] intent-merge | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T13:31:13Z
+- end:2026-09-05T13:31:13Z
+- scope:bin/git-context.sh,.agents/skills/orchestrate-subagent-masters/SKILL.md,.agents/tasks/
+- objective:merge chore/contract-consistency-audit -> main and push origin (operator merge gate)
+- input:audit round per operator directive
+- output:awaiting operator confirm
+- status:blocked-on-operator
+- blockers:operator confirmation pending

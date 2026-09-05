@@ -74,7 +74,7 @@ SEQUENCE: 1) write minimal failing test <tests/repro.test.mjs> 2) run it, confir
 EOF
 )"
 ```
-No session flag exists or is needed — each headless run is one fresh persisted session (sessions live under `$DSH_HOME/profiles/`; cite the session id from stderr in the COMMS receipt when one is printed).
+No session flag exists or is needed — each headless run is one fresh persisted session (sessions persist under `$DSH_HOME/sessions/<workspace-slug>/session-<id>/session.jsonl.zstd`; cite the session id from stderr in the COMMS receipt when one is printed).
 
 ### 2.3 `dsh --profile acp` — persistent automation surface
 ```bash
@@ -113,6 +113,8 @@ command -v dsh >/dev/null && dsh --version >/dev/null && \
 timeout 120 dsh --profile headless "Reply with the single word: pong. Do not run any commands or modify any files." | grep -q pong && echo GO || echo NO-GO
 ```
 NO-GO = fix environment first (binary missing → install/pin `dsh`; pong fails → profile provider config broken — fix credentials/config before ANY dispatch). **Liveness is not health:** the pong probe is a real inference round-trip — it proves the profile's provider can actually complete a completion (live-fire 2026-09-05: a router liveness check passed while every upstream target 401'd, and the dispatch died at step 1). The pong consumes one cheap call — first dispatch of a session only. When a profile routes through the local-router loopback, additionally run the `/v1/chat/completions` round-trip probe from the hardening round; loopback probes only — never probe non-loopback hosts.
+
+**Model verification (which model will serve):** `dsh --dump-config` shows only the static bundle defaults and does NOT reflect runtime settings — never use it to confirm the model. The runtime authority is the operator's `$DSH_HOME/settings.yaml` (`agent-default-model: provider/model`, set from the DSH web dashboard), corroborated by the dispatched session's log under `$DSH_HOME/sessions/` which records the actual `provider` and `model` served. Verified 2026-09-05: headless masters serve `zai/glm-5.3-flash` from the zai code plan while dump-config displayed `deepseek-official/deepseek-v4-flash`.
 
 ### 4.2 Dispatch rules
 - Fixed command vectors, `timeout 1800` (tune 900–3600 by scope) on every engine call.
