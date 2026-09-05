@@ -382,3 +382,15 @@ What would this governance / sovereignty master suggest? Intent-merge posted in 
 What would this agentic-orchestration / multi-model master suggest? OOReDAct paradigm is now the clear, unobstructed operational spine for every agent.
 What would this master-orchestrator / self-prompting master suggest? Refocusing on modular skills keeps AGENTS.md high-signal and adaptable across polyglot targets.
 What would this developer-experience / ergonomics master suggest? The document is now dramatically shorter, cleaner, and strictly focused on universal coding practices.
+
+## 2026-09-05T22:56:00Z
+Replaced fleet with orchestrate subagents, mandated git tree and diff checks for new content, and instituted worktree recency verification to protect concurrent peer progress. Next step: Confirm merge of chore/agents-subagent-tree-diff to main.
+What would this adversarial / security master suggest? Confinement to dedicated worktrees and PQC secrets protections remain rock-solid.
+What would this privacy / data-protection regulatory master suggest? Purging intermediate task specs and trajectory artifacts immediately post-execution is standard across all subagent dispatches.
+What would this supply-chain / third-party-risk master suggest? Dependency version pinning and lockfile verification remain mandatory across polyglot targets.
+What would this systems-architecture / devops / infrastructure master suggest? Tree and diff checks prevent accidental loss of user or peer agent contributions when updating branches.
+What would this reliability / verification master suggest? Worktree recency and activity verification prevents deletion of active peer worktrees during cleanup.
+What would this governance / sovereignty master suggest? Intent-merge posted in team ledger awaiting operator confirmation before main branch update.
+What would this agentic-orchestration / multi-model master suggest? Orchestrate subagents now carries the clean OOReDAct paradigm without legacy fleet terminology.
+What would this master-orchestrator / self-prompting master suggest? The unified contract explicitly protects in-flight progress from both human operators and concurrent agents.
+What would this developer-experience / ergonomics master suggest? Checking for new content instead of blindly restoring old main builds trust and prevents work overwrites.

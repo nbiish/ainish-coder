@@ -475,3 +475,43 @@ description: Dated agent COMMS ledger.
 - output:merged to main; worktree removed; branch deleted; no-rebuild-needed (docs only); wtf hub and graph-intelligence sections successfully stripped out from AGENTS.md, leaving all specialized tooling to modular skills
 - status:done
 - blockers:none
+
+### [2026-09-05T22:55:00Z] checkin | agent:antigravity-orchestrator | branch:chore/agents-subagent-tree-diff | wt:D:/Code/ainish-coder-subagent-tree-diff
+- start:2026-09-05T22:55:00Z
+- end:2026-09-05T22:55:00Z
+- scope:AGENTS.md
+- objective:replace 'fleet' with 'orchestrate subagents', mandate git tree & diff checks for new content (avoid restoring old main content), and enforce peer worktree recency verification to protect active work
+- input:operator request to replace 'fleet' with 'orchestrate subagents', ensure git tree & diff checks for new content, and check recency of other worktrees
+- output:work starting in dedicated worktree D:/Code/ainish-coder-subagent-tree-diff
+- status:in-progress
+- blockers:none
+
+### [2026-09-05T22:55:45Z] update | agent:antigravity-orchestrator | branch:chore/agents-subagent-tree-diff | wt:D:/Code/ainish-coder-subagent-tree-diff
+- start:2026-09-05T22:55:00Z
+- end:2026-09-05T22:55:45Z
+- scope:AGENTS.md
+- objective:replace all occurrences of 'fleet' with 'orchestrate subagents', mandate git tree & diff checks for new content (never blindly restoring old main content), and enforce peer worktree recency checks before removal
+- input:operator request to replace 'fleet', mandate git tree/diff checks for new content, and check recency of other worktrees
+- output:AGENTS.md updated and committed; zero occurrences of 'fleet' remain; git tree/diff checks and worktree recency verification codified; security gate passed
+- status:verifying
+- blockers:none
+
+### [2026-09-05T22:56:00Z] intent-merge | agent:antigravity-orchestrator | branch:chore/agents-subagent-tree-diff | wt:D:/Code/ainish-coder-subagent-tree-diff
+- start:2026-09-05T22:56:00Z
+- end:2026-09-05T22:56:00Z
+- scope:AGENTS.md
+- objective:merge chore/agents-subagent-tree-diff -> main (operator merge gate)
+- input:operator confirmation required
+- output:awaiting operator confirmation to merge
+- status:blocked-on-operator
+- blockers:operator confirmation pending
+
+### [2026-09-05T22:58:55Z] checkout | agent:antigravity-orchestrator | branch:chore/agents-subagent-tree-diff | wt:D:/Code/ainish-coder-subagent-tree-diff
+- start:2026-09-05T22:58:55Z
+- end:2026-09-05T22:58:55Z
+- scope:AGENTS.md
+- objective:close orchestrate subagents & git tree/diff/recency checks update round — merged to main on operator confirmation
+- input:operator confirmed "Proceed."
+- output:merged to main; worktree removed; branch deleted; no-rebuild-needed (docs only); 'fleet' replaced with 'orchestrate subagents'; git tree & diff checks for new content and worktree recency checks enforced
+- status:done
+- blockers:none
