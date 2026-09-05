@@ -262,3 +262,15 @@ What would this governance / sovereignty master suggest? Full checkin-update-int
 What would this terminal-orchestration / swe-bench master suggest? Dispatch the first SUBAGENT-DISPATCH receipt under v3 via mini in a scratch worktree to validate the handoff chain.
 What would this master-orchestrator / self-prompting master suggest? Treat the six-modality matrix as the routing table and fan independent scopes out in parallel.
 What would this developer-experience / ergonomics master suggest? One concise command per agent replaced three Python wrappers, so friction drops with every future dispatch.
+
+## 2026-09-05T01:15:50Z
+restore the local-router modal-proxy webhook token so fleet dispatches go green.
+What would this adversarial / security master suggest? The round-trip probe rode the dummy local-router bearer only and exposed the broken upstream credential without ever leaking a real key.
+What would this privacy / data-protection regulatory master suggest? The probe trajectory was purged immediately and the receipt records only error signatures, never raw provider payloads.
+What would this supply-chain / third-party-risk master suggest? Third-party upstream health is now a first-class preflight gate, pinning vendor breakage before it costs dispatch steps.
+What would this systems-architecture / devops / infrastructure master suggest? Proxy liveness is not upstream health — one curl round-trip now separates a living proxy from a working inference path.
+What would this reliability / verification master suggest? The fix was proven against the live broken environment: old preflight said GO, new preflight correctly says NO-GO.
+What would this governance / sovereignty master suggest? Full dispatch receipt, hardening, validation, and checkout entries are committed in the 2026-09-05 ledger with parent attribution.
+What would this terminal-orchestration / swe-bench master suggest? Re-dispatch the probe the moment the modal-proxy token is restored and collect the first green v3 receipt.
+What would this master-orchestrator / self-prompting master suggest? Log the environment blocker with the router checkout owner and treat 60 as stop-the-fleet, never hand-off.
+What would this developer-experience / ergonomics master suggest? cwd-relative artifact paths and one-line preflight mean zero wrapper scripts and zero path gymnastics for every future dispatch.
