@@ -53,8 +53,8 @@ You are the **AST Refactoring Master**. Surgical structural edits; preserve AST 
 1. <compile/typecheck cmd>  2. <test cmd>  3. git status shows ONLY scope files
 EOF
 timeout 1800 trae-cli run -f /tmp/task_ast.md --console-type simple \
-  --patch-path ../<slug>/solution.patch --max-steps 30
-rm -f /tmp/task_ast.md   # scrub — mandatory, never skip
+  --patch-path solution.patch --max-steps 30
+rm -f /tmp/task_ast.md   # scrub task file — mandatory, never skip; solution.patch is the deliverable
 ```
 
 ### 2.2 `mini` — TDD Reproduction Engineer (terminal, zero-config)
@@ -65,8 +65,8 @@ OBJECTIVE: <reproduce & eliminate <bug>>
 SEQUENCE: 1) write minimal failing test <tests/repro.test.mjs> 2) run it, confirm failure
 3) patch <target file> minimally 4) re-run test + full suite green 5) exit immediately
 EOF
-)" --output ../<slug>/mini_trajectory.json --yolo --exit-immediately
-rm -f ../<slug>/mini_trajectory.json   # scrub — mandatory, never skip
+)" --output mini_trajectory.json --yolo --exit-immediately
+rm -f mini_trajectory.json   # scrub — mandatory, never skip
 ```
 **Never pass `--config`** — `mini` is pre-wired to `local-router/fallback-models` via `~/.config/mini-swe-agent/.env`.
 
@@ -98,9 +98,12 @@ No wrapper scripts — the orchestrator runs plain commands and normalizes outco
 ### 4.1 Preflight (before first dispatch of a session)
 ```bash
 command -v trae-cli mini >/dev/null && \
-curl -sf -m 3 http://127.0.0.1:11434/api/version >/dev/null && echo GO || echo NO-GO
+curl -sf -m 3 http://127.0.0.1:11434/api/version >/dev/null && \
+curl -sf -m 15 -X POST http://127.0.0.1:11434/v1/chat/completions \
+  -H "Authorization: Bearer local-router" -H "Content-Type: application/json" \
+  -d '{"model":"local-router/fallback-models","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' >/dev/null && echo GO || echo NO-GO
 ```
-NO-GO = fix environment first (router down → start local-router; binary missing → install/pin). Loopback probes only — never probe non-loopback hosts.
+NO-GO = fix environment first (router down → start local-router; binary missing → install/pin; round-trip fails → upstream target auth/config broken — fix the router's provider credentials before ANY dispatch). **Liveness is not health:** `/api/version` only proves the proxy answers; the round-trip probe proves an upstream target can actually complete inference (live-fire 2026-09-05: proxy up, all fallback targets 401 — a liveness-only preflight passed and the dispatch died at step 1). Loopback probes only — never probe non-loopback hosts.
 
 ### 4.2 Dispatch rules
 - Fixed command vectors, `timeout 1800` (tune 900–3600 by scope) on every engine call.
@@ -115,7 +118,7 @@ NO-GO = fix environment first (router down → start local-router; binary missin
 | `30` | PROBE-LOOP (mini ≥3 identical probes) | Hand failure signature to `trae-cli` for AST surgery |
 | `40` | ENGINE_OR_GATES_FAILED | Fix scope/gates, re-dispatch |
 | `50` | SCOPE_VIOLATION | Revert edits, tighten allowlist, re-dispatch |
-| `60` | PREFLIGHT_FAILED | Run §4.1, fix environment |
+| `60` | ENVIRONMENT (preflight failed, or engine exit `1` with auth/upstream-error signature) | Fix router/provider credentials, re-run §4.1 round-trip. **Never hand off to a sibling engine — all engines share the same router** |
 
 Raw exit `124` (timeout) normalizes to `20`. No script assigns these — the orchestrator reads engine output and assigns.
 
