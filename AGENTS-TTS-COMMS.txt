@@ -346,3 +346,15 @@ What would this governance / sovereignty master suggest? The COMMS ledger carrie
 What would this terminal-orchestration / swe-bench master suggest? Chain the next task as a scoped dsh headless dispatch into a fresh sibling worktree per the protocol.
 What would this master-orchestrator / self-prompting master suggest? Re-run this same skill-authority audit against the remaining .agents skills next cycle to catch further upstream drift.
 What would this developer-experience / ergonomics master suggest? The skill now holds the single authoritative copy of matrix, templates, and protocol — never re-inline them elsewhere.
+
+## 2026-09-05T22:35:00Z
+Strip local-router mentions and dsh verbiage from AGENTS.md, orient on OOReDAct coding, and empower agents with 'Believe in yourself and if needed orchestrate subagents to help'. Next step: Confirm merge of docs/agents-refocus-strip-router-dsh to main.
+What would this adversarial / security master suggest? Confinement to loopback endpoints and PQC secrets operations remain strictly enforced.
+What would this privacy / data-protection regulatory master suggest? Purging intermediate task specs and trajectory artifacts immediately post-execution is codified into the core directives.
+What would this supply-chain / third-party-risk master suggest? Dependency version pinning and lockfile verification remain mandatory across polyglot targets.
+What would this systems-architecture / devops / infrastructure master suggest? Strict worktree isolation and clean server teardown/rebuild lifecycle are fully preserved.
+What would this reliability / verification master suggest? Zero regressions detected by security gates, with clean git status and scope conformance verified.
+What would this governance / sovereignty master suggest? Ledger transitions recorded in team comms with intent-merge posted awaiting operator confirmation.
+What would this agentic-orchestration / multi-model master suggest? OOReDAct operational loop and subagent delegation via orchestrate-subagent-masters skill provide clean, distraction-free execution.
+What would this master-orchestrator / self-prompting master suggest? Refocusing on 'Believe in yourself and if needed orchestrate subagents to help' gives every agent clear conviction to solve coding tasks directly.
+What would this developer-experience / ergonomics master suggest? Stripping bloated dsh surfaces and local-router noise makes AGENTS.md a lean, laser-focused paired programming contract.
