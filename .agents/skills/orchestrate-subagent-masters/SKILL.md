@@ -2,26 +2,28 @@
 name: orchestrate-subagent-masters
 description: >
   Master orchestration of ALL subagent modalities as direct agentic tool calls:
-  terminal engines trae-cli (AST Refactoring Master) and mini (TDD Reproduction
-  Engineer), harness-native subagent / subagent_fork delegates, workflow fan-out,
-  and ralph fresh-agent loops — each embodied as an expert master persona with
-  concise terminal-command instructions, dedicated worktree isolation, loopback
-  local-router/fallback-models routing, handoff chaining, and COMMS ledger
-  receipts. Supersedes trae-mini-fleet. Use when orchestrating coding subagents,
-  dispatching fleet engines, fanning out parallel subtasks, or delegating any
-  scoped task to a sub-master.
+  DeepSeek Harness engines (dsh --profile headless one-shot dispatches and
+  dsh --profile acp persistent automation surface) carrying the AST Refactoring
+  Master and TDD Reproduction Engineer personas, harness-native subagent /
+  subagent_fork delegates, workflow fan-out, and ralph fresh-agent loops — each
+  embodied as an expert master persona with concise terminal-command
+  instructions, dedicated worktree isolation, handoff chaining, and COMMS
+  ledger receipts. Supersedes trae-mini-fleet (trae-cli/mini retired from the
+  matrix; legacy dispatch only on explicit operator request). Use when
+  orchestrating coding subagents, dispatching fleet engines, fanning out
+  parallel subtasks, or delegating any scoped task to a sub-master.
 ---
 
 # Orchestrate-Subagent-Masters — Universal Subagent Orchestrator Skill
 
-The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree under loopback proxy `http://127.0.0.1:11434/v1` (`local-router/fallback-models`).
+The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches and the ACP persistent surface. The invoking directory is the workspace root, so always `cd` into the worktree first.
 
 ## 1. Core Doctrine
 
 1. **Tool calls, not commentary.** Dispatch immediately via the modality's invocation form (§2).
 2. **Embody the master.** Formulate each prompt AS the persona (AST Master, TDD Engineer, Security Auditor, …) — precise scope, bounded steps, explicit gates.
 3. **Worktree isolation.** One dispatch = one branch = one sibling worktree (`git worktree add -b <type>/<scope>-<slug> ../<slug> main`). Never dispatch against `main`.
-4. **Loopback confinement.** All engine inference routes through `127.0.0.1:11434/v1` with dummy bearer `local-router`. Subagents never see raw API keys.
+4. **Key confinement.** Inference follows the booted dsh profile's own provider config — never pass raw API keys in dispatch args or task text. When a profile is wired to the local-router loopback, keep traffic on `127.0.0.1` only.
 5. **Graph recon first.** `gitnexus context`/`impact` (d≤2) output IS the `SCOPE & TARGET FILES` allowlist. Zero blind edits.
 6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in `AGENTS/{date}.COMMS.md` (`parent: <orchestrator>`).
 
@@ -29,16 +31,16 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 
 | Modality | Master Persona | Dispatch When |
 |---|---|---|
-| `trae-cli` | AST Refactoring Master | Multi-file structural edits, cross-module refactors, unified patches |
-| `mini` | TDD Reproduction Engineer | Failing-test reproduction, bug isolation, fix loops, hardening |
+| `dsh --profile headless` | AST Refactoring Master / TDD Reproduction Engineer (one-shot) | Multi-file structural edits, patches, failing-test reproduction, fix loops — answer, print, exit |
+| `dsh --profile acp` | Persistent harness surface | A long-lived automation client (editor, orchestrator) driving multi-turn sessions over stdio |
 | Native subagent | Any (context-fresh delegate) | Self-contained research/implementation; must not see this conversation |
 | `subagent_fork` | Any (context-inheriting delegate) | Follow-up analysis/review building on current conversation |
 | `workflow` | Parallel Masters (fan-out) | Many independent scoped pieces: audits, migrations, multi-angle research |
 | `ralph` | Fresh-Agent Iteration Master | ONLY on explicit operator request for fresh-agent iterative loops |
 
-Flags evolve across releases — run `<agent> --help` before new flags.
+Legacy: `trae-cli`/`mini` are retired from the matrix — dispatch them only on explicit operator request. The launcher parses only its own flags; everything after them belongs to the booted profile (`dsh --profile <name> --help` for the app's flags). Invalid commands, foreign options, config errors, and boot failures exit nonzero.
 
-### 2.1 `trae-cli` — AST Refactoring Master (terminal)
+### 2.1 `dsh --profile headless` — AST Refactoring Master (one-shot)
 ```bash
 cat > /tmp/task_ast.md << 'EOF'
 # TASK: <one-line objective>
@@ -52,44 +54,52 @@ You are the **AST Refactoring Master**. Surgical structural edits; preserve AST 
 ## ACCEPTANCE & QUALITY GATES
 1. <compile/typecheck cmd>  2. <test cmd>  3. git status shows ONLY scope files
 EOF
-timeout 1800 trae-cli run -f /tmp/task_ast.md --console-type simple \
-  --patch-path solution.patch --max-steps 30
-rm -f /tmp/task_ast.md   # scrub task file — mandatory, never skip; solution.patch is the deliverable
+cd ../<slug>   # invoking directory = workspace root — never main
+timeout 1800 dsh --profile headless "$(cat /tmp/task_ast.md)"
+rm -f /tmp/task_ast.md   # scrub task file — mandatory, never skip; the worktree edits are the deliverable
 ```
+Headless streams reasoning to stderr, prints the final assistant message to stdout, and exits — inherently non-interactive.
 
-### 2.2 `mini` — TDD Reproduction Engineer (terminal, zero-config)
+### 2.2 `dsh --profile headless` — TDD Reproduction Engineer (one-shot)
 ```bash
-timeout 1800 mini --task "$(cat << 'EOF'
+cd ../<slug>
+timeout 1800 dsh --profile headless "$(cat << 'EOF'
 [ROLE: TDD Reproduction Engineer]
 OBJECTIVE: <reproduce & eliminate <bug>>
 SEQUENCE: 1) write minimal failing test <tests/repro.test.mjs> 2) run it, confirm failure
-3) patch <target file> minimally 4) re-run test + full suite green 5) exit immediately
+3) patch <target file> minimally 4) re-run test + full suite green 5) stop and report
+## SCOPE & TARGET FILES: <allowlist>
 EOF
-)" --output mini_trajectory.json --yolo --exit-immediately
-rm -f mini_trajectory.json   # scrub — mandatory, never skip
+)"
 ```
-**Never pass `--config`** — `mini` is pre-wired to `local-router/fallback-models` via `~/.config/mini-swe-agent/.env`.
+No session flag exists or is needed — each headless run is one fresh persisted session (sessions live under `$DSH_HOME/profiles/`; cite the session id from stderr in the COMMS receipt when one is printed).
 
-### 2.3 Harness-native subagent — context-fresh delegate
+### 2.3 `dsh --profile acp` — persistent automation surface
+```bash
+dsh --profile acp   # serves ACP over stdio until disconnect
+```
+For clients that drive multi-turn agent sessions (editors, orchestrator processes). Boot it deliberately as a managed background process with a bounded lifetime — never inside a one-shot dispatch. One-shot orchestration uses §2.1/§2.2, not ACP.
+
+### 2.4 Harness-native subagent — context-fresh delegate
 Tool call (not shell): `subagent` with a **complete standalone prompt** — objective, scope allowlist, gates, persona, worktree/branch instruction. The delegate sees none of this conversation. Use `run_in_background: true` for independent scopes; block (`run_in_background: false`) when the next phase consumes the result.
 
-### 2.4 Harness-native subagent_fork — context-inheriting delegate
+### 2.5 Harness-native subagent_fork — context-inheriting delegate
 Tool call: `subagent_fork` when the delegate should inherit the completed conversation (review, continuation, follow-up analysis). State only what is new; it already sees prior turns.
 
-### 2.5 `workflow` — parallel Masters fan-out
+### 2.6 `workflow` — parallel Masters fan-out
 Tool call: scripted fan-out across many independent pieces (audits, migrations). Write the orchestration as plain JS: `agent(prompt)` per unit, `pipeline` for per-item stages, `parallel` only at true barriers. Independent scopes may run concurrently; dependent scopes block on receipts.
 
-### 2.6 `ralph` — fresh-agent iteration
+### 2.7 `ralph` — fresh-agent iteration
 Tool call: ONLY when the operator explicitly requests Ralph/fresh-agent iteration. Each round is a context-free child; the shared workspace is the only memory.
 
 ## 3. Canonical Master Templates (authoritative copies)
 
-Four templates, invoked with the §2 command forms. Invariants (non-negotiable): scoped `SCOPE & TARGET FILES` allowlist from graph recon; non-interactive flags (`--console-type simple` for trae-cli, `--yolo --exit-immediately` for mini, never `--config` for mini); prompts via task file for trae-cli; dispatch only inside dedicated sibling worktrees; loopback proxy routing.
+Four templates, invoked with the §2 command forms. Invariants (non-negotiable): scoped `SCOPE & TARGET FILES` allowlist from graph recon; one-shot engines only inside dispatches (never boot `web`/`tui`/`acp` profiles in a dispatch — headless answers and exits); task prompts via task file fed with `"$(cat <file>)"`; dispatch only inside dedicated sibling worktrees (invoking directory = workspace root).
 
-- **TPL_TRAE_AST_V2** — AST Refactoring Master (`trae-cli`): role = surgical structural refactor preserving AST/type contracts; scope = gitnexus allowlist; gates = compile + tests + scope-clean `git status`.
-- **TPL_MINI_TDD_REPRO_V1** — TDD Reproduction Engineer (`mini`): role = minimal failing test → confirm failure → minimal patch → green suite → exit; zero extraneous scripts.
-- **TPL_SECURITY_AUDIT_V1** — Adversarial Security Auditor (`trae-cli`/`mini`/native): role = zero-trust audit — CWE-22/SSRF/injection vectors, FIPS 203/204/205-only secrets ops, allowlist validation; gates = security tests + zero banned primitives.
-- **TPL_TRAE_SYSTEMS_V1** — Systems Architecture Master (`trae-cli`): role = deterministic loopback pipelines, port contracts, daemon failover, signal-clean shutdown; gates = endpoint smoke + lifecycle tests.
+- **TPL_AST_REFACTOR_V3** — AST Refactoring Master (dsh headless): role = surgical structural refactor preserving AST/type contracts; scope = gitnexus allowlist; gates = compile + tests + scope-clean `git status`.
+- **TPL_TDD_REPRO_V3** — TDD Reproduction Engineer (dsh headless): role = minimal failing test → confirm failure → minimal patch → green suite → report; zero extraneous scripts.
+- **TPL_SECURITY_AUDIT_V3** — Adversarial Security Auditor (dsh headless/native): role = zero-trust audit — CWE-22/SSRF/injection vectors, FIPS 203/204/205-only secrets ops, allowlist validation; gates = security tests + zero banned primitives.
+- **TPL_SYSTEMS_ARCH_V3** — Systems Architecture Master (dsh headless): role = deterministic loopback pipelines, port contracts, daemon failover, signal-clean shutdown; gates = endpoint smoke + lifecycle tests.
 
 ## 4. Terminal-Native Dispatch Protocol
 
@@ -97,36 +107,34 @@ No wrapper scripts — the orchestrator runs plain commands and normalizes outco
 
 ### 4.1 Preflight (before first dispatch of a session)
 ```bash
-command -v trae-cli mini >/dev/null && \
-curl -sf -m 3 http://127.0.0.1:11434/api/version >/dev/null && \
-curl -sf -m 15 -X POST http://127.0.0.1:11434/v1/chat/completions \
-  -H "Authorization: Bearer local-router" -H "Content-Type: application/json" \
-  -d '{"model":"local-router/fallback-models","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' >/dev/null && echo GO || echo NO-GO
+command -v dsh >/dev/null && dsh --version >/dev/null && \
+timeout 120 dsh --profile headless "Reply with the single word: pong. Do not run any commands or modify any files." | grep -q pong && echo GO || echo NO-GO
 ```
-NO-GO = fix environment first (router down → start local-router; binary missing → install/pin; round-trip fails → upstream target auth/config broken — fix the router's provider credentials before ANY dispatch). **Liveness is not health:** `/api/version` only proves the proxy answers; the round-trip probe proves an upstream target can actually complete inference (live-fire 2026-09-05: proxy up, all fallback targets 401 — a liveness-only preflight passed and the dispatch died at step 1). Loopback probes only — never probe non-loopback hosts.
+NO-GO = fix environment first (binary missing → install/pin `dsh`; pong fails → profile provider config broken — fix credentials/config before ANY dispatch). **Liveness is not health:** the pong probe is a real inference round-trip — it proves the profile's provider can actually complete a completion (live-fire 2026-09-05: a router liveness check passed while every upstream target 401'd, and the dispatch died at step 1). The pong consumes one cheap call — first dispatch of a session only. When a profile routes through the local-router loopback, additionally run the `/v1/chat/completions` round-trip probe from the hardening round; loopback probes only — never probe non-loopback hosts.
 
 ### 4.2 Dispatch rules
 - Fixed command vectors, `timeout 1800` (tune 900–3600 by scope) on every engine call.
+- `cd` into the dispatch worktree first — the invoking directory is the workspace root.
 - Parallel dispatches only for independent scopes in separate worktrees; dependent scopes block on completion.
-- After each dispatch: verify scope conformance (`git -C ../<slug> status --porcelain` ⊆ allowlist), scrub task files and trajectory JSONs (`rm -f`), then log the COMMS receipt with exit code.
+- After each dispatch: verify scope conformance (`git -C ../<slug> status --porcelain` ⊆ allowlist), scrub task files (`rm -f`), then log the COMMS receipt with exit code.
 
 ### 4.3 Exit taxonomy (orchestrator-normalized)
 | Code | Meaning | Action |
 |---|---|---|
 | `0` | OK | Collect receipt → verification/merge flow |
-| `20` | STEP-EXHAUSTED (failed, zero edits) or `124` timeout | Hand off to sibling engine with discovered targets |
-| `30` | PROBE-LOOP (mini ≥3 identical probes) | Hand failure signature to `trae-cli` for AST surgery |
+| `20` | STEP-EXHAUSTED (failed, zero edits) or `124` timeout | Hand off to sibling modality with discovered targets |
+| `30` | PROBE-LOOP (≥3 identical probes in engine output) | Hand failure signature to a fresh scoped dispatch for AST surgery |
 | `40` | ENGINE_OR_GATES_FAILED | Fix scope/gates, re-dispatch |
 | `50` | SCOPE_VIOLATION | Revert edits, tighten allowlist, re-dispatch |
-| `60` | ENVIRONMENT (preflight failed, or engine exit `1` with auth/upstream-error signature) | Fix router/provider credentials, re-run §4.1 round-trip. **Never hand off to a sibling engine — all engines share the same router** |
+| `60` | ENVIRONMENT (preflight failed; dsh boot/config/foreign-option failure; auth/upstream-error signature) | Fix profile/provider credentials, re-run §4.1 pong. **Never hand off to a sibling engine on 60 — all engines share the environment** |
 
 Raw exit `124` (timeout) normalizes to `20`. No script assigns these — the orchestrator reads engine output and assigns.
 
 ## 5. Handoff Chaining
 
-- **Refactor → Harden:** `trae-cli` structural patch → `mini` synthesizes reproduction tests + hardens edges on the patch.
-- **Probe → Fix:** `mini` isolates bug with minimal failing test → `trae-cli` applies the production patch to exact files.
-- **Native → Terminal:** a `subagent`/`subagent_fork` delegate's analysis becomes the scoped task file for a terminal dispatch; terminal receipts feed back into native verification delegates.
+- **Refactor → Harden:** one `dsh headless` dispatch (AST Master) applies structural edits → a second `dsh headless` dispatch (TDD Engineer) synthesizes reproduction tests + hardens edges on the result.
+- **Probe → Fix:** a `dsh headless` dispatch (TDD Engineer) isolates the bug with a minimal failing test → a fresh scoped dispatch (AST Master) applies the production patch to exact files.
+- **Native ↔ Terminal:** a `subagent`/`subagent_fork` delegate's analysis becomes the scoped task file for a `dsh` dispatch; terminal receipts feed back into native verification delegates.
 Each handoff = one `FLEET-HANDOFF` COMMS entry (§6).
 
 ## 6. COMMS Receipts (ledger = the receipt)
@@ -149,19 +157,20 @@ One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<moda
 2. Native gates green (`tsc --noEmit`, `cargo clippy`, `ruff`, test suites — per repo language).
 3. Scope conformance: `git diff --name-only` ⊆ allowlist; violations revert before re-dispatch.
 4. C/C++ patches: warnings-as-errors + ASan/UBSan + tests re-run on the optimized shipping binary.
-5. Privacy: task files and trajectories scrubbed after every dispatch; no secrets, no absolute home paths in any artifact.
+5. Privacy: task files and intermediate artifacts scrubbed after every dispatch; no secrets, no absolute home paths in any artifact (headless sessions persist under `$DSH_HOME` — treat session logs as artifacts too).
 6. GitNexus `detect-changes` scope proof before merge (or COMMS-logged fallback gap note).
 7. Operator confirms every merge — never self-approve.
 
 | Pitfall | Rule |
 |---|---|
-| Invoking `trae-agent` | Binary is `trae-cli` — always |
-| Hanging on stdin | `--console-type simple` (trae-cli); `--yolo --exit-immediately` (mini) |
-| Passing `--config` to mini | Forbidden — zero-config via global env |
-| Unescaped task strings | Task file via `-f <file>` for trae-cli; heredoc for mini |
+| Booting `web`/`tui`/`acp` inside a dispatch | One-shot engines only — headless answers and exits |
+| Mixing launcher and app flags | Launcher parses `--profile`/`--patch`/`--dump-*` only; the rest belong to the profile (`--help` per profile) |
+| Dispatching from `main` | Invoking directory = workspace root — `cd` into the sibling worktree first |
+| Unescaped task strings | Task file + `"$(cat <file>)"` |
+| Raw keys in dispatch args | Never — profiles carry their own provider config |
 | Dispatch on `main` | Mandatory sibling worktree |
 | Dispatch without preflight | §4.1 GO before first dispatch |
-| Skipping scrub | `rm -f` task/trajectory files after EVERY dispatch |
+| Skipping scrub | `rm -f` task files after EVERY dispatch |
 | Missing COMMS receipt | Ledger entry with exit code per dispatch — no exceptions |
 
 ## 8. Reflection Ledger
