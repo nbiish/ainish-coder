@@ -170,7 +170,7 @@ UTILITY COMMANDS:
                               - production-security/       (Core security policies & PQC mandates)
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
-                              - trae-mini-fleet/          (Headless terminal agent fleet orchestration: live-swe + trae)
+                              - orchestrate-subagent-masters/ (Subagent master orchestration: trae + mini + native)
 
                               Example: ainish-coder --skills ~/my-project
 

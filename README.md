@@ -74,7 +74,7 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **Document Enhancer** | `.agents/skills/document-enhancer/` | Dual-pipeline system for improving documents: fuse external knowledge bases into target documents, or recursively harden documents for multi-model LLM effectiveness via split-optimize-review-merge architecture. |
 | **Video Knowledge Extractor** | `.agents/skills/video-knowledge-extractor/` | Extracts structured markdown knowledge bases from YouTube videos by combining spoken transcripts with sequential visual frames through a Vision-Language Model. |
 | **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Generates parameterized 3D models using Python templates and OpenSCAD, compiles to STL via Makefile. |
-| **Trae-Mini Fleet** | `.agents/skills/trae-mini-fleet/` | Fleet orchestration of headless terminal coding agents (`live-swe-agent`, `trae-agent`) routed through local-router Ollama fallback models. |
+| **Orchestrate Subagent Masters** | `.agents/skills/orchestrate-subagent-masters/` | Universal subagent orchestration — terminal engines (`trae-cli`, `mini`) plus harness-native subagent modalities under master personas, routed through local-router Ollama fallback models. |
 | **PQC Secrets** | `.agents/skills/pqc-secrets/` | Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. |
 | **PQC Signatures & Security** | `.agents/skills/pqc-signatures-security/` | Expert instructions to implement and verify ML-DSA-65 post-quantum cryptographic signatures and agentic workflow security. |
 | **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock` for AI transparency. |
@@ -184,7 +184,7 @@ The OSA (Orchestrated System of Agents) framework coordinates multiple CLI codin
 ainish-coder --skills                    # Deploy all skills
 ```
 
-See [`.agents/skills/trae-mini-fleet/SKILL.md`](.agents/skills/trae-mini-fleet/SKILL.md) for the orchestration framework specification.
+See [`.agents/skills/orchestrate-subagent-masters/SKILL.md`](.agents/skills/orchestrate-subagent-masters/SKILL.md) for the orchestration framework specification.
 
 ---
 

@@ -6,7 +6,7 @@ description: >
   sessions for coding work, running security audits, code reviews, QA testing URLs,
   building features end-to-end, or planning before building. Also configures and
   orchestrates sub-agents to maximize utilization of all AI subscriptions and APIs.
-  For headless terminal coding agent fleet orchestration under local-router Ollama fallback models, pair with trae-mini-fleet skill.
+  For headless terminal coding agent fleet orchestration under local-router Ollama fallback models, pair with orchestrate-subagent-masters skill.
 ---
 
 # GStack Coder — Multi-Tool Coding Orchestration
@@ -169,14 +169,14 @@ wait
 
 ## 6. MCP Sub-Agent Dispatch
 
-For headless terminal coding agent dispatch under the local-router Ollama fallback proxy, pair with the **trae-mini-fleet** skill. It provides:
+For headless terminal coding agent dispatch under the local-router Ollama fallback proxy, pair with the **orchestrate-subagent-masters** skill. It provides:
 
-- Fleet management of `live-swe-agent` and `trae-agent` terminal agents
+- Fleet management of `live-swe-agent` and `trae-agent` terminal agents plus harness-native subagent modalities
 - Single config proxy/shim via the Ollama endpoint (`http://localhost:11434/v1`) using `local-router/fallback-models`
 - Zero client-side provider complexity (handled automatically by local-router)
 - Git worktree isolation per dispatch
 
-When trae-mini-fleet dispatches mini-swe-agent for execution, use **`mini-live`** (or `mini` with Live-SWE-agent config).
+When orchestrate-subagent-masters dispatches mini-swe-agent for execution, use **`mini-live`** (or `mini` with Live-SWE-agent config).
 
 ---
 
@@ -205,5 +205,5 @@ For parallel work across subscriptions (in canonical order):
 - **claude**: `claude -p "task" --no-session --thinking off`
 - **mini-live**: `mini-live --task "task" --yolo`
 
-For terminal agent fleet dispatch with provider fallback via local-router, pair with trae-mini-fleet skill.
+For terminal agent fleet dispatch with provider fallback via local-router, pair with orchestrate-subagent-masters skill.
 ```
