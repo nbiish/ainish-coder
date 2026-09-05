@@ -18,7 +18,7 @@ description: >
 
 # Orchestrate-Subagent-Masters — Universal Subagent Orchestrator Skill
 
-The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches and the ACP persistent surface — running the operator's own configuration as set from the DSH web dashboard. The wtf MCP hub is the live cross-machine observability plane (§9). The invoking directory is the workspace root, so always `cd` into the worktree first.
+The calling AI agent is the **Master Orchestrator**: it decomposes operator intent, embodies the exact domain expert each phase needs, and dispatches subagents as **direct tool calls** — never as passive advice, never as operator chores. Every dispatch runs in a dedicated sibling worktree; the engine is the **DeepSeek Harness CLI (`dsh`)** — headless one-shot dispatches, the ACP persistent surface, and `sdk[-minimal]` programmatic dispatch via `deepseek-harness-sdk` (profiles, never separate bins) — running the operator's own configuration as set from the DSH web dashboard. The wtf MCP hub is the live cross-machine observability plane (§9). The invoking directory is the workspace root, so always `cd` into the worktree first.
 
 ## 1. Core Doctrine
 
@@ -35,6 +35,7 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 |---|---|---|
 | `dsh --profile headless` | AST Refactoring Master / TDD Reproduction Engineer (one-shot) | Multi-file structural edits, patches, failing-test reproduction, fix loops — answer, print, exit |
 | `dsh --profile acp` | Persistent harness surface | A long-lived automation client (editor, orchestrator) driving multi-turn sessions over stdio |
+| `dsh --profile sdk[-minimal]` via `deepseek-harness-sdk` | Any (programmatic one-shot) | Orchestrator scripts: `DeepSeekHarness(workspace=, dsh_home=, profile=).run(task, session_id=)` — explicit isolated workspace+home, fresh session id per task; `sdk-minimal` pins `danger-full-access` → disposable checkout/container only |
 | Native subagent | Any (context-fresh delegate) | Self-contained research/implementation; must not see this conversation |
 | `subagent_fork` | Any (context-inheriting delegate) | Follow-up analysis/review building on current conversation |
 | `workflow` | Parallel Masters (fan-out) | Many independent scoped pieces: audits, migrations, multi-angle research |
@@ -81,6 +82,17 @@ No session flag exists or is needed — each headless run is one fresh persisted
 dsh --profile acp   # serves ACP over stdio until disconnect
 ```
 For clients that drive multi-turn agent sessions (editors, orchestrator processes). Boot it deliberately as a managed background process with a bounded lifetime — never inside a one-shot dispatch. One-shot orchestration uses §2.1/§2.2, not ACP.
+
+### 2.3b `dsh --profile sdk[-minimal]` — programmatic one-shot via Python SDK
+```python
+from pathlib import Path
+from deepseek_harness import DeepSeekHarness   # pip install deepseek-harness-sdk
+
+with DeepSeekHarness(profile="sdk-minimal", cwd=str(workspace), dsh_home=str(dsh_home)) as harness:
+    result = harness.run("<scoped task, same SCOPE/gates contract>", session_id="<fresh-id>")
+print(result.final_response)
+```
+SDK and ACP are profiles, not separate bins. ALWAYS pass explicit isolated `workspace` + `dsh_home` (never silently reads `~/.dsh`); fresh `session_id` per independent task — reuse harness+home+id only to continue one conversation. `sdk-minimal` pins `danger-full-access`: disposable checkout/container only. Missing server rows / unresolved plugins fail at startup — no silent fallback.
 
 ### 2.4 Harness-native subagent — context-fresh delegate
 Tool call (not shell): `subagent` with a **complete standalone prompt** — objective, scope allowlist, gates, persona, worktree/branch instruction. The delegate sees none of this conversation. Use `run_in_background: true` for independent scopes; block (`run_in_background: false`) when the next phase consumes the result.
