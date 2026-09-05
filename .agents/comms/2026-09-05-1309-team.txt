@@ -295,6 +295,57 @@ description: Dated agent COMMS ledger.
 - status:done
 - blockers:none
 
+### [2026-09-05T13:27:17Z] checkin | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T13:27:17Z
+- end:2026-09-05T13:27:17Z
+- scope:AGENTS.md,llms.txt,README.md,src/,bin/,.agents/skills/orchestrate-subagent-masters/,src/templates/,scripts/,research-excluded
+- objective:double-check all COMMS paths and dsh directions across contract + dependents; functionally test new ledger deployment; fix any drift
+- input:operator: make doubley sure COMMS and directions in AGENTS.md are updated properly
+- output:work starting
+- status:in-progress
+- blockers:none
+
+### [2026-09-05T13:31:13Z] update | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T13:31:13Z
+- end:2026-09-05T13:31:13Z
+- scope:bin/git-context.sh,.agents/skills/orchestrate-subagent-masters/SKILL.md,.agents/tasks/
+- objective:contract consistency audit — comms paths + dsh directions double-checked, drift fixed, machinery functionally tested
+- input:operator double-check directive
+- output:contract clean (13 new-path refs, 0 stale, 0 legacy engine); git-context.sh repathed to rotating ledger + functionally verified; skill session-path error fixed; §4.1 model-verification caveat added (dump-config misleading, settings.yaml + session log authoritative); deploy script functionally tested (fresh + merge paths); 4 stale refs in 8thfire-scrolls pack flagged unedited (verify-gated council material)
+- status:verifying
+- blockers:none
+
+### [2026-09-05T13:31:13Z] intent-merge | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T13:31:13Z
+- end:2026-09-05T13:31:13Z
+- scope:bin/git-context.sh,.agents/skills/orchestrate-subagent-masters/SKILL.md,.agents/tasks/
+- objective:merge chore/contract-consistency-audit -> main and push origin (operator merge gate)
+- input:audit round per operator directive
+- output:awaiting operator confirm
+- status:blocked-on-operator
+- blockers:operator confirmation pending
+
+### [2026-09-05T14:23:53Z] checkout | agent:dsh-orchestrator | branch:chore/contract-consistency-audit | wt:/mnt/d/Code/om-audit
+- start:2026-09-05T14:23:53Z
+- end:2026-09-05T14:23:53Z
+- scope:bin/git-context.sh,.agents/skills/orchestrate-subagent-masters/SKILL.md,.agents/tasks/
+- objective:close consistency-audit round — merged to main on operator confirmation; push origin next
+- input:operator selected "Merge + push"; round checkin entry recovered and inserted chronologically (same merge-collision pattern as the migration round)
+- output:merged; worktree removed; branch deleted; no-rebuild-needed; contract audit complete; 8thfire-scrolls stale refs remain flagged for operator decision
+- status:done
+- blockers:none
+### [$(date -u +%Y-%m-%dT%H:%M:%SZ)] checkin | agent:orchestrator | parent:operator
+- start:$(date -u +%Y-%m-%dT%H:%M:%SZ)
+- branch:docs/fleet-dsh-sdk-alignment wt:../ainish-fleet-docs
+- scope:AGENTS.md + .agents/skills/orchestrate-subagent-masters/SKILL.md (docs-only)
+- objective:align fleet docs with upstream dsh CLI README + Python SDK guide; add sdk profile modality; self-prompting mandate; compress FLEET to skill pointers
+- status:committed ece3e9d — awaiting operator merge confirmation
+- blockers:none
+### [$(date -u +%Y-%m-%dT%H:%M:%SZ)] checkout | agent:orchestrator | parent:operator
+- start:$(date -u +%Y-%m-%dT%H:%M:%SZ)
+- branch:docs/fleet-dsh-sdk-alignment — merged to main (ece3e9d), worktree ../ainish-fleet-docs removed, branch deleted; docs-only → no-rebuild-needed
+- blockers:none
+
 ### [2026-09-05T13:28:00Z] checkin | agent:gemini-orchestrator | branch:chore/deploy-sync-critical | wt:D:/Code/ainish-coder-sync-critical
 - start:2026-09-05T13:28:00Z
 - end:2026-09-05T13:28:00Z

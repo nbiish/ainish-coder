@@ -107,3 +107,23 @@ tool-call instructions — no Python tooling scripts.
 - Note: target repos deployed by --rules will fresh-deploy the new scheme on their next
   --rules run; existing AGENTS/{date}.COMMS.md files at targets migrate on their next
   worktree round.
+
+## Round 5 (2026-09-05, branch chore/contract-consistency-audit)
+
+- Operator directive: make doubley sure all COMMS and directions in AGENTS.md are updated properly.
+- Audit results: AGENTS.md 13 new-path refs, 0 stale comms refs, 0 trae/mini verbiage, 0 old
+  engine references — contract internally consistent; README/llms.txt clean.
+- Drift found & fixed:
+  1. bin/git-context.sh (the `git context` Fast Orientation tool) still hardcoded
+     AGENTS/{today}.COMMS.md — now resolves latest .agents/comms/*-team.txt with legacy
+     fallback; functionally verified against the live ledger (296L, newest status shown).
+  2. Skill §2.2 session-path error (wrote $DSH_HOME/profiles/ — actually
+     $DSH_HOME/sessions/<slug>/session-<id>/session.jsonl.zstd); corrected.
+  3. Skill §4.1 model-verification caveat added: dump-config shows static bundle defaults
+     and cannot confirm the model; settings.yaml + session-log evidence are the runtime
+     authority (verified zai/glm-5.3-flash).
+- Functional tests: deploy_agents_comms fresh target creates .agents/comms/{date}-{time}-team.txt
+  correctly; merge path preserves agent entries; git-context COMMS block green.
+- Flagged, not edited: 4 stale path refs inside .agents/skills/8thfire-scrolls/ (governance +
+  research docs) — scroll-channel pack is verify-gated with council-signed integrity digests;
+  editing risks verify failures. Operator decision required.

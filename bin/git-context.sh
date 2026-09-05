@@ -46,12 +46,20 @@ if ! git diff --cached --quiet 2>/dev/null; then
   git diff --cached --stat
 fi
 
-# ── AGENT COMMS (current day's ledger) ──
+# ── AGENT COMMS (latest rotating team ledger) ──
 echo ''
 echo '--- COMMS ---'
 today=$(date +%Y-%m-%d)
-ledger="AGENTS/${today}.COMMS.md"
-if [ -f "${ledger}" ]; then
+# New scheme: rotating .agents/comms/{date}-{time}-team.txt (latest = active).
+# Legacy fallback: AGENTS/{date}.COMMS.md (pre-migration targets).
+ledger=""
+if [ -d ".agents/comms" ]; then
+  ledger=$(ls -1 .agents/comms/*-team.txt 2>/dev/null | sort | tail -1)
+fi
+if [ -z "${ledger}" ] && [ -f "AGENTS/${today}.COMMS.md" ]; then
+  ledger="AGENTS/${today}.COMMS.md"
+fi
+if [ -n "${ledger}" ] && [ -f "${ledger}" ]; then
   lines=$(wc -l < "${ledger}" | tr -d ' ')
   echo "  ${ledger} (${lines}L)"
   # Latest entries: one line each (event + agent + branch + status), last 6
