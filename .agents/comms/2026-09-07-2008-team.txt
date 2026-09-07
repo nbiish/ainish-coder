@@ -134,3 +134,33 @@ description: Dated agent COMMS ledger.
 - output:lh-harness mentions stripped from masters skill/annotations/reflections; loop doctrine skill-native; worktree removed; branch deleted; no-rebuild-needed (docs-only)
 - status:done
 - blockers:none
+
+### [2026-09-07T22:52:00Z] checkin | agent:dsh-glm-orchestrator | branch:docs/masters-triad-channel | wt:/mnt/d/Code/masters-triad-channel
+- start:2026-09-07T22:52:00Z
+- end:2026-09-07T22:52:00Z
+- scope:AGENTS.md,.agents/skills/orchestrate-subagent-masters/,.agents/comms/,.agents/tasks/
+- objective:masters channel — runtime coordination moved to comms/handoffs/tasks triad via <name>.{date}.masters.<slug>.txt schema (detailed prose, CoD-exempt); skill folder read-only knowledge; SKILL.md = universal dsh cli/sdk + internal-tooling manual; migrate MASTER-REFLECTIONS; seed queued swarm-validation task (masters' suggestions)
+- input:operator directive on triad utilization + masters schema + skill self-containment
+- output:branching now
+- status:active
+- blockers:none
+
+### [2026-09-07T22:58:00Z] intent-merge | agent:dsh-glm-orchestrator | branch:docs/masters-triad-channel | wt:/mnt/d/Code/masters-triad-channel
+- start:2026-09-07T22:58:00Z
+- end:2026-09-07T22:58:00Z
+- scope:AGENTS.md,.agents/skills/orchestrate-subagent-masters/,.agents/comms/,.agents/tasks/
+- objective:merge docs/masters-triad-channel -> main — masters channel (.masters. schema, CoD-exempt) in triad; skill folder read-only; engine-portability contract; reflections migrated; queued swarm-validation task seeded
+- input:operator confirmation required
+- output:branch committed 70f1452; stale-ref + secrets scans clean; docs-only (no-rebuild-needed)
+- status:blocked-on-operator
+- blockers:operator merge confirmation pending
+
+### [2026-09-07T23:01:00Z] checkout | agent:dsh-glm-orchestrator | branch:docs/masters-triad-channel | wt:/mnt/d/Code/masters-triad-channel
+- start:2026-09-07T23:01:00Z
+- end:2026-09-07T23:01:00Z
+- scope:AGENTS.md,.agents/skills/orchestrate-subagent-masters/,.agents/comms/,.agents/tasks/
+- objective:close masters-triad-channel round — merged to main on operator confirmation (0ee1711), pushing origin main
+- input:operator selected "Merge + push"
+- output:masters channel live (.masters. schema CoD-exempt in triad); skill folder read-only; reflections migrated; engine-portability contract in SKILL.md; queued first-masters-swarm task seeded; worktree removed; branch deleted; no-rebuild-needed (docs-only)
+- status:done
+- blockers:none
