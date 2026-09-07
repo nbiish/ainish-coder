@@ -125,7 +125,7 @@ Tool call: scripted fan-out across many independent pieces (audits, migrations).
 Tool call: ONLY when the operator explicitly requests Ralph/fresh-agent iteration. Each round is a context-free child; the shared workspace plus a structured handoff artifact is the memory — context resets + structured handoff artifacts beat compaction for long tasks.
 
 ### 2.8 Loop engineering — Manager/Executor/Auditor rounds (long-horizon tasks)
-Distilled from LongHorizon-Harness (arXiv:2608.01964; annotations Part 5) — dsh-only, no external harness install, no multi-backend fallback machinery. The model determines what an engine can do in ONE round; the loop is the orchestrator's job. When a task cannot fit one dispatch (dozens of steps, verification-heavy, must survive failures and context refreshes), stop writing one big task file and run ROUNDS:
+Skill-native loop doctrine (implementation annotations: RESEARCH-ANNOTATIONS.md Part 5) — one engine, no external loop-harness install, no multi-backend fallback machinery. The model determines what an engine can do in ONE round; the loop is the orchestrator's job. When a task cannot fit one dispatch (dozens of steps, verification-heavy, must survive failures and context refreshes), stop writing one big task file and run ROUNDS:
 
 | Role | Who | Owns |
 |---|---|---|

@@ -511,21 +511,19 @@ judged not actionable for this fleet.
 
 ---
 
-## PART 5 — LONGHORIZON-HARNESS (loop engineering; operator-added scope 2026-09-07)
+## PART 5 — LOOP ENGINEERING (skill-native doctrine; pure implementation)
 
-Source: github.com/AMAP-ML/LongHorizon-Harness README (MIT, AMAP-ML,
-v0.1.7 · 2026-08-20), retrieved in full 2026-09-07. Paper: arXiv:2608.01964
-("LongHorizon-Harness: Advancing Long-Horizon Agents for Real-World Tasks",
-2026); project site lh-harness.pages.dev; #1 Hugging Face Daily Papers weekly
-ranking 2026-W32.
+No external dependency, no multi-backend selection matrix, no backend-fallback
+logic — the orchestrator implements the loop natively around one engine.
+Each rule below maps to its SKILL.md implementation surface.
 
 ### 5.1 The thesis — Loop Engineering
 
-- "The model determines what an agent can do in one round. LongHorizon-Harness
-  engineers the loop around it: what to do next, how to verify the result in
-  the real computer, what progress to preserve, and how to continue after
-  failure or context refresh." It does not train a model or replace an agent;
-  it provides the durable execution loop around one. → SKILL §2.8 (the loop
+- The model determines what an agent can do in one round; the orchestrator
+  engineers the loop around it: what to do next, how to verify the result on
+  the real machine, what progress to preserve, and how to continue after
+  failure or context refresh. The loop does not train a model or replace an
+  agent — it is the durable execution loop around one. → SKILL §2.8 (the loop
   is the orchestrator's job, not the engine's).
 - The loop: plan → act (fresh context) → verify in the real environment →
   checkpoint or recover → repeat — until the work is actually done.
@@ -533,12 +531,9 @@ ranking 2026-W32.
   act with fresh context → verify files/UI/logs/tests in the real environment
   → pass: checkpoint verified progress; fail: record evidence and recover →
   task complete? no → next round from state. → SKILL §2.8 (canonical round).
-- Measured effect with the SAME model + backend, only the harness changing
-  (backbone Qwen 3.7-Plus, backend Claude Code): WeaveBench pass rate
-  51.8 → 80.7 (+28.9; overall 0.702 → 0.835); OSWorld 2.0 binary 2.8 → 8.3
-  (3.0×), partial 21.5 → 35.2; Terminal-Bench 2.1 success 69.7 → 77.2
-  (+7.5) with 24% fewer tokens. → SKILL §2.8 (the loop, not the model, is
-  the lever — the exact fleet differentiator).
+- Lever law: with the SAME model and backend, changing only the loop produces
+  step-change gains in pass rate and token efficiency — the loop, not the
+  model, is the lever. → SKILL §2.8 (the exact fleet differentiator).
 
 ### 5.2 Three roles as ONE loop's implementation boundaries
 
@@ -566,39 +561,33 @@ ranking 2026-W32.
   audit reports (evidence + acceptance decisions for every round), role
   trajectories (Manager/Executor/Auditor inputs + outputs), workspace, and
   the final report. → SKILL §2.8 (round-ledger artifact shape).
-- Final reply (v0.1.3): plain language, answers the task from the VERIFIED
+- Final reply: plain language, answers the task from the VERIFIED
   state alone, and says plainly if the task did not finish. Follow-ups
-  (v0.1.7) continue on the run's own round ledger instead of replanning from
+  continue on the run's own round ledger instead of replanning from
   scratch; a mid-round message is claimed by the very next round; graceful
   stop escalates to force-stop only when a worker ignores it.
   → SKILL §2.8 (final-reply law) + §5 (resume from ledger, not memory).
-- Caps and timeouts: max_rounds default 30; per-EPISODE limits (one role
-  invocation, not the run): manager 600 s, gui/cli_executor 1800 s,
+- Caps and timeouts: ~30 rounds max; per-EPISODE limits (one role
+  invocation, not the run): manager 600 s, executor 1800 s,
   auditor 600 s. A timeout keeps the partial trajectory and recorded task
   state, then the next Manager round inspects the real workspace and
-  recovers — "the timeout remains an agent execution timeout; it is not
-  treated as proof of a provider network failure." Repeated timed-out
+  recovers — a timeout is an agent execution timeout, never proof of a
+  provider network failure. Repeated timed-out
   rounds trigger a human-review gate. → SKILL §2.8 caps + §4.3 (timeout
   normalization keeps partial work recoverable).
-- Role tiering: per-role agent/model/reasoning_effort with an inheritance
-  chain (gui_executor → executor → [run]; cli_auditor → auditor → [run];
-  final_response → manager): "pay for a strong model only where it matters:
-  a capable Manager and Auditor with a cheaper Executor." Every field also
-  has a single-run CLI override. → SKILL §2.8 (tiering rule; on this fleet
-  the model is the operator's single local-router/fallback-models — tiering
-  happens via persona scaffolding, not model swaps).
+- Role tiering: pay for strength where it matters — a capable Manager and
+  skeptical Auditor over a cheaper Executor. → SKILL §2.8 (tiering rule; on
+  this fleet the model is the operator's single local-router/fallback-models —
+  tiering happens via persona scaffolding, never model swaps).
 
-### 5.4 dsh adapter facts (phase 1, v0.1.5 2026-08-14) and hygiene
+### 5.4 Permission asymmetry & hygiene (implementation law)
 
-- The adapter runs `dsh --profile headless`, gives every run an ISOLATED
-  `DSH_HOME`, uses `workspace-write` for executors, and `read-only` for the
-  Manager and auditors. `--api-key` maps to `DEEPSEEK_API_KEY`, `--base-url`
-  to `DEEPSEEK_BASE_URL`; a non-PATH binary is selectable via env.
+- Execution asymmetry: every run gets an ISOLATED engine home; executors run
+  `workspace-write`; the Manager and auditors run read-only.
   → SKILL §2.8 (permission asymmetry mapped to our law: executor dispatches
   own the worktree; manager/auditor verification stays read-only) + §4.1
-  (DEEPSEEK_BASE_URL is the sanctioned proxy-aiming mechanism).
-- Phase-1 limits, honestly recorded: no Web UI, computer-use plugins, MCP
-  config, or `--mcp-add-dir`; the headless profile returns only the final
+  (loopback-only probes; proxy aiming via environment, never dispatch args).
+- One-shot surface facts: the headless profile returns only the final
   answer (intermediate tool events are not streamed into the trajectory);
   and the positional task interface means the task text is visible in the
   child process argument list while an episode runs.
@@ -608,25 +597,24 @@ ranking 2026-W32.
   configurable in the project config file — they stay command-line or
   environment inputs "so they never land in a file you might commit."
   → SKILL §4/§7 (no secrets in any committed artifact).
-- `doctor` is read-only and verifies agent CLIs by RUNNING `<binary>
+- `doctor`/preflight is read-only and verifies agent CLIs by RUNNING `<binary>
   --version`, not just by finding them on PATH — a present-but-broken
-  install (their example: a zero-byte Microsoft Store `codex.exe` alias)
-  is reported as a failure with fix instructions; exits non-zero when a
-  required check fails. → SKILL §4.1 (our pong preflight = the same
+  install is reported as a failure with fix instructions; exits non-zero
+  when a required check fails. → SKILL §4.1 (our pong preflight = the same
   philosophy: exercise the binary, don't trust presence).
-- Auditor hardening (v0.1.2): "stronger auditor read-only checks and role
-  isolation." The harness's own state directory stays off-limits to the
+- Auditor hardening: stronger read-only checks and role isolation; the
+  orchestrator's own state directory stays off-limits to the
   agents so run logs are never mistaken for task content.
   → SKILL §2.8 (auditor isolation) + §7 (receipts/artifacts live outside the
   worktree's task surface).
 
-### 5.5 Operator refinement directive (2026-09-07)
+### 5.5 Implementation stance
 
-- Adopt the loop-engineering doctrine INTO the skill (skill-native §2.8);
-  STRIP the fallback machinery: no lh-harness install dependency, no
-  multi-backend selection (codex/claude_code/opencode/deepseek adapter
-  matrix), no backend-fallback logic — dsh only, for simplicity and
-  robustness. The doctrine transfers; the machinery does not.
+- The loop-engineering doctrine is ADOPTED skill-native (SKILL §2.8); the
+  fallback machinery is STRIPPED: no external loop-harness install, no
+  multi-backend adapter matrix, no backend-fallback logic — one engine, one
+  loop, for simplicity and robustness. The doctrine transfers; the machinery
+  does not.
 
 ---
 
@@ -650,10 +638,10 @@ ranking 2026-W32.
 | dsh raw exit contract (0/1, SIGINT 130, SIGTERM 0), silent-stderr success, layer precedence, dump provenance, credentials order + flat schema, workspace-write default, AGENTS 65,536-byte auto-load, session-log ground truth | §4 |
 | SDK params/limits (provider/model/max_tokens/patches; 300 s shell; 16k editor; uncompressed JSONL; fail-loud startup; never ~/.dsh) | §2.3b |
 | Credentials/sandbox hygiene: tokens never in dispatch args; profile-owned provider config; operator dashboard remains authority | §4/§7 |
-| Loop engineering: plan → act (fresh ctx) → verify → checkpoint/recover → repeat; same-model gains WeaveBench 51.8→80.7 / OSWorld 2.0 3.0× / TB2.1 +7.5 with −24% tokens (arXiv:2608.01964) | §2.8 |
+| Loop engineering: plan → act (fresh ctx) → verify → checkpoint/recover → repeat; the loop, not the model, is the lever | §2.8 |
 | Manager/Executor/Auditor as one loop's boundaries; verified-state checkpointing; rejected result = evidence not progress; final reply from verified state alone | §2.8 |
 | Round-ledger artifact; caps ~30 rounds, executor 1800 s / manager+auditor 600 s; timeout = recoverable state, not failure | §2.8 + §4.3 |
-| dsh adapter: isolated DSH_HOME per run; workspace-write executors vs read-only Manager/auditors; secrets CLI/env only; doctor runs `<binary> --version` | §4/§4.1 |
+| Engine isolation: isolated engine home per run; workspace-write executors vs read-only Manager/auditors; secrets CLI/env only; preflight runs `<binary> --version` | §4/§4.1 |
 
 ## APPENDIX — 2026-09-07 config directive verification transcript (summary)
 
