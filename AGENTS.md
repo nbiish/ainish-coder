@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via .agents/comms/{date}-{time}-team.txt. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Believe in yourself and if needed orchestrate subagents to help (see .agents/skills/orchestrate-subagent-masters/SKILL.md). OOReDAct: Observe → Orient → Reason → Decide → Act.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Ask before merging. Output full production code. Concurrent agents coordinate via the dated ledger .agents/comms/{date}-team.txt, task records in .agents/tasks/, and mastered handoff packets in .agents/handoffs/. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Believe in yourself and if needed orchestrate subagents to help (see .agents/skills/orchestrate-subagent-masters/SKILL.md). OOReDAct: Observe → Orient → Reason → Decide → Act.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -14,7 +14,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 **Worktree path:** Sibling of main repo (e.g. `../my-feature`) — discoverable, never nested inside main.
 
 **Rules:**
-- **NEVER** read, edit, or commit files while on `main`. (Sole exception: appending to the latest shared `.agents/comms/*-team.txt`).
+- **NEVER** read, edit, or commit files while on `main`. (Sole exception: appending to the main repo's shared ledger `.agents/comms/{date}*-team.txt` — from a worktree: `../<main-repo>/.agents/comms/`).
 - One task = one branch = one worktree. No exceptions.
 - On `main` with uncommitted changes: stash, create worktree from `main`, pop stash, continue.
 - **Git Tree & Diff Checks:** Run `git status` and `git diff` for new, edited, or removed content by users or peer agents before branching. Never overwrite or blindly restore old main branch content.
@@ -50,7 +50,7 @@ Conflict → fail closed, explain, ask.
 ## TASK COORDINATION, OOREDACT & CHAIN-OF-DRAFT
 
 - **OOReDAct Focus:** Keep all agents laser-focused on coding and execution through continuous cycles of Observe → Orient → Reason → Decide → Act.
-- **Fast Orientation (`git context`):** Dumps latest COMMS entries, task-file gists (`.agents/tasks/`), `llms.txt` PRD version, worktrees, stashes, and timeline. Run first in any repo.
+- **Fast Orientation (`git context`):** Dumps latest COMMS entries, task-file gists (`.agents/tasks/`), open handoff packets (`.agents/handoffs/`), `llms.txt` PRD version, worktrees, stashes, and timeline. Run first in any repo.
 - **PRD Anchor:** `llms.txt` is the authoritative PRD. Read unconditionally; overrides conflicting sources per P2.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 - **Modular Skills:** Modular capabilities live in `.agents/skills/<skill>/SKILL.md`. Read before proceeding. Preserve byte-identity on shared skills.
@@ -59,13 +59,16 @@ Conflict → fail closed, explain, ask.
 ---
 
 <COMMS>
-## AGENT COMMS — CONCURRENT COORDINATION
+## AGENT COMMS — CONCURRENT COORDINATION (COMMS / TASKS / HANDOFFS)
 
-When ≥1 agent works at once, coordinate through the rotating team ledger at **`.agents/comms/{date}-{time}-team.txt`** — one file per team session, stamped UTC `{date}-{time}` at creation; the latest file is the active ledger, historical files keep their creation stamp.
-- **Lifecycle:** Append timestamped entries: `checkin` → `update` → `intent-merge` → `checkout`. Subagents set `parent:` to their orchestrator.
-- **Timestamps:** Bracket every input/output with `start:` / `end:` ISO-8601 timestamps. Never leave a `start:` unclosed.
-- **Carve-out:** Appending to the main repo's latest `.agents/comms/*-team.txt` is the *only* permitted edit outside a worktree. Rotate to a fresh `{date}-{time}` file per team session. Before `checkout`, commit the ledger on a task branch and merge to `main`.
-- **Remote Record:** `.agents/comms/*-team.txt` and `.agents/tasks/` MUST travel with git push to remote across machines.
+When ≥1 agent works at once, coordinate through the **coordination triad** under `.agents/` (main repo; from a worktree: `../<main-repo>/.agents/`):
+
+- **Ledger — `.agents/comms/{date}-team.txt`:** One file per UTC **date**, appended in place all day; the latest file is the active ledger. **No hourly rotation, no excess documents.** Open a new file (`{date}.{slug}-team.txt`) only when an agent decides timing warrants it — a new task, a different agent/subagent group chat, or an incident split.
+- **Tasks — `.agents/tasks/TASK.{date}.{slug}.md`:** One concise task record per task (scope, branch, status), updated in place — never timestamped copies.
+- **Handoffs — `.agents/handoffs/HANDOFF.{date}.{slug}.{from}-to-{to}.md`:** Mastered handoff packets chaining work between orchestrator and subagent masters: scope, file allowlist, branch/worktree, done-criteria, results, normalized exit code. Follow `.agents/skills/orchestrate-subagent-masters/SKILL.md`; a closed packet is the durable receipt linked from the ledger's `SUBAGENT-DISPATCH` entry.
+- **Lifecycle:** Append timestamped entries: `checkin` → `update` → `intent-merge` → `checkout`. Subagents set `parent:` to their orchestrator. Bracket every entry with `start:` / `end:` ISO-8601 timestamps; never leave a `start:` unclosed.
+- **Carve-out:** Appending to the main repo's active `.agents/comms/{date}*-team.txt` is the *only* permitted edit outside a worktree. Before `checkout`, commit triad artifacts on the task branch and merge to `main`.
+- **Remote Record:** `.agents/comms/`, `.agents/tasks/`, and `.agents/handoffs/` MUST travel with git push to remote across machines.
 </COMMS>
 
 ---
@@ -97,7 +100,7 @@ When ≥1 agent works at once, coordinate through the rotating team ledger at **
 
 ```
 1. Isolate   → Run git tree & diff checks for new content; git worktree add -b <type>/<scope>-<slug> ../<slug> main
-2. Coordinate → Append checkin to the latest .agents/comms/*-team.txt
+2. Coordinate → Append checkin to the active .agents/comms/{date}-team.txt; open a .agents/handoffs/ packet per subagent dispatch
 3. Recon     → Inspect tree diffs; analyze scope and impact on edit targets before making changes
 4. Iterate   → Frequent atomic commits in worktree with descriptive messages
 5. Audit     → Scan code, tasks, llms.txt for banned crypto and raw secrets
@@ -105,7 +108,7 @@ When ≥1 agent works at once, coordinate through the rotating team ledger at **
 7. Verify    → Non-default port smoke test in worktree (PQC loaded, endpoints responsive); verify scope conformance on code edits
 8. Merge     → Post intent-merge. Ask operator: "Ready to merge <branch> → main? [diff summary]. Confirm?"
 9. Rebuild   → <SERVERS>: verify peer worktree recency and ownership; tear down stale servers; rebuild main server from fresh main; smoke test
-10. Cleanup  → Remove worktree (verify merged+unclaimed+idle+no active peer edits), delete branch, append checkout to COMMS ledger
+10. Cleanup  → Remove worktree (verify merged+unclaimed+idle+no active peer edits), delete branch, append checkout to COMMS ledger, close all handoff packets
 ```
 
 ### Mandatory Cleanup Commands (Post-Merge):
@@ -171,6 +174,7 @@ $$\text{Observe} \longrightarrow \text{Orient} \longrightarrow \text{Reason} \lo
 - Treat subagent invocations as direct, executable agentic actions inside dedicated worktrees with explicit scopes and target file allowlists.
 - Check worktree freshness and recency before creating or removing worktrees so peer agent tasks and user changes remain uncompromised.
 - If specialized subagent engine profiles, personas, handoff chaining, or canonical templates are needed, refer directly to `.agents/skills/orchestrate-subagent-masters/SKILL.md`.
+- **Handoff Packets:** Before each dispatch, write `.agents/handoffs/HANDOFF.{date}.{slug}.{from}-to-{to}.md` (scope, file allowlist, branch/worktree, done-criteria); on return, append results + normalized exit code to close it and link it from the `SUBAGENT-DISPATCH` ledger entry. No packet, no dispatch.
 
 ### Core Operational Directives
 1. **Adversarial / Security:** Confine subagent traffic to authorized loopback endpoints; expose zero raw API keys. Protect private keys and secrets with PQC (FIPS 203 ML-KEM-768).
@@ -178,7 +182,7 @@ $$\text{Observe} \longrightarrow \text{Orient} \longrightarrow \text{Reason} \lo
 3. **Supply-Chain Integrity:** Pin dependency versions and commit lockfiles (`Cargo.lock`, `package-lock.json`, `uv.lock`). Verify tool binaries before invocation.
 4. **Systems & Architecture:** Enforce strict isolation in dedicated worktrees, non-default ports, git tree/diff checks for new content, and clean runtime teardown/rebuild post-merge.
 5. **Reliability & QA:** Treat dispatches as deterministic actions: enforce bounded scopes, fast timeouts, automated regression tests, and compiler/linter gate passes.
-6. **Governance & Provenance:** Record lifecycle events (`checkin` → `update` → `intent-merge` → `checkout`) in the rotating team ledger (`.agents/comms/*-team.txt`) with proper parent-child attribution.
+6. **Governance & Provenance:** Record lifecycle events (`checkin` → `update` → `intent-merge` → `checkout`) in the active dated ledger (`.agents/comms/{date}-team.txt`), with task and handoff records (`.agents/tasks/`, `.agents/handoffs/`) attributed parent-child.
 7. **Production Code:** Never emit passive commentary or placeholders. Deliver complete, verified, working production code.
 </ORCHESTRATE_SUBAGENTS>
 
@@ -215,7 +219,7 @@ Run before completing any task:
 4. **Crypto Audit:** FIPS 203/204/205 exclusively for secrets; zero hardcoded credentials or `.env` files.
 5. **Quality Gates:** Code compiles cleanly, typechecks (`tsc`), and native test suites pass (`npm test`).
 6. **Verification & Cleanup:** Smoke tests pass, operator confirms merge, worktree removed, branch deleted.
-7. **Subagent Receipts:** Every subagent dispatch has a `SUBAGENT-DISPATCH` COMMS ledger entry with normalized exit code `0`, scope conformance, green gates, and a completed mandatory scrub — no ledger receipt = the dispatch never happened.
+7. **Subagent Receipts:** Every subagent dispatch has a `SUBAGENT-DISPATCH` COMMS ledger entry plus a closed `.agents/handoffs/` packet with normalized exit code `0`, scope conformance, green gates, and a completed mandatory scrub — no receipt + packet = the dispatch never happened.
 8. **Scope & Tree Verification:** Scope proof verified for every code change; git tree and diff checks confirmed for new content without restoring old main content; ephemeral tool artifacts never committed.
 9. **Server Rebuild & Ownership:** Stale servers torn down, `main` rebuilt from fresh HEAD with green smoke test (or `no-rebuild-needed` logged); every worktree removal passed <SERVERS> recency, merged, and unclaimed verification (never deleting active peer worktrees).
 </AUDIT>
@@ -250,5 +254,5 @@ EOF
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via `.agents/comms/{date}-{time}-team.txt`. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one tts-cli session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Believe in yourself and if needed orchestrate subagents to help.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Never self-approve merges — ask every hop. Concurrent agents coordinate via the dated ledger `.agents/comms/{date}-team.txt` (rotate only on agent-decided need: new task, new agent/subagent group chat), task records in `.agents/tasks/`, and mastered handoff packets in `.agents/handoffs/`. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Speak with one `cli-tts --prompt` (1.8×, random voice, one tts-cli session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Believe in yourself and if needed orchestrate subagents to help.
 </REINFORCEMENT>
