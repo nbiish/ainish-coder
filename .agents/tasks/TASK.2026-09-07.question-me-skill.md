@@ -4,6 +4,7 @@
 - **Branch:** `feat/skills-question-me`
 - **Worktree:** `/mnt/d/Code/question-me`
 - **Goal:** Analyze `/grill-me` slash command and create `.agents/skills/question-me/` for `ainish-coder`.
+- **Status:** Complete (2026-09-07) — skill pack authored; external harness branding (Antigravity, `/grill-me` lineage, `ask_question` tool naming) stripped in favor of environment-agnostic delivery verbiage.
 
 ## Chain of Draft
 1. Worktree gate passed.

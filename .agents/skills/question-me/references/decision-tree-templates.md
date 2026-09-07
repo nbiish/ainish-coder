@@ -98,7 +98,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A["Level 1: Execution Modality<br>(One-shot headless dsh vs. Native subagent vs. Workflow fan-out)"]
+    A["Level 1: Execution Modality<br>(One-shot headless run vs. Native subagent vs. Workflow fan-out)"]
     A --> B["Level 2: Scope Allowlist<br>(GitNexus impact files only vs. Whole directory)"]
     B --> C["Level 3: Verification Loop<br>(Compiler/typecheck gate vs. Integration smoke test)"]
     C --> D["Level 4: COMMS Ledger Logging<br>(SUBAGENT-DISPATCH receipt vs. Orchestrator log)"]
@@ -106,6 +106,6 @@ graph TD
 
 ### Pre-Formulated Questions:
 1. **Orchestration Modality:**
-   - *(Recommended)* Headless Master (`dsh --profile headless`): Dispatch with AST Refactoring Master or TDD Engineer persona inside a dedicated worktree.
+   - *(Recommended)* Headless Master Run: Dispatch a dedicated headless agent run with an implementation or TDD engineer persona inside an isolated worktree.
    - Native Subagent: Fresh context subagent tool call with read/write isolation.
    - Single-Agent Direct Execution: Execute directly within the current worktree without subagent fan-out.
