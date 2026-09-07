@@ -171,6 +171,7 @@ UTILITY COMMANDS:
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
                               - orchestrate-subagent-masters/ (Subagent master orchestration: dsh headless/ACP + native)
+                              - question-me/               (Socratic design interview & tree resolution)
 
                               Example: ainish-coder --skills ~/my-project
 
