@@ -79,6 +79,7 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **PQC Signatures & Security** | `.agents/skills/pqc-signatures-security/` | Expert instructions to implement and verify ML-DSA-65 post-quantum cryptographic signatures and agentic workflow security. |
 | **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock` for AI transparency. |
 | **Production Security** | `.agents/skills/production-security/` | Core security policies, Zero Trust, PQC Mandates, and Threat Mitigations for compliance and secure infrastructure. |
+| **Question Me** | `.agents/skills/question-me/` | Socratic design interview and requirements resolution protocol — walks the design decision tree one question at a time with recommended answers, codebase recon first, and multi-harness parity. |
 | **Remotion Video** | `.agents/skills/remotion-video/` | Programmatic video creation with Remotion — all APIs, media components, 3D, captions, fonts, Lambda rendering, and video-layout design rules. |
 | **Skyvern** | `.agents/skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support. |
 

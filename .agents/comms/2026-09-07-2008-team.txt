@@ -1,0 +1,36 @@
+---
+description: Dated agent COMMS ledger.
+---
+
+# AGENT COMMS — 2026-09-07
+
+
+### [2026-09-07T20:08:00Z] checkin | agent:antigravity-orchestrator | branch:feat/skills-question-me | wt:/mnt/d/Code/question-me
+- start:2026-09-07T20:08:00Z
+- end:2026-09-07T20:08:00Z
+- scope:.agents/skills/question-me/,llms.txt,src/
+- objective:Analyze /grill-me and build .agents/skills/question-me/ for ainish-coder repository
+- input:Operator directive: /grill-me <- analyze this and create an .agents/skills/question-me/ for this repo
+- output:work starting; worktree feat/skills-question-me active
+- status:in-progress
+- blockers:none
+
+### [2026-09-07T20:32:00Z] update | agent:antigravity-orchestrator | branch:feat/skills-question-me | wt:/mnt/d/Code/question-me
+- start:2026-09-07T20:32:00Z
+- end:2026-09-07T20:32:00Z
+- scope:.agents/skills/question-me/,llms.txt,src/help.sh,README.md,.agents/tasks/
+- objective:authored question-me skill pack (SKILL.md, decision-tree-templates.md, anti-patterns.md), updated README.md, src/help.sh, llms.txt, and created task record
+- input:operator directive to analyze /grill-me and create question-me skill
+- output:skill created; discovered by skills_selection_list; security gate passed
+- status:ready-to-merge
+- blockers:none
+
+### [2026-09-07T20:32:30Z] intent-merge | agent:antigravity-orchestrator | branch:feat/skills-question-me | wt:/mnt/d/Code/question-me
+- start:2026-09-07T20:32:30Z
+- end:2026-09-07T20:32:30Z
+- scope:.agents/skills/question-me/,llms.txt,src/help.sh,README.md,.agents/tasks/
+- objective:merge feat/skills-question-me -> main (operator merge gate)
+- input:operator confirmation required
+- output:awaiting operator confirmation to merge
+- status:blocked-on-operator
+- blockers:operator confirmation pending
