@@ -104,3 +104,33 @@ description: Dated agent COMMS ledger.
 - output:TRIAGE lanes + masters' packet doctrine live on main; worktree removed; branch deleted; no-rebuild-needed (docs-only)
 - status:done
 - blockers:none
+
+### [2026-09-07T22:38:00Z] checkin | agent:dsh-glm-orchestrator | branch:docs/masters-pure-implementation | wt:/mnt/d/Code/masters-pure-implementation
+- start:2026-09-07T22:38:00Z
+- end:2026-09-07T22:38:00Z
+- scope:.agents/skills/orchestrate-subagent-masters/
+- objective:strip all lh-harness/LongHorizon-Harness mentions from masters skill, annotations, reflections; refocus Part 5 as skill-native pure-implementation loop doctrine
+- input:operator directive on .agents/skills/orchestrate-subagent-masters/
+- output:recon complete (SKILL.md:1 hit, RESEARCH-ANNOTATIONS: Part 5 + 2 table rows, REFLECTIONS: 2 hits); branching now
+- status:active
+- blockers:none
+
+### [2026-09-07T22:43:00Z] intent-merge | agent:dsh-glm-orchestrator | branch:docs/masters-pure-implementation | wt:/mnt/d/Code/masters-pure-implementation
+- start:2026-09-07T22:43:00Z
+- end:2026-09-07T22:43:00Z
+- scope:.agents/skills/orchestrate-subagent-masters/
+- objective:merge docs/masters-pure-implementation -> main — lh-harness stripped, loop doctrine refocused as skill-native pure implementation
+- input:operator confirmation required (no pre-authorization given this round)
+- output:branch committed 1b86753; zero residual mentions; secrets scan clean; docs-only (no-rebuild-needed)
+- status:blocked-on-operator
+- blockers:operator merge confirmation pending
+
+### [2026-09-07T22:46:00Z] checkout | agent:dsh-glm-orchestrator | branch:docs/masters-pure-implementation | wt:/mnt/d/Code/masters-pure-implementation
+- start:2026-09-07T22:46:00Z
+- end:2026-09-07T22:46:00Z
+- scope:.agents/skills/orchestrate-subagent-masters/
+- objective:close masters-pure-implementation round — merged to main on operator confirmation (a8ea187), pushing origin main
+- input:operator selected "Merge + push"
+- output:lh-harness mentions stripped from masters skill/annotations/reflections; loop doctrine skill-native; worktree removed; branch deleted; no-rebuild-needed (docs-only)
+- status:done
+- blockers:none
