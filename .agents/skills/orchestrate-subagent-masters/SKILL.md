@@ -13,10 +13,15 @@ description: >
   the live cross-machine observability plane. The dsh configuration is the
   operator's own (agent-default-model: local-router/fallback-models on the
   loopback ollama-local-router endpoint): never override profile, provider, or
-  model config in dispatches. Use when orchestrating coding subagents,
-  dispatching fleet engines, fanning out parallel subtasks, running
-  long-horizon verify-checkpoint loops, or delegating any scoped task to a
-  sub-master.
+  model config in dispatches. Engines are portable: any agentic harness maps
+  its own internal subagent tooling onto the same scaffold when dsh is absent
+  (§2 Engine portability). Runtime coordination lives in the .agents/comms/ +
+  .agents/handoffs/ + .agents/tasks/ triad via the
+  <name>.{date}.masters.<slug>.txt masters channel — detailed, explicit prose,
+  Chain-of-Draft exempt; this skill folder is read-only knowledge. Use when
+  orchestrating coding subagents, dispatching fleet engines, fanning out
+  parallel subtasks, running long-horizon verify-checkpoint loops, or
+  delegating any scoped task to a sub-master.
 ---
 
 # Orchestrate-Subagent-Masters — Universal Subagent Orchestrator Skill
@@ -30,7 +35,7 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 3. **Worktree isolation.** One dispatch = one branch = one sibling worktree (`git worktree add -b <type>/<scope>-<slug> ../<slug> main`). Never dispatch against `main`.
 4. **Operator-owned config.** dsh runs the configuration the operator set: `agent-default-model` = `local-router/fallback-models` served by the `ollama-local-router` provider (loopback router; set from the DSH web dashboard, 2026-09-07). Never override profile, provider, or model config in a dispatch (no `--patch` overlays, no profile edits). Verify what will boot with the §4.1 preflight and the session log; never pass raw API keys in dispatch args or task text.
 5. **Graph recon first.** `gitnexus context`/`impact` (d≤2) output IS the `SCOPE & TARGET FILES` allowlist. Zero blind edits.
-6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in the latest `.agents/comms/{date}-{time}-team.txt` (`parent: <orchestrator>`).
+6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in the active `.agents/comms/{date}-team.txt` (`parent: <orchestrator>`) plus a closed packet in `.agents/handoffs/` (§5–§6, §8).
 7. **Scaffold carries the intelligence.** Lower-intelligence engines reach frontier outcomes through the scaffold — scope allowlists, persona prompts, structured artifacts, gates, evaluator separation, receipts — not through model horsepower. When a dispatch underperforms, harden the scaffold, not the model.
 8. **Fan out for read; single-thread for write.** The one axis that picks the topology is how much context can be lost between agents (§2.0). Interdependent write-heavy work serializes as a pipeline or stays with one agent.
 9. **Cost doctrine.** Multi-agent systems spend ~15× chat tokens (single agents ~4×); token spend alone explains ~80% of multi-agent performance variance, and a fan-out snag can cost ~5× recovery tokens. Reserve fan-out for one-off exploratory / parallel-read breadth; repetitive production work → a plain pipeline of subagents; always start on a small slice.
@@ -48,6 +53,8 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 | `ralph` | Fresh-Agent Iteration Master | ONLY on explicit operator request for fresh-agent iterative loops |
 
 The launcher parses only its own flags; everything after them belongs to the booted profile (`dsh --profile <name> --help` for the app's flags). Invalid commands, foreign options, config errors, and boot failures exit nonzero.
+
+**Engine portability — any harness, any intelligence.** `dsh` is this fleet's terminal engine; the CONTRACT is the skill. An agentic harness with no `dsh` binary maps its own internal subagent tooling onto the same scaffold: one-shot scoped tool-call delegate ↔ `dsh --profile headless` (§2.1–§2.2); persistent session surface ↔ `dsh --profile acp` (§2.3); programmatic dispatch ↔ the SDK form (§2.3b); context-fresh / context-inheriting delegates, scripted fan-out, and fresh-agent iteration ↔ §2.4–§2.7 as named. Whatever the engine, the invariants are non-negotiable: persona prompt, scope allowlist, OUTPUT FORMAT + STOP CONDITIONS, fresh context per dispatch, sibling-worktree isolation, exit normalization (§4.3), COMMS receipt + handoff packet (§6, §8).
 
 ### 2.0 Topology & fan-out rules (decide BEFORE any fan-out)
 
@@ -184,6 +191,7 @@ NO-GO = fix environment first (binary missing → install/pin `dsh`; pong fails 
 - Fixed command vectors, `timeout 1800` (tune 900–3600 by scope) on every engine call.
 - `cd` into the dispatch worktree first — the invoking directory is the workspace root.
 - Parallel dispatches only for independent scopes in separate worktrees; dependent scopes block on completion.
+- Packet contract (mechanical, every dispatch): open `.agents/handoffs/HANDOFF.{date}.{slug}.{from}-to-{to}.md` BEFORE the dispatch (scope, allowlist, worktree, done-criteria); close it AFTER with results + normalized exit code; link both from the `SUBAGENT-DISPATCH` ledger entry.
 - After each dispatch: verify scope conformance (`git -C ../<slug> status --porcelain` ⊆ allowlist), scrub task files (`rm -f`), then log the COMMS receipt with exit code.
 
 ### 4.3 Exit taxonomy (orchestrator-normalized)
@@ -220,7 +228,7 @@ Each handoff = one `FLEET-HANDOFF` COMMS entry (§6).
 - status:done | verifying | blocked
 - blockers:none
 ```
-One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<modality>`. No COMMS receipt = the dispatch never happened; no merge proceeds without receipts for every phase.
+One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<modality>`. No COMMS receipt = the dispatch never happened; no merge proceeds without receipts for every phase. Pre-merge assertion (mechanical, never by recall): every closed packet in `.agents/handoffs/` greps back to a linked `SUBAGENT-DISPATCH` ledger entry.
 
 ## 7. Verification Gates & Guardrails
 
@@ -249,9 +257,13 @@ One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<moda
 | Skipping scrub | `rm -f` task files after EVERY dispatch |
 | Missing COMMS receipt | Ledger entry with exit code per dispatch — no exceptions |
 
-## 8. Reflection Ledger
+## 8. Masters Channel — Coordinate in the Triad, Never in the Skill Folder
 
-Upon every dispatch, record concise persona-aligned refinements in `MASTER-REFLECTIONS.txt` beside this SKILL.md (ISO-8601, modality, action, refinement). Harness assumptions go stale as models improve — audit the scaffold each round; delete dead weight.
+This folder is read-only knowledge (`SKILL.md` + `RESEARCH-ANNOTATIONS.md`). Subagents, fleet members, swarms, and masters coordinate ONLY through the triad at the repo root: `.agents/comms/`, `.agents/handoffs/`, `.agents/tasks/`. Never write runtime artifacts into `.agents/skills/**` — skills deploy byte-identical to target projects; runtime state would corrupt every downstream copy.
+
+- **Masters schema — `.agents/{comms,tasks,handoffs}/<name>.{date}.masters.<slug>.txt`:** master-grade artifacts where LLMs are detailed and explicit — full prose, structured sections, evidence, reasoning — to master task coordination and completion. Chain-of-Draft (≤5 words/step) does NOT apply to `.masters.` files; it still governs the concise team ledger and task gists.
+- **Reflections:** upon every dispatch, append persona-aligned refinements to `.agents/comms/reflections.{date}.masters.swarm.txt` — one file per UTC date, detailed entries welcome (ISO-8601, modality, action, refinement, evidence). Harness assumptions go stale as models improve — audit the scaffold each round; delete dead weight.
+- **Dispatches:** concise `SUBAGENT-DISPATCH` entries in the active `.agents/comms/{date}-team.txt` + closed packets in `.agents/handoffs/` (§5, §6). Task records live in `.agents/tasks/`.
 
 ## 9. wtf MCP Orchestration
 
