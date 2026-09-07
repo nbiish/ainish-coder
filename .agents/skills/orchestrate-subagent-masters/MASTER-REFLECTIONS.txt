@@ -124,3 +124,47 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
   2. Preflight = `command -v dsh` + `dsh --version` + pong round-trip (liveness is not health,
      re-confirmed on the new engine).
   3. Templates re-IDed persona-based (TPL_*_V3) — engine-agnostic names survive future swaps.
+
+## 2026-09-07T21:40:00Z | dsh headless + orchestrator doctrine — v4 research distillation & local-router config directive
+- Context: Operator-directed v4 rewrite: four research areas (DeepSeek Harness CLI/SDK docs,
+  Anthropic ×4 publications, OpenAI ×5 publications, LongHorizon-Harness arXiv:2608.01964)
+  distilled from the new RESEARCH-ANNOTATIONS.md (depth layer) into SKILL.md v4 (breadth layer);
+  plus the 2026-09-07 directive pinning the fleet dsh agent config to the local-router ollama
+  endpoint (agent-default-model: local-router/fallback-models).
+- Observed Action: Config change surfaced two machine-level failures, fixed live and verified:
+  (1) `.credentials.yaml` must be a STRICT FLAT `KEY: value` mapping — the nested legacy
+  document failed the rc.8 parser; flattened to five keys (backups kept). (2) `reasoningEffort:
+  max` on agent-default-model is unsupported by the openai-completions router adapter
+  (UNSUPPORTED_REASONING_EFFORT boot failure; row removed). Verification: router
+  /v1/chat/completions round-trip HTTP 200 (chain served glm-5.3-flash); dsh pong exit 0 /
+  stdout `pong` / silent stderr; session log records `ollama-local-router` +
+  `local-router/fallback-models` (session.jsonl.zstd; slug = absolute path with / → -, wrapped in --).
+- TTS.COMMS Alignment: adversarial master (dummy bearer only, loopback-only probes),
+  systems-architecture master (round-trip preflight; verify CLIs by RUNNING them), reliability
+  master (fail-loud credentials, no silent fallback), governance master (provenance-carried
+  annotations; receipts gain the served provider/model).
+- Skill Refinement:
+  1. SKILL.md v4 doctrine: scaffold-carries-intelligence; fan-out-for-read /
+     single-thread-for-write; cost bands (~15× multi-agent vs ~4× single, ~80% variance =
+     tokens, ~5× recovery, small-slice-first). New §2.0 topology/fan-out rules: pipeline /
+     orchestrator-worker / swarm axis, effort bands, caps (≤6 concurrent, depth 1, 6–8
+     reliability ceiling, timeout 1800), conformity mitigation (diversify scaffolds), ownership
+     boundaries, arbiter pattern. Task contract gains OUTPUT FORMAT + STOP CONDITIONS on every
+     TPL block (ids keep V3 names for cross-reference stability).
+  2. New §2.8 loop engineering (LongHorizon distillation, dsh-only, fallback machinery stripped
+     per operator): Manager/Executor/Auditor rounds; verified-state checkpointing (rejected
+     result = evidence, not progress); fresh context per action; recovery from goal + last
+     verified checkpoint; final reply from verified state alone; ~30 rounds, executor 1800 s /
+     manager+auditor 600 s episodes; secrets env/CLI (task text visible in child argv).
+  3. New §4.0 runtime contract: raw exits 0/1/130 (SIGTERM = 0), config layer precedence + dump
+     provenance, credentials resolution order + strict flat schema, workspace-write default
+     (operator's danger-full-access supersedes; worktree isolation is the containment),
+     AGENTS/CLAUDE.md 65,536-byte auto-load, session-log ground truth. §4.1 preflight adds the
+     loopback round-trip probe + run-the-binary CLI verification; model verification =
+     settings.yaml + session log. 2026-09-05 zai note superseded as current truth by
+     ollama-local-router / local-router/fallback-models (dashboard remains source of truth).
+  4. §5 evaluator separation (skeptical fresh-context evaluator, live-artifact inspection,
+     refine-vs-pivot; crashed dispatch = re-dispatch from the artifact); §6 receipts gain
+     `served:<provider/model>`; §7 gains gates 8 (no self-approved quality) + 9 (discoveries
+     become dispatches) + three pitfall rows (flat credentials schema, no fan-out-for-write,
+     no identical auditor scaffolds).
