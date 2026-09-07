@@ -74,3 +74,33 @@ description: Dated agent COMMS ledger.
 - output:AGENTS.md coordination triad (comms/tasks/handoffs) + {date}-team.txt date-stamped ledger live on main; worktree removed; branch deleted; no-rebuild-needed (docs-only)
 - status:done
 - blockers:none
+
+### [2026-09-07T22:27:00Z] checkin | agent:dsh-glm-orchestrator | branch:docs/agents-triage-masters | wt:/mnt/d/Code/agents-triage-masters
+- start:2026-09-07T22:27:00Z
+- end:2026-09-07T22:27:00Z
+- scope:AGENTS.md,.agents/tasks/
+- objective:iterate AGENTS.md — add concise triage doctrine (now/next/queued/backlog lanes, worktree budget) to comms/tasks/handoffs; encode the nine masters' suggestions (packet hygiene, wrapper automation, packet-ledger integrity assertion, byte-identical masters skill)
+- input:operator directive to add triage verbiage, implement masters' suggestions, land on main and push remote
+- output:branching worktree from main now
+- status:active
+- blockers:none
+
+### [2026-09-07T22:31:00Z] intent-merge | agent:dsh-glm-orchestrator | branch:docs/agents-triage-masters | wt:/mnt/d/Code/agents-triage-masters
+- start:2026-09-07T22:31:00Z
+- end:2026-09-07T22:31:00Z
+- scope:AGENTS.md,.agents/tasks/
+- objective:merge docs/agents-triage-masters -> main, then push origin main — triage lanes + masters' packet hygiene/automation/integrity doctrine
+- input:operator pre-authorization in task directive ("get all that on main and pushed to the remote")
+- output:branch committed 5dc800a; docs-only (no-rebuild-needed); proceeding to merge + push
+- status:merging
+- blockers:none
+
+### [2026-09-07T22:33:00Z] checkout | agent:dsh-glm-orchestrator | branch:docs/agents-triage-masters | wt:/mnt/d/Code/agents-triage-masters
+- start:2026-09-07T22:33:00Z
+- end:2026-09-07T22:33:00Z
+- scope:AGENTS.md,.agents/tasks/
+- objective:close agents-triage-masters round — merged to main per operator pre-authorization (195ce67), pushing origin main
+- input:operator directive "get all that on main and pushed to the remote"
+- output:TRIAGE lanes + masters' packet doctrine live on main; worktree removed; branch deleted; no-rebuild-needed (docs-only)
+- status:done
+- blockers:none
