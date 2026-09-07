@@ -418,3 +418,15 @@ What would this governance / sovereignty master suggest? Record all lifecycle tr
 What would this terminal-orchestration / swe-bench master suggest? Ensure polyglot terminal parity so CLI-only headless agents get the same Socratic interview loop as GUI modal users.
 What would this master-orchestrator / self-prompting master suggest? Lock requirements into a structured Implementation Blueprint before delegating tasks to AST or TDD subagent masters.
 What would this developer-experience / ergonomics master suggest? Always provide a well-reasoned recommended option first so developers can proceed with a single keystroke.
+
+## 2026-09-07T21:51:19Z
+operator confirms merging docs/orchestrate-masters-v4 into main.
+What would this adversarial / security master suggest? Keep the dummy bearer and loopback-only probes law, and treat task-text-in-argv as the reason task files stay ephemeral and secret-free.
+What would this privacy / data-protection regulatory master suggest? The scrub rule now covers session logs as artifacts, and backups of machine config stay outside the repo.
+What would this supply-chain / third-party-risk master suggest? Pin dsh releases (rc.8 verified today) and keep per-claim provenance URLs in the annotations as the audit trail.
+What would this systems-architecture / devops / infrastructure master suggest? Trust the round-trip preflight and session-log ground truth over dump-config, and keep the router/Ollama dual-port layout intact.
+What would this reliability / verification master suggest? Adopt the loop law — only auditor-passed results become state, timeouts are recoverable state, and no dispatch self-approves quality.
+What would this governance / sovereignty master suggest? The COMMS intent-merge is logged and blocked-on-operator: confirm the merge yourself; never let the agent self-approve.
+What would this terminal-orchestration / swe-bench master suggest? Use §2.8 rounds for long-horizon tasks — bounded Executor steps, skeptical read-only Auditor, checkpoint-or-recover from the round ledger.
+What would this master-orchestrator / self-prompting master suggest? Harden the scaffold, not the model: every v4 rule is a scaffold upgrade any intelligence level can execute.
+What would this developer-experience / ergonomics master suggest? The depth layer (annotations) plus breadth layer (skill) split keeps mastery concise while provenance stays one file away.
