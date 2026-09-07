@@ -430,3 +430,15 @@ What would this governance / sovereignty master suggest? The COMMS intent-merge 
 What would this terminal-orchestration / swe-bench master suggest? Use §2.8 rounds for long-horizon tasks — bounded Executor steps, skeptical read-only Auditor, checkpoint-or-recover from the round ledger.
 What would this master-orchestrator / self-prompting master suggest? Harden the scaffold, not the model: every v4 rule is a scaffold upgrade any intelligence level can execute.
 What would this developer-experience / ergonomics master suggest? The depth layer (annotations) plus breadth layer (skill) split keeps mastery concise while provenance stays one file away.
+
+## 2026-09-07T21:55:16Z
+fleet agents pick up the v4 skill from main — run a first loop-engineered dispatch to exercise the Manager/Executor/Auditor round law end to end.
+What would this adversarial / security master suggest? Keep loopback-only probes and the dummy bearer law as the fleet adopts the new preflight.
+What would this privacy / data-protection regulatory master suggest? The scrub rule now explicitly covers session logs, so include them in dispatch cleanup.
+What would this supply-chain / third-party-risk master suggest? Keep dsh pinned at the verified rc.8 and lean on the annotations' provenance chain for auditability.
+What would this systems-architecture / devops / infrastructure master suggest? No rebuild was needed — repo ships no server; the router stays external and untouched.
+What would this reliability / verification master suggest? Verify adoption by checking the first dispatch receipt carries the new served provider/model field.
+What would this governance / sovereignty master suggest? The ledger is closed checkin-to-checkout and pushed — lifecycle integrity survived the merge and the transcript detour.
+What would this terminal-orchestration / swe-bench master suggest? Exercise §2.8 on a small-slice task first: one bounded Executor step, one skeptical read-only Auditor.
+What would this master-orchestrator / self-prompting master suggest? Treat this merge as proof the scaffold-hardening doctrine works — iterate the skill from dispatch reflections.
+What would this developer-experience / ergonomics master suggest? The two-layer layout means agents read only SKILL.md for mastery and open annotations only when provenance matters.

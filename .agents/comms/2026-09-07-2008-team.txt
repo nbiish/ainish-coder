@@ -44,3 +44,33 @@ description: Dated agent COMMS ledger.
 - output:merged to main; worktree removed; branch deleted; no-rebuild-needed (docs/skills only); question-me skill active
 - status:done
 - blockers:none
+
+### [2026-09-07T22:16:00Z] checkin | agent:dsh-glm-orchestrator | branch:docs/agents-triad-datestamp | wt:/mnt/d/Code/agents-triad-datestamp
+- start:2026-09-07T22:16:00Z
+- end:2026-09-07T22:16:00Z
+- scope:AGENTS.md,.agents/tasks/
+- objective:iterate AGENTS.md — master .agents/handoffs/ into the comms/tasks coordination triad; strip ledger timing to {date}-team.txt (new files only on agent-decided need: new task, new agent/subagent group chat)
+- input:operator directive to iterate AGENTS.md coordination sections
+- output:branching worktree from main now
+- status:active
+- blockers:none
+
+### [2026-09-07T22:20:00Z] intent-merge | agent:dsh-glm-orchestrator | branch:docs/agents-triad-datestamp | wt:/mnt/d/Code/agents-triad-datestamp
+- start:2026-09-07T22:20:00Z
+- end:2026-09-07T22:20:00Z
+- scope:AGENTS.md,.agents/tasks/
+- objective:merge docs/agents-triad-datestamp -> main (operator merge gate) — comms/tasks/handoffs triad + date-stamped ledger, no hourly rotation
+- input:operator confirmation required
+- output:branch committed 38288ed; docs-only (no-rebuild-needed); awaiting operator
+- status:blocked-on-operator
+- blockers:operator merge confirmation pending
+
+### [2026-09-07T22:24:00Z] checkout | agent:dsh-glm-orchestrator | branch:docs/agents-triad-datestamp | wt:/mnt/d/Code/agents-triad-datestamp
+- start:2026-09-07T22:24:00Z
+- end:2026-09-07T22:24:00Z
+- scope:AGENTS.md,.agents/tasks/
+- objective:close agents-triad-datestamp round — merged to main on operator confirmation (12a923a)
+- input:operator selected "Merge to main"
+- output:AGENTS.md coordination triad (comms/tasks/handoffs) + {date}-team.txt date-stamped ledger live on main; worktree removed; branch deleted; no-rebuild-needed (docs-only)
+- status:done
+- blockers:none
