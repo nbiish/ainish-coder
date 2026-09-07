@@ -1,4 +1,7 @@
-# MASTER-REFLECTIONS.txt — Continuous Action Reflection & Skill Refinement Ledger
+# Masters Reflections — Continuous Action Reflection & Skill Refinement Ledger
+# Channel: .agents/comms/reflections.{date}.masters.swarm.txt (migrated from
+# .agents/skills/orchestrate-subagent-masters/MASTER-REFLECTIONS.txt, 2026-09-07).
+# Masters-channel file: detailed, explicit prose permitted — Chain-of-Draft exempt.
 #
 # Protocol: Upon every dispatch of ANY subagent modality (dsh headless, dsh acp,
 # native subagent, subagent_fork, workflow, ralph), the calling orchestrator MUST
