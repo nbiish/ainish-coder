@@ -1,0 +1,36 @@
+---
+description: Dated agent COMMS ledger.
+---
+
+# AGENT COMMS — 2026-09-07
+
+
+### [2026-09-07T19:55:00Z] checkin | agent:dsh-orchestrator | branch:docs/orchestrate-masters-v4 | wt:/mnt/d/Code/orchestrate-masters-v4
+- start:2026-09-07T19:55:00Z
+- end:2026-09-07T19:55:00Z
+- scope:.agents/skills/orchestrate-subagent-masters/ (SKILL.md v4, NEW RESEARCH-ANNOTATIONS.md, MASTER-REFLECTIONS.txt), .agents/comms/
+- objective:v4 research distillation (DeepSeek Harness CLI/SDK refs, Anthropic swarm publishing, OpenAI swarm publishing) + operator directive: dsh agent config -> local-router ollama endpoint, model local-router/fallback-models
+- input:operator approved plan c3c6341e; directive 2026-09-07 supersedes Round-3 deepseek-official/deepseek-v4-flash user config
+- output:work starting; worktree docs/orchestrate-masters-v4 created from main (0df1eed)
+- status:in-progress
+- blockers:none
+
+### [2026-09-07T21:47:00Z] update | agent:dsh-orchestrator | branch:docs/orchestrate-masters-v4 | wt:/mnt/d/Code/orchestrate-masters-v4
+- start:2026-09-07T19:55:00Z
+- end:2026-09-07T21:47:00Z
+- scope:.agents/skills/orchestrate-subagent-masters/ (SKILL.md v4, NEW RESEARCH-ANNOTATIONS.md, MASTER-REFLECTIONS.txt), .agents/comms/
+- objective:v4 research distillation complete + operator's local-router agent-config directive applied and verified machine-level
+- input:operator-approved plan c3c6341e + operator-added scope: LongHorizon-Harness (arXiv:2608.01964) loop engineering with fallback machinery stripped (dsh-only, no lh-harness dependency)
+- output:SKILL.md v4 (264 lines): doctrine 7-9 (scaffold-carries-intelligence; fan-out-for-read/single-thread-for-write; cost bands ~15×/~4×/80% variance/5× recovery/small-slice-first); §2.0 topology + fan-out rules (pipeline/orchestrator-worker/swarm axis, effort bands, caps ≤6 concurrent · depth 1 · 6–8 ceiling · timeout 1800, conformity mitigation, ownership boundaries, arbiter); OUTPUT FORMAT + STOP CONDITIONS required on every TPL block; §2.8 loop engineering (Manager/Executor/Auditor rounds, verified-state checkpointing, evidence-not-progress, final reply from verified state alone, ~30 rounds / 1800 s-600 s episodes, dsh-only); §4.0 runtime contract (raw exits 0/1/130 SIGTERM=0, config layer precedence + dump provenance, credentials order + STRICT FLAT schema, workspace-write default vs operator danger-full-access, AGENTS/CLAUDE.md 65,536-byte auto-load, session-log ground truth); §4.1 preflight + model verification = ollama-local-router / local-router/fallback-models (verified 2026-09-07; supersedes the 2026-09-05 zai note as current truth); §5 evaluator separation + crashed-dispatch re-dispatch-from-artifact; §6 served:<provider/model> receipt field; §7 gates 8-9 + 3 pitfall rows. RESEARCH-ANNOTATIONS.md (674 lines): Parts 1-6, LongHorizon Part 5 with full provenance + operator strip-fallback directive. MASTER-REFLECTIONS 2026-09-07T21:40Z entry. Machine-level (outside repo): ~/.dsh/settings.yaml agent-default-model -> ollama-local-router/local-router/fallback-models (reasoningEffort row removed — UNSUPPORTED_REASONING_EFFORT), ~/.dsh/.credentials.yaml flattened to rc.8 strict KEY: value schema (backups *.bak-20260907); verified: router /v1/chat/completions round-trip HTTP 200, dsh pong exit 0 / stdout pong / silent stderr, session log records served provider/model. Gates: frontmatter YAML parses; tables 4/4 (SKILL) + 1/1 (annotations) consistent; pointer sweep clean (AGENTS.md:173, README.md:77/187, llms.txt:69, src/help.sh:173, gstack-coder, wtf-agent-hub:177); zero stale model claims as current truth; help.sh untouched (no bash -n needed)
+- status:verifying
+- blockers:none
+
+### [2026-09-07T21:47:00Z] intent-merge | agent:dsh-orchestrator | branch:docs/orchestrate-masters-v4 | wt:/mnt/d/Code/orchestrate-masters-v4
+- start:2026-09-07T21:47:00Z
+- end:2026-09-07T21:47:00Z
+- scope:same as update entry
+- objective:merge docs/orchestrate-masters-v4 -> main after operator confirmation
+- input:operator merge gate (never self-approve)
+- output:awaiting operator confirm
+- status:blocked-on-operator
+- blockers:operator confirmation pending
