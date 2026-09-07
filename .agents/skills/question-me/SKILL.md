@@ -5,15 +5,16 @@ description: >
   Explores codebase first, constructs a hierarchical design decision tree,
   interviews the operator one question at a time with recommended answers,
   resolves architectural dependencies, and produces a concrete, verified
-  implementation blueprint. Compatible with Antigravity ask_question modal UI,
-  terminal CLI interactive loops, and subagent master handoffs.
+  implementation blueprint. Delivers its interview through whatever interaction
+  surface the environment provides: native structured question tools, interactive
+  terminal loops, or subagent master handoffs.
 ---
 
 # Question-Me — Interactive Design Tree Resolution Protocol
 
-> **Lineage & Origin:** Born from the Antigravity `/grill-me` slash command ("interview them about every aspect of their task until you've reached a shared understanding; walk down each branch of the design tree, resolving dependencies one-by-one; provide recommended answers; ask one at a time; explore codebase first; use `ask_question`").
+> **Protocol Stance:** Interview the operator about every aspect of the task until a shared understanding is reached — walk down each branch of the design tree, resolving dependencies one-by-one; provide recommended answers; ask one question at a time; explore the codebase first.
 >
-> **Universal Evolution:** Elevated in `ainish-coder` into an authoritative, multi-harness Socratic engineering framework. Operates seamlessly in GUI/modal harnesses (Antigravity `ask_question`), interactive terminal environments (Claude Code, dsh, CLI prompts), and autonomous subagent orchestrations.
+> **Environment-Agnostic Delivery:** Conducts the interview through whatever interaction surface the running environment offers — native structured question tools, interactive terminal prompts, or autonomous subagent orchestration — without depending on any specific model, platform, or tooling vendor.
 
 ---
 
@@ -27,10 +28,10 @@ description: >
    Never barrage the operator with multi-part questions or bulleted checklists. Ask exactly **one** focused question per interaction turn. Await the response, log the decision, update the decision tree, and proceed to the next dependent node.
 4. **Opinionated Guidance (Always Recommend):**
    Every question must present concrete, mutually exclusive options, with the optimal choice clearly marked `(Recommended)` and substantiated by engineering rationale, architectural fit, and project standards. The operator can choose to accept the recommendation with a single click/keystroke or choose an alternative.
-5. **Multi-Harness Parity:**
-   - **Modal Harness (Antigravity):** Invoke the native `ask_question` tool with structured options, recommendations first, user-perspective phrasing, and markdown file links.
-   - **Terminal / Headless Harness (Claude Code, dsh, Aider):** Output a structured, high-visibility interactive prompt with numbered choices, highlighted recommendations, and write-in support.
-   - **Subagent Delegation:** Orchestrator locks design via `question-me` before dispatching AST Refactoring or TDD subagents.
+5. **Environment-Agnostic Delivery:**
+   - **Native Structured Questions:** When the environment exposes a structured question tool, deliver the interview through it — options first, recommendation first, user-perspective phrasing, and markdown file links.
+   - **Interactive Terminal Prompts:** When no native question tooling exists, output a structured, high-visibility interactive prompt with numbered choices, highlighted recommendations, and write-in support.
+   - **Subagent Delegation:** Orchestrator locks design via `question-me` before dispatching implementation or test subagents.
 6. **Living Design Artifact:**
    Maintain an active session artifact (`.agents/tasks/{date}-question-me-{slug}.md` or conversation artifact). Every answer logs immediately into the Decision Ledger, building toward a final, airtight **Implementation Blueprint** before any code is touched.
 
@@ -39,7 +40,7 @@ description: >
 ## 2. Activation Triggers
 
 Invoke or recommend `question-me` when:
-- **Operator Invocation:** User runs `/grill-me`, `/question-me`, asks to "interview me", "grill me", "help me plan this", or "align on the architecture first".
+- **Operator Invocation:** User runs `/question-me`, or asks to "interview me", "grill me", "help me plan this", or "align on the architecture first".
 - **High Ambiguity / Underspecified Scope:** The operator's request has multiple plausible architectural interpretations, missing contracts, or unspecified edge cases.
 - **Architectural Fork:** Introducing a new subsystem, choosing between data models, selecting wire protocols, or changing storage layers.
 - **Security / PQC / Crypto Decisions:** Introducing secrets handling, authentication flows, or cryptographic primitives (enforcing FIPS 203/204/205).
@@ -124,10 +125,10 @@ Walk depth-first down each branch. For each node in the tree:
 4. **Include File/Symbol Markdown Links:** When referencing files or symbols, use clickable links: `[config.json](file:///path/to/config.json)` or [`Parser`](file:///path/to/parser.rs#L25-L40).
 5. **Prune Dependent Leaves:** If the operator selects Option B that renders downstream questions obsolete, instantly prune those questions from the tree.
 
-#### Harness Modalities:
+#### Question Delivery Modalities:
 
-##### Modality A: Antigravity UI (`ask_question` tool)
-When running in Antigravity or harnesses equipped with `ask_question`, call the tool directly:
+##### Modality A: Native Structured Question Tooling
+When the environment provides a native structured question tool, deliver questions through it:
 
 ```json
 {
@@ -145,8 +146,8 @@ When running in Antigravity or harnesses equipped with `ask_question`, call the 
 }
 ```
 
-##### Modality B: Terminal / Headless / Polyglot Harness
-When running in CLI-only environments without modal dialog tools (e.g. Claude Code, dsh headless, bash):
+##### Modality B: Interactive Terminal / Headless Delivery
+When running in environments without structured question tooling (pure terminal or headless contexts):
 
 ```text
 ================================================================================
@@ -155,9 +156,9 @@ Target Branch: Interface & Contract Surface
 ================================================================================
 How should the operator trigger the Question-Me interview workflow?
 
-  [1] (Recommended) Slash-command alias & CLI flag: Support `/question-me`,
-      `/grill-me`, and `ainish-coder --question-me [DIR]`.
-      Rationale: Maximum ergonomics across Antigravity chat, IDE slash commands,
+  [1] (Recommended) Slash-command alias & CLI flag: Support `/question-me`
+      and `ainish-coder --question-me [DIR]`.
+      Rationale: Maximum ergonomics across IDE chat, slash commands,
       and standalone scriptable terminals.
 
   [2] Slash command only: Restrict to chat-level `/question-me` invocation.
@@ -171,7 +172,7 @@ How should the operator trigger the Question-Me interview workflow?
 ```
 
 ##### Modality C: Subagent Master Handoff
-When an orchestrator dispatches a task to a subagent (e.g. `dsh --profile headless` carrying the AST Refactoring Master):
+When an orchestrator dispatches a task to a subagent (e.g. a headless subagent run carrying an implementation master prompt):
 - The orchestrator runs `question-me` with the operator *first*.
 - The resulting resolved Decision Ledger is embedded directly into the subagent's task file (`/tmp/task_ast.md` or `.agents/tasks/`).
 - The subagent receives zero ambiguity, zero open architectural forks, and a locked specification.
@@ -191,7 +192,7 @@ Once all branches reach terminal leaf nodes:
 - **Worktree:** `feat/skills-question-me` (isolated from `main`)
 - **Resolved Decisions:**
   1. Scope: Standalone skill pack `.agents/skills/question-me/` deployed via `--skills`.
-  2. Interaction Mode: Dual-engine (modal `ask_question` when available, fallback interactive CLI prompts).
+  2. Interaction Mode: Adaptive delivery (native structured question tools when available, otherwise interactive terminal prompts).
   3. Archetypes: Include 6 pre-built decision tree templates in `references/`.
   4. Anti-Patterns: Include exhaustive negative examples in `references/anti-patterns.md`.
 - **Target Files:**
