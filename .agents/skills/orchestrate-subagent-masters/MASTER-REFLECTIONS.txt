@@ -127,7 +127,7 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
 
 ## 2026-09-07T21:40:00Z | dsh headless + orchestrator doctrine — v4 research distillation & local-router config directive
 - Context: Operator-directed v4 rewrite: four research areas (DeepSeek Harness CLI/SDK docs,
-  Anthropic ×4 publications, OpenAI ×5 publications, LongHorizon-Harness arXiv:2608.01964)
+  Anthropic ×4 publications, OpenAI ×5 publications, loop-engineering research)
   distilled from the new RESEARCH-ANNOTATIONS.md (depth layer) into SKILL.md v4 (breadth layer);
   plus the 2026-09-07 directive pinning the fleet dsh agent config to the local-router ollama
   endpoint (agent-default-model: local-router/fallback-models).
@@ -151,7 +151,7 @@ ACTION REFLECTIONS & SKILL REFINEMENT ENTRIES
      reliability ceiling, timeout 1800), conformity mitigation (diversify scaffolds), ownership
      boundaries, arbiter pattern. Task contract gains OUTPUT FORMAT + STOP CONDITIONS on every
      TPL block (ids keep V3 names for cross-reference stability).
-  2. New §2.8 loop engineering (LongHorizon distillation, dsh-only, fallback machinery stripped
+  2. New §2.8 loop engineering (loop-doctrine distillation, dsh-only, fallback machinery stripped
      per operator): Manager/Executor/Auditor rounds; verified-state checkpointing (rejected
      result = evidence, not progress); fresh context per action; recovery from goal + last
      verified checkpoint; final reply from verified state alone; ~30 rounds, executor 1800 s /
