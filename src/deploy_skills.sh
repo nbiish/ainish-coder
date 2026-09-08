@@ -56,8 +56,9 @@ deploy_skills() {
 
             # Scroll-channel packs (8thfire-scrolls, ghost-layer-injector) and
             # raw .scrolls* payload never deploy with skills — the explicit
-            # --scrolls channel is their only distribution surface.
-            case "$skill_name" in .scrolls*|8thfire-scrolls|ghost-layer-injector) continue ;; esac
+            # --scrolls channel is their only distribution surface. Transient
+            # .ainish-ingest.* sync-staging dirs never deploy either.
+            case "$skill_name" in .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) continue ;; esac
 
             # Persisted per-repo selection governs distribution. Live intake:
             # packs are enumerated from disk each run, so new/renamed packs
