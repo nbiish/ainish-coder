@@ -132,18 +132,27 @@ UTILITY COMMANDS:
                               Example: ainish-coder --scrolls-verify ~/my-project
 
 
-    --skills [TARGET_DIR]     Deploy skill packs from .agents/skills/ per your
-                              persisted selection (interactive: numbered
-                              node-choice toggle UI; choices save to
-                              ~/.config/ainish-coder/skills-selection.json
-                              and persist across terminals). `--headless`
-                              applies the saved selection with no prompts.
+    --skills [TARGET_DIR]     Two-way NEWEST-WINS skill sync: deploys packs
+                              from .agents/skills/ per your persisted
+                              selection AND ingests newly detected or more-
+                              recently-refined target skills back into the
+                              ainish-coder repo (newest copy of each skill
+                              wins both directions; newer target copies are
+                              never clobbered). Interactive: numbered
+                              node-choice toggle UI + symlink choice; choices
+                              save to ~/.config/ainish-coder/skills-selection.json
+                              and persist across terminals. `--headless`
+                              auto-ingests candidates and applies the saved
+                              selection with no prompts.
     --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
                               repo (foreign skills reported, untouched)
-    --skills-sync [DIR]       THE one command: verifies and pulls the latest
-                              ainish-coder skills (missing or drifted only);
-                              never overwrites foreign skills; scroll-channel
-                              packs (8thfire-scrolls, ghost-layer-injector)
+    --skills-sync [DIR]       THE one command: two-way NEWEST-WINS sync —
+                              pulls the latest ainish-coder skills (missing
+                              or drifted only) AND ingests newly detected /
+                              more-recently-refined target skills into
+                              ainish-coder; never overwrites foreign skills
+                              or a newer target copy; scroll-channel packs
+                              (8thfire-scrolls, ghost-layer-injector)
                               never copied (explicit --scrolls channel only).
                               Interactive: toggle UI to add/remove packs from
                               the sync set (persisted); `--headless` applies
