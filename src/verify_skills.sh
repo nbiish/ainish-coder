@@ -1,11 +1,18 @@
 #!/bin/bash
 # MOLECULE: Skills byte-integrity (verify + safe sync)
 # verify_ainish_skills : read-only report of byte-identity vs this repo
-# sync_ainish_skills   : THE one command — verifies and pulls the latest
-#                        ainish-coder skills (missing or drifted only);
-#                        foreign skills and scroll-channel packs never
-#                        touched; the persisted per-repo selection governs
-#                        which packs sync (deselected packs never pulled).
+# sync_ainish_skills   : THE one command — TWO-WAY NEWEST-WINS sync.
+#                        Target-ward: pulls the latest ainish-coder skills
+#                        (missing or drifted only). Source-ward: ingests
+#                        newly detected AND more-recently-refined target
+#                        skills back into ainish-coder. The newest copy of
+#                        each skill wins in both directions — a newer
+#                        target copy is never clobbered by an older source
+#                        (equal mtimes: source wins the tie as canonical
+#                        distributor). Foreign skills and scroll-channel
+#                        packs never touched; the persisted per-repo
+#                        selection governs which packs sync (deselected
+#                        packs never pulled).
 
 # Resolve the ainish-coder source repo (AINISH_SOURCE_REPO > stamp > REPO_DIR).
 _ainish_skills_source() {
@@ -31,9 +38,11 @@ _ainish_skills_source() {
 }
 
 # True when a skill name is managed-by-default-excluded (scrolls channel).
+# .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
+# — never enumerate, deploy, or ingest them.
 _ainish_skill_excluded() {
     case "$1" in
-        .scrolls*|8thfire-scrolls|ghost-layer-injector) return 0 ;;
+        .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -216,7 +225,7 @@ sync_ainish_skills() {
     safe_mkdir "$skills_target" || return 1
     safe_mkdir "$target_dir/.agents/tasks" 2>/dev/null || true
 
-    local updated=0 identical=0 deployed=0 ingested=0
+    local updated=0 identical=0 deployed=0 ingested=0 kept_newer=0
 
     # 1. Discover new or updated candidate skills in target repo.
     # Note: Source repo (ainish-coder) NEVER has tools/skills removed.
@@ -250,18 +259,44 @@ sync_ainish_skills() {
             local s_path="$skills_source/$s_name"
 
             if [[ "$s_kind" == "new" ]]; then
-                if ! deploy_path "$t_path" "$s_path"; then
+                # Ingestion must be a real COPY into the canonical
+                # git-tracked store — never a symlink, even when the
+                # surrounding --skills run chose link mode for the
+                # target-ward deploy direction.
+                if ! AINISH_LINK_MODE="false" deploy_path "$t_path" "$s_path"; then
                     print_error "Failed to ingest new skill: $s_name"
                     continue
                 fi
                 echo -e "${BRIGHT_GREEN}➕ Ingested new skill: $s_name → ainish-coder${RESET}"
                 ((ingested++)) || true
             else
-                rm -rf "$s_path"
-                if ! deploy_path "$t_path" "$s_path"; then
-                    print_error "Failed to update skill from target: $s_name"
+                # STAGED SWAP ingest: stage the copy FIRST (deploy_path
+                # strips .env/__pycache__), destroy the canonical pack only
+                # after staging succeeded AND the source skills dir proved
+                # writable. Staging lives on the same filesystem as the
+                # skills dir, so the swap is an atomic same-dir rename — a
+                # failure at any point leaves the existing source pack
+                # intact, and the newest-wins guard in the target-ward pass
+                # then preserves the newer target copy.
+                if [[ ! -w "$skills_source" ]]; then
+                    print_error "Source skills dir not writable — cannot ingest $s_name (source pack left intact)"
                     continue
                 fi
+                local ing_root ing_tmp
+                ing_root="$(mktemp -d "$skills_source/.ainish-ingest.XXXXXX")"
+                ing_tmp="$ing_root/$s_name"
+                if ! AINISH_LINK_MODE="false" deploy_path "$t_path" "$ing_tmp"; then
+                    rm -rf "$ing_root" 2>/dev/null || true
+                    print_error "Failed to stage ingest of updated skill: $s_name (source pack left intact)"
+                    continue
+                fi
+                rm -rf "$s_path" 2>/dev/null || true
+                if ! mv "$ing_tmp" "$s_path"; then
+                    rm -rf "$ing_root" 2>/dev/null || true
+                    print_error "Failed to swap in updated skill: $s_name"
+                    continue
+                fi
+                rm -rf "$ing_root" 2>/dev/null || true
                 echo -e "${GREEN}⬆ Pulled updated skill: $s_name → ainish-coder${RESET}"
                 ((ingested++)) || true
             fi
@@ -291,7 +326,18 @@ sync_ainish_skills() {
         elif _ainish_skill_identical "$source_skill" "$skills_target/$source_name"; then
             ((identical++)) || true
         else
-            # Source is newer or equal -> update target
+            # NEWEST-WINS GUARD: if the target repo refined this pack more
+            # recently than source, never clobber it. Step 1 already
+            # ingested accepted candidates, so reaching here with a newer
+            # target means ingestion was declined or failed — the target
+            # copy IS the newest and stays. Equal mtimes keep source-wins
+            # (the canonical distributor breaks ties).
+            if [[ "$(_ainish_skill_newer "$skills_target/$source_name" "$source_skill")" == "1" ]]; then
+                echo -e "${BRIGHT_CYAN}⊙ Kept newer target copy: $source_name (run --skills-sync to ingest it into ainish-coder)${RESET}"
+                ((kept_newer++)) || true
+                continue
+            fi
+            # Source newer or tie -> update target
             rm -rf "$skills_target/$source_name"
             if ! deploy_path "$source_skill" "$skills_target/$source_name"; then
                 print_error "Failed to sync skill: $source_name"
@@ -305,6 +351,6 @@ sync_ainish_skills() {
     # Stamp provenance so future verify/sync runs resolve this repo.
     printf '%s\n' "$source_dir" > "$skills_target/.ainish-source"
 
-    echo -e "${BRIGHT_GREEN}✅ Skills synced: identical=$identical deployed=$deployed updated=$updated ingested=$ingested.${RESET}"
+    echo -e "${BRIGHT_GREEN}✅ Skills synced: identical=$identical deployed=$deployed updated=$updated ingested=$ingested kept_newer=$kept_newer.${RESET}"
     return 0
 }

@@ -334,28 +334,34 @@ main() {
 
         --skills)
             if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-                # Headless: persisted selection governs; no prompts.
-                deploy_skills "$target_dir"
-                _TRACK_DETAIL="skills-headless"
+                # Headless: two-way NEWEST-WINS sync, no prompts — newly
+                # detected / more-recently-refined target skills are
+                # auto-ingested into ainish-coder, then the persisted
+                # selection deploys target-ward. Agent/CI path.
+                sync_ainish_skills "${target_dir}"
+                _TRACK_DETAIL="skills-sync-headless"
             elif [[ "${AINISH_NON_INTERACTIVE:-false}" != "true" && -t 0 ]]; then
                 # A real terminal IS the interactive path: open the
                 # node-choice toggle UI — pick the packs this repo receives;
                 # selection persists across terminals. (-y/--headless bypass.)
+                # Then two-way sync: target-refined/new skills are offered
+                # back into ainish-coder (newest version wins both ways).
                 if _skills_toggle_ui "$target_dir"; then
                     if _confirm_symlink; then
-                        AINISH_LINK_MODE="true" deploy_skills "$target_dir"
+                        AINISH_LINK_MODE="true" sync_ainish_skills "$target_dir"
                     else
-                        AINISH_LINK_MODE="false" deploy_skills "$target_dir"
+                        AINISH_LINK_MODE="false" sync_ainish_skills "$target_dir"
                     fi
-                    _TRACK_DETAIL="skills-selected"
+                    _TRACK_DETAIL="skills-sync-selected"
                 else
                     echo -e "${YELLOW}Deploy aborted (no selection saved).${RESET}"
                     _TRACK_DETAIL="aborted"
                 fi
             else
-                # Non-interactive default: apply persisted config as-is.
-                deploy_skills "$target_dir"
-                _TRACK_DETAIL="skills-persisted"
+                # Non-interactive default: two-way sync under the persisted
+                # config as-is (same semantics as --skills-sync).
+                sync_ainish_skills "${target_dir}"
+                _TRACK_DETAIL="skills-sync-persisted"
             fi
             ;;
 

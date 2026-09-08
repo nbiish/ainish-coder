@@ -33,9 +33,11 @@ skills_selection_config_path() {
 }
 
 # True when a skill name may NEVER be selected for skills/rules distribution.
+# .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
+# — never listed or selectable.
 _skill_channel_excluded() {
     case "$1" in
-        .scrolls*|8thfire-scrolls|ghost-layer-injector) return 0 ;;
+        .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
         *) return 1 ;;
     esac
 }
