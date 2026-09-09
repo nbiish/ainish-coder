@@ -123,6 +123,8 @@ is what happened" → Engram `mem_session_summary`.
 2. 1–3 durable typed writes to Memorix for anything that outlives the session.
 3. Retire anything you disproved today (§0.5). A session that stores nothing
    and resolves nothing learned nothing.
+4. Land the record: update `.agents/memories/` (digest + refreshed exports,
+   §8) and commit it on the task branch.
 
 **Subagent/dispatch protocol:** agents you spawn inherit these tools. Give
 each dispatch two lines: recon ("consult `memorix_project_context` +
@@ -198,13 +200,54 @@ memorix init --global && memorix setup --agent <your-harness>   # guidance + hoo
   `<private>…</private>` spans; do not rely on it.
 - **Not the system of record:** durable cross-machine coordination lives in
   the repository's coordination records (e.g. the `.agents/{comms,tasks,
-  handoffs}/` triad, git-synced). Memory servers are per-machine context.
-  Never record a task claim ONLY in memory.
+  handoffs}/` triad, git-synced). Live memory-server stores are per-machine
+  context; the git-tracked `.agents/memories/` folder (§8) is the portable
+  knowledge record. Never record a task claim ONLY in memory.
 - **Lifecycle:** stale/wrong memories get resolved, never left to rot:
   Memorix `memorix_resolve`, Engram `mem_delete`/`mem_review`, Reference
   `delete_observations`/`delete_entities`.
 
-## 8. Known Gotchas
+## 8. The Repo Memory Layer — `.agents/memories/`
+
+Every repository carries a git-tracked `.agents/memories/` folder beside the
+other `.agents/` coordination folders — the **singular place where memory data
+lands** so it can be inspected, diffed, iterated on, and cloned to other
+machines (the live server stores are per-machine; this folder is portable).
+
+**Layout** (contract: `.agents/memories/llms.txt` in each repo):
+
+| Path | What |
+|---|---|
+| `MEMORY.md` | Curated digest — one typed entry per durable fact, newest first per section (Facts / Decisions / Gotchas) |
+| `exports/engram.json` | `engram export <file>` snapshot |
+| `exports/memorix.<project>.json` | `memorix transfer export --format json --out <file>` snapshot |
+| `exports/reference-graph.jsonl` | Copy of the Reference Memory `MEMORY_FILE_PATH` JSONL |
+
+**Write protocol (session close, before yielding):**
+1. Append the session's durable facts to `MEMORY.md` (typed, dated, sourced;
+   prune anything you retired per §0.5). Facts that are CONTRACTS belong in
+   the owning `llms.txt`, never duplicated here.
+2. Regenerate exports whose live stores moved:
+   `engram export .agents/memories/exports/engram.json` ·
+   `memorix transfer export --format json --out
+   .agents/memories/exports/memorix.<project>.json` · copy the reference JSONL.
+   Scrub retired/soft-deleted memories and any identifiers first — engram
+   snapshots include soft-deleted rows.
+3. Commit `.agents/memories/` on the task branch; it merges and pushes like
+   any artifact. Hygiene rules of §7 apply in full before commit.
+
+**Recall fallback:** when a memory server is unreachable (fresh clone before
+setup, CI, broken MCP registration), read `MEMORY.md` and grep `exports/` —
+the folder is the offline memory of record.
+
+**Connection to the other `.agents/` folders:** `comms/`, `tasks/`,
+`handoffs/` remain the coordination system of record — task claims and
+lifecycle NEVER move into memories. `skills/` holds this skill. The memory
+layer holds knowledge. When a handoff packet or task record needs prior
+context, cite `MEMORY.md` entries; when a memory proves a task's done-criteria
+wrong, fix both.
+
+## 9. Known Gotchas
 
 - **Reference Memory** relation creates fail if either entity doesn't exist;
   `search_nodes` is substring-only (no semantics) — route fuzzy lookups to

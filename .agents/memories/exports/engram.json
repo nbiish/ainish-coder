@@ -1,0 +1,14 @@
+{
+  "version": "0.1.0",
+  "exported_at": "2026-09-09 21:07:38",
+  "sessions": [
+    {
+      "id": "manual-save-ainish-coder",
+      "project": "ainish-coder",
+      "directory": "/mnt/d/Code/ainish-coder",
+      "started_at": "2026-09-09 03:24:38"
+    }
+  ],
+  "observations": [],
+  "prompts": null
+}
