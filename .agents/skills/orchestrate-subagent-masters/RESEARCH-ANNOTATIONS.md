@@ -660,3 +660,12 @@ Each rule below maps to its SKILL.md implementation surface.
    served `glm-5.3-flash`); dsh pong exit 0 / stdout `pong` / silent stderr;
    session log records `ollama-local-router` + `local-router/fallback-models`.
    GO.
+
+6. Repo-memory MCP plane (2026-09-08): memorix@1.3.0 + @modelcontextprotocol/
+   server-memory 0.6.3 + engram v1.20.0 verified live (initialize/tools/list/
+   write-read roundtrips) and wired into all four dsh profiles via
+   ~/.dsh/memory-mcp.cordis.yml inlined into each profile's cordis.patch.yml —
+   dsh headless store→fresh-session recall roundtrip green. Skill pack:
+   .agents/skills/repo-memory/SKILL.md. Gotchas: patch files accept ONE YAML
+   array (no include:, no second document after []); engram mem_search takes
+   `query` (not `q`); reference-memory relations require both endpoints first.
