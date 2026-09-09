@@ -95,7 +95,8 @@ Universal memory law lives in `AGENTS.md` `<REPO_MEMORY>`; this section records 
 
 - **Installed & verified (2026-09-08):** memorix@1.3.0, `@modelcontextprotocol/server-memory` 0.6.3 (`@2026.7.4` overlay line), engram v1.20.0 — binaries on PATH (`~/.local/bin`), wired via `~/.dsh/memory-mcp.cordis.yml` inlined into every `~/.dsh/profiles/<name>/cordis.patch.yml` (headless, acp, web, tui). Verified: `dsh --dump-config` shows 3 memory servers; dsh headless store→fresh-session recall roundtrip green.
 - **This repo's own memory:** durable per-repo facts (tooling verdicts, lifecycle, worktree ownership) are recorded here in llms.txt — llms.txt is the contract of record; the memory servers are conversational context on top, never the contract.
-- **Contract protection:** `.agents/skills/repo-memory/` is the canonical memory-skill pack, distributed via `--skills`/`--skills-sync` like the other packs; keep it repo-agnostic.
+- **Contract protection:** `.agents/skills/repo-memory/` is the canonical memory-skill pack, distributed via `--skills`/`--skills-sync` like the other packs; keep it repo-agnostic AND **harness-agnostic** — the skill never names a specific harness; every agent reads and applies it identically. Harness-specific wiring records live HERE, in this section (and in the operator's machine config), never in the skill.
+- **Harness wiring on this machine (2026-09-08):** all four dsh profiles get the three servers via `~/.dsh/memory-mcp.cordis.yml` inlined into each `~/.dsh/profiles/<name>/cordis.patch.yml` (one YAML array; no `include:` support). Other MCP-capable harnesses register the same three stdio commands per the skill's §4 (`memorix serve`, `mcp-server-memory`, `engram mcp`) or via `memorix setup --agent <name>` / `engram setup <agent>`.
 
 ## Child DOX Index
 
