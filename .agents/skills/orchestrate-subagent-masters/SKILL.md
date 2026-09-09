@@ -39,6 +39,7 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 7. **Scaffold carries the intelligence.** Lower-intelligence engines reach frontier outcomes through the scaffold — scope allowlists, persona prompts, structured artifacts, gates, evaluator separation, receipts — not through model horsepower. When a dispatch underperforms, harden the scaffold, not the model.
 8. **Fan out for read; single-thread for write.** The one axis that picks the topology is how much context can be lost between agents (§2.0). Interdependent write-heavy work serializes as a pipeline or stays with one agent.
 9. **Cost doctrine.** Multi-agent systems spend ~15× chat tokens (single agents ~4×); token spend alone explains ~80% of multi-agent performance variance, and a fan-out snag can cost ~5× recovery tokens. Reserve fan-out for one-off exploratory / parallel-read breadth; repetitive production work → a plain pipeline of subagents; always start on a small slice.
+10. **Memory-aware dispatches.** Every dsh profile (headless, acp, web, tui) carries the three repo-memory MCP servers (§7.1): embed in each dispatch prompt a recon line ("consult `memorix_project_context` + `mem_context` before edits") and a closeout line ("store one typed gotcha/decision via `memorix_store` or `mem_save` before exit"). Cross-machine coordination still lives ONLY in the COMMS triad — memory servers are per-machine context, never the system of record (see `.agents/skills/repo-memory/SKILL.md`).
 
 ## 2. Subagent Modality Matrix — One Command Each
 
@@ -229,6 +230,10 @@ Each handoff = one `FLEET-HANDOFF` COMMS entry (§6).
 - blockers:none
 ```
 One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<modality>`. No COMMS receipt = the dispatch never happened; no merge proceeds without receipts for every phase. Pre-merge assertion (mechanical, never by recall): every closed packet in `.agents/handoffs/` greps back to a linked `SUBAGENT-DISPATCH` ledger entry.
+
+## 7.1 Repo-Memory MCP Plane (all profiles)
+
+`~/.dsh/memory-mcp.cordis.yml` (inlined into every `~/.dsh/profiles/<name>/cordis.patch.yml`) bridges `memorix`, `reference_memory`, and `engram` as stdio MCP servers, so `dsh --profile headless|acp|sdk` dispatches and this orchestrator itself share persistent project memory (`mcp__memorix__*`, `mcp__reference_memory__*`, `mcp__engram__*`). Install, verification smoke tests, routing doctrine, and hygiene: `.agents/skills/repo-memory/SKILL.md`. If `dsh --dump-config` shows fewer than 3 memory servers, repair the patch layer before dispatching — memory-blind dispatches re-derive known gotchas and re-make fixed mistakes.
 
 ## 7. Verification Gates & Guardrails
 
