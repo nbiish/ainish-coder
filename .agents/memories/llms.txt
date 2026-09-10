@@ -13,7 +13,7 @@ This folder is the **singular, git-tracked home of this repository's memory data
 
 ## Rules
 
-1. **Exports are snapshots, not the source of truth.** The servers' live stores own the data; this folder makes it inspectable, diffable, and portable. Never hand-edit `exports/*` — regenerate with the export commands (see `.agents/skills/repo-memory/SKILL.md` §8).
+1. **Exports are snapshots, not the source of truth.** The servers' live stores own the data; this folder makes it inspectable, diffable, and portable. Never hand-edit `exports/*` — regenerate with the export commands (see `.agents/skills/repo-memory-graph-intelligence/SKILL.md` §8).
 2. **`MEMORY.md` is curated.** One entry per durable fact: `- [YYYY-MM-DD] <fact> *(source: <server>, <tool>)*`. Update in place; prune what §REPO_MEMORY rule 3 retired. Facts recorded in a parent `llms.txt` are contracts, not memories — do not duplicate them here.
 3. **Commit on the task branch; travels with push.** Memory exports merge to `main` like any other artifact, so other machines clone the knowledge.
 4. **Hygiene before commit:** scrub operator identifiers, credentials, and trajectories from exports and digest entries (root `<REPO_MEMORY>` rule 4 / packet hygiene). `<private>` spans must never survive into this folder.

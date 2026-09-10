@@ -19,3 +19,8 @@
     - Verified `unsloth start dsh` and `unsloth start hermes` execute cleanly and route inference to localhost:11434.
     - Merged `feat/unsloth-shim-start-inference` into `local-router` main.
   - Unifying `/repo-memory` and `/graph-intelligence` into single self-prompting skill `.agents/skills/repo-memory-graph-intelligence`.
+  - Legacy skill pruning & comprehensive integration:
+    - Expanded .agents/skills/repo-memory-graph-intelligence/SKILL.md with complete harness stdio JSON configuration, installation guide for new machines, verification smoke tests, hygiene rules, and known gotchas.
+    - Pruned legacy folders: .agents/skills/repo-memory/ and .agents/skills/graph-intelligence/.
+    - Updated references in AGENTS.md, llms.txt, src/help.sh, .agents/skills/orchestrate-subagent-masters/SKILL.md, and .agents/memories/llms.txt.
+    - Verified with ./src/verify_skills.sh and ./bin/ainish-coder --help (21 skill packs).
