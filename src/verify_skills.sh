@@ -437,7 +437,7 @@ sync_ainish_skills() {
             if [[ "$s_kind" == "new" ]]; then
                 # Ingestion must be a real COPY into the canonical
                 # git-tracked store — never a symlink, even when the
-                # surrounding --skills run chose link mode for the
+                # surrounding --skills-sync run chose link mode for the
                 # target-ward deploy direction.
                 if ! AINISH_LINK_MODE="false" deploy_path "$t_path" "$s_path"; then
                     print_error "Failed to ingest new skill: $s_name"

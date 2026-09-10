@@ -138,7 +138,7 @@ deploy_skills() {
         echo -e "${YELLOW}⏭️  Skipped $skipped_count pre-existing skill(s)${RESET}"
     fi
     if [[ $deselected_count -gt 0 ]]; then
-        echo -e "${YELLOW}⊘ $deselected_count deselected pack(s) skipped (toggled off — run 'ainish-coder --skills' to change)${RESET}"
+        echo -e "${YELLOW}⊘ $deselected_count deselected pack(s) skipped (toggled off — run 'ainish-coder --skills-sync' to change)${RESET}"
     fi
 
     if [[ ${#failed_skills[@]} -gt 0 ]]; then

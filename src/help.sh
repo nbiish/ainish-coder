@@ -15,7 +15,7 @@ GLOBAL FLAGS:
     -y, --yes            Non-interactive mode (skip all prompts; defaults to
                          copy for safety)
     -i, --interactive    Interactive walkthrough for --rules, --llms-txt,
-                         and --skills with guided symlink/dest choices
+                         and --skills-sync with guided symlink/dest choices
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md — the singular, repository-agnostic
@@ -51,7 +51,7 @@ TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
     Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-{time}-team.txt + all skill packs.
     Use --llms-txt to deploy llms.txt.
-    Use --skills to deploy all skill packs.
+    Use --skills-sync to synchronize and selectively ingest skills.
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
@@ -132,18 +132,6 @@ UTILITY COMMANDS:
                               Example: ainish-coder --scrolls-verify ~/my-project
 
 
-    --skills [TARGET_DIR]     Two-way NEWEST-WINS skill sync: deploys packs
-                              from .agents/skills/ per your persisted
-                              selection AND ingests newly detected or more-
-                              recently-refined target skills back into the
-                              ainish-coder repo (newest copy of each skill
-                              wins both directions; newer target copies are
-                              never clobbered). Interactive: numbered
-                              node-choice toggle UI + symlink choice; choices
-                              save to ~/.config/ainish-coder/skills-selection.json
-                              and persist across terminals. `--headless`
-                              auto-ingests candidates and applies the saved
-                              selection with no prompts.
     --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
                               repo (foreign skills reported, untouched)
     --skills-sync [DIR]       THE one command: two-way NEWEST-WINS sync —
@@ -155,7 +143,9 @@ UTILITY COMMANDS:
                               (8thfire-scrolls, ghost-layer-injector)
                               never copied (explicit --scrolls channel only).
                               Interactive: toggle UI to add/remove packs from
-                              the sync set (persisted); `--headless` applies
+                              the sync set (persisted), plus interactive
+                              TUI checkbox system to selectively ingest candidate
+                              foreign skills; `--headless` applies
                               the saved selection with no prompts. Live
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
@@ -182,7 +172,7 @@ UTILITY COMMANDS:
                               - question-me/               (Socratic design interview & tree resolution)
                               - repo-memory-graph-intelligence/ (Dual-substrate AST code graph + persistent repo-memory)
 
-                              Example: ainish-coder --skills ~/my-project
+                              Example: ainish-coder --skills-sync ~/my-project
 
     --unlock [TARGET_DIR]     Deploy Pliny Research collection (AI transparency)
                               Deploys:
@@ -238,7 +228,7 @@ NOTES:
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
     - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing AGENTS.md) + .gitignore + .agents/comms/{date}-{time}-team.txt + skill packs per your persisted selection + global symlinks
-    - --headless second arg (e.g. 'ainish-coder --skills <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
+    - --headless second arg (e.g. 'ainish-coder --skills-sync <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md (project-agnostic rules, single governing document) + global symlinks
     - --llms-txt deploys llms.txt (separate from --rules)
@@ -251,7 +241,7 @@ EXAMPLES:
     ainish-coder --rules                    # Deploy AGENTS.md + .gitignore + skills to cwd (copies)
     ainish-coder --rules ~/my-project       # Deploy to specific directory (copies)
     ainish-coder --llms-txt                 # Deploy llms.txt to cwd (copy)
-    ainish-coder --skills                   # Deploy all skill packs (copies)
+    ainish-coder --skills-sync              # Synchronize & selectively ingest skills (copies)
 
     # Symlink mode: link to source files (single source of truth)
     ainish-coder --link --rules             # Symlink AGENTS.md + .gitignore
@@ -260,7 +250,7 @@ EXAMPLES:
     # Interactive mode: guided walkthrough with symlink/destination choices
     ainish-coder -i --rules                 # Prompt for each: deploy? dest? symlink?
     ainish-coder -i --llms-txt              # Prompt for llms.txt deployment choices
-    ainish-coder -i --skills                # Prompt for skills with specific selection
+    ainish-coder -i --skills-sync           # Prompt for skills sync with toggle UI
 
     # Utility deployments
     ainish-coder --gitignore                # Create comprehensive .gitignore

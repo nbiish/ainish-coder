@@ -158,8 +158,8 @@ source ~/.zshrc  # or ~/.bashrc
 ainish-coder --rules                     # Interactive: AGENTS.md, .gitignore, PQC security skills
                                          #   Prompts for: destination (home ~/ vs project), symlink preference
 
-# Deploy skills to home or project directory
-ainish-coder --skills                    # Interactive: deploy all skills or pick one
+# Synchronize skills to home or project directory (with interactive candidate ingestion TUI)
+ainish-coder --skills-sync               # Interactive: toggle skills to sync & ingest
                                          #   Prompts for: destination, symlink preference
 
 # Deploy AGENTS.md alone
@@ -170,7 +170,7 @@ ainish-coder --secure                    # Interactive: symlink prompt for each 
 
 # Non-interactive mode (skip all prompts, use defaults)
 ainish-coder --rules -y                  # AGENTS.md → target dir, copy mode
-ainish-coder --skills --link -y          # All skills → target dir, symlink mode
+ainish-coder --skills-sync --link -y     # Sync skills → target dir, symlink mode
 ```
 
 ---
@@ -182,7 +182,7 @@ The OSA (Orchestrated System of Agents) framework coordinates multiple CLI codin
 **Agents**: Gemini, Claude, OpenCode, mini-swe-agent, kilo, crush
 
 ```bash
-ainish-coder --skills                    # Deploy all skills
+ainish-coder --skills-sync               # Synchronize all skills
 ```
 
 See [`.agents/skills/orchestrate-subagent-masters/SKILL.md`](.agents/skills/orchestrate-subagent-masters/SKILL.md) for the orchestration framework specification.
@@ -195,10 +195,10 @@ All `ainish-coder` invocations are optionally tracked to `~/.cache/ainish-coder/
 
 ```
 timestamp,tool,subcommand,provider,exit_code,duration_ms,interactive,arg_count
-2026-05-28T14:40:00Z,ainish-coder,--skills,skill:gstack-coder,0,340,true,0
+2026-05-28T14:40:00Z,ainish-coder,--skills-sync,skill:gstack-coder,0,340,true,0
 ```
 
-- **Granular tracking**: `--skills` captures which specific skill was deployed; `--rules` tracks sub-operations
+- **Granular tracking**: `--skills-sync` captures which specific skill was deployed; `--rules` tracks sub-operations
 - **Opt-out**: Set `AINISH_NO_TRACKING=true` to disable all logging
 - **Zero overhead when absent**: If `cmd-tracker` binary isn't on PATH, commands run directly
 - **Auto-migration**: Old CSV schemas are backed up to `.bak` and re-created with the current header
