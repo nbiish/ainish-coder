@@ -177,7 +177,7 @@ Three persistent memory MCP servers run locally and are available to any agent h
 
 | Kind of Knowledge | Destination | MCP Tool Call | CLI Fallback |
 |---|---|---|---|
-| Repository facts, gotchas, fixes | `memorix` | `memorix_store(kind="fact"\|"gotcha"\|"decision", content=...)` | `memorix remember "..."` |
+| Repository facts, gotchas, fixes | `memorix` | `memorix_store(kind="fact"|"gotcha"|"decision", content=...)` | `memorix remember "..."` |
 | Full project orientation | `memorix` | `memorix_project_context()` | `memorix context` |
 | Search repo memory | `memorix` | `memorix_search(query=...)` | `memorix search "..."` |
 | Resolve / delete stale fact | `memorix` | `memorix_resolve(fact_id=...)` | `memorix resolve <id>` |
@@ -187,6 +187,15 @@ Three persistent memory MCP servers run locally and are available to any agent h
 | Session bookmark / summary | `engram` | `mem_session_summary(summary=...)` | `engram save "..."` |
 | Search curated session logs | `engram` | `mem_search(query=...)` | `engram search "..."` |
 | Resolve conflicting memories | `engram` | `mem_judge(conflict_id=..., verdict=...)` | `engram conflicts resolve` |
+
+### Verified Tool Surfaces
+
+- **`memorix`** (micro profile default; `--mode lite|team|full` scales to 20/28/47 tools):
+  `memorix_project_context`, `memorix_context_pack`, `memorix_search` (query/limit/scope/type/since/status), `memorix_detail` (ids/typedRefs), `memorix_store` (entityName/type/title/narrative/facts/filesModified/concepts/topicKey/progress), `memorix_resolve`, `memorix_codegraph_status`. CLI: `memorix init --global`, `memorix setup --agent <name>`, `memorix doctor agents`, `memorix background start` (HTTP + dashboard `:3211/mcp`).
+- **`reference_memory`** (9 tools):
+  `create_entities`, `create_relations` (fails if endpoints missing), `add_observations`, `delete_entities` (cascades relations), `delete_observations`, `delete_relations`, `read_graph`, `search_nodes` (substring, ≤2048 chars), `open_nodes`. JSONL records: `{"type":"entity","name":...}` / `{"type":"relation","from":...,"to":...}`.
+- **`engram`** (22 `mem_*` tools):
+  `mem_current_project`, `mem_context`, `mem_search(query)`, `mem_timeline(observation_id)`, `mem_get_observation`, `mem_stats`, `mem_save(title,type,content,topic_key?,scope?)`, `mem_update`, `mem_save_prompt`, `mem_session_summary`, `mem_delete`, `mem_pin`/`mem_unpin`, `mem_review`, `mem_merge_projects`, `mem_doctor`, `mem_compare`, `mem_judge`. CLI: `engram tui`, `engram serve` (HTTP `127.0.0.1:7437`), `engram export/import`.
 
 ### Concrete Inscription Patterns
 
@@ -216,6 +225,69 @@ Three persistent memory MCP servers run locally and are available to any agent h
   ]
 }
 ```
+
+### Wiring Any Agent Harness (MCP stdio config)
+
+All tools run as standard stdio MCP servers. Registration shape in your harness configuration (`mcpServers` JSON):
+
+```json
+{
+  "mcpServers": {
+    "gitnexus":          { "command": "gitnexus", "args": ["mcp"] },
+    "memorix":           { "command": "memorix", "args": ["serve"] },
+    "reference_memory":  { 
+      "command": "mcp-server-memory",
+      "env": {
+        "MEMORY_FILE_PATH": "/home/<user>/.local/state/reference-memory/graph.jsonl"
+      }
+    },
+    "engram":            { "command": "engram", "args": ["mcp"] }
+  }
+}
+```
+
+- **`reference_memory`:** ALWAYS set env `MEMORY_FILE_PATH` to an absolute, stable path. The unwired default lands inside the npm package cache and is wiped on package upgrades.
+- **Engram env:** `ENGRAM_DATA_DIR` (data store), `ENGRAM_PROJECT` (project override), `ENGRAM_HTTP_TOKEN` (admin HTTP).
+- **Memorix env:** `MEMORIX_DATA_DIR`, `MEMORIX_MODE` (tool profile: `micro`|`lite`|`team`|`full`).
+- **Built-in agent installers:** Run `memorix setup --agent <name>` (claude, codex, cursor, windsurf, gemini-cli, opencode, etc.) and `engram setup <agent>` to automatically generate valid config.
+- **Launch root:** Always launch from inside the target Git repository so GitNexus, Memorix, and Engram auto-bind to the current repository root.
+
+### Installation on a New Machine
+
+```bash
+# Prerequisites: Node.js >= 22.18, Go 1.24+ (if building engram from source)
+npm install -g gitnexus
+npm install -g memorix
+npm install -g @modelcontextprotocol/server-memory
+go install github.com/Gentleman-Programming/engram/cmd/engram@v1.20.0
+# Or prebuilt Engram: https://github.com/Gentleman-Programming/engram/releases
+
+# Initialize global configs
+memorix init --global
+gitnexus analyze
+```
+
+### Verification Smoke Test (run after install or upgrade)
+
+1. **GitNexus Status:** Run `gitnexus status` to verify the Tree-sitter AST database is healthy and symbol counts are populated.
+2. **MCP JSON-RPC Handshake:** Send newline-delimited JSON-RPC `initialize` -> `notifications/initialized` -> `tools/list` to each server (`memorix serve`, `mcp-server-memory`, `engram mcp`, `gitnexus mcp`).
+3. **Write / Read Roundtrip:**
+   - Memorix: `memorix remember "smoke-test-token-<rand>"` -> `memorix search smoke-test-token`
+   - Engram: `engram mcp` -> run `mem_doctor`
+   - Memorix: `memorix doctor agents` for agent harness hook health.
+
+### Hygiene, Privacy & Coordination Directives
+
+- **PQC Secrets:** Server API keys (if any) live encrypted in the PQC secrets manager (`~/.config/pqc-secrets/secrets.bundle.json`) — never in plaintext config files on disk.
+- **Privacy & Sanitization:** All stores are local-only. Scrub operator identifiers, credentials, and raw trajectories before committing or syncing anything derived from memory.
+- **Not the System of Record:** Durable cross-machine coordination lives in the repository's `.agents/{comms,tasks,handoffs}/` triad. Live MCP databases are per-machine caches; `.agents/memories/` is the git-portable knowledge record. Never record a task claim exclusively in memory.
+
+### Known Gotchas
+
+- **Reference Memory:** `create_relations` will fail if either entity endpoint does not already exist in the graph. `search_nodes` is substring-only (no semantics) — route fuzzy queries to Memorix or Engram.
+- **Engram:** Project detection keys off the git remote URL. If a repo remote changes, run `mem_merge_projects` to reconcile project keys. `mem_search` requires the `query` parameter (passing `q` returns an FTS5 syntax error).
+- **Memorix:** Pins project context to the Git root. Launch from inside the repo or pass `projectRoot` explicitly on HTTP sessions.
+- **GitNexus:** If symbols appear missing after major branch checkouts or renames, run `gitnexus clean && gitnexus analyze` to regenerate `.gitnexus/`.
 
 ---
 

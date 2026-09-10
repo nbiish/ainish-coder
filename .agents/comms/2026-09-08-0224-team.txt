@@ -129,3 +129,15 @@ update: unified repo-memory-graph-intelligence skill created with self-prompting
 intent-merge: feat/skills-repo-memory-graph-intelligence -> main; docs/skills-only => no-rebuild-needed
 checkout: worktree ../ainish-coder-skills-unify removed, branch deleted, merged+unclaimed verified
 end: 2026-09-10T03:42Z
+
+start: 2026-09-10T03:50Z end:
+task: prune legacy repo-memory and graph-intelligence skills, integrate all knowledge into unified skill
+triage: now
+parent: operator
+branch: chore/skills-prune-legacy-memory-graph
+update: enriched repo-memory-graph-intelligence SKILL.md with full harness stdio JSON wiring, installation on new machines, smoke tests, hygiene, and gotchas
+update: pruned legacy .agents/skills/repo-memory/ and .agents/skills/graph-intelligence/
+update: updated all references across AGENTS.md, llms.txt, src/help.sh, orchestrate-subagent-masters, .agents/memories/llms.txt
+intent-merge: chore/skills-prune-legacy-memory-graph -> main; skills/docs-only => no-rebuild-needed
+checkout: worktree ../ainish-coder-prune-legacy removed, branch deleted, merged+unclaimed verified
+end: 2026-09-10T03:55Z
