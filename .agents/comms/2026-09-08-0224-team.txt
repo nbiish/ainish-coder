@@ -151,3 +151,16 @@ update: bsk CLI installed and verified via bsk doctor; .agents/skills/browser-sk
 intent-merge: feat/skills-browser-skill -> main; skills/docs-only => no-rebuild-needed
 checkout: branch merged to main, task record TASK.2026-09-10.browser-skill.md closed
 end: 2026-09-10T04:58Z
+
+start: 2026-09-10T05:10Z end: 2026-09-10T05:15Z
+task: interactive TUI checkbox system for candidate skill ingestion via ainish-coder --skills-sync
+triage: now
+parent: operator
+branch: feat/skills-sync-tui
+update: verified ainish-coder --rules strictly deploys latest canonical skills target-ward without back-copying foreign skills
+update: implemented _select_candidate_skills_raw and fallback _select_candidate_skills_numbered in src/verify_skills.sh matching _skills_toggle_ui keypress checkbox system
+update: passed functional headless test and bash -n syntax validation; security gate PASS
+intent-merge: feat/skills-sync-tui -> main; CLI/shell-only => no-rebuild-needed
+checkout: branch merged to main, task record TASK.2026-09-10.skills-sync-tui.md closed
+end: 2026-09-10T05:15Z
+
