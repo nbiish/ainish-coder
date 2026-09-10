@@ -19,6 +19,10 @@ description: >
 
 # Repo-Memory — Expert Persistent Memory for ANY Agent Harness
 
+> [!IMPORTANT]
+> **Unified Skill Notice:** For complete dual-substrate codebase intelligence (combining AST call-chains and blast-radius analysis with persistent memory), use the unified skill: [.agents/skills/repo-memory-graph-intelligence](file:///D:/Code/ainish-coder/.agents/skills/repo-memory-graph-intelligence/SKILL.md).
+
+
 Three complementary memory MCP servers run locally on this machine and are
 available to **every MCP-capable agent harness** — the same tools, the same
 stores, the same discipline regardless of whether you are Claude Code, Cursor,
