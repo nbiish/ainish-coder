@@ -260,3 +260,20 @@ wrong, fix both.
   server-memory echo integers reliably — use integer ids in raw smoke tests.
 - `mem_search` requires the `query` parameter (passing `q` returns an FTS5
   syntax error that reads like a server bug).
+
+## 10. The Code-Graph Bridge Protocol (GitNexus ↔ Repo-Memory)
+
+While Repo-Memory manages human and agent knowledge (facts, rationale, decisions, session continuity), code execution requires deterministic AST structure. The `/graph-intelligence` skill (powered by **GitNexus**) provides the AST code graph ("where"), which pairs symmetrically with Repo-Memory ("why"):
+
+1. **Pre-Edit Scoped Recall (AST → Memory):**
+   - Before editing a symbol or resolving a bug, run `gitnexus context <symbol>` or `gitnexus impact <symbol>` to resolve its direct callers, callees, and dependent files.
+   - Use the returned symbol names and file paths as exact query terms for `memorix_search` and `mem_search` (e.g. `memorix_search("safeFetch")`). This eliminates noisy queries and retrieves only the historical gotchas and architectural constraints governing the affected code.
+2. **Grounding Reference Memory Entities (AST → Knowledge Graph):**
+   - When mapping architectural relationships in Reference Memory (`create_entities`, `reference-graph.jsonl`), use GitNexus symbol UIDs (`Function:path/to/file.ts:symbolName`, `Interface:...`, `Module:...`) as canonical entity IDs.
+   - This eliminates hallucinated entity drift and aligns the knowledge graph with the compiler's symbol table.
+3. **Pre-Closeout Diff Verification (GitNexus Diff → Session Summary):**
+   - At session close, run `gitnexus detect-changes` against the git diff.
+   - GitNexus maps changed hunks to modified AST symbols. Stamp this exact symbol list into `mem_session_summary` (Files/Accomplished) and `MEMORY.md` to guarantee zero drift between code changed and memory logged.
+4. **AST-Driven Stale Memory Retirement (AST → Memorix Resolve):**
+   - When refactoring, if a symbol is removed or renamed, query GitNexus (`gitnexus context <symbol>`).
+   - If GitNexus returns `Symbol not found`, retire any memories or reasoning traces tied to that symbol via `memorix_resolve` or `mem_delete`. Never let memory reference ghost symbols.
