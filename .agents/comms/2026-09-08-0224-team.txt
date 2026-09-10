@@ -97,3 +97,13 @@ branch: docs/agents-handoffs-memories
 update: line 17 exception list and line 72 carve-out updated in AGENTS.md; task record added
 intent-merge: docs/agents-handoffs-memories -> main; docs-only => no-rebuild-neededcheckout: worktree ../docs-agents-handoffs removed, branch deleted, merged+unclaimed verified
 end: 2026-09-10T01:13Z
+
+start: 2026-09-10T01:20Z end:
+task: streamline AGENTS.md line 17 & 72 exceptions (only .agents/memories/, .agents/handoffs, .agents/comms/{date}-team.txt)
+triage: now
+parent: operator
+branch: docs/agents-concise-exceptions
+update: line 17 and line 72 streamlined to only mention .agents/memories/, .agents/handoffs, and .agents/comms/{date}-team.txt (removed *, focus on date only)
+intent-merge: docs/agents-concise-exceptions -> main (77f1d03, --no-ff); docs-only => no-rebuild-needed
+checkout: worktree ../docs-agents-concise removed, branch deleted, merged+unclaimed verified
+end: 2026-09-10T01:20Z
