@@ -1,16 +1,15 @@
-# Task: Update AGENTS.md Line 17 Worktree Exceptions
+# Task: Clarify AGENTS.md Line 17 & 72 Exceptions
 
 ## Scope
-- Update line 17 and carve-out in AGENTS.md to explicitly reflect .agents/handoffs, ../memories (.agents/memories/), and AGENTS-TTS-COMMS.txt alongside .agents/comms.
+- Clarify line 17 and line 72 in AGENTS.md: only mention .agents/memories/, .agents/handoffs, and .agents/comms/{date}-team.txt (remove * and focus on date).
 
 ## Status
-- branch: docs/agents-handoffs-memories
+- branch: docs/agents-concise-exceptions
 - triage: now
 - status: verified
 
 ## Checklist
-- [x] Worktree isolation on docs/agents-handoffs-memories
+- [x] Worktree isolation on docs/agents-concise-exceptions
 - [x] Update line 17 in AGENTS.md
 - [x] Update line 72 carve-out in AGENTS.md
-- [x] Verify git diff and formatting
-- [x] Preserve uncommitted AGENTS-TTS-COMMS.txt changes
+- [x] Verify git diff

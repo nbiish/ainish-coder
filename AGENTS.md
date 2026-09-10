@@ -14,7 +14,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 **Worktree path:** Sibling of main repo (e.g. `../my-feature`) — discoverable, never nested inside main.
 
 **Rules:**
-- **NEVER** read, edit, or commit files while on `main`. (Exceptions: appending to the main repo's shared ledger `.agents/comms/{date}*-team.txt`, `.agents/handoffs/`, `../memories` (`.agents/memories/`), and `AGENTS-TTS-COMMS.txt` — from a worktree: `../<main-repo>/`).
+- **NEVER** read, edit, or commit files while on `main`. (Exceptions: appending to the main repo's shared ledger `.agents/comms/{date}-team.txt`, `.agents/handoffs/`, and `.agents/memories/` — from a worktree: `../<main-repo>/`).
 - One task = one branch = one worktree. No exceptions.
 - On `main` with uncommitted changes: stash, create worktree from `main`, pop stash, continue.
 - **Git Tree & Diff Checks:** Run `git status` and `git diff` for new, edited, or removed content by users or peer agents before branching. Never overwrite or blindly restore old main branch content.
@@ -69,7 +69,7 @@ When ≥1 agent works at once, coordinate through the **coordination triad** und
 - **Packet Hygiene & Automation:** Packets are Confidential: scope, file allowlist, branch/worktree, results, normalized exit code only — zero operator identifiers, zero trajectories, zero credentials; scrub before commit and push. Dispatch wrappers create and close packets automatically; exit codes are machine-normalized, never narrative.
 - **Masters Channel:** Master-grade coordination artifacts use `.agents/{comms,tasks,handoffs}/<name>.{date}.masters.<slug>.txt` — detailed, explicit prose (Chain-of-Draft exempt); reflections append to `.agents/comms/reflections.{date}.masters.swarm.txt`. The ≤5-words CoD style still governs the team ledger and task gists. Runtime artifacts NEVER live inside `.agents/skills/**`.
 - **Lifecycle:** Append timestamped entries: `checkin` → `update` → `intent-merge` → `checkout`. Subagents set `parent:` to their orchestrator. Bracket every entry with `start:` / `end:` ISO-8601 timestamps; never leave a `start:` unclosed.
-- **Carve-out:** Appending to the main repo's active `.agents/comms/{date}*-team.txt`, `.agents/handoffs/`, `../memories` (`.agents/memories/`), or `AGENTS-TTS-COMMS.txt` is permitted outside a worktree. Before `checkout`, commit triad artifacts on the task branch and merge to `main`.
+- **Carve-out:** Appending to the main repo's active `.agents/comms/{date}-team.txt`, `.agents/handoffs/`, or `.agents/memories/` is permitted outside a worktree. Before `checkout`, commit triad artifacts on the task branch and merge to `main`.
 - **Remote Record:** `.agents/comms/`, `.agents/tasks/`, and `.agents/handoffs/` MUST travel with git push to remote across machines.
 </COMMS>
 
