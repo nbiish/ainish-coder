@@ -550,3 +550,15 @@ What would this governance / sovereignty master suggest? Git-tracked memory reco
 What would this terminal-orchestration / swe-bench master suggest? Dispatch closeouts should now include regenerating the exports they touched, so fleet knowledge lands in one diffable place.
 What would this master-orchestrator / self-prompting master suggest? The digest is the iteration surface — review MEMORY.md at orchestration start to steer the fleet with one read.
 What would this developer-experience / ergonomics master suggest? One folder, one digest, three snapshots, one contract — memory onboarding for any new repo is now a single directory copy.
+
+## 2026-09-09T23:45:38Z
+clone or pull on another machine and confirm the memory exports and skill pack arrive intact.
+What would this adversarial / security master suggest? Verify the pushed tree with a secrets scan post-push, since the memory ledger and exports are now public-repo visible.
+What would this privacy / data-protection regulatory master suggest? The scrub pass already ran pre-commit — keep that ordering mandatory for every future memory-layer commit.
+What would this supply-chain / third-party-risk master suggest? Pinned server versions in the skill now travel with the repo, giving every clone the same dependency contract.
+What would this systems-architecture / devops / infrastructure master suggest? Remote main is the replication trigger — other machines get the full memory record layer on plain git pull.
+What would this reliability / verification master suggest? Remote head matches local 4b3968e — push verified; next verify a fresh clone's MEMORY.md and exports are readable.
+What would this governance / sovereignty master suggest? The coordination triad and memory records now satisfy the remote-record rule — governance state travels with the code.
+What would this terminal-orchestration / swe-bench master suggest? Any harness on any machine can now orient from the same memory baseline before dispatching work.
+What would this master-orchestrator / self-prompting master suggest? Cross-machine fleet sync is now a git pull away — the memory layer is the shared baseline for orchestration.
+What would this developer-experience / ergonomics master suggest? One push delivered skill, contracts, and memory data together — no separate sync steps for future agents.
