@@ -138,33 +138,209 @@ else: print('0')
 "
 }
 
-# Prompt operator to confirm/select candidate skills to add/update into ainish-coder source
+# Prompt operator to confirm/select candidate skills to add/update into ainish-coder source.
+# Supports full raw TTY keypress TUI (matching _skills_toggle_ui_raw),
+# fallback numbered prompt, and headless/non-interactive auto-selection.
 _select_candidate_skills() {
+    local target_dir="$1"
+    shift
     local -a candidates=("$@")
     _SELECTED_CANDIDATES=()
     local count="${#candidates[@]}"
     (( count > 0 )) || return 0
 
-    # Headless / non-interactive / non-TTY: accept all candidates
-    if [[ "${AINISH_HEADLESS:-false}" == "true" ]] || [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || [[ ! -t 0 ]]; then
+    # Headless / non-interactive: accept all candidates
+    if [[ "${AINISH_HEADLESS:-false}" == "true" ]] || [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]]; then
         _SELECTED_CANDIDATES=("${candidates[@]}")
         return 0
     fi
 
-    echo ""
-    echo -e "${BRIGHT_CYAN}External/upstream skill(s) detected at target repo:${RESET}"
+    if [[ -t 0 && ( -t 1 || -t 2 ) ]]; then
+        _select_candidate_skills_raw "$target_dir" "${candidates[@]}"
+    else
+        _select_candidate_skills_numbered "$target_dir" "${candidates[@]}"
+    fi
+}
+
+# _select_candidate_skills_raw <target_dir> <candidates...>
+# Raw-mode keypress checkbox UI for candidate skill ingestion.
+# Up/down arrows move, space toggles, enter saves & ingests,
+# 'a' checks all, 'n' unchecks all, 'q'/'esc' skips ingestion (returns 0 with empty selection).
+_select_candidate_skills_raw() {
+    local target_dir="$1"
+    shift
+    local -a candidates=("$@")
+    local n=${#candidates[@]}
+    (( n > 0 )) || return 0
+
+    local names=() kinds=() states=()
+    local item name kind
+    for item in "${candidates[@]}"; do
+        name="${item%%:*}"
+        kind="${item##*:}"
+        names+=("$name")
+        kinds+=("$kind")
+        # Default candidate skills to on (or toggleable) so operator can uncheck what they don't want
+        states+=("on")
+    done
+
+    local submit_idx=$n cursor=0 frame_lines=$((n + 5))
+    local saved_tty restored=0 i key k1 k2
+    local esc_tmo=1
+    (( BASH_VERSINFO[0] > 3 )) && esc_tmo=0.05
+
+    _cand_ui_restore() {
+        (( restored )) && return 0
+        restored=1
+        stty "$saved_tty" 2>/dev/null || stty sane 2>/dev/null || true
+        printf '\033[?25h' >&2          # show cursor
+    }
+
+    saved_tty="$(stty -g 2>/dev/null)"
+    if [[ -z "$saved_tty" ]]; then
+        _select_candidate_skills_numbered "$target_dir" "${candidates[@]}"
+        return
+    fi
+    trap _cand_ui_restore INT TERM EXIT
+    stty raw -echo 2>/dev/null
+    printf '\033[?25l' >&2              # hide cursor
+
+    _cand_ui_frame() {
+        local i
+        printf '\033[K%b\r\n' "${BRIGHT_CYAN}Skill ingestion — select external skills to pull into ainish-coder${RESET}" >&2
+        printf '\033[K%b\r\n' "${YELLOW}Target: $target_dir${RESET}" >&2
+        printf '\033[K\r\n' >&2
+        for i in "${!names[@]}"; do
+            local kind_label
+            if [[ "${kinds[$i]}" == "new" ]]; then
+                kind_label="${GREEN}+ ${names[$i]}${RESET} ${YELLOW}(new skill — add to ainish-coder)${RESET}"
+            else
+                kind_label="${CYAN}↑ ${names[$i]}${RESET} ${YELLOW}(upstream update — update ainish-coder)${RESET}"
+            fi
+            local check_box
+            if [[ "${states[$i]}" == "on" ]]; then
+                check_box="${GREEN}[x]${RESET}"
+            else
+                check_box="${YELLOW}[ ]${RESET}"
+            fi
+
+            if (( i == cursor )); then
+                printf '\033[K%b\r\n' "  ${BRIGHT_CYAN}▸${RESET} ${check_box} ${BRIGHT_WHITE}${kind_label}${RESET}" >&2
+            else
+                printf '\033[K%b\r\n' "    ${check_box} ${kind_label}" >&2
+            fi
+        done
+        if (( cursor == submit_idx )); then
+            printf '\033[K%b\r\n' "  ${BRIGHT_GREEN}▸ [ Ingest selected ]${RESET}" >&2
+        else
+            printf '\033[K%b\r\n' "    ${YELLOW}[ Ingest selected ]${RESET}" >&2
+        fi
+        printf '\033[K%b' "${YELLOW}↑/↓ move · space toggle · enter ingest · a all · n none · q/esc cancel/skip${RESET}" >&2
+    }
+
+    _cand_ui_frame
+
+    while true; do
+        IFS= read -r -n1 -s key || {
+            trap - INT TERM EXIT
+            _cand_ui_restore
+            printf '\r\n' >&2
+            echo -e "${YELLOW}Ingestion cancelled — no foreign skills pulled.${RESET}" >&2
+            _SELECTED_CANDIDATES=()
+            return 0
+        }
+        if [[ "$key" == $'\x1b' ]]; then
+            if IFS= read -r -n1 -s -t "$esc_tmo" k1; then
+                if [[ "$k1" == "[" || "$k1" == "O" ]]; then
+                    IFS= read -r -n1 -s -t "$esc_tmo" k2 || true
+                    case "$k2" in
+                        A) cursor=$(( (cursor + n) % (n + 1) )) ;;
+                        B) cursor=$(( (cursor + 1) % (n + 1) )) ;;
+                        Z) cursor=$(( (cursor + n) % (n + 1) )) ;; # Shift-Tab
+                    esac
+                fi
+            else
+                trap - INT TERM EXIT
+                _cand_ui_restore
+                printf '\r\n' >&2
+                echo -e "${YELLOW}Ingestion cancelled — no foreign skills pulled.${RESET}" >&2
+                _SELECTED_CANDIDATES=()
+                return 0
+            fi
+        else
+            case "$key" in
+                $'\x03'|$'\x04'|q|Q)
+                    trap - INT TERM EXIT
+                    _cand_ui_restore
+                    printf '\r\n' >&2
+                    echo -e "${YELLOW}Ingestion cancelled — no foreign skills pulled.${RESET}" >&2
+                    _SELECTED_CANDIDATES=()
+                    return 0 ;;
+                ' ')
+                    if (( cursor == submit_idx )); then
+                        break
+                    fi
+                    if [[ "${states[$cursor]}" == "on" ]]; then
+                        states[$cursor]="off"
+                    else
+                        states[$cursor]="on"
+                    fi
+                    ;;
+                $'\r'|$'\n'|'')
+                    break
+                    ;;
+                $'\t')
+                    cursor=$(( (cursor + 1) % (n + 1) ))
+                    ;;
+                a|A)
+                    for i in "${!names[@]}"; do states[$i]="on"; done ;;
+                n|N)
+                    for i in "${!names[@]}"; do states[$i]="off"; done ;;
+                j|J) cursor=$(( (cursor + 1) % (n + 1) )) ;;
+                k|K) cursor=$(( (cursor + n) % (n + 1) )) ;;
+            esac
+        fi
+        printf '\r\033[%dA' "$((frame_lines - 1))" >&2
+        _cand_ui_frame
+    done
+
+    trap - INT TERM EXIT
+    _cand_ui_restore
+    printf '\r\n' >&2
+
+    _SELECTED_CANDIDATES=()
+    for i in "${!names[@]}"; do
+        if [[ "${states[$i]}" == "on" ]]; then
+            _SELECTED_CANDIDATES+=("${candidates[$i]}")
+        fi
+    done
+    return 0
+}
+
+# _select_candidate_skills_numbered <target_dir> <candidates...>
+# Fallback numbered prompt when raw TTY is not available.
+_select_candidate_skills_numbered() {
+    local target_dir="$1"
+    shift
+    local -a candidates=("$@")
+    local count="${#candidates[@]}"
+    _SELECTED_CANDIDATES=()
+    (( count > 0 )) || return 0
+
+    echo "" >&2
+    echo -e "${BRIGHT_CYAN}External/upstream skill(s) detected at target repo (${target_dir}):${RESET}" >&2
     local i=1
     for item in "${candidates[@]}"; do
         local name="${item%%:*}"
         local kind="${item##*:}"
         if [[ "$kind" == "new" ]]; then
-            echo -e "  ${BRIGHT_GREEN}[$i]${RESET} ${GREEN}+ $name${RESET} ${YELLOW}(new skill — add to ainish-coder)${RESET}"
+            echo -e "  ${BRIGHT_GREEN}[$i]${RESET} ${GREEN}+ $name${RESET} ${YELLOW}(new skill — add to ainish-coder)${RESET}" >&2
         else
-            echo -e "  ${BRIGHT_GREEN}[$i]${RESET} ${CYAN}↑ $name${RESET} ${YELLOW}(upstream update — update ainish-coder)${RESET}"
+            echo -e "  ${BRIGHT_GREEN}[$i]${RESET} ${CYAN}↑ $name${RESET} ${YELLOW}(upstream update — update ainish-coder)${RESET}" >&2
         fi
         ((i++))
     done
-    echo ""
+    echo "" >&2
 
     if (( count == 1 )); then
         local name="${candidates[0]%%:*}"
@@ -178,7 +354,7 @@ _select_candidate_skills() {
     fi
 
     # Multiple candidates: allow all, none, or specific numbers
-    echo -e "${YELLOW}Options:${RESET} ${GREEN}y${RESET}=add all, ${GREEN}1 2 ...${RESET}=select specific, ${RED}n${RESET}=skip all"
+    echo -e "${YELLOW}Options:${RESET} ${GREEN}y${RESET}=add all, ${GREEN}1 2 ...${RESET}=select specific, ${RED}n${RESET}=skip all" >&2
     local ans
     read -r -p "Select skills to add/update into ainish-coder [Y/n/numbers]: " ans
     ans="$(echo "$ans" | tr '[:upper:]' '[:lower:]' | xargs)"
@@ -250,7 +426,7 @@ sync_ainish_skills() {
     # 2. Prompt operator to select which candidate skills to ingest into ainish-coder.
     _SELECTED_CANDIDATES=()
     if (( ${#candidate_list[@]} > 0 )); then
-        _select_candidate_skills "${candidate_list[@]}"
+        _select_candidate_skills "$target_dir" "${candidate_list[@]}"
         local selected_item s_name s_kind
         for selected_item in "${_SELECTED_CANDIDATES[@]}"; do
             s_name="${selected_item%%:*}"
