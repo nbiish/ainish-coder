@@ -88,3 +88,12 @@ update: .agents/memories/ record layer created — child llms.txt contract, cura
 intent-merge: feat/memory-dir-agents -> main (92d0eeb, --no-ff); docs+data-only => no-rebuild-needed
 checkout: worktree ../memory-dir removed, branch deleted, merged+unclaimed verified
 end: 2026-09-09T21:12Z
+
+start: 2026-09-10T01:13Z end:
+task: update AGENTS.md line 17 and carve-out to reflect .agents/handoffs, ../memories (.agents/memories/), and AGENTS-TTS-COMMS.txt
+triage: now
+parent: operator
+branch: docs/agents-handoffs-memories
+update: line 17 exception list and line 72 carve-out updated in AGENTS.md; task record added
+intent-merge: docs/agents-handoffs-memories -> main; docs-only => no-rebuild-neededcheckout: worktree ../docs-agents-handoffs removed, branch deleted, merged+unclaimed verified
+end: 2026-09-10T01:13Z
