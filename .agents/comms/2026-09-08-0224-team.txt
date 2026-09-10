@@ -141,3 +141,13 @@ update: updated all references across AGENTS.md, llms.txt, src/help.sh, orchestr
 intent-merge: chore/skills-prune-legacy-memory-graph -> main; skills/docs-only => no-rebuild-needed
 checkout: worktree ../ainish-coder-prune-legacy removed, branch deleted, merged+unclaimed verified
 end: 2026-09-10T03:55Z
+
+start: 2026-09-10T04:55Z end: 2026-09-10T04:58Z
+task: integrate and expertly document browser-skill in .agents/skills/browser-skill
+triage: now
+parent: operator
+branch: feat/skills-browser-skill
+update: bsk CLI installed and verified via bsk doctor; .agents/skills/browser-skill/SKILL.md created with complete lifecycle, perception hierarchy, syntax reference, user tab isolation, and error recovery; references populated (cli-help, doctor-reference, AGENT_INSTALL, README)
+intent-merge: feat/skills-browser-skill -> main; skills/docs-only => no-rebuild-needed
+checkout: branch merged to main, task record TASK.2026-09-10.browser-skill.md closed
+end: 2026-09-10T04:58Z
