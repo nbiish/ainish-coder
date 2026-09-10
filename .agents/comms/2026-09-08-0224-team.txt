@@ -118,3 +118,14 @@ update: 3 rounds of repo-memory usage on local-router completed (memorix, engram
 intent-merge: feat/skills-repo-memory-graph-intelligence -> main (8d0e232, --no-ff); docs/skills-only => no-rebuild-needed
 checkout: worktree ../repo-memory-graph-intelligence removed, branch deleted, merged+unclaimed verified
 end: 2026-09-10T03:00Z
+
+start: 2026-09-10T03:38Z end:
+task: fix unsloth shim/service in local-router and unify repo-memory + graph-intelligence into single self-prompting skill
+triage: now
+parent: operator
+branch: feat/skills-repo-memory-graph-intelligence
+update: local-router unsloth shim/service port 8888, binary resolution, start/run subcommands fixed and merged
+update: unified repo-memory-graph-intelligence skill created with self-prompting Dual-Recon Loop, 4 symbiotic bridges, GitNexus AST CLI/MCP reference, 3-engine memory routing, .agents/memories/ layer; existing skills updated with redirect notices; MEMORY.md updated
+intent-merge: feat/skills-repo-memory-graph-intelligence -> main; docs/skills-only => no-rebuild-needed
+checkout: worktree ../ainish-coder-skills-unify removed, branch deleted, merged+unclaimed verified
+end: 2026-09-10T03:42Z

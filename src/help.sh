@@ -160,7 +160,7 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 21 skill packs:
+                              Deploys 22 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
@@ -181,6 +181,7 @@ UTILITY COMMANDS:
                               - skyvern/                   (AI browser automation)
                               - orchestrate-subagent-masters/ (Subagent master orchestration: dsh headless/ACP + native)
                               - question-me/               (Socratic design interview & tree resolution)
+                              - repo-memory-graph-intelligence/ (Dual-substrate AST code graph + persistent repo-memory)
 
                               Example: ainish-coder --skills ~/my-project
 

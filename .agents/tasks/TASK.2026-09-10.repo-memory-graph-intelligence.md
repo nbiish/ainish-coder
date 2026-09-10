@@ -5,13 +5,17 @@
 - **Scope:** Run 3 rounds of `/repo-memory` on `~/code/local-router/`, establish `.agents/memories/` in `local-router`, compare with `/graph-intelligence`, formulate novel synergies, and refine both skills (`repo-memory` and `graph-intelligence`).
 - **Branch:** `feat/skills-repo-memory-graph-intelligence`
 - **Worktree:** `../repo-memory-graph-intelligence`
-- **Status:** completed
+- **Status:** active
 - **Outcome:**
   - 3 rounds executed on `local-router` (`D:\Code\local-router`):
     - Round 1: Session open, project orientation via `memorix context` / `engram context`, foundational gotchas/facts stored (`memorix remember`, `engram save`).
     - Round 2: AST call-chain exploration via `gitnexus context`, structured decision logged (`memorix reasoning store`, `engram save --type decision`), knowledge graph entities grounded in AST symbols.
     - Round 3: Conflict scan and diagnostics (`engram conflicts scan`, `engram doctor`), `.agents/memories/` initialized in `local-router` with `llms.txt`, `MEMORY.md`, and snapshots in `exports/` (`engram.json`, `memorix.local-router.json`, `reference-graph.jsonl`).
   - Compared `/repo-memory` with `/graph-intelligence` and formulated 4 novel symbiotic bridges.
-  - Refined `/graph-intelligence` (v4.0.0): anchored on GitNexus, pruned heavyweight Semantica/Graphify bloat, established the 4-bridge protocol to `/repo-memory`.
-  - Refined `/repo-memory`: added Section 10 ("The Code-Graph Bridge Protocol").
-  - Updated `MEMORY.md` in `ainish-coder`.
+  - Fixed Unsloth service shim and inference routing in `~/code/local-router`:
+    - Resolved real binary location `/mnt/c/Users/kenwa/.unsloth/studio/bin/unsloth.exe` via lazy candidate discovery fallbacks.
+    - Updated backendPort from 8000 to native 8888 (`UNSLOTH_PORT`), auto-migrating legacy provider configurations.
+    - Added `start` and `run` to `serveSubcommands` so `unsloth start dsh` and `unsloth start hermes` boot Local Router and register the custom provider.
+    - Verified `unsloth start dsh` and `unsloth start hermes` execute cleanly and route inference to localhost:11434.
+    - Merged `feat/unsloth-shim-start-inference` into `local-router` main.
+  - Unifying `/repo-memory` and `/graph-intelligence` into single self-prompting skill `.agents/skills/repo-memory-graph-intelligence`.
