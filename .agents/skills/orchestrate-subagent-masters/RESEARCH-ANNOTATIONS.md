@@ -666,6 +666,6 @@ Each rule below maps to its SKILL.md implementation surface.
    write-read roundtrips) and wired into all four dsh profiles via
    ~/.dsh/memory-mcp.cordis.yml inlined into each profile's cordis.patch.yml —
    dsh headless store→fresh-session recall roundtrip green. Skill pack:
-   .agents/skills/repo-memory/SKILL.md. Gotchas: patch files accept ONE YAML
+   .agents/skills/repo-memory-graph-intelligence/SKILL.md. Gotchas: patch files accept ONE YAML
    array (no include:, no second document after []); engram mem_search takes
    `query` (not `q`); reference-memory relations require both endpoints first.

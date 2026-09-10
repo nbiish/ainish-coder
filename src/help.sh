@@ -160,13 +160,12 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 22 skill packs:
+                              Deploys 21 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
                               - code-security/             (Safety-critical code engineering)
-                              - graph-intelligence/        (Three-pillar knowledge graph: GitNexus + Graphify + Semantica)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - llm-security/              (LLM & agentic AI security)
                               - modern-prompting/          (OOReDAct advanced prompting)
