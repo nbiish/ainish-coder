@@ -2,7 +2,7 @@
 # MOLECULE: Persisting skill-selection for distribution
 #
 # The operator toggles which .agents/skills/ packs distribute via
-# `ainish-coder --skills` (interactive keypress toggle UI: arrows move,
+# `ainish-coder --skills-sync` (interactive keypress toggle UI: arrows move,
 # space toggles, enter/space on the Save & submit row persists). The
 # choice persists in
 # ~/.config/ainish-coder/skills-selection.json (per-repo keys, keyed by
@@ -16,7 +16,7 @@
 # Hard exclusion (never configurable): .scrolls* payload, 8thfire-scrolls,
 # and ghost-layer-injector — the explicit --scrolls channel only.
 #
-# Headless: `ainish-coder --skills <dir> --headless` / `--rules <dir>
+# Headless: `ainish-coder --skills-sync <dir> --headless` / `--rules <dir>
 # --headless` skips every prompt and applies the persisted selection as-is
 # (agent/CI path).
 
@@ -262,7 +262,7 @@ print(d if d in ('on', 'off') else os.environ['GLOBAL_DEFAULT'])
 # _skills_toggle_ui <repo_root> — interactive skill-selection UI.
 # repo_root = the TARGET repo the selection applies to (config key); the
 # listed packs are the SOURCE packs in REPO_DIR/.agents/skills (what
-# --skills/--rules actually distribute).
+# --skills-sync/--rules actually distribute).
 # Returns 0 when the operator confirms; selection already persisted on disk.
 # Cancelling (esc/q/ctrl+c/ctrl+d) saves NOTHING and returns 130.
 # All UI text to stderr; nothing on stdout.
