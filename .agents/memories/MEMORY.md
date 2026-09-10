@@ -8,6 +8,7 @@ One entry per durable fact. Format: `- [YYYY-MM-DD] <fact> *(source: <server/too
 
 ## Decisions
 
+- [2026-09-10] Combined /repo-memory (Memorix, Reference Memory, Engram) with /graph-intelligence (GitNexus) via a 4-bridge protocol: AST blast-radius scoped recall, canonical AST UIDs in Reference Memory, diff-to-symbol session summaries, and AST-driven stale memory retirement. Pruned heavy Semantica/Graphify layers in graph-intelligence to focus on pure utilitous AST execution. *(source: operator directive, this session)*
 - [2026-09-08] All three memory MCP servers (memorix, reference_memory, engram) adopted as the machine-standard memory plane; `.agents/memories/` is their git-tracked record layer. *(source: operator directive, this session)*
 
 ## Gotchas
