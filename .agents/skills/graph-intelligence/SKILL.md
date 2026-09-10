@@ -12,6 +12,10 @@ version: 4.0.0
 
 # Graph Intelligence — Utilitous Code-Graph Engine
 
+> [!IMPORTANT]
+> **Unified Skill Notice:** For complete dual-substrate codebase intelligence (combining AST call-chains and blast-radius analysis with persistent memory), use the unified skill: [.agents/skills/repo-memory-graph-intelligence](file:///D:/Code/ainish-coder/.agents/skills/repo-memory-graph-intelligence/SKILL.md).
+
+
 A streamlined, high-velocity AST and code-symbol intelligence engine powered by **GitNexus**, seamlessly bridged with `/repo-memory` for persistent knowledge, decisions, and gotchas.
 
 ## 0. Fleet Context Standard — llms.txt is the PRD (CLAUDE.md replacement)
