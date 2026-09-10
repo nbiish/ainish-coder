@@ -164,3 +164,16 @@ intent-merge: feat/skills-sync-tui -> main; CLI/shell-only => no-rebuild-needed
 checkout: branch merged to main, task record TASK.2026-09-10.skills-sync-tui.md closed
 end: 2026-09-10T05:15Z
 
+start: 2026-09-10T05:25Z end: 2026-09-10T05:30Z
+task: remove legacy --skills command in favor of concise --skills-sync and --rules
+triage: now
+parent: operator
+branch: chore/cli-remove-skills-command
+update: removed duplicate --skills option in bin/ainish-coder; folded symlink confirmation into --skills-sync
+update: updated src/help.sh, src/skills_selection.sh, src/deploy_skills.sh, src/verify_skills.sh, src/templates/AGENTS.COMMS.md, llms.txt, and README.md to standardize on --skills-sync
+update: bash -n syntax validation passed; security gate PASS
+intent-merge: chore/cli-remove-skills-command -> main; CLI/shell-only => no-rebuild-needed
+checkout: branch merged to main, task record TASK.2026-09-10.remove-skills-cmd.md closed
+end: 2026-09-10T05:30Z
+
+

@@ -57,7 +57,7 @@ main() {
     shift
 
     # --headless second argument: skip ALL prompts, apply the persisted
-    # selection as-is. Agent/CI path: `ainish-coder --skills <dir> --headless`
+    # selection as-is. Agent/CI path: `ainish-coder --skills-sync <dir> --headless`
     # or `ainish-coder --rules <dir> --headless`.
     local AINISH_HEADLESS="${AINISH_HEADLESS:-false}"
     local args=()
@@ -187,7 +187,7 @@ main() {
                 _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
             elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
                 # Interactive: open the toggle UI first so this run's choices
-                # persist for every future --rules/--skills/--skills-sync.
+                # persist for every future --rules/--skills-sync.
                 _skills_toggle_ui "$target_dir" && {
                     if _confirm_symlink; then
                         AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
@@ -316,36 +316,11 @@ main() {
             if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
                 # Headless: persisted selection governs; no prompts.
                 sync_ainish_skills "${target_dir}"
+                _TRACK_DETAIL="skills-sync-headless"
             elif [[ "${AINISH_NON_INTERACTIVE:-false}" != "true" && -t 0 ]]; then
                 # A real terminal IS the interactive path: toggle UI first —
                 # add/remove packs to sync here; choices persist for every
-                # future --skills/--rules/--skills-sync.
-                if _skills_toggle_ui "$target_dir"; then
-                    sync_ainish_skills "${target_dir}"
-                else
-                    echo -e "${YELLOW}Sync aborted (no selection saved).${RESET}"
-                    _TRACK_DETAIL="sync-aborted"
-                fi
-            else
-                # Non-interactive default: apply persisted config as-is.
-                sync_ainish_skills "${target_dir}"
-            fi
-            ;;
-
-        --skills)
-            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-                # Headless: two-way NEWEST-WINS sync, no prompts — newly
-                # detected / more-recently-refined target skills are
-                # auto-ingested into ainish-coder, then the persisted
-                # selection deploys target-ward. Agent/CI path.
-                sync_ainish_skills "${target_dir}"
-                _TRACK_DETAIL="skills-sync-headless"
-            elif [[ "${AINISH_NON_INTERACTIVE:-false}" != "true" && -t 0 ]]; then
-                # A real terminal IS the interactive path: open the
-                # node-choice toggle UI — pick the packs this repo receives;
-                # selection persists across terminals. (-y/--headless bypass.)
-                # Then two-way sync: target-refined/new skills are offered
-                # back into ainish-coder (newest version wins both ways).
+                # future --rules/--skills-sync.
                 if _skills_toggle_ui "$target_dir"; then
                     if _confirm_symlink; then
                         AINISH_LINK_MODE="true" sync_ainish_skills "$target_dir"
@@ -354,12 +329,11 @@ main() {
                     fi
                     _TRACK_DETAIL="skills-sync-selected"
                 else
-                    echo -e "${YELLOW}Deploy aborted (no selection saved).${RESET}"
-                    _TRACK_DETAIL="aborted"
+                    echo -e "${YELLOW}Sync aborted (no selection saved).${RESET}"
+                    _TRACK_DETAIL="sync-aborted"
                 fi
             else
-                # Non-interactive default: two-way sync under the persisted
-                # config as-is (same semantics as --skills-sync).
+                # Non-interactive default: apply persisted config as-is.
                 sync_ainish_skills "${target_dir}"
                 _TRACK_DETAIL="skills-sync-persisted"
             fi
