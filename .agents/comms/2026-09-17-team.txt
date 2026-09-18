@@ -1,0 +1,19 @@
+### [2026-09-17T22:29:00Z] checkin | agent:antigravity | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
+- start:2026-09-17T22:29:00Z
+- end:2026-09-17T22:29:00Z
+- scope:AGENTS.md,.agents/tasks/TASK.2026-09-17.strip-subagents-agents-md.md
+- triage:now
+- objective:strip subagent orchestration content from AGENTS.md so agents focus on core duties; orchestrate-subagent-masters remains an on-demand skill called by users
+- input:user directive
+- output:task active
+- status:active
+- blockers:none
+### [2026-09-17T22:30:30Z] intent-merge | agent:antigravity | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
+- start:2026-09-17T22:30:30Z
+- end:2026-09-17T22:30:30Z
+- scope:AGENTS.md,.agents/tasks/TASK.2026-09-17.strip-subagents-agents-md.md
+- objective:merge chore/agents-strip-subagents -> main — strip subagent orchestration from AGENTS.md, retain orchestrate-subagent-masters skill for on-demand user calls
+- input:user directive; green gates (security_gate clean, zero subagent occurrences remaining in AGENTS.md)
+- output:merging now; no-rebuild-needed (docs-only)
+- status:merged
+- blockers:none
