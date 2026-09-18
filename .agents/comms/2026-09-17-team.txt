@@ -17,3 +17,10 @@
 - output:merging now; no-rebuild-needed (docs-only)
 - status:merged
 - blockers:none
+### [2026-09-17T22:30:45Z] checkout | agent:antigravity | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
+- start:2026-09-17T22:30:45Z
+- end:2026-09-17T22:30:45Z
+- scope:AGENTS.md,.agents/tasks/TASK.2026-09-17.strip-subagents-agents-md.md
+- objective:completed stripping subagents from AGENTS.md, merged to main, worktree cleaned up
+- status:closed
+- blockers:none
