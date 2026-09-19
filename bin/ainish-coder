@@ -491,6 +491,10 @@ main() {
                     editor_cmd="nano"
                 elif command -v vim >/dev/null 2>&1; then
                     editor_cmd="vim"
+                elif command -v vi >/dev/null 2>&1; then
+                    editor_cmd="vi"
+                elif [[ "$(uname -s 2>/dev/null)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then
+                    editor_cmd="open -W -t"
                 elif command -v notepad.exe >/dev/null 2>&1; then
                     editor_cmd="notepad.exe"
                 fi
