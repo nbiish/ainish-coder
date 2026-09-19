@@ -207,8 +207,8 @@ main() {
                 _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
             fi
 
-            # Ensure workspace customizations root (.agents/tasks) is scaffolded
-            mkdir -p "$target_dir/.agents/tasks" 2>/dev/null || true
+            # Ensure workspace customizations root (.agents/tasks, .agents/suggestions) is scaffolded
+            mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" 2>/dev/null || true
 
             echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
             ;;
