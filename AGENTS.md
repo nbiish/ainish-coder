@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Persistent repo-memory via three MCP servers (memorix, reference_memory, engram) available to every MCP-capable agent harness — orient from memory, store typed facts, resolve stale entries; git-tracked memory records in .agents/memories/ (see .agents/skills/repo-memory-graph-intelligence/SKILL.md). Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Gates green → merge autonomously, no operator confirmation gate. Output full production code. Concurrent agents coordinate via the dated ledger .agents/comms/{date}-team.txt and task records in .agents/tasks/. Triage tasks into now/next/queued/backlog lanes with a bounded worktree budget. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Always believe in yourself. OOReDAct: Observe → Orient → Reason → Decide → Act.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Persistent repo-memory via three MCP servers (memorix, reference_memory, engram) available to every MCP-capable agent harness — orient from memory, store typed facts, resolve stale entries; git-tracked memory records in .agents/memories/ (see .agents/skills/repo-memory-graph-intelligence/SKILL.md). Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Gates green → merge autonomously, no operator confirmation gate. Output full production code. Concurrent agents coordinate via the dated ledger .agents/comms/{date}-team.txt, task records in .agents/tasks/{date}-task.md, and suggestions in .agents/suggestions/{date}-suggestions.md. Triage tasks into now/next/queued/backlog lanes with a bounded worktree budget. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Always believe in yourself. OOReDAct: Observe → Orient → Reason → Decide → Act.
 ---
 
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
@@ -14,7 +14,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 **Worktree path:** Sibling of main repo (e.g. `../my-feature`) — discoverable, never nested inside main.
 
 **Rules:**
-- **NEVER** read, edit, or commit files while on `main`. (Exceptions: appending to the main repo's shared ledger `.agents/comms/{date}-team.txt`, `.agents/handoffs/`, and `.agents/memories/` — from a worktree: `../<main-repo>/`).
+- **NEVER** read, edit, or commit files while on `main`. (Exceptions: appending to the main repo's shared ledger `.agents/comms/{date}-team.txt`, `.agents/suggestions/{date}-suggestions.md`, `.agents/handoffs/`, and `.agents/memories/` — from a worktree: `../<main-repo>/`).
 - One task = one branch = one worktree. No exceptions.
 - On `main` with uncommitted changes: stash, create worktree from `main`, pop stash, continue.
 - **Git Tree & Diff Checks:** Run `git status` and `git diff` for new, edited, or removed content by users or peer agents before branching. Never overwrite or blindly restore old main branch content.
@@ -40,7 +40,7 @@ Conflict → fail closed, explain, ask.
 
 - **This AGENTS.md is the singular, repository-agnostic governing contract.** The exact same file runs in this repository AND is deployed to every target project by `ainish-coder --rules` / `--agents` as the target's single `AGENTS.md`. Keep it free of repo-specific detail; it encodes the universal standard only.
 - **`llms.txt` is the PRD and guiding document of each repository.** Project purpose, scope, contracts, structure, per-repo rules, and the Child DOX Index live in its DOX chain — never in AGENTS.md. Read the llms.txt chain (root → child → target path) before editing anything.
-- **Division of labor:** AGENTS.md = general standard (worktree isolation, PQC secrets, COMMS coordination, quality gates) + wiring for custom tooling (`pqc-secrets`, `cli-tts`, `security_gate.py`) and modular skills in `.agents/skills/`. llms.txt = what THIS project is and how THIS project works.
+- **Division of labor:** AGENTS.md = general standard (worktree isolation, PQC secrets, COMMS coordination, quality gates) + wiring for custom tooling (`pqc-secrets`, `security_gate.py`) and modular skills in `.agents/skills/`. llms.txt = what THIS project is and how THIS project works.
 - **Drift rule:** repo-specific guidance discovered while working belongs in the nearest owning `llms.txt`, never in AGENTS.md. If AGENTS.md and llms.txt conflict, llms.txt wins for repo-local detail; AGENTS.md wins for the universal standard.
 </DOCUMENT_MODEL>
 
@@ -50,7 +50,7 @@ Conflict → fail closed, explain, ask.
 ## TASK COORDINATION, OOREDACT & CHAIN-OF-DRAFT
 
 - **OOReDAct Focus:** Keep all agents laser-focused on coding and execution through continuous cycles of Observe → Orient → Reason → Decide → Act.
-- **Fast Orientation (`git context`):** Dumps latest COMMS entries, task-file gists + triage lanes (`.agents/tasks/`), `llms.txt` PRD version, worktrees, stashes, and timeline. Run first in any repo.
+- **Fast Orientation (`git context`):** Dumps latest COMMS entries, task-file gists + triage lanes (`.agents/tasks/{date}-task.md`), suggestions (`.agents/suggestions/{date}-suggestions.md`), `llms.txt` PRD version, worktrees, stashes, and timeline. Run first in any repo.
 - **PRD Anchor:** `llms.txt` is the authoritative PRD. Read unconditionally; overrides conflicting sources per P2.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 - **Modular Skills:** Modular capabilities live in `.agents/skills/<skill>/SKILL.md`. Read before proceeding. Preserve byte-identity on shared skills.
@@ -64,10 +64,11 @@ Conflict → fail closed, explain, ask.
 When ≥1 agent works at once, coordinate through the coordination files under `.agents/` (main repo; from a worktree: `../<main-repo>/.agents/`):
 
 - **Ledger — `.agents/comms/{date}-team.txt`:** One file per UTC **date**, appended in place all day; the latest file is the active ledger. **No hourly rotation, no excess documents.** Open a new file (`{date}.{slug}-team.txt`) only when an agent decides timing warrants it — a new task, a different agent group chat, or an incident split.
-- **Tasks — `.agents/tasks/TASK.{date}.{slug}.md`:** One concise task record per task (scope, branch, status), updated in place — never timestamped copies.
+- **Tasks — `.agents/tasks/{date}-task.md`:** One concise task record per task (scope, branch, status), updated in place — never timestamped copies. Open a new file (`{date}.{slug}-task.md`) only when an agent decides timing or multi-task concurrency warrants it.
+- **Suggestions — `.agents/suggestions/{date}-suggestions.md`:** One suggestions record per UTC **date**, appended in place each turn with the masters' schema; reviewed at start of turn and updated at turn close. Open a new file (`{date}.{slug}-suggestions.md`) only when timing or an incident split warrants it.
 - **Lifecycle:** Append timestamped entries: `checkin` → `update` → `intent-merge` → `checkout`. Bracket every entry with `start:` / `end:` ISO-8601 timestamps; never leave a `start:` unclosed.
-- **Carve-out:** Appending to the main repo's active `.agents/comms/{date}-team.txt`, `.agents/handoffs/`, or `.agents/memories/` is permitted outside a worktree. Before `checkout`, commit coordination artifacts on the task branch and merge to `main`.
-- **Remote Record:** `.agents/comms/`, `.agents/tasks/`, and `.agents/handoffs/` MUST travel with git push to remote across machines.
+- **Carve-out:** Appending to the main repo's active `.agents/comms/{date}-team.txt`, `.agents/suggestions/{date}-suggestions.md`, `.agents/handoffs/`, or `.agents/memories/` is permitted outside a worktree. Before `checkout`, commit coordination artifacts on the task branch and merge to `main`.
+- **Remote Record:** `.agents/comms/`, `.agents/tasks/`, `.agents/suggestions/`, and `.agents/handoffs/` MUST travel with git push to remote across machines.
 </COMMS>
 
 ---
@@ -192,7 +193,7 @@ $$\text{Observe} \longrightarrow \text{Orient} \longrightarrow \text{Reason} \lo
 3. **Supply-Chain Integrity:** Pin dependency versions and commit lockfiles (`Cargo.lock`, `package-lock.json`, `uv.lock`). Verify tool binaries before invocation.
 4. **Systems & Architecture:** Enforce strict isolation in dedicated worktrees, non-default ports, git tree/diff checks for new content, and clean runtime teardown/rebuild post-merge.
 5. **Reliability & QA:** Enforce bounded scopes, fast timeouts, automated regression tests, and compiler/linter gate passes.
-6. **Governance & Provenance:** Record lifecycle events (`checkin` → `update` → `intent-merge` → `checkout`) in the active dated ledger (`.agents/comms/{date}-team.txt`), with task records in `.agents/tasks/`.
+6. **Governance & Provenance:** Record lifecycle events (`checkin` → `update` → `intent-merge` → `checkout`) in the active dated ledger (`.agents/comms/{date}-team.txt`), with task records in `.agents/tasks/{date}-task.md` and suggestions in `.agents/suggestions/{date}-suggestions.md`.
 7. **Production Code:** Never emit passive commentary or placeholders. Deliver complete, verified, working production code.
 </EXECUTION>
 
@@ -244,7 +245,7 @@ Rules:
 
 Run before completing any task:
 1. **Worktree:** Changes executed in dedicated worktree, not on `main`.
-2. **Task & PRD:** Task recorded in `.agents/tasks/`, `llms.txt` verified, no secrets logged.
+2. **Task & PRD:** Task recorded in `.agents/tasks/{date}-task.md`, suggestions reviewed and recorded in `.agents/suggestions/{date}-suggestions.md`, `llms.txt` verified, no secrets logged.
 3. **COMMS Ledger:** Attributed `checkin`/`update`/`intent-merge` entries in the latest `.agents/comms/*-team.txt`.
 4. **Crypto Audit:** FIPS 203/204/205 exclusively for secrets; zero hardcoded credentials or `.env` files.
 5. **Quality Gates:** Code compiles cleanly, typechecks (`tsc`), and native test suites pass (`npm test`).
@@ -257,13 +258,13 @@ Run before completing any task:
 ---
 
 <OUTPUT>
-## END-OF-CHAT VOICE SUMMARY (MANDATORY)
+## END-OF-CHAT MASTERS' SUGGESTIONS & REVIEW (MANDATORY)
 
-Before yielding back to the operator at the end of your turn, ALWAYS speak a brief status update via `cli-tts`. This is how the operator tracks what every agent did across every repo.
-- **Command Structure:** One `cli-tts --prompt` call per turn. Exactly one `Next step:` marker. Fused order followed by one-sentence answers to every master:
+Before yielding back to the operator at the end of your turn, ALWAYS review existing suggestions in `.agents/suggestions/{date}-suggestions.md` and append the masters' suggestions for this turn. This is how the operator and peer agents track multi-perspective reviews and next steps across every repo.
+- **Suggestions Structure:** One entry block per turn appended to `.agents/suggestions/{date}-suggestions.md` (UTC date). Exactly one `Next step:` marker. Fused order followed by one-sentence answers to every master:
 
-```bash
-cli-tts --prompt "$(cat <<'EOF'
+```markdown
+### [<ISO-8601 timestamp>] <task/branch/agent>
 <concise summary of what changed>. Next step: <ONE fused imperative>
 What would this adversarial / security master suggest? <one sentence>
 What would this privacy / data-protection regulatory master suggest? <one sentence>
@@ -274,15 +275,13 @@ What would this governance / sovereignty master suggest? <one sentence>
 What would this terminal-orchestration / swe-bench master suggest? <one sentence>
 What would this master-orchestrator / self-prompting master suggest? <one sentence>
 What would this developer-experience / ergonomics master suggest? <one sentence>
-EOF
-)" >/dev/null 2>&1
 ```
-- **Rules:** One TTS session per call (`kitten-tts-nano` @ 1.8×). Fire-and-forget (omit `--output` and `--wait`). Keep stdout quiet.
-- **Durable Transcript:** The fused line plus nine master answers are automatically appended to `AGENTS-TTS-COMMS.txt`.
+- **Review Protocol:** Before planning or deciding actions, review recent suggestions in `.agents/suggestions/{date}-suggestions.md` to incorporate feedback from previous turns and peer agents.
+- **Durable Record:** Append in place all day to `.agents/suggestions/{date}-suggestions.md` (UTC date). Open a new file (`{date}.{slug}-suggestions.md`) only when an agent decides timing or an incident split warrants it.
 </OUTPUT>
 
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Green gates are the merge approval — merge autonomously, never block a run on operator merge confirmation (the ledger `intent-merge` is the audit record; git history is the revert path). Concurrent agents coordinate via the dated ledger `.agents/comms/{date}-team.txt` (rotate only on agent-decided need: new task, new agent group chat) and task records in `.agents/tasks/`. Triage tasks into now/next/queued/backlog lanes with a ≤3-worktree budget. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Orient from repo-memory (memorix + reference_memory + engram, available to every MCP-capable harness on this machine; land the record in `.agents/memories/` at session close; `.agents/skills/repo-memory-graph-intelligence/SKILL.md`) and store typed facts as you learn; resolve stale memory, never let it rot. Speak with one `cli-tts --prompt` (1.8×, random voice, one tts-cli session, parent returns immediately; see `.agents/skills/tts-cli/SKILL.md`). Always believe in yourself.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Green gates are the merge approval — merge autonomously, never block a run on operator merge confirmation (the ledger `intent-merge` is the audit record; git history is the revert path). Concurrent agents coordinate via the dated ledger `.agents/comms/{date}-team.txt` (rotate only on agent-decided need: new task, new agent group chat), task records in `.agents/tasks/{date}-task.md`, and suggestions in `.agents/suggestions/{date}-suggestions.md`. Triage tasks into now/next/queued/backlog lanes with a ≤3-worktree budget. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Orient from repo-memory (memorix + reference_memory + engram, available to every MCP-capable harness on this machine; land the record in `.agents/memories/` at session close; `.agents/skills/repo-memory-graph-intelligence/SKILL.md`) and store typed facts as you learn; resolve stale memory, never let it rot. Review suggestions and record masters' suggestions in `.agents/suggestions/{date}-suggestions.md` using the masters schema at every turn close. Maintain `.agents/tasks/{date}-task.md` for task records. Always believe in yourself.
 </REINFORCEMENT>

@@ -10,9 +10,9 @@ set -euo pipefail
 
 auto_thinking__task_slug() {
   local task_file=""
-  task_file="$(ls -t .agents/tasks/TASK.*.md 2>/dev/null | head -1 || true)"
+  task_file="$(ls -t .agents/tasks/*-task.md .agents/tasks/TASK.*.md 2>/dev/null | head -1 || true)"
   if [[ -n "$task_file" ]]; then
-    basename "$task_file" .md | sed 's/^TASK\.//'
+    basename "$task_file" .md | sed 's/^TASK\.//; s/-task$//'
   else
     echo "none"
   fi
