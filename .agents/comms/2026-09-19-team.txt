@@ -71,3 +71,35 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - objective:completed masters' suggestions refactor to .agents/suggestions/{date}-suggestions.md and task schema refactor to .agents/tasks/{date}-task.md, merged to main, cleaning up worktree
 - status:closed
 - blockers:none
+
+### [2026-09-19T19:17:35Z] checkin | agent:antigravity | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
+- start:2026-09-19T19:17:35Z
+- end:2026-09-19T19:17:35Z
+- scope:AGENTS.md,llms.txt,bin/ainish-coder,src/deploy_agents.sh,src/file_operations.sh,src/agents_protection.sh,src/deploy_local_security.sh,bin/security_gate.py
+- triage:now
+- objective:plan symlinked AGENTS.md deployment with multi-layered overwrite protection for root repo
+- input:user request
+- output:implementation plan created in artifact directory
+- status:active
+- blockers:none
+
+### [2026-09-19T19:28:52Z] intent-merge | agent:antigravity | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
+- start:2026-09-19T19:28:52Z
+- end:2026-09-19T19:28:52Z
+- scope:AGENTS.md,llms.txt,bin/ainish-coder,bin/security_gate.py,src/deploy_agents.sh,src/agents_protection.sh,src/help.sh,.agents/canonical/
+- objective:merge feat/rules-symlink-protection -> main — deploy AGENTS.md as protected symlink with canonical snapshot and pre-commit guard
+- input:user directive; green gates (security_gate clean, bash -n clean, comprehensive test suite passed)
+- output:merging autonomously now; no-rebuild-needed (scripts/tooling/docs only)
+- status:merged
+- blockers:none
+
+### [2026-09-19T19:29:36Z] checkout | agent:antigravity | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
+- start:2026-09-19T19:29:36Z
+- end:2026-09-19T19:29:36Z
+- scope:AGENTS.md,llms.txt,bin/ainish-coder,bin/security_gate.py,src/deploy_agents.sh,src/agents_protection.sh,src/help.sh,.agents/canonical/
+- objective:completed symlinked AGENTS.md deployment with OS write-protection, downstream pre-commit guard, canonical self-healing, and CLI management helpers; verified against scratch target and deployed to local-router; merged to main and worktree cleaned up
+- status:closed
+- blockers:none
+
+
+
