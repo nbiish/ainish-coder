@@ -72,7 +72,7 @@ fi
 echo ''
 echo '--- TASKS ---'
 found=0
-for f in .agents/tasks/TASK.*.md; do
+for f in .agents/tasks/*-task.md .agents/tasks/TASK.*.md; do
   [ -f "${f}" ] || continue
   found=1
   lines=$(wc -l < "${f}" | tr -d ' ')
@@ -81,6 +81,20 @@ for f in .agents/tasks/TASK.*.md; do
   grep -v '^$\|^#' "${f}" 2>/dev/null | head -3 | sed 's/^/    /'
 done
 if [ "${found}" -eq 0 ]; then
+  echo "  none"
+fi
+
+echo ''
+echo '--- SUGGESTIONS ---'
+found_sugg=0
+for f in .agents/suggestions/*-suggestions.md; do
+  [ -f "${f}" ] || continue
+  found_sugg=1
+  lines=$(wc -l < "${f}" | tr -d ' ')
+  echo "  $(basename "${f}") (${lines}L)"
+  grep -E '^###|^<|Next step:' "${f}" 2>/dev/null | tail -4 | sed 's/^/    /'
+done
+if [ "${found_sugg}" -eq 0 ]; then
   echo "  none"
 fi
 
