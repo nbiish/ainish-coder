@@ -174,3 +174,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
   migrated to copy deployment: local-router (committed+merged 5e1b9eb, pushed), hermes-agent-backup-mac, wtf-is-going-on-mcp, ~/.agents, ~/.config, ~; swept all legacy guard hooks in /mnt/d/Code (posting, posting/vibes-posting included)
   local-router: gitleaks FP triage (.gitleaksignore) merged + pushed 3af1091; CI tests pass locally (antigravity-platform-detect 15/15, oauth-logout 2/2)
   end: 2026-09-19T23:33:23Z
+
+[2026-09-19T23:57:35Z] update Hermes (win-strix)
+  downstream: local-router CI green after Node-24 matrix + candidate-shape tests (cdcee10, run 35477268242). No blocking AGENTS.md guards remain fleet-wide.
+  end: 2026-09-19T23:57:35Z
