@@ -41,4 +41,16 @@ What would this terminal-orchestration / swe-bench master suggest? Use ainish-co
 What would this master-orchestrator / self-prompting master suggest? All lifecycle stages (checkin, intent-merge, checkout) and task records are fully synchronized in the .agents/ coordination files.
 What would this developer-experience / ergonomics master suggest? The operator can now edit AGENTS.md in ainish-coder and have all codebases update at once without risking downstream agent corruption.
 
+### [2026-09-19T19:41:00Z] feat/rules-cross-platform-posix | agent:antigravity
+Hardened AGENTS.md symlinks, OS write-protection, and git pre-commit hooks across Linux and macOS with BSD uchg flags, POSIX printf hook formatting, multi-tier SHA-256 calculation, and shebang-prepending pre-commit injection. Next step: Run ainish-coder --verify-rules across target Linux and macOS workstations to validate local immutability and symlink resolution.
+What would this adversarial / security master suggest? Use macOS BSD user immutable flags (chflags uchg) alongside POSIX chmod 444 so that even processes running as the owner cannot alter or decouple the canonical contract.
+What would this privacy / data-protection regulatory master suggest? Keep all path canonicalization and checksum checks strictly local without logging local usernames or full host mount paths into git tracking.
+What would this supply-chain / third-party-risk master suggest? Maintain zero external dependencies by using standard POSIX shell constructs and ubiquitous system utilities (shasum, openssl, python3, chflags) that exist by default on macOS and Linux.
+What would this systems-architecture / devops / infrastructure master suggest? Prepend git pre-commit guards directly after the shebang so downstream hooks run the canonical integrity check prior to custom scripts or early exit 0 calls.
+What would this reliability / verification master suggest? Run syntax validation (bash -n) across all repository shell scripts and execute the 7-part automated cross-platform test suite to verify protection mechanisms end-to-end.
+What would this governance / sovereignty master suggest? The singular contract model ensures that all macOS, Linux, and Windows deployments share identical governance while repo-specific rules stay confined to llms.txt.
+What would this terminal-orchestration / swe-bench master suggest? Support vi and macOS native open -W -t in ainish-coder --edit-rules so terminal-based workflows succeed seamlessly without GUI editors.
+What would this master-orchestrator / self-prompting master suggest? Record every lifecycle checkpoint (checkin, intent-merge, checkout) with bracketed timestamps and keep task statuses updated across all coordination files.
+What would this developer-experience / ergonomics master suggest? Removing GNU-specific flags like xargs -r from git hooks guarantees macOS users encounter zero cryptic hook failures during routine commits.
+
 
