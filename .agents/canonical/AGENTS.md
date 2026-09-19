@@ -3,9 +3,10 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 ---
 
 <!-- ================================================================= -->
-<!-- ⛔ CANONICAL CONTRACT NOTICE FOR ALL AI CODING AGENTS              -->
-<!-- THIS AGENTS.md IS A CENTRALLY GOVERNED SYMLINK FROM ainish-coder.  -->
-<!-- NEVER EDIT, TRUNCATE, OVERWRITE, OR COMMIT THIS FILE IN DOWNSTREAM REPOS. -->
+<!-- CANONICAL CONTRACT NOTICE FOR ALL AI CODING AGENTS                -->
+<!-- THIS FILE IS MAINTAINED AT THE ainish-coder ROOT REPO AND DEPLOYED -->
+<!-- TO TARGETS AS A PLAIN TRACKED COPY BY `ainish-coder --rules`.      -->
+<!-- REFRESH THE COPY WITH `ainish-coder --rules`; NEVER HAND-EDIT IT.  -->
 <!-- ALL REPOSITORY-SPECIFIC PRD DIRECTIVES & RULES BELONG IN llms.txt. -->
 <!-- ================================================================= -->
 
@@ -49,7 +50,7 @@ Conflict → fail closed, explain, ask.
 - **`llms.txt` is the PRD and guiding document of each repository.** Project purpose, scope, contracts, structure, per-repo rules, and the Child DOX Index live in its DOX chain — never in AGENTS.md. Read the llms.txt chain (root → child → target path) before editing anything.
 - **Division of labor:** AGENTS.md = general standard (worktree isolation, PQC secrets, COMMS coordination, quality gates) + wiring for custom tooling (`pqc-secrets`, `security_gate.py`) and modular skills in `.agents/skills/`. llms.txt = what THIS project is and how THIS project works.
 - **Drift rule:** repo-specific guidance discovered while working belongs in the nearest owning `llms.txt`, never in AGENTS.md. If AGENTS.md and llms.txt conflict, llms.txt wins for repo-local detail; AGENTS.md wins for the universal standard.
-- **Symlink & Overwrite Protection:** Every target repository's AGENTS.md is deployed as a live symbolic link pointing directly to the root ainish-coder repository. Editing the contract at root updates all receiving repositories simultaneously. Downstream repositories are write-protected at the OS level (read-only) and git level (pre-commit guard) to prevent accidental overwrites by peer agents or automation tools.
+- **Copy Deployment & Root Primacy:** `ainish-coder --rules` copies the latest root AGENTS.md into every target repository as a plain tracked file — no symlinks, no OS-level locks, no blocking git hooks. Deployment only ever copies root → target, so downstream edits can never overwrite the root contract. Target repositories own their copy and may commit it; re-run `ainish-coder --rules` to refresh it from root. Propose universal changes at the root repo, never by hand-editing a deployed copy.
 </DOCUMENT_MODEL>
 
 ---
