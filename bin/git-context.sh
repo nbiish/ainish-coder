@@ -98,6 +98,18 @@ if [ "${found_sugg}" -eq 0 ]; then
   echo "  none"
 fi
 
+# ── REPO MEMORY (.agents/memories/MEMORY.md) ──
+echo ''
+echo '--- MEMORY ---'
+if [ -f .agents/memories/MEMORY.md ]; then
+  mem_lines=$(wc -l < .agents/memories/MEMORY.md | tr -d ' ')
+  active_facts=$(grep -c '^- \[.*\] \[ACTIVE\]' .agents/memories/MEMORY.md 2>/dev/null || echo 0)
+  echo "  MEMORY.md (${mem_lines}L, ${active_facts} active)"
+  grep '^- \[.*\] \[ACTIVE\]' .agents/memories/MEMORY.md 2>/dev/null | head -4 | sed 's/^/    /'
+else
+  echo "  none"
+fi
+
 # ── PRD (llms.txt) ──
 echo ''
 echo '--- PRD ---'

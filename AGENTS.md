@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Persistent repo-memory via three MCP servers (memorix, reference_memory, engram) available to every MCP-capable agent harness — orient from memory, store typed facts, resolve stale entries; git-tracked memory records in .agents/memories/ (see .agents/skills/repo-memory-graph-intelligence/SKILL.md). Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Gates green → merge autonomously, no operator confirmation gate. Output full production code. Concurrent agents coordinate via the dated ledger .agents/comms/{date}-team.txt, task records in .agents/tasks/{date}-task.md, and suggestions in .agents/suggestions/{date}-suggestions.md. Triage tasks into now/next/queued/backlog lanes with a bounded worktree budget. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Always believe in yourself. OOReDAct: Observe → Orient → Reason → Decide → Act.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Persistent repo-memory via three MCP servers (memorix, reference_memory, engram) available to every MCP-capable agent harness — orient from memory, active in-flight CRUD (make/update/delete-resolve), and git-tracked memory records in .agents/memories/ (see .agents/skills/repo-memory-graph-intelligence/SKILL.md). Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Gates green → merge autonomously, no operator confirmation gate. Output full production code. Concurrent agents coordinate via the dated ledger .agents/comms/{date}-team.txt, task records in .agents/tasks/{date}-task.md, and suggestions in .agents/suggestions/{date}-suggestions.md. Triage tasks into now/next/queued/backlog lanes with a bounded worktree budget. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Always believe in yourself. OOReDAct: Observe → Orient → Reason → Decide → Act.
 ---
 
 <!-- ================================================================= -->
@@ -58,7 +58,7 @@ Conflict → fail closed, explain, ask.
 ## TASK COORDINATION, OOREDACT & CHAIN-OF-DRAFT
 
 - **OOReDAct Focus:** Keep all agents laser-focused on coding and execution through continuous cycles of Observe → Orient → Reason → Decide → Act.
-- **Fast Orientation (`git context`):** Dumps latest COMMS entries, task-file gists + triage lanes (`.agents/tasks/{date}-task.md`), suggestions (`.agents/suggestions/{date}-suggestions.md`), `llms.txt` PRD version, worktrees, stashes, and timeline. Run first in any repo.
+- **Fast Orientation (`git context`):** Dumps latest COMMS entries, task-file gists + triage lanes (`.agents/tasks/{date}-task.md`), suggestions (`.agents/suggestions/{date}-suggestions.md`), memory state (`.agents/memories/MEMORY.md`), `llms.txt` PRD version, worktrees, stashes, and timeline. Run first in any repo.
 - **PRD Anchor:** `llms.txt` is the authoritative PRD. Read unconditionally; overrides conflicting sources per P2.
 - **Artifact Hygiene:** Task files and PRD inherit all security rules. Audit per cycle. Default classification: Confidential.
 - **Modular Skills:** Modular capabilities live in `.agents/skills/<skill>/SKILL.md`. Read before proceeding. Preserve byte-identity on shared skills.
@@ -122,15 +122,15 @@ Before claiming work, triage every open task into a lane recorded on its task re
 
 ```
 1. Isolate   → Run git tree & diff checks for new content; git worktree add -b <type>/<scope>-<slug> ../<slug> main
-2. Coordinate → Triage tasks (now/next/queued/backlog); append checkin with triage: lane to the active .agents/comms/{date}-team.txt
-3. Recon     → Inspect tree diffs; analyze scope and impact on edit targets before making changes
-4. Iterate   → Frequent atomic commits in worktree with descriptive messages
-5. Audit     → Scan code, tasks, llms.txt for banned crypto and raw secrets
+2. Coordinate → Triage tasks (now/next/queued/backlog); append checkin with triage: lane to active .agents/comms/{date}-team.txt; query memory for claimed task scope
+3. Recon     → Inspect tree diffs; execute Dual-Recon Loop (GitNexus AST WHERE + Repo-Memory WHY) before making changes
+4. Iterate   → Frequent atomic commits in worktree; active in-flight memory CRUD (make discoveries, update evolving contracts, delete/resolve dead facts)
+5. Audit     → Scan code, tasks, llms.txt for banned crypto, raw secrets, and stale memory rot
 6. Gates     → Pass native gates (cargo clippy, tsc, ruff) + test suites
-7. Verify    → Non-default port smoke test in worktree (PQC loaded, endpoints responsive); verify scope conformance on code edits
-8. Merge     → Post intent-merge, then merge <branch> → main yourself — green gates (steps 5–7) ARE the approval; no operator confirmation
+7. Verify    → Non-default port smoke test in worktree (PQC loaded, endpoints responsive); confirm obsolete gotchas and dead symbols resolved in memory
+8. Merge     → Post intent-merge, update .agents/memories/MEMORY.md with lifecycle tags, refresh exports, then merge <branch> → main yourself — green gates ARE the approval; no operator confirmation
 9. Rebuild   → <SERVERS>: verify peer worktree recency and ownership; tear down stale servers; rebuild main server from fresh main; smoke test
-10. Cleanup  → Remove worktree (verify merged+unclaimed+idle+no active peer edits), delete branch, append checkout to COMMS ledger
+10. Cleanup  → Remove worktree (verify merged+unclaimed+idle+no active peer edits), delete branch, append checkout to COMMS ledger; confirm clean memory on main
 ```
 
 ### Autonomous Merge (headless-safe — no operator gate):
@@ -208,21 +208,29 @@ $$\text{Observe} \longrightarrow \text{Orient} \longrightarrow \text{Reason} \lo
 ---
 
 <REPO_MEMORY>
-## REPO-MEMORY — PERSISTENT MEMORY MCP (Memorix / Reference Memory / Engram)
+## REPO-MEMORY — PERSISTENT MEMORY MCP & ACTIVE CRUD LIFECYCLE
 
-Three local memory MCP servers are installed on this machine and available to **every MCP-capable agent harness** (any harness that registers MCP servers — terminal agents, IDE agents, headless CI agents alike); they surface as `mcp__<serverName>__<tool>`:
+Three local memory MCP servers are installed on this machine and available to **every MCP-capable agent harness** (terminal, IDE, headless CI alike); they surface as `mcp__<serverName>__<tool>`:
+- **`memorix`** — per-Git-project factual memory (decisions/reasoning, gotchas, code facts; SQLite). Session start: `memorix_project_context`; store/update: `memorix_store`; resolve/delete: `memorix_resolve`.
+- **`reference_memory`** — architectural entity-relationship knowledge graph (JSONL). Tooling: `create_entities` / `create_relations` / `delete_entities` / `delete_relations` / `delete_observations` / `search_nodes`.
+- **`engram`** — curated session memory & arbitration (SQLite+FTS5). Tooling: `mem_session_start` / `mem_save` / `mem_update` / `mem_delete` / `mem_session_summary` / `mem_search` / `mem_judge`.
 
-- **`memorix`** — per-Git-project memory (observations, decisions/reasoning, Git-derived facts, code graph; SQLite). Session start: `memorix_project_context`; store typed facts: `memorix_store`.
-- **`reference_memory`** — knowledge graph (entities/relations/observations, JSONL). Use for named-thing relationships: `create_entities`/`create_relations`/`search_nodes`.
-- **`engram`** — curated session memory (SQLite+FTS5). Session bookkeeping + summaries: `mem_session_start`/`mem_session_summary`; recall: `mem_search`/`mem_context`; conflict verdicts: `mem_compare`/`mem_judge`.
-
-Rules:
-1. **Orient from memory:** at session start read `memorix_project_context` + `mem_context`; search (`memorix_search`, `mem_search`, `search_nodes`) before storing — no duplicates.
-2. **Route by kind:** facts/gotchas/fixes → Memorix; entity relations → Reference Memory; sessions/summaries/decision conflicts → Engram. One typed write, never narration.
-3. **Resolve stale memory** (`memorix_resolve` / `mem_delete` / `delete_observations`) — no rot.
-4. **Not the system of record:** cross-machine coordination stays in the `.agents/{comms,tasks,handoffs}/` triad; memory stores are per-machine convenience. Scrub identifiers/credentials before anything derived from memory is committed.
-5. **Repo memory layer:** `.agents/memories/` is the singular git-tracked home of memory data — curated `MEMORY.md` digest + refreshed `exports/` snapshots, updated at session close and committed on the task branch (contract: `.agents/memories/llms.txt`). Recall fallback when servers are unreachable: read `MEMORY.md`, grep `exports/`.
-6. **Mastery:** read `.agents/skills/repo-memory-graph-intelligence/SKILL.md` — harness-agnostic memory-discipline loop, routing doctrine, session protocols, MCP wiring for any harness, `.agents/memories/` write protocol, smoke tests, hygiene.
+### The Three-Tier Memory Lifecycle:
+1. **Chat Session Lifecycle (Turn-by-Turn):**
+   - **Turn Start (Orient):** Read `memorix_project_context` + `mem_context` (or offline fallback `.agents/memories/MEMORY.md`). Never act blindly on assumptions when recorded invariants exist.
+   - **In-Flight (Act):** Continuously inscribe newly discovered facts, mutate evolving contracts, or resolve invalidated gotchas as work progresses.
+   - **Turn Close (Consolidate):** Append concise session bookmark (`mem_session_summary`), update `.agents/memories/MEMORY.md`, and review/append suggestions in `.agents/suggestions/{date}-suggestions.md`.
+2. **Task Lifecycle (Branch & Worktree):**
+   - **Task Claim (`checkin`):** Bind task scope (`.agents/tasks/{date}-task.md`) to memory topic keys; recall historical failure modes for the target symbols.
+   - **Execution & Dual-Recon:** Execute Dual-Recon Loop (`gitnexus context` WHERE + `memorix_search`/`mem_search` WHY) before modifying unfamiliar code.
+   - **Pre-Merge Sync (`intent-merge`):** Finalize durable facts in `.agents/memories/MEMORY.md` with explicit status tags (`[ACTIVE]`, `[UPDATED]`, `[RESOLVED]`), refresh `exports/`, and commit on the task branch before merge.
+3. **Continuous CRUD Protocol (Make / Update / Delete):**
+   - **Make (Create):** Inscribe non-obvious invariants, novel gotchas, and architectural decisions. Ground all facts in canonical AST symbol names (`gitnexus context`) and link to the active task ID. Route: facts/gotchas → Memorix; entities/relations → Reference Memory; session milestones → Engram.
+   - **Update (Revise):** When code evolves, ports change, or signatures mutate, update existing records in place (`mem_update`, `memorix_store` with matching `topicKey`) and mark `[UPDATED YYYY-MM-DD]` in `MEMORY.md`. Zero tolerance for conflicting duplicate records.
+   - **Delete / Resolve (Retire):** Active invalidation is mandatory. When code is deleted, refactored, or a gotcha is permanently resolved by an upstream fix: actively call `memorix_resolve`, `mem_delete`, or `delete_observations`, and move the entry to `## Resolved / Retired Archive` in `MEMORY.md`. Never leave zombie constraints to mislead future sessions.
+4. **Not the System of Record:** Cross-machine task claims and receipts stay in the `.agents/{comms,tasks,suggestions,handoffs}/` coordination files. Memory stores are local context engines. Scrub identifiers and credentials before anything derived from memory is committed.
+5. **Repo Memory Layer:** `.agents/memories/` is the singular git-tracked home of memory data — curated `MEMORY.md` digest + refreshed `exports/` snapshots (contract: `.agents/memories/llms.txt`). Recall fallback when servers are unreachable: read `MEMORY.md`, grep `exports/`.
+6. **Mastery:** Read `.agents/skills/repo-memory-graph-intelligence/SKILL.md` — full CRUD mechanics, routing matrices, AST blast-radius scoping, and verification playbooks.
 </REPO_MEMORY>
 
 ---
@@ -261,6 +269,7 @@ Run before completing any task:
 7. **Scope & Tree Verification:** Scope proof verified for every code change; git tree and diff checks confirmed for new content without restoring old main content; ephemeral tool artifacts never committed.
 8. **Server Rebuild & Ownership:** Stale servers torn down, `main` rebuilt from fresh HEAD with green smoke test (or `no-rebuild-needed` logged); every worktree removal passed <SERVERS> recency, merged, and unclaimed verification (never deleting active peer worktrees).
 9. **Triage & Task Integrity:** Every task record carries a triage lane; concurrent worktrees within budget.
+10. **Memory Lifecycle & CRUD:** Newly discovered invariants inscribed, superseded/dead facts resolved or deleted, .agents/memories/MEMORY.md updated with lifecycle tags, and exports refreshed.
 </AUDIT>
 
 ---
@@ -291,5 +300,5 @@ What would this developer-experience / ergonomics master suggest? <one sentence>
 ---
 
 <REINFORCEMENT>
-PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Green gates are the merge approval — merge autonomously, never block a run on operator merge confirmation (the ledger `intent-merge` is the audit record; git history is the revert path). Concurrent agents coordinate via the dated ledger `.agents/comms/{date}-team.txt` (rotate only on agent-decided need: new task, new agent group chat), task records in `.agents/tasks/{date}-task.md`, and suggestions in `.agents/suggestions/{date}-suggestions.md`. Triage tasks into now/next/queued/backlog lanes with a ≤3-worktree budget. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Orient from repo-memory (memorix + reference_memory + engram, available to every MCP-capable harness on this machine; land the record in `.agents/memories/` at session close; `.agents/skills/repo-memory-graph-intelligence/SKILL.md`) and store typed facts as you learn; resolve stale memory, never let it rot. Review suggestions and record masters' suggestions in `.agents/suggestions/{date}-suggestions.md` using the masters schema at every turn close. Maintain `.agents/tasks/{date}-task.md` for task records. Always believe in yourself.
+PQC for every API key. Respect the codebase's native language. One task = one worktree from `main`, merged back to `main` after verification, cleaned up immediately. Green gates are the merge approval — merge autonomously, never block a run on operator merge confirmation (the ledger `intent-merge` is the audit record; git history is the revert path). Concurrent agents coordinate via the dated ledger `.agents/comms/{date}-team.txt` (rotate only on agent-decided need: new task, new agent group chat), task records in `.agents/tasks/{date}-task.md`, and suggestions in `.agents/suggestions/{date}-suggestions.md`. Triage tasks into now/next/queued/backlog lanes with a ≤3-worktree budget. Git tree and diff checks before code edits to preserve new content; verify recency and merged status before removing peer worktrees. Servers are disposable — tear down stale, rebuild fresh `main` post-merge; never delete a peer's worktree without merged+unclaimed+idle proof. OOReDAct: Observe → Orient → Reason → Decide → Act. Chain-of-Draft: ≤5 words/step, `####` then output. Ship full production code. Orient from repo-memory (memorix + reference_memory + engram, available to every MCP-capable harness on this machine; land the record in `.agents/memories/` at session close; `.agents/skills/repo-memory-graph-intelligence/SKILL.md`), actively execute the in-flight CRUD lifecycle (make, update, delete/resolve) across chat turns and tasks; resolve stale memory and archive dead facts, never let it rot. Review suggestions and record masters' suggestions in `.agents/suggestions/{date}-suggestions.md` using the masters schema at every turn close. Maintain `.agents/tasks/{date}-task.md` for task records. Always believe in yourself.
 </REINFORCEMENT>
