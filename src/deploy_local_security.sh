@@ -158,6 +158,14 @@ EOF
 
     chmod +x "${hooks_dir}/pre-commit"
     print_success "Installed pre-commit hook"
+
+    # Ensure AGENTS.md pre-commit protection is active and prepended
+    if [[ -f "${target_dir}/AGENTS.md" || -L "${target_dir}/AGENTS.md" ]]; then
+        source "${SRC_DIR:-${ainish_root}/src}/agents_protection.sh" 2>/dev/null || true
+        if declare -f install_agents_pre_commit_guard >/dev/null 2>&1; then
+            install_agents_pre_commit_guard "$target_dir" 2>/dev/null || true
+        fi
+    fi
     
     # Create pre-push hook
     cat > "${hooks_dir}/pre-push" << 'EOF'

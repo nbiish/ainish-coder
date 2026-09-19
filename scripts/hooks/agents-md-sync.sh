@@ -39,19 +39,23 @@ for dest in "$HOME/.agents/AGENTS.md" "$HOME/.config/AGENTS.md"; do
     dest_dir="$(dirname "$dest")"
     mkdir -p "$dest_dir"
 
-    # Already a correct symlink — skip
-    if [[ -L "$dest" && "$(readlink "$dest")" == "$AGENTS_SOURCE" ]]; then
+    # Already a correct symlink or pointing to source — skip
+    if [[ "$dest" -ef "$AGENTS_SOURCE" ]]; then
         continue
     fi
+
+    # Unlock destination if locked/read-only on macOS/Linux/Windows so mv/rm succeeds
+    chflags nouchg "$dest" 2>/dev/null || true
+    chmod u+w "$dest" 2>/dev/null || true
 
     # Existing regular file — back it up
     if [[ -e "$dest" && ! -L "$dest" ]]; then
         mv "$dest" "${dest}.backup.$(date +%Y%m%d%H%M%S)"
     fi
 
-    # Remove stale symlink if target changed
-    rm -f "$dest"
-    ln -s "$AGENTS_SOURCE" "$dest"
+    # Remove stale file/symlink if target changed
+    rm -rf "$dest"
+    ln -sf "$AGENTS_SOURCE" "$dest"
     SYNC_COUNT=$((SYNC_COUNT + 1))
 done
 

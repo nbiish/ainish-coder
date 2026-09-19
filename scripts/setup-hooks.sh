@@ -35,9 +35,14 @@ FOUND=0
 for pattern in "${PATTERNS[@]}"; do
   # Grep recursively in the staged files
   # Suppress errors, ignore test/template/setup files, and the setup script itself
-  if git diff --cached --name-only -z | grep -zvE "scripts/setup-hooks.sh" | xargs -0 -r grep -HnE "$pattern" 2>/dev/null | grep -vE "YOUR_[A-Z_]+_HERE|BSAtestkey|example|template|your-key-here|\$\{BRAVE_API_KEY\}"; then
-    echo "❌ Found sensitive pattern: $pattern"
-    FOUND=1
+  staged_files=$(git diff --cached --name-only 2>/dev/null | grep -vE "^scripts/setup-hooks\.sh$" || true)
+  if [ -n "$staged_files" ]; then
+    if echo "$staged_files" | while IFS= read -r file; do
+        [ -f "$file" ] && [ ! -L "$file" ] && grep -HnE "$pattern" "$file" 2>/dev/null
+    done | grep -vE "YOUR_[A-Z_]+_HERE|BSAtestkey|example|template|your-key-here|\$\{BRAVE_API_KEY\}"; then
+      echo "❌ Found sensitive pattern: $pattern"
+      FOUND=1
+    fi
   fi
 done
 

@@ -5,7 +5,9 @@
 # One contract everywhere: root AGENTS.md is both the live contract here
 # and the distributed template — there is no separate deployed variant.
 # Repository-specific direction lives in each repo's llms.txt DOX chain.
+# Supported platforms: Linux, macOS (Darwin), Windows (MSYS/Git Bash/WSL).
 
+SRC_DIR="${SRC_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)}"
 source "${SRC_DIR}/agents_protection.sh"
 
 _is_windows_env() {
@@ -37,14 +39,14 @@ _deploy_agents_symlink() {
 
     # Remove existing destination (regular file, old copy, or stale symlink)
     if [[ -e "$dest" || -L "$dest" ]]; then
-        # Unlock if it was read-only so rm succeeds
+        # Unlock if it was read-only so rm succeeds (handles macOS uchg, Linux chmod 444, Windows attrib)
         unlock_agents_contract "$dest" 2>/dev/null || true
         rm -rf "$dest" || return 1
     fi
 
-    # Resolve source to absolute path
+    # Resolve source to absolute path (resolving physical links portably via pwd -P)
     local abs_src
-    abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd)/$(basename "$src")" || return 1
+    abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd -P)/$(basename "$src")" 2>/dev/null ||     abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd)/$(basename "$src")" || return 1
 
     local linked=false
 
@@ -67,7 +69,8 @@ _deploy_agents_symlink() {
         fi
     else
         # POSIX systems (Linux/macOS)
-        if ln -sf "$abs_src" "$dest" 2>/dev/null; then
+        # Try ln -sfn (Darwin and modern Linux support -n or -h to avoid following existing links)
+        if ln -sfn "$abs_src" "$dest" 2>/dev/null || ln -sf "$abs_src" "$dest" 2>/dev/null; then
             linked=true
         fi
     fi
@@ -173,6 +176,7 @@ deploy_agents_global() {
         fi
 
         if [[ -e "$dest" && ! -L "$dest" ]]; then
+            unlock_agents_contract "$dest" 2>/dev/null || true
             local backup="${dest}.backup.$(date +%Y%m%d%H%M%S)"
             mv "$dest" "$backup"
             echo -e "${YELLOW}⚠ Backed up existing $dest to $backup${RESET}"

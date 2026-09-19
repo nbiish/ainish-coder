@@ -2,10 +2,21 @@
 # MOLECULE: AGENTS.md Protection & Canonical Integrity
 # Ensures the singular root AGENTS.md cannot be overwritten by downstream
 # repositories or automated agents, while remaining easily editable at root.
+# Supported platforms: Linux, macOS (Darwin), Windows (MSYS/Git Bash/WSL).
 
 # Detect if the environment is Windows
 _is_windows_env() {
     [[ "${OS:-}" == "Windows_NT" ]] || [[ "${OSTYPE:-}" == "msys" ]] || [[ "${OSTYPE:-}" == "cygwin" ]]
+}
+
+# Detect if the environment is macOS (Darwin)
+_is_darwin() {
+    [[ "$(uname -s 2>/dev/null)" == "Darwin" ]] || [[ "${OSTYPE:-}" == darwin* ]]
+}
+
+# Detect if the environment is Linux
+_is_linux() {
+    [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || [[ "${OSTYPE:-}" == linux* ]]
 }
 
 # Convert path to Windows native format if on Windows
@@ -42,8 +53,15 @@ lock_agents_contract() {
         win_path="$(_to_native_path "$target_file")"
         _run_attrib +R "$win_path" >/dev/null 2>&1 || true
         chmod 444 "$target_file" 2>/dev/null || true
-    else
+    elif _is_darwin; then
+        # macOS: apply chmod 444 first, then BSD user immutable flag (uchg).
+        # chmod must precede chflags because chmod fails with EPERM once uchg is active.
         chmod 444 "$target_file" 2>/dev/null || chmod a-w "$target_file" 2>/dev/null || true
+        chflags uchg "$target_file" 2>/dev/null || true
+    else
+        # Linux / POSIX: revoke write bits for all users; set immutable flag if permitted.
+        chmod 444 "$target_file" 2>/dev/null || chmod a-w "$target_file" 2>/dev/null || true
+        chattr +i "$target_file" 2>/dev/null || true
     fi
 
     return 0
@@ -62,7 +80,13 @@ unlock_agents_contract() {
         win_path="$(_to_native_path "$target_file")"
         _run_attrib -R "$win_path" >/dev/null 2>&1 || true
         chmod 644 "$target_file" 2>/dev/null || true
+    elif _is_darwin; then
+        # macOS: clear BSD user immutable flag FIRST so chmod and writes succeed
+        chflags nouchg "$target_file" 2>/dev/null || true
+        chmod 644 "$target_file" 2>/dev/null || chmod u+w "$target_file" 2>/dev/null || true
     else
+        # Linux / POSIX: clear immutable attribute if set, then restore user write permission
+        chattr -i "$target_file" 2>/dev/null || true
         chmod 644 "$target_file" 2>/dev/null || chmod u+w "$target_file" 2>/dev/null || true
     fi
 
@@ -76,10 +100,26 @@ is_agents_contract_locked() {
         return 1
     fi
 
+    # 1. Standard POSIX write test: if not writable, it is locked
     if [[ ! -w "$target_file" ]]; then
         return 0
     fi
 
+    # 2. Darwin (macOS): check BSD user immutable flag (uchg)
+    if _is_darwin; then
+        if ls -lO "$target_file" 2>/dev/null | grep -qw "uchg"; then
+            return 0
+        fi
+    fi
+
+    # 3. Linux: check ext/xfs/btrfs immutable attribute
+    if _is_linux && command -v lsattr >/dev/null 2>&1; then
+        if lsattr -d "$target_file" 2>/dev/null | grep -q "^....i"; then
+            return 0
+        fi
+    fi
+
+    # 4. Windows: check Read-Only attribute
     if _is_windows_env; then
         local win_path
         win_path="$(_to_native_path "$target_file")"
@@ -93,13 +133,19 @@ is_agents_contract_locked() {
     return 1
 }
 
-# Calculate SHA256 checksum portably
+# Calculate SHA256 checksum portably across Linux, macOS, BSD, and Windows
 _calc_sha256() {
     local target_file="$1"
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum "$target_file" | awk '{print $1}'
     elif command -v shasum >/dev/null 2>&1; then
         shasum -a 256 "$target_file" | awk '{print $1}'
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$target_file" | awk '{print $NF}'
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c "import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], 'rb').read()).hexdigest())" "$target_file" 2>/dev/null
+    elif command -v python >/dev/null 2>&1; then
+        python -c "import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], 'rb').read()).hexdigest())" "$target_file" 2>/dev/null
     elif command -v powershell.exe >/dev/null 2>&1; then
         powershell.exe -NoProfile -Command "(Get-FileHash -Path "$(_to_native_path "$target_file")" -Algorithm SHA256).Hash.ToLower()" 2>/dev/null | tr -d '\r\n'
     else
@@ -213,33 +259,57 @@ install_agents_pre_commit_guard() {
         return 0
     fi
 
-    if [[ ! -f "$pre_commit_hook" ]]; then
-        echo "#!/bin/sh" > "$pre_commit_hook"
-    else
-        echo "" >> "$pre_commit_hook"
-    fi
-
-    cat >> "$pre_commit_hook" << 'HOOK_BLOCK'
+    local guard_code
+    guard_code="$(cat << 'HOOK_BLOCK'
 # --- AINISH-CODER AGENTS.MD GUARD START ---
 # Prevent downstream commits from modifying or decoupling the canonical AGENTS.md
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
-    staged_agents=$(git diff-index --cached --name-only HEAD | grep -E '^AGENTS\.md$' || true)
+    staged_agents=$(git diff-index --cached --name-only HEAD 2>/dev/null | grep -E '^AGENTS\.md$' || true)
 else
-    staged_agents=$(git diff-index --cached --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 | grep -E '^AGENTS\.md$' || true)
+    staged_agents=$(git diff-index --cached --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 2>/dev/null | grep -E '^AGENTS\.md$' || true)
 fi
 
 if [ -n "$staged_agents" ]; then
-    echo "[1;31m[ERROR] AGENTS.md is a protected canonical symlink managed by ainish-coder.[0m" >&2
-    echo "[1;33mModifying or committing AGENTS.md in downstream repositories is forbidden.[0m" >&2
-    echo "  -> Move all project-specific rules, contracts, and guidelines to llms.txt." >&2
-    echo "  -> To revert changes to AGENTS.md: git checkout -- AGENTS.md" >&2
-    echo "  -> To re-establish the symlink: ainish-coder --rules[0m" >&2
+    printf "\033[1;31m[ERROR] AGENTS.md is a protected canonical symlink managed by ainish-coder.\033[0m\n" >&2
+    printf "\033[1;33mModifying or committing AGENTS.md in downstream repositories is forbidden.\033[0m\n" >&2
+    printf "  -> Move all project-specific rules, contracts, and guidelines to llms.txt.\n" >&2
+    printf "  -> To revert changes to AGENTS.md: git checkout -- AGENTS.md\n" >&2
+    printf "  -> To re-establish the symlink: ainish-coder --rules\n" >&2
     exit 1
 fi
 # --- AINISH-CODER AGENTS.MD GUARD END ---
 HOOK_BLOCK
+)"
 
-    chmod +x "$pre_commit_hook" 2>/dev/null || true
+    if [[ ! -f "$pre_commit_hook" ]]; then
+        printf "#!/bin/sh\n\n%s\n" "$guard_code" > "$pre_commit_hook"
+    else
+        # If pre-commit exists, prepend the guard right after the shebang line
+        # so it runs before any other hook logic (even if the existing hook exits 0 later)
+        local tmp_hook="${pre_commit_hook}.tmp.$$"
+        local first_line
+        first_line="$(head -n 1 "$pre_commit_hook" 2>/dev/null || echo "#!/bin/sh")"
+        if [[ "$first_line" =~ ^#! ]]; then
+            {
+                echo "$first_line"
+                echo ""
+                echo "$guard_code"
+                echo ""
+                tail -n +2 "$pre_commit_hook"
+            } > "$tmp_hook"
+        else
+            {
+                echo "#!/bin/sh"
+                echo ""
+                echo "$guard_code"
+                echo ""
+                cat "$pre_commit_hook"
+            } > "$tmp_hook"
+        fi
+        mv "$tmp_hook" "$pre_commit_hook"
+    fi
+
+    chmod 755 "$pre_commit_hook" 2>/dev/null || chmod +x "$pre_commit_hook" 2>/dev/null || true
     echo -e "${GREEN}✓ Installed downstream AGENTS.md pre-commit protection in ${target_dir}${RESET}"
     return 0
 }
