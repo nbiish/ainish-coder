@@ -19,10 +19,10 @@ GLOBAL FLAGS:
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md — the singular, repository-agnostic
-                              standard, deployed as a live symbolic link from this
-                              root repository with automatic overwrite protection
-                              (edits at root propagate everywhere; downstream
-                              repos are guarded from overwriting root) — plus
+                              standard, copied from this root repository into the
+                              target as a plain tracked file (the target owns its
+                              copy; committing it is allowed; re-run --rules to
+                              pull the latest root version) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
                                 .agents/comms/{date}-{time}-team.txt (merge-safe: refreshes
@@ -35,15 +35,15 @@ CORE COMMANDS:
                               explicit --scrolls channel).
                               Project-specific direction stays in each repo's
                               llms.txt (the PRD and guiding document).
-                              Also ensures global symlinks:
-                                ~/.agents/AGENTS.md → the singular AGENTS.md
-                                ~/.config/AGENTS.md → the singular AGENTS.md
+                              Also refreshes global copies:
+                                ~/.agents/AGENTS.md (tracked copy)
+                                ~/.config/AGENTS.md (tracked copy)
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
-                              agnostic standard, deployed as a live symbolic link
-                              from this root repository with overwrite protection.
-                              Also ensures global symlinks:
-                                ~/.agents/AGENTS.md → the singular AGENTS.md
-                                ~/.config/AGENTS.md → the singular AGENTS.md
+                              agnostic standard, copied into the target as a
+                              plain tracked file (refresh with --agents).
+                              Also refreshes global copies:
+                                ~/.agents/AGENTS.md (tracked copy)
+                                ~/.config/AGENTS.md (tracked copy)
     --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
                               (compiled from .agents/skills/code-security and llm-security)
 
@@ -87,7 +87,7 @@ RULES INTEGRITY & EDITING COMMANDS:
     --unlock-rules            Unlock root AGENTS.md for authorized editing in this repo
     --edit-rules              Safely open root AGENTS.md in $EDITOR (auto unlock before, lock after)
     --restore-rules           Restore root AGENTS.md from canonical snapshot or git HEAD
-    --verify-rules [DIR]      Verify canonical AGENTS.md integrity and check symlink status
+    --verify-rules [DIR]      Verify root AGENTS.md integrity and target copy freshness
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md & companion standards (assets + funding)
@@ -236,10 +236,10 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing AGENTS.md) + .gitignore + .agents/comms/{date}-{time}-team.txt + skill packs per your persisted selection + global symlinks
+    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-{time}-team.txt + skill packs per your persisted selection + global copies
     - --headless second arg (e.g. 'ainish-coder --skills-sync <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
-    - --agents deploys AGENTS.md (project-agnostic rules, single governing document) + global symlinks
+    - --agents deploys AGENTS.md (project-agnostic rules, single governing tracked copy) + global copies
     - --llms-txt deploys llms.txt (separate from --rules)
     - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md
     - All tool-specific flags consolidated into .agents/skills/
@@ -252,8 +252,8 @@ EXAMPLES:
     ainish-coder --llms-txt                 # Deploy llms.txt to cwd (copy)
     ainish-coder --skills-sync              # Synchronize & selectively ingest skills (copies)
 
-    # Symlink mode: link to source files (single source of truth)
-    ainish-coder --link --rules             # Symlink AGENTS.md + .gitignore
+    # Symlink mode: link to source files (AGENTS.md always copies — never links)
+    ainish-coder --link --rules             # Symlink .gitignore; AGENTS.md copies
     ainish-coder --link --llms-txt          # Symlink llms.txt (fetched remotely)
 
     # Interactive mode: guided walkthrough with symlink/destination choices

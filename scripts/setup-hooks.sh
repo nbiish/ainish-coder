@@ -77,4 +77,4 @@ fi
 
 echo "✅ Git hooks configured successfully!"
 echo "From now on, secrets will be blocked locally before they can be pushed."
-echo "   AGENTS.md global symlinks will auto-sync on merge/checkout."
+echo "   AGENTS.md global copies will auto-sync on merge/checkout."

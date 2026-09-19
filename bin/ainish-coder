@@ -174,7 +174,7 @@ main() {
                 deploy_agents "$target_dir"
             fi
 
-            # Ensure global AGENTS.md symlinks are always correct
+            # Ensure global AGENTS.md copies are always fresh
             deploy_agents_global
 
             if confirm_action "Deploy/merge .gitignore configuration to: $target_dir?" "y"; then
@@ -221,7 +221,7 @@ main() {
                 deploy_agents "$agents_dest"
             fi
 
-            # Ensure global AGENTS.md symlinks are always correct
+            # Ensure global AGENTS.md copies are always fresh
             deploy_agents_global
             ;;
 
@@ -516,7 +516,7 @@ main() {
 
         --verify-rules)
             _TRACK_DETAIL="verify-rules"
-            echo -e "${BRIGHT_BLUE}Verifying AGENTS.md integrity and symlink status...${RESET}"
+            echo -e "${BRIGHT_BLUE}Verifying AGENTS.md integrity and copy status...${RESET}"
             local check_dir="${1:-.}"
             local target_agents="${check_dir}/AGENTS.md"
             local root_agents="${REPO_DIR}/AGENTS.md"
@@ -528,19 +528,21 @@ main() {
                 echo -e "${BRIGHT_RED}❌ Root AGENTS.md integrity mismatch! Run ainish-coder --restore-rules to fix.${RESET}"
             fi
 
-            # Check root lock status
+            # Check root lock status (optional; copy deployment keeps root writable)
             if is_agents_contract_locked "$root_agents"; then
-                echo -e "${GREEN}✓ Root AGENTS.md is write-protected (read-only)${RESET}"
+                echo -e "${YELLOW}ℹ️  Root AGENTS.md is OS-locked. Unlock with: ainish-coder --unlock-rules${RESET}"
             else
-                echo -e "${YELLOW}⚠️  Root AGENTS.md is currently unlocked. Run ainish-coder --lock-rules to protect.${RESET}"
+                echo -e "${GREEN}✓ Root AGENTS.md is writable at the single source of truth${RESET}"
             fi
 
-            # If target dir provided and exists, check target link
+            # If target dir provided and exists, check target copy freshness
             if [[ -e "$target_agents" || -L "$target_agents" ]]; then
-                if [[ "$root_agents" -ef "$target_agents" ]]; then
-                    echo -e "${GREEN}✓ Target AGENTS.md ($target_agents) is correctly linked to root${RESET}"
+                if [[ -L "$target_agents" ]]; then
+                    echo -e "${YELLOW}⚠️  Target AGENTS.md ($target_agents) is a legacy symlink. Run ainish-coder --rules $check_dir to convert it to a tracked copy.${RESET}"
+                elif cmp -s "$root_agents" "$target_agents"; then
+                    echo -e "${GREEN}✓ Target AGENTS.md ($target_agents) is an up-to-date copy of root${RESET}"
                 else
-                    echo -e "${BRIGHT_RED}❌ Target AGENTS.md ($target_agents) is NOT linked to root! Run ainish-coder --rules $check_dir to re-link.${RESET}"
+                    echo -e "${YELLOW}⚠️  Target AGENTS.md ($target_agents) differs from root. Run ainish-coder --rules $check_dir to refresh the copy.${RESET}"
                 fi
             fi
             ;;
