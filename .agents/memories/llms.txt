@@ -1,24 +1,46 @@
 # .agents/memories — Repo-Local Memory Layer
 
-This folder is the **singular, git-tracked home of this repository's memory data**: every memory server's exportable state plus one curated digest, side by side with the other `.agents/` coordination folders (`comms/`, `tasks/`, `handoffs/`, `skills/`). Parent rules live in the root `llms.txt` and `AGENTS.md` `<REPO_MEMORY>`; this file is the local contract for the folder.
+This folder is the **singular, git-tracked home of this repository's memory data**: every memory server's exportable state plus one curated digest, side by side with the other `.agents/` coordination folders (`comms/`, `tasks/`, `suggestions/`, `handoffs/`, `skills/`). Parent rules live in the root `llms.txt` and `AGENTS.md` `<REPO_MEMORY>`; this file is the local contract for the folder.
 
 ## Layout
 
 | Path | What | Who writes it |
 |---|---|---|
-| `MEMORY.md` | Curated, human/agent-readable digest — the durable facts worth carrying across machines and sessions | Agents, at session close (one typed entry per fact; newest first per section) |
-| `exports/engram.json` | Engram curated store export (`engram export <file>`) | Agents, at session close / memory milestones |
-| `exports/memorix.<project>.json` | Memorix per-project snapshot (`memorix transfer export --format json --out <file>`) | Agents, at session close / memory milestones |
-| `exports/reference-graph.jsonl` | Reference Memory knowledge graph copy (the server's `MEMORY_FILE_PATH` JSONL) | Agents, at session close / memory milestones |
+| `MEMORY.md` | Curated, human/agent-readable digest — durable facts, decisions, and gotchas with explicit lifecycle states | Agents, continuously in-flight and at task merge (newest first per section) |
+| `exports/engram.json` | Engram curated store export (`engram export <file>`) | Agents, at task merge / memory milestones |
+| `exports/memorix.<project>.json` | Memorix per-project snapshot (`memorix transfer export --format json --out <file>`) | Agents, at task merge / memory milestones |
+| `exports/reference-graph.jsonl` | Reference Memory knowledge graph copy (the server's `MEMORY_FILE_PATH` JSONL) | Agents, at task merge / memory milestones |
 
-## Rules
+## Lifecycle States & Entry Schema
 
-1. **Exports are snapshots, not the source of truth.** The servers' live stores own the data; this folder makes it inspectable, diffable, and portable. Never hand-edit `exports/*` — regenerate with the export commands (see `.agents/skills/repo-memory-graph-intelligence/SKILL.md` §8).
-2. **`MEMORY.md` is curated.** One entry per durable fact: `- [YYYY-MM-DD] <fact> *(source: <server>, <tool>)*`. Update in place; prune what §REPO_MEMORY rule 3 retired. Facts recorded in a parent `llms.txt` are contracts, not memories — do not duplicate them here.
-3. **Commit on the task branch; travels with push.** Memory exports merge to `main` like any other artifact, so other machines clone the knowledge.
-4. **Hygiene before commit:** scrub operator identifiers, credentials, and trajectories from exports and digest entries (root `<REPO_MEMORY>` rule 4 / packet hygiene). `<private>` spans must never survive into this folder.
+Every entry in `MEMORY.md` carries an explicit lifecycle state tag:
+- `[ACTIVE]` — Current valid invariant or active finding.
+- `[UPDATED YYYY-MM-DD]` — Invariant modified due to code evolution or refactoring.
+- `[RESOLVED YYYY-MM-DD]` — Retired gotcha or superseded decision, moved to the Archive section.
+
+### Canonical Syntax
+```markdown
+- [YYYY-MM-DD] [STATE] <statement> *(source: <server/tool/branch>, task: <task-file-or-branch>, ast: <symbol>)*
+```
+
+## Section Structure in `MEMORY.md`
+
+1. `## Active Facts` — Enduring system truths, platform behaviors, cross-platform flags, and build invariants.
+2. `## Active Decisions` — Architectural verdicts, dependency choices, and structural designs.
+3. `## Active Gotchas` — Known hazards, edge cases, ordering constraints, and non-obvious failure modes.
+4. `## Resolved / Retired Archive` — Obsolete gotchas and retired invariants with explicit resolution notes (prevents zombie knowledge).
+
+## Operational Rules
+
+1. **Active CRUD Execution:**
+   - **Make:** Inscribe new invariants and gotchas as soon as discovered during execution. Link to active task and AST symbol.
+   - **Update:** When code modifies existing ports, flags, or contracts, update the entry in place with `[UPDATED YYYY-MM-DD]`. Never leave contradictory duplicates.
+   - **Delete / Resolve:** When bugs are permanently fixed or code is removed, move the entry to `## Resolved / Retired Archive` with a concise resolution explanation.
+2. **Exports are snapshots, not the source of truth.** The servers' live stores own the runtime data; this folder makes it inspectable, diffable, and portable across machines. Never hand-edit `exports/*` — regenerate with the export commands (see `.agents/skills/repo-memory-graph-intelligence/SKILL.md`).
+3. **Commit on the task branch; travels with push.** Memory changes merge to `main` alongside code changes, ensuring knowledge persists across clones.
+4. **Hygiene before commit:** scrub operator identifiers, credentials, and trajectories from exports and digest entries (`<REPO_MEMORY>` rule 4).
 5. **Recall fallback:** when a memory server is unreachable, read `MEMORY.md` and grep `exports/` — this folder is the offline memory of record.
-6. **Boundary with the triad:** `.agents/comms|tasks|handoffs/` remain the coordination system of record (claims, lifecycle, receipts). This folder holds knowledge, never task claims or lifecycle state.
+6. **Boundary with the coordination files:** `.agents/comms|tasks|suggestions|handoffs/` remain the coordination system of record (claims, lifecycle, receipts). This folder holds architectural knowledge, never task claims or in-flight lifecycle state.
 
 ## Update After Editing
 

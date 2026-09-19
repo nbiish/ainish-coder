@@ -401,6 +401,8 @@ sync_ainish_skills() {
     safe_mkdir "$skills_target" || return 1
     safe_mkdir "$target_dir/.agents/tasks" 2>/dev/null || true
     safe_mkdir "$target_dir/.agents/suggestions" 2>/dev/null || true
+    safe_mkdir "$target_dir/.agents/memories" 2>/dev/null || true
+    safe_mkdir "$target_dir/.agents/memories/exports" 2>/dev/null || true
 
     local updated=0 identical=0 deployed=0 ingested=0 kept_newer=0
 

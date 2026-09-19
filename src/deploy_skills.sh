@@ -45,6 +45,8 @@ deploy_skills() {
     safe_mkdir "$skills_target" || return 1
     safe_mkdir "$target_dir/.agents/tasks" 2>/dev/null || true
     safe_mkdir "$target_dir/.agents/suggestions" 2>/dev/null || true
+    safe_mkdir "$target_dir/.agents/memories" 2>/dev/null || true
+    safe_mkdir "$target_dir/.agents/memories/exports" 2>/dev/null || true
     local skill_count=0
     local skipped_count=0
     local deselected_count=0
