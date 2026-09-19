@@ -19,9 +19,10 @@ GLOBAL FLAGS:
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      Deploy AGENTS.md — the singular, repository-agnostic
-                              standard (the same file that governs this repo),
-                              written as the target's single governing AGENTS.md
-                              (defaults to copy for safety) — plus
+                              standard, deployed as a live symbolic link from this
+                              root repository with automatic overwrite protection
+                              (edits at root propagate everywhere; downstream
+                              repos are guarded from overwriting root) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
                                 .agents/comms/{date}-{time}-team.txt (merge-safe: refreshes
@@ -38,8 +39,8 @@ CORE COMMANDS:
                                 ~/.agents/AGENTS.md → the singular AGENTS.md
                                 ~/.config/AGENTS.md → the singular AGENTS.md
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
-                              agnostic standard, written as the target's single
-                              governing AGENTS.md (defaults to copy for safety).
+                              agnostic standard, deployed as a live symbolic link
+                              from this root repository with overwrite protection.
                               Also ensures global symlinks:
                                 ~/.agents/AGENTS.md → the singular AGENTS.md
                                 ~/.config/AGENTS.md → the singular AGENTS.md
@@ -79,6 +80,14 @@ CUSTOM COMMANDS DEPLOYMENT:
                               - all         (deploy to all applicable tools)
 
                               Example: ainish-coder --commands all
+
+
+RULES INTEGRITY & EDITING COMMANDS:
+    --lock-rules              Set OS-level write-protection (read-only) on root AGENTS.md
+    --unlock-rules            Unlock root AGENTS.md for authorized editing in this repo
+    --edit-rules              Safely open root AGENTS.md in $EDITOR (auto unlock before, lock after)
+    --restore-rules           Restore root AGENTS.md from canonical snapshot or git HEAD
+    --verify-rules [DIR]      Verify canonical AGENTS.md integrity and check symlink status
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md & companion standards (assets + funding)

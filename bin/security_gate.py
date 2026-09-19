@@ -8,6 +8,7 @@ post-quantum cryptography (PQC) and containment mandates.
 import os
 import re
 import sys
+import hashlib
 
 # Banned patterns that indicate classical cryptographic defaults or missing validations.
 # Source of truth for allowed/forbidden sets: .agents/skills/pqc-secrets/SKILL.md §3
@@ -55,9 +56,38 @@ EXCLUDED_DIRECTORIES = {
 SCANNED_SUFFIXES = (".py", ".ts", ".js", ".toml", ".yml", ".yaml", ".json")
 EXCLUDED_FILES = {"security_gate.py", "scan_secrets.sh", "security_scan.sh", "sanitize.py", "sanitize-settings.sh"}
 
+def verify_canonical_agents_contract(directory: str = ".") -> bool:
+    """Verifies AGENTS.md integrity against .agents/canonical/AGENTS.md.sha256 if present."""
+    agents_path = os.path.join(directory, "AGENTS.md")
+    hash_path = os.path.join(directory, ".agents", "canonical", "AGENTS.md.sha256")
+    
+    if not os.path.isfile(agents_path) or not os.path.isfile(hash_path):
+        return True  # If not root or no snapshot yet, skip
+        
+    try:
+        with open(agents_path, "rb") as f:
+            actual_hash = hashlib.sha256(f.read()).hexdigest().lower()
+        with open(hash_path, "r", encoding="utf-8") as f:
+            expected_hash = f.read().strip().lower()
+            
+        if actual_hash != expected_hash:
+            print(f"[\033[91mFAIL\033[0m] AGENTS.md integrity mismatch with .agents/canonical/AGENTS.md.sha256!")
+            print(f"       Expected: {expected_hash}")
+            print(f"       Actual:   {actual_hash}")
+            print(f"       Run 'ainish-coder --restore-rules' to restore the pristine canonical contract.")
+            return False
+    except Exception as e:
+        print(f"Error checking AGENTS.md integrity: {e}")
+        return False
+        
+    return True
+
 def verify_compliance(directory: str = "."):
     print("Checking repository for Zero-Trust and PQC compliance...")
     failed = False
+    
+    if not verify_canonical_agents_contract(directory):
+        failed = True
     
     for root, dirs, files in os.walk(directory):
         # Prune excluded directories dynamically
