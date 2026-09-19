@@ -237,7 +237,12 @@ restore_canonical_contract() {
     return 0
 }
 
-# Install pre-commit hook in target repository to block downstream modifications to AGENTS.md
+# Install (or upgrade) the pre-commit guard in a target repository.
+# Policy since copy-deployment: downstream repos own their AGENTS.md copy and
+# may commit it freely. The guard is warn-only: it flags legacy symlink
+# deployments and points to `ainish-coder --rules` for refreshes. Installing
+# also REPLACES the historical blocking guard in place, so existing
+# repositories self-heal on the next `ainish-coder --rules`.
 install_agents_pre_commit_guard() {
     local target_dir="${1:-.}"
     local git_dir="${target_dir}/.git"
@@ -254,38 +259,40 @@ install_agents_pre_commit_guard() {
     local guard_start="# --- AINISH-CODER AGENTS.MD GUARD START ---"
     local guard_end="# --- AINISH-CODER AGENTS.MD GUARD END ---"
 
-    # Check if already installed
-    if [[ -f "$pre_commit_hook" ]] && grep -qF "$guard_start" "$pre_commit_hook" 2>/dev/null; then
-        return 0
-    fi
-
     local guard_code
     guard_code="$(cat << 'HOOK_BLOCK'
 # --- AINISH-CODER AGENTS.MD GUARD START ---
-# Prevent downstream commits from modifying or decoupling the canonical AGENTS.md
-if git rev-parse --verify HEAD >/dev/null 2>&1; then
-    staged_agents=$(git diff-index --cached --name-only HEAD 2>/dev/null | grep -E '^AGENTS\.md$' || true)
-else
-    staged_agents=$(git diff-index --cached --name-only 4b825dc642cb6eb9a060e54bf8d69288fbee4904 2>/dev/null | grep -E '^AGENTS\.md$' || true)
-fi
-
-if [ -n "$staged_agents" ]; then
-    printf "\033[1;31m[ERROR] AGENTS.md is a protected canonical symlink managed by ainish-coder.\033[0m\n" >&2
-    printf "\033[1;33mModifying or committing AGENTS.md in downstream repositories is forbidden.\033[0m\n" >&2
-    printf "  -> Move all project-specific rules, contracts, and guidelines to llms.txt.\n" >&2
-    printf "  -> To revert changes to AGENTS.md: git checkout -- AGENTS.md\n" >&2
-    printf "  -> To re-establish the symlink: ainish-coder --rules\n" >&2
-    exit 1
+# AGENTS.md here is a plain tracked COPY of the universal contract, owned by
+# this repository (deployed by `ainish-coder --rules`; re-run that command to
+# pull the latest from the ainish-coder root repo). Commits touching
+# AGENTS.md are allowed. Repo-specific rules belong in llms.txt.
+if [ -L "AGENTS.md" ]; then
+    printf "[ainish-coder] WARNING: AGENTS.md is a legacy symlink. Convert it to a tracked copy: ainish-coder --rules\n" >&2
 fi
 # --- AINISH-CODER AGENTS.MD GUARD END ---
 HOOK_BLOCK
 )"
 
+    # Already the new warn-only guard — nothing to do
+    if [[ -f "$pre_commit_hook" ]] && grep -qF "plain tracked COPY" "$pre_commit_hook" 2>/dev/null; then
+        return 0
+    fi
+
     if [[ ! -f "$pre_commit_hook" ]]; then
         printf "#!/bin/sh\n\n%s\n" "$guard_code" > "$pre_commit_hook"
+    elif grep -qF "$guard_start" "$pre_commit_hook" 2>/dev/null; then
+        # Legacy blocking guard present — replace the guarded block in place
+        local tmp_hook="${pre_commit_hook}.tmp.$$"
+        GUARD_CODE="$guard_code" GUARD_START="$guard_start" GUARD_END="$guard_end" \
+            awk '
+                $0 == ENVIRON["GUARD_START"] { inblock=1; printf "%s\n", ENVIRON["GUARD_CODE"]; next }
+                $0 == ENVIRON["GUARD_END"]   { inblock=0; next }
+                !inblock
+            ' "$pre_commit_hook" > "$tmp_hook"
+        mv "$tmp_hook" "$pre_commit_hook"
     else
-        # If pre-commit exists, prepend the guard right after the shebang line
-        # so it runs before any other hook logic (even if the existing hook exits 0 later)
+        # No guard yet — prepend right after the shebang so it runs before
+        # any other hook logic (even if the existing hook exits 0 later)
         local tmp_hook="${pre_commit_hook}.tmp.$$"
         local first_line
         first_line="$(head -n 1 "$pre_commit_hook" 2>/dev/null || echo "#!/bin/sh")"
@@ -310,6 +317,6 @@ HOOK_BLOCK
     fi
 
     chmod 755 "$pre_commit_hook" 2>/dev/null || chmod +x "$pre_commit_hook" 2>/dev/null || true
-    echo -e "${GREEN}✓ Installed downstream AGENTS.md pre-commit protection in ${target_dir}${RESET}"
+    echo -e "${GREEN}✓ Installed warn-only AGENTS.md pre-commit guard in ${target_dir}${RESET}"
     return 0
 }
