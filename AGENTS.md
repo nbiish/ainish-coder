@@ -2,6 +2,13 @@
 description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys. Persistent repo-memory via three MCP servers (memorix, reference_memory, engram) available to every MCP-capable agent harness — orient from memory, store typed facts, resolve stale entries; git-tracked memory records in .agents/memories/ (see .agents/skills/repo-memory-graph-intelligence/SKILL.md). Worktree per task — branch from main, merge back to main after verification, then clean up. Polyglot (Rust, TS, Py, etc). Chain-of-Draft: ≤5 words per step, output after ####. llms.txt is the PRD anchor — read it. No secrets in tasks or PRD. FIPS 203/204/205 for secrets ops; standard crypto for transport. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch naming `<type>/<scope>-<slug>`. Gates green → merge autonomously, no operator confirmation gate. Output full production code. Concurrent agents coordinate via the dated ledger .agents/comms/{date}-team.txt, task records in .agents/tasks/{date}-task.md, and suggestions in .agents/suggestions/{date}-suggestions.md. Triage tasks into now/next/queued/backlog lanes with a bounded worktree budget. Modular domain capabilities live in .agents/skills/. Tear down stale servers and rebuild fresh main after every merge; verify worktree ownership (git+time) before removing any worktree. Always believe in yourself. OOReDAct: Observe → Orient → Reason → Decide → Act.
 ---
 
+<!-- ================================================================= -->
+<!-- ⛔ CANONICAL CONTRACT NOTICE FOR ALL AI CODING AGENTS              -->
+<!-- THIS AGENTS.md IS A CENTRALLY GOVERNED SYMLINK FROM ainish-coder.  -->
+<!-- NEVER EDIT, TRUNCATE, OVERWRITE, OR COMMIT THIS FILE IN DOWNSTREAM REPOS. -->
+<!-- ALL REPOSITORY-SPECIFIC PRD DIRECTIVES & RULES BELONG IN llms.txt. -->
+<!-- ================================================================= -->
+
 # 🚧 WORKTREE GATE — MANDATORY CHECKPOINT
 
 **Run BEFORE any code edit, file read, or git operation.**
@@ -42,6 +49,7 @@ Conflict → fail closed, explain, ask.
 - **`llms.txt` is the PRD and guiding document of each repository.** Project purpose, scope, contracts, structure, per-repo rules, and the Child DOX Index live in its DOX chain — never in AGENTS.md. Read the llms.txt chain (root → child → target path) before editing anything.
 - **Division of labor:** AGENTS.md = general standard (worktree isolation, PQC secrets, COMMS coordination, quality gates) + wiring for custom tooling (`pqc-secrets`, `security_gate.py`) and modular skills in `.agents/skills/`. llms.txt = what THIS project is and how THIS project works.
 - **Drift rule:** repo-specific guidance discovered while working belongs in the nearest owning `llms.txt`, never in AGENTS.md. If AGENTS.md and llms.txt conflict, llms.txt wins for repo-local detail; AGENTS.md wins for the universal standard.
+- **Symlink & Overwrite Protection:** Every target repository's AGENTS.md is deployed as a live symbolic link pointing directly to the root ainish-coder repository. Editing the contract at root updates all receiving repositories simultaneously. Downstream repositories are write-protected at the OS level (read-only) and git level (pre-commit guard) to prevent accidental overwrites by peer agents or automation tools.
 </DOCUMENT_MODEL>
 
 ---

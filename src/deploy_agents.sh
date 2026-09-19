@@ -6,6 +6,82 @@
 # and the distributed template — there is no separate deployed variant.
 # Repository-specific direction lives in each repo's llms.txt DOX chain.
 
+source "${SRC_DIR}/agents_protection.sh"
+
+_is_windows_env() {
+    [[ "${OS:-}" == "Windows_NT" ]] || [[ "${OSTYPE:-}" == "msys" ]] || [[ "${OSTYPE:-}" == "cygwin" ]]
+}
+
+_to_native_path() {
+    local p="$1"
+    if _is_windows_env && command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$p" 2>/dev/null || echo "$p"
+    else
+        echo "$p"
+    fi
+}
+
+# Deploy AGENTS.md as a symlink pointing to the canonical root AGENTS.md
+_deploy_agents_symlink() {
+    local src="$1"
+    local dest="$2"
+
+    local dest_parent
+    dest_parent="$(dirname "$dest")"
+    mkdir -p "$dest_parent" || return 1
+
+    # If destination already points to the exact source file (same file/symlink target)
+    if [[ "$src" -ef "$dest" ]]; then
+        return 0
+    fi
+
+    # Remove existing destination (regular file, old copy, or stale symlink)
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        # Unlock if it was read-only so rm succeeds
+        unlock_agents_contract "$dest" 2>/dev/null || true
+        rm -rf "$dest" || return 1
+    fi
+
+    # Resolve source to absolute path
+    local abs_src
+    abs_src="$(cd "$(dirname "$src")" 2>/dev/null && pwd)/$(basename "$src")" || return 1
+
+    local linked=false
+
+    if _is_windows_env; then
+        local win_dest win_src
+        win_dest="$(_to_native_path "$dest")"
+        win_src="$(_to_native_path "$abs_src")"
+
+        # 1. Try native symlink via MSYS winsymlinks
+        if MSYS="winsymlinks:nativestrict" ln -sf "$abs_src" "$dest" 2>/dev/null; then
+            linked=true
+        # 2. Try cmd.exe mklink (works if Developer Mode is enabled)
+        elif MSYS2_ARG_CONV_EXCL="*" cmd.exe /c "mklink $win_dest $win_src" < /dev/null >/dev/null 2>&1; then
+            linked=true
+        # 3. If Windows developer mode is off and user is non-admin, fall back to NTFS hard link
+        elif MSYS2_ARG_CONV_EXCL="*" cmd.exe /c "mklink /H $win_dest $win_src" < /dev/null >/dev/null 2>&1; then
+            linked=true
+            echo -e "${YELLOW}ℹ️  Linked via NTFS hardlink (Developer Mode not active for unprivileged symlinks).${RESET}"
+            echo -e "${YELLOW}   Tip: Enable Windows Developer Mode in Settings -> System -> For developers to allow pure symlinks.${RESET}"
+        fi
+    else
+        # POSIX systems (Linux/macOS)
+        if ln -sf "$abs_src" "$dest" 2>/dev/null; then
+            linked=true
+        fi
+    fi
+
+    if [[ "$linked" != "true" ]]; then
+        # Final fallback: standard deploy_path with symlink attempt
+        if ! AINISH_LINK_MODE="true" deploy_path "$abs_src" "$dest"; then
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 deploy_agents() {
     local target_dir="${1:-.}"  # Default to current directory if not provided
 
@@ -19,20 +95,22 @@ deploy_agents() {
         return 1
     fi
 
-    echo -e "${BRIGHT_BLUE}Deploying AGENTS.md (universal standard) -> $dest${RESET}"
+    echo -e "${BRIGHT_BLUE}Deploying AGENTS.md (canonical symlink) -> $dest${RESET}"
 
     # Check if we are trying to deploy the file onto itself
     if [[ "$source" -ef "$dest" ]]; then
-        echo -e "${GREEN}✓ AGENTS.md is already up to date at $target_dir (same file)${RESET}"
+        echo -e "${GREEN}✓ AGENTS.md is already up to date at $target_dir (same file/link)${RESET}"
+        # Still ensure pre-commit guard and protection are active
+        install_agents_pre_commit_guard "$target_dir" 2>/dev/null || true
+        lock_agents_contract "$source" 2>/dev/null || true
         return 0
     fi
 
-    # If the target repository still has a legacy AGENTS.deployed.md from a
-    # previous dual-contract run, clean it up: AGENTS.md is the one contract.
+    # Clean up legacy files if present
     local legacy_deployed="$target_dir/AGENTS.deployed.md"
     if [[ -f "$legacy_deployed" || -L "$legacy_deployed" ]]; then
         rm -f "$legacy_deployed"
-        echo -e "${YELLOW}🧹 Cleaned up legacy AGENTS.deployed.md at $target_dir (singular AGENTS.md model)${RESET}"
+        echo -e "${YELLOW}🧹 Cleaned up legacy AGENTS.deployed.md at $target_dir${RESET}"
     fi
     local legacy_template="$target_dir/src/templates/AGENTS.deployed.md"
     if [[ -f "$legacy_template" && ! -f "$target_dir/bin/ainish-coder" ]]; then
@@ -40,29 +118,34 @@ deploy_agents() {
         echo -e "${YELLOW}🧹 Cleaned up legacy src/templates/AGENTS.deployed.md at $target_dir${RESET}"
     fi
 
-    # In non-overwrite mode, check if destination already has an AGENTS.md
+    # In non-overwrite mode, check if destination already correctly points to source
     if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
-        if [[ -f "$dest" || -L "$dest" ]]; then
-            echo -e "${YELLOW}⏭️  Skipping AGENTS.md (already exists at $target_dir)${RESET}"
-            echo -e "${YELLOW}   Use ainish-coder --rules to overwrite (or -y for non-interactive)${RESET}"
+        if [[ "$source" -ef "$dest" ]]; then
+            echo -e "${YELLOW}⏭️  Skipping AGENTS.md (already linked to root at $target_dir)${RESET}"
             return 0
         fi
     fi
 
-    # Deploy (symlink with --link, copy otherwise)
-    if ! deploy_path "$source" "$dest"; then
-        echo -e "${BRIGHT_RED}Error: Failed to create AGENTS.md${RESET}"
+    # Deploy as symbolic link from root repo
+    if ! _deploy_agents_symlink "$source" "$dest"; then
+        echo -e "${BRIGHT_RED}Error: Failed to symlink AGENTS.md to $dest${RESET}"
         return 1
     fi
 
-    echo -e "${GREEN}✓ Deployed the universal AGENTS.md as $dest${RESET}"
-    echo -e "${BRIGHT_GREEN}✅ AGENTS.md (singular, repo-agnostic) is ready for all AI tools; project direction lives in llms.txt${RESET}"
+    # Install pre-commit guard in target repository to block accidental commits modifying AGENTS.md
+    install_agents_pre_commit_guard "$target_dir" 2>/dev/null || true
+
+    # Ensure root contract is snapshotted and write-protected (read-only)
+    snapshot_canonical_contract "$source" 2>/dev/null || true
+    lock_agents_contract "$source" 2>/dev/null || true
+
+    echo -e "${GREEN}✓ Symlinked AGENTS.md -> $source (updates propagate from root)${RESET}"
+    echo -e "${BRIGHT_GREEN}🔒 Root AGENTS.md write-protected; downstream pre-commit guard active${RESET}"
 
     return 0
 }
 
-# deploy_agents_deployed <target_dir> — backwards-compatible alias:
-# the legacy deployed-variant doc is retired; AGENTS.md is the one contract.
+# deploy_agents_deployed <target_dir> — backwards-compatible alias
 deploy_agents_deployed() {
     deploy_agents "$@"
 }
@@ -73,8 +156,7 @@ deploy_agents_maintainer() {
 }
 
 # Global AGENTS.md symlink — ensures ~/.agents/AGENTS.md and ~/.config/AGENTS.md
-# always point to the canonical singular AGENTS.md — the same document that
-# governs this repository and deploys to every target repository.
+# always point to the canonical singular AGENTS.md
 deploy_agents_global() {
     local source="${REPO_DIR}/AGENTS.md"
     if [[ ! -f "$source" ]]; then
@@ -85,8 +167,8 @@ deploy_agents_global() {
     mkdir -p "$HOME/.agents" "$HOME/.config"
 
     for dest in "$HOME/.agents/AGENTS.md" "$HOME/.config/AGENTS.md"; do
-        if [[ -L "$dest" && "$(readlink "$dest")" == "$source" ]]; then
-            echo -e "${GREEN}✓ Global AGENTS.md symlink already correct: $dest${RESET}"
+        if [[ "$source" -ef "$dest" ]]; then
+            echo -e "${GREEN}✓ Global AGENTS.md link already correct: $dest${RESET}"
             continue
         fi
 
@@ -96,7 +178,7 @@ deploy_agents_global() {
             echo -e "${YELLOW}⚠ Backed up existing $dest to $backup${RESET}"
         fi
 
-        ln -sf "$source" "$dest"
+        _deploy_agents_symlink "$source" "$dest" || ln -sf "$source" "$dest"
         echo -e "${GREEN}✓ Symlinked AGENTS.md to $dest${RESET}"
     done
 }
