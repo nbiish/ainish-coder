@@ -158,3 +158,19 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - objective:completed active memory CRUD lifecycle integration (Make, Update, Delete/Resolve) across AGENTS.md, repo-memory-graph-intelligence skill, .agents/memories/, and git-context.sh fast orientation; verified Zero-Trust security gate and git-context; merged to main and cleaned up worktree
 - status:closed
 - blockers:none
+
+[2026-09-19T23:20:27Z] checkin Hermes (win-strix) triage:now
+  task: --rules copy-semantics for AGENTS.md + guard hook policy fix + downstream migration
+  branch: feat/agents-md-copy-deploy worktree: ../ainish-md-copy
+  start: 2026-09-19T23:20:27Z
+
+[2026-09-19T23:26:45Z] intent-merge Hermes (win-strix)
+  merge feat/agents-md-copy-deploy -> main — copy-deployment for AGENTS.md, warn-only guard, self-healing hook migration
+  gates: bash -n clean, security_gate PASS, 7/7 smoke tests (fresh deploy, legacy migration, commit-through-hook, globals, sync hook)
+  start: 2026-09-19T23:26:45Z
+
+[2026-09-19T23:33:23Z] checkout Hermes (win-strix)
+  merged feat/agents-md-copy-deploy -> main (d845fcd); worktree ../ainish-md-copy removed, branch deleted
+  migrated to copy deployment: local-router (committed+merged 5e1b9eb, pushed), hermes-agent-backup-mac, wtf-is-going-on-mcp, ~/.agents, ~/.config, ~; swept all legacy guard hooks in /mnt/d/Code (posting, posting/vibes-posting included)
+  local-router: gitleaks FP triage (.gitleaksignore) merged + pushed 3af1091; CI tests pass locally (antigravity-platform-detect 15/15, oauth-logout 2/2)
+  end: 2026-09-19T23:33:23Z

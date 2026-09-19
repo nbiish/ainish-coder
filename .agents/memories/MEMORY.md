@@ -5,7 +5,8 @@ One entry per durable fact. Format: `- [YYYY-MM-DD] [STATE] <statement> *(source
 ## Active Facts
 
 - [2026-09-19] [ACTIVE] Memory CRUD lifecycle establishes active Make, Update, and Delete/Resolve across chat turns and tasks with explicit state tags and AST symbol anchoring. *(source: feat/agent-memory-lifecycle, task: 2026-09-19.memory-lifecycle-task.md, ast: AGENTS.md)*
-- [2026-09-19] [ACTIVE] AGENTS.md symlink protection is fully cross-platform: macOS uses BSD chflags uchg/nouchg (user immutable flag), Linux uses chmod 444 and chattr +i fallback, Windows uses attrib +R and chmod 444. *(source: feat/rules-cross-platform-posix verification, task: 2026-09-19.posix-cross-platform-task.md, ast: lock_agents_contract)*
+- [2026-09-19] [ACTIVE] AGENTS.md deploys as plain tracked COPIES (operator directive 2026-09-19): `ainish-coder --rules` copies root → target, never writes through links; guard hook is warn-only and self-replaces the legacy blocking block; `scripts/hooks/agents-md-sync.sh` re-syncs global copies post-merge/post-checkout. *(source: feat/agents-md-copy-deploy, task: 2026-09-19.agents-md-copy-task.md, ast: deploy_agents)*
+- [2026-09-19] [RESOLVED 2026-09-19] AGENTS.md symlink protection (chflags uchg/chmod 444/chattr +i/attrib +R + blocking pre-commit guard) — superseded by copy deployment after the blocking guard trapped downstream agents (local-router T-typechange deadlock); symlink facts below retained for the retired `--lock-rules` opt-in path only. *(source: feat/rules-cross-platform-posix, superseded-by: feat/agents-md-copy-deploy, ast: lock_agents_contract)*
 - [2026-09-19] [ACTIVE] Pre-commit hook guard uses POSIX printf for color escapes and prepends itself right after the hook shebang (#!/bin/sh) so it executes before downstream logic or early exit 0 statements. *(source: feat/rules-cross-platform-posix verification, task: 2026-09-19.posix-cross-platform-task.md, ast: scripts/setup-hooks.sh)*
 
 ## Active Decisions
