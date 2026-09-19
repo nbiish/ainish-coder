@@ -68,38 +68,16 @@ What would this master-orchestrator / self-prompting master suggest? Record all 
 What would this developer-experience / ergonomics master suggest? Giving agents clear CRUD patterns and reference cheat-sheets removes guesswork when deciding how and where to store emergent knowledge.
 
 ### [2026-09-19T23:34:28Z] feat/agents-md-copy-deploy | agent:Hermes (win-strix)
-Replaced AGENTS.md symlink+blocking-guard deployment with plain tracked copies ( copies root→target, warn-only self-replacing guard hook), migrated local-router/hermes/wtf/globals, swept all legacy guards, and triaged local-router's daily gitleaks failures via .gitleaksignore (pushed 3af1091). Next step: push-verify the local-router CI run goes green and propagate [1;34mDeploying Rules System to: /tmp[0m
-[1;34mDeploying AGENTS.md (tracked copy of canonical) -> /tmp/AGENTS.md[0m
-[0;32m✓ Copied latest AGENTS.md -> /tmp/AGENTS.md (refresh with: ainish-coder --rules)[0m
-[1;32m📄 Root AGENTS.md is the single source of truth; the target owns its tracked copy[0m
-[0;32m✓ Global AGENTS.md copy already up to date: /home/nanoboozhoo/.agents/AGENTS.md[0m
-[0;32m✓ Global AGENTS.md copy already up to date: /home/nanoboozhoo/.config/AGENTS.md[0m
-[1;34mDeploying .gitignore configuration[0m
-[0;32m✓ Deployed .gitignore to /tmp[0m
-[1;32m✅ Gitignore configured[0m
-[1;34mDeploying Skills[0m
-[0;32m✓ Deployed: .agents/skills/advisory-council[0m
-[0;32m✓ Deployed: .agents/skills/anishinaabe-cyberpunk-style[0m
-[0;32m✓ Deployed: .agents/skills/browser-skill[0m
-[0;32m✓ Deployed: .agents/skills/code-security[0m
-[0;32m✓ Deployed: .agents/skills/document-enhancer[0m
-[0;32m✓ Deployed: .agents/skills/gstack-coder[0m
-[0;32m✓ Deployed: .agents/skills/llm-security[0m
-[0;32m✓ Deployed: .agents/skills/modern-prompting[0m
-[0;32m✓ Deployed: .agents/skills/openscad-generator[0m
-[0;32m✓ Deployed: .agents/skills/orchestrate-subagent-masters[0m
-[0;32m✓ Deployed: .agents/skills/pliny-research[0m
-[0;32m✓ Deployed: .agents/skills/pqc-secrets[0m
-[0;32m✓ Deployed: .agents/skills/pqc-signatures-security[0m
-[0;32m✓ Deployed: .agents/skills/production-security[0m
-[0;32m✓ Deployed: .agents/skills/question-me[0m
-[0;32m✓ Deployed: .agents/skills/remotion-video[0m
-[0;32m✓ Deployed: .agents/skills/repo-memory-graph-intelligence[0m
-[0;32m✓ Deployed: .agents/skills/tts-cli[0m
-[0;32m✓ Deployed: .agents/skills/video-knowledge-extractor[0m
-[0;32m✓ Deployed: .agents/skills/wtf-agent-hub[0m
-[0;32m✓ Deployed: .agents/skills/wtf-observability[0m
-[1;32m✅ Deployed 21 skill(s) to /tmp/.agents/skills[0m to remaining deployed repos (tts-cli, webdork-mcp, job-erator, psionics-*) to refresh their stale copies.
+Replaced AGENTS.md symlink+blocking-guard deployment with plain tracked copies (ainish-coder --rules copies root→target, warn-only self-replacing guard hook), migrated local-router/hermes/wtf/globals, swept all legacy guards, and triaged local-router's daily gitleaks failures via .gitleaksignore (pushed 3af1091). Next step: push-verify the local-router CI run goes green and propagate the refreshed contract to remaining deployed repos (tts-cli, webdork-mcp, job-erator, psionics-*) to refresh their stale copies.
+What would this adversarial / security master suggest? Keep gitleaks enforcement strict — the ignored GOCSPX constant is vendor-public per RFC 8252, but re-audit if it ever becomes a per-user credential.
+What would this privacy / data-protection regulatory master suggest? Confirm the .gitleaksignore rationale comments never leak the masked secret values and coordination files stay free of PII before pushing.
+What would this supply-chain / third-party-risk master suggest? Version-gate the new guard installer so older deployed hooks self-heal only through an explicit ainish-coder upgrade, keeping skill packs byte-identical.
+What would this systems-architecture / devops / infrastructure master suggest? Add a doctor check that flags any remaining AGENTS.md symlink fleet-wide so legacy deployments surface automatically.
+What would this reliability / verification master suggest? Keep the 7-scenario smoke suite as a permanent regression harness run on every deployment-molecule change.
+What would this governance / sovereignty master suggest? The copy model shifts drift-responsibility to refresh discipline — make --verify-rules part of git-context so stale copies are visible at orientation.
+What would this terminal-orchestration / swe-bench master suggest? Record the copy-deployment contract in deployed llms.txt templates so downstream agents learn it without reading ainish-coder.
+What would this master-orchestrator / self-prompting master suggest? Broadcast the contract change to peer agents via the ledger before they re-run old tool versions.
+What would this developer-experience / ergonomics master suggest? The warn-only hook turns a hard deadlock into a one-line hint — extend the same pattern (advice over block) to other guard hooks.
 What would this adversarial / security master suggest? Keep gitleaks enforcement strict — the ignored GOCSPX constant is vendor-public per RFC 8252, but re-audit if it ever becomes a per-user credential.
 What would this privacy / data-protection regulatory master suggest? Confirm the .gitleaksignore rationale comments never leak the masked secret values and coordination files stay free of PII before pushing.
 What would this supply-chain / third-party-risk master suggest? Version-gate the new guard installer so older deployed hooks self-heal only through an explicit ainish-coder upgrade, keeping skill packs byte-identical.
