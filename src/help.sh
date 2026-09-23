@@ -179,7 +179,6 @@ UTILITY COMMANDS:
                               - skyvern/                   (AI browser automation)
                               - orchestrate-subagent-masters/ (Subagent master orchestration: dsh headless/ACP + native)
                               - question-me/               (Socratic design interview & tree resolution)
-                              - repo-memory-graph-intelligence/ (Dual-substrate AST code graph + persistent repo-memory)
 
                               Example: ainish-coder --skills-sync ~/my-project
 
