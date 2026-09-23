@@ -1,0 +1,10 @@
+# memory — 2026-09-23 (UTC)
+# Pairs with ../comms/2026-09-23-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 17:58 Scheme cutover (operator directive): memory = dated {date}-memory.txt — replaces the MEMORY.md digest + exports/ snapshots and retires the GitNexus doctrine and the memorix / reference_memory / engram MCP plane; plain markdown only, agent/system/dependency agnostic. Suggestions are {date}-suggestions.txt now. Still-valid facts carried from MEMORY.md below.
+- 17:58 [RESOLVED] repo-memory-graph-intelligence dual-substrate skill, 4-bridge protocol, and the three-server memory MCP standard (2026-09-08/10) — superseded by dated memory files; skill pack removed.
+- 17:59 ainish-coder --rules <dir> --headless exits 2 uniformly after SUCCESSFUL deployments (--help exits 0; all 13 fleet targets + fresh /tmp probe) — treat the exit code as unreliable and verify the deployed copies instead. Root cause untraced. (bin/ainish-coder)
+- 17:59 SHA-256 fallback order sha256sum -> shasum -a 256 -> openssl dgst -sha256 -> python3 -> python -> powershell.exe -> cksum keeps cross-platform hashing unbroken. (src/agents_protection.sh: _calc_sha256)
+- 18:00 macOS (BSD xargs): -r is illegal and fails git hooks — use portable while IFS= read loops. (scripts/setup-hooks.sh)
+- 18:00 macOS (Darwin): chmod fails EPERM once uchg is set — chmod 444 before chflags uchg; chflags nouchg before chmod 644. (src/agents_protection.sh: lock_agents_contract / unlock_agents_contract)
+- 18:01 Unsloth CLI serves its native backend on port 8888 ('unsloth run -p 8888'); Local Router shims intercept 8888 and must include 'start' and 'run' in serveSubcommands. (bin/local-router.js)

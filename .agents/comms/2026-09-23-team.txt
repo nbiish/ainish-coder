@@ -83,3 +83,34 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:merged --no-ff x2 (033caae + 98e0a27 dropping the superseded draft); user in-flight edits preserved at stash@{0}; fleet --rules refreshed all 13 targets (copies verified 133L); worktree + branch cleaned; no-rebuild-needed (no long-running server in this repo). Finding: bin/ainish-coder --rules exits 2 uniformly after successful runs (--help exits 0) — follow-up logged
 - status:merged
 - blockers:none
+
+### [2026-09-23T17:45:00Z] checkin | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
+- start:2026-09-23T17:45:00Z
+- end:2026-09-23T17:45:00Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
+- triage:now
+- objective:strip GitNexus + memory-MCP doctrine; memory becomes dated .agents/memories/{date}-memory.txt pairing with the team ledger; suggestions become {date}-suggestions.txt
+- input:operator directive (agnostic memory, concise dated files, suggestions .txt); main working tree carried verbatim into the branch (original bytes at stash@{0})
+- output:task active
+- status:active
+- blockers:none
+
+### [2026-09-23T18:08:00Z] update | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
+- start:2026-09-23T17:45:00Z
+- end:2026-09-23T18:08:00Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
+- objective:cutover done — <GRAPH> deleted, <REPO_MEMORY> rewritten to dated plain markdown, MEMORY.md + exports/ + repo-memory-graph-intelligence pack (1460L) retired, suggestions renamed .txt, all doctrine callers de-gitnexused
+- input:gates green — bash -n x4, jq valid, security_gate PASS (canonical sha256 d0ca977 OK), git-context smoke shows 2026-09-23-memory.txt (10L) + three suggestions .txt
+- output:5 still-valid facts carried into .agents/memories/2026-09-23-memory.txt; retired doctrine marked [RESOLVED]; sweep clean outside history and intentional retirement notes
+- status:verifying
+- blockers:none
+
+### [2026-09-23T18:05:00Z] intent-merge | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
+- start:2026-09-23T18:05:00Z
+- end:2026-09-23T18:05:00Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
+- objective:merge chore/agent-agnostic-memory -> main — dated {date}-memory.txt memory, {date}-suggestions.txt, GitNexus + memory-MCP doctrine stripped
+- input:green gates — bash -n x4, jq valid, security_gate PASS (canonical sha256 d0ca977), git-context smoke green
+- output:merging now with --no-ff; no-rebuild-needed (no long-running server in this repo)
+- status:verifying
+- blockers:none

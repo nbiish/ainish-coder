@@ -16,3 +16,15 @@ What would this governance / sovereignty master suggest? Record the operator's n
 What would this terminal-orchestration / swe-bench master suggest? Have orchestrators log subagent receipts with parent: into the same daily file so a day of fleet activity reads as one narrative.
 What would this master-orchestrator / self-prompting master suggest? Keep one Next step per turn and close the ledger even when a merge ends mid-cycle.
 What would this developer-experience / ergonomics master suggest? The 2.3x contract shrink is the win — resist re-adding detail; grow llms.txt instead when a repo needs more.
+
+### [2026-09-23T18:05:00Z] chore/agent-agnostic-memory | agent:omp
+Stripped the GitNexus + memory-MCP doctrine and made memory agent/system/dependency agnostic: `<GRAPH>` deleted, `<REPO_MEMORY>` rewritten to dated `.agents/memories/{date}-memory.txt` pairing with the `{date}-team.txt` ledger (MEMORY.md digest + exports/ + the 1460-line repo-memory-graph-intelligence pack retired, 5 live facts carried forward), suggestions moved to `{date}-suggestions.txt`, and every doctrine caller (llms.txt, orchestrate-subagent-masters, question-me, help, mcp-settings, git-context, deploy/verify) de-gitnexused. Next step: trace and fix `bin/ainish-coder --rules` exit=2 after successful runs, then have each fleet target commit its refreshed AGENTS.md copy and confirm the retired skill pack is gone there.
+What would this adversarial / security master suggest? Confirm the PQC mandate, banned-algorithm list, and no-plaintext rule survived verbatim in the slimmed AGENTS.md — the fail-closed surface must not shrink with the bloat.
+What would this privacy / data-protection regulatory master suggest? Keep `{date}-memory.txt` entries free of hostnames, usernames, and absolute home paths — memory now travels with every push.
+What would this supply-chain / third-party-risk master suggest? The memory dependency surface is now zero — keep it that way; any future memory tool must earn its way in with a plain-file export.
+What would this systems-architecture / devops master suggest? Dated memory files roll per UTC date exactly like the ledger — verify a fresh target gets `.agents/memories/` scaffolded without `exports/`.
+What would this reliability / verification master suggest? Exercise the git-context legacy fallbacks once in an un-migrated target (MEMORY.md, suggestions .md) so history reads never go dark.
+What would this governance / sovereignty master suggest? Retiring doctrine with `[RESOLVED]` lines instead of silent deletion keeps the old MCP plane's audit trail legible.
+What would this terminal-orchestration / swe-bench master suggest? Dispatch closeouts now append one bullet to today's memory file — cheaper and harness-neutral than MCP writes.
+What would this master-orchestrator / self-prompting master suggest? Orientation is two files now — read the current memory file and the team ledger together and steer from those.
+What would this developer-experience / ergonomics master suggest? One day, two files, one glance — resist re-growing the memory scheme with schemas or tooling.
