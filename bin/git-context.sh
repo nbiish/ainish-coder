@@ -46,11 +46,11 @@ if ! git diff --cached --quiet 2>/dev/null; then
   git diff --cached --stat
 fi
 
-# ── AGENT COMMS (latest rotating team ledger) ──
+# ── AGENT COMMS (daily team ledger) ──
 echo ''
 echo '--- COMMS ---'
 today=$(date +%Y-%m-%d)
-# New scheme: rotating .agents/comms/{date}-{time}-team.txt (latest = active).
+# Daily ledger: .agents/comms/{date}-team.txt (one file per UTC date; latest date = active).
 # Legacy fallback: AGENTS/{date}.COMMS.md (pre-migration targets).
 ledger=""
 if [ -d ".agents/comms" ]; then
