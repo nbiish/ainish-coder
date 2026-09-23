@@ -55,19 +55,6 @@
       "args": ["-y", "@anthropic-ai/puppeteer-mcp"],
       "env": {},
       "description": "Headless Chrome browser automation via Puppeteer."
-    },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/memory-mcp"],
-      "env": {},
-      "description": "Persistent knowledge graph memory system."
-    },
-    "gitnexus": {
-      "type": "local",
-      "command": "gitnexus",
-      "args": ["mcp"],
-      "env": {},
-      "description": "GitNexus MCP server — local git intelligence and repository analysis."
     }
   },
   "defaults": {
