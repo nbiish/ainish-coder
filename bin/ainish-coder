@@ -201,9 +201,9 @@ main() {
                 _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
             fi
 
-            # Agent Communication System — .agents/comms/{date}-{time}-team.txt
+            # Agent Communication System — .agents/comms/{date}-team.txt (one per UTC date)
             # Merge-safe: refreshes protocol template, preserves agent entries.
-            if confirm_action "Deploy Agent Communication System (.agents/comms/{date}-{time}-team.txt)?" "y"; then
+            if confirm_action "Deploy Agent Communication System (.agents/comms/{date}-team.txt)?" "y"; then
                 deploy_agents_comms "$target_dir"
                 _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
             fi

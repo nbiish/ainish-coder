@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: Agent Communication System deployment
-# Deploys .agents/comms/{date}-{time}-team.txt — the concurrent-agent coordination ledger —
+# Deploys .agents/comms/{date}-team.txt — the concurrent-agent coordination ledger —
 # to a target repository. Merge-safe by design:
 #   - Fresh target:            writes the full protocol template.
 #   - Existing ledger:         merges — refreshes ONLY the template-managed
@@ -19,10 +19,13 @@ deploy_agents_comms() {
     local today
     today="$(date +%F)"
     local comms_dir="$target_dir/.agents/comms"
-    # Active ledger = today's latest rotation; absent one, stamp a fresh time.
-    local dest
-    dest="$(ls -1 "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1)"
-    [[ -z "$dest" ]] && dest="$comms_dir/${today}-$(date +%H%M)-team.txt"
+    # Active ledger = one file per UTC date (legacy {date}-{time} rotations are
+    # history; when both exist the daily file wins).
+    local dest="$comms_dir/${today}-team.txt"
+    if [[ ! -f "$dest" ]]; then
+        dest="$(ls -1 "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1)"
+    fi
+    [[ -z "$dest" ]] && dest="$comms_dir/${today}-team.txt"
     local source="${REPO_DIR}/src/templates/AGENTS.COMMS.md"
 
     if [[ ! -f "$source" ]]; then
