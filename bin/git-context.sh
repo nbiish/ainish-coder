@@ -87,7 +87,7 @@ fi
 echo ''
 echo '--- SUGGESTIONS ---'
 found_sugg=0
-for f in .agents/suggestions/*-suggestions.md; do
+for f in .agents/suggestions/*-suggestions.txt .agents/suggestions/*-suggestions.md; do
   [ -f "${f}" ] || continue
   found_sugg=1
   lines=$(wc -l < "${f}" | tr -d ' ')
@@ -98,13 +98,17 @@ if [ "${found_sugg}" -eq 0 ]; then
   echo "  none"
 fi
 
-# ── REPO MEMORY (.agents/memories/MEMORY.md) ──
+# ── REPO MEMORY (.agents/memories/{date}-memory.txt) ──
 echo ''
 echo '--- MEMORY ---'
-if [ -f .agents/memories/MEMORY.md ]; then
-  mem_lines=$(wc -l < .agents/memories/MEMORY.md | tr -d ' ')
-  active_facts=$(grep -c '^- \[.*\] \[ACTIVE\]' .agents/memories/MEMORY.md 2>/dev/null || echo 0)
-  echo "  MEMORY.md (${mem_lines}L, ${active_facts} active)"
+mem_latest=$(ls -1 .agents/memories/*-memory.txt 2>/dev/null | sort | tail -1)
+if [ -n "${mem_latest}" ]; then
+  mem_lines=$(wc -l < "${mem_latest}" | tr -d ' ')
+  echo "  $(basename "${mem_latest}") (${mem_lines}L)"
+  grep '^- ' "${mem_latest}" 2>/dev/null | tail -4 | sed 's/^/    /'
+elif [ -f .agents/memories/MEMORY.md ]; then
+  # legacy digest (pre-dated-file targets)
+  echo "  MEMORY.md (legacy)"
   grep '^- \[.*\] \[ACTIVE\]' .agents/memories/MEMORY.md 2>/dev/null | head -4 | sed 's/^/    /'
 else
   echo "  none"

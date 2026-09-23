@@ -34,12 +34,12 @@ The calling AI agent is the **Master Orchestrator**: it decomposes operator inte
 2. **Embody the master.** Formulate each prompt AS the persona (AST Master, TDD Engineer, Security Auditor, …) — precise scope, bounded steps, explicit gates.
 3. **Worktree isolation.** One dispatch = one branch = one sibling worktree (`git worktree add -b <type>/<scope>-<slug> ../<slug> main`). Never dispatch against `main`.
 4. **Operator-owned config.** dsh runs the configuration the operator set: `agent-default-model` = `local-router/fallback-models` served by the `ollama-local-router` provider (loopback router; set from the DSH web dashboard, 2026-09-07). Never override profile, provider, or model config in a dispatch (no `--patch` overlays, no profile edits). Verify what will boot with the §4.1 preflight and the session log; never pass raw API keys in dispatch args or task text.
-5. **Graph recon first.** `gitnexus context`/`impact` (d≤2) output IS the `SCOPE & TARGET FILES` allowlist. Zero blind edits.
+5. **Scope recon first.** Map callers and blast radius (d≤2) with the harness's own code search; that output IS the `SCOPE & TARGET FILES` allowlist. Zero blind edits.
 6. **Receipts or it never happened.** Every dispatch lifecycle is a `SUBAGENT-DISPATCH` entry in the active `.agents/comms/{date}-team.txt` (`parent: <orchestrator>`) plus a closed packet in `.agents/handoffs/` (§5–§6, §8).
 7. **Scaffold carries the intelligence.** Lower-intelligence engines reach frontier outcomes through the scaffold — scope allowlists, persona prompts, structured artifacts, gates, evaluator separation, receipts — not through model horsepower. When a dispatch underperforms, harden the scaffold, not the model.
 8. **Fan out for read; single-thread for write.** The one axis that picks the topology is how much context can be lost between agents (§2.0). Interdependent write-heavy work serializes as a pipeline or stays with one agent.
 9. **Cost doctrine.** Multi-agent systems spend ~15× chat tokens (single agents ~4×); token spend alone explains ~80% of multi-agent performance variance, and a fan-out snag can cost ~5× recovery tokens. Reserve fan-out for one-off exploratory / parallel-read breadth; repetitive production work → a plain pipeline of subagents; always start on a small slice.
-10. **Memory-aware dispatches.** Every dsh profile (headless, acp, web, tui) carries the three repo-memory MCP servers (§7.1): embed in each dispatch prompt a recon line ("consult `memorix_project_context` + `mem_context` before edits") and a closeout line ("store one typed gotcha/decision via `memorix_store` or `mem_save` before exit"). Cross-machine coordination still lives ONLY in the COMMS triad — memory servers are per-machine context, never the system of record (see `.agents/skills/repo-memory-graph-intelligence/SKILL.md`).
+10. **Memory-aware dispatches.** Embed in each dispatch prompt a recon line ("read `.agents/memories/{date}-memory.txt` before edits") and a closeout line ("append one durable gotcha/decision to today's memory file before exit"). Cross-machine coordination still lives ONLY in the COMMS triad — the memory files are context, never the system of record (§7.1, AGENTS.md `<REPO_MEMORY>`).
 
 ## 2. Subagent Modality Matrix — One Command Each
 
@@ -72,7 +72,7 @@ cat > /tmp/task_ast.md << 'EOF'
 # TASK: <one-line objective>
 ## ROLE & EXPERT PERSONA
 You are the **AST Refactoring Master**. Surgical structural edits; preserve AST and exported contracts.
-## SCOPE & TARGET FILES   # gitnexus impact output — the ONLY editable files
+## SCOPE & TARGET FILES   # blast-radius recon output — the ONLY editable files
 - <file1>
 - <file2>
 ## OBJECTIVE & DIRECTIVES
@@ -162,7 +162,7 @@ Return a structured artifact: findings; files-touched; gate results (command →
 Stop and report when evidence is sufficient, or after 3 failed attempts on the same step — never scour past that. You cannot judge appropriate effort; these bounds are your effort budget.
 ```
 
-- **TPL_AST_REFACTOR_V3** — AST Refactoring Master (dsh headless): role = surgical structural refactor preserving AST/type contracts; scope = gitnexus allowlist; gates = compile + tests + scope-clean `git status`.
+- **TPL_AST_REFACTOR_V3** — AST Refactoring Master (dsh headless): role = surgical structural refactor preserving AST/type contracts; scope = blast-radius allowlist; gates = compile + tests + scope-clean `git status`.
 - **TPL_TDD_REPRO_V3** — TDD Reproduction Engineer (dsh headless): role = minimal failing test → confirm failure → minimal patch → green suite → report; zero extraneous scripts.
 - **TPL_SECURITY_AUDIT_V3** — Adversarial Security Auditor (dsh headless/native): role = zero-trust audit — CWE-22/SSRF/injection vectors, FIPS 203/204/205-only secrets ops, allowlist validation; gates = security tests + zero banned primitives.
 - **TPL_SYSTEMS_ARCH_V3** — Systems Architecture Master (dsh headless): role = deterministic loopback pipelines, port contracts, daemon failover, signal-clean shutdown; gates = endpoint smoke + lifecycle tests.
@@ -231,9 +231,9 @@ Each handoff = one `FLEET-HANDOFF` COMMS entry (§6).
 ```
 One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<modality>`. No COMMS receipt = the dispatch never happened; no merge proceeds without receipts for every phase. Pre-merge assertion (mechanical, never by recall): every closed packet in `.agents/handoffs/` greps back to a linked `SUBAGENT-DISPATCH` ledger entry.
 
-## 7.1 Repo-Memory MCP Plane (all profiles)
+## 7.1 Memory Plane (all profiles)
 
-`~/.dsh/memory-mcp.cordis.yml` (inlined into every `~/.dsh/profiles/<name>/cordis.patch.yml`) bridges `memorix`, `reference_memory`, and `engram` as stdio MCP servers, so `dsh --profile headless|acp|sdk` dispatches and this orchestrator itself share persistent project memory (`mcp__memorix__*`, `mcp__reference_memory__*`, `mcp__engram__*`). Install, verification smoke tests, routing doctrine, and hygiene: `.agents/skills/repo-memory-graph-intelligence/SKILL.md`. If `dsh --dump-config` shows fewer than 3 memory servers, repair the patch layer before dispatching — memory-blind dispatches re-derive known gotchas and re-make fixed mistakes.
+No memory service to install — dispatches and the orchestrator share `.agents/memories/{date}-memory.txt` (AGENTS.md `<REPO_MEMORY>`): read it at recon, append one durable entry at closeout. Zero-dependency plain markdown, identical on every harness and machine; memory-blind dispatches re-derive known gotchas and re-make fixed mistakes.
 
 ## 7. Verification Gates & Guardrails
 
@@ -242,7 +242,7 @@ One entry per dispatch; handoffs use `FLEET-HANDOFF | from:<modality> | to:<moda
 3. Scope conformance: `git diff --name-only` ⊆ allowlist; violations revert before re-dispatch.
 4. C/C++ patches: warnings-as-errors + ASan/UBSan + tests re-run on the optimized shipping binary.
 5. Privacy: task files and intermediate artifacts scrubbed after every dispatch; no secrets, no absolute home paths in any artifact (headless sessions persist under `$DSH_HOME` — treat session logs as artifacts too; task text is visible in child argv, so task files carry no secrets).
-6. GitNexus `detect-changes` scope proof before merge (or COMMS-logged fallback gap note).
+6. Scope proof before merge: gate-3's `git diff --name-only` ⊆ allowlist check re-run and logged in COMMS (or a logged gap note).
 7. Operator confirms every merge — never self-approve.
 8. Quality gate: no dispatch self-approves quality — evaluator separation (§5) before any merge-quality claim.
 9. Discoveries become dispatches: out-of-scope work found mid-dispatch is filed as a NEW scoped dispatch (with its own receipt), never silent scope expansion.
