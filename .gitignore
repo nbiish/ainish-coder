@@ -154,5 +154,5 @@ audit.log.*
 .omp/
 
 # Agent COMMS live board — in-flight coordination, never committed.
-# The rotating team ledger .agents/comms/{date}-{time}-team.txt IS committed; this sidecar is not.
+# The daily team ledger .agents/comms/{date}-team.txt IS committed; this sidecar is not.
 .agents/comms/*-team.live.txt

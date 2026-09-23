@@ -61,7 +61,7 @@ _scrolls_comms_append() {
 }
 
 # scrolls_comms_log <event> <detail> — append a protocol block (format per
-# .agents/comms/{date}-{time}-team.txt PROTOCOL) to the durable ledger (worktree if present)
+# .agents/comms/{date}-team.txt PROTOCOL) to the durable ledger (worktree if present)
 # AND the gitignored live board at the main repo path. Includes start:/end:
 # ISO-8601 pairs, scope:.scrolls/, and the current manifest digest when one
 # exists in the target dir (last arg, optional: <event> <detail> [payload_dir]).
@@ -79,7 +79,12 @@ scrolls_comms_log() {
     local ledger_file live_file
     local comms_dir="${REPO_DIR}/.agents/comms"
     if [[ -d "$comms_dir" ]]; then
-        ledger_file="$(ls -1 "$comms_dir/$(date +%F)"*-team.txt 2>/dev/null | sort | tail -1)"
+        # One file per UTC date; adopt a legacy rotation only when absent.
+        ledger_file="$comms_dir/$(date +%F)-team.txt"
+        if [[ ! -f "$ledger_file" ]]; then
+            ledger_file="$(ls -1 "$comms_dir/$(date +%F)"*-team.txt 2>/dev/null | sort | tail -1)"
+            [[ -z "$ledger_file" ]] && ledger_file="$comms_dir/$(date +%F)-team.txt"
+        fi
     else
         ledger_file=""
     fi

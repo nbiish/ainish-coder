@@ -1,5 +1,5 @@
 ---
-description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-{time}-team.txt` (one rotating file per team session, UTC-stamped at creation). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
 ---
 
 # AGENT COMMS — {DATE}
@@ -10,7 +10,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 **When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
 
 **Two channels:**
-- **This file** (`.agents/comms/{date}-{time}-team.txt`) — committed, append-only durable ledger. Updated via your task-branch commits; reaches everyone at merge.
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
 - **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
 
 **Read:** this file + the live board — at start, before any merge, and whenever blocked.
