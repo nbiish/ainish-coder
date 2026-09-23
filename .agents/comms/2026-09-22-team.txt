@@ -1,0 +1,75 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — 2026-09-22
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+**Entry block:**
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+</PROTOCOL>
+
+---
+
+### [2026-09-22T14:53:42Z] checkin | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+- start:2026-09-22T14:53:42Z
+- end:2026-09-22T14:53:42Z
+- scope:AGENTS.md (draft artifact AGENTS.consolidated.md)
+- triage:now
+- objective:consolidate AGENTS.md into a concise contract with equal-or-better cross-agent/chat/session communication impact
+- input:user request: concise AGENTS.md for review, production + security parity
+- output:worktree ../agents-md-consolidation on docs/agents-md-consolidation; draft in progress
+- status:in-progress
+- blockers:none
+
+### [2026-09-22T14:57:00Z] update | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+- start:2026-09-22T14:57:00Z
+- end:2026-09-22T14:57:00Z
+- scope:AGENTS.consolidated.md, .agents/tasks/2026-09-22-task.md, .agents/suggestions/2026-09-22-suggestions.md, .agents/memories/MEMORY.md
+- objective:land consolidated draft + coordination records
+- input:recon — 302-line AGENTS.md, src/templates/AGENTS.COMMS.md protocol, prior suggestions, MEMORY.md
+- output:draft 302 -> ~140 lines, all contracts retained; COMMS two-channel protocol inlined; <GRAPH> block added (llms.txt referenced, was missing); COMMS naming drift recorded in MEMORY.md
+- status:verifying
+- blockers:awaiting operator review before swap-in (explicit operator review gate)
+
+### [2026-09-22T14:57:30Z] checkout | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+- start:2026-09-22T14:57:30Z
+- end:2026-09-22T14:57:30Z
+- scope:AGENTS.consolidated.md
+- objective:park branch pending operator review of the consolidation draft
+- input:draft complete, committed on docs/agents-md-consolidation
+- output:branch parked; on approval — clean cutover into AGENTS.md, refresh .agents/canonical/ + sha256, fleet --rules refresh, then merge --no-ff and cleanup
+- status:verifying
+- blockers:operator review (user-requested gate; not merged this turn)
