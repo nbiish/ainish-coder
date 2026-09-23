@@ -21,6 +21,8 @@ One entry per durable fact. Format: `- [YYYY-MM-DD] [STATE] <statement> *(source
 
 ## Active Gotchas
 
+- [2026-09-23] [ACTIVE] `bin/ainish-coder --rules <dir> --headless` exits 2 uniformly after SUCCESSFUL deployments (all 13 fleet targets + fresh /tmp probe; copies verified applied at 133 lines), while `--help` exits 0 — the `--rules` deploy path ends in a nonzero status regardless of outcome. Treat its exit code as unreliable; verify copies instead. Root cause untraced; not introduced by the 2026-09-23 comment/prompt-string edits to bin/ainish-coder. *(source: fleet refresh diagnostic, task: 2026-09-22-task.md, ast: bin/ainish-coder)*
+
 - [2026-09-19] [ACTIVE] On macOS (BSD xargs), the -r (--no-run-if-empty) flag is illegal and causes git hooks to fail. Use portable while IFS= read loops instead of xargs -r. *(source: scripts/setup-hooks.sh fix, task: 2026-09-19.posix-cross-platform-task.md)*
 - [2026-09-19] [ACTIVE] On macOS (Darwin), chmod fails with EPERM if the uchg user immutable flag is already active. In lock_agents_contract, call chmod 444 before chflags uchg; in unlock_agents_contract, call chflags nouchg before chmod 644. *(source: src/agents_protection.sh, task: 2026-09-19.posix-cross-platform-task.md, ast: lock_agents_contract)*
 - [2026-09-10] [ACTIVE] Unsloth CLI starts its native backend on port 8888 (default) via 'unsloth run -p 8888', while 'unsloth start <agent>' (dsh, hermes) auto-starts the server on 8888 and connects the agent. Local Router shims must intercept on port 8888 and include 'start' and 'run' in serveSubcommands to route unsloth inference to localhost:11434. *(source: local-router unsloth-fix verification, ast: bin/local-router.js)*

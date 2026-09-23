@@ -73,3 +73,13 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:merging now with --no-ff; no-rebuild-needed (this repo ships no long-running server)
 - status:verifying
 - blockers:none
+
+### [2026-09-23T14:37:25Z] checkout | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation (removed)
+- start:2026-09-23T14:18:55Z
+- end:2026-09-23T14:37:25Z
+- scope:AGENTS.md, .agents/canonical/, src/, bin/, llms.txt, .gitignore, .agents/
+- objective:close the loop — consolidated AGENTS.md + one-ledger-per-UTC-date naming live on main and across the fleet
+- input:operator approval + green checks — bash -n x5, daily-file lookup smoke (fresh/legacy/both), canonical sha256 OK, peer receipt preserved
+- output:merged --no-ff x2 (033caae + 98e0a27 dropping the superseded draft); user in-flight edits preserved at stash@{0}; fleet --rules refreshed all 13 targets (copies verified 133L); worktree + branch cleaned; no-rebuild-needed (no long-running server in this repo). Finding: bin/ainish-coder --rules exits 2 uniformly after successful runs (--help exits 0) — follow-up logged
+- status:merged
+- blockers:none
