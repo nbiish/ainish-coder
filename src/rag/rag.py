@@ -389,6 +389,8 @@ def start_server(repo_root: Path, port: int, client: EmbedClient) -> bool:
 
     cmd.extend([
         "-m", str(model),
+        "-ngl", "99",
+        "-fa",
         "--embeddings",
         "--pooling", "mean",
         "--ctx-size", "8192",
@@ -414,6 +416,12 @@ def start_server(repo_root: Path, port: int, client: EmbedClient) -> bool:
     )
 
     pid_file.write_text(str(proc.pid), encoding="utf-8")
+    if os.name != "nt":
+        try:
+            os.chmod(pid_dir, 0o700)
+            os.chmod(pid_file, 0o600)
+        except Exception:
+            pass
     print(f"  [rag] Spawned process PID {proc.pid}. Waiting for readiness...")
 
     for i in range(60):
@@ -956,32 +964,52 @@ class DecisionEngine:
         return reranked
 
     def rerank_local(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
-        q_terms = [t.lower() for t in re.findall(r"\w+", query)]
-        reranked = []
-        for c in candidates:
+        q_terms = [t.lower() for t in re.findall(r"\w+", query) if len(t) > 2]
+        k = 60.0
+        n = len(candidates)
+
+        # Lexical rank for RRF
+        lexical_scored = []
+        for idx, c in enumerate(candidates):
             text = c.get("content", "").lower()
             title = c.get("title", "").lower()
             path = c.get("path", "").lower()
             symbols = c.get("symbols", "").lower()
-
             matches = sum(1 for t in q_terms if t in text or t in title or t in path or t in symbols)
-            lexical_ratio = matches / len(q_terms) if q_terms else 0.0
+            ratio = matches / len(q_terms) if q_terms else 0.0
+            lexical_scored.append((idx, ratio))
+        lexical_scored.sort(key=lambda x: x[1], reverse=True)
+
+        reranked = []
+        for vec_rank, c in enumerate(candidates):
+            lex_rank = next((rank for rank, (idx, _) in enumerate(lexical_scored) if idx == vec_rank), n)
+            rrf_raw = (0.50 / (k + (vec_rank + 1))) + (0.50 / (k + (lex_rank + 1)))
+            rrf_norm = min(1.0, rrf_raw * (k + 1))
+
+            text = c.get("content", "").lower()
+            title = c.get("title", "").lower()
+            symbols = c.get("symbols", "").lower()
+
+            matches = sum(1 for t in q_terms if t in text or t in title or t in symbols)
+            term_ratio = matches / len(q_terms) if q_terms else 0.0
 
             symbol_boost = 0.0
             for sym in ("fn ", "struct ", "class ", "def ", "impl ", "enum ", "type ", "interface "):
-                if sym in text:
-                    symbol_boost = 0.1
+                if sym in text or sym in symbols:
+                    symbol_boost = 0.10
                     break
 
             vec_score = c.get("score", 0.5)
-            combined = (vec_score * 0.40) + (lexical_ratio * 0.50) + symbol_boost
+            # 40% RRF fusion + 30% vector score + 20% term coverage + 10% symbol boost
+            combined = (rrf_norm * 0.40) + (vec_score * 0.30) + (term_ratio * 0.20) + symbol_boost
             combined = min(1.0, combined)
 
             c["decision_score"] = round(combined, 4)
             c["decision_relevance"] = combined >= min_relevance
             c["decision_probability"] = round(combined, 3)
             c["decision_utility"] = round(combined * 5, 1)
-            c["rerank_source"] = "local-calibrated"
+            c["rerank_source"] = "local-calibrated-rrf"
+            c["rationale"] = f"RRF hybrid fusion (rrf: {rrf_norm:.3f}, terms: {matches}/{len(q_terms)}, boost: {symbol_boost > 0})"
 
             if combined >= min_relevance:
                 reranked.append(c)
@@ -1122,6 +1150,20 @@ def main():
         print(f"PQC Vault Detected: {sec['pqc_vault_exists']} ({sec['pqc_bundle_path']})")
         print(f"OpenRouter API Key: {'RESOLVED (' + sec['key_source'] + ')' if sec['api_key_resolved'] else 'UNRESOLVED (fallback: calibrated local)'}")
 
+        if not llama:
+            print("\n  [rag:tip] llama executable not found!")
+            if sys.platform == "darwin":
+                print("            Install via Homebrew: brew install llama.cpp")
+            elif sys.platform == "win32":
+                print("            Install via WinGet:   winget install llama.cpp (or download from GitHub)")
+            else:
+                print("            Download release:     https://github.com/ggerganov/llama.cpp/releases")
+            print("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server")
+        if not m:
+            print("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!")
+            print("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf")
+            print("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf")
+
     elif args.subcommand == "secrets":
         sec = inspect_secrets()
         print("=== ainish-rag PQC Secrets & Decision Engine Status ===")
@@ -1197,7 +1239,11 @@ def main():
             for i, h in enumerate(hits, 1):
                 d_score = h.get("decision_score", h["score"])
                 d_src = h.get("rerank_source", "raw-vector")
-                print(f"\n[{i}] Decision Score: {d_score:.4f} (Vector: {h['score']:.4f}) | Source: {d_src}")
+                v_bar_len = min(10, round(h["score"] * 10))
+                d_bar_len = min(10, round(d_score * 10))
+                v_bar = f"[{'=' * v_bar_len}{' ' * (10 - v_bar_len)}]"
+                d_bar = f"[{'#' * d_bar_len}{' ' * (10 - d_bar_len)}]"
+                print(f"\n[{i}] Rerank: {d_score:.4f} {d_bar} | Vector: {h['score']:.4f} {v_bar} | Source: {d_src}")
                 print(f"     Location: {h['path']}:L{h['start_line']}-L{h['end_line']} | Type: {h['doc_type']}")
                 print(f"     Title:    {h['title']}")
                 print("     Snippet:")
@@ -1218,7 +1264,13 @@ def main():
         else:
             print(f"\n=== Decision Reranked Results ({len(hits)}) ===")
             for i, h in enumerate(hits, 1):
-                print(f"\n[{i}] Decision Score: {h['decision_score']:.4f} | Rerank Source: {h.get('rerank_source')}")
+                d_score = h.get("decision_score", h.get("score", 0.0))
+                v_score = h.get("score", 0.0)
+                v_bar_len = min(10, round(v_score * 10))
+                d_bar_len = min(10, round(d_score * 10))
+                v_bar = f"[{'=' * v_bar_len}{' ' * (10 - v_bar_len)}]"
+                d_bar = f"[{'#' * d_bar_len}{' ' * (10 - d_bar_len)}]"
+                print(f"\n[{i}] Rerank: {d_score:.4f} {d_bar} | Vector: {v_score:.4f} {v_bar} | Source: {h.get('rerank_source')}")
                 print(f"     Location: {h['path']}:L{h['start_line']}-L{h['end_line']}")
                 print(f"     Title:    {h['title']}")
             print()

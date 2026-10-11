@@ -516,7 +516,7 @@ impl DecisionEngine {
         Ok(reranked)
     }
 
-    /// Calibrated local reranking fallback based on lexical coverage, symbol overlap, and vector similarity
+    /// Calibrated local reranking fallback with Reciprocal Rank Fusion (RRF with K=60), lexical matching, and symbol boost
     pub fn rerank_local(
         &self,
         query: &str,
@@ -525,15 +525,36 @@ impl DecisionEngine {
     ) -> Vec<RerankResult> {
         let q_lower = query.to_lowercase();
         let q_terms: Vec<&str> = q_lower.split_whitespace().filter(|t| t.len() > 2).collect();
+        let k = 60.0;
+        let n = candidates.len();
+
+        // 1. Compute lexical coverage ranking for RRF
+        let mut lexical_scored: Vec<(usize, f32)> = candidates
+            .iter()
+            .enumerate()
+            .map(|(idx, chunk)| {
+                let text = chunk.content.to_lowercase();
+                let title = chunk.title.to_lowercase();
+                let sym = chunk.symbols.to_lowercase();
+                let matches = q_terms.iter().filter(|t| text.contains(*t) || title.contains(*t) || sym.contains(*t)).count();
+                let ratio = if !q_terms.is_empty() { matches as f32 / q_terms.len() as f32 } else { 0.0 };
+                (idx, ratio)
+            })
+            .collect();
+        lexical_scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         let mut reranked = Vec::new();
 
-        for chunk in candidates {
+        for (vec_rank, chunk) in candidates.into_iter().enumerate() {
+            let lex_rank = lexical_scored.iter().position(|(idx, _)| *idx == vec_rank).unwrap_or(n);
+            // SOTA Reciprocal Rank Fusion blending dense vector rank + sparse lexical rank
+            let rrf_raw = (0.50 / (k + (vec_rank as f32 + 1.0))) + (0.50 / (k + (lex_rank as f32 + 1.0)));
+            let rrf_norm = (rrf_raw * (k + 1.0)).min(1.0);
+
             let content_lower = chunk.content.to_lowercase();
             let title_lower = chunk.title.to_lowercase();
             let symbols_lower = chunk.symbols.to_lowercase();
 
-            // 1. Lexical term coverage
             let term_matches = q_terms.iter().filter(|t| content_lower.contains(*t)).count();
             let term_ratio = if !q_terms.is_empty() {
                 term_matches as f32 / q_terms.len() as f32
@@ -541,13 +562,12 @@ impl DecisionEngine {
                 0.0
             };
 
-            // 2. Title & symbol boost
             let title_match = q_terms.iter().any(|t| title_lower.contains(*t));
             let symbol_match = q_terms.iter().any(|t| symbols_lower.contains(*t));
             let boost = (if title_match { 0.15 } else { 0.0 }) + (if symbol_match { 0.15 } else { 0.0 });
 
-            // 3. Calibrated decision score: 50% vector similarity + 30% term coverage + 20% symbol/title boost
-            let decision_score = (chunk.score * 0.50) + (term_ratio * 0.30) + boost;
+            // Blended decision score: 40% RRF fusion + 30% vector score + 20% term coverage + 10% symbol/title boost
+            let decision_score = (rrf_norm * 0.40) + (chunk.score * 0.30) + (term_ratio * 0.20) + boost;
             let is_relevant = decision_score >= min_relevance;
 
             if is_relevant {
@@ -559,7 +579,7 @@ impl DecisionEngine {
                     decision_score,
                     rerank_score: decision_score,
                     is_relevant: true,
-                    rationale: format!("Local calibrated rerank (terms: {}/{}, title: {}, symbols: {})", term_matches, q_terms.len(), title_match, symbol_match),
+                    rationale: format!("RRF hybrid fusion (rrf: {:.3}, terms: {}/{}, title: {}, symbols: {})", rrf_norm, term_matches, q_terms.len(), title_match, symbol_match),
                 });
             }
         }

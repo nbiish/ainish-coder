@@ -23,3 +23,10 @@
 - 20:25 Llama server detached process spawning implemented with creation_flags on Windows and process_group(0) on Unix.
 - 20:25 bin/ainish-rag dispatch wrapper upgraded with OS architecture detection and transparent uv/python3 fallback.
 - 20:25 AGENTS.md, canonical copy, and sha256 refreshed (5710a168...); security_gate.py passed 100%.
+- 22:00 Masters suggestions & SOTA enhancements implemented across Rust and Python codebase RAG engines.
+- 22:00 GPU offloading (-ngl 99 for Metal on macOS and CUDA/ROCm on Linux/Windows) and FlashAttention (-fa) enabled by default.
+- 22:00 POSIX permission hardening (0700 on .agents/rag/ and 0600 on PID files) applied on Unix/WSL hosts.
+- 22:00 Ingest path sanitization enforced to eliminate user home directory references from metadata and vector tables.
+- 22:00 Reciprocal Rank Fusion (RRF with K=60) integrated into local calibrated decision reranker (40% RRF + 30% vector + 20% terms + 10% symbols).
+- 22:00 Visual score breakdown bars ([===] vector vs [###] decision) and platform install tips added to CLI output.
+- 22:00 Release binary ainish-rag.exe compiled and verified; security_gate.py passed 100%.
