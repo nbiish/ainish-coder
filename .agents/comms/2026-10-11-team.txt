@@ -172,3 +172,27 @@ end: 2026-10-11T20:25:01.779998+00:00
 - status:merged
 - blockers:none
 
+### [2026-10-11T21:52:00Z] checkin | agent:antigravity | branch:feat/rag-masters-sota | wt:D:/Code/rag-masters-sota
+- start:2026-10-11T21:51:35.475397+00:00
+- end:2026-10-11T21:51:35.475397+00:00
+- scope:src/rag/, bin/, AGENTS.md, llms.txt
+- triage:now
+- objective:implement masters suggestions and SOTA performance optimizations (GPU/Metal offloading, flash-attn, RRF reciprocal rank fusion, POSIX permission hardening, path sanitization, ergonomics)
+- input:operator request to finalize by reviewing and implementing masters suggestions and SOTA performance best practices
+- output:worktree initialized, ledger claimed
+- status:in-progress
+- blockers:none
+
+start: 2026-10-11T22:03:03.145343+00:00
+agent: Antigravity-IDE
+scope: rag/masters-sota
+branch: feat/rag-masters-sota
+lane: completed
+type: intent-merge
+objective: merge masters suggestions and SOTA performance optimizations into main
+input: GPU offloading (-ngl 99), FlashAttention (-fa), POSIX permissions (0700/0600), RRF hybrid fusion (K=60), strict path sanitization, visual breakdown bars, platform hints
+output: Verified release binary bin/ainish-rag.exe, updated rag.py engine, passing security_gate.py
+status: completed
+blockers: none
+end: 2026-10-11T22:03:03.145343+00:00
+
