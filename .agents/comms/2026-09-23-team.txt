@@ -114,3 +114,13 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:merging now with --no-ff; no-rebuild-needed (no long-running server in this repo)
 - status:verifying
 - blockers:none
+
+### [2026-09-23T18:25:33Z] checkout | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory (removed)
+- start:2026-09-23T17:45:00Z
+- end:2026-09-23T18:25:33Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
+- objective:close the loop — dated {date}-memory.txt + {date}-suggestions.txt live on main and across the fleet; GitNexus + memory-MCP doctrine stripped from every agent-facing surface
+- input:green gates (bash -n x4, jq valid, security_gate PASS, canonical sha256 d0ca977 OK, git-context smoke), merge f77bc8c, operator selection honored at deploy
+- output:merged --no-ff f77bc8c (cutover f92ebd0 + user-edit carry 829ddc0; operator in-flight bytes preserved at stash@{0}); fleet --rules refreshed all 13 targets, every AGENTS.md verified at d0ca977 by hash; retired repo-memory-graph-intelligence pack removed at every target; $HOME skills now match saved selection (browser-use/remotion-video/video-knowledge-extractor deselected -> pruned, pqc-secrets/pqc-signatures-security/question-me deployed); worktree + branch cleaned; main clean; no-rebuild-needed (no long-running server in this repo). Leftovers: bin/ainish-coder --rules exit=2 on success (known); per-target commits of refreshed copies outstanding
+- status:closed
+- blockers:none
