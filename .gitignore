@@ -153,3 +153,9 @@ audit.log.*
 # Agent COMMS live board — in-flight coordination, never committed.
 # The daily team ledger .agents/comms/{date}-team.txt IS committed; this sidecar is not.
 .agents/comms/*-team.live.txt
+
+# Multimodal RAG local vector store and runtime process PID
+.agents/rag/
+
+# Compiled native binaries (built locally via cargo or distributed wrappers)
+*.exe

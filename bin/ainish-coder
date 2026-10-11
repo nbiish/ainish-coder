@@ -547,6 +547,11 @@ main() {
             fi
             ;;
 
+        --rag)
+            _TRACK_DETAIL="rag"
+            "${SCRIPT_DIR}/ainish-rag" "$@"
+            ;;
+
         *)
             print_error "Unknown command: $command"
             echo "Use 'ainish-coder --help' for usage information" >&2
@@ -613,3 +618,4 @@ fi
 
 # Run main function
 main "$@"
+
