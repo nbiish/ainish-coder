@@ -174,6 +174,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             println!("Wiki Path:          {}", config.wiki_dir.display());
             println!("Wiki Pages:         {}", wiki_count);
+
+            if config.llama_bin.is_none() {
+                println!("\n  [rag:tip] llama executable not found!");
+                #[cfg(target_os = "macos")]
+                println!("            Install via Homebrew: brew install llama.cpp");
+                #[cfg(target_os = "windows")]
+                println!("            Install via WinGet:   winget install llama.cpp (or download from GitHub)");
+                #[cfg(target_os = "linux")]
+                println!("            Download release:     https://github.com/ggerganov/llama.cpp/releases");
+                println!("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server");
+            }
+            if config.model_path.is_none() {
+                println!("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!");
+                println!("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf");
+                println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
+            }
         }
         Commands::Index { path, truncate } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
@@ -312,8 +328,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else {
                         for (i, item) in top_hits.iter().enumerate() {
                             let h = &item.chunk;
-                            println!("\n[{}] Rerank: {:.4} (Vector: {:.4}, Decision: {:.4}) | Type: {} | Modality: {}", 
-                                i + 1, item.rerank_score, item.original_score, item.decision_score, h.doc_type, h.modality
+                            let vec_bar_len = ((item.original_score * 10.0).round() as usize).min(10);
+                            let dec_bar_len = ((item.decision_score * 10.0).round() as usize).min(10);
+                            let vec_bar = format!("[{}{}]", "=".repeat(vec_bar_len), " ".repeat(10 - vec_bar_len));
+                            let dec_bar = format!("[{}{}]", "#".repeat(dec_bar_len), " ".repeat(10 - dec_bar_len));
+                            println!("\n[{}] Rerank: {:.4} {} | Vector: {:.4} {} | Type: {} | Modality: {}", 
+                                i + 1, item.rerank_score, dec_bar, item.original_score, vec_bar, h.doc_type, h.modality
                             );
                             println!("     Location: {}:L{}-L{}", h.path, h.start_line, h.end_line);
                             println!("     Title:    {}", h.title);
@@ -350,8 +370,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("\n=== Decision Model Rerank Results ({}) ===", top_hits.len());
                 for (i, item) in top_hits.iter().enumerate() {
                     let h = &item.chunk;
-                    println!("\n[{}] Rerank: {:.4} (Vector: {:.4}, Decision: {:.4}) | {}", 
-                        i + 1, item.rerank_score, item.original_score, item.decision_score, h.title
+                    let vec_bar_len = ((item.original_score * 10.0).round() as usize).min(10);
+                    let dec_bar_len = ((item.decision_score * 10.0).round() as usize).min(10);
+                    let vec_bar = format!("[{}{}]", "=".repeat(vec_bar_len), " ".repeat(10 - vec_bar_len));
+                    let dec_bar = format!("[{}{}]", "#".repeat(dec_bar_len), " ".repeat(10 - dec_bar_len));
+                    println!("\n[{}] Rerank: {:.4} {} | Vector: {:.4} {} | {}", 
+                        i + 1, item.rerank_score, dec_bar, item.original_score, vec_bar, h.title
                     );
                     println!("     Path:     {}:L{}-L{}", h.path, h.start_line, h.end_line);
                     println!("     Decision: {}", item.rationale);
