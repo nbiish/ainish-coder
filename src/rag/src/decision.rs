@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -98,42 +98,113 @@ impl DecisionEngine {
         (None, "local-calibrated-fallback".to_string())
     }
 
+    /// Resolves the PQC secrets bundle path across Windows, WSL, Linux, and macOS
+    pub fn find_pqc_vault_bundle() -> Option<PathBuf> {
+        // 1. Explicit environment variable overrides
+        if let Ok(val) = env::var("PQC_VAULT_PATH") {
+            let p = PathBuf::from(val);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+        if let Ok(val) = env::var("PQC_SECRETS_DIR") {
+            let p = PathBuf::from(val).join("secrets.bundle.json");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+        if let Ok(val) = env::var("XDG_CONFIG_HOME") {
+            let p = PathBuf::from(val).join("pqc-secrets").join("secrets.bundle.json");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+
+        let mut candidates = Vec::new();
+
+        // 2. POSIX home (~/.config/pqc-secrets/...) and macOS Application Support
+        if let Ok(home) = env::var("HOME") {
+            let hp = PathBuf::from(home);
+            candidates.push(hp.join(".config").join("pqc-secrets").join("secrets.bundle.json"));
+            candidates.push(hp.join("Library").join("Application Support").join("pqc-secrets").join("secrets.bundle.json"));
+        }
+
+        // 3. Windows profile (%USERPROFILE%/.config/pqc-secrets/...)
+        if let Ok(up) = env::var("USERPROFILE") {
+            let upp = PathBuf::from(up);
+            candidates.push(upp.join(".config").join("pqc-secrets").join("secrets.bundle.json"));
+        }
+        if let Ok(appdata) = env::var("APPDATA") {
+            candidates.push(PathBuf::from(appdata).join("pqc-secrets").join("secrets.bundle.json"));
+        }
+
+        // 4. WSL bridging: inspect mounted Windows user profiles (/mnt/c/Users/*/.config/...)
+        let wsl_c_users = Path::new("/mnt/c/Users");
+        if wsl_c_users.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(wsl_c_users) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        let vault = p.join(".config").join("pqc-secrets").join("secrets.bundle.json");
+                        if vault.exists() {
+                            candidates.push(vault);
+                        }
+                    }
+                }
+            }
+        }
+
+        for c in candidates {
+            if c.exists() {
+                return Some(c);
+            }
+        }
+
+        None
+    }
+
     /// Inspects PQC secrets vault configuration without exposing secret values
     pub fn inspect_secrets() -> SecretsStatus {
         let (api_key, key_source) = Self::resolve_api_key();
         let model = env::var("JEV_DECISION_MODEL")
             .unwrap_or_else(|_| DEFAULT_JEV_MODEL.to_string());
 
-        let home = env::var("USERPROFILE").or_else(|_| env::var("HOME")).unwrap_or_default();
-        let vault_path = PathBuf::from(&home).join(".config").join("pqc-secrets").join("secrets.bundle.json");
-        let vault_exists = vault_path.exists();
+        let detected_vault = Self::find_pqc_vault_bundle();
+        let vault_exists = detected_vault.is_some();
+        let vault_path = detected_vault
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| {
+                let home = env::var("USERPROFILE").or_else(|_| env::var("HOME")).unwrap_or_default();
+                PathBuf::from(&home).join(".config").join("pqc-secrets").join("secrets.bundle.json").to_string_lossy().to_string()
+            });
 
         SecretsStatus {
             has_key: api_key.is_some(),
             key_source,
             vault_bundle_exists: vault_exists,
-            vault_path: vault_path.to_string_lossy().to_string(),
+            vault_path,
             model,
         }
     }
 
     /// Executes pqc-secrets export and extracts the OpenRouter key in memory
     fn load_from_pqc_secrets() -> Option<String> {
-        let home = env::var("USERPROFILE").or_else(|_| env::var("HOME")).unwrap_or_default();
-        let vault_path = PathBuf::from(&home).join(".config").join("pqc-secrets").join("secrets.bundle.json");
-        if !vault_path.exists() {
-            return None;
-        }
-
-        // Try standalone pqc-secrets binary / script in PATH and common relative paths
-        let attempts = [
-            ("pqc-secrets", vec!["export"]),
-            ("bin/pqc-secrets", vec!["export"]),
-            ("../bin/pqc-secrets", vec!["export"]),
+        // Try standalone pqc-secrets binary / script in PATH and common relative paths across platforms
+        let mut attempts = vec![
+            ("pqc-secrets".to_string(), vec!["export".to_string()]),
+            ("bin/pqc-secrets".to_string(), vec!["export".to_string()]),
+            ("../bin/pqc-secrets".to_string(), vec!["export".to_string()]),
         ];
 
-        for (cmd, args) in attempts {
-            if let Ok(output) = std::process::Command::new(cmd).args(&args).output() {
+        if let Ok(home) = env::var("HOME") {
+            let user_local_pqc = PathBuf::from(&home).join(".local").join("bin").join("pqc-secrets");
+            if user_local_pqc.is_file() {
+                attempts.push((user_local_pqc.to_string_lossy().to_string(), vec!["export".to_string()]));
+            }
+        }
+
+        for (cmd, args) in &attempts {
+            if let Ok(output) = std::process::Command::new(cmd).args(args).output() {
                 if output.status.success() {
                     if let Ok(stdout) = String::from_utf8(output.stdout) {
                         if let Some(key) = Self::parse_pqc_export(&stdout) {
@@ -144,19 +215,53 @@ impl DecisionEngine {
             }
         }
 
-        // Try via uv or python with .agents/skills/pqc-secrets/scripts/pqc_secrets.py
-        let python_runners = [
-            ("uv", vec!["run", ".agents/skills/pqc-secrets/scripts/pqc_secrets.py", "export"]),
-            ("python", vec![".agents/skills/pqc-secrets/scripts/pqc_secrets.py", "export"]),
-            ("py", vec![".agents/skills/pqc-secrets/scripts/pqc_secrets.py", "export"]),
+        // Try via uv, python3, python, or py with script discovery
+        let mut script_candidates = vec![
+            PathBuf::from(".agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
+            PathBuf::from("../.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
+            PathBuf::from("D:/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
+            PathBuf::from("/mnt/c/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
         ];
 
-        for (runner, args) in python_runners {
-            if let Ok(output) = std::process::Command::new(runner).args(&args).output() {
-                if output.status.success() {
-                    if let Ok(stdout) = String::from_utf8(output.stdout) {
-                        if let Some(key) = Self::parse_pqc_export(&stdout) {
-                            return Some(key);
+        if let Ok(home) = env::var("HOME") {
+            script_candidates.push(PathBuf::from(home).join(".agents").join("skills").join("pqc-secrets").join("scripts").join("pqc_secrets.py"));
+        }
+        if let Ok(up) = env::var("USERPROFILE") {
+            script_candidates.push(PathBuf::from(up).join(".agents").join("skills").join("pqc-secrets").join("scripts").join("pqc_secrets.py"));
+        }
+
+        let pqc_script = script_candidates.into_iter().find(|p| p.is_file());
+
+        if let Some(script_path) = pqc_script {
+            let script_str = script_path.to_string_lossy().to_string();
+            let mut runner_candidates = vec!["uv".to_string(), "python3".to_string(), "python".to_string(), "py".to_string()];
+
+            if let Ok(home) = env::var("HOME") {
+                let user_uv = PathBuf::from(home).join(".local").join("bin").join("uv");
+                if user_uv.is_file() {
+                    runner_candidates.insert(0, user_uv.to_string_lossy().to_string());
+                }
+            }
+            if let Ok(up) = env::var("USERPROFILE") {
+                let hermes_uv = PathBuf::from(up).join("AppData").join("Local").join("hermes").join("bin").join("uv.exe");
+                if hermes_uv.is_file() {
+                    runner_candidates.insert(0, hermes_uv.to_string_lossy().to_string());
+                }
+            }
+
+            for runner in runner_candidates {
+                let args = if runner.contains("uv") {
+                    vec!["run", &script_str, "export"]
+                } else {
+                    vec![&script_str, "export"]
+                };
+
+                if let Ok(output) = std::process::Command::new(&runner).args(&args).output() {
+                    if output.status.success() {
+                        if let Ok(stdout) = String::from_utf8(output.stdout) {
+                            if let Some(key) = Self::parse_pqc_export(&stdout) {
+                                return Some(key);
+                            }
                         }
                     }
                 }
