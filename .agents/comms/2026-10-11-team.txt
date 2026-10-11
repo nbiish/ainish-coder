@@ -162,3 +162,13 @@ status: completed
 blockers: none
 end: 2026-10-11T20:25:01.779998+00:00
 
+### [2026-10-11T20:25:00Z] checkout | agent:antigravity | branch:feat/rag-cross-platform-wsl-mac | wt:D:/Code/rag-cross-platform-wsl-mac
+- start:2026-10-11T20:25:00Z
+- end:2026-10-11T20:25:00Z
+- scope:src/rag/, bin/ainish-rag, AGENTS.md, llms.txt
+- objective:task complete; merge to main and clean worktree
+- input:completed cross-platform WSL, Linux, and macOS execution and HF env var hierarchy support
+- output:merged to main, worktree released, no-rebuild-needed
+- status:merged
+- blockers:none
+
