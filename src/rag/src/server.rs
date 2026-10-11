@@ -74,6 +74,20 @@ impl LlamaServer {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
 
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.process_group(0);
+        }
+
         let child = cmd.spawn()
             .map_err(|e| format!("Failed to spawn llama server: {}", e))?;
 

@@ -194,9 +194,27 @@ Universal architecture and knowledge retrieval for the codebase. Integrates Goog
 
 
 
-- **Model Specification:** Uses `unsloth/embeddinggemma-2-GGUF` (`embeddinggemma-2-BF16.gguf` + `mmproj-F16.gguf`), auto-resolved from the machine's HuggingFace cache (`$HF_HUB_CACHE` / `$HF_HOME` / `D:\AI\huggingface\hub`). Embedding dimension: 768 float32. Critical rule: never evaluate with FP16 due to NaN instability; BF16 or FP32 is required.
+- **Model Specification & Cross-Platform Cache Hierarchy:**
+  - Operates cross-platform across native Windows, WSL (Windows Subsystem for Linux), native Linux, and macOS (Darwin).
+  - Uses `unsloth/embeddinggemma-2-GGUF` (`embeddinggemma-2-BF16.gguf` + `mmproj-F16.gguf`).
+  - Auto-resolves model files following the Hugging Face cache location hierarchy:
+    1. `$HF_HUB_CACHE` / `$HUGGINGFACE_HUB_CACHE` (explicit hub cache root)
+    2. `$HF_HOME/hub` (base Hugging Face directory)
+    3. `$XDG_CACHE_HOME/huggingface/hub` (POSIX standard)
+    4. Explicit overrides: `$AINISH_RAG_MODEL` and `$AINISH_RAG_MMPROJ`
+    5. Native OS caches: `~/.cache/huggingface/hub` (Linux/WSL), `~/Library/Caches/huggingface/hub` (macOS), `%USERPROFILE%\.cache\huggingface\hub` (Windows)
+    6. External drive roots & mounts: `/mnt/d/AI/huggingface/hub` (WSL mount), `/Volumes/*/AI/huggingface/hub` (macOS volumes), `D:\AI\huggingface\hub` (Windows external drive).
+  - Embedding dimension: 768 float32. Critical rule: never evaluate with FP16 due to NaN instability; BF16 or FP32 is required.
 
-- **Server Lifecycle:** Local embedding inference runs via `llama.exe serve --embeddings --mmproj --pooling mean` on loopback `http://127.0.0.1:8080`. Managed via `ainish-rag serve`, `ainish-rag stop`, and `ainish-rag status` with PID tracking at `.agents/rag/llama-server.pid`.
+- **Server Lifecycle & Cross-Platform Daemon Management:**
+  - Local embedding inference runs via `llama` / `llama-server` on loopback `http://127.0.0.1:8080`.
+  - Binary discovery auto-locates:
+    - `$LLAMA_SERVER_BIN` / `$LLAMA_BIN`
+    - Homebrew paths (`/opt/homebrew/bin/llama-server`, `/usr/local/bin/llama-server`) on macOS
+    - POSIX paths (`/usr/local/bin`, `~/.local/bin`, `/usr/bin`) on Linux
+    - WindowsApps WinGet (`%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`) on Windows
+    - WSL interop bridging (`/mnt/c/Users/*/AppData/Local/Microsoft/WindowsApps/llama.exe`) on WSL
+  - Managed via `ainish-rag serve`, `ainish-rag stop`, and `ainish-rag status` with detached process group management and PID tracking at `.agents/rag/llama-server.pid`.
 
 - **Embedding Protocol:**
 

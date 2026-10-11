@@ -17,3 +17,9 @@
 - 19:40 PQC secrets engine queried dynamically in-memory (~/.config/pqc-secrets/secrets.bundle.json) for OPENROUTER_API_KEY with zero plaintext persistence across all repos deployed via ainish-coder --rules.
 - 19:40 Compiled native release binary bin/ainish-rag.exe (121MB) and verified secrets/query/rerank/route subcommands.
 - 19:40 AGENTS.md, canonical copy, and sha256 (31ead9aaef...) updated and passed bin/security_gate.py.
+- 20:25 Cross-platform RAG architecture verified across Windows, WSL, Linux, and macOS.
+- 20:25 Hugging Face cache location hierarchy implemented (HF_HUB_CACHE, HUGGINGFACE_HUB_CACHE, HF_HOME, XDG_CACHE_HOME, user caches, WSL /mnt mounts, macOS /Volumes).
+- 20:25 PQC secrets vault discovery expanded to cross-platform paths (PQC_SECRETS_DIR, PQC_VAULT_PATH, XDG_CONFIG_HOME, ~/.config/pqc-secrets, WSL /mnt/c/Users bridge).
+- 20:25 Llama server detached process spawning implemented with creation_flags on Windows and process_group(0) on Unix.
+- 20:25 bin/ainish-rag dispatch wrapper upgraded with OS architecture detection and transparent uv/python3 fallback.
+- 20:25 AGENTS.md, canonical copy, and sha256 refreshed (5710a168...); security_gate.py passed 100%.
