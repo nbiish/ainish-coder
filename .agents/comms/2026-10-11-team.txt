@@ -128,3 +128,13 @@ status: completed
 blockers: none
 end: 2026-10-11T19:41:08.850689+00:00
 
+### [2026-10-11T19:42:00Z] checkout | agent:antigravity | branch:feat/rag-decision-rerank-pqc | wt:D:/Code/rag-decision-rerank-pqc
+- start:2026-10-11T19:42:00Z
+- end:2026-10-11T19:42:00Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, src/rag/, bin/ainish-rag, src/help.sh
+- objective:task complete; merge to main and clean worktree
+- input:completed two-stage RAG decision reranker and PQC secrets integration
+- output:merged to main, release binary compiled, worktree released, no-rebuild-needed
+- status:merged
+- blockers:none
+
