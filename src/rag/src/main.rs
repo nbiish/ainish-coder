@@ -55,7 +55,7 @@ enum Commands {
         #[arg(long, default_value_t = true)]
         index: bool,
     },
-    /// Query the multimodal RAG vector store
+    /// Query the multimodal RAG vector store with two-stage decision reranking
     Query {
         /// Natural language or code search query
         query: String,
@@ -71,9 +71,26 @@ enum Commands {
         /// Output results as JSON
         #[arg(long)]
         json: bool,
-        /// Filter distractor noise using calibrated chunk relevance scoring
+        /// Disable decision-model reranking (use coarse vector search only)
         #[arg(long)]
-        filter: bool,
+        no_rerank: bool,
+        /// Minimum relevance threshold for decision filtering (default: 0.35)
+        #[arg(long, default_value_t = 0.35)]
+        min_relevance: f32,
+    },
+    /// Rerank candidate context chunks for a query using the decision model
+    Rerank {
+        /// Natural language or code query
+        query: String,
+        /// Maximum number of reranked search hits to return
+        #[arg(short, long, default_value_t = 5)]
+        limit: usize,
+        /// Filter by doc type (code, wiki, doc, image, audio, video)
+        #[arg(short, long)]
+        doc_type: Option<String>,
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Route query or instruction using the calibrated decision model (System One)
     Route {
@@ -103,6 +120,12 @@ enum Commands {
         #[arg(short, long)]
         output: String,
         /// Output decision as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Inspect PQC secrets vault configuration and OpenRouter key status
+    Secrets {
+        /// Output status as JSON
         #[arg(long)]
         json: bool,
     },
@@ -235,7 +258,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
             }
         }
-        Commands::Query { query, limit, doc_type, code, json, filter } => {
+        Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
             let embed_client = EmbedClient::new(&config.server_url, None);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
@@ -243,40 +266,97 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let formatted_query = EmbedClient::format_query(&query, code);
             let query_vec = embed_client.embed_one(&formatted_query).await?;
 
-            let raw_hits = store.search_vector(&query_vec, limit, doc_type.as_deref()).await?;
-            let hits = if filter {
-                let decision_engine = DecisionEngine::new();
-                let filters = decision_engine.filter_chunks(&query, &raw_hits, 0.40).await;
-                raw_hits.into_iter()
-                    .zip(filters)
-                    .filter(|(_, f)| f.is_relevant)
-                    .map(|(h, _)| h)
-                    .collect()
+            if no_rerank {
+                let hits = store.search_vector(&query_vec, limit, doc_type.as_deref()).await?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&hits)?);
+                } else {
+                    println!("\n=== Search Results (Coarse Vector: {}) ===", hits.len());
+                    if hits.is_empty() {
+                        println!("No matching documents found in vector store.");
+                    } else {
+                        for (i, hit) in hits.iter().enumerate() {
+                            println!("\n[{}] Score: {:.4} | Type: {} | Modality: {}", i + 1, hit.score, hit.doc_type, hit.modality);
+                            println!("     Location: {}:L{}-L{}", hit.path, hit.start_line, hit.end_line);
+                            println!("     Title:    {}", hit.title);
+                            if hit.symbols != "[]" && !hit.symbols.is_empty() {
+                                println!("     Symbols:  {}", hit.symbols);
+                            }
+                            println!("     Snippet:");
+                            for line in hit.content.lines().take(4) {
+                                println!("       {}", line);
+                            }
+                        }
+                        println!();
+                    }
+                }
             } else {
-                raw_hits
-            };
+                let coarse_limit = (limit * 3).max(12);
+                let candidates = store.search_vector(&query_vec, coarse_limit, doc_type.as_deref()).await?;
+                let decision_engine = DecisionEngine::new();
+                let reranked = decision_engine.rerank(&query, candidates, min_relevance).await;
+                let top_hits: Vec<_> = reranked.into_iter().take(limit).collect();
+
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&top_hits)?);
+                } else {
+                    let source_label = if decision_engine.api_key.is_some() {
+                        format!("OpenRouter Jev ({})", decision_engine.key_source)
+                    } else {
+                        "Local Calibrated Reranker".to_string()
+                    };
+                    println!("\n=== Search Results (Decision Reranked: {}) ===", top_hits.len());
+                    println!("Decision Engine:       {}", source_label);
+                    if top_hits.is_empty() {
+                        println!("No candidate chunks met the minimum relevance threshold ({:.2}).", min_relevance);
+                    } else {
+                        for (i, item) in top_hits.iter().enumerate() {
+                            let h = &item.chunk;
+                            println!("\n[{}] Rerank: {:.4} (Vector: {:.4}, Decision: {:.4}) | Type: {} | Modality: {}", 
+                                i + 1, item.rerank_score, item.original_score, item.decision_score, h.doc_type, h.modality
+                            );
+                            println!("     Location: {}:L{}-L{}", h.path, h.start_line, h.end_line);
+                            println!("     Title:    {}", h.title);
+                            println!("     Decision: {}", item.rationale);
+                            if h.symbols != "[]" && !h.symbols.is_empty() {
+                                println!("     Symbols:  {}", h.symbols);
+                            }
+                            println!("     Snippet:");
+                            for line in h.content.lines().take(4) {
+                                println!("       {}", line);
+                            }
+                        }
+                        println!();
+                    }
+                }
+            }
+        }
+        Commands::Rerank { query, limit, doc_type, json } => {
+            LlamaServer::ensure_running(&config, &current_dir).await?;
+            let embed_client = EmbedClient::new(&config.server_url, None);
+            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
+
+            let formatted_query = EmbedClient::format_query(&query, false);
+            let query_vec = embed_client.embed_one(&formatted_query).await?;
+            let candidates = store.search_vector(&query_vec, (limit * 3).max(12), doc_type.as_deref()).await?;
+
+            let decision_engine = DecisionEngine::new();
+            let reranked = decision_engine.rerank(&query, candidates, 0.35).await;
+            let top_hits: Vec<_> = reranked.into_iter().take(limit).collect();
 
             if json {
-                println!("{}", serde_json::to_string_pretty(&hits)?);
+                println!("{}", serde_json::to_string_pretty(&top_hits)?);
             } else {
-                println!("\n=== Search Results ({}) ===", hits.len());
-                if hits.is_empty() {
-                    println!("No matching documents found in vector store.");
-                } else {
-                    for (i, hit) in hits.iter().enumerate() {
-                        println!("\n[{}] Score: {:.4} | Type: {} | Modality: {}", i + 1, hit.score, hit.doc_type, hit.modality);
-                        println!("     Location: {}:L{}-L{}", hit.path, hit.start_line, hit.end_line);
-                        println!("     Title:    {}", hit.title);
-                        if hit.symbols != "[]" && !hit.symbols.is_empty() {
-                            println!("     Symbols:  {}", hit.symbols);
-                        }
-                        println!("     Snippet:");
-                        for line in hit.content.lines().take(4) {
-                            println!("       {}", line);
-                        }
-                    }
-                    println!();
+                println!("\n=== Decision Model Rerank Results ({}) ===", top_hits.len());
+                for (i, item) in top_hits.iter().enumerate() {
+                    let h = &item.chunk;
+                    println!("\n[{}] Rerank: {:.4} (Vector: {:.4}, Decision: {:.4}) | {}", 
+                        i + 1, item.rerank_score, item.original_score, item.decision_score, h.title
+                    );
+                    println!("     Path:     {}:L{}-L{}", h.path, h.start_line, h.end_line);
+                    println!("     Decision: {}", item.rationale);
                 }
+                println!();
             }
         }
         Commands::Route { query, json } => {
@@ -320,6 +400,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Faithful to Context:   {}", eval.is_faithful);
                 println!("Faithfulness Score:    {:.3}", eval.faithfulness_score);
                 println!("Hallucination Risk:    {:.3}", eval.halluncination_risk);
+                println!();
+            }
+        }
+        Commands::Secrets { json } => {
+            let status = DecisionEngine::inspect_secrets();
+            if json {
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            } else {
+                println!("\n=== PQC Secrets & Decision Model Status ===");
+                println!("OpenRouter Key Present: {}", if status.has_key { "YES" } else { "NO (offline calibrated fallback active)" });
+                println!("Key Resolution Source:  {}", status.key_source);
+                println!("PQC Vault Bundle:       {}", if status.vault_bundle_exists { "FOUND" } else { "NOT FOUND" });
+                println!("Vault Path:             {}", status.vault_path);
+                println!("Decision Model Target:  {}", status.model);
                 println!();
             }
         }

@@ -98,7 +98,9 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 status                Check model cache, server, LanceDB & wiki stats
                                 index [PATH]          Index codebase, docs, images, media into LanceDB
                                 wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
-                                query <PROMPT>        Semantic hybrid vector search with ranked results
+                                query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking
+                                rerank <QUERY>        Standalone decision-model reranking of candidates
+                                secrets               Inspect PQC vault status & OpenRouter API key
                                 route <QUERY>         Jev/calibrated System One intent & domain routing
                                 decide <STATE>        Evaluate decision question with calibrated probability
                                 eval --context <CTX> --output <OUT>

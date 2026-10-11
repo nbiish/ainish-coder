@@ -475,11 +475,99 @@ def is_ignored_path(p: Path) -> bool:
     return p.name.endswith((".lock", ".tmp", ".log"))
 
 
+def resolve_api_key() -> Optional[str]:
+    """Dynamically resolves OpenRouter API key from environment or PQC secrets vault in memory.
+    Never persists plaintext secrets to disk.
+    """
+    # 1. Environment variables
+    for var in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+        val = os.environ.get(var)
+        if val and val.strip():
+            return val.strip()
+
+    # 2. Check PQC secrets vault directly via in-memory export
+    home_dir = Path.home()
+    bundle_path = home_dir / ".config" / "pqc-secrets" / "secrets.bundle.json"
+    pqc_dir = os.environ.get("PQC_SECRETS_DIR")
+    if pqc_dir:
+        bundle_path = Path(pqc_dir) / "secrets.bundle.json"
+
+    # Try running pqc-secrets / pqc_secrets.py export in-memory without saving anything to disk
+    try:
+        pqc_bin = which("pqc-secrets") or which("pqc-secrets.exe")
+        if pqc_bin:
+            res = subprocess.run([str(pqc_bin), "export"], capture_output=True, text=True, timeout=5)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if "=" in line:
+                        k, v = line.strip().split("=", 1)
+                        k = k.removeprefix("export ").strip()
+                        v = v.strip().strip("'\"")
+                        if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+                            return v
+    except Exception:
+        pass
+
+    # Try uv run pqc_secrets.py export
+    uv_bin = which("uv") or which("uv.exe")
+    if not uv_bin:
+        hermes_uv = home_dir / "AppData" / "Local" / "hermes" / "bin" / "uv.exe"
+        if hermes_uv.exists():
+            uv_bin = hermes_uv
+
+    pqc_script = None
+    for cand in (
+        Path.cwd() / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
+        Path("D:/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
+        Path("D:/Code/rag-decision-rerank-pqc/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
+    ):
+        if cand.exists():
+            pqc_script = cand
+            break
+
+    if pqc_script and uv_bin:
+        try:
+            res = subprocess.run([str(uv_bin), "run", str(pqc_script), "export"], capture_output=True, text=True, timeout=8)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if "=" in line:
+                        k, v = line.strip().split("=", 1)
+                        k = k.removeprefix("export ").strip()
+                        v = v.strip().strip("'\"")
+                        if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+                            return v
+        except Exception:
+            pass
+
+    return None
+
+
+def inspect_secrets() -> Dict[str, Any]:
+    """Inspects PQC secrets vault status and OpenRouter API key resolution safely."""
+    key = resolve_api_key()
+    bundle_path = Path.home() / ".config" / "pqc-secrets" / "secrets.bundle.json"
+    pqc_dir = os.environ.get("PQC_SECRETS_DIR")
+    if pqc_dir:
+        bundle_path = Path(pqc_dir) / "secrets.bundle.json"
+
+    env_source = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("ROUTER_API_KEY"))
+    return {
+        "pqc_vault_exists": bundle_path.exists(),
+        "pqc_bundle_path": str(bundle_path),
+        "api_key_resolved": key is not None,
+        "key_source": "environment" if env_source else ("pqc-vault" if key else "unresolved"),
+        "key_hint": f"{key[:8]}...{key[-4:]}" if key and len(key) > 12 else ("present" if key else "none"),
+    }
+
+
 class DecisionEngine:
     def __init__(self, model: str = "typesafe/jev-1.13"):
-        self.api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("ROUTER_API_KEY")
+        self.api_key = resolve_api_key()
         self.model = os.environ.get("JEV_DECISION_MODEL", model)
         self.decisions_url = "https://openrouter.ai/api/alpha/decisions"
+
+    def is_pqc_or_openrouter_ready(self) -> bool:
+        return self.api_key is not None
 
     def route(self, prompt: str) -> dict:
         if self.api_key:
@@ -555,18 +643,122 @@ class DecisionEngine:
             "source": "local-calibrated"
         }
 
-    def filter_chunks(self, query: str, chunks: list, min_relevance: float = 0.40) -> list:
-        filtered = []
-        q_terms = [t.lower() for t in query.split()]
-        for c in chunks:
+    def rerank(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float = 0.35) -> List[Dict[str, Any]]:
+        """Two-stage retrieval reranking:
+        Dispatches to OpenRouter Jev decision model if PQC key resolved, else calibrated local mode.
+        """
+        if not candidates:
+            return []
+
+        if self.api_key:
+            try:
+                return self.rerank_via_jev(query, candidates, min_relevance)
+            except Exception:
+                pass
+
+        return self.rerank_local(query, candidates, min_relevance)
+
+    def rerank_via_jev(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
+        questions = {}
+        for i, c in enumerate(candidates):
+            title = c.get("title", "")
+            path = c.get("path", "")
+            snippet = c.get("content", "")[:350]
+            context = f"File: {path} | Title: {title}\nContent:\n{snippet}"
+            questions[f"rel_{i}"] = {
+                "type": "noul",
+                "instructions": f"Given the query '{query}', is this context chunk directly relevant and helpful?\nContext:\n{context}"
+            }
+            questions[f"score_{i}"] = {
+                "type": "score",
+                "min": 1,
+                "max": 5,
+                "instructions": f"Rate technical precision and utility of this context chunk for query '{query}' from 1 (irrelevant) to 5 (exact match/interface):\n{context}"
+            }
+
+        payload = {
+            "model": self.model,
+            "state": f"Task: Rerank codebase RAG context chunks for query: '{query}'",
+            "questions": questions
+        }
+
+        req = urllib.request.Request(
+            self.decisions_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
+                "X-Title": "ainish-rag-reranker"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        decisions = data.get("decisions", data)
+        reranked = []
+        for i, c in enumerate(candidates):
+            rel_dec = decisions.get(f"rel_{i}", {})
+            score_dec = decisions.get(f"score_{i}", {})
+
+            is_rel = rel_dec.get("value", True)
+            rel_prob = rel_dec.get("probability", 0.7)
+            raw_score = score_dec.get("value", 3)
+            norm_score = max(0.0, min(1.0, (float(raw_score) - 1.0) / 4.0))
+
+            vec_score = c.get("score", 0.5)
+            # 70% decision utility + 30% vector cosine similarity
+            combined = (norm_score * 0.70) + (vec_score * 0.30)
+
+            c["decision_score"] = round(combined, 4)
+            c["decision_relevance"] = is_rel
+            c["decision_probability"] = round(rel_prob, 3)
+            c["decision_utility"] = raw_score
+            c["rerank_source"] = f"openrouter:{self.model}"
+
+            if is_rel and combined >= min_relevance:
+                reranked.append(c)
+
+        reranked.sort(key=lambda x: x["decision_score"], reverse=True)
+        return reranked
+
+    def rerank_local(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
+        q_terms = [t.lower() for t in re.findall(r"\w+", query)]
+        reranked = []
+        for c in candidates:
             text = c.get("content", "").lower()
-            matches = sum(1 for t in q_terms if t in text)
+            title = c.get("title", "").lower()
+            path = c.get("path", "").lower()
+            symbols = c.get("symbols", "").lower()
+
+            matches = sum(1 for t in q_terms if t in text or t in title or t in path or t in symbols)
             lexical_ratio = matches / len(q_terms) if q_terms else 0.0
-            combined = (c.get("score", 0.0) * 0.7) + (lexical_ratio * 0.3)
+
+            symbol_boost = 0.0
+            for sym in ("fn ", "struct ", "class ", "def ", "impl ", "enum ", "type ", "interface "):
+                if sym in text:
+                    symbol_boost = 0.1
+                    break
+
+            vec_score = c.get("score", 0.5)
+            combined = (vec_score * 0.40) + (lexical_ratio * 0.50) + symbol_boost
+            combined = min(1.0, combined)
+
+            c["decision_score"] = round(combined, 4)
+            c["decision_relevance"] = combined >= min_relevance
+            c["decision_probability"] = round(combined, 3)
+            c["decision_utility"] = round(combined * 5, 1)
+            c["rerank_source"] = "local-calibrated"
+
             if combined >= min_relevance:
-                c["decision_score"] = combined
-                filtered.append(c)
-        return filtered
+                reranked.append(c)
+
+        reranked.sort(key=lambda x: x["decision_score"], reverse=True)
+        return reranked
+
+    def filter_chunks(self, query: str, chunks: list, min_relevance: float = 0.40) -> list:
+        return self.rerank(query, chunks, min_relevance)
 
     def evaluate_faithfulness(self, context: str, output: str) -> dict:
         if self.api_key:
@@ -625,6 +817,7 @@ def main():
     sub.add_parser("serve")
     sub.add_parser("stop")
     sub.add_parser("status")
+    sub.add_parser("secrets", help="Inspect PQC vault status and OpenRouter API key resolution")
 
     idx_p = sub.add_parser("index")
     idx_p.add_argument("--path", type=Path, default=Path.cwd())
@@ -640,7 +833,14 @@ def main():
     q_p.add_argument("--type", dest="doc_type", default=None)
     q_p.add_argument("--code", action="store_true")
     q_p.add_argument("--json", action="store_true")
-    q_p.add_argument("--filter", action="store_true")
+    q_p.add_argument("--no-rerank", action="store_true", help="Disable decision model reranking")
+    q_p.add_argument("--min-relevance", type=float, default=0.35, help="Minimum decision relevance threshold")
+    q_p.add_argument("--filter", action="store_true", help="Deprecated: reranking is active by default")
+
+    rerank_p = sub.add_parser("rerank")
+    rerank_p.add_argument("query")
+    rerank_p.add_argument("--limit", type=int, default=5)
+    rerank_p.add_argument("--json", action="store_true")
 
     route_p = sub.add_parser("route")
     route_p.add_argument("query")
@@ -672,6 +872,7 @@ def main():
         hf = detect_hf_hub_cache()
         m, mm = find_embeddinggemma_models(hf)
         llama = find_llama_binary()
+        sec = inspect_secrets()
         print("=== ainish-rag Multimodal RAG Status ===")
         print(f"HF Cache Root:      {hf}")
         print(f"Model GGUF:         {m or 'NOT FOUND'}")
@@ -686,6 +887,22 @@ def main():
         wiki_dir = repo_root / ".agents" / "wiki"
         print(f"Wiki Path:          {wiki_dir}")
         print(f"Wiki Pages:         {len(list(wiki_dir.glob('*.md'))) if wiki_dir.exists() else 0}")
+        print(f"PQC Vault Detected: {sec['pqc_vault_exists']} ({sec['pqc_bundle_path']})")
+        print(f"OpenRouter API Key: {'RESOLVED (' + sec['key_source'] + ')' if sec['api_key_resolved'] else 'UNRESOLVED (fallback: calibrated local)'}")
+
+    elif args.subcommand == "secrets":
+        sec = inspect_secrets()
+        print("=== ainish-rag PQC Secrets & Decision Engine Status ===")
+        print(f"PQC Vault Path:     {sec['pqc_bundle_path']}")
+        print(f"PQC Vault Exists:   {sec['pqc_vault_exists']}")
+        print(f"Key Resolved:       {sec['api_key_resolved']}")
+        print(f"Key Source:         {sec['key_source']}")
+        print(f"Key Preview:        {sec['key_hint']}")
+        if sec['api_key_resolved']:
+            print("Status:             READY (TypeSafe Jev decisions online)")
+        else:
+            print("Status:             FALLBACK (Calibrated local heuristics active)")
+        print()
 
     elif args.subcommand == "wiki":
         target = args.path
@@ -727,23 +944,51 @@ def main():
         store = LanceStore(db_dir)
         q_prefix = f"task: code retrieval | query: {args.query}" if args.code else f"task: search result | query: {args.query}"
         q_vec = client.embed_one(q_prefix)
-        hits = store.search(q_vec, limit=args.limit, doc_type=args.doc_type)
 
-        if args.filter:
+        # Stage 1: Coarse retrieval pool
+        coarse_limit = (args.limit * 3) if not args.no_rerank else args.limit
+        coarse_limit = max(12, coarse_limit) if not args.no_rerank else args.limit
+        raw_hits = store.search(q_vec, limit=coarse_limit, doc_type=args.doc_type)
+
+        # Stage 2: Decision-model reranking
+        if not args.no_rerank:
             engine = DecisionEngine()
-            hits = engine.filter_chunks(args.query, hits)
+            hits = engine.rerank(args.query, raw_hits, min_relevance=args.min_relevance)
+            hits = hits[:args.limit]
+        else:
+            hits = raw_hits[:args.limit]
 
         if args.json:
             print(json.dumps(hits, indent=2))
         else:
             print(f"\n=== Search Results ({len(hits)}) ===")
             for i, h in enumerate(hits, 1):
-                print(f"\n[{i}] Score: {h['score']:.4f} | Type: {h['doc_type']} | Modality: {h['modality']}")
-                print(f"     Location: {h['path']}:L{h['start_line']}-L{h['end_line']}")
+                d_score = h.get("decision_score", h["score"])
+                d_src = h.get("rerank_source", "raw-vector")
+                print(f"\n[{i}] Decision Score: {d_score:.4f} (Vector: {h['score']:.4f}) | Source: {d_src}")
+                print(f"     Location: {h['path']}:L{h['start_line']}-L{h['end_line']} | Type: {h['doc_type']}")
                 print(f"     Title:    {h['title']}")
                 print("     Snippet:")
                 for l in h["content"].splitlines()[:4]:
                     print(f"       {l}")
+            print()
+
+    elif args.subcommand == "rerank":
+        start_server(repo_root, port, client)
+        db_dir = repo_root / ".agents" / "rag" / "lancedb"
+        store = LanceStore(db_dir)
+        q_vec = client.embed_one(f"task: code retrieval | query: {args.query}")
+        raw_hits = store.search(q_vec, limit=max(15, args.limit * 3))
+        engine = DecisionEngine()
+        hits = engine.rerank(args.query, raw_hits)[:args.limit]
+        if args.json:
+            print(json.dumps(hits, indent=2))
+        else:
+            print(f"\n=== Decision Reranked Results ({len(hits)}) ===")
+            for i, h in enumerate(hits, 1):
+                print(f"\n[{i}] Decision Score: {h['decision_score']:.4f} | Rerank Source: {h.get('rerank_source')}")
+                print(f"     Location: {h['path']}:L{h['start_line']}-L{h['end_line']}")
+                print(f"     Title:    {h['title']}")
             print()
 
     elif args.subcommand == "route":
