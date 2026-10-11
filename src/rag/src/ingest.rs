@@ -78,11 +78,13 @@ impl CodebaseIngestor {
         }
     }
 
-    fn chunk_code_file(&self, path: &Path, rel_path: &str, ext: &str) -> Vec<UnembeddedChunk> {
-        let content = match fs::read_to_string(path) {
+
+fn chunk_code_file(&self, path: &Path, rel_path: &str, ext: &str) -> Vec<UnembeddedChunk> {
+        let raw_content = match fs::read_to_string(path) {
             Ok(c) => c,
             Err(_) => return Vec::new(),
         };
+        let content = scrub_sensitive_content(&raw_content);
 
         if content.trim().is_empty() {
             return Vec::new();
@@ -132,10 +134,11 @@ impl CodebaseIngestor {
     }
 
     fn chunk_doc_file(&self, path: &Path, rel_path: &str) -> Vec<UnembeddedChunk> {
-        let content = match fs::read_to_string(path) {
+        let raw_content = match fs::read_to_string(path) {
             Ok(c) => c,
             Err(_) => return Vec::new(),
         };
+        let content = scrub_sensitive_content(&raw_content);
 
         if content.trim().is_empty() {
             return Vec::new();
@@ -364,4 +367,18 @@ fn hash_id(path: &str, start_l: i32, end_l: i32) -> String {
     hex::encode(&res[..8])
 }
 
+pub fn scrub_sensitive_content(text: &str) -> String {
+    let re_kv = match Regex::new(r#"(?i)(api[_-]?key|secret|password|token|bearer|auth|private[_-]?key)\s*([:=])\s*([^
+#\s]+)"#) {
+        Ok(r) => r,
+        Err(_) => return text.to_string(),
+    };
+    let scrubbed = re_kv.replace_all(text, "$1$2[REDACTED]");
+
+    let re_tokens = match Regex::new(r#"(?:sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,})"#) {
+        Ok(r) => r,
+        Err(_) => return scrubbed.to_string(),
+    };
+    re_tokens.replace_all(&scrubbed, "[REDACTED]").to_string()
+}
 

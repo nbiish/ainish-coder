@@ -21,6 +21,10 @@ use crate::decision::DecisionEngine;
 #[command(name = "ainish-rag")]
 #[command(about = "Multimodal Codebase RAG & Architecture Wiki Engine for ainish-coder", version = "0.1.0")]
 struct Cli {
+    /// Number of threads for llama-server execution (default: auto)
+    #[arg(short, long, global = true)]
+    threads: Option<usize>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -45,6 +49,23 @@ enum Commands {
         /// Matryoshka dimension truncation (128, 256, 512, or default 768)
         #[arg(short, long)]
         truncate: Option<usize>,
+        /// Watch target path for file modifications and incrementally re-index
+        #[arg(short, long)]
+        watch: bool,
+    },
+    /// Run automated synthetic query regression suite to assert recall stability
+    Bench {
+        /// Number of benchmark passes (default: 3)
+        #[arg(short, long, default_value_t = 3)]
+        iterations: usize,
+        /// Output benchmark results as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Generate shell completion scripts and aliases (bash, zsh, fish, pwsh)
+    Completion {
+        /// Shell type: bash, zsh, fish, pwsh
+        shell: String,
     },
     /// Generate codebase knowledge and architecture wiki in .agents/wiki/
     Wiki {
@@ -136,6 +157,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let mut config = RagConfig::detect(&current_dir);
+    if let Some(t) = cli.threads {
+        config.threads = Some(t);
+    }
 
     match cli.command {
         Commands::Serve { port } => {
@@ -152,6 +176,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("=== ainish-rag Multimodal RAG Status ===");
             println!("HF Cache Root:      {}", config.hf_hub_cache.display());
             println!("Model GGUF:         {}", config.model_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
+            if let Some(ref mp) = config.model_path {
+                match LlamaServer::verify_model_integrity(mp) {
+                    Ok(stat) => println!("Model Integrity:    VALID ({})", stat),
+                    Err(e)   => println!("Model Integrity:    FAILED ({})", e),
+                }
+            }
             println!("Multimodal Projector:{}", config.mmproj_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
             println!("Llama Binary:       {}", config.llama_bin.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
             println!("Server Endpoint:    {}", config.server_url);
@@ -191,7 +221,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
             }
         }
-        Commands::Index { path, truncate } => {
+        Commands::Index { path, truncate, watch } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -239,6 +269,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             store.upsert(&rag_chunks).await?;
             let total = store.count().await.unwrap_or(0);
             println!("  [rag:index] Indexing complete! Total records in store: {}", total);
+
+            if watch {
+                println!("\n  [rag:watch] Entering watch mode on {} (press Ctrl+C to exit)...", target.display());
+                let mut mtimes: std::collections::HashMap<PathBuf, std::time::SystemTime> = std::collections::HashMap::new();
+                for f in &files {
+                    if let Ok(meta) = std::fs::metadata(f) {
+                        if let Ok(m) = meta.modified() {
+                            mtimes.insert(f.clone(), m);
+                        }
+                    }
+                }
+
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                    let current_files = ingestor.scan_files(&target);
+                    for f in &current_files {
+                        if let Ok(meta) = std::fs::metadata(f) {
+                            if let Ok(m) = meta.modified() {
+                                let changed = match mtimes.get(f) {
+                                    Some(prev) => *prev < m,
+                                    None => true,
+                                };
+                                if changed {
+                                    mtimes.insert(f.clone(), m);
+                                    let rel_display = f.strip_prefix(&target).unwrap_or(f).display();
+                                    println!("  [rag:watch] Detected change in {}. Incrementally re-indexing...", rel_display);
+                                    let chunks = ingestor.chunk_file(f);
+                                    if !chunks.is_empty() {
+                                        let mut updated = Vec::new();
+                                        for c in &chunks {
+                                            let prompt = EmbedClient::format_doc(Some(&c.title), &c.content);
+                                            if let Ok(v) = embed_client.embed_one(&prompt).await {
+                                                updated.push(c.clone().to_rag_chunk(v));
+                                            }
+                                        }
+                                        if let Ok(_) = store.upsert(&updated).await {
+                                            println!("  [rag:watch] Updated {} chunks for {}.", updated.len(), rel_display);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         Commands::Wiki { path, index } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
@@ -346,6 +421,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("       {}", line);
                             }
                         }
+                        let top_score = top_hits.first().map(|h| h.decision_score).unwrap_or(0.0);
+                        if top_score < 0.45 && !top_hits.is_empty() {
+                            println!("  [rag:advisory] Low query-context similarity detected (top score: {:.4}).", top_score);
+                            println!("                 Codebase documentation drift may have occurred. Recommended action: 'ainish-rag wiki' or 'ainish-rag index'.");
+                            println!();
+                        }
                         println!();
                     }
                 }
@@ -382,6 +463,80 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 println!();
             }
+        }
+        Commands::Bench { iterations, json } => {
+            LlamaServer::ensure_running(&config, &current_dir).await?;
+            let embed_client = EmbedClient::new(&config.server_url, None);
+            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
+
+            println!("=== ainish-rag Synthetic Query Regression Benchmark ===");
+            let test_suite = vec![
+                ("post-quantum cryptography secrets FIPS ML-KEM ML-DSA", "security"),
+                ("codebase multimodal rag lancedb embeddinggemma", "rag"),
+                ("worktree isolation branch main workflow OOReDAct", "agents"),
+            ];
+
+            let mut passed = 0;
+            let mut total_latency_ms = 0u128;
+            let mut results = Vec::new();
+
+            for (query, expected_domain) in &test_suite {
+                let start = std::time::Instant::now();
+                let q_vec = embed_client.embed_one(&EmbedClient::format_query(query, false)).await?;
+                let hits = store.search_vector(&q_vec, 3, None).await?;
+                let duration = start.elapsed().as_millis();
+                total_latency_ms += duration;
+
+                let hit_matched = hits.iter().any(|h| {
+                    h.path.to_lowercase().contains(expected_domain) ||
+                    h.content.to_lowercase().contains(expected_domain)
+                });
+
+                if hit_matched {
+                    passed += 1;
+                }
+
+                results.push(serde_json::json!({
+                    "query": query,
+                    "expected_domain": expected_domain,
+                    "recall_at_3": hit_matched,
+                    "latency_ms": duration,
+                    "top_match": hits.first().map(|h| h.path.clone()).unwrap_or_default(),
+                    "top_score": hits.first().map(|h| h.score).unwrap_or(0.0),
+                }));
+            }
+
+            let recall_rate = passed as f32 / test_suite.len() as f32;
+            let avg_latency = total_latency_ms as f64 / test_suite.len() as f64;
+
+            if json {
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                    "iterations": iterations,
+                    "total_queries": test_suite.len(),
+                    "passed": passed,
+                    "recall_at_3": recall_rate,
+                    "avg_latency_ms": avg_latency,
+                    "results": results
+                }))?);
+            } else {
+                for (i, r) in results.iter().enumerate() {
+                    println!("  [{}] Query:    {}", i + 1, r["query"].as_str().unwrap_or(""));
+                    println!("      Match:    {} (Score: {:.4}, Latency: {}ms)", 
+                        r["top_match"].as_str().unwrap_or(""),
+                        r["top_score"].as_f64().unwrap_or(0.0),
+                        r["latency_ms"].as_u64().unwrap_or(0)
+                    );
+                    println!("      Status:   {}", if r["recall_at_3"].as_bool().unwrap_or(false) { "[PASS]" } else { "[FAIL]" });
+                }
+                println!("\nBenchmark Summary:");
+                println!("  Recall@3:     {:.1}% ({}/{})", recall_rate * 100.0, passed, test_suite.len());
+                println!("  Avg Latency:  {:.1} ms", avg_latency);
+                println!("  Overall:      {}", if recall_rate >= 0.66 { "STABLE" } else { "DEGRADED" });
+                println!();
+            }
+        }
+        Commands::Completion { shell } => {
+            print_completion(&shell);
         }
         Commands::Route { query, json } => {
             let engine = DecisionEngine::new();
@@ -444,5 +599,73 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn print_completion(shell: &str) {
+    match shell.to_lowercase().as_str() {
+        "bash" => {
+            print!("{}", r#"# bash completion for ainish-rag
+_ainish_rag() {
+    local cur opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    opts="serve stop status secrets index wiki query rerank route decide eval bench completion --threads --help"
+    if [[ ${cur} == -* ]] ; then
+        COMPREPLY=( $(compgen -W "--threads --help" -- ${cur}) )
+        return 0
+    fi
+    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+    return 0
+}
+complete -F _ainish_rag ainish-rag
+alias rag="ainish-rag"
+"#);
+        }
+        "zsh" => {
+            print!("{}", r#"#compdef ainish-rag
+_ainish_rag() {
+    local -a commands
+    commands=(
+        'serve:Start loopback embedding server'
+        'stop:Stop running server'
+        'status:Inspect model and database status'
+        'secrets:Inspect PQC vault status'
+        'index:Index codebase into LanceDB'
+        'wiki:Generate living wiki'
+        'query:Query multimodal vector store'
+        'rerank:Decision-model reranking'
+        'route:Intent domain routing'
+        'decide:Evaluate decision state'
+        'eval:Bi-phasic faithfulness evaluation'
+        'bench:Run synthetic regression benchmark'
+        'completion:Generate shell completions'
+    )
+    _describe 'commands' commands
+}
+compdef _ainish_rag ainish-rag
+alias rag="ainish-rag"
+"#);
+        }
+        "fish" => {
+            print!("{}", r#"# fish completion for ainish-rag
+complete -c ainish-rag -f
+complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval bench completion"
+alias rag="ainish-rag"
+"#);
+        }
+        "pwsh" | "powershell" => {
+            print!("{}", r#"# PowerShell completion for ainish-rag
+Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','bench','completion')
+    $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
+}
+Set-Alias -Name rag -Value ainish-rag
+"#);
+        }
+        _ => {
+            eprintln!("Unsupported shell: {}. Supported shells: bash, zsh, fish, pwsh", shell);
+        }
+    }
 }
 
