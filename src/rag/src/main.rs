@@ -4,6 +4,7 @@ mod embed;
 mod store;
 mod ingest;
 mod wiki;
+mod decision;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use crate::embed::EmbedClient;
 use crate::store::LanceStore;
 use crate::ingest::CodebaseIngestor;
 use crate::wiki::WikiGenerator;
+use crate::decision::DecisionEngine;
 
 #[derive(Parser)]
 #[command(name = "ainish-rag")]
@@ -67,6 +69,40 @@ enum Commands {
         #[arg(long)]
         code: bool,
         /// Output results as JSON
+        #[arg(long)]
+        json: bool,
+        /// Filter distractor noise using calibrated chunk relevance scoring
+        #[arg(long)]
+        filter: bool,
+    },
+    /// Route query or instruction using the calibrated decision model (System One)
+    Route {
+        /// Query or instruction to route
+        query: String,
+        /// Output decision as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Evaluate a decision question with TypeSafe Jev / calibrated engine
+    Decide {
+        /// Text or state to evaluate
+        state: String,
+        /// Decision question to ask (noul yes/no)
+        #[arg(short, long)]
+        question: Option<String>,
+        /// Output decision as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Run bi-phasic evaluation gate (faithfulness & groundedness)
+    Eval {
+        /// Ground-truth context text
+        #[arg(short, long)]
+        context: String,
+        /// Generated output to evaluate
+        #[arg(short, long)]
+        output: String,
+        /// Output decision as JSON
         #[arg(long)]
         json: bool,
     },
@@ -199,7 +235,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
             }
         }
-        Commands::Query { query, limit, doc_type, code, json } => {
+        Commands::Query { query, limit, doc_type, code, json, filter } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
             let embed_client = EmbedClient::new(&config.server_url, None);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
@@ -207,7 +243,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let formatted_query = EmbedClient::format_query(&query, code);
             let query_vec = embed_client.embed_one(&formatted_query).await?;
 
-            let hits = store.search_vector(&query_vec, limit, doc_type.as_deref()).await?;
+            let raw_hits = store.search_vector(&query_vec, limit, doc_type.as_deref()).await?;
+            let hits = if filter {
+                let decision_engine = DecisionEngine::new();
+                let filters = decision_engine.filter_chunks(&query, &raw_hits, 0.40).await;
+                raw_hits.into_iter()
+                    .zip(filters)
+                    .filter(|(_, f)| f.is_relevant)
+                    .map(|(h, _)| h)
+                    .collect()
+            } else {
+                raw_hits
+            };
 
             if json {
                 println!("{}", serde_json::to_string_pretty(&hits)?);
@@ -230,6 +277,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     println!();
                 }
+            }
+        }
+        Commands::Route { query, json } => {
+            let engine = DecisionEngine::new();
+            let decision = engine.route(&query).await;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&decision)?);
+            } else {
+                println!("\n=== Jev Decision Routing ===");
+                println!("Query:                 {}", query);
+                println!("Source:                {}", decision.source);
+                println!("Needs Retrieval:       {} (probability: {:.3})", decision.needs_retrieval, decision.retrieval_probability);
+                println!("Target Domain:         {} (confidence:  {:.3})", decision.target_domain, decision.route_confidence);
+                println!();
+            }
+        }
+        Commands::Decide { state, question, json } => {
+            let engine = DecisionEngine::new();
+            let q = question.unwrap_or_else(|| "Does this task require external retrieval or escalation?".to_string());
+            let decision = engine.route(&state).await;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&decision)?);
+            } else {
+                println!("\n=== Jev Decision Analysis ===");
+                println!("State:                 {}", state);
+                println!("Question:              {}", q);
+                println!("Source:                {}", decision.source);
+                println!("Needs Retrieval:       {}", decision.needs_retrieval);
+                println!("Target Domain:         {}", decision.target_domain);
+                println!();
+            }
+        }
+        Commands::Eval { context, output, json } => {
+            let engine = DecisionEngine::new();
+            let eval = engine.evaluate_faithfulness(&context, &output).await;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&eval)?);
+            } else {
+                println!("\n=== Bi-Phasic Faithfulness Evaluation ===");
+                println!("Evaluation Source:     {}", eval.evaluation_source);
+                println!("Faithful to Context:   {}", eval.is_faithful);
+                println!("Faithfulness Score:    {:.3}", eval.faithfulness_score);
+                println!("Hallucination Risk:    {:.3}", eval.halluncination_risk);
+                println!();
             }
         }
     }
