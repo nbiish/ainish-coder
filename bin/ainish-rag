@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# ainish-rag — Canonical platform dispatch wrapper for Multimodal Codebase RAG & Wiki Engine
+# ainish-rag — Cross-platform platform dispatch wrapper for Multimodal Codebase RAG & Wiki Engine
+# Supports Windows (Git Bash/MSYS2), WSL (Windows Subsystem for Linux), native Linux, and macOS (Darwin)
 # Uses EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector database
 set -euo pipefail
 
@@ -10,24 +11,54 @@ while [ -L "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 SELF_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-
-NATIVE_BIN="$SELF_DIR/ainish-rag"
-[ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
 PY_ENGINE="$SELF_DIR/../src/rag/rag.py"
 
-if [ -f "$NATIVE_BIN" ]; then
+OS_TYPE="$(uname -s 2>/dev/null || echo "Unknown")"
+NATIVE_BIN=""
+
+case "$OS_TYPE" in
+  Darwin*)
+    [ -f "$SELF_DIR/ainish-rag-darwin" ] && NATIVE_BIN="$SELF_DIR/ainish-rag-darwin"
+    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    ;;
+  Linux*)
+    # Native Linux or WSL
+    [ -f "$SELF_DIR/ainish-rag-linux" ] && NATIVE_BIN="$SELF_DIR/ainish-rag-linux"
+    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    # In WSL, if no Linux ELF binary, check for Windows .exe via interop
+    if [ -z "$NATIVE_BIN" ] && grep -qi microsoft /proc/version 2>/dev/null && [ -f "$SELF_DIR/ainish-rag.exe" ]; then
+      NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
+    fi
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    [ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
+    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    ;;
+  *)
+    [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
+    ;;
+esac
+
+# 1. Execute native binary if found and executable
+if [ -n "$NATIVE_BIN" ] && [ -x "$NATIVE_BIN" ]; then
     exec "$NATIVE_BIN" "$@"
 fi
 
+# 2. Transparent fallback to Python engine with uv / python3 / python
 if command -v uv >/dev/null 2>&1; then
     exec uv run "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.local/bin/uv" ]; then
     exec "$HOME/.local/bin/uv" run "$PY_ENGINE" "$@"
+elif [ -f "$HOME/.cargo/bin/uv" ]; then
+    exec "$HOME/.cargo/bin/uv" run "$PY_ENGINE" "$@"
 elif command -v python3 >/dev/null 2>&1; then
     exec python3 "$PY_ENGINE" "$@"
 elif command -v python >/dev/null 2>&1; then
     exec python "$PY_ENGINE" "$@"
+elif command -v py >/dev/null 2>&1; then
+    exec py "$PY_ENGINE" "$@"
 else
-    echo "Error: Neither compiled binary ($NATIVE_BIN) nor uv/python was found." >&2
+    echo "Error: Neither compiled binary ($NATIVE_BIN) nor uv/python3 was found." >&2
     exit 1
 fi
