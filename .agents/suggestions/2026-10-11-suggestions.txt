@@ -1,0 +1,18 @@
+# AGENT SUGGESTIONS — 2026-10-11
+
+Durable record of multi-master review suggestions per turn across agents.
+Reviewed at cycle start; appended at turn close using the masters schema.
+
+---
+
+### [2026-10-11T18:48:00Z] feat/rag-multimodal-wiki | agent:antigravity
+Implemented multimodal codebase RAG and 6-part living architectural wiki engine using Google DeepMind's EmbeddingGemma-2 GGUF (BF16 + mmproj-F16 auto-resolved from external drive HuggingFace cache) and LanceDB (Rust crate `lancedb` 0.15 + Arrow 53 with `FixedSizeList<Float32, 768>` schema and cross-platform Python fallback `src/rag/rag.py`), verified 7 wiki documents and 281 indexed chunks with hybrid search hit on security mandates at 0.6940 similarity, updated llms.txt DOX chain and help text, and merged autonomously via `--no-ff` to main. Next step: add automated pre-commit hook or CI cron trigger to re-index LanceDB incrementally when files change and test multimodal ingestion with architectural diagrams.
+What would this adversarial / security master suggest? Enforce that local embeddings never serialize or leak PQC vault passphrases or unencrypted environment secrets into the LanceDB vector store tables.
+What would this privacy / data-protection regulatory master suggest? Ensure file chunking sanitizes absolute filesystem user paths and machine identifiers before persisting vector metadata in git-tracked wiki files.
+What would this supply-chain / third-party-risk master suggest? Pin Arrow and LanceDB crate revisions in Cargo.lock and verify protoc.exe compiler provenance to ensure deterministic builds across platforms.
+What would this systems-architecture / devops master suggest? Encapsulate the loopback llama-server PID lifecycle so that background embedding daemon startup and shutdown remain idempotent across WSL and Windows.
+What would this reliability / verification master suggest? Implement automated regression tests verifying cosine similarity threshold guarantees (>= 0.65) on benchmark code and documentation queries.
+What would this governance / sovereignty master suggest? Keep the living architectural wiki files (.agents/wiki/) tracked in git as version-controlled truth rather than ephemeral database state.
+What would this terminal-orchestration / swe-bench master suggest? Expose the RAG query engine as a standard CLI subagent tool call so fleet agents can quickly retrieve call-graph and symbol context before editing.
+What would this master-orchestrator / self-prompting master suggest? Orient future sessions by querying the local LanceDB store directly when exploring unfamiliar modules or deep call graphs.
+What would this developer-experience / ergonomics master suggest? Provide bash and cmd wrappers with automatic fallback to python so contributors without a local Rust toolchain can use `ainish-coder --rag` out-of-the-box.
