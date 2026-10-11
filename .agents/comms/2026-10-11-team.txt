@@ -104,3 +104,27 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:merged to main, worktree released, no-rebuild-needed
 - status:merged
 - blockers:none
+
+### [2026-10-11T19:31:00Z] checkin | agent:antigravity | branch:feat/rag-decision-rerank-pqc | wt:D:/Code/rag-decision-rerank-pqc
+- start:2026-10-11T19:31:00Z
+- end:2026-10-11T19:31:00Z
+- scope:AGENTS.md, src/rag/, bin/ainish-rag, src/help.sh, llms.txt, bin/ainish-coder
+- triage:now
+- objective:integrate decision-model reranking in RAG and PQC secrets on-demand vault resolution for OpenRouter API keys
+- input:operator request to integrate decision model into RAG for reranking and utilize PQC secrets for OpenRouter API key across all deployed targets
+- output:worktree initialized, ledger claimed
+- status:in-progress
+- blockers:none
+start: 2026-10-11T19:41:08.850689+00:00
+agent: Antigravity-IDE
+scope: rag/decision-rerank-pqc
+branch: feat/rag-decision-rerank-pqc
+lane: completed
+type: intent-merge
+objective: merge two-stage decision reranker & PQC secrets into main
+input: TypeSafe Jev OpenRouter / local fallback decision reranker, PQC in-memory key resolution, AGENTS.md contract update
+output: Complete native ainish-rag.exe binary, rag.py engine, updated AGENTS.md & canonical sha256, passing security_gate.py
+status: completed
+blockers: none
+end: 2026-10-11T19:41:08.850689+00:00
+
