@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys (FIPS 203/204/205; standard crypto for transport). Worktree per task — branch from main, merge back after green gates, clean up immediately. Durable memory in .agents/memories/{date}-memory.txt — one file per UTC date, plain markdown, agent/system/dependency agnostic. Cross-agent, chat, and work-session coordination via the daily COMMS ledger .agents/comms/{date}-team.txt (one file per UTC date), task records .agents/tasks/, and suggestions .agents/suggestions/. llms.txt is the PRD anchor — read the DOX chain. Chain-of-Draft: ≤5 words per step, output after ####. No secrets in tasks or PRD. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch <type>/<scope>-<slug>. Triage now/next/queued/backlog, ≤3 worktrees. OOReDAct. Always believe in yourself.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys (FIPS 203/204/205; standard crypto for transport). Worktree per task — branch from main, merge back after green gates, clean up immediately. Durable memory in .agents/memories/{date}-memory.txt — one file per UTC date, plain markdown, agent/system/dependency agnostic. Cross-agent, chat, and work-session coordination via the daily COMMS ledger .agents/comms/{date}-team.txt (one file per UTC date), task records .agents/tasks/, and suggestions .agents/suggestions/. llms.txt is the PRD anchor — read the DOX chain. Codebase RAG & living architectural wiki (.agents/wiki/) for symbol graphs and recon. Decision models (choice/noul/score) for retrieval gating, routing, and bi-phasic evaluation. Chain-of-Draft: ≤5 words per step, output after ####. No secrets in tasks or PRD. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch <type>/<scope>-<slug>. Triage now/next/queued/backlog, ≤3 worktrees. OOReDAct. Always believe in yourself.
 ---
 # AGENTS.md — Universal Agent Contract
 
@@ -30,6 +30,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 ## Orient first
 
 - `git context` → latest COMMS, task lanes, suggestions, memory state, PRD version, worktrees. Run first, every repo, every session.
+- **Codebase RAG & living wiki:** ground mental models before broad edits. Query the multimodal vector index (`ainish-coder --rag query <term>` / `bin/ainish-rag query`) and consult `.agents/wiki/` (living 6-part architecture, call graphs, security surface) to navigate large codebases.
 - Modular capability lives in `.agents/skills/<skill>/SKILL.md` — read before use; shared packs stay byte-identical.
   </TASK_PRIMER>
 
@@ -86,8 +87,9 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 
 ## Build → merge → rebuild
 
-isolate → coordinate (triage + `checkin`) → recon → iterate (atomic commits, memory) → audit → gates (`clippy` / `tsc` / `ruff` / tests) → smoke test the changed surface on a non-default port → merge → rebuild → cleanup.
+isolate → coordinate (triage + `checkin`) → recon (RAG + wiki) → decide (decision-model gating) → iterate (atomic commits, memory) → audit → gates (`clippy` / `tsc` / `ruff` / tests) → smoke test the changed surface on a non-default port → merge → rebuild → cleanup.
 
+- **Decision-model gating (OOReDAct Decide):** route actions through calibrated System One decision models (choice/noul/score; e.g. Jev via OpenRouter or local router) to decide retrieval necessity (`needs_retrieval`), domain routing (`code` vs `wiki` vs `security`), post-retrieval relevance filtering (purge distractor noise before synthesis), and bi-phasic evaluation (groundedness vs hallucination).
 - **Merge autonomously.** Green gates are the approval; no operator confirmation. Merge `--no-ff`; a bad merge is reverted with `git revert`. `intent-merge` is the audit record. Never end a turn waiting to merge.
 - **Cleanup:** pass the ownership check (`<SERVERS>`), then `git worktree remove <path>`, `git branch -d <branch>`, verify clean on `main`, close with `checkout`.
 - No stubs, TODOs, scaffolds, mocks, or no-op fallbacks — ever. Fix the source, never the symptom.
@@ -128,7 +130,7 @@ Durable knowledge lives in `.agents/memories/{date}-memory.txt` — one file per
 
 ## Before you yield
 
-☐ worktree, never `main` · ☐ task record + ledger closed + suggestions appended · ☐ no secrets, no banned crypto · ☐ gates green · ☐ smoke test on the changed surface · ☐ scope + tree/diff proof per change · ☐ server rebuilt or `no-rebuild-needed` · ☐ memory updated · ☐ every task lanned · ☐ deliverable complete end-to-end — else the exact blocker is stated.
+☐ worktree, never `main` · ☐ task record + ledger closed + suggestions appended · ☐ no secrets, no banned crypto · ☐ gates green · ☐ smoke test on the changed surface · ☐ scope + tree/diff proof per change · ☐ server rebuilt or `no-rebuild-needed` · ☐ memory updated · ☐ every task lanned · ☐ context grounded in wiki/RAG + decision-validated · ☐ deliverable complete end-to-end — else the exact blocker is stated.
 
 </AUDIT>
 
@@ -142,7 +144,7 @@ Review `.agents/suggestions/{date}-suggestions.txt` before acting on anything. B
 
 <REINFORCEMENT>
 
-PQC for every API key. One task = one worktree from `main`; green gates merge autonomously. Coordinate through the ledger, orient from memory, close every loop. Ship complete, verified production code. You will be graded on the quality of your final result; always believe in yourself.
+PQC for every API key. One task = one worktree from `main`; green gates merge autonomously. Coordinate through the ledger, orient from memory and RAG/wiki, decide with calibrated decision models, close every loop. Ship complete, verified production code. You will be graded on the quality of your final result; always believe in yourself.
 
 </REINFORCEMENT>
 
