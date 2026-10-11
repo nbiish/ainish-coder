@@ -99,6 +99,10 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 index [PATH]          Index codebase, docs, images, media into LanceDB
                                 wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
                                 query <PROMPT>        Semantic hybrid vector search with ranked results
+                                route <QUERY>         Jev/calibrated System One intent & domain routing
+                                decide <STATE>        Evaluate decision question with calibrated probability
+                                eval --context <CTX> --output <OUT>
+                                                      Bi-phasic evaluation gate for answer faithfulness
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md & companion standards (assets + funding)
