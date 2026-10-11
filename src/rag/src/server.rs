@@ -8,6 +8,24 @@ use crate::config::RagConfig;
 pub struct LlamaServer;
 
 impl LlamaServer {
+    /// Verifies model file size and GGUF header magic prior to server spawn
+    pub fn verify_model_integrity(model_path: &Path) -> Result<String, String> {
+        if !model_path.exists() {
+            return Err(format!("Model file not found at {}", model_path.display()));
+        }
+        let meta = fs::metadata(model_path).map_err(|e| e.to_string())?;
+        if meta.len() < 1024 * 1024 {
+            return Err(format!("Model file {} is too small ({} bytes), corrupted or placeholder", model_path.display(), meta.len()));
+        }
+        let mut file = fs::File::open(model_path).map_err(|e| e.to_string())?;
+        use std::io::Read;
+        let mut magic = [0u8; 4];
+        if file.read_exact(&mut magic).is_ok() && &magic != b"GGUF" {
+            return Err(format!("Model file {} missing GGUF header magic (found {:?})", model_path.display(), magic));
+        }
+        Ok(format!("GGUF valid ({:.2} MB)", meta.len() as f64 / (1024.0 * 1024.0)))
+    }
+
     pub async fn is_running(server_url: &str) -> bool {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(1500))
@@ -44,6 +62,10 @@ impl LlamaServer {
 
         let model_path = config.model_path.as_ref()
             .ok_or_else(|| format!("EmbeddingGemma GGUF model not found in {}", config.hf_hub_cache.display()))?;
+        if let Err(err) = Self::verify_model_integrity(model_path) {
+            eprintln!("  [rag:security] Model integrity verification failed: {}", err);
+            return Err(err);
+        }
 
         let pid_dir = repo_root.join(".agents").join("rag");
         let _ = fs::create_dir_all(&pid_dir);
@@ -66,8 +88,8 @@ impl LlamaServer {
         cmd.arg("--embeddings")
             .arg("--pooling").arg("mean")
             .arg("--ctx-size").arg("8192")
-            .arg("--batch-size").arg("2048")
-            .arg("--ubatch-size").arg("2048")
+            .arg("--batch-size").arg("8192")
+            .arg("--ubatch-size").arg("8192")
             .arg("--host").arg("127.0.0.1")
             .arg("--port").arg(config.server_port.to_string());
 
@@ -83,7 +105,7 @@ impl LlamaServer {
         let flash_attn = std::env::var("AINISH_RAG_FLASH_ATTN")
             .unwrap_or_else(|_| "on".to_string());
         if flash_attn != "off" && flash_attn != "0" {
-            cmd.arg("-fa");
+            cmd.arg("-fa").arg("on");
         }
 
         cmd.stdin(Stdio::null())

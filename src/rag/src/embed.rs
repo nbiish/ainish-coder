@@ -52,7 +52,13 @@ impl EmbedClient {
     /// Format document with title prefix
     pub fn format_doc(title: Option<&str>, content: &str) -> String {
         let t = title.filter(|s| !s.trim().is_empty()).unwrap_or("none");
-        format!("title: {} | text: {}", t, content.trim())
+        let trimmed = content.trim();
+        let safe_text = if trimmed.len() > 6000 {
+            &trimmed[..6000]
+        } else {
+            trimmed
+        };
+        format!("title: {} | text: {}", t, safe_text)
     }
 
     /// Format multimodal entry with image placeholder
