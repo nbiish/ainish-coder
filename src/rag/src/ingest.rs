@@ -45,11 +45,20 @@ impl CodebaseIngestor {
     }
 
     pub fn chunk_file(&self, file_path: &Path) -> Vec<UnembeddedChunk> {
-        let rel_path = file_path
-            .strip_prefix(&self.repo_root)
-            .unwrap_or(file_path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let rel_path = match file_path.strip_prefix(&self.repo_root) {
+            Ok(p) => p.to_string_lossy().replace('\\', "/"),
+            Err(_) => {
+                let s = file_path.to_string_lossy().replace('\\', "/");
+                if let Some(pos) = s.rfind("/src/") {
+                    s[pos + 1..].to_string()
+                } else if let Some(pos) = s.rfind("/.agents/") {
+                    s[pos + 1..].to_string()
+                } else {
+                    file_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string()
+                }
+            }
+        };
+        let rel_path = rel_path.trim_start_matches('/').to_string();
 
         let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
 

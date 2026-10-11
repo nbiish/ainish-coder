@@ -69,8 +69,24 @@ impl LlamaServer {
             .arg("--batch-size").arg("2048")
             .arg("--ubatch-size").arg("2048")
             .arg("--host").arg("127.0.0.1")
-            .arg("--port").arg(config.server_port.to_string())
-            .stdin(Stdio::null())
+            .arg("--port").arg(config.server_port.to_string());
+
+        // GPU / Metal layer offloading (defaults to 99 layers for full offload, 0 disables)
+        let ngl = std::env::var("AINISH_RAG_NGL")
+            .or_else(|_| std::env::var("LLAMA_GPU_LAYERS"))
+            .unwrap_or_else(|_| "99".to_string());
+        if ngl != "0" {
+            cmd.arg("-ngl").arg(&ngl);
+        }
+
+        // FlashAttention flag (reduces memory and accelerates long context windows)
+        let flash_attn = std::env::var("AINISH_RAG_FLASH_ATTN")
+            .unwrap_or_else(|_| "on".to_string());
+        if flash_attn != "off" && flash_attn != "0" {
+            cmd.arg("-fa");
+        }
+
+        cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
 
@@ -93,6 +109,13 @@ impl LlamaServer {
 
         let pid = child.id();
         let _ = fs::write(&pid_file, pid.to_string());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&pid_dir, fs::Permissions::from_mode(0o700));
+            let _ = fs::set_permissions(&pid_file, fs::Permissions::from_mode(0o600));
+        }
         println!("  [rag] Spawned llama server process PID {}...", pid);
 
         // Poll for readiness up to 30 seconds
