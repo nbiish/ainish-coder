@@ -13,3 +13,7 @@
 - 19:04 AGENTS.md prompt engineered with RAG/wiki orient and calibrated decision-model gating (choice/noul/score).
 - 19:04 .agents/canonical/AGENTS.md and .sha256 refreshed (hash: 441f9fb3...). security_gate.py passes clean.
 - 19:04 Jev OpenRouter / local fallback decision engine integrated in Rust and Python with route, decide, eval, and query --filter.
+- 19:40 Decision model two-stage RAG reranking integrated: coarse candidate retrieval from LanceDB + Jev decision reranking (noul/score primitives blending 70% decision utility + 30% vector similarity).
+- 19:40 PQC secrets engine queried dynamically in-memory (~/.config/pqc-secrets/secrets.bundle.json) for OPENROUTER_API_KEY with zero plaintext persistence across all repos deployed via ainish-coder --rules.
+- 19:40 Compiled native release binary bin/ainish-rag.exe (121MB) and verified secrets/query/rerank/route subcommands.
+- 19:40 AGENTS.md, canonical copy, and sha256 (31ead9aaef...) updated and passed bin/security_gate.py.
