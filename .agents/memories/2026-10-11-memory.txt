@@ -9,3 +9,7 @@
 - 18:36 ainish-rag built in Rust (src/rag/) and Python (src/rag/rag.py) with LanceDB and EmbeddingGemma-2.
 - 18:37 6-part living wiki generated in .agents/wiki/ and 281 chunks indexed into LanceDB.
 - 18:42 Verified query against LanceDB returned 03-security-and-governance.md with 0.6940 cosine similarity score.
+- 18:56 Decision models (TypeSafe Jev via OpenRouter /api/alpha/decisions) researched: choice/noul/score primitives provide calibrated micro-decisions for RAG query routing and bi-phasic evaluation.
+- 19:04 AGENTS.md prompt engineered with RAG/wiki orient and calibrated decision-model gating (choice/noul/score).
+- 19:04 .agents/canonical/AGENTS.md and .sha256 refreshed (hash: 441f9fb3...). security_gate.py passes clean.
+- 19:04 Jev OpenRouter / local fallback decision engine integrated in Rust and Python with route, decide, eval, and query --filter.

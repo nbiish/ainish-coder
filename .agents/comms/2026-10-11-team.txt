@@ -73,3 +73,34 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:merged to main, worktree released, no-rebuild-needed
 - status:merged
 - blockers:none
+
+### [2026-10-11T18:56:00Z] checkin | agent:antigravity | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
+- start:2026-10-11T18:56:00Z
+- end:2026-10-11T18:56:00Z
+- scope:AGENTS.md, llms.txt, src/rag/, bin/ainish-rag
+- triage:now
+- objective:prompt engineer RAG & decision-model routing/evals into AGENTS.md contract with Jev OpenRouter starter engine
+- input:operator request to prompt engineer RAG & decision model into AGENTS.md and integrate Jev decision model
+- output:worktree initialized, comms ledger checked in
+- status:in-progress
+- blockers:none
+
+### [2026-10-11T19:06:00Z] intent-merge | agent:antigravity | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
+- start:2026-10-11T19:06:00Z
+- end:2026-10-11T19:06:00Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, src/rag/, bin/ainish-rag, src/help.sh
+- objective:merge RAG and decision-model contract engineering with Jev OpenRouter engine into main
+- input:green gates (cargo check dev & release 0 warnings, native binary built, security_gate.py pass with AGENTS.md sha256 refresh, routing & eval verified)
+- output:intent-merge logged; preparing --no-ff merge to main
+- status:merged
+- blockers:none
+
+### [2026-10-11T19:07:00Z] checkout | agent:antigravity | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
+- start:2026-10-11T19:07:00Z
+- end:2026-10-11T19:07:00Z
+- scope:AGENTS.md, .agents/canonical/, llms.txt, src/rag/, bin/ainish-rag, src/help.sh
+- objective:task complete; merge to main and clean worktree
+- input:completed RAG & Jev decision model contract engineering and implementation
+- output:merged to main, worktree released, no-rebuild-needed
+- status:merged
+- blockers:none
