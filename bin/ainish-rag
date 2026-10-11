@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ainish-rag — Canonical platform dispatch wrapper for Multimodal Codebase RAG & Wiki Engine
+# Uses EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector database
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SELF_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+NATIVE_BIN="$SELF_DIR/ainish-rag"
+[ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
+PY_ENGINE="$SELF_DIR/../src/rag/rag.py"
+
+if [ -f "$NATIVE_BIN" ]; then
+    exec "$NATIVE_BIN" "$@"
+fi
+
+if command -v uv >/dev/null 2>&1; then
+    exec uv run "$PY_ENGINE" "$@"
+elif [ -f "$HOME/.local/bin/uv" ]; then
+    exec "$HOME/.local/bin/uv" run "$PY_ENGINE" "$@"
+elif command -v python3 >/dev/null 2>&1; then
+    exec python3 "$PY_ENGINE" "$@"
+elif command -v python >/dev/null 2>&1; then
+    exec python "$PY_ENGINE" "$@"
+else
+    echo "Error: Neither compiled binary ($NATIVE_BIN) nor uv/python was found." >&2
+    exit 1
+fi
