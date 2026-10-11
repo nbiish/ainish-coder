@@ -1,4 +1,5 @@
-﻿use std::env;
+use std::env;
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -15,11 +16,22 @@ pub struct RouteDecision {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RelevanceDecision {
     pub chunk_index: usize,
     pub is_relevant: bool,
     pub score: f32,
     pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RerankResult {
+    pub chunk: crate::store::SearchHit,
+    pub original_score: f32,
+    pub decision_score: f32,
+    pub rerank_score: f32,
+    pub is_relevant: bool,
+    pub rationale: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,28 +42,144 @@ pub struct EvaluationDecision {
     pub evaluation_source: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecretsStatus {
+    pub has_key: bool,
+    pub key_source: String,
+    pub vault_bundle_exists: bool,
+    pub vault_path: String,
+    pub model: String,
+}
+
 pub struct DecisionEngine {
-    api_key: Option<String>,
-    model: String,
+    pub api_key: Option<String>,
+    pub key_source: String,
+    pub model: String,
     client: reqwest::Client,
 }
 
 impl DecisionEngine {
     pub fn new() -> Self {
-        let api_key = env::var("OPENROUTER_API_KEY")
-            .ok()
-            .or_else(|| env::var("ROUTER_API_KEY").ok());
+        let (api_key, key_source) = Self::resolve_api_key();
         let model = env::var("JEV_DECISION_MODEL")
             .unwrap_or_else(|_| DEFAULT_JEV_MODEL.to_string());
         
         Self {
             api_key,
+            key_source,
             model,
             client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
+                .timeout(std::time::Duration::from_secs(12))
                 .build()
                 .unwrap_or_default(),
         }
+    }
+
+    /// Resolves the OpenRouter API key:
+    /// 1. Direct environment variable (OPENROUTER_API_KEY / ROUTER_API_KEY)
+    /// 2. On-demand decryption from PQC secrets vault (~/.config/pqc-secrets/secrets.bundle.json)
+    /// 3. Offline calibrated fallback
+    pub fn resolve_api_key() -> (Option<String>, String) {
+        // 1. Direct environment variable
+        for var_name in &["OPENROUTER_API_KEY", "ROUTER_API_KEY"] {
+            if let Ok(val) = env::var(var_name) {
+                let trimmed = val.trim();
+                if !trimmed.is_empty() {
+                    return (Some(trimmed.to_string()), format!("env:{}", var_name));
+                }
+            }
+        }
+
+        // 2. Query PQC secrets vault on demand (never persists plaintext)
+        if let Some(key) = Self::load_from_pqc_secrets() {
+            return (Some(key), "pqc-secrets-vault".to_string());
+        }
+
+        (None, "local-calibrated-fallback".to_string())
+    }
+
+    /// Inspects PQC secrets vault configuration without exposing secret values
+    pub fn inspect_secrets() -> SecretsStatus {
+        let (api_key, key_source) = Self::resolve_api_key();
+        let model = env::var("JEV_DECISION_MODEL")
+            .unwrap_or_else(|_| DEFAULT_JEV_MODEL.to_string());
+
+        let home = env::var("USERPROFILE").or_else(|_| env::var("HOME")).unwrap_or_default();
+        let vault_path = PathBuf::from(&home).join(".config").join("pqc-secrets").join("secrets.bundle.json");
+        let vault_exists = vault_path.exists();
+
+        SecretsStatus {
+            has_key: api_key.is_some(),
+            key_source,
+            vault_bundle_exists: vault_exists,
+            vault_path: vault_path.to_string_lossy().to_string(),
+            model,
+        }
+    }
+
+    /// Executes pqc-secrets export and extracts the OpenRouter key in memory
+    fn load_from_pqc_secrets() -> Option<String> {
+        let home = env::var("USERPROFILE").or_else(|_| env::var("HOME")).unwrap_or_default();
+        let vault_path = PathBuf::from(&home).join(".config").join("pqc-secrets").join("secrets.bundle.json");
+        if !vault_path.exists() {
+            return None;
+        }
+
+        // Try standalone pqc-secrets binary / script in PATH and common relative paths
+        let attempts = [
+            ("pqc-secrets", vec!["export"]),
+            ("bin/pqc-secrets", vec!["export"]),
+            ("../bin/pqc-secrets", vec!["export"]),
+        ];
+
+        for (cmd, args) in attempts {
+            if let Ok(output) = std::process::Command::new(cmd).args(&args).output() {
+                if output.status.success() {
+                    if let Ok(stdout) = String::from_utf8(output.stdout) {
+                        if let Some(key) = Self::parse_pqc_export(&stdout) {
+                            return Some(key);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Try via uv or python with .agents/skills/pqc-secrets/scripts/pqc_secrets.py
+        let python_runners = [
+            ("uv", vec!["run", ".agents/skills/pqc-secrets/scripts/pqc_secrets.py", "export"]),
+            ("python", vec![".agents/skills/pqc-secrets/scripts/pqc_secrets.py", "export"]),
+            ("py", vec![".agents/skills/pqc-secrets/scripts/pqc_secrets.py", "export"]),
+        ];
+
+        for (runner, args) in python_runners {
+            if let Ok(output) = std::process::Command::new(runner).args(&args).output() {
+                if output.status.success() {
+                    if let Ok(stdout) = String::from_utf8(output.stdout) {
+                        if let Some(key) = Self::parse_pqc_export(&stdout) {
+                            return Some(key);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    fn parse_pqc_export(stdout: &str) -> Option<String> {
+        for line in stdout.lines() {
+            let line = line.trim();
+            if let Some(rest) = line.strip_prefix("export ") {
+                if let Some((k, v)) = rest.split_once('=') {
+                    let k = k.trim();
+                    let v = v.trim().trim_matches('\'').trim_matches('"');
+                    if (k == "OPENROUTER_API_KEY" || k == "ROUTER_API_KEY") && !v.is_empty() {
+                        return Some(v.to_string());
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Evaluates if a query requires retrieval, and which domain to route to.
@@ -99,8 +227,6 @@ impl DecisionEngine {
         }
 
         let body: serde_json::Value = res.json().await?;
-        
-        // Extract decisions (handles both nested .decisions or top-level)
         let root = body.get("decisions").unwrap_or(&body);
 
         let mut needs_retrieval = true;
@@ -138,7 +264,6 @@ impl DecisionEngine {
     pub fn route_local(&self, prompt: &str) -> RouteDecision {
         let p_lower = prompt.to_lowercase();
 
-        // Check if query is self-contained / no retrieval needed (e.g. simple syntax, greeting, math)
         let self_contained = p_lower.starts_with("hello") ||
             p_lower.starts_with("echo ") ||
             p_lower.starts_with("format json") ||
@@ -154,7 +279,6 @@ impl DecisionEngine {
             };
         }
 
-        // Domain classification
         let (domain, conf) = if p_lower.contains("pqc") || p_lower.contains("fips") || p_lower.contains("security") || p_lower.contains("secret") || p_lower.contains("zero-trust") {
             ("security_governance".to_string(), 0.95)
         } else if p_lower.contains("architecture") || p_lower.contains("system design") || p_lower.contains("component") || p_lower.contains("pipeline") {
@@ -176,7 +300,171 @@ impl DecisionEngine {
         }
     }
 
+    /// Two-Stage RAG: Rerank candidate chunks using the decision model
+    pub async fn rerank(
+        &self,
+        query: &str,
+        candidates: Vec<crate::store::SearchHit>,
+        min_relevance: f32,
+    ) -> Vec<RerankResult> {
+        if candidates.is_empty() {
+            return Vec::new();
+        }
+
+        if let Some(ref api_key) = self.api_key {
+            if let Ok(results) = self.rerank_via_jev(query, &candidates, api_key, min_relevance).await {
+                return results;
+            }
+        }
+
+        self.rerank_local(query, candidates, min_relevance)
+    }
+
+    /// Calls TypeSafe Jev model on OpenRouter Decisions API to evaluate and score candidates
+    async fn rerank_via_jev(
+        &self,
+        query: &str,
+        candidates: &[crate::store::SearchHit],
+        api_key: &str,
+        min_relevance: f32,
+    ) -> Result<Vec<RerankResult>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut reranked = Vec::new();
+
+        for chunk in candidates.iter().take(12) {
+            let snippet = if chunk.content.len() > 1200 { &chunk.content[..1200] } else { &chunk.content };
+            let state = format!("QUERY: {}\n\nCONTEXT CHUNK [{}]:\nTitle: {}\n{}", 
+                query, chunk.path, chunk.title, snippet
+            );
+
+            let questions = json!({
+                "is_relevant": {
+                    "type": "noul",
+                    "instructions": "Is this context chunk directly relevant and high-utility for answering or implementing the query?"
+                },
+                "utility_score": {
+                    "type": "score",
+                    "instructions": "Rate how useful this context chunk is on a 1-5 scale."
+                }
+            });
+
+            let payload = json!({
+                "model": self.model,
+                "state": state,
+                "questions": questions
+            });
+
+            let mut is_rel = true;
+            let mut decision_score = chunk.score;
+            let mut rationale = "Jev calibrated decision".to_string();
+
+            if let Ok(res) = self.client.post(OPENROUTER_DECISIONS_URL)
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .header("HTTP-Referer", "https://github.com/nbiish/ainish-coder")
+                .header("X-Title", "ainish-rag-rerank")
+                .json(&payload)
+                .send()
+                .await
+            {
+                if res.status().is_success() {
+                    if let Ok(body) = res.json::<serde_json::Value>().await {
+                        let root = body.get("decisions").unwrap_or(&body);
+                        if let Some(rel) = root.get("is_relevant") {
+                            if let Some(v) = rel.get("value").and_then(|v| v.as_bool()) {
+                                is_rel = v;
+                            }
+                            if let Some(p) = rel.get("probability").and_then(|v| v.as_f64()) {
+                                decision_score = p as f32;
+                            }
+                        }
+                        if let Some(score_obj) = root.get("utility_score") {
+                            if let Some(val) = score_obj.get("value").and_then(|v| v.as_f64()) {
+                                decision_score = (val as f32) / 5.0;
+                            }
+                        }
+                        rationale = format!("Jev decision utility: {:.3} (is_rel: {})", decision_score, is_rel);
+                    }
+                }
+            }
+
+            let combined = if is_rel {
+                (decision_score * 0.70) + (chunk.score * 0.30)
+            } else {
+                (decision_score * 0.30) + (chunk.score * 0.20)
+            };
+
+            if combined >= min_relevance {
+                let mut updated_chunk = chunk.clone();
+                updated_chunk.score = combined;
+                reranked.push(RerankResult {
+                    chunk: updated_chunk,
+                    original_score: chunk.score,
+                    decision_score,
+                    rerank_score: combined,
+                    is_relevant: is_rel,
+                    rationale,
+                });
+            }
+        }
+
+        reranked.sort_by(|a, b| b.rerank_score.partial_cmp(&a.rerank_score).unwrap_or(std::cmp::Ordering::Equal));
+        Ok(reranked)
+    }
+
+    /// Calibrated local reranking fallback based on lexical coverage, symbol overlap, and vector similarity
+    pub fn rerank_local(
+        &self,
+        query: &str,
+        candidates: Vec<crate::store::SearchHit>,
+        min_relevance: f32,
+    ) -> Vec<RerankResult> {
+        let q_lower = query.to_lowercase();
+        let q_terms: Vec<&str> = q_lower.split_whitespace().filter(|t| t.len() > 2).collect();
+
+        let mut reranked = Vec::new();
+
+        for chunk in candidates {
+            let content_lower = chunk.content.to_lowercase();
+            let title_lower = chunk.title.to_lowercase();
+            let symbols_lower = chunk.symbols.to_lowercase();
+
+            // 1. Lexical term coverage
+            let term_matches = q_terms.iter().filter(|t| content_lower.contains(*t)).count();
+            let term_ratio = if !q_terms.is_empty() {
+                term_matches as f32 / q_terms.len() as f32
+            } else {
+                0.0
+            };
+
+            // 2. Title & symbol boost
+            let title_match = q_terms.iter().any(|t| title_lower.contains(*t));
+            let symbol_match = q_terms.iter().any(|t| symbols_lower.contains(*t));
+            let boost = (if title_match { 0.15 } else { 0.0 }) + (if symbol_match { 0.15 } else { 0.0 });
+
+            // 3. Calibrated decision score: 50% vector similarity + 30% term coverage + 20% symbol/title boost
+            let decision_score = (chunk.score * 0.50) + (term_ratio * 0.30) + boost;
+            let is_relevant = decision_score >= min_relevance;
+
+            if is_relevant {
+                let mut updated_chunk = chunk.clone();
+                updated_chunk.score = decision_score;
+                reranked.push(RerankResult {
+                    chunk: updated_chunk,
+                    original_score: chunk.score,
+                    decision_score,
+                    rerank_score: decision_score,
+                    is_relevant: true,
+                    rationale: format!("Local calibrated rerank (terms: {}/{}, title: {}, symbols: {})", term_matches, q_terms.len(), title_match, symbol_match),
+                });
+            }
+        }
+
+        reranked.sort_by(|a, b| b.rerank_score.partial_cmp(&a.rerank_score).unwrap_or(std::cmp::Ordering::Equal));
+        reranked
+    }
+
     /// Evaluates candidate chunks for relevance to filter distractor noise
+    #[allow(dead_code)]
     pub async fn filter_chunks(
         &self,
         query: &str,
@@ -186,12 +474,10 @@ impl DecisionEngine {
         let mut results = Vec::new();
 
         for (idx, item) in chunks.iter().enumerate() {
-            // Local keyword & similarity calibration
             let text_lower = item.content.to_lowercase();
             let query_terms: Vec<&str> = query.split_whitespace().collect();
             let matching_terms = query_terms.iter().filter(|t| text_lower.contains(&t.to_lowercase())).count();
             
-            // Combining cosine similarity with lexical overlap for calibrated score
             let lexical_ratio = if !query_terms.is_empty() {
                 matching_terms as f32 / query_terms.len() as f32
             } else {
@@ -273,7 +559,6 @@ impl DecisionEngine {
             }
         }
 
-        // Local heuristic fallback
         let out_lower = output.to_lowercase();
         let ctx_lower = context.to_lowercase();
         let words: Vec<&str> = out_lower.split_whitespace().filter(|w| w.len() > 4).collect();

@@ -222,14 +222,19 @@ Universal architecture and knowledge retrieval for the codebase. Integrates Goog
 
   6. `06-developer-experience-and-marketing.md`: Developer onboarding, command cheat sheets, value propositions.
 
-- **Decision Model Gating (TypeSafe Jev & Local Calibrated Router):**
-  - High-precision RAG gating via TypeSafe Jev on OpenRouter (`https://openrouter.ai/api/alpha/decisions`, model `typesafe/jev-1.13` or `typesafe/jev-router`), backed by an offline calibrated heuristic fallback.
+- **Decision Model Gating & Two-Stage RAG Reranking (TypeSafe Jev & Local Calibrated Router):**
+  - High-precision RAG gating and two-stage reranking via TypeSafe Jev on OpenRouter (`https://openrouter.ai/api/alpha/decisions`, model `typesafe/jev-1.13` or `typesafe/jev-router`), backed by an offline calibrated heuristic fallback.
+  - Two-Stage Retrieval Architecture:
+    - Stage 1: Coarse ANN candidate retrieval pool from LanceDB (`(limit * 3).max(12)` items).
+    - Stage 2: Decision-model reranking evaluating `is_relevant` (`noul`) and `utility_score` (`score` 1 to 5). Blends 70% decision model utility + 30% vector cosine similarity to eliminate distractor noise.
+  - Dynamic PQC Secrets Resolution:
+    - Automatically resolves `OPENROUTER_API_KEY` / `ROUTER_API_KEY` directly from the machine's post-quantum vault (`~/.config/pqc-secrets/secrets.bundle.json` via in-memory export) or environment across all target repositories deployed with `ainish-coder --rules`. Zero plaintext secrets persisted.
   - Three decision primitives:
     - `choice`: domain routing across codebase symbols, living architectural wiki, security governance, technical debt, and general knowledge.
     - `noul`: calibrated boolean probability for `needs_retrieval`, `is_chunk_relevant`, `is_conflicting`, and `is_faithful`.
     - `score`: continuous rubric ranking of chunk utility and factual consistency.
-  - Decision subcommands: `ainish-rag route <query>` (routing & necessity), `ainish-rag decide <state>` (micro-decision evaluation), `ainish-rag eval --context <ctx> --output <out>` (bi-phasic faithfulness gate), and `ainish-rag query <query> --filter` (vector search with decision noise suppression).
-- **CLI & Tooling:** Dispatch via `ainish-coder --rag [serve|stop|status|index|wiki|query|route|decide|eval]` or `bin/ainish-rag` (cross-platform wrapper delegating to `bin/ainish-rag.exe` or `src/rag/rag.py`).
+  - Decision subcommands: `ainish-rag query <query> [--no-rerank] [--min-relevance 0.35]` (two-stage retrieval with decision reranking active by default), `ainish-rag rerank <query>` (standalone reranker), `ainish-rag secrets` (safe PQC vault and API key inspector), `ainish-rag route <query>` (routing & necessity), `ainish-rag decide <state>` (micro-decision evaluation), and `ainish-rag eval --context <ctx> --output <out>` (bi-phasic faithfulness gate).
+- **CLI & Tooling:** Dispatch via `ainish-coder --rag [serve|stop|status|index|wiki|query|rerank|secrets|route|decide|eval]` or `bin/ainish-rag` (cross-platform wrapper delegating to `bin/ainish-rag.exe` or `src/rag/rag.py`).
 
 
 
