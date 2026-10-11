@@ -24,6 +24,33 @@ from typing import Any, Dict, List, Optional, Tuple
 DEFAULT_EMBED_DIM = 768
 DEFAULT_SERVER_PORT = 8080
 
+def scrub_sensitive_content(text: str) -> str:
+    """Scrubs sensitive credentials, API keys, tokens, and passwords from indexed content."""
+    re_kv = re.compile(r'(?i)(api[_-]?key|secret|password|token|bearer|auth|private[_-]?key)\s*([:=])\s*([^
+
+#\s]+)')
+    scrubbed = re_kv.sub(r'\1\2[REDACTED]', text)
+    re_tokens = re.compile(r'(?:sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,})')
+    return re_tokens.sub('[REDACTED]', scrubbed)
+
+
+def verify_model_integrity(model_path: Optional[Path]) -> Tuple[bool, str]:
+    """Verifies model file existence, size, and GGUF header magic prior to server spawn."""
+    if not model_path or not model_path.exists():
+        return False, "Model file not found"
+    try:
+        size = model_path.stat().st_size
+        if size < 1024 * 1024:
+            return False, f"Model file too small ({size} bytes)"
+        with model_path.open("rb") as f:
+            magic = f.read(4)
+            if magic != b"GGUF":
+                return False, f"Missing GGUF header magic (found {magic!r})"
+        return True, f"GGUF valid ({size / (1024 * 1024):.2f} MB)"
+    except Exception as e:
+        return False, str(e)
+
+
 
 def detect_hf_hub_cache() -> Path:
     """Detects Hugging Face cache across Windows, WSL, Linux, and macOS.
@@ -361,13 +388,18 @@ class EmbedClient:
         return res[0] if res else []
 
 
-def start_server(repo_root: Path, port: int, client: EmbedClient) -> bool:
+def start_server(repo_root: Path, port: int, client: EmbedClient, threads: Optional[int] = None) -> bool:
     if client.is_running():
         print(f"  [rag] Server already running at {client.server_url}")
         return True
 
     hf_cache = detect_hf_hub_cache()
     model, mmproj = find_embeddinggemma_models(hf_cache)
+    if model:
+        valid, msg = verify_model_integrity(model)
+        if not valid:
+            print(f"  [rag:security] Model integrity verification failed: {msg}", file=sys.stderr)
+            return False
     llama_bin = find_llama_binary()
 
     if not llama_bin:
@@ -390,14 +422,15 @@ def start_server(repo_root: Path, port: int, client: EmbedClient) -> bool:
     cmd.extend([
         "-m", str(model),
         "-ngl", "99",
-        "-fa",
+        "-fa", "on",
         "--embeddings",
         "--pooling", "mean",
         "--ctx-size", "8192",
-        "--batch-size", "2048",
-        "--ubatch-size", "2048",
+        "--batch-size", "8192",
+        "--ubatch-size", "8192",
         "--host", "127.0.0.1",
         "--port", str(port),
+    ] + (["-t", str(threads)] if threads else []) + [
     ])
 
     if mmproj:
@@ -839,7 +872,7 @@ class DecisionEngine:
                         "X-Title": "ainish-rag"
                     }
                 )
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode("utf-8"))
                         root = data.get("decisions", data)
@@ -933,7 +966,7 @@ class DecisionEngine:
             }
         )
 
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 
         decisions = data.get("decisions", data)
@@ -1043,7 +1076,7 @@ class DecisionEngine:
                         "Content-Type": "application/json"
                     }
                 )
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode("utf-8"))
                         root = data.get("decisions", data)
@@ -1080,6 +1113,7 @@ def main():
     sub.add_parser("secrets", help="Inspect PQC vault status and OpenRouter API key resolution")
 
     idx_p = sub.add_parser("index")
+    idx_p.add_argument("-w", "--watch", action="store_true", help="Watch directory for changes")
     idx_p.add_argument("--path", type=Path, default=Path.cwd())
     idx_p.add_argument("--truncate", type=int, default=None)
 
@@ -1116,6 +1150,13 @@ def main():
     eval_p.add_argument("--output", required=True)
     eval_p.add_argument("--json", action="store_true")
 
+    bench_p = sub.add_parser("bench", help="Run synthetic query regression benchmark")
+    bench_p.add_argument("--iterations", type=int, default=3)
+    bench_p.add_argument("--json", action="store_true")
+
+    comp_p = sub.add_parser("completion", help="Generate shell completions")
+    comp_p.add_argument("shell", choices=["bash", "zsh", "fish", "pwsh"])
+
     args = parser.parse_args()
     repo_root = Path.cwd()
     port = int(os.environ.get("AINISH_RAG_PORT", DEFAULT_SERVER_PORT))
@@ -1136,6 +1177,9 @@ def main():
         print("=== ainish-rag Multimodal RAG Status ===")
         print(f"HF Cache Root:      {hf}")
         print(f"Model GGUF:         {m or 'NOT FOUND'}")
+        if m:
+            v, msg = verify_model_integrity(m)
+            print(f"Model Integrity:    {'VALID (' + msg + ')' if v else 'FAILED (' + msg + ')'}")
         print(f"Multimodal Projector:{mm or 'NOT FOUND'}")
         print(f"Llama Binary:       {llama or 'NOT FOUND'}")
         print(f"Server Endpoint:    {server_url}")

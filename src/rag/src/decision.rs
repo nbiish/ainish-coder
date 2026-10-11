@@ -69,7 +69,9 @@ impl DecisionEngine {
             key_source,
             model,
             client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(12))
+                .timeout(std::time::Duration::from_secs(
+                env::var("AINISH_RAG_TIMEOUT").ok().and_then(|s| s.parse().ok()).unwrap_or(5)
+            ))
                 .build()
                 .unwrap_or_default(),
         }

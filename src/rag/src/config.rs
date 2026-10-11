@@ -12,6 +12,7 @@ pub struct RagConfig {
     pub lancedb_dir: PathBuf,
     pub wiki_dir: PathBuf,
     pub embedding_dim: usize,
+    pub threads: Option<usize>,
 }
 
 impl RagConfig {
@@ -47,6 +48,7 @@ impl RagConfig {
         let lancedb_dir = repo_root.join(".agents").join("rag").join("lancedb");
         let wiki_dir = repo_root.join(".agents").join("wiki");
         let embedding_dim = 768;
+        let threads = env::var("AINISH_RAG_THREADS").ok().and_then(|t| t.parse().ok());
 
         Self {
             hf_hub_cache: hf_cache,
@@ -58,6 +60,7 @@ impl RagConfig {
             lancedb_dir,
             wiki_dir,
             embedding_dim,
+            threads,
         }
     }
 }

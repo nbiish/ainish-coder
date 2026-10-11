@@ -96,7 +96,7 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 serve [--port PORT]   Launch/ensure loopback embedding server
                                 stop                  Stop running embedding server
                                 status                Check model cache, server, LanceDB & wiki stats
-                                index [PATH]          Index codebase, docs, images, media into LanceDB
+                                index [PATH] [-w]     Index codebase into LanceDB (-w, --watch for live mode)
                                 wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
                                 query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking
                                 rerank <QUERY>        Standalone decision-model reranking of candidates
@@ -105,6 +105,8 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 decide <STATE>        Evaluate decision question with calibrated probability
                                 eval --context <CTX> --output <OUT>
                                                       Bi-phasic evaluation gate for answer faithfulness
+                                bench [--json]        Run automated synthetic query regression benchmark
+                                completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
 
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md & companion standards (assets + funding)
