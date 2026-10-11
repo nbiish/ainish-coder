@@ -1,0 +1,11 @@
+# memory — 2026-10-11 (UTC)
+# Pairs with ../comms/2026-10-11-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 18:18 Worktree feat/rag-multimodal-wiki spawned at ../ainish-rag. Target: multimodal RAG + codebase wiki with EmbeddingGemma-2 + LanceDB.
+- 18:18 HF model cache confirmed on external drive D:\AI\huggingface\hub with models--unsloth--embeddinggemma-2-GGUF (embeddinggemma-2-BF16.gguf + mmproj-F16.gguf).
+- 18:24 llama.exe updated to b11540 (Clang x86_64 with AVX-512 BF16 support) to resolve 'unknown model architecture gemma-embedding2'.
+- 18:28 EmbeddingGemma-2 requires BF16 or FP32; FP16 produces NaN embeddings.
+- 18:31 LanceDB 0.15 requires Arrow 53 and protoc.exe for prost-build compilation.
+- 18:36 ainish-rag built in Rust (src/rag/) and Python (src/rag/rag.py) with LanceDB and EmbeddingGemma-2.
+- 18:37 6-part living wiki generated in .agents/wiki/ and 281 chunks indexed into LanceDB.
+- 18:42 Verified query against LanceDB returned 03-security-and-governance.md with 0.6940 cosine similarity score.

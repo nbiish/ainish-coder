@@ -89,6 +89,17 @@ RULES INTEGRITY & EDITING COMMANDS:
     --restore-rules           Restore root AGENTS.md from canonical snapshot or git HEAD
     --verify-rules [DIR]      Verify root AGENTS.md integrity and target copy freshness
 
+MULTIMODAL RAG & CODEBASE WIKI:
+    --rag <cmd> [ARGS]        Multimodal Codebase RAG & Living Wiki Engine
+                              (Google DeepMind EmbeddingGemma-2 GGUF 768-d + LanceDB)
+                              Commands:
+                                serve [--port PORT]   Launch/ensure loopback embedding server
+                                stop                  Stop running embedding server
+                                status                Check model cache, server, LanceDB & wiki stats
+                                index [PATH]          Index codebase, docs, images, media into LanceDB
+                                wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
+                                query <PROMPT>        Semantic hybrid vector search with ranked results
+
 UTILITY COMMANDS:
     --critical [TARGET_DIR]   Deploy critical.md & companion standards (assets + funding)
     --license [TARGET_DIR]    Deploy LICENSE & legal framework (CLA, ToS, Privacy, Consulting)
@@ -276,3 +287,4 @@ show_version() {
     echo "Configuration Manager for AI Coding Assistants"
     echo "Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ"
 }
+
