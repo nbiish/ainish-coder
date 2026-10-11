@@ -138,3 +138,27 @@ end: 2026-10-11T19:41:08.850689+00:00
 - status:merged
 - blockers:none
 
+### [2026-10-11T20:16:00Z] checkin | agent:antigravity | branch:feat/rag-cross-platform-wsl-mac | wt:D:/Code/rag-cross-platform-wsl-mac
+- start:2026-10-11T20:15:42.102715+00:00
+- end:2026-10-11T20:15:42.102715+00:00
+- scope:src/rag/, bin/, AGENTS.md, llms.txt
+- triage:now
+- objective:ensure RAG & decision reranking system operates cross-platform across WSL, Linux, and macOS with robust Hugging Face and PQC env variable resolution
+- input:operator request to guarantee WSL, Linux, and Mac cross-platform capability and HF-style env var hierarchies
+- output:worktree initialized, ledger claimed
+- status:in-progress
+- blockers:none
+
+start: 2026-10-11T20:25:01.779998+00:00
+agent: Antigravity-IDE
+scope: rag/cross-platform-wsl-mac
+branch: feat/rag-cross-platform-wsl-mac
+lane: completed
+type: intent-merge
+objective: merge cross-platform WSL, Linux, Mac RAG & HF env var resolution into main
+input: Rust & Python cross-platform discovery, HF cache hierarchy, PQC vault bridges, detached server spawning, updated bin/ainish-rag, AGENTS.md & canonical sha256
+output: Complete cross-platform release binary, passing security_gate.py
+status: completed
+blockers: none
+end: 2026-10-11T20:25:01.779998+00:00
+

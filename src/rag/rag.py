@@ -26,38 +26,185 @@ DEFAULT_SERVER_PORT = 8080
 
 
 def detect_hf_hub_cache() -> Path:
+    """Detects Hugging Face cache across Windows, WSL, Linux, and macOS.
+    Follows the standard Hugging Face environment variable hierarchy:
+    1. HF_HUB_CACHE
+    2. HUGGINGFACE_HUB_CACHE
+    3. HF_HOME (/hub)
+    4. XDG_CACHE_HOME (/huggingface/hub)
+    5. OS-specific cache roots & multi-environment mount points
+    """
+    # 1. Direct hub cache environment variables
     for var in ("HF_HUB_CACHE", "HUGGINGFACE_HUB_CACHE"):
-        if os.environ.get(var):
-            p = Path(os.environ[var])
+        val = os.environ.get(var)
+        if val:
+            p = Path(val)
             if p.exists():
                 return p
 
+    # 2. HF_HOME base cache directory
     if os.environ.get("HF_HOME"):
         p = Path(os.environ["HF_HOME"]) / "hub"
         if p.exists():
             return p
 
+    # 3. XDG_CACHE_HOME (Linux / macOS standard)
+    if os.environ.get("XDG_CACHE_HOME"):
+        p = Path(os.environ["XDG_CACHE_HOME"]) / "huggingface" / "hub"
+        if p.exists():
+            return p
+
+    candidates: List[Path] = []
+
+    # 4. User home directories across platforms
+    home_dir = Path.home()
+    candidates.append(home_dir / ".cache" / "huggingface" / "hub")
+    candidates.append(home_dir / "Library" / "Caches" / "huggingface" / "hub")
+
+    if os.environ.get("USERPROFILE"):
+        up = Path(os.environ["USERPROFILE"])
+        candidates.append(up / ".cache" / "huggingface" / "hub")
+
+    if os.environ.get("LOCALAPPDATA"):
+        candidates.append(Path(os.environ["LOCALAPPDATA"]) / "huggingface" / "hub")
+
+    # 5. Windows external drive roots (AI datasets often stored here)
     for c in (
         r"D:\AI\huggingface\hub",
         r"D:\huggingface\hub",
         r"E:\AI\huggingface\hub",
+        r"E:\huggingface\hub",
         r"C:\AI\huggingface\hub",
+        r"F:\AI\huggingface\hub",
     ):
-        p = Path(c)
-        if p.exists():
-            return p
+        candidates.append(Path(c))
 
-    user_home = Path.home() / ".cache" / "huggingface" / "hub"
-    if user_home.exists():
-        return user_home
+    # 6. WSL mount points (accessing Windows drives from WSL Linux)
+    for m in (
+        "/mnt/d/AI/huggingface/hub",
+        "/mnt/d/huggingface/hub",
+        "/mnt/e/AI/huggingface/hub",
+        "/mnt/e/huggingface/hub",
+        "/mnt/c/AI/huggingface/hub",
+    ):
+        candidates.append(Path(m))
 
-    return Path(r"D:\AI\huggingface\hub")
+    # Check WSL Windows user profile cache (/mnt/c/Users/<user>/.cache/...)
+    mnt_c_users = Path("/mnt/c/Users")
+    if mnt_c_users.is_dir():
+        try:
+            for entry in mnt_c_users.iterdir():
+                if entry.is_dir():
+                    cache = entry / ".cache" / "huggingface" / "hub"
+                    if cache.exists():
+                        candidates.append(cache)
+        except Exception:
+            pass
+
+    # 7. macOS external volume roots (/Volumes/<Drive>/...)
+    volumes = Path("/Volumes")
+    if volumes.is_dir():
+        try:
+            for v in volumes.iterdir():
+                if v.is_dir():
+                    candidates.append(v / "AI" / "huggingface" / "hub")
+                    candidates.append(v / "huggingface" / "hub")
+        except Exception:
+            pass
+
+    # 8. Linux media mount roots (/media/$USER/<Drive>/...)
+    media = Path("/media")
+    if media.is_dir():
+        try:
+            for u in media.iterdir():
+                if u.is_dir():
+                    for drive in u.iterdir():
+                        if drive.is_dir():
+                            candidates.append(drive / "AI" / "huggingface" / "hub")
+                            candidates.append(drive / "huggingface" / "hub")
+        except Exception:
+            pass
+
+    for c in candidates:
+        if c.exists():
+            return c
+
+    # Fallback
+    if os.name == "nt":
+        return Path(r"D:\AI\huggingface\hub")
+    elif Path("/mnt/d").exists():
+        return Path("/mnt/d/AI/huggingface/hub")
+    else:
+        return home_dir / ".cache" / "huggingface" / "hub"
 
 
 def find_embeddinggemma_models(hub_dir: Path) -> Tuple[Optional[Path], Optional[Path]]:
+    """Finds EmbeddingGemma GGUF model and multimodal projector across platforms."""
+    # Check explicit environment variable overrides
+    explicit_model = os.environ.get("AINISH_RAG_MODEL") or os.environ.get("EMBEDDINGGEMMA_MODEL")
+    explicit_mmproj = os.environ.get("AINISH_RAG_MMPROJ") or os.environ.get("EMBEDDINGGEMMA_MMPROJ")
+
+    m_path = Path(explicit_model) if explicit_model and Path(explicit_model).exists() else None
+    mm_path = Path(explicit_mmproj) if explicit_mmproj and Path(explicit_mmproj).exists() else None
+
+    if m_path:
+        return m_path, mm_path
+
     if not hub_dir.exists():
         return None, None
 
+    # Helper to check a directory for model files
+    def check_dir(d: Path) -> Tuple[Optional[Path], Optional[Path]]:
+        mod, mm = None, None
+        for name in (
+            "embeddinggemma-2-BF16.gguf",
+            "embeddinggemma-2-Q8_0.gguf",
+            "embeddinggemma-2-UD-Q4_K_XL.gguf",
+            "embeddinggemma-2-F16.gguf",
+        ):
+            p = d / name
+            if p.exists():
+                mod = p
+                break
+
+        if not mod:
+            for p in d.glob("embeddinggemma-2*.gguf"):
+                if "mmproj" not in p.name.lower():
+                    mod = p
+                    break
+
+        for name in (
+            "mmproj-F16.gguf",
+            "mmproj-BF16.gguf",
+            "mmproj-Q8_0.gguf",
+        ):
+            p = d / name
+            if p.exists():
+                mm = p
+                break
+
+        if not mm:
+            for p in d.glob("mmproj*.gguf"):
+                mm = p
+                break
+
+        return mod, mm
+
+    # 1. Direct check: what if hub_dir is already the model/snapshot directory?
+    mod, mm = check_dir(hub_dir)
+    if mod:
+        return mod, mm
+
+    # 2. Check if hub_dir contains a snapshots directory directly
+    snapshots_dir = hub_dir / "snapshots"
+    if snapshots_dir.is_dir():
+        for snap in snapshots_dir.iterdir():
+            if snap.is_dir():
+                mod, mm = check_dir(snap)
+                if mod:
+                    return mod, mm
+
+    # 3. Known Hugging Face candidate directory prefixes
     candidate_dirs = [
         "models--unsloth--embeddinggemma-2-GGUF",
         "models--google--embeddinggemma-2",
@@ -65,56 +212,84 @@ def find_embeddinggemma_models(hub_dir: Path) -> Tuple[Optional[Path], Optional[
     ]
 
     for c in candidate_dirs:
-        snapshots_dir = hub_dir / c / "snapshots"
-        if snapshots_dir.is_dir():
-            for snap in snapshots_dir.iterdir():
+        snaps = hub_dir / c / "snapshots"
+        if snaps.is_dir():
+            for snap in snaps.iterdir():
                 if snap.is_dir():
-                    model_path = None
-                    mmproj_path = None
+                    mod, mm = check_dir(snap)
+                    if mod:
+                        return mod, mm
 
-                    for name in (
-                        "embeddinggemma-2-BF16.gguf",
-                        "embeddinggemma-2-Q8_0.gguf",
-                        "embeddinggemma-2-UD-Q4_K_XL.gguf",
-                        "embeddinggemma-2-F16.gguf",
-                    ):
-                        p = snap / name
-                        if p.exists():
-                            model_path = p
-                            break
-
-                    for name in (
-                        "mmproj-F16.gguf",
-                        "mmproj-BF16.gguf",
-                        "mmproj-Q8_0.gguf",
-                    ):
-                        p = snap / name
-                        if p.exists():
-                            mmproj_path = p
-                            break
-
-                    if model_path:
-                        return model_path, mmproj_path
+    # 4. Broad scan: search any subdirectory containing embeddinggemma
+    for p in hub_dir.iterdir():
+        if p.is_dir() and "embeddinggemma" in p.name.lower():
+            snaps = p / "snapshots"
+            if snaps.is_dir():
+                for snap in snaps.iterdir():
+                    if snap.is_dir():
+                        mod, mm = check_dir(snap)
+                        if mod:
+                            return mod, mm
+            mod, mm = check_dir(p)
+            if mod:
+                return mod, mm
 
     return None, None
 
 
 def find_llama_binary() -> Optional[Path]:
-    if os.environ.get("LLAMA_SERVER_BIN"):
-        p = Path(os.environ["LLAMA_SERVER_BIN"])
-        if p.exists():
-            return p
+    """Finds llama or llama-server executable across Windows, WSL, Linux, and macOS."""
+    # 1. Explicit environment variable overrides
+    for var in ("LLAMA_SERVER_BIN", "LLAMA_BIN"):
+        if os.environ.get(var):
+            p = Path(os.environ[var])
+            if p.exists():
+                return p
 
+    # 2. Windows-specific paths
     local_app = os.environ.get("LOCALAPPDATA")
     if local_app:
         win_llama = Path(local_app) / "Microsoft" / "WindowsApps" / "llama.exe"
         if win_llama.exists():
             return win_llama
 
-    for cmd in ("llama.exe", "llama-server.exe", "llama", "llama-server"):
+    # 3. Candidates in PATH
+    for cmd in ("llama-server", "llama", "llama.exe", "llama-server.exe"):
         p = which(cmd)
         if p:
             return p
+
+    # 4. macOS Homebrew & standard POSIX locations
+    for p in (
+        "/opt/homebrew/bin/llama-server",
+        "/opt/homebrew/bin/llama",
+        "/usr/local/bin/llama-server",
+        "/usr/local/bin/llama",
+        "/usr/bin/llama-server",
+        "/usr/bin/llama",
+    ):
+        pb = Path(p)
+        if pb.is_file():
+            return pb
+
+    # 5. User local bin (~/.local/bin/...)
+    home_dir = Path.home()
+    for name in ("llama-server", "llama"):
+        pb = home_dir / ".local" / "bin" / name
+        if pb.is_file():
+            return pb
+
+    # 6. WSL accessing Windows llama.exe
+    mnt_c_users = Path("/mnt/c/Users")
+    if mnt_c_users.is_dir():
+        try:
+            for entry in mnt_c_users.iterdir():
+                if entry.is_dir():
+                    exe = entry / "AppData" / "Local" / "Microsoft" / "WindowsApps" / "llama.exe"
+                    if exe.is_file():
+                        return exe
+        except Exception:
+            pass
 
     return None
 
@@ -475,9 +650,53 @@ def is_ignored_path(p: Path) -> bool:
     return p.name.endswith((".lock", ".tmp", ".log"))
 
 
+def find_pqc_vault_bundle() -> Optional[Path]:
+    """Resolves the PQC secrets bundle path across Windows, WSL, Linux, and macOS."""
+    if os.environ.get("PQC_VAULT_PATH"):
+        p = Path(os.environ["PQC_VAULT_PATH"])
+        if p.exists():
+            return p
+    if os.environ.get("PQC_SECRETS_DIR"):
+        p = Path(os.environ["PQC_SECRETS_DIR"]) / "secrets.bundle.json"
+        if p.exists():
+            return p
+    if os.environ.get("XDG_CONFIG_HOME"):
+        p = Path(os.environ["XDG_CONFIG_HOME"]) / "pqc-secrets" / "secrets.bundle.json"
+        if p.exists():
+            return p
+
+    home_dir = Path.home()
+    candidates = [
+        home_dir / ".config" / "pqc-secrets" / "secrets.bundle.json",
+        home_dir / "Library" / "Application Support" / "pqc-secrets" / "secrets.bundle.json",
+    ]
+
+    if os.environ.get("USERPROFILE"):
+        candidates.append(Path(os.environ["USERPROFILE"]) / ".config" / "pqc-secrets" / "secrets.bundle.json")
+    if os.environ.get("APPDATA"):
+        candidates.append(Path(os.environ["APPDATA"]) / "pqc-secrets" / "secrets.bundle.json")
+
+    # WSL bridge checking Windows profile
+    mnt_c_users = Path("/mnt/c/Users")
+    if mnt_c_users.is_dir():
+        try:
+            for entry in mnt_c_users.iterdir():
+                if entry.is_dir():
+                    vault = entry / ".config" / "pqc-secrets" / "secrets.bundle.json"
+                    if vault.exists():
+                        candidates.append(vault)
+        except Exception:
+            pass
+
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
 def resolve_api_key() -> Optional[str]:
     """Dynamically resolves OpenRouter API key from environment or PQC secrets vault in memory.
-    Never persists plaintext secrets to disk.
+    Never persists plaintext secrets to disk across Windows, WSL, Linux, and macOS.
     """
     # 1. Environment variables
     for var in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
@@ -487,57 +706,72 @@ def resolve_api_key() -> Optional[str]:
 
     # 2. Check PQC secrets vault directly via in-memory export
     home_dir = Path.home()
-    bundle_path = home_dir / ".config" / "pqc-secrets" / "secrets.bundle.json"
-    pqc_dir = os.environ.get("PQC_SECRETS_DIR")
-    if pqc_dir:
-        bundle_path = Path(pqc_dir) / "secrets.bundle.json"
 
     # Try running pqc-secrets / pqc_secrets.py export in-memory without saving anything to disk
-    try:
-        pqc_bin = which("pqc-secrets") or which("pqc-secrets.exe")
-        if pqc_bin:
-            res = subprocess.run([str(pqc_bin), "export"], capture_output=True, text=True, timeout=5)
-            if res.returncode == 0:
-                for line in res.stdout.splitlines():
-                    if "=" in line:
-                        k, v = line.strip().split("=", 1)
-                        k = k.removeprefix("export ").strip()
-                        v = v.strip().strip("'\"")
-                        if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
-                            return v
-    except Exception:
-        pass
+    pqc_bin_candidates = [
+        which("pqc-secrets"),
+        which("pqc-secrets.exe"),
+        Path.cwd() / "bin" / "pqc-secrets",
+        home_dir / ".local" / "bin" / "pqc-secrets",
+        Path("/usr/local/bin/pqc-secrets"),
+    ]
 
-    # Try uv run pqc_secrets.py export
-    uv_bin = which("uv") or which("uv.exe")
-    if not uv_bin:
-        hermes_uv = home_dir / "AppData" / "Local" / "hermes" / "bin" / "uv.exe"
-        if hermes_uv.exists():
-            uv_bin = hermes_uv
+    for pqc_bin in pqc_bin_candidates:
+        if pqc_bin and Path(pqc_bin).is_file():
+            try:
+                res = subprocess.run([str(pqc_bin), "export"], capture_output=True, text=True, timeout=5)
+                if res.returncode == 0:
+                    for line in res.stdout.splitlines():
+                        if "=" in line:
+                            k, v = line.strip().split("=", 1)
+                            k = k.removeprefix("export ").strip()
+                            v = v.strip().strip("'\"")
+                            if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+                                return v
+            except Exception:
+                pass
 
-    pqc_script = None
-    for cand in (
+    # Try script discovery with uv or python
+    uv_candidates = [
+        which("uv"),
+        which("uv.exe"),
+        home_dir / ".local" / "bin" / "uv",
+        home_dir / ".cargo" / "bin" / "uv",
+        home_dir / "AppData" / "Local" / "hermes" / "bin" / "uv.exe",
+    ]
+    uv_bin = next((p for p in uv_candidates if p and Path(p).is_file()), None)
+
+    script_candidates = [
         Path.cwd() / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
+        Path.cwd().parent / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
+        home_dir / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
         Path("D:/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
-        Path("D:/Code/rag-decision-rerank-pqc/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
-    ):
-        if cand.exists():
-            pqc_script = cand
-            break
+        Path("/mnt/c/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
+    ]
+    pqc_script = next((p for p in script_candidates if p.exists()), None)
 
-    if pqc_script and uv_bin:
-        try:
-            res = subprocess.run([str(uv_bin), "run", str(pqc_script), "export"], capture_output=True, text=True, timeout=8)
-            if res.returncode == 0:
-                for line in res.stdout.splitlines():
-                    if "=" in line:
-                        k, v = line.strip().split("=", 1)
-                        k = k.removeprefix("export ").strip()
-                        v = v.strip().strip("'\"")
-                        if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
-                            return v
-        except Exception:
-            pass
+    if pqc_script:
+        runner_cmds = []
+        if uv_bin:
+            runner_cmds.append([str(uv_bin), "run", str(pqc_script), "export"])
+        for py_cmd in ("python3", "python", "py"):
+            p_found = which(py_cmd)
+            if p_found:
+                runner_cmds.append([str(p_found), str(pqc_script), "export"])
+
+        for cmd in runner_cmds:
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
+                if res.returncode == 0:
+                    for line in res.stdout.splitlines():
+                        if "=" in line:
+                            k, v = line.strip().split("=", 1)
+                            k = k.removeprefix("export ").strip()
+                            v = v.strip().strip("'\"")
+                            if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+                                return v
+            except Exception:
+                pass
 
     return None
 
@@ -545,14 +779,12 @@ def resolve_api_key() -> Optional[str]:
 def inspect_secrets() -> Dict[str, Any]:
     """Inspects PQC secrets vault status and OpenRouter API key resolution safely."""
     key = resolve_api_key()
-    bundle_path = Path.home() / ".config" / "pqc-secrets" / "secrets.bundle.json"
-    pqc_dir = os.environ.get("PQC_SECRETS_DIR")
-    if pqc_dir:
-        bundle_path = Path(pqc_dir) / "secrets.bundle.json"
+    detected_vault = find_pqc_vault_bundle()
+    bundle_path = detected_vault if detected_vault else (Path.home() / ".config" / "pqc-secrets" / "secrets.bundle.json")
 
     env_source = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("ROUTER_API_KEY"))
     return {
-        "pqc_vault_exists": bundle_path.exists(),
+        "pqc_vault_exists": detected_vault is not None,
         "pqc_bundle_path": str(bundle_path),
         "api_key_resolved": key is not None,
         "key_source": "environment" if env_source else ("pqc-vault" if key else "unresolved"),
