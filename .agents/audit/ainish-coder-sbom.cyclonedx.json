@@ -1,31 +1,221 @@
 {
   "bomFormat": "CycloneDX",
-  "specVersion": "1.6",
-  "serialNumber": "urn:uuid:a482a301-1b0b-419c-834d-80030ca4f706",
-  "version": 1,
-  "metadata": {
-    "timestamp": "2026-10-12T16:27:53.350468+00:00",
-    "component": {
-      "type": "application",
-      "name": "ainish-coder",
-      "version": "0.1.0"
+  "components": [
+    {
+      "bom-ref": "ainish:machine-learning-model:0",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f315cbbb30dd487e44d501c8902abe88808755e43753a96beed1964f0a48aa4f"
+        }
+      ],
+      "name": "embeddinggemma-2-BF16.gguf",
+      "properties": [
+        {
+          "name": "ainish:model:source",
+          "value": "unsloth/embeddinggemma-2-GGUF"
+        },
+        {
+          "name": "ainish:model:precision",
+          "value": "BF16"
+        },
+        {
+          "name": "ainish:model:architecture",
+          "value": "gemma2-embedding"
+        }
+      ],
+      "type": "machine-learning-model"
     },
+    {
+      "bom-ref": "ainish:machine-learning-model:1",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "74bf65c860d292a1eebafd7ca85b44532a2528f03017f9204fe1695916d2c66f"
+        }
+      ],
+      "name": "mmproj-F16.gguf",
+      "properties": [
+        {
+          "name": "ainish:model:source",
+          "value": "unsloth/embeddinggemma-2-GGUF"
+        },
+        {
+          "name": "ainish:model:precision",
+          "value": "F16"
+        },
+        {
+          "name": "ainish:model:architecture",
+          "value": "gemma2-mmproj"
+        }
+      ],
+      "type": "machine-learning-model"
+    },
+    {
+      "bom-ref": "ainish:application:2",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c2782810897e56523965e3286078847d5a5d76829b4826850c2fbf940de02ad7"
+        }
+      ],
+      "name": "llama.exe",
+      "type": "application"
+    },
+    {
+      "bom-ref": "ainish:file:3",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+        }
+      ],
+      "name": "src/cmd-tracker/Cargo.lock",
+      "properties": [
+        {
+          "name": "ainish:role",
+          "value": "lockfile"
+        },
+        {
+          "name": "ainish:lockfile:sha256",
+          "value": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+        },
+        {
+          "name": "ainish:lockfile:attestation",
+          "value": "FIPS 204 ML-DSA-65 bound"
+        }
+      ],
+      "type": "file"
+    },
+    {
+      "bom-ref": "ainish:file:4",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+        }
+      ],
+      "name": "src/pqc-secrets/Cargo.lock",
+      "properties": [
+        {
+          "name": "ainish:role",
+          "value": "lockfile"
+        },
+        {
+          "name": "ainish:lockfile:sha256",
+          "value": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+        },
+        {
+          "name": "ainish:lockfile:attestation",
+          "value": "FIPS 204 ML-DSA-65 bound"
+        }
+      ],
+      "type": "file"
+    },
+    {
+      "bom-ref": "ainish:file:5",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+        }
+      ],
+      "name": "src/rag/Cargo.lock",
+      "properties": [
+        {
+          "name": "ainish:role",
+          "value": "lockfile"
+        },
+        {
+          "name": "ainish:lockfile:sha256",
+          "value": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+        },
+        {
+          "name": "ainish:lockfile:attestation",
+          "value": "FIPS 204 ML-DSA-65 bound"
+        }
+      ],
+      "type": "file"
+    },
+    {
+      "bom-ref": "ainish:data:6",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "56cf2ffa2634255943e83d431470a55656b34d44cbc63409300a7e09b29c74ef"
+        }
+      ],
+      "name": ".agents/canonical/AGENTS.md",
+      "properties": [
+        {
+          "name": "ainish:contract",
+          "value": "ML-DSA-65 contract verified"
+        }
+      ],
+      "type": "data"
+    },
+    {
+      "bom-ref": "ainish:data:7",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5442094dc1e2d9422f3d2bd5e10debc555b73bcb2838c0e86414a7e55e8b5fe7"
+        }
+      ],
+      "name": ".agents/audit/2026-10-12-index-receipt.json",
+      "properties": [
+        {
+          "name": "ainish:signature",
+          "value": "ML-DSA-65 verified"
+        }
+      ],
+      "type": "data"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "ainish:root",
+      "name": "ainish-coder",
+      "type": "application"
+    },
+    "timestamp": "2026-10-12T23:06:20Z",
     "tools": {
       "components": [
         {
-          "type": "application",
           "name": "ainish-rag",
+          "type": "application",
           "version": "0.1.0"
         }
       ]
     }
   },
-  "components": [
+  "properties": [
     {
-      "type": "application",
-      "name": "ainish-coder",
-      "version": "0.1.0",
-      "description": "Repository ainish-coder code tree"
+      "name": "ainish:signature:alg",
+      "value": "ML-DSA-65 (FIPS 204), detached envelope"
+    },
+    {
+      "name": "ainish:signature:context",
+      "value": "ainish-rag/audit/v1"
+    },
+    {
+      "name": "ainish:signature:signer-fingerprint",
+      "value": "d98405ea368484f51e64840d725343be"
+    },
+    {
+      "name": "ainish:lockfile:src/cmd-tracker/Cargo.lock:sha256",
+      "value": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+    },
+    {
+      "name": "ainish:lockfile:src/pqc-secrets/Cargo.lock:sha256",
+      "value": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+    },
+    {
+      "name": "ainish:lockfile:src/rag/Cargo.lock:sha256",
+      "value": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
     }
-  ]
+  ],
+  "serialNumber": "urn:uuid:6036245a-59d3-482a-affa-957ef90956d1",
+  "specVersion": "1.6",
+  "version": 1
 }

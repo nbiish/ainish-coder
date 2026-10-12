@@ -22,8 +22,45 @@ pub struct RagConfig {
     pub cpu_affinity: Option<String>,
 }
 
+pub fn resolve_canonical_repo_root(start: &Path) -> PathBuf {
+    if start.join(".agents").exists() {
+        return start.to_path_buf();
+    }
+    let git_file = start.join(".git");
+    if git_file.is_file() {
+        if let Ok(content) = std::fs::read_to_string(&git_file) {
+            for line in content.lines() {
+                if let Some(gitdir) = line.trim().strip_prefix("gitdir:") {
+                    let gitdir_path = PathBuf::from(gitdir.trim());
+                    if let Some(parent) = gitdir_path.parent() {
+                        if parent.ends_with("worktrees") {
+                            if let Some(dot_git) = parent.parent() {
+                                if let Some(main_repo) = dot_git.parent() {
+                                    if main_repo.join(".agents").exists() {
+                                        return main_repo.to_path_buf();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut curr = start.parent();
+    while let Some(p) = curr {
+        if p.join(".agents").exists() {
+            return p.to_path_buf();
+        }
+        curr = p.parent();
+    }
+    start.to_path_buf()
+}
+
 impl RagConfig {
     pub fn detect(repo_root: &Path) -> Self {
+        let canonical_root = resolve_canonical_repo_root(repo_root);
+
         // 1. Direct explicit model overrides take precedence
         let explicit_model = env::var("AINISH_RAG_MODEL")
             .or_else(|_| env::var("EMBEDDINGGEMMA_MODEL"))
@@ -52,8 +89,8 @@ impl RagConfig {
         let server_url = env::var("AINISH_RAG_URL")
             .unwrap_or_else(|_| format!("http://127.0.0.1:{}", server_port));
 
-        let lancedb_dir = repo_root.join(".agents").join("rag").join("lancedb");
-        let wiki_dir = repo_root.join(".agents").join("wiki");
+        let lancedb_dir = canonical_root.join(".agents").join("rag").join("lancedb");
+        let wiki_dir = canonical_root.join(".agents").join("wiki");
         let embedding_dim = 768;
         let threads = env::var("AINISH_RAG_THREADS").ok().and_then(|t| t.parse().ok());
         let max_mem = env::var("AINISH_RAG_MAX_MEM").ok().and_then(|m| m.parse().ok());
@@ -62,7 +99,7 @@ impl RagConfig {
             .ok()
             .filter(|s| !s.trim().is_empty())
             .or_else(|| {
-                let p = repo_root.join(".agents").join("rag").join("session.psk");
+                let p = canonical_root.join(".agents").join("rag").join("session.psk");
                 std::fs::read_to_string(p).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
             });
 
@@ -70,7 +107,7 @@ impl RagConfig {
             .ok()
             .filter(|s| !s.trim().is_empty());
 
-        let model_manifest_path = repo_root.join(".agents").join("audit").join("model-manifest.json");
+        let model_manifest_path = canonical_root.join(".agents").join("audit").join("model-manifest.json");
 
         Self {
             hf_hub_cache: hf_cache,
