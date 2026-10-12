@@ -10,14 +10,15 @@ pub struct CodebaseIngestor {
     repo_name: String,
     repo_root: PathBuf,
     pub anonymize_symbols: bool,
+    pub symbol_salt: Option<String>,
 }
 
 impl CodebaseIngestor {
     pub fn new(repo_root: &Path) -> Self {
-        Self::new_with_options(repo_root, false)
+        Self::new_with_options(repo_root, false, None)
     }
 
-    pub fn new_with_options(repo_root: &Path, anonymize_symbols: bool) -> Self {
+    pub fn new_with_options(repo_root: &Path, anonymize_symbols: bool, symbol_salt: Option<String>) -> Self {
         let repo_name = repo_root
             .file_name()
             .and_then(|n| n.to_str())
@@ -28,6 +29,7 @@ impl CodebaseIngestor {
             repo_name,
             repo_root: repo_root.to_path_buf(),
             anonymize_symbols,
+            symbol_salt,
         }
     }
 
@@ -100,7 +102,7 @@ fn chunk_code_file(&self, path: &Path, rel_path: &str, ext: &str) -> Vec<Unembed
         let extracted_symbols = extract_symbols(&raw_lines, ext);
 
         let (final_content, final_symbols) = if self.anonymize_symbols && !extracted_symbols.is_empty() {
-            anonymize_content_and_symbols(&content, &extracted_symbols)
+            anonymize_content_and_symbols(&content, &extracted_symbols, self.symbol_salt.as_deref())
         } else {
             (content, extracted_symbols)
         };
@@ -395,11 +397,15 @@ pub fn scrub_sensitive_content(text: &str) -> String {
     re_tokens.replace_all(&scrubbed, "[REDACTED]").to_string()
 }
 
-pub fn anonymize_content_and_symbols(content: &str, symbols: &[String]) -> (String, Vec<String>) {
+pub fn anonymize_content_and_symbols(content: &str, symbols: &[String], salt: Option<&str>) -> (String, Vec<String>) {
     let mut replaced_content = content.to_string();
     let mut anon_symbols = Vec::new();
     for sym in symbols {
         let mut hasher = Sha256::new();
+        if let Some(s) = salt {
+            hasher.update(s.as_bytes());
+            hasher.update(b":");
+        }
         hasher.update(sym.as_bytes());
         let anon = format!("sym_{}", &hex::encode(hasher.finalize())[..8]);
         anon_symbols.push(anon.clone());

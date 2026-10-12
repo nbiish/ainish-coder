@@ -14,6 +14,9 @@ pub struct RagConfig {
     pub embedding_dim: usize,
     pub threads: Option<usize>,
     pub max_mem: Option<usize>,
+    pub psk: Option<String>,
+    pub symbol_salt: Option<String>,
+    pub model_manifest_path: PathBuf,
 }
 
 impl RagConfig {
@@ -52,6 +55,20 @@ impl RagConfig {
         let threads = env::var("AINISH_RAG_THREADS").ok().and_then(|t| t.parse().ok());
         let max_mem = env::var("AINISH_RAG_MAX_MEM").ok().and_then(|m| m.parse().ok());
 
+        let psk = env::var("AINISH_RAG_PSK")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| {
+                let p = repo_root.join(".agents").join("rag").join("session.psk");
+                std::fs::read_to_string(p).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+            });
+
+        let symbol_salt = env::var("AINISH_SYMBOL_SALT")
+            .ok()
+            .filter(|s| !s.trim().is_empty());
+
+        let model_manifest_path = repo_root.join(".agents").join("audit").join("model-manifest.json");
+
         Self {
             hf_hub_cache: hf_cache,
             model_path,
@@ -64,6 +81,9 @@ impl RagConfig {
             embedding_dim,
             threads,
             max_mem,
+            psk,
+            symbol_salt,
+            model_manifest_path,
         }
     }
 }
