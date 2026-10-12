@@ -162,6 +162,14 @@ impl LanceStore {
 
         if table_names.iter().any(|t| t == table_name) {
             let table = db.open_table(table_name).execute().await.map_err(|e| e.to_string())?;
+            // Replace semantics: drop stale rows for every path being re-indexed before appending.
+            let mut paths: Vec<&str> = chunks.iter().map(|c| c.path.as_str()).collect();
+            paths.sort_unstable();
+            paths.dedup();
+            for group in paths.chunks(200) {
+                let list = group.iter().map(|p| format!("'{}'", p.replace('\'', "''"))).collect::<Vec<_>>().join(", ");
+                table.delete(&format!("path IN ({})", list)).await.map_err(|e| e.to_string())?;
+            }
             table.add(Box::new(reader)).execute().await.map_err(|e| e.to_string())?;
         } else {
             db.create_table(table_name, Box::new(reader)).execute().await.map_err(|e| e.to_string())?;
@@ -186,8 +194,10 @@ impl LanceStore {
             .map_err(|e| format!("Vector search query error: {}", e))?;
 
         if let Some(f) = type_filter {
-            let filter_str = format!("doc_type = '{}'", f);
-            query = query.only_if(filter_str);
+            if !matches!(f, "code" | "wiki" | "doc" | "image" | "audio" | "video") {
+                return Err(format!("Invalid doc type filter '{}': expected code|wiki|doc|image|audio|video", f));
+            }
+            query = query.only_if(format!("doc_type = '{}'", f));
         }
 
         let mut stream = query.limit(limit)
@@ -260,5 +270,31 @@ impl LanceStore {
         };
 
         table.count_rows(None).await.map_err(|e| e.to_string())
+    }
+
+    /// Compacts small fragments and prunes table versions older than `prune_older_than_days`.
+    /// Returns a human-readable summary, or None when no table exists yet.
+    pub async fn compact(&self, prune_older_than_days: i64) -> Result<Option<String>, String> {
+        use lancedb::table::{OptimizeAction, CompactionOptions};
+        let db = connect(&self.db_uri).execute().await
+            .map_err(|e| format!("Failed to connect to LanceDB at {}: {}", self.db_uri, e))?;
+        let table = match db.open_table("codebase_rag").execute().await {
+            Ok(t) => t,
+            Err(_) => return Ok(None),
+        };
+        let before_version = table.version().await.map_err(|e| e.to_string())?;
+        let compact = table.optimize(OptimizeAction::Compact { options: CompactionOptions::default(), remap_options: None })
+            .await.map_err(|e| format!("Compaction failed: {}", e))?;
+        let prune = table.optimize(OptimizeAction::Prune {
+            older_than: Some(chrono::Duration::days(prune_older_than_days.max(0))),
+            delete_unverified: Some(false),
+            error_if_tagged_old_versions: Some(false),
+        }).await.map_err(|e| format!("Version prune failed: {}", e))?;
+        let rows = table.count_rows(None).await.map_err(|e| e.to_string())?;
+        let after_version = table.version().await.map_err(|e| e.to_string())?;
+        Ok(Some(format!(
+            "rows={} version {}->{} compaction={:?} prune={:?}",
+            rows, before_version, after_version, compact.compaction, prune.prune
+        )))
     }
 }

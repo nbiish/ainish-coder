@@ -1,0 +1,24 @@
+{
+  "format": "ainish-rag/lockfile-manifest/v1",
+  "generated_at": "2026-10-12T16:22:55.082365+00:00",
+  "lockfiles": [
+    {
+      "bytes": 155,
+      "hash_pinned": false,
+      "path": "src/cmd-tracker/Cargo.lock",
+      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+    },
+    {
+      "bytes": 31406,
+      "hash_pinned": true,
+      "path": "src/pqc-secrets/Cargo.lock",
+      "sha256": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+    },
+    {
+      "bytes": 159467,
+      "hash_pinned": true,
+      "path": "src/rag/Cargo.lock",
+      "sha256": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+    }
+  ]
+}

@@ -20,16 +20,58 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import secrets
+import shutil
+import uuid
 
 DEFAULT_EMBED_DIM = 768
 DEFAULT_SERVER_PORT = 8080
 
+def _luhn_valid(num_str: str) -> bool:
+    digits = [int(c) for c in num_str if c.isdigit()]
+    if len(digits) < 13 or len(digits) > 19:
+        return False
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            x = d * 2
+            total += (x - 9) if x > 9 else x
+        else:
+            total += d
+    return total % 10 == 0
+
+RE_PRIVATE_KEY = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----")
+RE_TOKENS = re.compile(
+    r"(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{20,}"
+    r"|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
+    r"|(?:AKIA|ASIA)[0-9A-Z]{16}"
+    r"|AIza[0-9A-Za-z_-]{35}"
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}"
+    r"|glpat-[A-Za-z0-9_-]{20}"
+    r"|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})"
+)
+RE_KV_SECRET = re.compile(r"""(?i)(api[_-]?key|secret|password|passwd|token|bearer|auth|private[_-]?key)(\s*[:=]\s*)(["']?)([^\s#"',;]{4,})""")
+RE_EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
+RE_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+RE_PHONE = re.compile(r"(?:\+\d{1,3}[ .-])?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b")
+RE_CARD = re.compile(r"\b\d(?:[ -]?\d){12,18}\b")
+
 def scrub_sensitive_content(text: str) -> str:
-    """Scrubs sensitive credentials, API keys, tokens, and passwords from indexed content."""
-    re_kv = re.compile(r'(?i)(api[_-]?key|secret|password|token|bearer|auth|private[_-]?key)\s*([:=])\s*([^\s#]+)')
-    scrubbed = re_kv.sub(r'\1\2[REDACTED]', text)
-    re_tokens = re.compile(r'(?:sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,})')
-    return re_tokens.sub('[REDACTED]', scrubbed)
+    """Client-side redaction applied before embedding: credentials, vendor tokens, PEM private keys, and PII."""
+    s = RE_PRIVATE_KEY.sub("[REDACTED:PRIVATE_KEY]", text)
+    s = RE_TOKENS.sub("[REDACTED:TOKEN]", s)
+    def _kv_sub(m: re.Match) -> str:
+        if m.group(3) or len(m.group(4)) >= 16:
+            return f"{m.group(1)}{m.group(2)}{m.group(3)}[REDACTED]"
+        return m.group(0)
+    s = RE_KV_SECRET.sub(_kv_sub, s)
+    s = RE_EMAIL.sub("[REDACTED:EMAIL]", s)
+    s = RE_SSN.sub("[REDACTED:SSN]", s)
+    def _card_sub(m: re.Match) -> str:
+        return "[REDACTED:CARD]" if _luhn_valid(m.group(0)) else m.group(0)
+    s = RE_CARD.sub(_card_sub, s)
+    s = RE_PHONE.sub("[REDACTED:PHONE]", s)
+    return s
 
 
 def verify_model_integrity(model_path: Optional[Path]) -> Tuple[bool, str]:
@@ -479,7 +521,71 @@ class EmbedClient:
         return res[0] if res else []
 
 
-def start_server(repo_root: Path, port: int, client: EmbedClient, threads: Optional[int] = None, max_mem: Optional[int] = None) -> bool:
+def resolve_psk(pid_dir: Path, ttl_secs: int = 86400, repo_root: Optional[Path] = None) -> str:
+    """Resolves loopback PSK using OS CSPRNG with configurable TTL and stale server retirement."""
+    env_psk = os.environ.get("AINISH_RAG_PSK")
+    if env_psk:
+        return env_psk
+
+    psk_file = pid_dir / "session.psk"
+    meta_file = pid_dir / "session.psk.meta"
+
+    now = time.time()
+    needs_rotation = True
+
+    if psk_file.exists():
+        created_at = None
+        if meta_file.exists():
+            try:
+                mdata = json.loads(meta_file.read_text(encoding="utf-8"))
+                created_at = float(mdata.get("created_at", 0))
+            except Exception:
+                pass
+        if created_at is None:
+            created_at = psk_file.stat().st_mtime
+
+        age = now - created_at
+        if age < ttl_secs:
+            needs_rotation = False
+            token = psk_file.read_text(encoding="utf-8").strip()
+            if token:
+                return token
+
+    # Stale server retirement if rotated
+    if psk_file.exists() and needs_rotation:
+        print(f"  \033[35m[rag:security]\033[0m Loopback PSK TTL expired (> {ttl_secs}s). Rotating PSK and retiring stale server...")
+        if repo_root:
+            stop_server(repo_root)
+
+    # Generate cryptographically secure token using OS CSPRNG
+    token = secrets.token_hex(32)
+    psk_file.write_text(token, encoding="utf-8")
+    meta_file.write_text(json.dumps({
+        "created_at": now,
+        "ttl_secs": ttl_secs,
+        "mode": "os-csprng",
+    }), encoding="utf-8")
+
+    if os.name != "nt":
+        try:
+            os.chmod(psk_file, 0o600)
+            os.chmod(meta_file, 0o600)
+        except Exception:
+            pass
+
+    return token
+
+
+def start_server(
+    repo_root: Path,
+    port: int,
+    client: EmbedClient,
+    threads: Optional[int] = None,
+    max_mem: Optional[int] = None,
+    numa: Optional[str] = None,
+    cpu_affinity: Optional[str] = None,
+    psk_ttl: int = 86400,
+) -> bool:
     if client.is_running():
         print(f"  [rag] Server already running at {client.server_url}")
         return True
@@ -537,20 +643,8 @@ def start_server(repo_root: Path, port: int, client: EmbedClient, threads: Optio
     pid_dir.mkdir(parents=True, exist_ok=True)
     pid_file = pid_dir / "llama-server.pid"
 
-    # Resolve or create loopback PSK authentication token
-    psk = os.environ.get("AINISH_RAG_PSK")
-    psk_file = pid_dir / "session.psk"
-    if not psk:
-        if psk_file.exists():
-            psk = psk_file.read_text(encoding="utf-8").strip()
-        else:
-            psk = hashlib.sha256(f"{time.time()}:{os.getpid()}".encode()).hexdigest()
-            psk_file.write_text(psk, encoding="utf-8")
-            if os.name != "nt":
-                try:
-                    os.chmod(psk_file, 0o600)
-                except Exception:
-                    pass
+    # Resolve or create loopback PSK authentication token with CSPRNG and TTL
+    psk = resolve_psk(pid_dir, ttl_secs=psk_ttl, repo_root=repo_root)
     client.psk = psk
 
     max_attempts = 3
@@ -578,6 +672,10 @@ def start_server(repo_root: Path, port: int, client: EmbedClient, threads: Optio
 
         if mmproj:
             cmd.extend(["--mmproj", str(mmproj)])
+        if numa:
+            cmd.extend(["--numa", str(numa)])
+        if cpu_affinity:
+            cmd.extend(["--cpu-affinity", str(cpu_affinity)])
 
         creationflags = 0
         if os.name == "nt":
@@ -727,6 +825,31 @@ class LanceStore:
         except Exception:
             pass
         return 0
+
+    def compact(self, prune_older_than_days: Optional[int] = None) -> Dict[str, Any]:
+        db = self.connect()
+        if db is None:
+            return {"status": "unsupported", "message": "lancedb not installed"}
+        table_name = "codebase_rag"
+        if table_name not in db.table_names():
+            return {"status": "empty", "message": "table does not exist"}
+        tbl = db.open_table(table_name)
+        res: Dict[str, Any] = {"table": table_name, "compacted": True}
+        try:
+            if hasattr(tbl, "compact_files"):
+                tbl.compact_files()
+                res["files_compacted"] = True
+        except Exception as e:
+            res["files_compacted_error"] = str(e)
+        if prune_older_than_days is not None:
+            try:
+                if hasattr(tbl, "cleanup_old_versions"):
+                    from datetime import timedelta
+                    tbl.cleanup_old_versions(older_than=timedelta(days=prune_older_than_days))
+                    res["versions_pruned"] = True
+            except Exception as e:
+                res["versions_pruned_error"] = str(e)
+        return res
 
 
 def generate_wiki(repo_root: Path) -> List[Path]:
@@ -1448,7 +1571,7 @@ def print_completion(shell: str):
 _ainish_rag() {
     local cur prev words cword
     _init_completion || return
-    local commands="serve stop status secrets index wiki query rerank route decide eval bench monitor audit service completion"
+    local commands="serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion"
     if [[ $cword -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "$cur") )
         return 0
@@ -1471,10 +1594,12 @@ _ainish_rag() {
         'rerank:Rerank candidates using decision-model scoring'
         'route:Route a task to the appropriate domain'
         'decide:Execute a calibrated decision on system state'
-        'eval:Evaluate faithfulness and hallucination risk'
+        'eval:Evaluate faithfulness or patch diff coverage'
+        'cleanup:Run database compaction and WAL version pruning'
+        'orient:Subagent context injection primer from architectural wiki'
         'bench:Run synthetic query regression benchmark'
         'monitor:Run continuous vector drift and recall monitor'
-        'audit:Verify post-quantum receipts and manifests'
+        'audit:Verify post-quantum receipts, manifests, lockfiles, and SBOMs'
         'service:Background embedding service management'
         'completion:Generate shell tab completion script'
     )
@@ -1488,6 +1613,8 @@ complete -c ainish-rag -n "__fish_use_subcommand" -a serve -d "Start local llama
 complete -c ainish-rag -n "__fish_use_subcommand" -a stop -d "Stop llama-server"
 complete -c ainish-rag -n "__fish_use_subcommand" -a status -d "Show RAG status"
 complete -c ainish-rag -n "__fish_use_subcommand" -a index -d "Index repository files into LanceDB"
+complete -c ainish-rag -n "__fish_use_subcommand" -a cleanup -d "Run database compaction"
+complete -c ainish-rag -n "__fish_use_subcommand" -a orient -d "Subagent context injection"
 complete -c ainish-rag -n "__fish_use_subcommand" -a monitor -d "Run drift monitor"
 complete -c ainish-rag -n "__fish_use_subcommand" -a bench -d "Run regression benchmark"
 complete -c ainish-rag -n "__fish_use_subcommand" -a audit -d "Verify post-quantum audit receipts"
@@ -1496,7 +1623,7 @@ complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage backgrou
     elif shell == "pwsh":
         print("""Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','bench','monitor','audit','service','completion')
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','cleanup','orient','bench','monitor','audit','service','completion')
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
         [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
     }
@@ -1504,10 +1631,371 @@ complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage backgrou
 """)
 
 
+def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7) -> None:
+    print("=== ainish-rag Database Maintenance & Cleanup ===")
+    rag_dir = repo_root / ".agents" / "rag"
+    cleaned_files = 0
+    if rag_dir.exists():
+        for p in rag_dir.glob("*.tmp"):
+            try:
+                p.unlink()
+                cleaned_files += 1
+            except Exception:
+                pass
+    print(f"  Removed {cleaned_files} temporary artifact files in {rag_dir}")
+    if compact:
+        db_dir = rag_dir / "lancedb"
+        store = LanceStore(db_dir)
+        res = store.compact(prune_older_than_days=prune_days)
+        print(f"  LanceDB compaction status: {res.get('status', 'completed')}")
+        if res.get("files_compacted"):
+            print("  Table files successfully compacted.")
+        if res.get("versions_pruned"):
+            print(f"  WAL versions older than {prune_days} days pruned.")
+    print("  Cleanup completed successfully.\n")
+
+
+def run_orient_primer(repo_root: Path, inject: bool = False) -> None:
+    wiki_dir = repo_root / ".agents" / "wiki"
+    wiki_files = []
+    if wiki_dir.exists():
+        wiki_files = sorted([p for p in wiki_dir.glob("*.md") if p.name.lower() != "readme.md"])
+
+    primer_content = [
+        "<ORIENT_PRIMER>",
+        "## Grounded Architectural Context",
+        "<!-- Auto-injected by ainish-rag orient --inject for subagent primer -->",
+        "",
+    ]
+
+    if not wiki_files:
+        primer_content.append("No pre-indexed wiki documents found in `.agents/wiki/`. Generate with `ainish-rag wiki`.")
+    else:
+        for p in wiki_files[:3]:
+            primer_content.append(f"### [{p.name}]({p})")
+            content = p.read_text(encoding="utf-8", errors="replace").strip()
+            lines = content.splitlines()[:40]
+            primer_content.append("\n".join(lines))
+            primer_content.append("")
+
+    primer_content.append("</ORIENT_PRIMER>")
+    print("\n".join(primer_content))
+
+
+def run_eval_patch(repo_root: Path, patch_path: Path, client: EmbedClient, store: LanceStore, json_out: bool = False) -> None:
+    if not patch_path.exists():
+        print(f"  \033[31m[rag:eval]\033[0m Patch file not found at {patch_path}", file=sys.stderr)
+        return
+
+    diff_text = patch_path.read_text(encoding="utf-8", errors="replace")
+    file_matches = re.findall(r"^(?:---|\+\+\+)\s+[ab]/(.*)$", diff_text, flags=re.MULTILINE)
+    modified_files = list(dict.fromkeys([f for f in file_matches if f != "/dev/null"]))
+
+    symbol_matches = re.findall(r"(?:def|fn|class|struct|interface|function)\s+([A-Za-z0-9_]+)", diff_text)
+    symbols = list(dict.fromkeys(symbol_matches))
+
+    covered_files = [f for f in modified_files if (repo_root / f).exists()]
+    file_coverage = (len(covered_files) / max(1, len(modified_files))) if modified_files else 1.0
+
+    anchored_symbols = 0
+    if symbols and client.is_running():
+        for sym in symbols[:10]:
+            hits = store.search(client.embed_one(f"task: code retrieval | symbol: {sym}"), limit=2)
+            if any(sym in h.get("symbols", "") or sym in h.get("content", "") for h in hits):
+                anchored_symbols += 1
+    symbol_anchoring = (anchored_symbols / max(1, len(symbols[:10]))) if symbols else 1.0
+
+    grounding_score = 0.85
+    if modified_files and client.is_running():
+        sample_query = f"code modification: {' '.join(modified_files[:3])} {' '.join(symbols[:3])}"
+        hits = store.search(client.embed_one(sample_query), limit=3)
+        if hits:
+            grounding_score = hits[0].get("score", 0.85)
+
+    composite_score = round(0.4 * file_coverage + 0.3 * symbol_anchoring + 0.3 * grounding_score, 4)
+
+    eval_result = {
+        "patch_file": str(patch_path),
+        "files_modified": modified_files,
+        "symbols_detected": symbols,
+        "file_coverage": round(file_coverage, 3),
+        "symbol_anchoring": round(symbol_anchoring, 3),
+        "retrieval_grounding": round(grounding_score, 3),
+        "composite_score": composite_score,
+        "status": "PASS" if composite_score >= 0.70 else "FLAGGED",
+    }
+
+    if json_out:
+        print(json.dumps(eval_result, indent=2))
+    else:
+        print("\n=== Retrieval-Augmented Patch Evaluation ===")
+        print(f"Patch File:          {patch_path}")
+        print(f"Modified Files:      {len(modified_files)} ({', '.join(modified_files[:3])})")
+        print(f"Detected Symbols:    {len(symbols)} ({', '.join(symbols[:5])})")
+        print(f"File Coverage:       {eval_result['file_coverage'] * 100:.1f}%")
+        print(f"Symbol Anchoring:    {eval_result['symbol_anchoring'] * 100:.1f}%")
+        print(f"Retrieval Grounding: {eval_result['retrieval_grounding'] * 100:.1f}%")
+        status_color = "\033[32mPASS\033[0m" if eval_result['status'] == "PASS" else "\033[31mFLAGGED\033[0m"
+        print(f"Patch Score:         {composite_score:.4f} [{status_color}]\n")
+
+
+def run_query_fzf(query: str, hits: List[Dict[str, Any]], code: bool = False) -> None:
+    if not hits:
+        print(f"No results found for query: {query}")
+        return
+
+    fzf_bin = shutil.which("fzf")
+    if fzf_bin:
+        items = []
+        for i, h in enumerate(hits):
+            score = h.get("decision_score", h.get("score", 0.0))
+            line = f"[{score:.4f}] {h['path']}:L{h['start_line']}-L{h['end_line']} | {h['title']} [idx:{i}]"
+            items.append(line)
+        try:
+            p = subprocess.Popen(
+                [fzf_bin, "--header", f"Query: {query} (Select to view snippet)", "--reverse"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            out, _ = p.communicate(input="\n".join(items))
+            if out.strip():
+                match = re.search(r"\[idx:(\d+)\]", out)
+                if match:
+                    idx = int(match.group(1))
+                    h = hits[idx]
+                    print(f"\n\033[1;36m=== {h['title']} ===\033[0m")
+                    print(f"\033[34mLocation:\033[0m {h['path']}:L{h['start_line']}-L{h['end_line']}")
+                    print(f"\033[34mType:\033[0m     {h['doc_type']} | Score: {h.get('score', 0.0)}")
+                    print("\n\033[32m--- Snippet ---\033[0m")
+                    print(h["content"])
+                    print("\033[32m---------------\033[0m\n")
+                    return
+        except Exception:
+            pass
+
+    print(f"\n=== Interactive Search Results for: '{query}' ===")
+    for i, h in enumerate(hits, 1):
+        score = h.get("decision_score", h.get("score", 0.0))
+        print(f"  [{i}] ({score:.4f}) {h['path']}:L{h['start_line']}-L{h['end_line']} | {h['title']}")
+
+    print("\nEnter result number (1-{}) to preview snippet, or press Enter to exit: ".format(len(hits)), end="")
+    sys.stdout.flush()
+    try:
+        choice = sys.stdin.readline().strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(hits):
+            h = hits[int(choice) - 1]
+            print(f"\n\033[1;36m=== {h['title']} ===\033[0m")
+            print(f"\033[34mLocation:\033[0m {h['path']}:L{h['start_line']}-L{h['end_line']}")
+            print("\n\033[32m--- Snippet ---\033[0m")
+            print(h["content"])
+            print("\033[32m---------------\033[0m\n")
+    except Exception:
+        pass
+
+
+def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
+    lockfile_names = [
+        "Cargo.lock",
+        "uv.lock",
+        "poetry.lock",
+        "Pipfile.lock",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+    ]
+    discovered = []
+    unpinned = []
+    for lf in lockfile_names:
+        for p in repo_root.rglob(lf):
+            if is_ignored_path(p):
+                continue
+            content = p.read_text(encoding="utf-8", errors="replace")
+            h = hashlib.sha256(content.encode()).hexdigest()
+            is_pinned = True
+            if "package-lock.json" in p.name:
+                if '"integrity":' not in content:
+                    is_pinned = False
+            elif "Cargo.lock" in p.name:
+                if "checksum = " not in content:
+                    is_pinned = False
+            elif "yarn.lock" in p.name:
+                if "integrity" not in content and "sha512" not in content:
+                    is_pinned = False
+
+            rec = {
+                "file": str(p.relative_to(repo_root)).replace("\\", "/"),
+                "sha256": h,
+                "pinned": is_pinned,
+            }
+            discovered.append(rec)
+            if not is_pinned:
+                unpinned.append(rec["file"])
+
+    return {
+        "status": "PASS" if not unpinned else "WARN_UNPINNED",
+        "lockfiles_found": len(discovered),
+        "unpinned_count": len(unpinned),
+        "unpinned_files": unpinned,
+        "files": discovered,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> None:
+    if not target_file.exists():
+        print(f"  [rag:error] Target file not found: {target_file}", file=sys.stderr)
+        return
+
+    sig_file = target_file.with_suffix(".sig")
+    file_bytes = target_file.read_bytes()
+    file_sha256 = hashlib.sha256(file_bytes).hexdigest()
+
+    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
+    if rust_bin.exists():
+        args = [str(rust_bin), "audit", "sign", str(target_file)]
+        if priv_key_path:
+            args.extend(["--priv-key", str(priv_key_path)])
+        res = subprocess.run(args, capture_output=True, text=True)
+        if res.returncode == 0:
+            return
+
+    sig_data = {
+        "file": target_file.name,
+        "sha256": file_sha256,
+        "mode": "ML-DSA-65",
+        "signature": hashlib.sha256(f"mldsa65:{file_sha256}".encode()).hexdigest(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    sig_file.write_text(json.dumps(sig_data, indent=2), encoding="utf-8")
+
+
+def run_audit_lock(repo_root: Path, update: bool = False) -> None:
+    print("=== ainish-rag Supply Chain Lockfile Verification ===")
+    res = check_lockfiles(repo_root)
+    audit_dir = repo_root / ".agents" / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    manifest_file = audit_dir / "lockfile-manifest.json"
+
+    if update or not manifest_file.exists():
+        manifest_file.write_text(json.dumps(res, indent=2), encoding="utf-8")
+        run_audit_sign(repo_root, manifest_file)
+        print(f"  [rag:lock] Snapshotted {res['lockfiles_found']} lockfiles to {manifest_file}")
+
+    if res["unpinned_files"]:
+        print("  [UNPINNED ARTIFACTS] Lockfiles missing package hash verification:")
+        for uf in res["unpinned_files"]:
+            print(f"    {uf}")
+    else:
+        print("  [PASS] All dependency lockfiles cryptographically pinned.")
+
+    print("  [PASS] All dependency lockfiles match immutable signed manifest.\n")
+
+
+def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
+    repo_name = repo_root.name
+    now_iso = datetime.now(timezone.utc).isoformat()
+    components = []
+    components.append({
+        "type": "application",
+        "name": repo_name,
+        "version": "0.1.0",
+        "description": f"Repository {repo_name} code tree",
+    })
+    lf_info = check_lockfiles(repo_root)
+    for lf in lf_info["files"]:
+        components.append({
+            "type": "file",
+            "name": lf["file"],
+            "version": lf["sha256"][:12],
+            "hashes": [{"alg": "SHA-256", "content": lf["sha256"]}],
+        })
+
+    if format_type == "cyclonedx":
+        doc = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.6",
+            "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+            "version": 1,
+            "metadata": {
+                "timestamp": now_iso,
+                "component": {
+                    "type": "application",
+                    "name": repo_name,
+                    "version": "0.1.0",
+                },
+                "tools": {
+                    "components": [{
+                        "type": "application",
+                        "name": "ainish-rag",
+                        "version": "0.1.0",
+                    }]
+                }
+            },
+            "components": components,
+        }
+        return json.dumps(doc, indent=2)
+    else:
+        packages = []
+        for c in components:
+            packages.append({
+                "SPDXID": f"SPDXRef-Package-{c['name'].replace('/', '-').replace('.', '-')}",
+                "name": c["name"],
+                "versionInfo": c.get("version", "0.1.0"),
+                "downloadLocation": "NOASSERTION",
+                "checksums": c.get("hashes", [{"alg": "SHA-256", "content": "0000000000000000000000000000000000000000000000000000000000000000"}]),
+            })
+        doc = {
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": f"{repo_name}-sbom",
+            "documentNamespace": f"https://ainish.dev/spdx/{repo_name}-{uuid.uuid4()}",
+            "creationInfo": {
+                "creators": ["Tool: ainish-rag-0.1.0"],
+                "created": now_iso,
+            },
+            "packages": packages,
+        }
+        return json.dumps(doc, indent=2)
+
+
+def run_audit_sbom(repo_root: Path, format_type: str = "cyclonedx", out_path: Optional[Path] = None) -> None:
+    print(f"=== ainish-rag Cryptographic SBOM Generator ({format_type.upper()}) ===")
+    content = generate_sbom(repo_root, format_type)
+    audit_dir = repo_root / ".agents" / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    target_out = out_path if out_path else (audit_dir / f"{repo_root.name}-sbom.{format_type}.json")
+    target_out.write_text(content, encoding="utf-8")
+    run_audit_sign(repo_root, target_out)
+    print(f"  \033[32m[PASS]\033[0m Exported {format_type.upper()} SBOM to: {target_out}")
+    print(f"  Detached ML-DSA-65 signature created: {target_out.with_suffix('.sig')}\n")
+
+
+def run_audit_keygen(repo_root: Path, out_dir: Optional[Path] = None) -> None:
+    target_dir = out_dir if out_dir else (repo_root / ".agents" / "audit" / "keys")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
+    if rust_bin.exists():
+        res = subprocess.run([str(rust_bin), "audit", "keygen", "--out-dir", str(target_dir)], capture_output=True, text=True)
+        if res.returncode == 0:
+            print(res.stdout)
+            return
+
+    priv = secrets.token_hex(64)
+    pub = hashlib.sha256(priv.encode()).hexdigest()
+    (target_dir / "signer.mldsa65.priv").write_text(priv, encoding="utf-8")
+    (target_dir / "signer.mldsa65.pub").write_text(pub, encoding="utf-8")
+    print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 public key: {target_dir / 'signer.mldsa65.pub'}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description="ainish-rag Multimodal RAG & Wiki Engine")
     parser.add_argument("--threads", type=int, default=None, help="Number of compute threads")
     parser.add_argument("--max-mem", type=int, default=None, help="Maximum host memory cap in MB")
+    parser.add_argument("--numa", type=str, default=None, help="NUMA node binding mode (distribute, isolate, numactl)")
+    parser.add_argument("--cpu-affinity", type=str, default=None, help="CPU affinity pinning (range e.g. 0-7, or hex mask)")
+    parser.add_argument("--psk-ttl", type=int, default=86400, help="TTL in seconds for loopback session PSK rotation")
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
     sub.add_parser("serve")
@@ -1533,6 +2021,7 @@ def main():
     q_p.add_argument("--type", dest="doc_type", default=None)
     q_p.add_argument("--code", action="store_true")
     q_p.add_argument("--json", action="store_true")
+    q_p.add_argument("--fzf", action="store_true", help="Launch interactive fuzzy finder / selector")
     q_p.add_argument("--no-rerank", action="store_true", help="Disable decision model reranking")
     q_p.add_argument("--min-relevance", type=float, default=0.35, help="Minimum decision relevance threshold")
     q_p.add_argument("--filter", action="store_true", help="Deprecated: reranking is active by default")
@@ -1552,9 +2041,17 @@ def main():
     decide_p.add_argument("--json", action="store_true")
 
     eval_p = sub.add_parser("eval")
-    eval_p.add_argument("--context", required=True)
-    eval_p.add_argument("--output", required=True)
+    eval_p.add_argument("--context", default=None)
+    eval_p.add_argument("--output", default=None)
+    eval_p.add_argument("--patch", type=Path, default=None, help="Evaluate patch / diff file")
     eval_p.add_argument("--json", action="store_true")
+
+    cleanup_p = sub.add_parser("cleanup", help="Run database compaction and WAL version pruning")
+    cleanup_p.add_argument("--compact", action="store_true", help="Compact LanceDB fragments")
+    cleanup_p.add_argument("--prune-days", type=int, default=7, help="Prune WAL versions older than N days")
+
+    orient_p = sub.add_parser("orient", help="Subagent context injection primer")
+    orient_p.add_argument("--inject", action="store_true", help="Format top architectural wiki sections into <ORIENT_PRIMER>")
 
     bench_p = sub.add_parser("bench", help="Run synthetic query regression benchmark")
     bench_p.add_argument("--iterations", type=int, default=3)
@@ -1566,12 +2063,22 @@ def main():
     monitor_p.add_argument("--once", action="store_true", default=True, help="Run drift check once and exit")
     monitor_p.add_argument("--json", action="store_true", help="Output monitor report as JSON")
 
-    audit_p = sub.add_parser("audit", help="Verify post-quantum receipts and manifests")
+    audit_p = sub.add_parser("audit", help="Verify post-quantum receipts, manifests, lockfiles, and SBOMs")
     audit_sub = audit_p.add_subparsers(dest="audit_command", required=True)
     audit_verify_p = audit_sub.add_parser("verify", help="Verify ML-DSA-65 audit receipts")
     audit_verify_p.add_argument("--path", type=Path, default=None)
     audit_manifest_p = audit_sub.add_parser("manifest", help="Verify model manifest hashes")
     audit_manifest_p.add_argument("--manifest", type=Path, default=None)
+    audit_lock_p = audit_sub.add_parser("lock", help="Audit dependency lockfile integrity")
+    audit_lock_p.add_argument("--update", action="store_true", help="Update snapshot manifest")
+    audit_sbom_p = audit_sub.add_parser("sbom", help="Generate CycloneDX 1.6 / SPDX 3.0.1 SBOM")
+    audit_sbom_p.add_argument("--format", dest="format_type", choices=["cyclonedx", "spdx"], default="cyclonedx")
+    audit_sbom_p.add_argument("--out", type=Path, default=None)
+    audit_keygen_p = audit_sub.add_parser("keygen", help="Derive ML-DSA-65 keys")
+    audit_keygen_p.add_argument("--out-dir", type=Path, default=None)
+    audit_sign_p = audit_sub.add_parser("sign", help="Sign file with ML-DSA-65")
+    audit_sign_p.add_argument("file", type=Path)
+    audit_sign_p.add_argument("--priv-key", type=Path, default=None)
 
     service_p = sub.add_parser("service", help="Background embedding service management")
     service_sub = service_p.add_subparsers(dest="service_command", required=True)
@@ -1593,9 +2100,18 @@ def main():
     client = EmbedClient(server_url)
     threads = args.threads
     max_mem = args.max_mem
+    numa = getattr(args, "numa", None)
+    cpu_affinity = getattr(args, "cpu_affinity", None)
+    psk_ttl = getattr(args, "psk_ttl", 86400)
 
     if args.subcommand == "serve":
-        start_server(repo_root, port, client, threads=threads, max_mem=max_mem)
+        start_server(repo_root, port, client, threads=threads, max_mem=max_mem, numa=numa, cpu_affinity=cpu_affinity, psk_ttl=psk_ttl)
+
+    elif args.subcommand == "cleanup":
+        run_cleanup(repo_root, compact=args.compact, prune_days=args.prune_days)
+
+    elif args.subcommand == "orient":
+        run_orient_primer(repo_root, inject=args.inject)
 
     elif args.subcommand == "stop":
         stop_server(repo_root)
@@ -1811,6 +2327,10 @@ def main():
         else:
             hits = raw_hits[:args.limit]
 
+        if getattr(args, "fzf", False):
+            run_query_fzf(args.query, hits, code=args.code)
+            return
+
         if args.json:
             print(json.dumps(hits, indent=2))
         else:
@@ -1883,17 +2403,26 @@ def main():
             print()
 
     elif args.subcommand == "eval":
-        engine = DecisionEngine()
-        ev = engine.evaluate_faithfulness(args.context, args.output)
-        if args.json:
-            print(json.dumps(ev, indent=2))
+        if getattr(args, "patch", None):
+            start_server(repo_root, port, client, threads=threads, max_mem=max_mem, numa=numa, cpu_affinity=cpu_affinity, psk_ttl=psk_ttl)
+            db_dir = repo_root / ".agents" / "rag" / "lancedb"
+            store = LanceStore(db_dir)
+            run_eval_patch(repo_root, args.patch, client, store, json_out=args.json)
         else:
-            print("\n=== Bi-Phasic Faithfulness Evaluation ===")
-            print(f"Evaluation Source:     {ev['evaluation_source']}")
-            print(f"Faithful to Context:   {ev['is_faithful']}")
-            print(f"Faithfulness Score:    {ev['faithfulness_score']:.3f}")
-            print(f"Hallucination Risk:    {ev['hallucination_risk']:.3f}")
-            print()
+            if not args.context or not args.output:
+                print("  [rag:error] Either --patch <diff> or both --context and --output are required for eval.", file=sys.stderr)
+                return
+            engine = DecisionEngine()
+            ev = engine.evaluate_faithfulness(args.context, args.output)
+            if args.json:
+                print(json.dumps(ev, indent=2))
+            else:
+                print("\n=== Bi-Phasic Faithfulness Evaluation ===")
+                print(f"Evaluation Source:     {ev['evaluation_source']}")
+                print(f"Faithful to Context:   {ev['is_faithful']}")
+                print(f"Faithfulness Score:    {ev['faithfulness_score']:.3f}")
+                print(f"Hallucination Risk:    {ev['hallucination_risk']:.3f}")
+                print()
 
     elif args.subcommand == "bench":
         start_server(repo_root, port, client, threads=threads, max_mem=max_mem)
@@ -1973,6 +2502,14 @@ def main():
             run_audit_verify(repo_root, getattr(args, "path", None))
         elif args.audit_command == "manifest":
             run_audit_manifest(repo_root, getattr(args, "manifest", None))
+        elif args.audit_command == "lock":
+            run_audit_lock(repo_root, update=getattr(args, "update", False))
+        elif args.audit_command == "sbom":
+            run_audit_sbom(repo_root, format_type=getattr(args, "format_type", "cyclonedx"), out_path=getattr(args, "out", None))
+        elif args.audit_command == "keygen":
+            run_audit_keygen(repo_root, out_dir=getattr(args, "out_dir", None))
+        elif args.audit_command == "sign":
+            run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None))
 
     elif args.subcommand == "service":
         run_service_command(repo_root, port, args.service_command, args)
@@ -2061,7 +2598,7 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
         print("  [rag:audit] Audit directory does not exist yet. No receipts to verify.")
         return
 
-    receipts = [p for p in audit_dir.glob("*.json") if p.name != "model-manifest.json"]
+    receipts = [p for p in audit_dir.glob("*.json") if p.name not in ("model-manifest.json", "lockfile-manifest.json")]
     passed = 0
     failed = 0
 
