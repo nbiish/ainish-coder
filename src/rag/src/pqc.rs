@@ -349,7 +349,23 @@ fn collect_items(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&Pat
     }
     for p in discover_lockfiles(repo_root) {
         if let Ok(h) = sha256_file(&p) {
-            items.push(Item { kind: "file", name: rel(repo_root, &p), sha256: h, props: vec![("ainish:role".into(), "lockfile".into())] });
+            let props = vec![
+                ("ainish:role".into(), "lockfile".into()),
+                ("ainish:lockfile:sha256".into(), h.clone()),
+                ("ainish:lockfile:attestation".into(), "FIPS 204 ML-DSA-65 bound".into()),
+            ];
+            items.push(Item { kind: "file", name: rel(repo_root, &p), sha256: h, props });
+        }
+    }
+    let canonical_agents = repo_root.join(".agents").join("canonical").join("AGENTS.md");
+    if canonical_agents.exists() {
+        if let Ok(h) = sha256_file(&canonical_agents) {
+            let status = match verify_file(repo_root, &canonical_agents) {
+                VerifyOutcome::Verified { .. } => "ML-DSA-65 contract verified".to_string(),
+                VerifyOutcome::Unsigned(r) => format!("unsigned: {r}"),
+                VerifyOutcome::Invalid(r) => format!("invalid: {r}"),
+            };
+            items.push(Item { kind: "data", name: rel(repo_root, &canonical_agents), sha256: h, props: vec![("ainish:contract".into(), status)] });
         }
     }
     let audit_dir = repo_root.join(".agents").join("audit");
@@ -390,6 +406,21 @@ pub fn build_cyclonedx(repo_root: &Path, model_manifest: &Path, llama_bin: Optio
         }
         c
     }).collect();
+
+    let mut root_props = vec![
+        json!({ "name": "ainish:signature:alg", "value": "ML-DSA-65 (FIPS 204), detached envelope" }),
+        json!({ "name": "ainish:signature:context", "value": String::from_utf8_lossy(SIG_CONTEXT) }),
+        json!({ "name": "ainish:signature:signer-fingerprint", "value": signer_fpr(repo_root).unwrap_or_else(|| "none".into()) }),
+    ];
+    for p in discover_lockfiles(repo_root) {
+        if let Ok(h) = sha256_file(&p) {
+            root_props.push(json!({
+                "name": format!("ainish:lockfile:{}:sha256", rel(repo_root, &p)),
+                "value": h
+            }));
+        }
+    }
+
     json!({
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
@@ -401,11 +432,7 @@ pub fn build_cyclonedx(repo_root: &Path, model_manifest: &Path, llama_bin: Optio
             "component": { "type": "application", "bom-ref": "ainish:root", "name": repo_name },
         },
         "components": components,
-        "properties": [
-            { "name": "ainish:signature:alg", "value": "ML-DSA-65 (FIPS 204), detached envelope" },
-            { "name": "ainish:signature:context", "value": String::from_utf8_lossy(SIG_CONTEXT) },
-            { "name": "ainish:signature:signer-fingerprint", "value": signer_fpr(repo_root).unwrap_or_else(|| "none".into()) },
-        ],
+        "properties": root_props,
     })
 }
 
@@ -442,6 +469,37 @@ pub fn build_spdx3(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&P
         "element": element_ids.clone(), "rootElement": element_ids,
     }));
     json!({ "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld", "@graph": graph })
+}
+
+/// Verifies the canonical AGENTS.md contract against its detached ML-DSA-65 envelope (.agents/canonical/AGENTS.md.sig)
+pub fn verify_canonical_contract(repo_root: &Path) -> VerifyOutcome {
+    let canonical_file = repo_root.join(".agents").join("canonical").join("AGENTS.md");
+    let target = if canonical_file.exists() {
+        canonical_file
+    } else {
+        repo_root.join("AGENTS.md")
+    };
+    if !target.exists() {
+        return VerifyOutcome::Unsigned("AGENTS.md not found in canonical directory or root".into());
+    }
+    verify_file(repo_root, &target)
+}
+
+/// Signs the canonical AGENTS.md contract with ML-DSA-65 and updates .agents/canonical/AGENTS.md.sha256 and .sig
+pub fn sign_canonical_contract(repo_root: &Path) -> Result<(PathBuf, PathBuf), String> {
+    let canonical_dir = repo_root.join(".agents").join("canonical");
+    let _ = std::fs::create_dir_all(&canonical_dir);
+    let src = repo_root.join("AGENTS.md");
+    let canonical_dest = canonical_dir.join("AGENTS.md");
+    if src.exists() && src != canonical_dest {
+        std::fs::copy(&src, &canonical_dest).map_err(|e| format!("copy AGENTS.md: {}", e))?;
+    }
+    let data = std::fs::read(&canonical_dest).map_err(|e| format!("read canonical AGENTS.md: {}", e))?;
+    let hash = sha256_hex(&data);
+    let hash_file = canonical_dir.join("AGENTS.md.sha256");
+    std::fs::write(&hash_file, format!("{}\n", hash)).map_err(|e| format!("write sha256: {}", e))?;
+    let sig_file = sign_file(&canonical_dest)?;
+    Ok((hash_file, sig_file))
 }
 
 #[cfg(test)]

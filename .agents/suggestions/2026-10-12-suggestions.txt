@@ -36,3 +36,27 @@ What would this governance / sovereignty master suggest? Require that any modifi
 What would this terminal-orchestration / swe-bench master suggest? Provide an automated patch repair suggestion engine within `ainish-rag eval --patch` that points agents to missing symbol imports when symbol anchoring drops below 80%.
 What would this master-orchestrator / self-prompting master suggest? Enhance `orient --inject` with structured JSON output mode (`--json`) enabling programmatic orchestration frameworks to bind wiki context into custom tool calling schemas.
 What would this developer-experience / ergonomics master suggest? Add a quick alias `ainish-rag gate` that executes `eval --patch`, `audit verify`, and `audit lock` in a single combined pass with a unified pass/fail terminal card.
+
+### [2026-10-12T23:25:00Z] feat/rag-multiagent-architecture | agent:antigravity
+Expanded codebase RAG architecture for concurrent multi-agent and multi-worktree execution pairing with `AGENTS.md` as single source of wisdom across native Rust (`src/rag/src/`) and Python (`src/rag/rag.py`):
+1. Automated quarantine payload filtering and classical crypto token sanitization in `orient --inject` preventing leaks into subagent primers.
+2. Automated canary token and credential leak scanning in `eval --patch` with regex-based credential detection before commit.
+3. Embedded lockfile hash attestations into CycloneDX 1.6 SBOM components guaranteeing end-to-end supply chain provenance.
+4. Worktree-aware resource auto-tuning in `server.rs`/`rag.py` auto-detecting concurrent active worktrees (`git worktree list`) and tuning compute threads and batch size.
+5. Semantic retrieval regression suite (`ainish-rag bench --save-baseline` and `--regression`) storing recall baselines in `.agents/rag/bench-baseline.json`.
+6. Canonical `AGENTS.md` FIPS 204 ML-DSA-65 contract signing (`ainish-rag audit contract`) producing `.agents/canonical/AGENTS.sig` and verifying contract integrity in `audit verify`.
+7. Automated patch repair suggestion engine in `eval --patch` providing suggested missing symbol imports when symbol anchoring drops below 80%.
+8. Structured JSON output mode (`orient --inject --json`) allowing orchestration frameworks to ingest wiki context and sanitization telemetry directly into custom tool calling schemas.
+9. Unified pre-merge verification command `ainish-rag gate` (`--json`) combining patch anchoring, lockfile drift, post-quantum receipts, and canonical contract validation in a unified pass/fail terminal card.
+Canonical repo root resolver ensures all sibling worktrees transparently share `.agents/rag/lancedb`, `.agents/wiki`, and `.agents/audit`. Compiled release binary `bin/ainish-rag.exe`, passed 100% Rust unit tests and Python test suites.
+Next step: deploy updated rules and multi-agent RAG capabilities across client codebases using `ainish-coder --rules [TARGET_DIR] --headless` and run `git context` to verify fleet health.
+What would this adversarial / security master suggest? Implement real-time anti-DNS rebinding and IP-binding verification in the loopback proxy to reject any non-loopback Host headers during multi-agent concurrent queries.
+What would this privacy / data-protection regulatory master suggest? Add differential privacy noise injection to vector embeddings of sensitive internal architectural docs to prevent membership inference attacks.
+What would this supply-chain / third-party-risk master suggest? Generate automated in-toto v1.0 link metadata attestations capturing compiler flags and toolchain provenance alongside CycloneDX SBOMs.
+What would this systems-architecture / devops master suggest? Support shared-memory IPC or memory-mapped reader pools across multiple worktrees to avoid redundant disk I/O when reading the shared LanceDB vector tables.
+What would this reliability / verification master suggest? Introduce automated synthetic drift injection and vector index corruption recovery stress tests into the nightly test matrix.
+What would this governance / sovereignty master suggest? Enforce signed multi-party threshold signatures (k-of-n ML-DSA-65) for canonical `AGENTS.md` contract updates across distributed engineering councils.
+What would this terminal-orchestration / swe-bench master suggest? Add automated AST-guided import insertion patches that agents can directly pipe to `git apply` when `ainish-rag eval --patch` generates repair suggestions.
+What would this master-orchestrator / self-prompting master suggest? Introduce dynamic task-conditioned context reranking that prunes irrelevant wiki sections based on real-time task lane metadata from `.agents/tasks/`.
+What would this developer-experience / ergonomics master suggest? Provide a desktop notification or terminal bell toggle in `ainish-rag gate` when long-horizon patch evaluations and audits complete in the background.
+

@@ -117,6 +117,19 @@ impl LlamaServer {
         4096
     }
 
+    /// Detects the number of active git worktrees across the repository
+    pub fn detect_active_worktrees(repo_root: &Path) -> usize {
+        if let Ok(output) = Command::new("git").args(["worktree", "list", "--porcelain"]).current_dir(repo_root).output() {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                let count = text.lines().filter(|l| l.starts_with("worktree ")).count();
+                if count > 0 {
+                    return count;
+                }
+            }
+        }
+        1
+    }
+
     /// Evaluates memory cap safety before model launch
     pub fn check_memory_cap(max_mem_cap: Option<usize>) -> Result<usize, String> {
         let avail_mb = Self::get_available_memory_mb();
@@ -353,11 +366,21 @@ impl LlamaServer {
                 cmd.arg("--mmproj").arg(mmproj);
             }
 
+            let worktrees = Self::detect_active_worktrees(repo_root);
+            let (tuned_ctx, tuned_batch, tuned_threads) = if worktrees > 1 {
+                let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+                let threads = (cpus / worktrees).max(2);
+                println!("  \x1b[36m[rag:concurrency]\x1b[0m Detected {} active worktrees: auto-tuning thread allocation ({} threads) and batch scaling", worktrees, threads);
+                (8192, 4096, config.threads.unwrap_or(threads))
+            } else {
+                (8192, 8192, config.threads.unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4)))
+            };
+
             cmd.arg("--embeddings")
                 .arg("--pooling").arg("mean")
-                .arg("--ctx-size").arg("8192")
-                .arg("--batch-size").arg("8192")
-                .arg("--ubatch-size").arg("8192")
+                .arg("--ctx-size").arg(tuned_ctx.to_string())
+                .arg("--batch-size").arg(tuned_batch.to_string())
+                .arg("--ubatch-size").arg(tuned_batch.to_string())
                 .arg("--host").arg("127.0.0.1")
                 .arg("--port").arg(config.server_port.to_string())
                 .arg("--api-key").arg(&psk)
@@ -376,9 +399,7 @@ impl LlamaServer {
                 cmd.arg("-fa").arg("on");
             }
 
-            if let Some(t) = config.threads {
-                cmd.arg("--threads").arg(t.to_string());
-            }
+            cmd.arg("--threads").arg(tuned_threads.to_string());
             cmd.args(&affinity_args);
 
             cmd.stdin(Stdio::null())
