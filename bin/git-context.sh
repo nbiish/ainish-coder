@@ -29,6 +29,12 @@ fi
 echo ''
 echo '--- STATUS ---'
 git status --short
+uncommitted_count=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+if [ "${uncommitted_count}" -gt 50 ]; then
+  echo ''
+  echo "  [ORIENT:HIGH_DIVERGENCE] ${uncommitted_count} modified/untracked files detected (>50 threshold)."
+  echo "  Vector index drift probable: auto-trigger recommended -> 'ainish-coder --rag index'"
+fi
 
 # ── UNSTAGED DIFF ──
 if ! git diff --quiet 2>/dev/null; then
