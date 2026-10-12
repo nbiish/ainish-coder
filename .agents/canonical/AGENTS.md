@@ -1,5 +1,5 @@
 ---
-description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys (FIPS 203/204/205; standard crypto for transport). Worktree per task — branch from main, merge back after green gates, clean up immediately. Durable memory in .agents/memories/{date}-memory.txt — one file per UTC date, plain markdown, agent/system/dependency agnostic. Cross-agent, chat, and work-session coordination via the daily COMMS ledger .agents/comms/{date}-team.txt (one file per UTC date), task records .agents/tasks/, and suggestions .agents/suggestions/. llms.txt is the PRD anchor — read the DOX chain. Codebase RAG (two-stage retrieval + decision-model reranking) & living architectural wiki (.agents/wiki/) for symbol graphs and recon. Decision models (choice/noul/score) for retrieval gating, routing, reranking, and bi-phasic evaluation with PQC-resolved OpenRouter keys. Chain-of-Draft: ≤5 words per step, output after ####. No secrets in tasks or PRD. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch <type>/<scope>-<slug>. Triage now/next/queued/backlog, ≤3 worktrees. OOReDAct. Always believe in yourself.
+description: Universal AGENTS.md rules standard for AI coding assistants. PQC secrets for all API keys (FIPS 203/204/205; standard crypto for transport). Worktree per task — branch from main, merge back after green gates, clean up immediately. Durable memory in .agents/memories/{date}-memory.txt — one file per UTC date, plain markdown, agent/system/dependency agnostic. Cross-agent, chat, and work-session coordination via the daily COMMS ledger .agents/comms/{date}-team.txt (one file per UTC date), task records .agents/tasks/, and suggestions .agents/suggestions/. llms.txt is the PRD anchor — read the DOX chain. Codebase RAG (two-stage retrieval + decision-model reranking), living architectural wiki (.agents/wiki/), and subagent context injection (ainish-rag orient --inject) for symbol graphs and recon. Patch anchoring evaluation (ainish-rag eval --patch) gate. Decision models (choice/noul/score) for retrieval gating, routing, reranking, and bi-phasic evaluation with PQC-resolved OpenRouter keys. FIPS 204 ML-DSA-65 audit verification (ainish-rag audit verify/lock/sbom). Chain-of-Draft: ≤5 words per step, output after ####. No secrets in tasks or PRD. Audit for banned algorithms and secrets every cycle. Never work directly on main. Branch <type>/<scope>-<slug>. Triage now/next/queued/backlog, ≤3 worktrees. OOReDAct. Always believe in yourself.
 ---
 # AGENTS.md — Universal Agent Contract
 
@@ -30,7 +30,12 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 ## Orient first
 
 - `git context` → latest COMMS, task lanes, suggestions, memory state, PRD version, worktrees, and RAG intelligence/drift status. Run first, every repo, every session. If drift is flagged (`DRIFT_DETECTED`), or if git status reports >50 modified/untracked files (`ORIENT:HIGH_DIVERGENCE`), refresh index via `ainish-coder --rag index` / `bin/ainish-rag index` before broad architectural tasks.
-- **Codebase RAG & living wiki:** ground mental models before broad edits. Query the multimodal vector index (`ainish-coder --rag query <term>` / `bin/ainish-rag query`, with interactive selector `--fzf`) and consult `.agents/wiki/` (living 6-part architecture, call graphs, security surface) to navigate large codebases. Subagent context injection (`ainish-rag orient --inject`) formats top architectural wiki sections directly into an `<ORIENT_PRIMER>` for downstream prompts. Two-stage retrieval is standard: coarse ANN candidate retrieval from LanceDB followed by decision-model reranking (TypeSafe Jev via OpenRouter or calibrated local fallback), filtering distractor noise and ranking by task utility. Retrieval-augmented patch evaluation (`ainish-rag eval --patch <diff>`) scores file coverage, symbol anchoring, and retrieval grounding for proposed changes. Continuous drift monitoring (`ainish-rag monitor`) evaluates synthetic benchmarks and unindexed file drift with alert thresholds; domain-specific benchmarks can be evaluated with custom queries (`ainish-rag bench --custom <path>`). Dedicated background embedding servers run as continuous services (`ainish-rag service install` / `generate`). LanceDB table compaction and WAL pruning (`ainish-rag cleanup --compact --prune-days <N>`) maintain database fragmentation health. Real-time telemetry, latency histograms, and LanceDB statistics are viewable via interactive TUI dashboard (`ainish-rag status --tui`). Operates seamlessly cross-platform across WSL, Linux, macOS, and Windows with NUMA node binding and CPU affinity pinning (`--numa`, `--cpu-affinity`). Auto-discovers models using the Hugging Face cache hierarchy (`HF_HUB_CACHE`, `HUGGINGFACE_HUB_CACHE`, `HF_HOME`, `XDG_CACHE_HOME`, platform defaults, and external drive mounts). OpenRouter API keys are dynamically resolved on-demand from the machine's PQC vault (`~/.config/pqc-secrets/secrets.bundle.json` or `PQC_SECRETS_DIR`) via in-memory export across all repositories deployed with `ainish-coder --rules`.
+- **Codebase RAG & living wiki protocol:** ground mental models before planning or editing.
+  - **1. Semantic Recon & Symbol Graph:** query the multimodal vector index (`ainish-coder --rag query "<query>"` / `bin/ainish-rag query "<query>"`, with interactive selector `--fzf` or symbol search `--code`) and consult `.agents/wiki/` (living 6-part architecture, call graphs, security surface, technical debt, and intelligence). Regenerate or index living wiki pages on demand via `ainish-rag wiki --index`.
+  - **2. Subagent Context Injection:** orchestrators dispatching subagents MUST inject repository context using `ainish-rag orient --inject`. This formats the top 3 relevant architectural wiki sections directly into an `<ORIENT_PRIMER>` for the subagent's prompt, eliminating redundant codebase exploration and anchoring symbol knowledge immediately.
+  - **3. Two-Stage Retrieval & Decision Reranking:** coarse ANN candidate retrieval from LanceDB is automatically reranked by calibrated decision models (TypeSafe Jev via OpenRouter or calibrated local router) scoring relevance and task utility (70% decision score + 30% vector similarity), stripping distractor noise. OpenRouter keys resolve on-demand strictly via in-memory PQC secrets decryption (`secrets.bundle.json`).
+  - **4. Continuous Drift & Service Hygiene:** monitor vector index drift and retrieval benchmark recall with `ainish-rag monitor`. Background embedding servers operate as supervised continuous OS services (`ainish-rag service install` / `generate` / `status`). LanceDB table compaction and WAL version pruning (`ainish-rag cleanup --compact --prune-days <N>`) maintain storage efficiency and query performance. Inspect live server metrics, memory, and latency histograms via interactive TUI (`ainish-rag status --tui`).
+  - **5. Cross-Platform Runtime & Hardware Tuning:** runs natively on WSL, Linux, macOS, and Windows with NUMA node binding and CPU affinity pinning (`--numa`, `--cpu-affinity`). Auto-discovers models across Hugging Face cache paths (`HF_HUB_CACHE`, `HUGGINGFACE_HUB_CACHE`, `HF_HOME`, `XDG_CACHE_HOME`, platform roots, external mounts).
 - Modular capability lives in `.agents/skills/<skill>/SKILL.md` — read before use; shared packs stay byte-identical.
   </TASK_PRIMER>
 
@@ -81,15 +86,33 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 
 `pqc-secrets <cmd>`: `vault` (identity root) · `keygen` · `pack` · `export` · `issue` · `sync` — one machine, one bundle, per-machine keys; no cross-machine key sync.
 
+### RAG & Audit quick reference
+
+| Command | Action | Standard / Use |
+| :--- | :--- | :--- |
+| `ainish-rag query "<term>"` | Semantic vector search | Recon & symbol lookup; `--code` for code mode, `--fzf` for interactive terminal finder |
+| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Subagent prompt context injection with top-3 relevant architectural wiki sections |
+| `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Pre-merge verification; scores file coverage, symbol anchoring, and retrieval grounding |
+| `ainish-rag index [--watch]` | Vectorize codebase into LanceDB | Initial setup, or when `git context` flags `DRIFT_DETECTED` or `ORIENT:HIGH_DIVERGENCE` |
+| `ainish-rag wiki [--index]` | Build 6-part living wiki | Grounding mental model; writes `.agents/wiki/01..06.md` and indexes into LanceDB |
+| `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance; prune WAL older than N days (`--prune-days <N>`) |
+| `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts in `.agents/audit/*.json` |
+| `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfile integrity and package hash pinning (`--update` to re-snapshot) |
+| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6 or SPDX 3.0.1 SBOM with detached ML-DSA-65 signature |
+| `ainish-rag audit sign <file>` | Detached ML-DSA-65 sign | Cryptographically signs compliance artifact generating `.sig` envelope |
+| `ainish-rag status [--tui]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, and chunk count |
+| `ainish-rag service <cmd>` | Background embedding server | `status` · `install` · `generate` · `uninstall` for supervised OS daemon service |
+
 </REFERENCE>
 
 <WORKFLOW>
 
 ## Build → merge → rebuild
 
-isolate → coordinate (triage + `checkin`) → recon (RAG + wiki) → decide (decision-model gating) → iterate (atomic commits, memory) → audit → gates (`clippy` / `tsc` / `ruff` / tests) → smoke test the changed surface on a non-default port → merge → rebuild → cleanup.
+isolate → coordinate (triage + `checkin`) → recon (RAG query/fzf + wiki + orient primer) → decide (decision-model gating) → iterate (atomic commits, memory) → audit (`audit lock` + `audit verify`) → gates (`clippy` / `tsc` / `ruff` / tests + `ainish-rag eval --patch`) → smoke test the changed surface on a non-default port → merge → rebuild → cleanup.
 
 - **Decision-model gating & two-stage RAG (OOReDAct Decide):** route actions and refine retrieval through calibrated System One decision models (`choice`/`noul`/`score`; e.g. TypeSafe Jev via OpenRouter or calibrated local router) to decide retrieval necessity (`needs_retrieval`), domain routing (`code` vs `wiki` vs `security`), two-stage retrieval reranking (`is_relevant` noul + `utility_score` 1-5 continuous rubric, blending 70% decision score + 30% vector similarity to eliminate distractor noise), and bi-phasic evaluation (groundedness vs hallucination). Access OpenRouter credentials strictly via in-memory PQC secrets decryption on-demand.
+- **Retrieval-Augmented Patch Gate (`ainish-rag eval --patch <diff>`):** before merging any feature or fix, evaluate patch anchoring against the codebase index. Scores: (1) File Coverage (% of modified files anchored in top retrieval hits), (2) Symbol Anchoring (% of added identifiers existing in the codebase symbol graph), and (3) Retrieval Grounding score. Investigate unanchored modifications or missing imports before committing to merge.
 - **Merge autonomously.** Green gates are the approval; no operator confirmation. Merge `--no-ff`; a bad merge is reverted with `git revert`. `intent-merge` is the audit record. Never end a turn waiting to merge.
 - **Cleanup:** pass the ownership check (`<SERVERS>`), then `git worktree remove <path>`, `git branch -d <branch>`, verify clean on `main`, close with `checkout`.
 - No stubs, TODOs, scaffolds, mocks, or no-op fallbacks — ever. Fix the source, never the symptom.
@@ -130,7 +153,7 @@ Durable knowledge lives in `.agents/memories/{date}-memory.txt` — one file per
 
 ## Before you yield
 
-☐ worktree, never `main` · ☐ task record + ledger closed + suggestions appended · ☐ no secrets, no banned crypto · ☐ gates green · ☐ smoke test on the changed surface · ☐ scope + tree/diff proof per change · ☐ server rebuilt or `no-rebuild-needed` · ☐ memory updated · ☐ every task lanned · ☐ context grounded in wiki/RAG + drift clean + decision-validated · ☐ deliverable complete end-to-end — else the exact blocker is stated.
+☐ worktree, never `main` · ☐ task record + ledger closed + suggestions appended · ☐ no secrets, no banned crypto · ☐ gates green · ☐ patch evaluated (`ainish-rag eval --patch`) · ☐ smoke test on the changed surface · ☐ scope + tree/diff proof per change · ☐ server rebuilt or `no-rebuild-needed` · ☐ memory updated · ☐ every task lanned · ☐ context grounded in wiki/RAG + drift clean + decision-validated · ☐ audit receipts verified (`ainish-rag audit verify`) · ☐ deliverable complete end-to-end — else the exact blocker is stated.
 
 </AUDIT>
 
@@ -144,7 +167,8 @@ Review `.agents/suggestions/{date}-suggestions.txt` before acting on anything. B
 
 <REINFORCEMENT>
 
-PQC for every API key. One task = one worktree from `main`; green gates merge autonomously. Coordinate through the ledger, orient from memory and RAG/wiki, decide with calibrated decision models, close every loop. Ship complete, verified production code. You will be graded on the quality of your final result; always believe in yourself.
+PQC for every API key. One task = one worktree from `main`; green gates merge autonomously. Ground recon in RAG and wiki, inject primers for subagents, evaluate patch anchoring, decide with calibrated decision models, coordinate through the ledger, close every loop. Ship complete, verified production code. You will be graded on the quality of your final result; always believe in yourself.
 
 </REINFORCEMENT>
+
 
