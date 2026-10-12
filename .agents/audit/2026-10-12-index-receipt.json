@@ -1,0 +1,12 @@
+{
+  "action": "batch_index",
+  "algorithm_guarantee": "FIPS 204 ML-DSA-65",
+  "anonymized_symbols": false,
+  "chunks_generated": 2860,
+  "files_indexed": 262,
+  "receipt_id": "idx-1791764575288",
+  "status": "verified",
+  "target": "D:\\Code\\ainish-coder",
+  "timestamp": "2026-10-12T00:22:55.288784200+00:00",
+  "total_store_records": 2860
+}

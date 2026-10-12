@@ -13,6 +13,7 @@ pub struct RagConfig {
     pub wiki_dir: PathBuf,
     pub embedding_dim: usize,
     pub threads: Option<usize>,
+    pub max_mem: Option<usize>,
 }
 
 impl RagConfig {
@@ -49,6 +50,7 @@ impl RagConfig {
         let wiki_dir = repo_root.join(".agents").join("wiki");
         let embedding_dim = 768;
         let threads = env::var("AINISH_RAG_THREADS").ok().and_then(|t| t.parse().ok());
+        let max_mem = env::var("AINISH_RAG_MAX_MEM").ok().and_then(|m| m.parse().ok());
 
         Self {
             hf_hub_cache: hf_cache,
@@ -61,6 +63,7 @@ impl RagConfig {
             wiki_dir,
             embedding_dim,
             threads,
+            max_mem,
         }
     }
 }
