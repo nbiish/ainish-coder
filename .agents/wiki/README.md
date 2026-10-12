@@ -1,10 +1,10 @@
-# ainish-rag — Knowledge & Architecture Wiki
+# ainish-coder — Knowledge & Architecture Wiki
 
-Generated on: 2026-10-11T18:36:32.615827600+00:00 (UTC)
-Repository: `ainish-rag`
+Generated on: 2026-10-12T00:23:57.940712200+00:00 (UTC)
+Repository: `ainish-coder`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `ainish-rag`. It is automatically indexed into the local LanceDB multimodal RAG store for semantic vector search and LLM context augmentation.
+This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `ainish-coder`. It is automatically indexed into the local LanceDB multimodal RAG store for semantic vector search and LLM context augmentation.
 
 ## Wiki Table of Contents
 1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.

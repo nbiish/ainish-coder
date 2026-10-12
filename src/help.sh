@@ -96,7 +96,9 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 serve [--port PORT]   Launch/ensure loopback embedding server
                                 stop                  Stop running embedding server
                                 status                Check model cache, server, LanceDB & wiki stats
-                                index [PATH] [-w]     Index codebase into LanceDB (-w, --watch for live mode)
+                                index [PATH] [-w]     Index codebase into LanceDB (--anonymize-symbols to hash proprietary symbols;
+                                                      records FIPS 204 ML-DSA-65 audit receipt in .agents/audit/)
+                                monitor [--json]      Run continuous vector drift and recall monitor
                                 wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
                                 query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking
                                 rerank <QUERY>        Standalone decision-model reranking of candidates

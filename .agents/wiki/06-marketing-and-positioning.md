@@ -1,7 +1,7 @@
-# 06. Marketing & Positioning — ainish-rag
+# 06. Marketing & Positioning — ainish-coder
 
 ## 1. Core Value Proposition
-`ainish-rag` delivers an autonomous, high-integrity AI coding infrastructure combining:
+`ainish-coder` delivers an autonomous, high-integrity AI coding infrastructure combining:
 - **Post-Quantum Cryptographic Security** for all machine identity and secrets operations.
 - **Distributed Agent Coordination** with single-truth ledgers and isolated worktrees.
 - **State-of-the-Art Multimodal RAG** powered by Google DeepMind EmbeddingGemma-2 and LanceDB.

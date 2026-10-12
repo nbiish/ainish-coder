@@ -9,10 +9,15 @@ use crate::store::RagChunk;
 pub struct CodebaseIngestor {
     repo_name: String,
     repo_root: PathBuf,
+    pub anonymize_symbols: bool,
 }
 
 impl CodebaseIngestor {
     pub fn new(repo_root: &Path) -> Self {
+        Self::new_with_options(repo_root, false)
+    }
+
+    pub fn new_with_options(repo_root: &Path, anonymize_symbols: bool) -> Self {
         let repo_name = repo_root
             .file_name()
             .and_then(|n| n.to_str())
@@ -22,6 +27,7 @@ impl CodebaseIngestor {
         Self {
             repo_name,
             repo_root: repo_root.to_path_buf(),
+            anonymize_symbols,
         }
     }
 
@@ -90,10 +96,17 @@ fn chunk_code_file(&self, path: &Path, rel_path: &str, ext: &str) -> Vec<Unembed
             return Vec::new();
         }
 
-        let lines: Vec<&str> = content.lines().collect();
-        let symbols = extract_symbols(&lines, ext);
-        let symbols_json = serde_json::to_string(&symbols).unwrap_or_else(|_| "[]".to_string());
+        let raw_lines: Vec<&str> = content.lines().collect();
+        let extracted_symbols = extract_symbols(&raw_lines, ext);
 
+        let (final_content, final_symbols) = if self.anonymize_symbols && !extracted_symbols.is_empty() {
+            anonymize_content_and_symbols(&content, &extracted_symbols)
+        } else {
+            (content, extracted_symbols)
+        };
+        let symbols_json = serde_json::to_string(&final_symbols).unwrap_or_else(|_| "[]".to_string());
+
+        let lines: Vec<&str> = final_content.lines().collect();
         let mut chunks = Vec::new();
         let chunk_size = 60;
         let overlap = 10;
@@ -380,5 +393,21 @@ pub fn scrub_sensitive_content(text: &str) -> String {
         Err(_) => return scrubbed.to_string(),
     };
     re_tokens.replace_all(&scrubbed, "[REDACTED]").to_string()
+}
+
+pub fn anonymize_content_and_symbols(content: &str, symbols: &[String]) -> (String, Vec<String>) {
+    let mut replaced_content = content.to_string();
+    let mut anon_symbols = Vec::new();
+    for sym in symbols {
+        let mut hasher = Sha256::new();
+        hasher.update(sym.as_bytes());
+        let anon = format!("sym_{}", &hex::encode(hasher.finalize())[..8]);
+        anon_symbols.push(anon.clone());
+        let pattern = format!(r"\b{}\b", regex::escape(sym));
+        if let Ok(re) = Regex::new(&pattern) {
+            replaced_content = re.replace_all(&replaced_content, anon.as_str()).to_string();
+        }
+    }
+    (replaced_content, anon_symbols)
 }
 

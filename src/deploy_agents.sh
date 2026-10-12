@@ -91,6 +91,9 @@ deploy_agents() {
     # Install/refresh the warn-only AGENTS.md pre-commit guard in the target repo
     install_agents_pre_commit_guard "$target_dir" 2>/dev/null || true
 
+    # Ensure rag, audit, and wiki directories exist in target
+    mkdir -p "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" 2>/dev/null || true
+
     # Keep the canonical snapshot current (restore path); root stays writable
     snapshot_canonical_contract "$source" 2>/dev/null || true
 
