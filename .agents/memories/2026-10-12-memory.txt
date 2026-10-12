@@ -26,3 +26,12 @@
 - 16:33 Compiled native release binary bin/ainish-rag.exe (123MB); verified complete parity across native Rust and Python CLI suites.
 - 16:34 Canonical AGENTS.md contract synchronized (.agents/canonical/AGENTS.md.sha256: f5c80a3d092a24036e8e02b64c83cc40f7e1f0b46fb3d0aae2d6c2d346c92b70); py bin/security_gate.py passed 100%.
 - 21:38 AGENTS.md contract deeply integrated with codebase RAG protocol: 5-step operational protocol in <TASK_PRIMER> (semantic recon, subagent orient --inject primer, two-stage reranking, drift hygiene, cross-platform tuning), pre-merge retrieval-augmented patch evaluation gate (ainish-rag eval --patch), full RAG & Audit quick reference table in <REFERENCE>, and audit checklists updated; canonical hash synchronized (56cf2ffa2634255943e83d431470a55656b34d44cbc63409300a7e09b29c74ef).
+- 22:50 Expanded codebase RAG into high-concurrency multi-agent single source of wisdom: canonical repo root resolver anchors all sibling worktrees to shared .agents/rag/lancedb, .agents/wiki, and .agents/audit.
+- 22:55 Automated quarantine pattern filtering added to orient --inject redacting .scrolls* payload tokens and classical crypto token names from subagent primers.
+- 23:02 Canary token and sensitive credential regex scanning (RE_CANARY) integrated into eval --patch diff evaluations with repair import hints for unanchored symbols.
+- 23:08 Lockfile hash attestations embedded into CycloneDX 1.6 SBOM components; canonical AGENTS.md contract signed with FIPS 204 ML-DSA-65 (.agents/canonical/AGENTS.sig).
+- 23:14 Worktree-aware resource scaling in server.rs auto-detects active worktrees via git worktree list and adjusts CPU threads and batch sizes.
+- 23:18 Semantic retrieval regression test suite (bench --save-baseline / --regression) tracks recall stability against .agents/rag/bench-baseline.json.
+- 23:22 Structured JSON mode (orient --inject --json) and unified pre-merge gate card (ainish-rag gate) implemented with complete parity across native Rust and Python fallback.
+- 23:25 All 4 unit tests passing; security gate and ainish-rag gate cards GREEN (Autonomous Merge Authorized).
+

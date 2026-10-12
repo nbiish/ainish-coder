@@ -282,9 +282,9 @@ pub fn is_ignored_path(path: &Path) -> bool {
         || s.contains("/target/") || s.contains("\\target\\")
         || s.contains("/.venv/") || s.contains("\\.venv\\")
         || s.contains("/__pycache__/") || s.contains("\\__pycache__\\")
-        || s.contains("/.agents/rag/lancedb/") || s.contains("\\.agents\\rag\\lancedb\\")
+        || s.contains("/.agents/rag/") || s.contains("\\.agents\\rag\\")
         || s.contains("/.scrolls") || s.contains("\\.scrolls")
-        || s.ends_with(".lock") || s.ends_with(".tmp") || s.ends_with(".log")
+        || s.ends_with(".lock") || s.ends_with(".tmp") || s.ends_with(".log") || s.ends_with(".sig")
 }
 
 fn is_code_ext(ext: &str) -> bool {
