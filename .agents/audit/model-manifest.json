@@ -1,0 +1,21 @@
+{
+  "manifest_version": "1.0",
+  "generated_at": "2026-10-12T15:20:00Z",
+  "algorithm": "SHA-256",
+  "models": {
+    "embeddinggemma-2-BF16.gguf": {
+      "sha256": "f315cbbb30dd487e44d501c8902abe88808755e43753a96beed1964f0a48aa4f",
+      "architecture": "gemma2-embedding",
+      "precision": "BF16",
+      "dim": 768,
+      "source": "unsloth/embeddinggemma-2-GGUF"
+    },
+    "mmproj-F16.gguf": {
+      "sha256": "74bf65c860d292a1eebafd7ca85b44532a2528f03017f9204fe1695916d2c66f",
+      "architecture": "gemma2-mmproj",
+      "precision": "F16",
+      "dim": 768,
+      "source": "unsloth/embeddinggemma-2-GGUF"
+    }
+  }
+}

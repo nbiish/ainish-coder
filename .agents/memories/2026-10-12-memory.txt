@@ -1,0 +1,15 @@
+# memory — 2026-10-12 (UTC)
+# Pairs with ../comms/2026-10-12-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 15:18 Worktree/branch feat/advanced-masters-sota initiated to implement Round 3 masters suggestions for codebase RAG and agent contract.
+- 15:25 Loopback Pre-Shared Key (PSK) authentication implemented in Rust (src/rag/src/server.rs, embed.rs) and Python (src/rag/rag.py) using .agents/rag/session.psk or AINISH_RAG_PSK, passed via --api-key and Authorization: Bearer / X-Ainish-PSK.
+- 15:28 Configurable symbol salt (--symbol-salt, AINISH_SYMBOL_SALT) added to symbol anonymization (sha256(salt:sym)[:8]) preventing cross-repo rainbow table inversion.
+- 15:30 Immutable model manifest verification implemented matching .agents/audit/model-manifest.json SHA-256 GGUF checksums before launching embedding server.
+- 15:32 Background embedding service configuration generator (ainish-rag service generate/install/status/uninstall) created for Linux systemd units and Windows PowerShell scheduled service runners.
+- 15:34 Automated healthcheck retry loop with up to 3 restarts and exponential backoff (1s, 2s, 4s) integrated into server supervisor.
+- 15:36 FIPS 204 ML-DSA-65 audit verification command (ainish-rag audit verify / manifest) added to validate all receipts in .agents/audit/*.json.
+- 15:38 Custom regression test suite execution enabled via ainish-rag bench --custom <path> for domain-specific retrieval evaluations in benchmarks.
+- 15:39 Orient phase high divergence advisory ([ORIENT:HIGH_DIVERGENCE]) integrated into bin/git-context.sh when git status reports >50 modified/untracked files.
+- 15:40 Interactive terminal telemetry dashboard mode (ainish-rag status --tui) implemented with server memory, active port, latency histogram probe, and LanceDB statistics.
+- 15:41 Compiled native release binary bin/ainish-rag.exe (121MB); verified parity across Rust and Python CLI suites.
+- 15:41 Canonical AGENTS.md contract synchronized (.agents/canonical/AGENTS.md.sha256: 5ecd7ded45fb757eb26f56cc37469bb32930bfe4fa997ccf2509597159f8d4ea); py bin/security_gate.py passed 100%.

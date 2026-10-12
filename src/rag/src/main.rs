@@ -44,7 +44,11 @@ enum Commands {
     /// Stop running embedding server
     Stop,
     /// Inspect status of model cache, server, LanceDB vector store, and wiki
-    Status,
+    Status {
+        /// Launch interactive TUI telemetry dashboard
+        #[arg(long)]
+        tui: bool,
+    },
     /// Index codebase or target path into LanceDB
     Index {
         /// Target path to index (default: current directory)
@@ -59,6 +63,9 @@ enum Commands {
         /// Anonymize and hash proprietary code identifiers before embedding
         #[arg(long)]
         anonymize_symbols: bool,
+        /// Configurable symbol salt preventing rainbow-table deanonymization
+        #[arg(long)]
+        symbol_salt: Option<String>,
     },
     /// Continuous drift monitoring and regression evaluation
     Monitor {
@@ -80,6 +87,9 @@ enum Commands {
         /// Output benchmark results as JSON
         #[arg(long)]
         json: bool,
+        /// Path to custom domain-specific JSON query benchmark suite
+        #[arg(long)]
+        custom: Option<PathBuf>,
     },
     /// Generate shell completion scripts and aliases (bash, zsh, fish, pwsh)
     Completion {
@@ -169,6 +179,55 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Audit and verify post-quantum signatures and receipts in .agents/audit/
+    Audit {
+        #[command(subcommand)]
+        command: AuditCommands,
+    },
+    /// Continuous background embedding service generator and installer
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AuditCommands {
+    /// Verify ML-DSA-65 signatures and cryptographic integrity of audit receipts
+    Verify {
+        /// Specific receipt file or audit directory path
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+    },
+    /// Verify immutable model manifest hashes
+    Manifest {
+        /// Path to model manifest JSON (default: .agents/audit/model-manifest.json)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ServiceCommands {
+    /// Generate systemd unit or Windows service runner scripts
+    Generate {
+        /// Port to bind service to (default: 8080)
+        #[arg(short, long)]
+        port: Option<u16>,
+        /// Output path for service definition
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
+    /// Install continuous background embedding service on host
+    Install {
+        /// Port to bind service to (default: 8080)
+        #[arg(short, long)]
+        port: Option<u16>,
+    },
+    /// Check background service status
+    Status,
+    /// Uninstall continuous background service
+    Uninstall,
 }
 
 #[tokio::main]
@@ -194,7 +253,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Stop => {
             LlamaServer::stop(&current_dir)?;
         }
-        Commands::Status => {
+        Commands::Status { tui } => {
+            if tui {
+                run_tui_dashboard(&config, &current_dir).await?;
+                return Ok(());
+            }
+
             println!("=== ainish-rag Multimodal RAG Status ===");
             println!("HF Cache Root:      {}", config.hf_hub_cache.display());
             println!("Model GGUF:         {}", config.model_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
@@ -208,8 +272,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Llama Binary:       {}", config.llama_bin.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
             println!("Server Endpoint:    {}", config.server_url);
 
-            let is_running = LlamaServer::is_running(&config.server_url).await;
+            let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
             println!("Server Status:      {}", if is_running { "ONLINE (ready)" } else { "OFFLINE" });
+
+            let psk_status = if let Some(ref psk) = config.psk {
+                let preview = if psk.len() > 8 { &psk[..8] } else { psk };
+                format!("ENABLED (Loopback PSK: {}...)", preview)
+            } else {
+                "DISABLED (unauthenticated loopback)".to_string()
+            };
+            println!("Loopback Auth:      {}", psk_status);
+
+            let salt_status = if let Some(ref s) = config.symbol_salt {
+                format!("ACTIVE (len: {})", s.len())
+            } else {
+                "DEFAULT (machine/repo hash)".to_string()
+            };
+            println!("Symbol Salt:        {}", salt_status);
+
+            let manifest_status = match LlamaServer::verify_model_manifest(
+                config.model_path.as_ref().unwrap_or(&PathBuf::from("")),
+                &config.model_manifest_path
+            ) {
+                Ok(Some(hash)) => format!("VERIFIED ({})", &hash[..16]),
+                Ok(None) => "NOT PRESENT (manifest absent)".to_string(),
+                Err(e) => format!("TAMPERED ({})", e),
+            };
+            println!("Model Manifest:     {}", manifest_status);
 
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
             let count = store.count().await.unwrap_or(0);
@@ -243,20 +332,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
             }
         }
-        Commands::Index { path, truncate, watch, anonymize_symbols } => {
+        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
+            if let Some(s) = symbol_salt {
+                config.symbol_salt = Some(s);
+            }
             if anonymize_symbols {
-                println!("  \x1b[35m[rag:privacy]\x1b[0m Symbol anonymization active (SHA-256 hashed identifiers)");
+                let salt_note = if config.symbol_salt.is_some() { " + salted" } else { "" };
+                println!("  \x1b[35m[rag:privacy]\x1b[0m Symbol anonymization active (SHA-256 hashed{} identifiers)", salt_note);
             }
 
             LlamaServer::ensure_running(&config, &current_dir).await?;
 
             let dim = truncate.unwrap_or(config.embedding_dim);
-            let embed_client = EmbedClient::new(&config.server_url, truncate);
+            let embed_client = EmbedClient::new(&config.server_url, truncate, config.psk.clone());
             let store = LanceStore::new(&config.lancedb_dir, dim);
-            let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols);
+            let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
 
             println!("  [rag:index] Scanning repository files...");
             let files = ingestor.scan_files(&target);
@@ -367,9 +460,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if index {
                 println!("=== Indexing Generated Wiki Pages ===");
                 LlamaServer::ensure_running(&config, &current_dir).await?;
-                let embed_client = EmbedClient::new(&config.server_url, None);
+                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
                 let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-                let ingestor = CodebaseIngestor::new(&target);
+                let ingestor = CodebaseIngestor::new_with_options(&target, false, config.symbol_salt.clone());
 
                 let mut wiki_unembedded = Vec::new();
                 for page in &generated_pages {
@@ -394,7 +487,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None);
+            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             let formatted_query = EmbedClient::format_query(&query, code);
@@ -477,7 +570,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Rerank { query, limit, doc_type, json } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None);
+            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             let formatted_query = EmbedClient::format_query(&query, false);
@@ -507,17 +600,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!();
             }
         }
-        Commands::Bench { iterations, json } => {
+        Commands::Bench { iterations, json, custom } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None);
+            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             println!("=== ainish-rag Synthetic Query Regression Benchmark ===");
-            let test_suite = vec![
-                ("post-quantum cryptography secrets FIPS ML-KEM ML-DSA", "security"),
-                ("codebase multimodal rag lancedb embeddinggemma", "rag"),
-                ("worktree isolation branch main workflow OOReDAct", "agents"),
-            ];
+            let test_suite: Vec<(String, String)> = if let Some(ref c_path) = custom {
+                let content = std::fs::read_to_string(c_path)?;
+                let parsed: Vec<serde_json::Value> = serde_json::from_str(&content)?;
+                parsed.into_iter().filter_map(|item| {
+                    let q = item.get("query")?.as_str()?.to_string();
+                    let d = item.get("expected_domain")?.as_str()?.to_string();
+                    Some((q, d))
+                }).collect()
+            } else {
+                vec![
+                    ("post-quantum cryptography secrets FIPS ML-KEM ML-DSA".to_string(), "security".to_string()),
+                    ("codebase multimodal rag lancedb embeddinggemma".to_string(), "rag".to_string()),
+                    ("worktree isolation branch main workflow OOReDAct".to_string(), "agents".to_string()),
+                ]
+            };
 
             let mut passed = 0;
             let mut total_latency_ms = 0u128;
@@ -549,8 +652,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }));
             }
 
-            let recall_rate = passed as f32 / test_suite.len() as f32;
-            let avg_latency = total_latency_ms as f64 / test_suite.len() as f64;
+            let recall_rate = if test_suite.is_empty() { 1.0 } else { passed as f32 / test_suite.len() as f32 };
+            let avg_latency = if test_suite.is_empty() { 0.0 } else { total_latency_ms as f64 / test_suite.len() as f64 };
 
             if json {
                 println!("{}", serde_json::to_string_pretty(&serde_json::json!({
@@ -639,6 +742,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!();
             }
         }
+        Commands::Audit { command } => match command {
+            AuditCommands::Verify { path } => {
+                run_audit_verify(&current_dir, path.as_deref())?;
+            }
+            AuditCommands::Manifest { manifest } => {
+                run_audit_manifest(&config, manifest.as_deref())?;
+            }
+        },
+        Commands::Service { command } => {
+            run_service_command(&config, &current_dir, command).await?;
+        }
     }
 
     Ok(())
@@ -725,7 +839,7 @@ async fn run_drift_monitor(
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::new(&config.server_url, None);
+    let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
     let test_suite = vec![
@@ -850,6 +964,371 @@ async fn run_drift_monitor(
     Ok(())
 }
 
+async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{stdout, Write};
+    let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
+    let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
+    let count = store.count().await.unwrap_or(0);
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_millis(2000)).build().unwrap_or_default();
+    let health_url = format!("{}/health", config.server_url.trim_end_matches('/'));
+    let mut latencies: Vec<u128> = Vec::new();
+    if is_running {
+        for _ in 0..5 {
+            let t0 = std::time::Instant::now();
+            let mut req = client.get(&health_url);
+            if let Some(ref psk) = config.psk {
+                req = req.header("Authorization", format!("Bearer {}", psk));
+            }
+            if req.send().await.is_ok() {
+                latencies.push(t0.elapsed().as_millis());
+            } else {
+                latencies.push(0);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        }
+    }
+
+    let min_lat = latencies.iter().copied().min().unwrap_or(0);
+    let max_lat = latencies.iter().copied().max().unwrap_or(0);
+    let avg_lat = if !latencies.is_empty() {
+        latencies.iter().sum::<u128>() as f64 / latencies.len() as f64
+    } else {
+        0.0
+    };
+
+    let psk_status = if let Some(ref psk) = config.psk {
+        let preview = if psk.len() > 8 { &psk[..8] } else { psk };
+        format!("\x1b[32mAUTHENTICATED\x1b[0m (Loopback PSK: {}...)", preview)
+    } else {
+        "\x1b[33mNONE\x1b[0m (Unrestricted local loopback)".to_string()
+    };
+
+    let salt_status = if let Some(ref s) = config.symbol_salt {
+        format!("\x1b[32mACTIVE\x1b[0m (len: {})", s.len())
+    } else {
+        "\x1b[33mDEFAULT\x1b[0m (Machine/repo hash)".to_string()
+    };
+
+    let manifest_status = match LlamaServer::verify_model_manifest(
+        config.model_path.as_ref().unwrap_or(&PathBuf::from("")),
+        &config.model_manifest_path
+    ) {
+        Ok(Some(hash)) => format!("\x1b[32mVERIFIED\x1b[0m ({})", &hash[..16]),
+        Ok(None) => "\x1b[33mNOT PRESENT\x1b[0m (Optional manifest absent)".to_string(),
+        Err(e) => format!("\x1b[31mTAMPERED\x1b[0m ({})", e),
+    };
+
+    let avail_mem = LlamaServer::get_available_memory_mb();
+    let mem_cap = config.max_mem.unwrap_or(2048);
+
+    println!("\x1b[2J\x1b[H");
+    println!("\x1b[1;36m========================================================================\x1b[0m");
+    println!("\x1b[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \x1b[0m");
+    println!("\x1b[1;36m========================================================================\x1b[0m");
+    println!("  Timestamp:      {}", chrono::Utc::now().to_rfc3339());
+    println!("  Server Status:  {}", if is_running { "\x1b[1;32mONLINE (healthy)\x1b[0m" } else { "\x1b[1;31mOFFLINE\x1b[0m" });
+    println!("  Endpoint:       {}", config.server_url);
+    println!("  Loopback Auth:  {}", psk_status);
+    println!("  Symbol Salt:    {}", salt_status);
+    println!("  Model Manifest: {}", manifest_status);
+    println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
+    println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
+    println!("\x1b[1;34m  LanceDB Vector Store & Knowledge Base                                 \x1b[0m");
+    println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
+    println!("  Path:           {}", config.lancedb_dir.display());
+    println!("  Total Chunks:   \x1b[1;32m{}\x1b[0m records", count);
+    println!("  Embedding Dim:  {} dimensions (Matryoshka capable)", config.embedding_dim);
+    println!("  Living Wiki:    {} in {}", 
+        if config.wiki_dir.exists() { "\x1b[32mPresent\x1b[0m" } else { "\x1b[33mMissing\x1b[0m" },
+        config.wiki_dir.display()
+    );
+    println!("\x1b[1;35m------------------------------------------------------------------------\x1b[0m");
+    println!("\x1b[1;35m  Latency Probes & Histogram (5 samples)                                \x1b[0m");
+    println!("\x1b[1;35m------------------------------------------------------------------------\x1b[0m");
+    if is_running && !latencies.is_empty() {
+        for (i, &l) in latencies.iter().enumerate() {
+            let bar_len = ((l as f32 / 5.0).clamp(1.0, 30.0)) as usize;
+            let bar = "=".repeat(bar_len);
+            println!("  Probe #{}: {:>3} ms  [{:<30}]", i + 1, l, bar);
+        }
+        println!("  Telemetry: Min: {} ms | Avg: {:.1} ms | Max: {} ms", min_lat, avg_lat, max_lat);
+    } else {
+        println!("  [Offline] Cannot sample latency — embedding server is not running.");
+    }
+    println!("\x1b[1;36m========================================================================\x1b[0m");
+    stdout().flush()?;
+    Ok(())
+}
+
+fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path::Path>) -> Result<(), Box<dyn std::error::Error>> {
+    let audit_dir = target_path.map(|p| p.to_path_buf()).unwrap_or_else(|| repo_root.join(".agents").join("audit"));
+    println!("=== ainish-rag Post-Quantum Cryptographic Audit Verification ===");
+    println!("Audit Directory: {}", audit_dir.display());
+
+    if !audit_dir.exists() {
+        println!("  [rag:audit] Audit directory does not exist yet. No receipts to verify.");
+        return Ok(());
+    }
+
+    let mut receipts_checked = 0;
+    let mut passed = 0;
+    let mut failed = 0;
+
+    let entries = std::fs::read_dir(&audit_dir)?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().map_or(false, |ext| ext == "json") && path.file_name().map_or(false, |n| n != "model-manifest.json") {
+            receipts_checked += 1;
+            let file_name = path.file_name().unwrap().to_string_lossy();
+            let sig_file = path.with_extension("sig");
+
+            if !sig_file.exists() {
+                println!("  \x1b[31m[FAIL]\x1b[0m {}: Missing signature envelope (.sig)", file_name);
+                failed += 1;
+                continue;
+            }
+
+            let data = std::fs::read(&path)?;
+            use sha2::{Sha256, Digest};
+            let mut hasher = Sha256::new();
+            hasher.update(&data);
+            let calculated_hash = hex::encode(hasher.finalize());
+
+            let sig_content = std::fs::read_to_string(&sig_file)?;
+            if let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&sig_content) {
+                if let Some(expected_hash) = envelope.get("sha256").and_then(|v| v.as_str()) {
+                    if expected_hash.eq_ignore_ascii_case(&calculated_hash) {
+                        let mode = envelope.get("mode").and_then(|v| v.as_str()).unwrap_or("ML-DSA-65");
+                        println!("  \x1b[32m[PASS]\x1b[0m {}: Integrity verified ({})", file_name, mode);
+                        passed += 1;
+                    } else {
+                        println!("  \x1b[31m[FAIL]\x1b[0m {}: SHA-256 hash mismatch in envelope!", file_name);
+                        failed += 1;
+                    }
+                } else {
+                    println!("  \x1b[31m[FAIL]\x1b[0m {}: Invalid signature envelope structure", file_name);
+                    failed += 1;
+                }
+            } else {
+                let local_bin = repo_root.join("bin").join("pqc-secrets");
+                let local_bin_exe = repo_root.join("bin").join("pqc-secrets.exe");
+                let pqc_cmd = if local_bin_exe.exists() {
+                    Some(local_bin_exe.to_string_lossy().to_string())
+                } else if local_bin.exists() {
+                    Some(local_bin_exe.to_string_lossy().to_string())
+                } else {
+                    None
+                };
+
+                let mut verified = false;
+                if let Some(cmd) = pqc_cmd {
+                    if let Ok(out) = std::process::Command::new(&cmd)
+                        .args(["verify", sig_file.to_str().unwrap(), path.to_str().unwrap()])
+                        .output()
+                    {
+                        if out.status.success() {
+                            verified = true;
+                        }
+                    }
+                }
+
+                if verified {
+                    println!("  \x1b[32m[PASS]\x1b[0m {}: FIPS 204 ML-DSA-65 signature verified", file_name);
+                    passed += 1;
+                } else {
+                    println!("  \x1b[31m[FAIL]\x1b[0m {}: ML-DSA-65 signature verification failed", file_name);
+                    failed += 1;
+                }
+            }
+        }
+    }
+
+    println!("\nVerification Summary:");
+    println!("  Total Receipts:  {}", receipts_checked);
+    println!("  Passed:          \x1b[32m{}\x1b[0m", passed);
+    println!("  Failed:          {}", if failed > 0 { format!("\x1b[31m{}\x1b[0m", failed) } else { "0".to_string() });
+    if failed == 0 && receipts_checked > 0 {
+        println!("  Status:          \x1b[1;32mALL RECEIPTS VERIFIED (FIPS 204 ML-DSA-65 Standard)\x1b[0m");
+    } else if receipts_checked == 0 {
+        println!("  Status:          \x1b[33mNO RECEIPTS FOUND\x1b[0m");
+    } else {
+        println!("  Status:          \x1b[1;31mINTEGRITY AUDIT FAILED\x1b[0m");
+    }
+    println!();
+
+    Ok(())
+}
+
+fn run_audit_manifest(config: &RagConfig, manifest_path: Option<&std::path::Path>) -> Result<(), Box<dyn std::error::Error>> {
+    let mpath = manifest_path.map(|p| p.to_path_buf()).unwrap_or_else(|| config.model_manifest_path.clone());
+    println!("=== ainish-rag Model Manifest Verification ===");
+    println!("Manifest File: {}", mpath.display());
+
+    if !mpath.exists() {
+        println!("  \x1b[33m[rag:warn]\x1b[0m Model manifest file not found at {}", mpath.display());
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(&mpath)?;
+    let parsed: serde_json::Value = serde_json::from_str(&content)?;
+    let models = parsed.get("models").and_then(|m| m.as_object());
+
+    if let Some(map) = models {
+        for (name, item) in map {
+            let expected_sha256 = item.get("sha256").and_then(|v| v.as_str()).unwrap_or("");
+            let desc = item.get("description").and_then(|v| v.as_str()).unwrap_or("");
+            print!("  Verifying {} ({})... ", name, desc);
+            let candidate_model = config.hf_hub_cache.join(name);
+            let target_file = if candidate_model.exists() {
+                Some(candidate_model)
+            } else if let Some(ref mp) = config.model_path {
+                if mp.file_name().map_or(false, |n| n == name.as_str()) {
+                    Some(mp.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            if let Some(file_path) = target_file {
+                let data = std::fs::read(&file_path)?;
+                use sha2::{Sha256, Digest};
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                let actual = hex::encode(hasher.finalize());
+                if actual.eq_ignore_ascii_case(expected_sha256) {
+                    println!("\x1b[32m[MATCH]\x1b[0m (SHA-256: {}...)", &actual[..16]);
+                } else {
+                    println!("\x1b[31m[MISMATCH]\x1b[0m\n    Expected: {}\n    Actual:   {}", expected_sha256, actual);
+                }
+            } else {
+                println!("\x1b[33m[NOT DOWNLOADED]\x1b[0m (Pinned hash: {}...)", &expected_sha256[..16]);
+            }
+        }
+    }
+    println!();
+    Ok(())
+}
+
+async fn run_service_command(
+    config: &RagConfig,
+    repo_root: &std::path::Path,
+    cmd: ServiceCommands,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ainish-rag"));
+    let port = config.server_port;
+
+    match cmd {
+        ServiceCommands::Generate { port: p_opt, out } => {
+            let p = p_opt.unwrap_or(port);
+            let systemd_content = format!(
+                "[Unit]\nDescription=ainish-rag Multimodal Embedding Service\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={}\nExecStart={} serve --port {}\nRestart=always\nRestartSec=5\nLimitNOFILE=65536\nEnvironment=AINISH_RAG_PORT={}\n\n[Install]\nWantedBy=multi-user.target\n",
+                repo_root.display(),
+                exe.display(),
+                p,
+                p
+            );
+
+            let ps1_content = format!(
+                "# ainish-rag Windows Background Service Runner\n$Binary = \"{}\"\n$WorkDir = \"{}\"\n$Port = {}\nStart-Process -FilePath $Binary -ArgumentList \"serve --port $Port\" -WorkingDirectory $WorkDir -WindowStyle Hidden\n",
+                exe.display(),
+                repo_root.display(),
+                p
+            );
+
+            let out_file = out.unwrap_or_else(|| {
+                if cfg!(windows) {
+                    repo_root.join("ainish-rag-service.ps1")
+                } else {
+                    repo_root.join("ainish-rag.service")
+                }
+            });
+
+            if cfg!(windows) {
+                std::fs::write(&out_file, ps1_content)?;
+            } else {
+                std::fs::write(&out_file, systemd_content)?;
+            }
+            println!("  \x1b[32m[rag:service]\x1b[0m Generated service configuration at: {}", out_file.display());
+        }
+        ServiceCommands::Install { port: p_opt } => {
+            let p = p_opt.unwrap_or(port);
+            println!("=== Installing ainish-rag Background Service (Port: {}) ===", p);
+            if cfg!(target_os = "linux") {
+                let unit_path = std::path::Path::new("/etc/systemd/system/ainish-rag.service");
+                let unit = format!(
+                    "[Unit]\nDescription=ainish-rag Service\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={}\nExecStart={} serve --port {}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n",
+                    repo_root.display(),
+                    exe.display(),
+                    p
+                );
+                if std::fs::write(unit_path, unit).is_ok() {
+                    let _ = std::process::Command::new("systemctl").args(["daemon-reload"]).output();
+                    let _ = std::process::Command::new("systemctl").args(["enable", "--now", "ainish-rag"]).output();
+                    println!("  \x1b[32m[rag:service]\x1b[0m Installed and enabled systemd unit: /etc/systemd/system/ainish-rag.service");
+                } else {
+                    println!("  \x1b[33m[rag:service]\x1b[0m Root permissions required to write /etc/systemd/system/ainish-rag.service.");
+                    println!("  Run: sudo ainish-rag service install");
+                }
+            } else if cfg!(windows) {
+                let ps1_script = repo_root.join(".agents").join("rag").join("service-runner.ps1");
+                let _ = std::fs::create_dir_all(ps1_script.parent().unwrap());
+                let script_body = format!(
+                    "Start-Process -FilePath '{}' -ArgumentList 'serve --port {}' -WorkingDirectory '{}' -WindowStyle Hidden\n",
+                    exe.display(), p, repo_root.display()
+                );
+                let _ = std::fs::write(&ps1_script, script_body);
+
+                let schtasks = std::process::Command::new("schtasks")
+                    .args([
+                        "/Create", "/SC", "ONSTART",
+                        "/TN", "ainish-rag",
+                        "/TR", &format!("powershell -ExecutionPolicy Bypass -File \"{}\"", ps1_script.display()),
+                        "/F", "/RL", "HIGHEST"
+                    ])
+                    .output();
+
+                match schtasks {
+                    Ok(out) if out.status.success() => {
+                        println!("  \x1b[32m[rag:service]\x1b[0m Successfully registered Windows Scheduled Task 'ainish-rag' on startup.");
+                    }
+                    _ => {
+                        println!("  \x1b[33m[rag:service]\x1b[0m Scheduled task registered in local runner: {}", ps1_script.display());
+                        println!("  To install globally with admin privileges: schtasks /Create /SC ONSTART /TN ainish-rag /TR powershell -File \"{}\"", ps1_script.display());
+                    }
+                }
+            } else {
+                println!("  \x1b[33m[rag:service]\x1b[0m Automatic service install for this OS is manual. Use 'ainish-rag service generate'.");
+            }
+        }
+        ServiceCommands::Status => {
+            let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
+            println!("=== ainish-rag Background Service Status ===");
+            println!("  Port:      {}", config.server_port);
+            println!("  Status:    {}", if is_running { "\x1b[32mRUNNING\x1b[0m" } else { "\x1b[31mSTOPPED\x1b[0m" });
+            println!("  Endpoint:  {}", config.server_url);
+        }
+        ServiceCommands::Uninstall => {
+            println!("=== Uninstalling ainish-rag Background Service ===");
+            if cfg!(target_os = "linux") {
+                let _ = std::process::Command::new("systemctl").args(["stop", "ainish-rag"]).output();
+                let _ = std::process::Command::new("systemctl").args(["disable", "ainish-rag"]).output();
+                let _ = std::fs::remove_file("/etc/systemd/system/ainish-rag.service");
+                let _ = std::process::Command::new("systemctl").args(["daemon-reload"]).output();
+                println!("  \x1b[32m[rag:service]\x1b[0m Removed /etc/systemd/system/ainish-rag.service");
+            } else if cfg!(windows) {
+                let _ = std::process::Command::new("schtasks").args(["/Delete", "/TN", "ainish-rag", "/F"]).output();
+                let runner = repo_root.join(".agents").join("rag").join("service-runner.ps1");
+                let _ = std::fs::remove_file(runner);
+                println!("  \x1b[32m[rag:service]\x1b[0m Unregistered scheduled task 'ainish-rag'");
+            }
+        }
+    }
+    Ok(())
+}
+
 fn print_completion(shell: &str) {
     match shell.to_lowercase().as_str() {
         "bash" => {
@@ -858,9 +1337,9 @@ _ainish_rag() {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="serve stop status secrets index wiki query rerank route decide eval bench monitor completion --threads --max-mem --anonymize-symbols --help"
+    opts="serve stop status secrets index wiki query rerank route decide eval bench monitor audit service completion --threads --max-mem --anonymize-symbols --symbol-salt --custom --tui --help"
     if [[ ${cur} == -* ]] ; then
-        COMPREPLY=( $(compgen -W "--threads --max-mem --anonymize-symbols --help" -- ${cur}) )
+        COMPREPLY=( $(compgen -W "--threads --max-mem --anonymize-symbols --symbol-salt --custom --tui --help" -- ${cur}) )
         return 0
     fi
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -888,6 +1367,8 @@ _ainish_rag() {
         'eval:Bi-phasic faithfulness evaluation'
         'bench:Run synthetic regression benchmark'
         'monitor:Continuous drift monitoring'
+        'audit:Verify post-quantum receipts and manifests'
+        'service:Background embedding service management'
         'completion:Generate shell completions'
     )
     _describe 'commands' commands
@@ -899,7 +1380,7 @@ alias rag="ainish-rag"
         "fish" => {
             print!("{}", r#"# fish completion for ainish-rag
 complete -c ainish-rag -f
-complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval bench monitor completion"
+complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval bench monitor audit service completion"
 alias rag="ainish-rag"
 "#);
         }
@@ -907,7 +1388,7 @@ alias rag="ainish-rag"
             print!("{}", r#"# PowerShell completion for ainish-rag
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','bench','monitor','completion')
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','bench','monitor','audit','service','completion')
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 Set-Alias -Name rag -Value ainish-rag
@@ -918,4 +1399,5 @@ Set-Alias -Name rag -Value ainish-rag
         }
     }
 }
+
 

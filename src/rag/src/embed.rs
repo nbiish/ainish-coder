@@ -24,10 +24,11 @@ pub struct EmbedClient {
     client: reqwest::Client,
     server_url: String,
     truncate_dim: Option<usize>,
+    pub psk: Option<String>,
 }
 
 impl EmbedClient {
-    pub fn new(server_url: &str, truncate_dim: Option<usize>) -> Self {
+    pub fn new(server_url: &str, truncate_dim: Option<usize>, psk: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .build()
@@ -37,6 +38,7 @@ impl EmbedClient {
             client,
             server_url: server_url.trim_end_matches('/').to_string(),
             truncate_dim,
+            psk,
         }
     }
 
@@ -83,10 +85,18 @@ impl EmbedClient {
             encoding_format: "float".to_string(),
         };
 
-        let resp = self.client.post(&url)
+        let mut req_builder = self.client.post(&url)
             .header("Host", "127.0.0.1")
             .header("Origin", "http://127.0.0.1")
-            .header("X-Requested-With", "ainish-rag")
+            .header("X-Requested-With", "ainish-rag");
+
+        if let Some(token) = &self.psk {
+            req_builder = req_builder
+                .header("Authorization", format!("Bearer {}", token))
+                .header("X-Ainish-PSK", token);
+        }
+
+        let resp = req_builder
             .json(&req)
             .send()
             .await
