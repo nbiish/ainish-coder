@@ -13,3 +13,15 @@
 - 15:40 Interactive terminal telemetry dashboard mode (ainish-rag status --tui) implemented with server memory, active port, latency histogram probe, and LanceDB statistics.
 - 15:41 Compiled native release binary bin/ainish-rag.exe (121MB); verified parity across Rust and Python CLI suites.
 - 15:41 Canonical AGENTS.md contract synchronized (.agents/canonical/AGENTS.md.sha256: 5ecd7ded45fb757eb26f56cc37469bb32930bfe4fa997ccf2509597159f8d4ea); py bin/security_gate.py passed 100%.
+- 16:15 Worktree/branch feat/rag-round4-masters initiated for Round 4 masters capabilities.
+- 16:20 Loopback PSK TTL rotation and stale server retirement implemented using OS CSPRNG (secrets module / getrandom).
+- 16:22 Client-side PII and credential redaction heuristics (Luhn card validation, SSNs, PEM private keys, vendor tokens) added before chunking and embedding.
+- 16:24 Dependency lockfile integrity manifest (ainish-rag audit lock / --update) with hash pinning check added across Cargo, uv, poetry, npm, yarn.
+- 16:26 Automated NUMA node binding and CPU affinity pinning (--numa, --cpu-affinity) integrated into llama-server supervisor.
+- 16:27 LanceDB database compaction and WAL version pruning (ainish-rag cleanup --compact --prune-days <N>) implemented.
+- 16:28 Cryptographic CycloneDX 1.6 and SPDX 3.0.1 SBOM export (ainish-rag audit sbom) with detached FIPS 204 ML-DSA-65 signatures added.
+- 16:30 Retrieval-augmented patch evaluation (ainish-rag eval --patch <diff>) implemented for SWE-bench patch anchoring analysis.
+- 16:31 Subagent context injection primer (ainish-rag orient --inject) implemented formatting top wiki sections into <ORIENT_PRIMER>.
+- 16:32 Interactive terminal fuzzy finder (ainish-rag query --fzf) added with fzf streaming and clean terminal snippet selector fallback.
+- 16:33 Compiled native release binary bin/ainish-rag.exe (123MB); verified complete parity across native Rust and Python CLI suites.
+- 16:34 Canonical AGENTS.md contract synchronized (.agents/canonical/AGENTS.md.sha256: f5c80a3d092a24036e8e02b64c83cc40f7e1f0b46fb3d0aae2d6c2d346c92b70); py bin/security_gate.py passed 100%.
