@@ -1,7 +1,7 @@
-# 02. Codebase Connections & Symbols — ainish-rag
+# 02. Codebase Connections & Symbols — ainish-coder
 
 ## 1. Component Linkage & Call Graph
-Codebase components in `ainish-rag` communicate across well-defined interfaces and CLI surfaces.
+Codebase components in `ainish-coder` communicate across well-defined interfaces and CLI surfaces.
 
 ## 2. External Dependencies & Subsystems
 - Zero external heavy dependencies; platform standard library oriented.

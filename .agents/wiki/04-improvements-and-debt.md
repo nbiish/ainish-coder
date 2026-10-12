@@ -1,9 +1,9 @@
-# 04. Improvements & Technical Debt — ainish-rag
+# 04. Improvements & Technical Debt — ainish-coder
 
 ## 1. In-Flight Debt & Code Hotspots
 The following actionable items and markers were identified across the codebase:
-- **`src/rag/src/wiki.rs:136`**: if line.contains("TODO") || line.contains("FIXME") || line.contains("XXX") {
-- **`src/rag/src/wiki.rs:307`**: todo_list.push_str("- No explicit TODO/FIXME markers discovered in codebase.\n");
+- **`src/rag/src/wiki.rs:137`**: if line.contains("TODO") || line.contains("FIXME") || line.contains("XXX") {
+- **`src/rag/src/wiki.rs:308`**: todo_list.push_str("- No explicit TODO/FIXME markers discovered in codebase.\n");
 - **`src/verify_skills.sh:464`**: ing_root="$(mktemp -d "$skills_source/.ainish-ingest.XXXXXX")"
 
 

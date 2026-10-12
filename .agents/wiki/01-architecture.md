@@ -1,16 +1,16 @@
-# 01. System Architecture — ainish-rag
+# 01. System Architecture — ainish-coder
 
 ## 1. Executive Summary
-`ainish-rag` is engineered with modular boundaries, strict separation of concerns, and reproducible deployment artifacts.
+`ainish-coder` is engineered with modular boundaries, strict separation of concerns, and reproducible deployment artifacts.
 
 ## 2. Directory Layout & Module Ownership
 The repository is structured into the following operational subsystems:
 - `.agents/`
+- `.agents/audit/`
 - `.agents/canonical/`
 - `.agents/comms/`
 - `.agents/memories/`
 - `.agents/rag/`
-- `.agents/rag/lancedb/`
 - `.agents/skills/`
 - `.agents/skills/8thfire-scrolls/`
 - `.agents/skills/8thfire-scrolls/benchmarks/`
@@ -42,9 +42,9 @@ The primary execution boundaries and user-facing entrypoints:
 
 
 ## 4. Multimodal Asset Distribution
-- **Total Tracked Files:** 255
-- **Source Code Files:** 93
-- **Documentation & Notes:** 129
+- **Total Tracked Files:** 264
+- **Source Code Files:** 94
+- **Documentation & Notes:** 133
 - **Image Assets:** 3
 - **Audio / Video Media:** 0
 
