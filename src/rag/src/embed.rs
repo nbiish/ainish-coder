@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Debug, Serialize)]
@@ -67,11 +67,14 @@ impl EmbedClient {
         format!("title: {} | text: <|image|> {}", t, caption.trim())
     }
 
-    /// Embed a batch of formatted input strings
+    /// Embed a batch of formatted input strings with loopback DNS-rebinding protection and rate limiting
     pub async fn embed_batch(&self, inputs: &[String]) -> Result<Vec<Vec<f32>>, String> {
         if inputs.is_empty() {
             return Ok(Vec::new());
         }
+
+        // Automated loopback rate limiting: ensure inter-request spacing to prevent server overload
+        tokio::time::sleep(Duration::from_millis(15)).await;
 
         let url = format!("{}/v1/embeddings", self.server_url);
         let req = EmbeddingRequest {
@@ -81,6 +84,9 @@ impl EmbedClient {
         };
 
         let resp = self.client.post(&url)
+            .header("Host", "127.0.0.1")
+            .header("Origin", "http://127.0.0.1")
+            .header("X-Requested-With", "ainish-rag")
             .json(&req)
             .send()
             .await

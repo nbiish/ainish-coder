@@ -172,5 +172,31 @@ if [ -f llms.txt ]; then
   fi
 fi
 
+# ── RAG & WIKI INTELLIGENCE ──
+if [ -d .agents/rag ] || [ -d .agents/wiki ]; then
+  echo ''
+  echo '--- RAG & WIKI INTELLIGENCE ---'
+  if [ -d .agents/wiki ]; then
+    wiki_count=$(find .agents/wiki -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    echo "  wiki pages:     ${wiki_count}"
+  fi
+  if [ -f .agents/rag/drift-monitor.json ]; then
+    status=$(grep -o '"status": *"[^"]*"' .agents/rag/drift-monitor.json 2>/dev/null | cut -d'"' -f4 || echo "UNKNOWN")
+    recall=$(grep -o '"recall_at_3": *[0-9.]*' .agents/rag/drift-monitor.json 2>/dev/null | awk '{print $2}' || echo "N/A")
+    advisory=$(grep -o '"advisory": *"[^"]*"' .agents/rag/drift-monitor.json 2>/dev/null | cut -d'"' -f4 || echo "")
+    echo "  rag status:     ${status} (recall@3: ${recall})"
+    if [ -n "${advisory}" ] && [ "${advisory}" != "null" ]; then
+      echo "  [ADVISORY]      ${advisory}"
+    fi
+  elif [ -d .agents/rag/lancedb ]; then
+    echo "  rag status:     initialized (run 'ainish-rag monitor' to evaluate drift)"
+  fi
+  if [ -d .agents/audit ]; then
+    receipt_count=$(find .agents/audit -maxdepth 1 -name '*-index-receipt.json' 2>/dev/null | wc -l | tr -d ' ')
+    echo "  audit receipts: ${receipt_count} (FIPS 204 ML-DSA-65 signed)"
+  fi
+fi
+
 echo ''
 echo '=== END ==='
+

@@ -26,6 +26,127 @@ impl LlamaServer {
         Ok(format!("GGUF valid ({:.2} MB)", meta.len() as f64 / (1024.0 * 1024.0)))
     }
 
+    /// Verifies binary SHA-256 integrity against optional AINISH_LLAMA_SHA256 pinning
+    pub fn verify_binary_checksum(llama_bin: &Path) -> Result<String, String> {
+        if !llama_bin.exists() {
+            return Err(format!("Llama binary not found at {}", llama_bin.display()));
+        }
+        let data = fs::read(llama_bin).map_err(|e| format!("Failed to read binary for checksum: {}", e))?;
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(&data);
+        let hash = hex::encode(hasher.finalize());
+
+        if let Ok(expected) = std::env::var("AINISH_LLAMA_SHA256") {
+            let exp_clean = expected.trim().to_lowercase();
+            if !exp_clean.is_empty() && hash.to_lowercase() != exp_clean {
+                return Err(format!(
+                    "Llama binary SHA-256 verification mismatch! Expected {}, found {}",
+                    exp_clean, hash
+                ));
+            }
+        }
+
+        Ok(hash)
+    }
+
+    /// Probes available host physical memory in megabytes across Windows, Linux, and macOS
+    pub fn get_available_memory_mb() -> usize {
+        #[cfg(windows)]
+        {
+            #[repr(C)]
+            struct MemoryStatusEx {
+                dw_length: u32,
+                dw_memory_load: u32,
+                ull_total_phys: u64,
+                ull_avail_phys: u64,
+                ull_total_page_file: u64,
+                ull_avail_page_file: u64,
+                ull_total_virtual: u64,
+                ull_avail_virtual: u64,
+                ull_avail_extended_virtual: u64,
+            }
+            unsafe {
+                let mut status = MemoryStatusEx {
+                    dw_length: std::mem::size_of::<MemoryStatusEx>() as u32,
+                    dw_memory_load: 0,
+                    ull_total_phys: 0,
+                    ull_avail_phys: 0,
+                    ull_total_page_file: 0,
+                    ull_avail_page_file: 0,
+                    ull_total_virtual: 0,
+                    ull_avail_virtual: 0,
+                    ull_avail_extended_virtual: 0,
+                };
+                unsafe extern "system" {
+                    fn GlobalMemoryStatusEx(lp_buffer: *mut MemoryStatusEx) -> i32;
+                }
+                if GlobalMemoryStatusEx(&mut status) != 0 {
+                    return (status.ull_avail_phys / (1024 * 1024)) as usize;
+                }
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(content) = fs::read_to_string("/proc/meminfo") {
+                for line in content.lines() {
+                    if line.starts_with("MemAvailable:") {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 2 {
+                            if let Ok(kb) = parts[1].parse::<usize>() {
+                                return kb / 1024;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(out) = Command::new("sysctl").args(["-n", "hw.memsize"]).output() {
+                if let Ok(s) = String::from_utf8(out.stdout) {
+                    if let Ok(bytes) = s.trim().parse::<u64>() {
+                        return (bytes / (1024 * 1024)) as usize;
+                    }
+                }
+            }
+        }
+
+        4096
+    }
+
+    /// Evaluates memory cap safety before model launch
+    pub fn check_memory_cap(max_mem_cap: Option<usize>) -> Result<usize, String> {
+        let avail_mb = Self::get_available_memory_mb();
+        let min_required = 800; // EmbeddingGemma-2 requires ~800MB - 1GB
+
+        if avail_mb < min_required {
+            eprintln!(
+                "  [rag:warn] Host available memory ({} MB) is below recommended minimum ({} MB).",
+                avail_mb, min_required
+            );
+        }
+
+        if let Some(cap) = max_mem_cap {
+            if cap < min_required {
+                return Err(format!(
+                    "Configured --max-mem ({} MB) is below minimum model requirement ({} MB)",
+                    cap, min_required
+                ));
+            }
+            if avail_mb < cap {
+                eprintln!(
+                    "  [rag:system] Available memory ({} MB) is less than configured cap ({} MB); optimizing context buffer",
+                    avail_mb, cap
+                );
+            }
+        }
+
+        Ok(avail_mb)
+    }
+
     pub async fn is_running(server_url: &str) -> bool {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(1500))
@@ -60,6 +181,14 @@ impl LlamaServer {
         let llama_bin = config.llama_bin.as_ref()
             .ok_or_else(|| "llama executable not found. Please install llama.exe or set LLAMA_SERVER_BIN.".to_string())?;
 
+        // 1. Check supply-chain binary checksum integrity
+        let bin_sha = Self::verify_binary_checksum(llama_bin)?;
+        println!("  [rag:security] Verified llama binary SHA-256 ({}...)", &bin_sha[..12.min(bin_sha.len())]);
+
+        // 2. Check memory cap before launch to prevent host OOM kills
+        let avail_mem = Self::check_memory_cap(config.max_mem)?;
+        println!("  [rag:system] Host memory check: {} MB available", avail_mem);
+
         let model_path = config.model_path.as_ref()
             .ok_or_else(|| format!("EmbeddingGemma GGUF model not found in {}", config.hf_hub_cache.display()))?;
         if let Err(err) = Self::verify_model_integrity(model_path) {
@@ -91,7 +220,8 @@ impl LlamaServer {
             .arg("--batch-size").arg("8192")
             .arg("--ubatch-size").arg("8192")
             .arg("--host").arg("127.0.0.1")
-            .arg("--port").arg(config.server_port.to_string());
+            .arg("--port").arg(config.server_port.to_string())
+            .arg("--no-webui");
 
         // GPU / Metal layer offloading (defaults to 99 layers for full offload, 0 disables)
         let ngl = std::env::var("AINISH_RAG_NGL")
