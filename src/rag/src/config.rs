@@ -17,6 +17,9 @@ pub struct RagConfig {
     pub psk: Option<String>,
     pub symbol_salt: Option<String>,
     pub model_manifest_path: PathBuf,
+    pub psk_ttl: Option<u64>,
+    pub numa: Option<String>,
+    pub cpu_affinity: Option<String>,
 }
 
 impl RagConfig {
@@ -84,6 +87,9 @@ impl RagConfig {
             psk,
             symbol_salt,
             model_manifest_path,
+            psk_ttl: env::var("AINISH_RAG_PSK_TTL").ok().and_then(|v| v.trim().parse().ok()).filter(|v| *v > 0),
+            numa: env::var("AINISH_RAG_NUMA").ok().filter(|s| !s.trim().is_empty()),
+            cpu_affinity: env::var("AINISH_RAG_CPU_AFFINITY").ok().filter(|s| !s.trim().is_empty()),
         }
     }
 }

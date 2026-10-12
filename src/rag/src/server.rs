@@ -183,35 +183,74 @@ impl LlamaServer {
         Ok(None)
     }
 
-    /// Resolves or generates a session pre-shared key (PSK) stored in .agents/rag/session.psk
-    pub fn resolve_or_create_psk(rag_dir: &Path) -> String {
+    /// Resolves the loopback session PSK (.agents/rag/session.psk), generating it from the OS CSPRNG
+    /// when absent and rotating it once older than `ttl_secs`. Returns (psk, rotated).
+    /// `AINISH_RAG_PSK` pins an operator-managed key and disables rotation.
+    pub fn resolve_psk(rag_dir: &Path, ttl_secs: Option<u64>) -> Result<(String, bool), String> {
         if let Ok(val) = std::env::var("AINISH_RAG_PSK") {
             let clean = val.trim();
             if !clean.is_empty() {
-                return clean.to_string();
+                return Ok((clean.to_string(), false));
             }
         }
+        let _ = fs::create_dir_all(rag_dir);
         let psk_path = rag_dir.join("session.psk");
-        if psk_path.exists() {
-            if let Ok(content) = fs::read_to_string(&psk_path) {
-                let clean = content.trim();
-                if !clean.is_empty() {
-                    return clean.to_string();
+        let mut existed = false;
+        if let Ok(content) = fs::read_to_string(&psk_path) {
+            let clean = content.trim();
+            if clean.len() >= 32 {
+                existed = true;
+                let expired = match (ttl_secs, fs::metadata(&psk_path).and_then(|m| m.modified())) {
+                    (Some(ttl), Ok(mtime)) => mtime.elapsed().map(|age| age.as_secs() >= ttl).unwrap_or(false),
+                    _ => false,
+                };
+                if !expired {
+                    return Ok((clean.to_string(), false));
                 }
             }
         }
-        let random_id = format!("{:x}{:x}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0), std::process::id());
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(random_id.as_bytes());
-        let psk = hex::encode(hasher.finalize());
-        let _ = fs::write(&psk_path, &psk);
+        let mut bytes = [0u8; 32];
+        getrandom::getrandom(&mut bytes).map_err(|e| format!("OS CSPRNG unavailable for PSK generation: {}", e))?;
+        let psk = hex::encode(bytes);
+        fs::write(&psk_path, &psk).map_err(|e| format!("Failed to persist session PSK: {}", e))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let _ = fs::set_permissions(&psk_path, fs::Permissions::from_mode(0o600));
         }
-        psk
+        Ok((psk, existed))
+    }
+
+    /// Builds llama-server NUMA / CPU affinity arguments from validated settings.
+    /// affinity accepts a range ("0-7") -> --cpu-range, or a hex mask ("0xFF") -> --cpu-mask.
+    pub fn numa_affinity_args(numa: Option<&str>, affinity: Option<&str>) -> Result<Vec<String>, String> {
+        let mut args = Vec::new();
+        if let Some(mode) = numa {
+            match mode {
+                "distribute" | "isolate" | "numactl" => { args.push("--numa".into()); args.push(mode.into()); }
+                other => return Err(format!("Invalid --numa mode '{}': expected distribute|isolate|numactl", other)),
+            }
+        }
+        if let Some(aff) = affinity {
+            let aff = aff.trim();
+            if let Some(hex_mask) = aff.strip_prefix("0x").or_else(|| aff.strip_prefix("0X")) {
+                if hex_mask.is_empty() || hex_mask.len() > 32 || !hex_mask.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Err(format!("Invalid --cpu-affinity mask '{}'", aff));
+                }
+                args.push("--cpu-mask".into()); args.push(hex_mask.to_string());
+            } else if let Some((lo, hi)) = aff.split_once('-') {
+                let lo: u32 = lo.trim().parse().map_err(|_| format!("Invalid --cpu-affinity range '{}'", aff))?;
+                let hi: u32 = hi.trim().parse().map_err(|_| format!("Invalid --cpu-affinity range '{}'", aff))?;
+                if lo > hi || hi > 4095 {
+                    return Err(format!("Invalid --cpu-affinity range '{}'", aff));
+                }
+                args.push("--cpu-range".into()); args.push(format!("{}-{}", lo, hi));
+            } else {
+                return Err(format!("Invalid --cpu-affinity '{}': use a range like 0-7 or a hex mask like 0xFF", aff));
+            }
+            args.push("--cpu-strict".into()); args.push("1".into());
+        }
+        Ok(args)
     }
 
     pub async fn is_running(server_url: &str, psk: Option<&str>) -> bool {
@@ -249,11 +288,22 @@ impl LlamaServer {
         let pid_dir = repo_root.join(".agents").join("rag");
         let _ = fs::create_dir_all(&pid_dir);
         let pid_file = pid_dir.join("llama-server.pid");
-        let psk = config.psk.clone().unwrap_or_else(|| Self::resolve_or_create_psk(&pid_dir));
+        let psk = match config.psk.clone() {
+            Some(p) => p,
+            None => Self::resolve_psk(&pid_dir, config.psk_ttl)?.0,
+        };
+        let affinity_args = Self::numa_affinity_args(config.numa.as_deref(), config.cpu_affinity.as_deref())?;
 
         if Self::is_running(&config.server_url, Some(&psk)).await {
             println!("  [rag] Embedding server already responding at {}", config.server_url);
             return Ok(());
+        }
+
+        // A server we spawned earlier may still hold the port with a rotated-out PSK: retire it first.
+        if pid_file.exists() {
+            println!("  \x1b[33m[rag:security]\x1b[0m Retiring previous embedding server (stale or rotated PSK)...");
+            let _ = Self::stop(repo_root);
+            sleep(Duration::from_millis(750)).await;
         }
 
         println!("  [rag] Starting EmbeddingGemma server on port {}...", config.server_port);
@@ -325,6 +375,11 @@ impl LlamaServer {
             if flash_attn != "off" && flash_attn != "0" {
                 cmd.arg("-fa").arg("on");
             }
+
+            if let Some(t) = config.threads {
+                cmd.arg("--threads").arg(t.to_string());
+            }
+            cmd.args(&affinity_args);
 
             cmd.stdin(Stdio::null())
                 .stdout(Stdio::null())

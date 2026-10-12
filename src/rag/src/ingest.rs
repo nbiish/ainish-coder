@@ -382,19 +382,92 @@ fn hash_id(path: &str, start_l: i32, end_l: i32) -> String {
     hex::encode(&res[..8])
 }
 
-pub fn scrub_sensitive_content(text: &str) -> String {
-    let re_kv = match Regex::new(r#"(?i)(api[_-]?key|secret|password|token|bearer|auth|private[_-]?key)\s*([:=])\s*([^
-#\s]+)"#) {
-        Ok(r) => r,
-        Err(_) => return text.to_string(),
-    };
-    let scrubbed = re_kv.replace_all(text, "$1$2[REDACTED]");
+static RE_PRIVATE_KEY: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----").expect("valid regex")
+});
+static RE_KV_SECRET: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"(?i)(api[_-]?key|secret|password|passwd|token|bearer|auth|private[_-]?key)(\s*[:=]\s*)(["']?)([^\s#"',;]{4,})"#).expect("valid regex")
+});
+static RE_TOKENS: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{20,}",
+        r"|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}",
+        r"|(?:AKIA|ASIA)[0-9A-Z]{16}",
+        r"|AIza[0-9A-Za-z_-]{35}",
+        r"|xox[abprs]-[A-Za-z0-9-]{10,}",
+        r"|glpat-[A-Za-z0-9_-]{20}",
+        r"|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})"
+    )).expect("valid regex")
+});
+static RE_EMAIL: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b").expect("valid regex")
+});
+static RE_SSN: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"\b\d{3}-\d{2}-\d{4}\b").expect("valid regex")
+});
+static RE_PHONE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    // Requires separators so bare numeric literals in code are not matched.
+    Regex::new(r"(?:\+\d{1,3}[ .-])?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b").expect("valid regex")
+});
+static RE_CARD: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"\b\d(?:[ -]?\d){12,18}\b").expect("valid regex")
+});
 
-    let re_tokens = match Regex::new(r#"(?:sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,})"#) {
-        Ok(r) => r,
-        Err(_) => return scrubbed.to_string(),
-    };
-    re_tokens.replace_all(&scrubbed, "[REDACTED]").to_string()
+fn luhn_valid(digits: &str) -> bool {
+    let ds: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(10)).collect();
+    if ds.len() < 13 || ds.len() > 19 {
+        return false;
+    }
+    let sum: u32 = ds.iter().rev().enumerate().map(|(i, &d)| {
+        if i % 2 == 1 { let x = d * 2; if x > 9 { x - 9 } else { x } } else { d }
+    }).sum();
+    sum % 10 == 0
+}
+
+/// Client-side redaction applied to every chunk before it reaches the embedding server or LanceDB.
+/// Removes credentials (key/value secrets, vendor token formats, PEM private keys) and PII
+/// (emails, SSNs, separator-formatted phone numbers, Luhn-valid payment card numbers).
+pub fn scrub_sensitive_content(text: &str) -> String {
+    let s = RE_PRIVATE_KEY.replace_all(text, "[REDACTED:PRIVATE_KEY]");
+    let s = RE_TOKENS.replace_all(&s, "[REDACTED:TOKEN]");
+    let s = RE_KV_SECRET.replace_all(&s, |caps: &regex::Captures| {
+        if !caps[3].is_empty() || caps[4].len() >= 16 {
+            format!("{}{}{}[REDACTED]", &caps[1], &caps[2], &caps[3])
+        } else {
+            caps[0].to_string()
+        }
+    });
+    let s = RE_EMAIL.replace_all(&s, "[REDACTED:EMAIL]");
+    let s = RE_SSN.replace_all(&s, "[REDACTED:SSN]");
+    let s = RE_CARD.replace_all(&s, |caps: &regex::Captures| {
+        let m = &caps[0];
+        if luhn_valid(m) { "[REDACTED:CARD]".to_string() } else { m.to_string() }
+    });
+    let s = RE_PHONE.replace_all(&s, "[REDACTED:PHONE]");
+    s.into_owned()
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::scrub_sensitive_content as scrub;
+
+    #[test]
+    fn redacts_pii_and_credentials() {
+        let input = "contact jane.doe@example.org or 555-867-5309; ssn 123-45-6789; card 4111 1111 1111 1111\n\
+                     api_key = \"abcd1234efgh\"\nAKIAIOSFODNN7EXAMPLE ghp_abcdefghijklmnopqrstuvwxyz0123\n\
+                     -----BEGIN PRIVATE KEY-----\nMIIBVQ\n-----END PRIVATE KEY-----";
+        let out = scrub(input);
+        for leaked in ["jane.doe@example.org", "867-5309", "123-45-6789", "4111 1111", "abcd1234efgh", "AKIAIOSFODNN7EXAMPLE", "ghp_abcdef", "MIIBVQ"] {
+            assert!(!out.contains(leaked), "leaked {leaked}: {out}");
+        }
+        assert!(out.contains("[REDACTED:EMAIL]") && out.contains("[REDACTED:CARD]") && out.contains("[REDACTED:PRIVATE_KEY]"));
+    }
+
+    #[test]
+    fn preserves_ordinary_code() {
+        let code = "let total = 1234567890123; // not luhn\nfn add(a: i32) -> i32 { a + 42 }\nversion = \"1.2.3\"";
+        assert_eq!(scrub(code), code);
+    }
 }
 
 pub fn anonymize_content_and_symbols(content: &str, symbols: &[String], salt: Option<&str>) -> (String, Vec<String>) {

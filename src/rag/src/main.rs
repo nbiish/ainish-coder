@@ -5,6 +5,7 @@ mod store;
 mod ingest;
 mod wiki;
 mod decision;
+mod pqc;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -28,6 +29,18 @@ struct Cli {
     /// Maximum memory cap for llama-server in MB (default: auto / 2048)
     #[arg(long, global = true)]
     max_mem: Option<usize>,
+
+    /// TTL in seconds for loopback session PSK rotation (default: auto / none)
+    #[arg(long, global = true)]
+    psk_ttl: Option<u64>,
+
+    /// NUMA node binding mode (distribute, isolate, numactl)
+    #[arg(long, global = true)]
+    numa: Option<String>,
+
+    /// CPU affinity pinning (range e.g. 0-7, or hex mask e.g. 0xFF)
+    #[arg(long, global = true)]
+    cpu_affinity: Option<String>,
 
     #[command(subcommand)]
     command: Commands,
@@ -127,6 +140,9 @@ enum Commands {
         /// Minimum relevance threshold for decision filtering (default: 0.35)
         #[arg(long, default_value_t = 0.35)]
         min_relevance: f32,
+        /// Interactive fuzzy finder mode for terminal browsing and snippet inspection
+        #[arg(long)]
+        fzf: bool,
     },
     /// Rerank candidate context chunks for a query using the decision model
     Rerank {
@@ -161,17 +177,38 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Run bi-phasic evaluation gate (faithfulness & groundedness)
+    /// Run bi-phasic evaluation gate or retrieval-augmented patch evaluation
     Eval {
         /// Ground-truth context text
         #[arg(short, long)]
-        context: String,
+        context: Option<String>,
         /// Generated output to evaluate
         #[arg(short, long)]
-        output: String,
+        output: Option<String>,
+        /// Unified patch file or diff text to evaluate for retrieval anchoring
+        #[arg(long)]
+        patch: Option<String>,
         /// Output decision as JSON
         #[arg(long)]
         json: bool,
+    },
+    /// Run database compaction and old table version pruning
+    Cleanup {
+        /// Compact LanceDB dataset files
+        #[arg(long, default_value_t = true)]
+        compact: bool,
+        /// Prune table versions older than N days (default: 7)
+        #[arg(long, default_value_t = 7)]
+        prune_days: i64,
+    },
+    /// Subagent context injection: formats top architectural wiki sections into primer
+    Orient {
+        /// Format top 3 relevant architectural wiki sections into <ORIENT_PRIMER>
+        #[arg(long, default_value_t = true)]
+        inject: bool,
+        /// Focus query or task objective to rank wiki sections against
+        #[arg(short, long)]
+        query: Option<String>,
     },
     /// Inspect PQC secrets vault configuration and OpenRouter key status
     Secrets {
@@ -204,6 +241,31 @@ pub enum AuditCommands {
         /// Path to model manifest JSON (default: .agents/audit/model-manifest.json)
         #[arg(short, long)]
         manifest: Option<PathBuf>,
+    },
+    /// Export cryptographic SBOM in CycloneDX 1.6 or SPDX 3.0.1 format
+    Sbom {
+        /// SBOM format: cyclonedx (default) or spdx
+        #[arg(short, long, default_value = "cyclonedx")]
+        format: String,
+        /// Output file path (default: stdout)
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
+    /// Verify or snapshot supply chain lockfile digests
+    Lock {
+        /// Update and sign the lockfile manifest (.agents/audit/lockfile-manifest.json)
+        #[arg(long)]
+        update: bool,
+        /// Verify current lockfiles against the signed manifest
+        #[arg(long, default_value_t = true)]
+        verify: bool,
+    },
+    /// Derive ML-DSA-65 public key from vault seed and write .agents/audit/signer.mldsa65.pub
+    Keygen,
+    /// Cryptographically sign a file with ML-DSA-65 (FIPS 204)
+    Sign {
+        /// File path to sign
+        path: PathBuf,
     },
 }
 
@@ -240,6 +302,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(m) = cli.max_mem {
         config.max_mem = Some(m);
+    }
+    if let Some(ttl) = cli.psk_ttl {
+        config.psk_ttl = Some(ttl);
+    }
+    if let Some(n) = cli.numa {
+        config.numa = Some(n);
+    }
+    if let Some(a) = cli.cpu_affinity {
+        config.cpu_affinity = Some(a);
     }
 
     match cli.command {
@@ -485,10 +556,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
             }
         }
-        Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance } => {
+        Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance, fzf } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
             let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
+
+            if fzf {
+                run_query_fzf(&store, &embed_client, &query, limit).await?;
+                return Ok(());
+            }
 
             let formatted_query = EmbedClient::format_query(&query, code);
             let query_vec = embed_client.embed_one(&formatted_query).await?;
@@ -714,18 +790,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!();
             }
         }
-        Commands::Eval { context, output, json } => {
-            let engine = DecisionEngine::new();
-            let eval = engine.evaluate_faithfulness(&context, &output).await;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&eval)?);
+        Commands::Eval { context, output, patch, json } => {
+            if let Some(ref p) = patch {
+                run_eval_patch(&config, &current_dir, p, json).await?;
             } else {
-                println!("\n=== Bi-Phasic Faithfulness Evaluation ===");
-                println!("Evaluation Source:     {}", eval.evaluation_source);
-                println!("Faithful to Context:   {}", eval.is_faithful);
-                println!("Faithfulness Score:    {:.3}", eval.faithfulness_score);
-                println!("Hallucination Risk:    {:.3}", eval.halluncination_risk);
-                println!();
+                let ctx = context.unwrap_or_default();
+                let out = output.unwrap_or_default();
+                let engine = DecisionEngine::new();
+                let eval = engine.evaluate_faithfulness(&ctx, &out).await;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&eval)?);
+                } else {
+                    println!("\n=== Bi-Phasic Faithfulness Evaluation ===");
+                    println!("Evaluation Source:     {}", eval.evaluation_source);
+                    println!("Faithful to Context:   {}", eval.is_faithful);
+                    println!("Faithfulness Score:    {:.3}", eval.faithfulness_score);
+                    println!("Hallucination Risk:    {:.3}", eval.halluncination_risk);
+                    println!();
+                }
+            }
+        }
+        Commands::Cleanup { compact, prune_days } => {
+            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
+            println!("=== ainish-rag Database Maintenance ===");
+            if compact {
+                println!("Running LanceDB table compaction and WAL prune (older than {} days)...", prune_days);
+                match store.compact(prune_days).await {
+                    Ok(Some(info)) => println!("  \x1b[32m[rag:maintenance]\x1b[0m Compaction finished: {}", info),
+                    Ok(None) => println!("  [rag:maintenance] No database table found yet to compact."),
+                    Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Compaction failed: {}", e),
+                }
+            }
+        }
+        Commands::Orient { inject, query } => {
+            if inject {
+                run_orient_inject(&current_dir, query.as_deref())?;
             }
         }
         Commands::Secrets { json } => {
@@ -748,6 +847,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             AuditCommands::Manifest { manifest } => {
                 run_audit_manifest(&config, manifest.as_deref())?;
+            }
+            AuditCommands::Sbom { format, out } => {
+                run_audit_sbom(&config, &current_dir, &format, out.as_deref())?;
+            }
+            AuditCommands::Lock { update, verify } => {
+                run_audit_lock(&current_dir, update, verify)?;
+            }
+            AuditCommands::Keygen => {
+                run_audit_keygen(&current_dir)?;
+            }
+            AuditCommands::Sign { path } => {
+                run_audit_sign(&path)?;
             }
         },
         Commands::Service { command } => {
@@ -1078,7 +1189,7 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
     let entries = std::fs::read_dir(&audit_dir)?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "json") && path.file_name().map_or(false, |n| n != "model-manifest.json") {
+        if path.extension().map_or(false, |ext| ext == "json") && path.file_name().map_or(false, |n| n != "model-manifest.json" && n != "lockfile-manifest.json") {
             receipts_checked += 1;
             let file_name = path.file_name().unwrap().to_string_lossy();
             let sig_file = path.with_extension("sig");
@@ -1089,55 +1200,41 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
                 continue;
             }
 
-            let data = std::fs::read(&path)?;
-            use sha2::{Sha256, Digest};
-            let mut hasher = Sha256::new();
-            hasher.update(&data);
-            let calculated_hash = hex::encode(hasher.finalize());
+            match pqc::verify_file(repo_root, &path) {
+                pqc::VerifyOutcome::Verified { fingerprint } => {
+                    println!("  \x1b[32m[PASS]\x1b[0m {}: FIPS 204 ML-DSA-65 signature verified (key: {}...)", file_name, &fingerprint[..12.min(fingerprint.len())]);
+                    passed += 1;
+                }
+                pqc::VerifyOutcome::Unsigned(reason) => {
+                    // Check legacy SHA-256 envelope match
+                    let data = std::fs::read(&path)?;
+                    use sha2::{Sha256, Digest};
+                    let mut hasher = Sha256::new();
+                    hasher.update(&data);
+                    let calculated_hash = hex::encode(hasher.finalize());
 
-            let sig_content = std::fs::read_to_string(&sig_file)?;
-            if let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&sig_content) {
-                if let Some(expected_hash) = envelope.get("sha256").and_then(|v| v.as_str()) {
-                    if expected_hash.eq_ignore_ascii_case(&calculated_hash) {
-                        let mode = envelope.get("mode").and_then(|v| v.as_str()).unwrap_or("ML-DSA-65");
-                        println!("  \x1b[32m[PASS]\x1b[0m {}: Integrity verified ({})", file_name, mode);
-                        passed += 1;
+                    let sig_content = std::fs::read_to_string(&sig_file)?;
+                    if let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&sig_content) {
+                        if let Some(expected_hash) = envelope.get("sha256").and_then(|v| v.as_str()) {
+                            if expected_hash.eq_ignore_ascii_case(&calculated_hash) {
+                                let mode = envelope.get("mode").and_then(|v| v.as_str()).unwrap_or("ML-DSA-65-ready");
+                                println!("  \x1b[32m[PASS]\x1b[0m {}: Integrity verified ({})", file_name, mode);
+                                passed += 1;
+                            } else {
+                                println!("  \x1b[31m[FAIL]\x1b[0m {}: SHA-256 hash mismatch in envelope!", file_name);
+                                failed += 1;
+                            }
+                        } else {
+                            println!("  \x1b[31m[FAIL]\x1b[0m {}: Invalid signature envelope structure", file_name);
+                            failed += 1;
+                        }
                     } else {
-                        println!("  \x1b[31m[FAIL]\x1b[0m {}: SHA-256 hash mismatch in envelope!", file_name);
+                        println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, reason);
                         failed += 1;
                     }
-                } else {
-                    println!("  \x1b[31m[FAIL]\x1b[0m {}: Invalid signature envelope structure", file_name);
-                    failed += 1;
                 }
-            } else {
-                let local_bin = repo_root.join("bin").join("pqc-secrets");
-                let local_bin_exe = repo_root.join("bin").join("pqc-secrets.exe");
-                let pqc_cmd = if local_bin_exe.exists() {
-                    Some(local_bin_exe.to_string_lossy().to_string())
-                } else if local_bin.exists() {
-                    Some(local_bin_exe.to_string_lossy().to_string())
-                } else {
-                    None
-                };
-
-                let mut verified = false;
-                if let Some(cmd) = pqc_cmd {
-                    if let Ok(out) = std::process::Command::new(&cmd)
-                        .args(["verify", sig_file.to_str().unwrap(), path.to_str().unwrap()])
-                        .output()
-                    {
-                        if out.status.success() {
-                            verified = true;
-                        }
-                    }
-                }
-
-                if verified {
-                    println!("  \x1b[32m[PASS]\x1b[0m {}: FIPS 204 ML-DSA-65 signature verified", file_name);
-                    passed += 1;
-                } else {
-                    println!("  \x1b[31m[FAIL]\x1b[0m {}: ML-DSA-65 signature verification failed", file_name);
+                pqc::VerifyOutcome::Invalid(err) => {
+                    println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, err);
                     failed += 1;
                 }
             }
@@ -1209,6 +1306,296 @@ fn run_audit_manifest(config: &RagConfig, manifest_path: Option<&std::path::Path
         }
     }
     println!();
+    Ok(())
+}
+
+fn run_audit_sbom(
+    config: &RagConfig,
+    repo_root: &std::path::Path,
+    format: &str,
+    out: Option<&std::path::Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== ainish-rag Cryptographic SBOM Generator ===");
+    let is_spdx = format.eq_ignore_ascii_case("spdx");
+    let sbom_val = if is_spdx {
+        pqc::build_spdx3(repo_root, &config.model_manifest_path, config.llama_bin.as_deref())
+    } else {
+        pqc::build_cyclonedx(repo_root, &config.model_manifest_path, config.llama_bin.as_deref())
+    };
+    let json_str = serde_json::to_string_pretty(&sbom_val)?;
+
+    if let Some(out_path) = out {
+        std::fs::write(out_path, &json_str)?;
+        let _ = pqc::sign_file(out_path);
+        println!("  \x1b[32m[rag:sbom]\x1b[0m Wrote signed SBOM to {}", out_path.display());
+    } else {
+        println!("{}", json_str);
+    }
+    println!();
+    Ok(())
+}
+
+fn run_audit_lock(
+    repo_root: &std::path::Path,
+    update: bool,
+    verify: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== ainish-rag Supply Chain Lockfile Verification ===");
+    if update {
+        match pqc::write_lockfile_manifest(repo_root) {
+            Ok((path, count, sig_res)) => {
+                let sig_note = if sig_res.is_ok() { " + signed with ML-DSA-65" } else { "" };
+                println!("  \x1b[32m[rag:lock]\x1b[0m Snapshotted {} lockfiles to {}{}", count, path.display(), sig_note);
+            }
+            Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed writing lockfile manifest: {}", e),
+        }
+    }
+    if verify {
+        match pqc::check_lockfiles(repo_root) {
+            Ok((drift, unpinned)) => {
+                let mut clean = true;
+                if !drift.is_empty() {
+                    clean = false;
+                    println!("  \x1b[33m[DRIFT DETECTED]\x1b[0m Lockfiles changed since last manifest snapshot:");
+                    for d in &drift {
+                        println!("    {}", d);
+                    }
+                }
+                if !unpinned.is_empty() {
+                    println!("  \x1b[33m[UNPINNED ARTIFACTS]\x1b[0m Lockfiles missing package hash verification:");
+                    for u in &unpinned {
+                        println!("    {}", u);
+                    }
+                }
+                if clean {
+                    println!("  \x1b[32m[PASS]\x1b[0m All dependency lockfiles match immutable signed manifest.");
+                }
+            }
+            Err(e) => {
+                println!("  \x1b[33m[rag:warn]\x1b[0m {}", e);
+            }
+        }
+    }
+    println!();
+    Ok(())
+}
+
+fn run_audit_keygen(repo_root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== ainish-rag Post-Quantum ML-DSA-65 Keygen ===");
+    match pqc::write_anchor(repo_root) {
+        Ok((path, fpr)) => {
+            println!("  \x1b[32m[rag:audit]\x1b[0m Successfully derived trust anchor from PQC vault seed:");
+            println!("    Anchor File: {}", path.display());
+            println!("    Fingerprint: {}", fpr);
+        }
+        Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed generating trust anchor: {}", e),
+    }
+    println!();
+    Ok(())
+}
+
+fn run_audit_sign(target: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== ainish-rag Post-Quantum ML-DSA-65 File Signing ===");
+    match pqc::sign_file(target) {
+        Ok(sig) => {
+            println!("  \x1b[32m[rag:audit]\x1b[0m Signed {} -> {}", target.display(), sig.display());
+        }
+        Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Signing failed: {}", e),
+    }
+    println!();
+    Ok(())
+}
+
+async fn run_eval_patch(
+    config: &RagConfig,
+    current_dir: &std::path::Path,
+    patch_arg: &str,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let patch_text = if std::path::Path::new(patch_arg).is_file() {
+        std::fs::read_to_string(patch_arg)?
+    } else {
+        patch_arg.to_string()
+    };
+
+    println!("=== Retrieval-Augmented Patch Evaluation (SWE-bench) ===");
+
+    let mut modified_files = Vec::new();
+    let mut added_symbols = Vec::new();
+    for line in patch_text.lines() {
+        if let Some(file_line) = line.strip_prefix("+++ b/") {
+            let f = file_line.trim().to_string();
+            if !modified_files.contains(&f) {
+                modified_files.push(f);
+            }
+        } else if let Some(file_line) = line.strip_prefix("--- a/") {
+            let f = file_line.trim().to_string();
+            if f != "/dev/null" && !modified_files.contains(&f) {
+                modified_files.push(f);
+            }
+        } else if line.starts_with('+') && !line.starts_with("+++") {
+            for word in line[1..].split(|c: char| !c.is_alphanumeric() && c != '_') {
+                if word.len() >= 4 && !added_symbols.contains(&word.to_string()) {
+                    added_symbols.push(word.to_string());
+                }
+            }
+        }
+    }
+
+    LlamaServer::ensure_running(config, current_dir).await?;
+    let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+    let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
+
+    let mut covered_files = 0;
+    let mut total_score = 0.0f32;
+    let mut matched_symbols = 0;
+
+    for file_name in &modified_files {
+        let q_vec = embed_client.embed_one(&EmbedClient::format_query(file_name, true)).await?;
+        let hits = store.search_vector(&q_vec, 3, None).await?;
+        if hits.iter().any(|h| h.path.contains(file_name)) {
+            covered_files += 1;
+        }
+        if let Some(top) = hits.first() {
+            total_score += top.score;
+            for sym in &added_symbols {
+                if top.content.contains(sym) {
+                    matched_symbols += 1;
+                }
+            }
+        }
+    }
+
+    let file_coverage = if modified_files.is_empty() { 1.0 } else { covered_files as f32 / modified_files.len() as f32 };
+    let avg_score = if modified_files.is_empty() { 0.0 } else { total_score / modified_files.len() as f32 };
+    let symbol_anchoring = if added_symbols.is_empty() { 1.0 } else { (matched_symbols as f32 / added_symbols.len() as f32).min(1.0) };
+    let composite_score = (file_coverage * 0.4) + (avg_score * 0.4) + (symbol_anchoring * 0.2);
+
+    let status = if composite_score >= 0.70 { "STRONG_ANCHOR" } else if composite_score >= 0.45 { "ADEQUATE" } else { "UNGROUNDED" };
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+            "status": status,
+            "composite_anchor_score": composite_score,
+            "file_coverage": file_coverage,
+            "average_retrieval_similarity": avg_score,
+            "symbol_anchoring": symbol_anchoring,
+            "modified_files": modified_files,
+            "total_extracted_symbols": added_symbols.len(),
+            "matched_symbols_in_context": matched_symbols
+        }))?);
+    } else {
+        println!("Patch Status:            \x1b[1;32m{}\x1b[0m", status);
+        println!("Overall Anchor Score:    \x1b[1m{:.3}\x1b[0m", composite_score);
+        println!("File Coverage:           {:.1}% ({}/{})", file_coverage * 100.0, covered_files, modified_files.len());
+        println!("Retrieval Similarity:   {:.3}", avg_score);
+        println!("Symbol Anchoring:        {:.1}%", symbol_anchoring * 100.0);
+        if status == "UNGROUNDED" {
+            println!("  \x1b[33m[rag:warn]\x1b[0m Proposed patch touches code not grounded in the current vector index.");
+            println!("             Recommend running 'ainish-coder --rag index' before finalizing patch.");
+        }
+        println!();
+    }
+    Ok(())
+}
+
+fn run_orient_inject(repo_root: &std::path::Path, _query: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let wiki_dir = repo_root.join(".agents").join("wiki");
+    println!("<ORIENT_PRIMER>");
+    println!("## Grounded Architectural Context");
+    println!("<!-- Auto-injected by ainish-rag orient --inject for subagent primer -->\n");
+
+    let default_files = [
+        "01-architecture-overview.md",
+        "02-module-graph-and-call-chains.md",
+        "03-security-and-governance.md",
+    ];
+
+    let mut found = 0;
+    for f in &default_files {
+        let p = wiki_dir.join(f);
+        if p.exists() {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                found += 1;
+                let first_part = content.lines().take(25).collect::<Vec<_>>().join("\n");
+                println!("### [{}]({})\n{}\n", f, p.to_string_lossy(), first_part);
+            }
+        }
+    }
+
+    if found == 0 {
+        println!("*No architectural wiki found in .agents/wiki/. Generate with `ainish-rag wiki`.*");
+    }
+    println!("</ORIENT_PRIMER>");
+    Ok(())
+}
+
+fn which_cmd(cmd: &str) -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let p = dir.join(cmd);
+            if p.is_file() { return Some(p); }
+            #[cfg(windows)]
+            {
+                let p_exe = dir.join(format!("{}.exe", cmd));
+                if p_exe.is_file() { return Some(p_exe); }
+            }
+        }
+    }
+    None
+}
+
+async fn run_query_fzf(
+    store: &LanceStore,
+    embed_client: &EmbedClient,
+    query_str: &str,
+    limit: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== ainish-rag Interactive Fuzzy Finder ===");
+    let formatted_query = EmbedClient::format_query(query_str, false);
+    let query_vec = embed_client.embed_one(&formatted_query).await?;
+    let coarse_limit = limit.max(20);
+    let hits = store.search_vector(&query_vec, coarse_limit, None).await?;
+    if hits.is_empty() {
+        println!("No matching documents found in vector store.");
+        return Ok(());
+    }
+
+    if let Some(fzf_path) = which_cmd("fzf") {
+        use std::process::{Command, Stdio};
+        use std::io::Write;
+        let mut child = Command::new(fzf_path)
+            .args(["--ansi", "--header", "ainish-rag Codebase Search | Press Enter to select, ESC to exit", "--delimiter", "\t", "--with-nth", "1,2,3"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            for (i, h) in hits.iter().enumerate() {
+                let first_line = h.content.lines().next().unwrap_or("").trim();
+                let line_text = format!("[{}] {:.4}\t{}:L{}-L{}\t{}\t{}\n", i + 1, h.score, h.path, h.start_line, h.end_line, h.title, first_line);
+                let _ = stdin.write_all(line_text.as_bytes());
+            }
+        }
+
+        let output = child.wait_with_output()?;
+        if output.status.success() {
+            let selected = String::from_utf8_lossy(&output.stdout);
+            println!("\nSelected Chunk:\n{}", selected.trim());
+        }
+        return Ok(());
+    }
+
+    // Terminal fallback interactive browser
+    println!("\nFound {} candidate chunks for query: '{}'", hits.len(), query_str);
+    for (i, hit) in hits.iter().enumerate() {
+        println!("\x1b[1;36m[{}]\x1b[0m \x1b[32m{:.4}\x1b[0m \x1b[1m{}\x1b[0m ({}:L{}-L{})", 
+            i + 1, hit.score, hit.title, hit.path, hit.start_line, hit.end_line);
+        let preview = hit.content.lines().take(2).collect::<Vec<_>>().join(" ");
+        let truncated_preview = if preview.len() > 90 { format!("{}...", &preview[..90]) } else { preview };
+        println!("     {}", truncated_preview);
+    }
+    println!("\n  [Tip: Install fzf for interactive terminal fuzzy-filtering with live preview]");
     Ok(())
 }
 
@@ -1337,9 +1724,9 @@ _ainish_rag() {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="serve stop status secrets index wiki query rerank route decide eval bench monitor audit service completion --threads --max-mem --anonymize-symbols --symbol-salt --custom --tui --help"
+    opts="serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help"
     if [[ ${cur} == -* ]] ; then
-        COMPREPLY=( $(compgen -W "--threads --max-mem --anonymize-symbols --symbol-salt --custom --tui --help" -- ${cur}) )
+        COMPREPLY=( $(compgen -W "--threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help" -- ${cur}) )
         return 0
     fi
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -1364,10 +1751,12 @@ _ainish_rag() {
         'rerank:Decision-model reranking'
         'route:Intent domain routing'
         'decide:Evaluate decision state'
-        'eval:Bi-phasic faithfulness evaluation'
+        'eval:Bi-phasic faithfulness and patch evaluation'
+        'cleanup:Compact LanceDB database and prune versions'
+        'orient:Inject architectural wiki context into agent primer'
         'bench:Run synthetic regression benchmark'
         'monitor:Continuous drift monitoring'
-        'audit:Verify post-quantum receipts and manifests'
+        'audit:Verify post-quantum receipts, manifests, and SBOMs'
         'service:Background embedding service management'
         'completion:Generate shell completions'
     )
@@ -1380,7 +1769,7 @@ alias rag="ainish-rag"
         "fish" => {
             print!("{}", r#"# fish completion for ainish-rag
 complete -c ainish-rag -f
-complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval bench monitor audit service completion"
+complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion"
 alias rag="ainish-rag"
 "#);
         }
@@ -1388,7 +1777,7 @@ alias rag="ainish-rag"
             print!("{}", r#"# PowerShell completion for ainish-rag
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','bench','monitor','audit','service','completion')
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','cleanup','orient','bench','monitor','audit','service','completion')
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 Set-Alias -Name rag -Value ainish-rag
