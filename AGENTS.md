@@ -91,14 +91,16 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | Command | Action | Standard / Use |
 | :--- | :--- | :--- |
 | `ainish-rag query "<term>"` | Semantic vector search | Recon & symbol lookup; `--code` for code mode, `--fzf` for interactive terminal finder |
-| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Subagent prompt context injection with top-3 relevant architectural wiki sections |
-| `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Pre-merge verification; scores file coverage, symbol anchoring, and retrieval grounding |
-| `ainish-rag index [--watch]` | Vectorize codebase into LanceDB | Initial setup, or when `git context` flags `DRIFT_DETECTED` or `ORIENT:HIGH_DIVERGENCE` |
+| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned (`--task-conditioned`) subagent context injection with top-3 wiki sections |
+| `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Scores coverage, symbol anchoring, grounding; `--generate-patch` outputs AST import diff |
+| `ainish-rag gate [--bell]` | Unified pre-merge gate | Runs patch eval, lockfile drift, ML-DSA-65 receipts, contract threshold (`--notify`) |
+| `ainish-rag index [--watch]` | Vectorize codebase into LanceDB | Initial setup or drift refresh; supports `--anonymize-symbols` and `--dp-noise` |
 | `ainish-rag wiki [--index]` | Build 6-part living wiki | Grounding mental model; writes `.agents/wiki/01..06.md` and indexes into LanceDB |
 | `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance; prune WAL older than N days (`--prune-days <N>`) |
-| `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts in `.agents/audit/*.json` |
+| `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts and k-of-n contract thresholds |
 | `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfile integrity and package hash pinning (`--update` to re-snapshot) |
-| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6 or SPDX 3.0.1 SBOM with detached ML-DSA-65 signature |
+| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6, SPDX 3.0.1, or in-toto v1.0 (`--format intoto`) signed SBOM |
+| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`) for `AGENTS.md` |
 | `ainish-rag audit sign <file>` | Detached ML-DSA-65 sign | Cryptographically signs compliance artifact generating `.sig` envelope |
 | `ainish-rag status [--tui]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, and chunk count |
 | `ainish-rag service <cmd>` | Background embedding server | `status` · `install` · `generate` · `uninstall` for supervised OS daemon service |

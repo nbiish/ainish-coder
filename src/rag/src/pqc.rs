@@ -389,6 +389,9 @@ fn collect_items(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&Pat
 }
 
 fn signer_fpr(repo_root: &Path) -> Option<String> {
+    if !anchor_path(repo_root).exists() && std::env::var(PUB_VAR).is_err() {
+        return None;
+    }
     load_anchor(repo_root).ok().map(|pk| fingerprint(&pk.into_bytes()))
 }
 
@@ -471,6 +474,55 @@ pub fn build_spdx3(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&P
     json!({ "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld", "@graph": graph })
 }
 
+pub fn build_intoto(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&Path>) -> Value {
+    let repo_name = repo_root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "repository".into());
+    let items = collect_items(repo_root, model_manifest, llama_bin);
+
+    let mut materials = serde_json::Map::new();
+    for p in discover_lockfiles(repo_root) {
+        if let Ok(h) = sha256_file(&p) {
+            materials.insert(rel(repo_root, &p), json!({ "sha256": h }));
+        }
+    }
+    if let Ok(agents_h) = sha256_file(&repo_root.join("AGENTS.md")) {
+        materials.insert("AGENTS.md".into(), json!({ "sha256": agents_h }));
+    }
+
+    let mut products = serde_json::Map::new();
+    for it in items {
+        products.insert(it.name, json!({ "sha256": it.sha256, "kind": it.kind }));
+    }
+
+    let rustc_ver = std::process::Command::new("rustc").arg("--version").output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".into());
+
+    json!({
+        "_type": "link",
+        "name": "build/provenance",
+        "command": ["ainish-rag", "audit", "sbom", "--format", "intoto"],
+        "materials": materials,
+        "products": products,
+        "environment": {
+            "name": repo_name,
+            "tool": format!("ainish-rag {}", env!("CARGO_PKG_VERSION")),
+            "rustc_version": rustc_ver,
+            "target_os": std::env::consts::OS,
+            "target_arch": std::env::consts::ARCH,
+            "compiler_flags": std::env::var("RUSTFLAGS").unwrap_or_else(|_| "none".into()),
+            "signature_alg": "ML-DSA-65 (FIPS 204)",
+            "signer_fingerprint": signer_fpr(repo_root).unwrap_or_else(|| "none".into()),
+            "timestamp": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        },
+        "byproducts": {
+            "return-value": 0,
+            "stderr": "",
+            "stdout": "in-toto v1.0 link metadata generated with ML-DSA-65 attestation"
+        }
+    })
+}
+
 /// Verifies the canonical AGENTS.md contract against its detached ML-DSA-65 envelope (.agents/canonical/AGENTS.md.sig)
 pub fn verify_canonical_contract(repo_root: &Path) -> VerifyOutcome {
     let canonical_file = repo_root.join(".agents").join("canonical").join("AGENTS.md");
@@ -482,6 +534,13 @@ pub fn verify_canonical_contract(repo_root: &Path) -> VerifyOutcome {
     if !target.exists() {
         return VerifyOutcome::Unsigned("AGENTS.md not found in canonical directory or root".into());
     }
+
+    // If threshold signature exists, prioritize threshold verification
+    let threshold_file = repo_root.join(".agents").join("canonical").join("AGENTS.threshold.sig");
+    if threshold_file.exists() {
+        return verify_threshold_contract(repo_root, 1);
+    }
+
     verify_file(repo_root, &target)
 }
 
@@ -500,6 +559,142 @@ pub fn sign_canonical_contract(repo_root: &Path) -> Result<(PathBuf, PathBuf), S
     std::fs::write(&hash_file, format!("{}\n", hash)).map_err(|e| format!("write sha256: {}", e))?;
     let sig_file = sign_file(&canonical_dest)?;
     Ok((hash_file, sig_file))
+}
+
+/// Signs the canonical AGENTS.md contract with ML-DSA-65 and appends/updates the k-of-n threshold signature bundle
+pub fn sign_canonical_contract_threshold(repo_root: &Path, threshold: usize) -> Result<PathBuf, String> {
+    let canonical_dir = repo_root.join(".agents").join("canonical");
+    let _ = std::fs::create_dir_all(&canonical_dir);
+    let src = repo_root.join("AGENTS.md");
+    let canonical_dest = canonical_dir.join("AGENTS.md");
+    if src.exists() && src != canonical_dest {
+        std::fs::copy(&src, &canonical_dest).map_err(|e| format!("copy AGENTS.md: {}", e))?;
+    }
+    let data = std::fs::read(&canonical_dest).map_err(|e| format!("read canonical AGENTS.md: {}", e))?;
+    let hash = sha256_hex(&data);
+
+    let (pk, sk) = signing_keypair()?;
+    let sig = sk.try_sign(&data, SIG_CONTEXT).map_err(|_| "signing failure".to_string())?;
+    let pk_bytes = pk.into_bytes();
+    let fpr = fingerprint(&pk_bytes);
+
+    let threshold_file = canonical_dir.join("AGENTS.threshold.sig");
+    let mut sigs: Vec<Value> = Vec::new();
+    let mut k = threshold.max(1);
+
+    if threshold_file.exists() {
+        if let Ok(content) = std::fs::read_to_string(&threshold_file) {
+            if let Ok(v) = serde_json::from_str::<Value>(&content) {
+                if let Some(existing_k) = v.get("threshold_k").and_then(|k_val| k_val.as_u64()) {
+                    k = existing_k as usize;
+                }
+                if let Some(arr) = v.get("signatures").and_then(|s| s.as_array()) {
+                    sigs = arr.clone();
+                }
+            }
+        }
+    }
+
+    sigs.retain(|s| s.get("signer_fingerprint").and_then(|f| f.as_str()) != Some(&fpr));
+    sigs.push(json!({
+        "signer_fingerprint": fpr,
+        "public_key": B64.encode(pk_bytes),
+        "signature": B64.encode(&sig),
+        "signed_at": chrono::Utc::now().to_rfc3339(),
+    }));
+
+    let bundle = json!({
+        "format": "ainish-rag/mldsa65-threshold-envelope/v1",
+        "target": "AGENTS.md",
+        "sha256": hash,
+        "threshold_k": k,
+        "signers_count": sigs.len(),
+        "signatures": sigs,
+    });
+
+    std::fs::write(&threshold_file, serde_json::to_string_pretty(&bundle).unwrap_or_default())
+        .map_err(|e| format!("write threshold sig: {}", e))?;
+
+    let _ = sign_canonical_contract(repo_root);
+
+    Ok(threshold_file)
+}
+
+/// Verifies canonical AGENTS.md against k-of-n threshold signatures
+pub fn verify_threshold_contract(repo_root: &Path, required_k: usize) -> VerifyOutcome {
+    let canonical_file = repo_root.join(".agents").join("canonical").join("AGENTS.md");
+    let target = if canonical_file.exists() { canonical_file } else { repo_root.join("AGENTS.md") };
+    if !target.exists() {
+        return VerifyOutcome::Unsigned("AGENTS.md not found".into());
+    }
+
+    let threshold_file = repo_root.join(".agents").join("canonical").join("AGENTS.threshold.sig");
+    if !threshold_file.exists() {
+        return verify_file(repo_root, &target);
+    }
+
+    let content = match std::fs::read_to_string(&threshold_file) {
+        Ok(c) => c,
+        Err(e) => return VerifyOutcome::Invalid(format!("Cannot read threshold envelope: {}", e)),
+    };
+
+    let doc: Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(e) => return VerifyOutcome::Invalid(format!("Malformed threshold envelope JSON: {}", e)),
+    };
+
+    let target_data = match std::fs::read(&target) {
+        Ok(d) => d,
+        Err(e) => return VerifyOutcome::Invalid(format!("Read target: {}", e)),
+    };
+    let actual_hash = sha256_hex(&target_data);
+
+    let recorded_hash = doc.get("sha256").and_then(|h| h.as_str()).unwrap_or("");
+    if actual_hash != recorded_hash {
+        return VerifyOutcome::Invalid(format!("Contract sha256 mismatch: recorded {}, actual {}", recorded_hash, actual_hash));
+    }
+
+    let threshold_k = doc.get("threshold_k").and_then(|k| k.as_u64()).map(|k| k as usize).unwrap_or(required_k);
+    let signatures = match doc.get("signatures").and_then(|s| s.as_array()) {
+        Some(arr) => arr,
+        None => return VerifyOutcome::Invalid("No signatures in threshold envelope".into()),
+    };
+
+    let mut valid_signers = Vec::new();
+    for entry in signatures {
+        let pk_b64 = entry.get("public_key").and_then(|p| p.as_str()).unwrap_or("");
+        let sig_b64 = entry.get("signature").and_then(|s| s.as_str()).unwrap_or("");
+        let fpr = entry.get("signer_fingerprint").and_then(|f| f.as_str()).unwrap_or("");
+
+        let pk_bytes = match B64.decode(pk_b64) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let sig_bytes = match B64.decode(sig_b64) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+
+        let Ok(pk_arr): Result<[u8; 1952], _> = pk_bytes.try_into() else { continue; };
+        let Ok(sig_arr): Result<[u8; ml_dsa_65::SIG_LEN], _> = sig_bytes.try_into() else { continue; };
+
+        if let Ok(pk) = ml_dsa_65::PublicKey::try_from_bytes(pk_arr) {
+            if pk.verify(&target_data, &sig_arr, SIG_CONTEXT) {
+                valid_signers.push(fpr.to_string());
+            }
+        }
+    }
+
+    if valid_signers.len() >= threshold_k {
+        VerifyOutcome::Verified {
+            fingerprint: format!("{}-of-{} threshold verified ({})", valid_signers.len(), threshold_k, valid_signers.join(", "))
+        }
+    } else {
+        VerifyOutcome::Invalid(format!(
+            "Threshold signature failed: {} valid signers found, {} required (threshold k={})",
+            valid_signers.len(), threshold_k, threshold_k
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -521,5 +716,15 @@ mod tests {
         assert!(hash_pinned("Cargo.lock", "checksum = \"ab\""));
         assert!(!hash_pinned("requirements.txt", "requests==2.0"));
         assert!(hash_pinned("requirements.txt", "requests==2.0 --hash=sha256:ab"));
+    }
+
+    #[test]
+    fn intoto_attestation_structure() {
+        let root = crate::config::resolve_canonical_repo_root(Path::new("."));
+        let manifest = root.join(".agents").join("audit").join("model-manifest.json");
+        let att = build_intoto(&root, &manifest, None);
+        assert_eq!(att.get("_type").and_then(|t| t.as_str()), Some("link"));
+        assert_eq!(att.get("name").and_then(|n| n.as_str()), Some("build/provenance"));
+        assert!(att.get("environment").is_some());
     }
 }
