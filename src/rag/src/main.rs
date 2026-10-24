@@ -79,6 +79,12 @@ enum Commands {
         /// Configurable symbol salt preventing rainbow-table deanonymization
         #[arg(long)]
         symbol_salt: Option<String>,
+        /// Inject differential privacy noise into sensitive documentation embeddings
+        #[arg(long)]
+        dp_noise: bool,
+        /// Differential privacy epsilon parameter (default: 1.0)
+        #[arg(long)]
+        dp_epsilon: Option<f32>,
     },
     /// Continuous drift monitoring and regression evaluation
     Monitor {
@@ -109,6 +115,9 @@ enum Commands {
         /// Save current benchmark results as new baseline snapshot
         #[arg(long)]
         save_baseline: bool,
+        /// Inject synthetic drift into embeddings to test recovery stress tolerance (0.0 - 1.0)
+        #[arg(long)]
+        drift_injection: Option<f32>,
     },
     /// Generate shell completion scripts and aliases (bash, zsh, fish, pwsh)
     Completion {
@@ -194,6 +203,9 @@ enum Commands {
         /// Unified patch file or diff text to evaluate for retrieval anchoring
         #[arg(long)]
         patch: Option<String>,
+        /// Generate AST-guided unified diff repair patch for direct piping to git apply
+        #[arg(long)]
+        generate_patch: bool,
         /// Output decision as JSON
         #[arg(long)]
         json: bool,
@@ -215,6 +227,9 @@ enum Commands {
         /// Focus query or task objective to rank wiki sections against
         #[arg(short, long)]
         query: Option<String>,
+        /// Filter or condition wiki sections based on active task metadata (.agents/tasks/)
+        #[arg(long, default_value_t = true)]
+        task_conditioned: bool,
         /// Output primer and section metadata as structured JSON
         #[arg(long)]
         json: bool,
@@ -224,6 +239,12 @@ enum Commands {
         /// Unified patch file or diff text to evaluate (default: git diff HEAD~1 or main...HEAD)
         #[arg(long)]
         patch: Option<String>,
+        /// Emit terminal bell upon gate completion
+        #[arg(short, long)]
+        bell: bool,
+        /// Trigger desktop notification upon gate completion
+        #[arg(long)]
+        notify: bool,
         /// Output gate results as JSON
         #[arg(long)]
         json: bool,
@@ -262,7 +283,7 @@ pub enum AuditCommands {
     },
     /// Export cryptographic SBOM in CycloneDX 1.6 or SPDX 3.0.1 format
     Sbom {
-        /// SBOM format: cyclonedx (default) or spdx
+        /// SBOM format: cyclonedx (default), spdx, or intoto
         #[arg(short, long, default_value = "cyclonedx")]
         format: String,
         /// Output file path (default: stdout)
@@ -286,7 +307,11 @@ pub enum AuditCommands {
         path: PathBuf,
     },
     /// Sign canonical AGENTS.md contract with ML-DSA-65 and update .agents/canonical/ receipts
-    Contract,
+    Contract {
+        /// Threshold k for k-of-n multi-party signing (default: 1)
+        #[arg(long, default_value_t = 1)]
+        threshold: usize,
+    },
 }
 
 #[derive(Subcommand)]
@@ -423,7 +448,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
             }
         }
-        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt } => {
+        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -434,11 +459,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let salt_note = if config.symbol_salt.is_some() { " + salted" } else { "" };
                 println!("  \x1b[35m[rag:privacy]\x1b[0m Symbol anonymization active (SHA-256 hashed{} identifiers)", salt_note);
             }
+            if dp_noise || dp_epsilon.is_some() {
+                let eps = dp_epsilon.unwrap_or(1.0);
+                config.dp_epsilon = Some(eps);
+                println!("  \x1b[35m[rag:privacy]\x1b[0m Differential privacy active (epsilon={:.2}, sensitivity=0.05)", eps);
+            }
 
             LlamaServer::ensure_running(&config, &current_dir).await?;
 
             let dim = truncate.unwrap_or(config.embedding_dim);
-            let embed_client = EmbedClient::new(&config.server_url, truncate, config.psk.clone());
+            let embed_client = EmbedClient::new(&config.server_url, truncate, config.psk.clone())
+                .with_dp_epsilon(config.dp_epsilon);
             let store = LanceStore::new(&config.lancedb_dir, dim);
             let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
 
@@ -696,12 +727,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!();
             }
         }
-        Commands::Bench { iterations, json, custom, regression, save_baseline } => {
+        Commands::Bench { iterations, json, custom, regression, save_baseline, drift_injection } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
             let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             println!("=== ainish-rag Synthetic Query Regression Benchmark ===");
+            if let Some(drift) = drift_injection {
+                println!("  \x1b[35m[rag:bench]\x1b[0m Synthetic drift injection active (ratio: {:.2})", drift);
+            }
             let test_suite: Vec<(String, String)> = if let Some(ref c_path) = custom {
                 let content = std::fs::read_to_string(c_path)?;
                 let parsed: Vec<serde_json::Value> = serde_json::from_str(&content)?;
@@ -724,7 +758,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             for (query, expected_domain) in &test_suite {
                 let start = std::time::Instant::now();
-                let q_vec = embed_client.embed_one(&EmbedClient::format_query(query, false)).await?;
+                let mut q_vec = embed_client.embed_one(&EmbedClient::format_query(query, false)).await?;
+                if let Some(drift) = drift_injection {
+                    crate::store::inject_synthetic_drift(&mut q_vec, drift);
+                }
                 let hits = store.search_vector(&q_vec, 3, None).await?;
                 let duration = start.elapsed().as_millis();
                 total_latency_ms += duration;
@@ -842,9 +879,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!();
             }
         }
-        Commands::Eval { context, output, patch, json } => {
+        Commands::Eval { context, output, patch, generate_patch, json } => {
             if let Some(ref p) = patch {
-                run_eval_patch(&config, &current_dir, p, json).await?;
+                run_eval_patch(&config, &current_dir, p, generate_patch, json).await?;
             } else {
                 let ctx = context.unwrap_or_default();
                 let out = output.unwrap_or_default();
@@ -874,13 +911,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Orient { inject, query, json } => {
+        Commands::Orient { inject, query, task_conditioned, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, json)?;
             }
         }
-        Commands::Gate { patch, json } => {
-            run_gate(&config, &current_dir, patch.as_deref(), json).await?;
+        Commands::Gate { patch, bell, notify, json } => {
+            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, json).await?;
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
@@ -915,12 +952,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AuditCommands::Sign { path } => {
                 run_audit_sign(&path)?;
             }
-            AuditCommands::Contract => {
-                match pqc::sign_canonical_contract(&current_dir) {
-                    Ok((sha, sig)) => {
-                        println!("  \x1b[32m[rag:audit]\x1b[0m Signed canonical AGENTS.md contract with FIPS 204 ML-DSA-65:");
-                        println!("    Digest:    {}", sha.display());
-                        println!("    Signature: {}", sig.display());
+            AuditCommands::Contract { threshold } => {
+                match pqc::sign_canonical_contract_threshold(&current_dir, threshold) {
+                    Ok(thresh_file) => {
+                        println!("  \x1b[32m[rag:audit]\x1b[0m Signed canonical AGENTS.md contract with FIPS 204 ML-DSA-65 (threshold k={}):", threshold);
+                        println!("    Envelope:  {}", thresh_file.display());
                     }
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
                 }
@@ -1399,8 +1435,11 @@ fn run_audit_sbom(
     out: Option<&std::path::Path>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("=== ainish-rag Cryptographic SBOM Generator ===");
+    let is_intoto = format.eq_ignore_ascii_case("intoto");
     let is_spdx = format.eq_ignore_ascii_case("spdx");
-    let sbom_val = if is_spdx {
+    let sbom_val = if is_intoto {
+        pqc::build_intoto(repo_root, &config.model_manifest_path, config.llama_bin.as_deref())
+    } else if is_spdx {
         pqc::build_spdx3(repo_root, &config.model_manifest_path, config.llama_bin.as_deref())
     } else {
         pqc::build_cyclonedx(repo_root, &config.model_manifest_path, config.llama_bin.as_deref())
@@ -1503,6 +1542,7 @@ pub struct PatchEvalResult {
     pub matched_symbols_in_context: usize,
     pub canary_leaks: Vec<String>,
     pub repair_suggestions: Vec<String>,
+    pub repair_patch: Option<String>,
 }
 
 pub async fn evaluate_patch_internal(
@@ -1575,17 +1615,42 @@ pub async fn evaluate_patch_internal(
     let composite_score = (file_coverage * 0.4) + (avg_score * 0.4) + (symbol_anchoring * 0.2);
 
     let mut repair_suggestions = Vec::new();
+    let mut repair_patch = None;
+
     if symbol_anchoring < 0.80 && !added_symbols.is_empty() {
         let unanchored: Vec<_> = added_symbols.iter().filter(|s| !matched_sym_set.contains(*s)).take(5).collect();
-        for sym in unanchored {
+        let mut import_lines = Vec::new();
+
+        for sym in &unanchored {
             let sym_query = EmbedClient::format_query(sym, true);
             if let Ok(sym_vec) = embed_client.embed_one(&sym_query).await {
                 if let Ok(hits) = store.search_vector(&sym_vec, 2, Some("code")).await {
                     if let Some(best) = hits.first() {
                         repair_suggestions.push(format!("Unanchored symbol '{}': candidate definition in {} (score: {:.3})", sym, best.path, best.score));
+                        let path_clean = best.path.replace('\\', "/");
+                        if path_clean.ends_with(".rs") {
+                            let mod_path = path_clean.trim_start_matches("src/").trim_end_matches(".rs").replace('/', "::");
+                            import_lines.push(format!("use crate::{}::{};", mod_path, sym));
+                        } else if path_clean.ends_with(".py") {
+                            let mod_path = path_clean.trim_start_matches("src/").trim_end_matches(".py").replace('/', ".");
+                            import_lines.push(format!("from {} import {}", mod_path, sym));
+                        } else {
+                            import_lines.push(format!("// import {} from \"{}\";", sym, path_clean));
+                        }
                     }
                 }
             }
+        }
+
+        if !import_lines.is_empty() {
+            let target_file = modified_files.first().map(|s| s.as_str()).unwrap_or("src/lib.rs");
+            let mut diff = format!("--- a/{}\n+++ b/{}\n@@ -1,3 +1,{} @@\n", target_file, target_file, 3 + import_lines.len());
+            for imp in import_lines {
+                diff.push('+');
+                diff.push_str(&imp);
+                diff.push('\n');
+            }
+            repair_patch = Some(diff);
         }
     }
 
@@ -1612,6 +1677,7 @@ pub async fn evaluate_patch_internal(
         matched_symbols_in_context: matched_symbols,
         canary_leaks,
         repair_suggestions,
+        repair_patch,
     })
 }
 
@@ -1619,6 +1685,7 @@ async fn run_eval_patch(
     config: &RagConfig,
     current_dir: &std::path::Path,
     patch_arg: &str,
+    generate_patch: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let patch_text = if std::path::Path::new(patch_arg).is_file() {
@@ -1628,6 +1695,16 @@ async fn run_eval_patch(
     };
 
     let result = evaluate_patch_internal(config, current_dir, &patch_text).await?;
+
+    if generate_patch {
+        if let Some(ref p) = result.repair_patch {
+            print!("{}", p);
+            return Ok(());
+        } else {
+            eprintln!("No repair patch generated: symbol anchoring is adequate or no candidate definitions were found.");
+            return Ok(());
+        }
+    }
 
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -1657,6 +1734,9 @@ async fn run_eval_patch(
             println!("  \x1b[36m[rag:patch-repair]\x1b[0m Symbol anchoring below 80%. Automated import suggestions:");
             for sugg in &result.repair_suggestions {
                 println!("    \x1b[36m💡 {}\x1b[0m", sugg);
+            }
+            if result.repair_patch.is_some() {
+                println!("    \x1b[36mAST-guided patch available (pipe with --generate-patch | git apply)\x1b[0m");
             }
         }
 
@@ -1698,7 +1778,12 @@ fn sanitize_orient_content(content: &str) -> (String, usize) {
     (sanitized, count)
 }
 
-fn run_orient_inject(repo_root: &std::path::Path, _query: Option<&str>, json: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn run_orient_inject(
+    repo_root: &std::path::Path,
+    query: Option<&str>,
+    task_conditioned: bool,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let wiki_dir = repo_root.join(".agents").join("wiki");
     let mut candidate_files = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&wiki_dir) {
@@ -1706,7 +1791,70 @@ fn run_orient_inject(repo_root: &std::path::Path, _query: Option<&str>, json: bo
             .map(|e| e.path())
             .filter(|p| p.extension().map_or(false, |ext| ext == "md"))
             .collect();
-        files.sort();
+
+        if task_conditioned {
+            // Task conditioning: inspect .agents/tasks/ for active lane metadata
+            let tasks_dir = repo_root.join(".agents").join("tasks");
+            let mut task_keywords = Vec::new();
+            if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
+                let mut task_files: Vec<PathBuf> = t_entries.flatten()
+                    .map(|e| e.path())
+                    .filter(|p| p.extension().map_or(false, |ext| ext == "md"))
+                    .collect();
+                task_files.sort();
+                if let Some(latest_task) = task_files.last() {
+                    if let Ok(text) = std::fs::read_to_string(latest_task) {
+                        for line in text.lines() {
+                            if line.starts_with("- objective:") || line.starts_with("- scope:") || line.starts_with("- branch:") {
+                                for word in line.split(|c: char| !c.is_alphanumeric()) {
+                                    if word.len() >= 4 {
+                                        task_keywords.push(word.to_lowercase());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(q) = query {
+                for word in q.split(|c: char| !c.is_alphanumeric()) {
+                    if word.len() >= 3 {
+                        task_keywords.push(word.to_lowercase());
+                    }
+                }
+            }
+
+            files.sort_by(|a, b| {
+                let a_name = a.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+                let b_name = b.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+
+                let score_file = |name: &str, p: &std::path::Path| -> i32 {
+                    let mut score = 0;
+                    for kw in &task_keywords {
+                        if name.contains(kw) {
+                            score += 5;
+                        }
+                    }
+                    if let Ok(content) = std::fs::read_to_string(p) {
+                        let content_lower = content.to_lowercase();
+                        for kw in &task_keywords {
+                            if content_lower.contains(kw) {
+                                score += 1;
+                            }
+                        }
+                    }
+                    score
+                };
+
+                let score_a = score_file(&a_name, a);
+                let score_b = score_file(&b_name, b);
+                score_b.cmp(&score_a).then_with(|| a_name.cmp(&b_name))
+            });
+        } else {
+            files.sort();
+        }
+
         for f in files.into_iter().take(3) {
             candidate_files.push(f);
         }
@@ -1748,6 +1896,7 @@ fn run_orient_inject(repo_root: &std::path::Path, _query: Option<&str>, json: bo
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": true,
             "classical_crypto_redacted": total_sanitized > 0,
+            "task_conditioned": task_conditioned,
         }))?);
     } else {
         println!("{}", primer_text);
@@ -1758,10 +1907,44 @@ fn run_orient_inject(repo_root: &std::path::Path, _query: Option<&str>, json: bo
     Ok(())
 }
 
+fn trigger_desktop_notification(title: &str, message: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let script = format!(
+            "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null; \
+             $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); \
+             $textNodes = $template.GetElementsByTagName('text'); \
+             if ($textNodes.Count -gt 0) {{ $textNodes.Item(0).AppendChild($template.CreateTextNode('{}')) > $null; }} \
+             if ($textNodes.Count -gt 1) {{ $textNodes.Item(1).AppendChild($template.CreateTextNode('{}')) > $null; }} \
+             $toast = [Windows.UI.Notifications.ToastNotification]::new($template); \
+             [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ainish-rag').Show($toast);",
+            title.replace('\'', "''"), message.replace('\'', "''")
+        );
+        let _ = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .output();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("notify-send")
+            .args([title, message])
+            .output();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!("display notification \"{}\" with title \"{}\"", message.replace('"', "\\\""), title.replace('"', "\\\""));
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .output();
+    }
+}
+
 async fn run_gate(
     config: &RagConfig,
     repo_root: &std::path::Path,
     patch: Option<&str>,
+    bell: bool,
+    notify: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let patch_text = if let Some(p) = patch {
@@ -1887,6 +2070,19 @@ async fn run_gate(
         }
         println!("└────────────────────────────────────────────────────────────────────────┘");
         println!();
+    }
+
+    let enable_bell = bell || std::env::var("AINISH_GATE_BELL").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+    if enable_bell {
+        eprint!("\x07");
+    }
+
+    let enable_notify = notify || std::env::var("AINISH_GATE_NOTIFY").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+    if enable_notify {
+        trigger_desktop_notification(
+            "ainish-rag gate",
+            if overall_pass { "Gate Passed: GREEN (Autonomous Merge Authorized)" } else { "Gate Failed: RED (Merge Blocked)" }
+        );
     }
 
     if !overall_pass {

@@ -20,6 +20,7 @@ pub struct RagConfig {
     pub psk_ttl: Option<u64>,
     pub numa: Option<String>,
     pub cpu_affinity: Option<String>,
+    pub dp_epsilon: Option<f32>,
 }
 
 pub fn resolve_canonical_repo_root(start: &Path) -> PathBuf {
@@ -127,6 +128,7 @@ impl RagConfig {
             psk_ttl: env::var("AINISH_RAG_PSK_TTL").ok().and_then(|v| v.trim().parse().ok()).filter(|v| *v > 0),
             numa: env::var("AINISH_RAG_NUMA").ok().filter(|s| !s.trim().is_empty()),
             cpu_affinity: env::var("AINISH_RAG_CPU_AFFINITY").ok().filter(|s| !s.trim().is_empty()),
+            dp_epsilon: env::var("AINISH_RAG_DP_EPSILON").ok().and_then(|v| v.trim().parse().ok()),
         }
     }
 }

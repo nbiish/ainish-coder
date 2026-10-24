@@ -493,3 +493,83 @@ impl LlamaServer {
         Ok(())
     }
 }
+
+/// Anti-DNS rebinding and IP-binding verification
+pub struct AntiDnsRebinding;
+
+impl AntiDnsRebinding {
+    /// Validates that a Host or Origin header matches loopback interface and rejects non-loopback hosts
+    pub fn validate_host(host_header: &str) -> Result<(), String> {
+        let clean = host_header.trim();
+        if clean.is_empty() {
+            return Err("Empty Host header rejected for loopback security".to_string());
+        }
+
+        // Strip optional scheme
+        let host_part = if let Some(stripped) = clean.strip_prefix("http://").or_else(|| clean.strip_prefix("https://")) {
+            stripped
+        } else {
+            clean
+        };
+
+        // Split off port if present
+        let hostname = if host_part.starts_with('[') {
+            // IPv6 bracketed address: [::1]:8080 or [::1]
+            if let Some(close_bracket) = host_part.find(']') {
+                &host_part[1..close_bracket]
+            } else {
+                return Err(format!("Malformed IPv6 Host header: '{}'", clean));
+            }
+        } else if let Some((h, _port)) = host_part.split_once(':') {
+            h
+        } else {
+            host_part
+        };
+
+        let h_lower = hostname.to_lowercase();
+        if h_lower == "127.0.0.1" || h_lower == "localhost" || h_lower == "::1" || h_lower == "0:0:0:0:0:0:0:1" {
+            Ok(())
+        } else {
+            Err(format!(
+                "Anti-DNS rebinding violation: Host '{}' ({}) is not a permitted loopback address",
+                clean, hostname
+            ))
+        }
+    }
+
+    /// Validates that an origin URL is strictly a loopback HTTP/HTTPS origin
+    #[allow(dead_code)]
+    pub fn validate_origin(origin: &str) -> Result<(), String> {
+        let clean = origin.trim();
+        if clean.is_empty() {
+            return Ok(());
+        }
+        Self::validate_host(clean)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_anti_dns_rebinding_allows_loopback() {
+        assert!(AntiDnsRebinding::validate_host("127.0.0.1").is_ok());
+        assert!(AntiDnsRebinding::validate_host("127.0.0.1:8080").is_ok());
+        assert!(AntiDnsRebinding::validate_host("localhost").is_ok());
+        assert!(AntiDnsRebinding::validate_host("localhost:8080").is_ok());
+        assert!(AntiDnsRebinding::validate_host("[::1]").is_ok());
+        assert!(AntiDnsRebinding::validate_host("[::1]:8080").is_ok());
+        assert!(AntiDnsRebinding::validate_host("http://127.0.0.1:8080").is_ok());
+    }
+
+    #[test]
+    fn test_anti_dns_rebinding_rejects_external_hosts() {
+        assert!(AntiDnsRebinding::validate_host("attacker.com").is_err());
+        assert!(AntiDnsRebinding::validate_host("evil.com:8080").is_err());
+        assert!(AntiDnsRebinding::validate_host("192.168.1.1").is_err());
+        assert!(AntiDnsRebinding::validate_host("10.0.0.1").is_err());
+        assert!(AntiDnsRebinding::validate_host("0.0.0.0").is_err());
+        assert!(AntiDnsRebinding::validate_host("http://attacker.com").is_err());
+    }
+}
