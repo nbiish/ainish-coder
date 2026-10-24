@@ -251,8 +251,8 @@ Universal architecture and knowledge retrieval for the codebase. Integrates Goog
     - `choice`: domain routing across codebase symbols, living architectural wiki, security governance, technical debt, and general knowledge.
     - `noul`: calibrated boolean probability for `needs_retrieval`, `is_chunk_relevant`, `is_conflicting`, and `is_faithful`.
     - `score`: continuous rubric ranking of chunk utility and factual consistency.
-  - Decision subcommands: `ainish-rag query <query> [--no-rerank] [--min-relevance 0.35]` (two-stage retrieval with decision reranking active by default), `ainish-rag rerank <query>` (standalone reranker), `ainish-rag secrets` (safe PQC vault and API key inspector), `ainish-rag route <query>` (routing & necessity), `ainish-rag decide <state>` (micro-decision evaluation), and `ainish-rag eval --context <ctx> --output <out>` (bi-phasic faithfulness gate).
-- **CLI & Tooling:** Dispatch via `ainish-coder --rag [serve|stop|status|index|wiki|query|rerank|secrets|route|decide|eval]` or `bin/ainish-rag` (cross-platform wrapper delegating to `bin/ainish-rag.exe` or `src/rag/rag.py`).
+  - Decision subcommands: `ainish-rag query <query> [--no-rerank] [--min-relevance 0.35]` (two-stage retrieval with decision reranking active by default), `ainish-rag rerank <query>` (standalone reranker), `ainish-rag secrets` (safe PQC vault and API key inspector), `ainish-rag route <query>` (routing & necessity), `ainish-rag decide <state>` (micro-decision evaluation), `ainish-rag eval --context <ctx> --output <out>` (bi-phasic faithfulness gate), `ainish-rag eval --patch <diff> [--generate-patch]` (retrieval-augmented patch evaluation with AST-guided import diff generation), `ainish-rag orient --inject [--task-conditioned]` (task-conditioned subagent wiki primer), and `ainish-rag gate [--bell] [--notify]` (unified pre-merge verification card).
+- **CLI & Tooling:** Dispatch via `ainish-coder --rag [serve|stop|status|index|wiki|query|rerank|secrets|route|decide|eval|orient|gate|bench|monitor|audit|service]` or `bin/ainish-rag` (cross-platform wrapper delegating to `bin/ainish-rag.exe` or `src/rag/rag.py`).
 
 
 
