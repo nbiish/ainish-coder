@@ -1,0 +1,14 @@
+# memory — 2026-10-24 (UTC)
+# Pairs with ../comms/2026-10-24-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 17:05 feat/rag-round6-masters active: implementing 9 Round 6 masters suggestions across Rust and Python engines.
+- 21:00 Real-time anti-DNS rebinding and IP-binding verification implemented in Rust (`AntiDnsRebinding::validate_host` in `src/rag/src/server.rs`, `src/rag/src/embed.rs`) and Python (`validate_loopback_host` in `src/rag/rag.py`) rejecting non-loopback Host/Origin headers.
+- 21:01 Gaussian differential privacy noise injection (`apply_differential_privacy_noise`, `--dp-noise`, `--dp-epsilon`, `AINISH_RAG_DP_EPSILON`) added to `src/rag/src/embed.rs`, `src/rag/src/config.rs`, and `src/rag/rag.py` with L2 re-normalization.
+- 21:02 Automated in-toto v1.0 link metadata provenance generator (`build_intoto`, `ainish-rag audit sbom --format intoto`) added in `src/rag/src/pqc.rs` and `src/rag/rag.py` with detached FIPS 204 ML-DSA-65 signatures (`.agents/audit/ainish-coder-sbom.intoto.json`).
+- 21:03 Shared memory-mapped table reader pool (`reader_pool` in `src/rag/src/store.rs`, `_table_pool` in `src/rag/rag.py`) caches `codebase_rag` table handles across concurrent queries and invalidates on `upsert` and `compact`.
+- 21:04 Synthetic drift injection (`inject_synthetic_drift`, `ainish-rag bench --drift-injection <ratio>`) and self-healing table recovery (`verify_or_recover`) added in `src/rag/src/store.rs` and `src/rag/rag.py`.
+- 21:05 Multi-party k-of-n threshold ML-DSA-65 contract signing (`sign_canonical_contract_threshold`, `verify_threshold_contract`, `ainish-rag audit contract --threshold <k>`) implemented writing `.agents/canonical/AGENTS.threshold.sig`.
+- 21:06 AST-guided unified diff import repair patch generator (`ainish-rag eval --patch <diff> --generate-patch`) implemented in `src/rag/src/main.rs` and `src/rag/rag.py` for direct piping to `git apply`.
+- 21:07 Dynamic task-conditioned wiki section ranking (`ainish-rag orient --inject --task-conditioned`) implemented in `src/rag/src/main.rs` and `src/rag/rag.py` scoring `.agents/wiki/*.md` against active `.agents/tasks/*.md` metadata.
+- 21:08 Terminal bell (`--bell`, `AINISH_GATE_BELL`) and OS desktop toast notifications (`--notify`, `AINISH_GATE_NOTIFY`) added to `ainish-rag gate`.
+- 21:09 Canonical `AGENTS.md` contract synchronized (`5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0`); 9/9 Rust unit tests passing; `ainish-rag gate` and `bin/security_gate.py` GREEN.
