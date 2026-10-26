@@ -12,3 +12,4 @@
 - 22:17 Subagent `<ORIENT_PRIMER>` (`ainish-rag orient --inject`) now injects recent `.agents/memories/{date}-memory.txt` bullets and resolved constraints alongside top task-conditioned wiki sections.
 - 22:18 Continuous watch mode (`ainish-rag gate --watch` / `-w`) added to re-evaluate pre-merge gates automatically upon file modification.
 - 22:19 Canonical `AGENTS.md` contract synchronized (`a116bca16bce4e47243a54bb19fbad430897fc9b6351acf5145983400a15af6d`); 12/12 Rust unit tests passing; `ainish-rag gate` and `bin/security_gate.py` GREEN.
+- 22:26 Normalized all 20 CRLF files (`src/help.sh`, `bin/ainish-coder`, etc.) to POSIX LF (`\n`), added `.gitattributes` (`* text=auto eol=lf`, `*.sh text eol=lf`), and guarded `grep -n '^<PROTOCOL>$'` under `set -o pipefail` in `src/deploy_agents_comms.sh` so `ainish-coder --rules` runs cleanly on WSL/Linux/macOS.
