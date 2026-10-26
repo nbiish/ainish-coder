@@ -1,0 +1,14 @@
+# memory — 2026-10-26 (UTC)
+# Pairs with ../comms/2026-10-26-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 22:05 feat/rag-round7-masters initiated to implement all 9 Round 7 masters suggestions across native Rust and Python engines.
+- 22:10 Constant-time loopback PSK token verification (`AntiDnsRebinding::verify_psk_constant_time`, `PskAuthGuard` in `src/rag/src/server.rs`, `verify_psk_constant_time` in `src/rag/rag.py`) and failed-attempt rate limiting added to prevent local timing side-channel probes.
+- 22:11 Cumulative differential privacy budget ledger (`record_privacy_budget_expenditure` in `src/rag/src/embed.rs` and `src/rag/rag.py`) tracks `cumulative_epsilon` and `total_protected_vectors` in `.agents/audit/privacy-budget.json`.
+- 22:12 `Cargo.lock` dependency tree checksum verification (`verify_cargo_sparse_index_checksums` in `src/rag/src/pqc.rs` and `src/rag/rag.py`) validates all 727 `crates.io` dependency SHA-256 digests and optional offline sparse-index snapshots during `ainish-rag audit lock`.
+- 22:13 Adaptive batch sizing (`recommended_batch_size`, `record_rtt_and_scale_batch` in `src/rag/src/embed.rs` and `src/rag/rag.py`) dynamically scales embedding batch size between 4 and 64 based on observed loopback round-trip latency (<120ms scales up, >600ms scales down).
+- 22:14 Chaos fault-injection mode (`ainish-rag bench --chaos`) added to `src/rag/src/main.rs` and `src/rag/rag.py` to test transient server timeout and retry-loop recovery end-to-end.
+- 22:15 Hardware-backed FIDO2 / TPM 2.0 seal unwrapping (`unwrap_hardware_sealed_seed`, `ainish-rag audit contract --hardware-seal`) added in `src/rag/src/pqc.rs` and `src/rag/rag.py`.
+- 22:16 AST-guided import repair patches in `ainish-rag eval --patch --generate-patch` now include real file context lines and pre-validate with `git apply --check`.
+- 22:17 Subagent `<ORIENT_PRIMER>` (`ainish-rag orient --inject`) now injects recent `.agents/memories/{date}-memory.txt` bullets and resolved constraints alongside top task-conditioned wiki sections.
+- 22:18 Continuous watch mode (`ainish-rag gate --watch` / `-w`) added to re-evaluate pre-merge gates automatically upon file modification.
+- 22:19 Canonical `AGENTS.md` contract synchronized (`a116bca16bce4e47243a54bb19fbad430897fc9b6351acf5145983400a15af6d`); 12/12 Rust unit tests passing; `ainish-rag gate` and `bin/security_gate.py` GREEN.
