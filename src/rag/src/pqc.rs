@@ -67,7 +67,8 @@ fn resolve_or_create_seed() -> Result<[u8; 32], String> {
     if let Some(seed) = resolve_seed() {
         return Ok(seed);
     }
-    let priv_path = PathBuf::from(".agents/audit/signer.mldsa65.priv");
+    let canon_root = crate::config::resolve_canonical_repo_root(Path::new("."));
+    let priv_path = canon_root.join(".agents").join("audit").join("signer.mldsa65.priv");
     if let Ok(text) = std::fs::read_to_string(&priv_path) {
         if let Ok(bytes) = hex::decode(text.trim()) {
             if let Ok(arr) = bytes.try_into() {

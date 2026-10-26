@@ -146,6 +146,8 @@ audit.log.*
 .agents/audit/*.sk
 .agents/audit/keys/*.priv
 .agents/audit/keys/*.sk
+**/*.priv
+**/*.sk
 
 # Hermes / agent plan and context directories (auto-injected by
 # subdirectory context discovery — never intended for git)
