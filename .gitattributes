@@ -1,0 +1,34 @@
+# Enforce LF line endings across all POSIX shell scripts, CLI wrappers, and source files
+# so WSL, Linux, macOS, and Windows share identical byte-for-byte line endings without $'\r' errors.
+
+* text=auto eol=lf
+
+# Shell scripts and POSIX entrypoints MUST always use LF
+*.sh text eol=lf
+bin/ainish-coder text eol=lf
+bin/ainish-rag text eol=lf
+bin/pqc-secrets text eol=lf
+bin/auto-thinking-classify text eol=lf
+
+# Source code and docs
+*.py text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Windows batch scripts
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.gguf binary
+bin/cmd-tracker binary
+bin/pqc-secrets.darwin-arm64 binary
