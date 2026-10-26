@@ -4,6 +4,45 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 # AGENT COMMS — 2026-10-26
 
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+</PROTOCOL>
+
+---
+
 ### [2026-10-26T22:05:00Z] checkin | agent:antigravity | branch:feat/rag-round7-masters | wt:d:\Code\ainish-coder
 - start:2026-10-26T22:05:00Z
 - end:2026-10-26T22:05:30Z
@@ -34,5 +73,38 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - objective:Complete all 9 Round 7 masters suggestions across Rust and Python engines and merge to main
 - input:All verification gates GREEN
 - output:Merged feat/rag-round7-masters to main (--no-ff), branch cleaned up, no-rebuild-needed
+- status:merged
+- blockers:none
+
+### [2026-10-26T22:25:00Z] checkin | agent:antigravity | branch:fix/shell-lf-line-endings | wt:d:\Code\ainish-coder
+- start:2026-10-26T22:24:00Z
+- end:2026-10-26T22:25:00Z
+- scope:src/help.sh, bin/ainish-coder, src/deploy_agents_comms.sh, .gitattributes, .agents/
+- triage:now
+- objective:Fix CRLF line endings causing $'\r': command not found in ainish-coder --rules and enforce LF via .gitattributes
+- input:User reported /mnt/d/Code/ainish-coder/bin/../src/help.sh: line 3: $'\r': command not found
+- output:Converted all 20 CRLF files (including src/help.sh and bin/ainish-coder) to LF, added .gitattributes, fixed pipefail guard in deploy_agents_comms.sh
+- status:in-progress
+- blockers:none
+
+### [2026-10-26T22:27:00Z] intent-merge | agent:antigravity | branch:fix/shell-lf-line-endings | wt:d:\Code\ainish-coder
+- start:2026-10-26T22:24:00Z
+- end:2026-10-26T22:27:00Z
+- scope:src/help.sh, bin/ainish-coder, src/deploy_agents_comms.sh, .gitattributes, .agents/
+- triage:now
+- objective:Verify ainish-coder --rules runs cleanly with 0 CRLF errors and merge to main
+- input:All bash scripts syntax-checked and LF-normalized
+- output:ainish-coder --rules . --headless and ainish-rag gate GREEN
+- status:verifying
+- blockers:none
+
+### [2026-10-26T22:28:00Z] checkout | agent:antigravity | branch:fix/shell-lf-line-endings | wt:d:\Code\ainish-coder
+- start:2026-10-26T22:24:00Z
+- end:2026-10-26T22:28:00Z
+- scope:src/help.sh, bin/ainish-coder, src/deploy_agents_comms.sh, .gitattributes, .agents/
+- triage:now
+- objective:Merge LF line-endings and deploy_agents_comms pipefail fix to main
+- input:Green verification gates
+- output:Merged fix/shell-lf-line-endings to main (--no-ff), branch deleted, no-rebuild-needed
 - status:merged
 - blockers:none
