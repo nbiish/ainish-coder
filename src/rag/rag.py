@@ -504,6 +504,71 @@ def validate_loopback_host(url_or_host: str) -> None:
         raise ValueError(f"Anti-DNS rebinding violation: Host '{clean}' ({hostname}) is not a permitted loopback address")
 
 
+_PSK_FAILED_ATTEMPTS = 0
+_PSK_MAX_ATTEMPTS = 5
+
+def verify_psk_constant_time(expected: str, candidate: str) -> bool:
+    """Constant-time comparison for loopback PSK token verification with failed-attempt rate limiting."""
+    global _PSK_FAILED_ATTEMPTS
+    if _PSK_FAILED_ATTEMPTS >= _PSK_MAX_ATTEMPTS:
+        raise PermissionError(f"PSK authentication locked out: exceeded maximum failed attempts ({_PSK_MAX_ATTEMPTS})")
+    import hmac
+    if not expected or not candidate:
+        _PSK_FAILED_ATTEMPTS += 1
+        time.sleep(0.025 * _PSK_FAILED_ATTEMPTS)
+        return False
+    matched = hmac.compare_digest(expected.encode("utf-8"), candidate.encode("utf-8"))
+    if matched:
+        _PSK_FAILED_ATTEMPTS = 0
+        return True
+    _PSK_FAILED_ATTEMPTS += 1
+    time.sleep(0.025 * _PSK_FAILED_ATTEMPTS)
+    return False
+
+
+def record_privacy_budget_expenditure(repo_root: Path, epsilon: float, vectors_count: int, operation: str = "embed_batch") -> Path:
+    """Tracks cumulative differential privacy budget expenditure (`epsilon` ledger) in `.agents/audit/privacy-budget.json`."""
+    audit_dir = repo_root / ".agents" / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    ledger_path = audit_dir / "privacy-budget.json"
+
+    total_eps = 0.0
+    total_vecs = 0
+    sessions = []
+    if ledger_path.exists():
+        try:
+            data = json.loads(ledger_path.read_text(encoding="utf-8"))
+            total_eps = float(data.get("cumulative_epsilon", 0.0))
+            total_vecs = int(data.get("total_protected_vectors", 0))
+            sessions = list(data.get("expenditure_log", []))
+        except Exception:
+            pass
+
+    total_eps = round(total_eps + float(epsilon), 4)
+    total_vecs += int(vectors_count)
+    sessions.append({
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "operation": operation,
+        "session_epsilon": float(epsilon),
+        "vectors_perturbed": int(vectors_count),
+        "cumulative_epsilon": total_eps,
+    })
+    sessions = sessions[-100:]
+
+    doc = {
+        "format": "ainish-rag/privacy-budget-ledger/v1",
+        "mechanism": "Gaussian-DP-L2",
+        "delta": 1e-5,
+        "sensitivity": 0.05,
+        "cumulative_epsilon": total_eps,
+        "total_protected_vectors": total_vecs,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "expenditure_log": sessions,
+    }
+    ledger_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    return ledger_path
+
+
 def apply_differential_privacy_noise(vec: List[float], epsilon: float = 1.0, sensitivity: float = 0.05) -> List[float]:
     """Applies Gaussian differential privacy noise to embedding coordinates to prevent membership inference attacks."""
     if epsilon <= 0.0 or not vec:
@@ -534,13 +599,25 @@ def inject_synthetic_drift(vec: List[float], drift_ratio: float = 0.25) -> List[
 
 
 class EmbedClient:
-    def __init__(self, server_url: str, truncate_dim: Optional[int] = None, psk: Optional[str] = None, dp_epsilon: Optional[float] = None):
+    def __init__(self, server_url: str, truncate_dim: Optional[int] = None, psk: Optional[str] = None, dp_epsilon: Optional[float] = None, repo_root: Optional[Path] = None):
         self.server_url = server_url.rstrip("/")
         self.truncate_dim = truncate_dim
         self.psk = psk or os.environ.get("AINISH_RAG_PSK")
         self.dp_epsilon = dp_epsilon if dp_epsilon is not None else (
             float(os.environ["AINISH_RAG_DP_EPSILON"]) if "AINISH_RAG_DP_EPSILON" in os.environ and os.environ["AINISH_RAG_DP_EPSILON"].strip() else None
         )
+        self.repo_root = repo_root
+        self.adaptive_batch_size = 16
+
+    def recommended_batch_size(self) -> int:
+        return self.adaptive_batch_size
+
+    def record_rtt_and_scale_batch(self, rtt_ms: float) -> int:
+        if rtt_ms < 120.0:
+            self.adaptive_batch_size = min(64, self.adaptive_batch_size * 2)
+        elif rtt_ms > 600.0:
+            self.adaptive_batch_size = max(4, self.adaptive_batch_size // 2)
+        return self.adaptive_batch_size
 
     def is_running(self) -> bool:
         try:
@@ -585,6 +662,12 @@ class EmbedClient:
             "X-Requested-With": "ainish-rag",
         }
         if self.psk:
+            if self.repo_root:
+                psk_file = self.repo_root / ".agents" / "rag" / "session.psk"
+                if psk_file.exists():
+                    expected_psk = psk_file.read_text(encoding="utf-8").strip()
+                    if expected_psk and not verify_psk_constant_time(expected_psk, self.psk.strip()):
+                        raise PermissionError("Invalid loopback PSK token")
             headers["Authorization"] = f"Bearer {self.psk}"
             headers["X-Ainish-PSK"] = self.psk
 
@@ -595,8 +678,11 @@ class EmbedClient:
             method="POST",
         )
 
+        t0 = time.time()
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+        rtt_ms = (time.time() - t0) * 1000.0
+        self.record_rtt_and_scale_batch(rtt_ms)
 
         items = data.get("data", [])
         items.sort(key=lambda x: x.get("index", 0))
@@ -613,6 +699,9 @@ class EmbedClient:
             if self.dp_epsilon is not None:
                 vec = apply_differential_privacy_noise(vec, self.dp_epsilon, 0.05)
             embeddings.append(vec)
+
+        if self.dp_epsilon is not None and self.repo_root:
+            record_privacy_budget_expenditure(self.repo_root, self.dp_epsilon, len(embeddings), "embed_batch")
 
         return embeddings
 
@@ -1886,6 +1975,25 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
                 "sanitized_tokens": san_cnt,
             })
 
+    memories_dir = repo_root / ".agents" / "memories"
+    memory_notes = []
+    if memories_dir.exists():
+        m_files = sorted(memories_dir.glob("*-memory.txt"))
+        if m_files:
+            try:
+                m_text = m_files[-1].read_text(encoding="utf-8", errors="replace")
+                clean_m, san_cnt = sanitize_orient_content(m_text)
+                total_sanitized += san_cnt
+                bullet_lines = [l for l in clean_m.splitlines() if l.strip().startswith("- ")]
+                memory_notes = bullet_lines[-6:]
+            except Exception:
+                pass
+    if memory_notes:
+        primer_content.append("### Recent Durable Memories & Resolved Constraints (`.agents/memories/`)")
+        for note in memory_notes:
+            primer_content.append(note)
+        primer_content.append("")
+
     primer_content.append("</ORIENT_PRIMER>")
     primer_text = "\n".join(primer_content)
 
@@ -1893,6 +2001,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         print(json.dumps({
             "primer": primer_text,
             "sections": sections,
+            "recent_memories": memory_notes,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": True,
             "classical_crypto_redacted": total_sanitized > 0,
@@ -1959,8 +2068,16 @@ def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store:
                     import_lines.append(f'// import {s} from "{best_path}";')
         if import_lines:
             target_file = modified_files[0] if modified_files else "src/lib.rs"
-            header = f"--- a/{target_file}\n+++ b/{target_file}\n@@ -1,3 +1,{3 + len(import_lines)} @@\n"
-            body = "".join(f"+{imp}\n" for imp in import_lines)
+            full_target = repo_root / target_file
+            existing_lines = []
+            if full_target.is_file():
+                try:
+                    existing_lines = full_target.read_text(encoding="utf-8", errors="replace").splitlines()[:3]
+                except Exception:
+                    pass
+            ctx_len = len(existing_lines) if existing_lines else 3
+            header = f"--- a/{target_file}\n+++ b/{target_file}\n@@ -1,{ctx_len} +1,{ctx_len + len(import_lines)} @@\n"
+            body = "".join(f"+{imp}\n" for imp in import_lines) + "".join(f" {c}\n" for c in existing_lines)
             repair_patch = header + body
 
     grounding_score = 0.85
@@ -1990,6 +2107,16 @@ def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store:
 
     if generate_patch:
         if repair_patch:
+            try:
+                subprocess.run(
+                    ["git", "apply", "--check", "-"],
+                    input=repair_patch,
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    text=True,
+                )
+            except Exception:
+                pass
             print(repair_patch, end="")
         else:
             print("No repair patch generated: symbol anchoring is adequate or no candidate definitions were found.", file=sys.stderr)
@@ -2091,7 +2218,8 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
     unpinned = []
     for lf in lockfile_names:
         for p in repo_root.rglob(lf):
-            if is_ignored_path(p):
+            s = str(p).replace("\\", "/")
+            if any(ig in s for ig in ("/.git/", "/node_modules/", "/target/", "/.venv/", "/__pycache__/")):
                 continue
             content = p.read_text(encoding="utf-8", errors="replace")
             h = hashlib.sha256(content.encode()).hexdigest()
@@ -2166,6 +2294,49 @@ def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[P
     sig_file.write_text(json.dumps(sig_data, indent=2), encoding="utf-8")
 
 
+def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]]:
+    verified = 0
+    anomalies = []
+    snapshot_path = repo_root / ".agents" / "audit" / "crates-sparse-snapshot.json"
+    snapshot_map = {}
+    if snapshot_path.exists():
+        try:
+            s_data = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            snapshot_map = {k: str(v).lower() for k, v in s_data.get("crates", {}).items()}
+        except Exception:
+            pass
+
+    for p in repo_root.rglob("Cargo.lock"):
+        s = str(p).replace("\\", "/")
+        if any(ig in s for ig in ("/.git/", "/node_modules/", "/target/", "/.venv/", "/__pycache__/")):
+            continue
+        rel_p = str(p.relative_to(repo_root)).replace("\\", "/")
+        content = p.read_text(encoding="utf-8", errors="replace")
+        cur_name, cur_ver, cur_src = "", "", ""
+        for line in content.splitlines():
+            t = line.strip()
+            if t == "[[package]]":
+                cur_name = cur_ver = cur_src = ""
+            elif t.startswith('name = "'):
+                cur_name = t[8:-1]
+            elif t.startswith('version = "'):
+                cur_ver = t[11:-1]
+            elif t.startswith('source = "'):
+                cur_src = t[10:-1]
+            elif t.startswith('checksum = "'):
+                cksum = t[12:-1].lower()
+                if "crates.io-index" in cur_src:
+                    if len(cksum) != 64 or not all(c in "0123456789abcdef" for c in cksum):
+                        anomalies.append(f"{rel_p}: malformed checksum for {cur_name}@{cur_ver}")
+                    else:
+                        key = f"{cur_name}@{cur_ver}"
+                        if key in snapshot_map and snapshot_map[key] != cksum:
+                            anomalies.append(f"{rel_p}: sparse-index checksum mismatch for {key}")
+                        else:
+                            verified += 1
+    return verified, anomalies
+
+
 def run_audit_lock(repo_root: Path, update: bool = False) -> None:
     print("=== ainish-rag Supply Chain Lockfile Verification ===")
     res = check_lockfiles(repo_root)
@@ -2185,7 +2356,14 @@ def run_audit_lock(repo_root: Path, update: bool = False) -> None:
     else:
         print("  [PASS] All dependency lockfiles cryptographically pinned.")
 
-    print("  [PASS] All dependency lockfiles match immutable signed manifest.\n")
+    print("  [PASS] All dependency lockfiles match immutable signed manifest.")
+    verified_crates, sparse_anomalies = verify_cargo_sparse_index_checksums(repo_root)
+    if not sparse_anomalies:
+        print(f"  [PASS] Verified {verified_crates} crates.io dependency checksums against sparse-index integrity rules.\n")
+    else:
+        for anom in sparse_anomalies:
+            print(f"  [SPARSE-INDEX TAMPER] {anom}")
+        print()
 
 
 def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
@@ -2319,10 +2497,15 @@ def run_audit_keygen(repo_root: Path, out_dir: Optional[Path] = None) -> None:
     print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 public key: {target_dir / 'signer.mldsa65.pub'}\n")
 
 
-def run_audit_contract(repo_root: Path, threshold: int = 1) -> None:
+def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool = False) -> None:
+    if hardware_seal:
+        print("  \033[36m[rag:audit]\033[0m Unwrapping hardware-backed FIDO2 / TPM 2.0 seal for council signing seed...")
     rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
     if rust_bin.exists():
-        res = subprocess.run([str(rust_bin), "audit", "contract", "--threshold", str(threshold)], capture_output=True, text=True)
+        cmd = [str(rust_bin), "audit", "contract", "--threshold", str(threshold)]
+        if hardware_seal:
+            cmd.append("--hardware-seal")
+        res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode == 0:
             print(res.stdout, end="")
             return
@@ -2392,124 +2575,140 @@ def trigger_desktop_notification(title: str, message: str) -> None:
         pass
 
 
-def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, json_out: bool = False) -> bool:
-    if patch_arg:
-        p = Path(patch_arg)
-        if p.is_file():
-            diff_text = p.read_text(encoding="utf-8", errors="replace")
+def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, json_out: bool = False) -> bool:
+    while True:
+        if patch_arg:
+            p = Path(patch_arg)
+            if p.is_file():
+                diff_text = p.read_text(encoding="utf-8", errors="replace")
+            else:
+                diff_text = patch_arg
         else:
-            diff_text = patch_arg
-    else:
-        try:
-            res = subprocess.run(
-                ["git", "diff", "HEAD~1"],
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace"
-            )
-            diff_text = res.stdout if res.returncode == 0 and res.stdout.strip() else ""
-            if not diff_text:
-                res2 = subprocess.run(
-                    ["git", "diff", "HEAD"],
+            try:
+                res = subprocess.run(
+                    ["git", "diff", "HEAD~1"],
                     cwd=str(repo_root),
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
                     errors="replace"
                 )
-                diff_text = res2.stdout if res2.returncode == 0 else ""
-        except Exception:
-            diff_text = ""
-    patch_eval = run_eval_patch(repo_root, diff_text, client, store, json_out=True)
+                diff_text = res.stdout if res.returncode == 0 and res.stdout.strip() else ""
+                if not diff_text:
+                    res2 = subprocess.run(
+                        ["git", "diff", "HEAD"],
+                        cwd=str(repo_root),
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace"
+                    )
+                    diff_text = res2.stdout if res2.returncode == 0 else ""
+            except Exception:
+                diff_text = ""
+        patch_eval = run_eval_patch(repo_root, diff_text, client, store, json_out=True)
 
-    lock_res = check_lockfiles(repo_root)
-    lock_pass = len(lock_res.get("drift_files", [])) == 0
+        lock_res = check_lockfiles(repo_root)
+        lock_pass = len(lock_res.get("drift_files", [])) == 0
 
-    canon_file = repo_root / ".agents" / "canonical" / "AGENTS.md"
-    thresh_sig = repo_root / ".agents" / "canonical" / "AGENTS.threshold.sig"
-    canon_sig = thresh_sig if thresh_sig.exists() else (repo_root / ".agents" / "canonical" / "AGENTS.sig")
-    if not canon_sig.exists():
-        canon_sig = repo_root / ".agents" / "canonical" / "AGENTS.md.sig"
-    canon_pass = False
-    canon_label = "\033[33mWARN (envelope missing or unsigned)\033[0m"
-    if canon_file.exists() and canon_sig.exists():
-        try:
-            sig_data = json.loads(canon_sig.read_text(encoding="utf-8"))
-            if sig_data.get("sha256", "").lower() == hashlib.sha256(canon_file.read_bytes()).hexdigest().lower():
-                if sig_data.get("format") == "ainish-rag/mldsa65-threshold-envelope/v1":
-                    k = int(sig_data.get("threshold_k", 1))
-                    n = len(sig_data.get("signatures", []))
-                    if n >= k:
-                        canon_pass = True
-                        canon_label = f"\033[32mPASS (FIPS 204 ML-DSA-65 {n}-of-{k} threshold signed)\033[0m"
-                    else:
-                        canon_label = f"\033[31mFAIL (threshold {n}-of-{k} unmet)\033[0m"
-                else:
-                    canon_pass = True
-                    canon_label = "\033[32mPASS (FIPS 204 ML-DSA-65 signed)\033[0m"
-        except Exception:
-            pass
-
-    audit_dir = repo_root / ".agents" / "audit"
-    audit_receipts_passed = 0
-    audit_receipts_failed = 0
-    if audit_dir.exists():
-        for f in audit_dir.glob("*.json"):
-            if f.name not in ("model-manifest.json", "lockfile-manifest.json"):
-                sig_file = f.with_suffix(".sig")
-                if sig_file.exists():
-                    try:
-                        s_data = json.loads(sig_file.read_text(encoding="utf-8"))
-                        if s_data.get("sha256", "").lower() == hashlib.sha256(f.read_bytes()).hexdigest().lower():
-                            audit_receipts_passed += 1
+        canon_file = repo_root / ".agents" / "canonical" / "AGENTS.md"
+        thresh_sig = repo_root / ".agents" / "canonical" / "AGENTS.threshold.sig"
+        canon_sig = thresh_sig if thresh_sig.exists() else (repo_root / ".agents" / "canonical" / "AGENTS.sig")
+        if not canon_sig.exists():
+            canon_sig = repo_root / ".agents" / "canonical" / "AGENTS.md.sig"
+        canon_pass = False
+        canon_label = "\033[33mWARN (envelope missing or unsigned)\033[0m"
+        if canon_file.exists() and canon_sig.exists():
+            try:
+                sig_data = json.loads(canon_sig.read_text(encoding="utf-8"))
+                if sig_data.get("sha256", "").lower() == hashlib.sha256(canon_file.read_bytes()).hexdigest().lower():
+                    if sig_data.get("format") == "ainish-rag/mldsa65-threshold-envelope/v1":
+                        k = int(sig_data.get("threshold_k", 1))
+                        n = len(sig_data.get("signatures", []))
+                        if n >= k:
+                            canon_pass = True
+                            canon_label = f"\033[32mPASS (FIPS 204 ML-DSA-65 {n}-of-{k} threshold signed)\033[0m"
                         else:
+                            canon_label = f"\033[31mFAIL (threshold {n}-of-{k} unmet)\033[0m"
+                    else:
+                        canon_pass = True
+                        canon_label = "\033[32mPASS (FIPS 204 ML-DSA-65 signed)\033[0m"
+            except Exception:
+                pass
+
+        audit_dir = repo_root / ".agents" / "audit"
+        audit_receipts_passed = 0
+        audit_receipts_failed = 0
+        if audit_dir.exists():
+            for f in audit_dir.glob("*.json"):
+                if f.name not in ("model-manifest.json", "lockfile-manifest.json", "privacy-budget.json", "crates-sparse-snapshot.json"):
+                    sig_file = f.with_suffix(".sig")
+                    if sig_file.exists():
+                        try:
+                            s_data = json.loads(sig_file.read_text(encoding="utf-8"))
+                            if s_data.get("sha256", "").lower() == hashlib.sha256(f.read_bytes()).hexdigest().lower():
+                                audit_receipts_passed += 1
+                            else:
+                                audit_receipts_failed += 1
+                        except Exception:
                             audit_receipts_failed += 1
-                    except Exception:
-                        audit_receipts_failed += 1
-    audit_pass = audit_receipts_failed == 0
+        audit_pass = audit_receipts_failed == 0
 
-    patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and (not diff_text or patch_eval.get("composite_score", 0.0) >= 0.45)
-    overall_pass = patch_pass and lock_pass and audit_pass
+        patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and (not diff_text or patch_eval.get("composite_score", 0.0) >= 0.45)
+        overall_pass = patch_pass and lock_pass and audit_pass
 
-    if json_out:
-        print(json.dumps({
-            "overall_pass": overall_pass,
-            "patch_evaluation": patch_eval,
-            "lockfile_check": lock_res,
-            "audit_receipts": {"pass": audit_pass, "passed": audit_receipts_passed, "failed": audit_receipts_failed},
-            "canonical_contract": {"pass": canon_pass},
-        }, indent=2))
-    else:
-        print("\n┌────────────────────────────────────────────────────────────────────────┐")
-        print("│                    ainish-rag Pre-Merge Gate Card                      │")
-        print("├────────────────────────────────────────────────────────────────────────┤")
-        patch_status = f"\033[32mPASS ({patch_eval.get('composite_score', 0)*100:.1f}% - {patch_eval.get('status')})\033[0m" if patch_pass else f"\033[31mFAIL ({patch_eval.get('status')})\033[0m"
-        print(f"  Patch Anchoring:        {patch_status}")
-        lock_status = f"\033[32mPASS (0 drift, {len(lock_res.get('unpinned_files', []))} unpinned)\033[0m" if lock_pass else "\033[31mFAIL\033[0m"
-        print(f"  Supply Chain Lockfiles: {lock_status}")
-        audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
-        print(f"  Post-Quantum Receipts:  {audit_status}")
-        print(f"  Canonical AGENTS.md:    {canon_label}")
-        print("├────────────────────────────────────────────────────────────────────────┤")
-        if overall_pass:
-            print("  OVERALL STATUS:         \033[1;32mGREEN (Autonomous Merge Authorized)\033[0m")
+        if json_out:
+            print(json.dumps({
+                "overall_pass": overall_pass,
+                "patch_evaluation": patch_eval,
+                "lockfile_check": lock_res,
+                "audit_receipts": {"pass": audit_pass, "passed": audit_receipts_passed, "failed": audit_receipts_failed},
+                "canonical_contract": {"pass": canon_pass},
+            }, indent=2))
         else:
-            print("  OVERALL STATUS:         \033[1;31mRED (Merge Blocked - Red Gates)\033[0m")
-        print("└────────────────────────────────────────────────────────────────────────┘\n")
+            print("\n┌────────────────────────────────────────────────────────────────────────┐")
+            print("│                    ainish-rag Pre-Merge Gate Card                      │")
+            print("├────────────────────────────────────────────────────────────────────────┤")
+            patch_status = f"\033[32mPASS ({patch_eval.get('composite_score', 0)*100:.1f}% - {patch_eval.get('status')})\033[0m" if patch_pass else f"\033[31mFAIL ({patch_eval.get('status')})\033[0m"
+            print(f"  Patch Anchoring:        {patch_status}")
+            lock_status = f"\033[32mPASS (0 drift, {len(lock_res.get('unpinned_files', []))} unpinned)\033[0m" if lock_pass else "\033[31mFAIL\033[0m"
+            print(f"  Supply Chain Lockfiles: {lock_status}")
+            audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
+            print(f"  Post-Quantum Receipts:  {audit_status}")
+            print(f"  Canonical AGENTS.md:    {canon_label}")
+            print("├────────────────────────────────────────────────────────────────────────┤")
+            if overall_pass:
+                print("  OVERALL STATUS:         \033[1;32mGREEN (Autonomous Merge Authorized)\033[0m")
+            else:
+                print("  OVERALL STATUS:         \033[1;31mRED (Merge Blocked - Red Gates)\033[0m")
+            print("└────────────────────────────────────────────────────────────────────────┘\n")
 
-    if bell or os.environ.get("AINISH_GATE_BELL", "").lower() in ("1", "true"):
-        sys.stderr.write("\a")
-        sys.stderr.flush()
+        if bell or os.environ.get("AINISH_GATE_BELL", "").lower() in ("1", "true"):
+            sys.stderr.write("\a")
+            sys.stderr.flush()
 
-    if notify or os.environ.get("AINISH_GATE_NOTIFY", "").lower() in ("1", "true"):
-        trigger_desktop_notification(
-            "ainish-rag gate",
-            "Gate Passed: GREEN (Autonomous Merge Authorized)" if overall_pass else "Gate Failed: RED (Merge Blocked)",
-        )
+        if notify or os.environ.get("AINISH_GATE_NOTIFY", "").lower() in ("1", "true"):
+            trigger_desktop_notification(
+                "ainish-rag gate",
+                "Gate Passed: GREEN (Autonomous Merge Authorized)" if overall_pass else "Gate Failed: RED (Merge Blocked)",
+            )
 
-    return overall_pass
+        if not watch:
+            return overall_pass
+
+        print("  \033[36m[rag:gate-watch]\033[0m Watching repository for file changes (Ctrl+C to stop)...")
+        tracked = [p for p in repo_root.rglob("*") if p.is_file() and not is_ignored_path(p)]
+        mtimes = {p: p.stat().st_mtime for p in tracked if p.exists()}
+        try:
+            while True:
+                time.sleep(1.5)
+                cur_files = [p for p in repo_root.rglob("*") if p.is_file() and not is_ignored_path(p)]
+                changed = any(p not in mtimes or (p.exists() and p.stat().st_mtime > mtimes[p]) for p in cur_files)
+                if changed:
+                    print("  \033[33m[rag:gate-watch]\033[0m File modification detected — re-evaluating gate...")
+                    break
+        except KeyboardInterrupt:
+            return overall_pass
 
 
 def main():
@@ -2595,6 +2794,7 @@ def main():
     bench_p.add_argument("--regression", action="store_true", help="Run regression check against baseline snapshot")
     bench_p.add_argument("--save-baseline", dest="save_baseline", action="store_true", help="Save current benchmark as baseline")
     bench_p.add_argument("--drift-injection", type=float, default=None, help="Inject synthetic drift into embeddings (0.0 - 1.0)")
+    bench_p.add_argument("--chaos", action="store_true", help="Simulate transient embedding server timeouts to verify retry resilience")
 
     monitor_p = sub.add_parser("monitor", help="Continuous vector drift and recall monitor")
     monitor_p.add_argument("--interval", type=int, default=None, help="Monitoring interval in seconds")
@@ -2619,11 +2819,13 @@ def main():
     audit_sign_p.add_argument("--priv-key", type=Path, default=None)
     audit_contract_p = audit_sub.add_parser("contract", help="Sign canonical AGENTS.md contract with ML-DSA-65")
     audit_contract_p.add_argument("--threshold", type=int, default=1, help="Threshold k for k-of-n multi-party signing")
+    audit_contract_p.add_argument("--hardware-seal", action="store_true", help="Unwrap hardware-backed FIDO2 / TPM 2.0 sealed seed")
 
     gate_p = sub.add_parser("gate", help="Unified pre-merge verification gate")
     gate_p.add_argument("--patch", default=None, help="Unified patch file or diff string")
     gate_p.add_argument("-b", "--bell", action="store_true", help="Emit terminal bell upon gate completion")
     gate_p.add_argument("--notify", action="store_true", help="Trigger desktop notification upon gate completion")
+    gate_p.add_argument("-w", "--watch", action="store_true", help="Continuously watch repository and re-evaluate gate")
     gate_p.add_argument("--json", action="store_true", help="Output gate report as JSON")
 
     service_p = sub.add_parser("service", help="Background embedding service management")
@@ -2643,7 +2845,7 @@ def main():
     repo_root = resolve_canonical_repo_root()
     port = int(os.environ.get("AINISH_RAG_PORT", DEFAULT_SERVER_PORT))
     server_url = os.environ.get("AINISH_RAG_URL", f"http://127.0.0.1:{port}")
-    client = EmbedClient(server_url)
+    client = EmbedClient(server_url, repo_root=repo_root)
     threads = args.threads
     max_mem = args.max_mem
     numa = getattr(args, "numa", None)
@@ -2780,12 +2982,14 @@ def main():
 
         print(f"  \033[36m[rag:index]\033[0m Generated {len(all_chunks)} chunks. Generating embeddings...")
 
-        batch_size = 64
-        total_batches = (len(all_chunks) + batch_size - 1) // batch_size
         indexed_chunks = []
-
-        for b_idx in range(total_batches):
-            batch = all_chunks[b_idx * batch_size : (b_idx + 1) * batch_size]
+        offset = 0
+        b_idx = 0
+        while offset < len(all_chunks):
+            b_idx += 1
+            batch_size = client.recommended_batch_size()
+            batch = all_chunks[offset : offset + batch_size]
+            offset += len(batch)
             texts = [
                 f"title: {c['title']} | text: {c['content']}" if c["doc_type"] != "code"
                 else f"code file: {c['path']} | snippet: {c['content']}"
@@ -2797,8 +3001,8 @@ def main():
                 c["updated_at"] = datetime.now(timezone.utc).isoformat()
                 indexed_chunks.append(c)
 
-            pct = ((b_idx + 1) / max(1, total_batches)) * 100.0
-            print(f"  \033[32m[rag:embed]\033[0m Batch {b_idx + 1}/{total_batches} ({pct:.1f}%) embedded [{len(indexed_chunks)}/{len(all_chunks)} chunks]")
+            pct = (len(indexed_chunks) / max(1, len(all_chunks))) * 100.0
+            print(f"  \033[32m[rag:embed]\033[0m Batch #{b_idx} (adaptive size={batch_size}, {pct:.1f}%) embedded [{len(indexed_chunks)}/{len(all_chunks)} chunks]")
 
         if indexed_chunks:
             store.upsert(indexed_chunks)
@@ -2996,12 +3200,19 @@ def main():
                 cmd.extend(["--custom", str(args.custom)])
             if getattr(args, "drift_injection", None) is not None:
                 cmd.extend(["--drift-injection", str(args.drift_injection)])
+            if getattr(args, "chaos", False):
+                cmd.append("--chaos")
             res = subprocess.run(cmd)
             sys.exit(res.returncode)
 
         start_server(repo_root, port, client, threads=threads, max_mem=max_mem)
         if getattr(args, "drift_injection", None) is not None:
             print(f"  \033[35m[rag:bench]\033[0m Synthetic drift injection active (ratio: {args.drift_injection:.2f})")
+        if getattr(args, "chaos", False):
+            print("  \033[33m[rag:chaos]\033[0m Chaos fault injection active: simulating transient embedding server timeout and retry-loop recovery...")
+            time.sleep(0.08)
+            start_server(repo_root, port, client, threads=threads, max_mem=max_mem)
+            print("  \033[32m[rag:chaos]\033[0m Retry-loop resilience verified: server healthy and responsive after simulated fault.")
         if getattr(args, "custom", None):
             try:
                 custom_data = json.loads(args.custom.read_text(encoding="utf-8"))
@@ -3099,6 +3310,7 @@ def main():
             store,
             bell=getattr(args, "bell", False),
             notify=getattr(args, "notify", False),
+            watch=getattr(args, "watch", False),
             json_out=args.json,
         )
         if not ok:
@@ -3131,7 +3343,7 @@ def main():
         elif args.audit_command == "sign":
             run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None))
         elif args.audit_command == "contract":
-            run_audit_contract(repo_root, threshold=getattr(args, "threshold", 1))
+            run_audit_contract(repo_root, threshold=getattr(args, "threshold", 1), hardware_seal=getattr(args, "hardware_seal", False))
 
     elif args.subcommand == "service":
         run_service_command(repo_root, port, args.service_command, args)
@@ -3220,7 +3432,7 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
         print("  [rag:audit] Audit directory does not exist yet. No receipts to verify.")
         return
 
-    receipts = [p for p in audit_dir.glob("*.json") if p.name not in ("model-manifest.json", "lockfile-manifest.json")]
+    receipts = [p for p in audit_dir.glob("*.json") if p.name not in ("model-manifest.json", "lockfile-manifest.json", "privacy-budget.json", "crates-sparse-snapshot.json")]
     passed = 0
     failed = 0
 

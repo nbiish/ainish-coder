@@ -546,6 +546,54 @@ impl AntiDnsRebinding {
         }
         Self::validate_host(clean)
     }
+
+    /// Constant-time comparison of loopback PSK tokens to prevent local timing side-channel probes
+    pub fn verify_psk_constant_time(expected: &str, candidate: &str) -> bool {
+        let a = expected.as_bytes();
+        let b = candidate.as_bytes();
+        let max_len = a.len().max(b.len());
+        let mut diff: u8 = (a.len() ^ b.len()) as u8;
+        for i in 0..max_len {
+            let byte_a = *a.get(i).unwrap_or(&0);
+            let byte_b = *b.get(i).unwrap_or(&0);
+            diff |= byte_a ^ byte_b;
+        }
+        diff == 0 && !a.is_empty()
+    }
+}
+
+/// Rate-limits failed loopback PSK authentication attempts to block brute-force / timing probes
+pub struct PskAuthGuard {
+    failed_attempts: std::sync::atomic::AtomicU32,
+    max_attempts: u32,
+}
+
+impl PskAuthGuard {
+    pub const fn new(max_attempts: u32) -> Self {
+        Self {
+            failed_attempts: std::sync::atomic::AtomicU32::new(0),
+            max_attempts,
+        }
+    }
+
+    pub fn verify(&self, expected: &str, candidate: &str) -> Result<(), String> {
+        use std::sync::atomic::Ordering;
+        let current_failures = self.failed_attempts.load(Ordering::SeqCst);
+        if current_failures >= self.max_attempts {
+            return Err(format!(
+                "PSK authentication locked out: exceeded maximum failed attempts ({})",
+                self.max_attempts
+            ));
+        }
+        if AntiDnsRebinding::verify_psk_constant_time(expected, candidate) {
+            self.failed_attempts.store(0, Ordering::SeqCst);
+            Ok(())
+        } else {
+            let failures = self.failed_attempts.fetch_add(1, Ordering::SeqCst) + 1;
+            std::thread::sleep(Duration::from_millis((failures as u64) * 25));
+            Err(format!("Invalid loopback PSK token (failed attempt {}/{})", failures, self.max_attempts))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -571,5 +619,19 @@ mod tests {
         assert!(AntiDnsRebinding::validate_host("10.0.0.1").is_err());
         assert!(AntiDnsRebinding::validate_host("0.0.0.0").is_err());
         assert!(AntiDnsRebinding::validate_host("http://attacker.com").is_err());
+    }
+
+    #[test]
+    fn test_constant_time_psk_and_rate_limiting() {
+        let secret = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
+        assert!(AntiDnsRebinding::verify_psk_constant_time(secret, secret));
+        assert!(!AntiDnsRebinding::verify_psk_constant_time(secret, "wrong_token"));
+        assert!(!AntiDnsRebinding::verify_psk_constant_time("", ""));
+
+        let guard = PskAuthGuard::new(2);
+        assert!(guard.verify(secret, "bad1").is_err());
+        assert!(guard.verify(secret, "bad2").is_err());
+        // 3rd attempt should be locked out even with valid secret
+        assert!(guard.verify(secret, secret).is_err());
     }
 }
