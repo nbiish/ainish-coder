@@ -661,6 +661,13 @@ pub fn sign_canonical_contract(repo_root: &Path) -> Result<(PathBuf, PathBuf), S
     let src = repo_root.join("AGENTS.md");
     let canonical_dest = canonical_dir.join("AGENTS.md");
     if src.exists() && src != canonical_dest {
+        if let Ok(meta) = std::fs::metadata(&canonical_dest) {
+            let mut perms = meta.permissions();
+            if perms.readonly() {
+                perms.set_readonly(false);
+                let _ = std::fs::set_permissions(&canonical_dest, perms);
+            }
+        }
         std::fs::copy(&src, &canonical_dest).map_err(|e| format!("copy AGENTS.md: {}", e))?;
     }
     let data = std::fs::read(&canonical_dest).map_err(|e| format!("read canonical AGENTS.md: {}", e))?;
@@ -678,6 +685,13 @@ pub fn sign_canonical_contract_threshold(repo_root: &Path, threshold: usize) -> 
     let src = repo_root.join("AGENTS.md");
     let canonical_dest = canonical_dir.join("AGENTS.md");
     if src.exists() && src != canonical_dest {
+        if let Ok(meta) = std::fs::metadata(&canonical_dest) {
+            let mut perms = meta.permissions();
+            if perms.readonly() {
+                perms.set_readonly(false);
+                let _ = std::fs::set_permissions(&canonical_dest, perms);
+            }
+        }
         std::fs::copy(&src, &canonical_dest).map_err(|e| format!("copy AGENTS.md: {}", e))?;
     }
     let data = std::fs::read(&canonical_dest).map_err(|e| format!("read canonical AGENTS.md: {}", e))?;

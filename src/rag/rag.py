@@ -1072,6 +1072,87 @@ class LanceStore:
         return res
 
 
+def redact_local_user_paths(text: str, repo_root: Path) -> str:
+    """Redacts local absolute filesystem user paths in ledger entries to repository-relative paths."""
+    out = text
+    repo_slash = str(repo_root).replace("\\", "/")
+    repo_back = str(repo_root).replace("/", "\\")
+    if repo_slash and repo_slash != ".":
+        out = out.replace(repo_slash + "/", "").replace(repo_slash, ".")
+    if repo_back and repo_back != ".":
+        out = out.replace(repo_back + "\\", "").replace(repo_back, ".")
+    out = re.sub(
+        r"(?i)(?:[A-Z]:[\\/]+Users[\\/]+[^\\/\s`'\"\n]+[\\/]+|/mnt/[a-z]/Users/[^/\s`'\"\n]+/|/Users/[^/\s`'\"\n]+/|/home/[^/\s`'\"\n]+/|[A-Z]:[\\/]+Code[\\/]+|/mnt/[a-z]/Code/)",
+        "",
+        out,
+    )
+    return out
+
+
+def cross_link_resolved_memories(ledger_text: str, repo_root: Path) -> str:
+    """Cross-links `.agents/wiki/ledger.md` entries with `.agents/memories/{date}-memory.txt` so resolved items automatically mark `[RESOLVED]`."""
+    memories_dir = repo_root / ".agents" / "memories"
+    resolved_tokens: List[str] = []
+    if memories_dir.exists():
+        for m_file in memories_dir.glob("*-memory.txt"):
+            try:
+                for line in m_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if "[RESOLVED]" in line:
+                        for w in re.findall(r"[A-Za-z0-9_-]+", line):
+                            if len(w) >= 6 and w.upper() != "RESOLVED":
+                                resolved_tokens.append(w.lower())
+            except Exception:
+                pass
+    out_lines = []
+    for line in ledger_text.splitlines():
+        trimmed = line.strip()
+        if trimmed.startswith("- ") and "[RESOLVED]" not in trimmed and resolved_tokens:
+            lower = trimmed.lower()
+            matches = sum(1 for tok in resolved_tokens if tok in lower)
+            if matches >= 2 and line.startswith("- "):
+                out_lines.append("- [RESOLVED] " + line[2:])
+                continue
+        out_lines.append(line)
+    return "\n".join(out_lines)
+
+
+def read_sanitized_operator_ledger(repo_root: Path) -> str:
+    wiki_dir = repo_root / ".agents" / "wiki"
+    ledger_path = wiki_dir / "ledger.md"
+    if ledger_path.is_file():
+        raw = ledger_path.read_text(encoding="utf-8", errors="replace")
+        if raw.strip():
+            scrubbed = scrub_sensitive_content(raw)
+            redacted = redact_local_user_paths(scrubbed, repo_root)
+            linked = cross_link_resolved_memories(redacted, repo_root)
+            return linked.rstrip() + "\n"
+    return "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n"
+
+
+def append_wiki_note_and_sign(repo_root: Path, note: str) -> Tuple[Path, Path]:
+    wiki_dir = repo_root / ".agents" / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    ledger_path = wiki_dir / "ledger.md"
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    clean_note = redact_local_user_paths(scrub_sensitive_content(note.strip()), repo_root)
+    entry_line = f"- {today} {clean_note}\n"
+
+    if ledger_path.exists():
+        content = ledger_path.read_text(encoding="utf-8", errors="replace")
+    else:
+        content = (
+            "# Operator ledger\n\n"
+            "`ainish-rag wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. "
+            "Append one dated line per cycle. The generator splices this file into `04-improvements-and-debt.md`.\n\n"
+        )
+    if content and not content.endswith("\n"):
+        content += "\n"
+    content += entry_line
+    ledger_path.write_text(content, encoding="utf-8")
+    run_audit_sign(repo_root, ledger_path)
+    return ledger_path, ledger_path.with_suffix(".sig")
+
+
 def generate_wiki(repo_root: Path) -> List[Path]:
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_dir.mkdir(parents=True, exist_ok=True)
@@ -1083,12 +1164,7 @@ def generate_wiki(repo_root: Path) -> List[Path]:
     img_files = [p for p in files if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg", ".webp"}]
 
     now_utc = datetime.now(timezone.utc).isoformat()
-    ledger_path = wiki_dir / "ledger.md"
-    if ledger_path.is_file():
-        l_text = ledger_path.read_text(encoding="utf-8", errors="replace").strip()
-        operator_ledger = (l_text + "\n") if l_text else "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n"
-    else:
-        operator_ledger = "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n"
+    operator_ledger = read_sanitized_operator_ledger(repo_root)
 
     pages = {
         "README.md": f"""# {repo_name} — Knowledge & Architecture Wiki
@@ -1263,6 +1339,9 @@ def record_index_audit_receipt(repo_root: Path, target: Path, files_count: int, 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     receipt_file = audit_dir / f"{today}-index-receipt.json"
 
+    ledger_path = repo_root / ".agents" / "wiki" / "ledger.md"
+    wiki_ledger_sha256 = hashlib.sha256(ledger_path.read_bytes()).hexdigest() if ledger_path.is_file() else None
+
     receipt = {
         "receipt_id": f"idx-{int(time.time() * 1000)}",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -1272,33 +1351,13 @@ def record_index_audit_receipt(repo_root: Path, target: Path, files_count: int, 
         "chunks_generated": chunks_count,
         "total_store_records": total_records,
         "anonymized_symbols": anonymized_symbols,
+        "wiki_ledger_sha256": wiki_ledger_sha256,
         "algorithm_guarantee": "FIPS 204 ML-DSA-65",
         "status": "verified"
     }
 
     receipt_file.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
-    sig_file = audit_dir / f"{today}-index-receipt.sig"
-    signed = False
-
-    pqc_bin = repo_root / "bin" / ("pqc-secrets.exe" if os.name == "nt" else "pqc-secrets")
-    cmd_name = str(pqc_bin) if pqc_bin.exists() else "pqc-secrets"
-    try:
-        res = subprocess.run([cmd_name, "sign", str(receipt_file)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if res.returncode == 0:
-            signed = True
-    except Exception:
-        pass
-
-    if not signed:
-        digest = hashlib.sha256(receipt_file.read_bytes()).hexdigest()
-        envelope = {
-            "target": str(receipt_file),
-            "sha256": digest,
-            "mode": "ML-DSA-65-ready",
-            "signed_at": datetime.now(timezone.utc).isoformat()
-        }
-        sig_file.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
-
+    run_audit_sign(repo_root, receipt_file)
     print(f"  \033[32m[rag:audit]\033[0m Recorded batch index audit receipt at {receipt_file}")
     return receipt_file
 
@@ -1861,8 +1920,8 @@ complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage backgrou
 """)
 
 
-def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7) -> None:
-    print("=== ainish-rag Database Maintenance & Cleanup ===")
+def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7, prune_worktrees: bool = True) -> None:
+    print("=== ainish-rag Database Maintenance & Worktree Hygiene ===")
     rag_dir = repo_root / ".agents" / "rag"
     cleaned_files = 0
     if rag_dir.exists():
@@ -1882,6 +1941,21 @@ def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7) -> 
             print("  Table files successfully compacted.")
         if res.get("versions_pruned"):
             print(f"  WAL versions older than {prune_days} days pruned.")
+    if prune_worktrees:
+        try:
+            subprocess.run(["git", "worktree", "prune"], cwd=str(repo_root), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            res = subprocess.run(["git", "branch", "--merged", "main"], cwd=str(repo_root), capture_output=True, text=True)
+            merged_branches = [
+                b.strip().lstrip("*+").strip()
+                for b in res.stdout.splitlines()
+                if b.strip().lstrip("*+").strip() and b.strip().lstrip("*+").strip() not in ("main", "master")
+            ]
+            if not merged_branches:
+                print("  \033[32m[rag:worktrees]\033[0m Pruned stale git worktree metadata; 0 lingering merged branches detected.")
+            else:
+                print(f"  \033[33m[rag:worktrees]\033[0m Pruned worktree metadata; merged branches ready for cleanup: {', '.join(merged_branches)}")
+        except Exception:
+            pass
     print("  Cleanup completed successfully.\n")
 
 
@@ -1917,7 +1991,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_files = []
     if wiki_dir.exists():
-        wiki_files = [p for p in wiki_dir.glob("*.md") if p.name.lower() != "readme.md"]
+        wiki_files = [p for p in wiki_dir.glob("*.md") if p.name.lower() not in ("readme.md", "ledger.md")]
         if task_conditioned:
             task_keywords: List[str] = []
             tasks_dir = repo_root / ".agents" / "tasks"
@@ -2004,6 +2078,19 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             primer_content.append(note)
         primer_content.append("")
 
+    wiki_ledger_notes = []
+    ledger_file = repo_root / ".agents" / "wiki" / "ledger.md"
+    if ledger_file.is_file():
+        rendered_l = read_sanitized_operator_ledger(repo_root)
+        clean_l, san_cnt = sanitize_orient_content(rendered_l)
+        total_sanitized += san_cnt
+        wiki_ledger_notes = [l for l in clean_l.splitlines() if l.strip().startswith("- ")][-6:]
+    if wiki_ledger_notes:
+        primer_content.append("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)")
+        for note in wiki_ledger_notes:
+            primer_content.append(note)
+        primer_content.append("")
+
     primer_content.append("</ORIENT_PRIMER>")
     primer_text = "\n".join(primer_content)
 
@@ -2012,6 +2099,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "primer": primer_text,
             "sections": sections,
             "recent_memories": memory_notes,
+            "wiki_ledger_notes": wiki_ledger_notes,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": True,
             "classical_crypto_redacted": total_sanitized > 0,
@@ -2754,6 +2842,7 @@ def main():
     wiki_p = sub.add_parser("wiki")
     wiki_p.add_argument("--path", type=Path, default=Path.cwd())
     wiki_p.add_argument("--no-index", action="store_true")
+    wiki_p.add_argument("-n", "--note", type=str, default=None, help="Append UTC-dated note to .agents/wiki/ledger.md, sign with ML-DSA-65, and re-render page 04")
 
     q_p = sub.add_parser("query")
     q_p.add_argument("query")
@@ -2787,9 +2876,10 @@ def main():
     eval_p.add_argument("--generate-patch", action="store_true", help="Generate AST-guided unified diff repair patch for git apply")
     eval_p.add_argument("--json", action="store_true")
 
-    cleanup_p = sub.add_parser("cleanup", help="Run database compaction and WAL version pruning")
+    cleanup_p = sub.add_parser("cleanup", help="Run database compaction, WAL version pruning, and worktree hygiene")
     cleanup_p.add_argument("--compact", action="store_true", help="Compact LanceDB fragments")
     cleanup_p.add_argument("--prune-days", type=int, default=7, help="Prune WAL versions older than N days")
+    cleanup_p.add_argument("--prune-worktrees", action="store_true", default=True, help="Prune stale git worktree metadata and detect merged branches")
 
     orient_p = sub.add_parser("orient", help="Subagent context injection primer")
     orient_p.add_argument("--inject", action="store_true", default=True, help="Format top architectural wiki sections into <ORIENT_PRIMER>")
@@ -2866,7 +2956,7 @@ def main():
         start_server(repo_root, port, client, threads=threads, max_mem=max_mem, numa=numa, cpu_affinity=cpu_affinity, psk_ttl=psk_ttl)
 
     elif args.subcommand == "cleanup":
-        run_cleanup(repo_root, compact=args.compact, prune_days=args.prune_days)
+        run_cleanup(repo_root, compact=args.compact, prune_days=args.prune_days, prune_worktrees=getattr(args, "prune_worktrees", True))
 
     elif args.subcommand == "orient":
         run_orient_primer(
@@ -3044,7 +3134,14 @@ def main():
                 print("\n  \033[33m[rag:watch]\033[0m Watch mode stopped.")
 
     elif args.subcommand == "wiki":
-        target = args.path
+        target = args.path.resolve()
+        if getattr(args, "note", None):
+            l_path, s_path = append_wiki_note_and_sign(target, args.note)
+            print(f"  \033[32m[rag:wiki]\033[0m Appended UTC-dated note to {l_path} and signed detached ML-DSA-65 envelope ({s_path})")
+        else:
+            ledger_f = target / ".agents" / "wiki" / "ledger.md"
+            if ledger_f.exists():
+                run_audit_sign(target, ledger_f)
         print(f"=== Generating Codebase Wiki in {target / '.agents' / 'wiki'} ===")
         pages = generate_wiki(target)
         print(f"  [rag:wiki] Successfully generated {len(pages)} wiki pages.")
@@ -3056,7 +3153,7 @@ def main():
             store = LanceStore(db_dir)
             chunks = []
             for p in pages:
-                content = p.read_text(encoding="utf-8")
+                content = scrub_sensitive_content(p.read_text(encoding="utf-8", errors="replace"))
                 doc_title = f"{p.name} > Overview"
                 formatted = f"title: {doc_title} | text: {content[:3000]}"
                 vec = client.embed_one(formatted)
@@ -3075,6 +3172,14 @@ def main():
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 })
             store.upsert(chunks)
+            record_index_audit_receipt(
+                repo_root=repo_root,
+                target=target,
+                files_count=len(pages),
+                chunks_count=len(chunks),
+                total_records=store.count(),
+                anonymized_symbols=False,
+            )
             print("  [rag:wiki] Successfully indexed wiki into LanceDB!")
 
     elif args.subcommand == "query":
