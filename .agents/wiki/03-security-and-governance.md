@@ -1,4 +1,4 @@
-# 03. Security & Governance — ainish-rag
+# 03. Security & Governance — ainish-coder
 
 ## 1. Cryptographic Mandate (Post-Quantum Security)
 - **Secrets Encryption:** FIPS 203 ML-KEM-768 / ML-KEM-1024 encapsulation.

@@ -1,0 +1,75 @@
+{
+  "_type": "link",
+  "byproducts": {
+    "return-value": 0,
+    "stderr": "",
+    "stdout": "in-toto v1.0 link metadata generated with ML-DSA-65 attestation"
+  },
+  "command": [
+    "ainish-rag",
+    "audit",
+    "sbom",
+    "--format",
+    "intoto"
+  ],
+  "environment": {
+    "compiler_flags": "none",
+    "name": "ainish-coder",
+    "rustc_version": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "signature_alg": "ML-DSA-65 (FIPS 204)",
+    "signer_fingerprint": "d98405ea368484f51e64840d725343be",
+    "target_arch": "x86_64",
+    "target_os": "windows",
+    "timestamp": "2026-10-24T21:07:14Z",
+    "tool": "ainish-rag 0.1.0"
+  },
+  "materials": {
+    "AGENTS.md": {
+      "sha256": "5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0"
+    },
+    "src/cmd-tracker/Cargo.lock": {
+      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+    },
+    "src/pqc-secrets/Cargo.lock": {
+      "sha256": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+    },
+    "src/rag/Cargo.lock": {
+      "sha256": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+    }
+  },
+  "name": "build/provenance",
+  "products": {
+    ".agents/audit/2026-10-12-index-receipt.json": {
+      "kind": "data",
+      "sha256": "5442094dc1e2d9422f3d2bd5e10debc555b73bcb2838c0e86414a7e55e8b5fe7"
+    },
+    ".agents/canonical/AGENTS.md": {
+      "kind": "data",
+      "sha256": "5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0"
+    },
+    "embeddinggemma-2-BF16.gguf": {
+      "kind": "machine-learning-model",
+      "sha256": "f315cbbb30dd487e44d501c8902abe88808755e43753a96beed1964f0a48aa4f"
+    },
+    "llama.exe": {
+      "kind": "application",
+      "sha256": "c2782810897e56523965e3286078847d5a5d76829b4826850c2fbf940de02ad7"
+    },
+    "mmproj-F16.gguf": {
+      "kind": "machine-learning-model",
+      "sha256": "74bf65c860d292a1eebafd7ca85b44532a2528f03017f9204fe1695916d2c66f"
+    },
+    "src/cmd-tracker/Cargo.lock": {
+      "kind": "file",
+      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+    },
+    "src/pqc-secrets/Cargo.lock": {
+      "kind": "file",
+      "sha256": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+    },
+    "src/rag/Cargo.lock": {
+      "kind": "file",
+      "sha256": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+    }
+  }
+}

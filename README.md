@@ -134,9 +134,11 @@ ainish-coder configurations enforce a comprehensive security baseline:
 
 ### Platforms
 
-ainish-coder is architecture-agnostic: macOS, Linux, and Windows (use an Ubuntu terminal via WSL). Commands are shell-generic POSIX and `~` is your POSIX home (the WSL/Ubuntu home on Windows).
+ainish-coder is architecture-agnostic: macOS, Linux, WSL, and **native Windows**. On Windows the POSIX CLI runs through the bash that ships with Git for Windows (MSYS2 and Cygwin work too), so `cmd.exe`, PowerShell 5.1+, PowerShell 7, and Windows Terminal all work — no WSL required. Commands are shell-generic POSIX and `~` is your home directory on every platform.
 
 ### Installation
+
+**macOS, Linux, WSL**
 
 ```bash
 # Clone the repository
@@ -149,6 +151,26 @@ chmod +x scripts/ainish-setup.sh
 
 # Reload your shell config
 source ~/.zshrc  # or ~/.bashrc
+```
+
+**Windows (native)**
+
+Requires [Git for Windows](https://git-scm.com/download/win) for the bash the CLI runs on, and optionally Python 3 for the skill-selection toggles (`winget install --id Python.Python.3.12 -e`).
+
+```powershell
+git clone https://github.com/nbiish/ainish-coder
+cd ainish-coder
+
+# Adds <repo>\bin to your user PATH; no elevation required
+powershell -ExecutionPolicy Bypass -File .\scripts\ainish-setup.ps1
+```
+
+Close and reopen your terminal, then run `ainish-coder --rules`. The setup script prints what it changed; `-Uninstall` removes the PATH entry and restores the previous value exactly.
+
+**WSL (alternative on Windows)**
+
+```bash
+cd /mnt/d/Code/ainish-coder && ./scripts/ainish-setup.sh
 ```
 
 ### Basic Usage

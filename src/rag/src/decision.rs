@@ -93,7 +93,7 @@ impl DecisionEngine {
         }
 
         // 2. Query PQC secrets vault on demand (never persists plaintext)
-        if let Some(key) = Self::load_from_pqc_secrets() {
+        if let Some(key) = Self::vault_var(&["OPENROUTER_API_KEY", "ROUTER_API_KEY"]) {
             return (Some(key), "pqc-secrets-vault".to_string());
         }
 
@@ -189,8 +189,8 @@ impl DecisionEngine {
         }
     }
 
-    /// Executes pqc-secrets export and extracts the OpenRouter key in memory
-    fn load_from_pqc_secrets() -> Option<String> {
+    /// Executes pqc-secrets export and extracts the first matching key in memory (never persisted).
+    pub fn vault_var(names: &[&str]) -> Option<String> {
         // Try standalone pqc-secrets binary / script in PATH and common relative paths across platforms
         let mut attempts = vec![
             ("pqc-secrets".to_string(), vec!["export".to_string()]),
@@ -209,7 +209,7 @@ impl DecisionEngine {
             if let Ok(output) = std::process::Command::new(cmd).args(args).output() {
                 if output.status.success() {
                     if let Ok(stdout) = String::from_utf8(output.stdout) {
-                        if let Some(key) = Self::parse_pqc_export(&stdout) {
+                        if let Some(key) = Self::parse_pqc_export(&stdout, names) {
                             return Some(key);
                         }
                     }
@@ -261,7 +261,7 @@ impl DecisionEngine {
                 if let Ok(output) = std::process::Command::new(&runner).args(&args).output() {
                     if output.status.success() {
                         if let Ok(stdout) = String::from_utf8(output.stdout) {
-                            if let Some(key) = Self::parse_pqc_export(&stdout) {
+                            if let Some(key) = Self::parse_pqc_export(&stdout, names) {
                                 return Some(key);
                             }
                         }
@@ -273,14 +273,14 @@ impl DecisionEngine {
         None
     }
 
-    fn parse_pqc_export(stdout: &str) -> Option<String> {
+    fn parse_pqc_export(stdout: &str, names: &[&str]) -> Option<String> {
         for line in stdout.lines() {
             let line = line.trim();
             if let Some(rest) = line.strip_prefix("export ") {
                 if let Some((k, v)) = rest.split_once('=') {
                     let k = k.trim();
                     let v = v.trim().trim_matches('\'').trim_matches('"');
-                    if (k == "OPENROUTER_API_KEY" || k == "ROUTER_API_KEY") && !v.is_empty() {
+                    if names.contains(&k) && !v.is_empty() {
                         return Some(v.to_string());
                     }
                 }

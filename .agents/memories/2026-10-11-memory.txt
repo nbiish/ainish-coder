@@ -33,3 +33,10 @@
 - 23:45 Round 2 masters suggestions implemented in ainish-rag (Rust & Python): model file magic header verification, automated secret scrubbing in ingest, 5s timeout & instant circuit-breaker fallback for OpenRouter, configurable --threads, synthetic regression bench (Recall@3 100%), shell completion scripts, drift advisory on low cosine similarity, and --watch mode for index.
 - 23:45 llama-server FlashAttention flag format: strictly requires `-fa on` or `--flash-attn on` (plain `-fa` without argument fails in llama.cpp b11540+).
 - 23:45 Physical batch sizes (--batch-size 8192, --ubatch-size 8192) aligned with context size 8192 for unconstrained embedding chunks.
+- 00:25 Loopback anti-DNS rebinding (strict Host/Origin/X-Requested-With validation, --no-webui) and rate limiting (15ms inter-batch spacing) enforced on llama-server requests.
+- 00:25 Cryptographic binary checksum verification (AINISH_LLAMA_SHA256) and host memory cap safety check (--max-mem / Win32 GlobalMemoryStatusEx / /proc/meminfo) prevent supply-chain tampering and host OOM kills.
+- 00:25 Opt-in symbol anonymization (--anonymize-symbols) transforms identifiers into sym_<sha256[:8]> prior to vectorization.
+- 00:25 Batch indexing produces cryptographically signed audit receipts in .agents/audit/{date}-index-receipt.json with FIPS 204 ML-DSA-65 signatures.
+- 00:25 Continuous vector drift monitor (ainish-rag monitor) writes .agents/rag/drift-monitor.json and alerts in git context when drift is detected.
+- 00:25 Rules deployment (ainish-coder --rules, deploy_agents.sh) scaffolds .agents/rag, .agents/audit, .agents/wiki and updates canonical AGENTS.md contract with zero-trust verification.
+

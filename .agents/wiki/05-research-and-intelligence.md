@@ -1,4 +1,4 @@
-# 05. Research & Intelligence — ainish-rag
+# 05. Research & Intelligence — ainish-coder
 
 ## 1. Multimodal Embedding Architecture
 - **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).

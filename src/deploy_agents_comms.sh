@@ -53,13 +53,13 @@ deploy_agents_comms() {
 
     # Locate the template-managed region: the <PROTOCOL> ... </PROTOCOL> block.
     local proto_start proto_end
-    proto_start="$(grep -n '^<PROTOCOL>$' "$dest" 2>/dev/null | head -1 | cut -d: -f1)"
-    proto_end="$(grep -n '^</PROTOCOL>$' "$dest" 2>/dev/null | head -1 | cut -d: -f1)"
+    proto_start="$({ grep -n '^<PROTOCOL>$' "$dest" 2>/dev/null || true; } | head -1 | cut -d: -f1)"
+    proto_end="$({ grep -n '^</PROTOCOL>$' "$dest" 2>/dev/null || true; } | head -1 | cut -d: -f1)"
 
     # Extract protocol body (between markers) from the template.
     local tmpl_start tmpl_end
-    tmpl_start="$(grep -n '^<PROTOCOL>$' "$source" 2>/dev/null | head -1 | cut -d: -f1)"
-    tmpl_end="$(grep -n '^</PROTOCOL>$' "$source" 2>/dev/null | head -1 | cut -d: -f1)"
+    tmpl_start="$({ grep -n '^<PROTOCOL>$' "$source" 2>/dev/null || true; } | head -1 | cut -d: -f1)"
+    tmpl_end="$({ grep -n '^</PROTOCOL>$' "$source" 2>/dev/null || true; } | head -1 | cut -d: -f1)"
 
     # No PROTOCOL block in destination → legacy or foreign ledger. Refuse to
     # touch it without explicit confirmation (interactive); skip under -y.

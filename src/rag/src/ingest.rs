@@ -9,10 +9,16 @@ use crate::store::RagChunk;
 pub struct CodebaseIngestor {
     repo_name: String,
     repo_root: PathBuf,
+    pub anonymize_symbols: bool,
+    pub symbol_salt: Option<String>,
 }
 
 impl CodebaseIngestor {
     pub fn new(repo_root: &Path) -> Self {
+        Self::new_with_options(repo_root, false, None)
+    }
+
+    pub fn new_with_options(repo_root: &Path, anonymize_symbols: bool, symbol_salt: Option<String>) -> Self {
         let repo_name = repo_root
             .file_name()
             .and_then(|n| n.to_str())
@@ -22,6 +28,8 @@ impl CodebaseIngestor {
         Self {
             repo_name,
             repo_root: repo_root.to_path_buf(),
+            anonymize_symbols,
+            symbol_salt,
         }
     }
 
@@ -90,10 +98,17 @@ fn chunk_code_file(&self, path: &Path, rel_path: &str, ext: &str) -> Vec<Unembed
             return Vec::new();
         }
 
-        let lines: Vec<&str> = content.lines().collect();
-        let symbols = extract_symbols(&lines, ext);
-        let symbols_json = serde_json::to_string(&symbols).unwrap_or_else(|_| "[]".to_string());
+        let raw_lines: Vec<&str> = content.lines().collect();
+        let extracted_symbols = extract_symbols(&raw_lines, ext);
 
+        let (final_content, final_symbols) = if self.anonymize_symbols && !extracted_symbols.is_empty() {
+            anonymize_content_and_symbols(&content, &extracted_symbols, self.symbol_salt.as_deref())
+        } else {
+            (content, extracted_symbols)
+        };
+        let symbols_json = serde_json::to_string(&final_symbols).unwrap_or_else(|_| "[]".to_string());
+
+        let lines: Vec<&str> = final_content.lines().collect();
         let mut chunks = Vec::new();
         let chunk_size = 60;
         let overlap = 10;
@@ -267,9 +282,9 @@ pub fn is_ignored_path(path: &Path) -> bool {
         || s.contains("/target/") || s.contains("\\target\\")
         || s.contains("/.venv/") || s.contains("\\.venv\\")
         || s.contains("/__pycache__/") || s.contains("\\__pycache__\\")
-        || s.contains("/.agents/rag/lancedb/") || s.contains("\\.agents\\rag\\lancedb\\")
+        || s.contains("/.agents/rag/") || s.contains("\\.agents\\rag\\")
         || s.contains("/.scrolls") || s.contains("\\.scrolls")
-        || s.ends_with(".lock") || s.ends_with(".tmp") || s.ends_with(".log")
+        || s.ends_with(".lock") || s.ends_with(".tmp") || s.ends_with(".log") || s.ends_with(".sig")
 }
 
 fn is_code_ext(ext: &str) -> bool {
@@ -367,18 +382,111 @@ fn hash_id(path: &str, start_l: i32, end_l: i32) -> String {
     hex::encode(&res[..8])
 }
 
-pub fn scrub_sensitive_content(text: &str) -> String {
-    let re_kv = match Regex::new(r#"(?i)(api[_-]?key|secret|password|token|bearer|auth|private[_-]?key)\s*([:=])\s*([^
-#\s]+)"#) {
-        Ok(r) => r,
-        Err(_) => return text.to_string(),
-    };
-    let scrubbed = re_kv.replace_all(text, "$1$2[REDACTED]");
+static RE_PRIVATE_KEY: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----").expect("valid regex")
+});
+static RE_KV_SECRET: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"(?i)(api[_-]?key|secret|password|passwd|token|bearer|auth|private[_-]?key)(\s*[:=]\s*)(["']?)([^\s#"',;]{4,})"#).expect("valid regex")
+});
+static RE_TOKENS: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(concat!(
+        r"(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{20,}",
+        r"|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}",
+        r"|(?:AKIA|ASIA)[0-9A-Z]{16}",
+        r"|AIza[0-9A-Za-z_-]{35}",
+        r"|xox[abprs]-[A-Za-z0-9-]{10,}",
+        r"|glpat-[A-Za-z0-9_-]{20}",
+        r"|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})"
+    )).expect("valid regex")
+});
+static RE_EMAIL: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b").expect("valid regex")
+});
+static RE_SSN: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"\b\d{3}-\d{2}-\d{4}\b").expect("valid regex")
+});
+static RE_PHONE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    // Requires separators so bare numeric literals in code are not matched.
+    Regex::new(r"(?:\+\d{1,3}[ .-])?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b").expect("valid regex")
+});
+static RE_CARD: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r"\b\d(?:[ -]?\d){12,18}\b").expect("valid regex")
+});
 
-    let re_tokens = match Regex::new(r#"(?:sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{20,}|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,})"#) {
-        Ok(r) => r,
-        Err(_) => return scrubbed.to_string(),
-    };
-    re_tokens.replace_all(&scrubbed, "[REDACTED]").to_string()
+fn luhn_valid(digits: &str) -> bool {
+    let ds: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(10)).collect();
+    if ds.len() < 13 || ds.len() > 19 {
+        return false;
+    }
+    let sum: u32 = ds.iter().rev().enumerate().map(|(i, &d)| {
+        if i % 2 == 1 { let x = d * 2; if x > 9 { x - 9 } else { x } } else { d }
+    }).sum();
+    sum % 10 == 0
+}
+
+/// Client-side redaction applied to every chunk before it reaches the embedding server or LanceDB.
+/// Removes credentials (key/value secrets, vendor token formats, PEM private keys) and PII
+/// (emails, SSNs, separator-formatted phone numbers, Luhn-valid payment card numbers).
+pub fn scrub_sensitive_content(text: &str) -> String {
+    let s = RE_PRIVATE_KEY.replace_all(text, "[REDACTED:PRIVATE_KEY]");
+    let s = RE_TOKENS.replace_all(&s, "[REDACTED:TOKEN]");
+    let s = RE_KV_SECRET.replace_all(&s, |caps: &regex::Captures| {
+        if !caps[3].is_empty() || caps[4].len() >= 16 {
+            format!("{}{}{}[REDACTED]", &caps[1], &caps[2], &caps[3])
+        } else {
+            caps[0].to_string()
+        }
+    });
+    let s = RE_EMAIL.replace_all(&s, "[REDACTED:EMAIL]");
+    let s = RE_SSN.replace_all(&s, "[REDACTED:SSN]");
+    let s = RE_CARD.replace_all(&s, |caps: &regex::Captures| {
+        let m = &caps[0];
+        if luhn_valid(m) { "[REDACTED:CARD]".to_string() } else { m.to_string() }
+    });
+    let s = RE_PHONE.replace_all(&s, "[REDACTED:PHONE]");
+    s.into_owned()
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::scrub_sensitive_content as scrub;
+
+    #[test]
+    fn redacts_pii_and_credentials() {
+        let input = "contact jane.doe@example.org or 555-867-5309; ssn 123-45-6789; card 4111 1111 1111 1111\n\
+                     api_key = \"abcd1234efgh\"\nAKIAIOSFODNN7EXAMPLE ghp_abcdefghijklmnopqrstuvwxyz0123\n\
+                     -----BEGIN PRIVATE KEY-----\nMIIBVQ\n-----END PRIVATE KEY-----";
+        let out = scrub(input);
+        for leaked in ["jane.doe@example.org", "867-5309", "123-45-6789", "4111 1111", "abcd1234efgh", "AKIAIOSFODNN7EXAMPLE", "ghp_abcdef", "MIIBVQ"] {
+            assert!(!out.contains(leaked), "leaked {leaked}: {out}");
+        }
+        assert!(out.contains("[REDACTED:EMAIL]") && out.contains("[REDACTED:CARD]") && out.contains("[REDACTED:PRIVATE_KEY]"));
+    }
+
+    #[test]
+    fn preserves_ordinary_code() {
+        let code = "let total = 1234567890123; // not luhn\nfn add(a: i32) -> i32 { a + 42 }\nversion = \"1.2.3\"";
+        assert_eq!(scrub(code), code);
+    }
+}
+
+pub fn anonymize_content_and_symbols(content: &str, symbols: &[String], salt: Option<&str>) -> (String, Vec<String>) {
+    let mut replaced_content = content.to_string();
+    let mut anon_symbols = Vec::new();
+    for sym in symbols {
+        let mut hasher = Sha256::new();
+        if let Some(s) = salt {
+            hasher.update(s.as_bytes());
+            hasher.update(b":");
+        }
+        hasher.update(sym.as_bytes());
+        let anon = format!("sym_{}", &hex::encode(hasher.finalize())[..8]);
+        anon_symbols.push(anon.clone());
+        let pattern = format!(r"\b{}\b", regex::escape(sym));
+        if let Ok(re) = Regex::new(&pattern) {
+            replaced_content = re.replace_all(&replaced_content, anon.as_str()).to_string();
+        }
+    }
+    (replaced_content, anon_symbols)
 }
 

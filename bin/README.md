@@ -6,7 +6,10 @@ This directory contains the main **command-line interface** entry point for the 
 
 ```
 bin/
-├── ainish-coder        # Main CLI executable
+├── ainish-coder        # Main CLI executable (POSIX shell)
+├── ainish-coder.cmd    # Native Windows launcher (resolves bash, forwards argv)
+├── ainish-rag          # RAG engine wrapper (POSIX shell)
+├── ainish-rag.cmd      # Native Windows launcher for the RAG engine
 ├── pqc-secrets         # FIPS 203 secrets manager — platform-dispatch wrapper (see llms.txt)
 ├── pqc-secrets.darwin-arm64  # Native Rust backend binary (keygen/pack/export) for darwin/arm64
 ├── lib/                # Shared utilities and libraries
@@ -50,6 +53,24 @@ sudo ln -sf "$(pwd)/bin/ainish-coder" /usr/local/bin/ainish-coder
 ainish-coder --help
 ainish-coder --rules ~/my-project
 ```
+
+### Windows
+
+`ainish-coder.cmd` is the native launcher: it locates the bash shipped with Git for Windows, MSYS2, or Cygwin and runs the same POSIX CLI with it, so no WSL is required. Arguments are forwarded verbatim, so Windows paths need no conversion at the prompt:
+
+```bat
+ainish-coder --help
+ainish-coder --rules
+ainish-coder --rules "D:\Code\my project"
+```
+
+Add `bin` to your user PATH once with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\ainish-setup.ps1
+```
+
+Windows-style path arguments are canonicalised to POSIX form by `src/runtime.sh`, which also resolves a working Python interpreter (skipping the Microsoft Store alias that `python`/`python3` normally resolve to). Both bridges are inert on Linux, macOS, and WSL.
 
 ## Architecture
 
