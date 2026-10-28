@@ -1,0 +1,78 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — 2026-10-28
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+</PROTOCOL>
+
+---
+
+
+### [2026-10-28T01:20:00Z] checkin | agent:deepseek-dsh | branch:fix/windows-ainish-coder-shim | wt:d:\Code\ainish-win-shim
+- start:2026-10-28T01:20:00Z
+- end:2026-10-28T01:24:00Z
+- scope:bin/ainish-coder, bin/ainish-coder.cmd, bin/ainish-rag.cmd, src/runtime.sh, scripts/ainish-setup.ps1, README.md, bin/README.md, llms.txt
+- triage:now
+- objective:Make the ainish-coder tooling runnable on native Windows, not only Linux/macOS/WSL
+- input:Operator report: `ainish-coder --rules` -> "'ainish-coder' is not recognized" in cmd.exe from D:\Code\system-care-and-updates
+- output:Root causes: no bin/ainish-coder.cmd launcher, no Windows PATH installer, Windows path args unnavigable, `python3` resolving to the 0-byte Store alias, and ainish-rag.cmd masking exit codes
+- status:in-progress
+- blockers:none
+
+### [2026-10-28T01:43:00Z] intent-merge | agent:deepseek-dsh | branch:fix/windows-ainish-coder-shim | wt:d:\Code\ainish-win-shim
+- start:2026-10-28T01:24:00Z
+- end:2026-10-28T01:43:00Z
+- scope:bin/, src/runtime.sh, scripts/ainish-setup.ps1, README.md, bin/README.md, llms.txt
+- triage:now
+- objective:Merge native Windows host support with green verification gates
+- input:Implementation complete; diff isolated to 5 modified + 3 new files
+- output:Verified from real cmd.exe and PowerShell: --help, --rules (cwd, absolute, spaces, relative .\child), exit codes 1/2/127, ainish-rag exit 2, PATH install/uninstall byte-identical round-trip, Linux-inert simulation, bash -n clean
+- status:verifying
+- blockers:none
+
+### [2026-10-28T01:46:00Z] checkout | agent:deepseek-dsh | branch:fix/windows-ainish-coder-shim | wt:d:\Code\ainish-win-shim
+- start:2026-10-28T01:24:00Z
+- end:2026-10-28T01:46:00Z
+- scope:bin/ainish-coder, bin/ainish-coder.cmd, bin/ainish-rag.cmd, src/runtime.sh, scripts/ainish-setup.ps1, README.md, bin/README.md, llms.txt, .agents/
+- triage:now
+- objective:Land native Windows host support on main
+- input:Green verification gates and byte-identical installer round-trip
+- output:Merged fix/windows-ainish-coder-shim to main (--no-ff); no-rebuild-needed (shell/docs only, no runtime service touched)
+- status:merged
+- blockers:none
