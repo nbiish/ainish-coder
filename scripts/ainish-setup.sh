@@ -35,6 +35,7 @@ fi
 
 echo -e "${BLUE}[1/3] Setting execute permissions...${NC}"
 chmod +x "$CLI_EXEC"
+chmod +x "${ROOT_DIR}/bin/ainish-rag" 2>/dev/null || true
 chmod +x "${ROOT_DIR}/fix-path.sh" 2>/dev/null || true
 echo -e "${GREEN}✓ Permissions set.${NC}"
 echo ""
