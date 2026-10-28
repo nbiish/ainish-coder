@@ -308,7 +308,8 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
             todo_list.push_str("- No explicit TODO/FIXME markers discovered in codebase.\n");
         }
 
-        format!(r#"# 04. Improvements & Technical Debt — {repo}
+        let ledger = self.read_operator_ledger();
+        let mut page = format!(r#"# 04. Improvements & Technical Debt — {repo}
 
 ## 1. In-Flight Debt & Code Hotspots
 The following actionable items and markers were identified across the codebase:
@@ -318,10 +319,24 @@ The following actionable items and markers were identified across the codebase:
 1. **Multimodal Indexing Expansion:** Continuously refresh LanceDB vectors upon meaningful git commits.
 2. **Deterministic Build Pipeline:** Ensure all binary targets compile with zero warnings across macOS, Linux, and Windows MSVC.
 3. **Zero-Stale Memory Scrubbing:** Retire resolved constraints in `.agents/memories/` using `[RESOLVED]` entries.
+
+## 3. Operator ledger
+`ainish-rag wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
+
 "#,
             repo = self.repo_name,
-            todo_list = todo_list
-        )
+            todo_list = todo_list,
+        );
+        page.push_str(&ledger);
+        page
+    }
+
+    fn read_operator_ledger(&self) -> String {
+        let path = self.wiki_dir.join("ledger.md");
+        match fs::read_to_string(&path) {
+            Ok(text) if !text.trim().is_empty() => text.trim_end().to_string() + "\n",
+            _ => "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n".to_string(),
+        }
     }
 
     fn render_research(&self, _stats: &RepoStats) -> String {
