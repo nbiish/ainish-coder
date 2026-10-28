@@ -1,0 +1,35 @@
+---
+description: Agent Communication System protocol template. One file per UTC date; append-only durable ledger.
+---
+
+# AGENT COMMS — 2026-10-28
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+Append timestamped `checkin` → `update` → `intent-merge` → `checkout` entries. Bracket every entry with ISO-8601 UTC `start:` / `end:` timestamps. Keep task text secret-free. Runtime artifacts never live inside `.agents/skills/**`.
+</PROTOCOL>
+
+---
+
+### [2026-10-28T21:29:52Z] checkin | agent:workbuddy | branch:chore/install-latest-rules-distribution | wt:/Users/nbiish/code/ainish-latest-rules
+- start:2026-10-28T21:14:00Z
+- end:2026-10-28T21:29:52Z
+- scope:bin/ainish-coder, src/help.sh, scripts/hooks, configured target repositories
+- triage:now
+- objective:install latest CLI and distribute canonical rules with automatic post-pull refresh
+- input:operator request to pull, install, and update rules across previously configured repositories
+- output:origin/main fast-forwarded in isolation; CLI CRLF startup defects fixed; eight unique targets discovered
+- status:verifying
+- blockers:none
+
+### [2026-10-28T21:29:52Z] update | agent:explore | branch:chore/install-latest-rules-distribution | wt:/Users/nbiish/code/ainish-latest-rules
+- start:2026-10-28T21:20:00Z
+- end:2026-10-28T21:25:00Z
+- parent:workbuddy
+- scope:deployment commands, target registry, hook behavior
+- objective:trace safe rules deployment and automatic update semantics
+- input:read-only research assignment from orchestrator
+- output:confirmed tracked-copy design, --agents scope, candidate target state, and absence of built-in fleet refresh
+- status:done
+- blockers:none
