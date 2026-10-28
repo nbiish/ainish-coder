@@ -23,6 +23,9 @@ SRC_DIR="${SCRIPT_DIR}/../src"
 # Load shared shell components
 source "${SRC_DIR}/colors.sh"
 source "${SRC_DIR}/paths.sh"
+# Windows bridge (path form + interpreter discovery); inert on Linux/macOS/WSL.
+source "${SRC_DIR}/runtime.sh"
+ainish_install_python_shim
 source "${SRC_DIR}/file_operations.sh"
 source "${SRC_DIR}/validation.sh"
 source "${SRC_DIR}/backup.sh"
@@ -614,6 +617,18 @@ if [[ $# -eq 0 ]]; then
     print_error "No command specified"
     echo "Use 'ainish-coder --help' for usage information" >&2
     exit 1
+fi
+
+# Normalise Windows-style path arguments (D:\project, D:/project, \\server\share)
+# to POSIX form so every absolute-path check downstream holds. Path-less flags
+# pass through untouched; on Linux/macOS/WSL this loop is a no-op.
+if ainish_is_windows; then
+    _ainish_argv=()
+    for _ainish_arg in "$@"; do
+        _ainish_argv+=("$(ainish_posix_path "$_ainish_arg")")
+    done
+    set -- "${_ainish_argv[@]}"
+    unset _ainish_argv _ainish_arg
 fi
 
 # Run main function
