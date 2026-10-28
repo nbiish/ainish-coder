@@ -91,12 +91,12 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | Command | Action | Standard / Use |
 | :--- | :--- | :--- |
 | `ainish-rag query "<term>"` | Semantic vector search | Recon & symbol lookup; `--code` for code mode, `--fzf` for interactive terminal finder |
-| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned (`--task-conditioned`) wiki sections + recent `.agents/memories/` entries |
+| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki sections + `.agents/memories/` + `.agents/wiki/ledger.md` notes |
 | `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Scores coverage, symbol anchoring, grounding; `--generate-patch` outputs `git apply --check` diff |
 | `ainish-rag gate [--watch]` | Unified pre-merge gate | Runs patch eval, lockfile drift, ML-DSA-65 receipts, contract threshold (`--bell`, `--notify`, `--watch`) |
 | `ainish-rag index [--watch]` | Vectorize codebase into LanceDB | Adaptive batch sizing; supports `--anonymize-symbols` and `--dp-noise` (`privacy-budget.json`) |
-| `ainish-rag wiki [--index]` | Build 6-part living wiki | Grounding mental model; writes `.agents/wiki/01..06.md` and indexes into LanceDB |
-| `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance; prune WAL older than N days (`--prune-days <N>`) |
+| `ainish-rag wiki [--note]` | Build 6-part living wiki | Writes `.agents/wiki/01..06.md`, splices & ML-DSA-65 signs `ledger.md` (`--note "<entry>"`), indexes into LanceDB |
+| `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance, WAL pruning (`--prune-days <N>`), and `git worktree prune` (`--prune-worktrees`) |
 | `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts and k-of-n contract thresholds |
 | `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfile integrity, hash pinning, and `Cargo.lock` sparse-index checksums (`--update`) |
 | `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6, SPDX 3.0.1, or in-toto v1.0 (`--format intoto`) signed SBOM |

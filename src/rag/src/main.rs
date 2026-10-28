@@ -135,6 +135,9 @@ enum Commands {
         /// Also index the generated wiki into LanceDB vector store (default: true)
         #[arg(long, default_value_t = true)]
         index: bool,
+        /// Append a UTC-dated bullet note to .agents/wiki/ledger.md, sign with ML-DSA-65, and re-render page 04
+        #[arg(short, long)]
+        note: Option<String>,
     },
     /// Query the multimodal RAG vector store with two-stage decision reranking
     Query {
@@ -213,7 +216,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Run database compaction and old table version pruning
+    /// Run database compaction, old table version pruning, and stale git worktree/branch hygiene
     Cleanup {
         /// Compact LanceDB dataset files
         #[arg(long, default_value_t = true)]
@@ -221,6 +224,9 @@ enum Commands {
         /// Prune table versions older than N days (default: 7)
         #[arg(long, default_value_t = 7)]
         prune_days: i64,
+        /// Prune stale git worktree metadata and detect merged branches
+        #[arg(long, default_value_t = true)]
+        prune_worktrees: bool,
     },
     /// Subagent context injection: formats top architectural wiki sections into primer
     Orient {
@@ -588,16 +594,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Monitor { interval, once, json } => {
             run_drift_monitor(&config, &current_dir, interval, once, json).await?;
         }
-        Commands::Wiki { path, index } => {
+        Commands::Wiki { path, index, note } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
-            println!("=== Generating Codebase Wiki in .agents/wiki/ ===");
             let generator = WikiGenerator::new(&target);
+            if let Some(ref note_text) = note {
+                let (ledger_path, sig_path) = generator.append_note_and_sign(note_text)?;
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Appended UTC-dated note to {} and signed detached ML-DSA-65 envelope ({})", ledger_path.display(), sig_path.display());
+            } else {
+                let ledger_path = target.join(".agents").join("wiki").join("ledger.md");
+                if ledger_path.exists() {
+                    let _ = pqc::sign_file(&ledger_path);
+                }
+            }
+            println!("=== Generating Codebase Wiki in .agents/wiki/ ===");
             let generated_pages = generator.generate_all()?;
 
             if index {
                 println!("=== Indexing Generated Wiki Pages ===");
                 LlamaServer::ensure_running(&config, &current_dir).await?;
-                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone())
+                    .with_repo_root(&current_dir);
                 let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
                 let ingestor = CodebaseIngestor::new_with_options(&target, false, config.symbol_salt.clone());
 
@@ -619,6 +635,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 store.upsert(&rag_chunks).await?;
+                let total = store.count().await.unwrap_or(0);
+                let _ = record_index_audit_receipt(&current_dir, &target, generated_pages.len(), rag_chunks.len(), total, false);
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
             }
         }
@@ -921,15 +939,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Cleanup { compact, prune_days } => {
+        Commands::Cleanup { compact, prune_days, prune_worktrees } => {
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-            println!("=== ainish-rag Database Maintenance ===");
+            println!("=== ainish-rag Database Maintenance & Worktree Hygiene ===");
             if compact {
                 println!("Running LanceDB table compaction and WAL prune (older than {} days)...", prune_days);
                 match store.compact(prune_days).await {
                     Ok(Some(info)) => println!("  \x1b[32m[rag:maintenance]\x1b[0m Compaction finished: {}", info),
                     Ok(None) => println!("  [rag:maintenance] No database table found yet to compact."),
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Compaction failed: {}", e),
+                }
+            }
+            if prune_worktrees {
+                let _ = std::process::Command::new("git")
+                    .args(["worktree", "prune"])
+                    .current_dir(&current_dir)
+                    .output();
+                let merged_branches: Vec<String> = std::process::Command::new("git")
+                    .args(["branch", "--merged", "main"])
+                    .current_dir(&current_dir)
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|s| {
+                        s.lines()
+                            .map(|l| l.trim().trim_start_matches('*').trim_start_matches('+').trim().to_string())
+                            .filter(|b| !b.is_empty() && b != "main" && b != "master")
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if merged_branches.is_empty() {
+                    println!("  \x1b[32m[rag:worktrees]\x1b[0m Pruned stale git worktree metadata; 0 lingering merged branches detected.");
+                } else {
+                    println!("  \x1b[33m[rag:worktrees]\x1b[0m Pruned worktree metadata; merged branches ready for cleanup: {}", merged_branches.join(", "));
                 }
             }
         }
@@ -1008,6 +1050,13 @@ fn record_index_audit_receipt(
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let receipt_file = audit_dir.join(format!("{}-index-receipt.json", today));
 
+    let ledger_path = repo_root.join(".agents").join("wiki").join("ledger.md");
+    let wiki_ledger_sha256 = if ledger_path.is_file() {
+        pqc::sha256_file(&ledger_path).ok()
+    } else {
+        None
+    };
+
     let receipt = serde_json::json!({
         "receipt_id": format!("idx-{}", chrono::Utc::now().timestamp_millis()),
         "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -1017,6 +1066,7 @@ fn record_index_audit_receipt(
         "chunks_generated": chunks_count,
         "total_store_records": total_store_records,
         "anonymized_symbols": anonymized_symbols,
+        "wiki_ledger_sha256": wiki_ledger_sha256,
         "algorithm_guarantee": "FIPS 204 ML-DSA-65",
         "status": "verified"
     });
@@ -1024,45 +1074,7 @@ fn record_index_audit_receipt(
     let json_text = serde_json::to_string_pretty(&receipt).map_err(|e| e.to_string())?;
     std::fs::write(&receipt_file, json_text).map_err(|e| e.to_string())?;
 
-    let sig_file = audit_dir.join(format!("{}-index-receipt.sig", today));
-    let mut signed = false;
-
-    let local_bin = repo_root.join("bin").join("pqc-secrets");
-    let local_bin_exe = repo_root.join("bin").join("pqc-secrets.exe");
-    let pqc_cmd = if local_bin_exe.exists() {
-        Some(local_bin_exe.to_string_lossy().to_string())
-    } else if local_bin.exists() {
-        Some(local_bin.to_string_lossy().to_string())
-    } else if std::process::Command::new("pqc-secrets").arg("--version").output().is_ok() {
-        Some("pqc-secrets".to_string())
-    } else {
-        None
-    };
-
-    if let Some(cmd) = pqc_cmd {
-        if let Ok(out) = std::process::Command::new(&cmd)
-            .args(["sign", receipt_file.to_str().unwrap()])
-            .output()
-        {
-            if out.status.success() {
-                signed = true;
-            }
-        }
-    }
-
-    if !signed {
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(std::fs::read(&receipt_file).unwrap_or_default());
-        let digest = hex::encode(hasher.finalize());
-        let envelope = serde_json::json!({
-            "target": receipt_file.to_string_lossy(),
-            "sha256": digest,
-            "mode": "ML-DSA-65-ready",
-            "signed_at": chrono::Utc::now().to_rfc3339()
-        });
-        let _ = std::fs::write(&sig_file, serde_json::to_string_pretty(&envelope).unwrap_or_default());
-    }
+    let _ = pqc::sign_file(&receipt_file);
 
     println!("  \x1b[32m[rag:audit]\x1b[0m Recorded batch index audit receipt at {}", receipt_file.display());
     Ok(())
@@ -1384,6 +1396,26 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
             println!("  \x1b[31m[FAIL]\x1b[0m Canonical AGENTS.md: {}", err);
             failed += 1;
             receipts_checked += 1;
+        }
+    }
+
+    // Verify .agents/wiki/ledger.md detached ML-DSA-65 signature if present
+    let wiki_ledger = repo_root.join(".agents").join("wiki").join("ledger.md");
+    if wiki_ledger.exists() && pqc::sig_path(&wiki_ledger).exists() {
+        match pqc::verify_file(repo_root, &wiki_ledger) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Wiki Operator Ledger (ledger.md): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+                receipts_checked += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[33m[WARN]\x1b[0m Wiki Operator Ledger (ledger.md): {}", reason);
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Wiki Operator Ledger (ledger.md): {}", err);
+                failed += 1;
+                receipts_checked += 1;
+            }
         }
     }
 
@@ -1864,7 +1896,13 @@ fn run_orient_inject(
     if let Ok(entries) = std::fs::read_dir(&wiki_dir) {
         let mut files: Vec<PathBuf> = entries.flatten()
             .map(|e| e.path())
-            .filter(|p| p.extension().map_or(false, |ext| ext == "md"))
+            .filter(|p| {
+                p.extension().map_or(false, |ext| ext == "md")
+                    && p.file_name().map_or(false, |n| {
+                        let nl = n.to_string_lossy().to_lowercase();
+                        nl != "readme.md" && nl != "ledger.md"
+                    })
+            })
             .collect();
 
         if task_conditioned {
@@ -1989,6 +2027,26 @@ fn run_orient_inject(
         primer_lines.push(String::new());
     }
 
+    // Surface latest .agents/wiki/ledger.md operator entries inside <ORIENT_PRIMER>
+    let mut wiki_ledger_notes = Vec::new();
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
+    if ledger_file.is_file() {
+        let rendered_ledger = wiki_gen.read_operator_ledger();
+        let (clean_ledger, san_cnt) = sanitize_orient_content(&rendered_ledger);
+        total_sanitized += san_cnt;
+        for line in clean_ledger.lines().filter(|l| l.trim().starts_with("- ")).rev().take(6).collect::<Vec<_>>().into_iter().rev() {
+            wiki_ledger_notes.push(line.to_string());
+        }
+    }
+    if !wiki_ledger_notes.is_empty() {
+        primer_lines.push("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)".to_string());
+        for note in &wiki_ledger_notes {
+            primer_lines.push(note.clone());
+        }
+        primer_lines.push(String::new());
+    }
+
     primer_lines.push("</ORIENT_PRIMER>".to_string());
     let primer_text = primer_lines.join("\n");
 
@@ -1997,6 +2055,7 @@ fn run_orient_inject(
             "primer": primer_text,
             "sections": sections,
             "recent_memories": memory_notes,
+            "wiki_ledger_notes": wiki_ledger_notes,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": true,
             "classical_crypto_redacted": total_sanitized > 0,
