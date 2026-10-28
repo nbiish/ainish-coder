@@ -4,7 +4,7 @@
 - **Branch:** `chore/install-latest-rules-distribution`
 - **Worktree:** `/Users/nbiish/code/ainish-latest-rules`
 - **Triage:** now
-- **Status:** verifying
+- **Status:** completed
 
 ## Scope
 
