@@ -42,9 +42,9 @@ The primary execution boundaries and user-facing entrypoints:
 
 
 ## 4. Multimodal Asset Distribution
-- **Total Tracked Files:** 264
-- **Source Code Files:** 94
-- **Documentation & Notes:** 133
+- **Total Tracked Files:** 294
+- **Source Code Files:** 96
+- **Documentation & Notes:** 154
 - **Image Assets:** 3
 - **Audio / Video Media:** 0
 
