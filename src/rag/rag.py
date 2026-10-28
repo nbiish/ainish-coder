@@ -1083,6 +1083,12 @@ def generate_wiki(repo_root: Path) -> List[Path]:
     img_files = [p for p in files if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg", ".webp"}]
 
     now_utc = datetime.now(timezone.utc).isoformat()
+    ledger_path = wiki_dir / "ledger.md"
+    if ledger_path.is_file():
+        l_text = ledger_path.read_text(encoding="utf-8", errors="replace").strip()
+        operator_ledger = (l_text + "\n") if l_text else "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n"
+    else:
+        operator_ledger = "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n"
 
     pages = {
         "README.md": f"""# {repo_name} — Knowledge & Architecture Wiki
@@ -1149,7 +1155,11 @@ Codebase components in `{repo_name}` communicate across well-defined interfaces 
 1. **Multimodal Indexing Expansion:** Continuously refresh LanceDB vectors upon meaningful git commits.
 2. **Deterministic Build Pipeline:** Ensure all binary targets compile with zero warnings across macOS, Linux, and Windows MSVC.
 3. **Zero-Stale Memory Scrubbing:** Retire resolved constraints in `.agents/memories/` using `[RESOLVED]` entries.
-""",
+
+## 3. Operator ledger
+`ainish-rag wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
+
+{operator_ledger}""",
         "05-research-and-intelligence.md": f"""# 05. Research & Intelligence — {repo_name}
 
 ## 1. Multimodal Embedding Architecture

@@ -43,36 +43,35 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-
-### [2026-10-28T01:20:00Z] checkin | agent:deepseek-dsh | branch:fix/windows-ainish-coder-shim | wt:d:\Code\ainish-win-shim
-- start:2026-10-28T01:20:00Z
-- end:2026-10-28T01:24:00Z
-- scope:bin/ainish-coder, bin/ainish-coder.cmd, bin/ainish-rag.cmd, src/runtime.sh, scripts/ainish-setup.ps1, README.md, bin/README.md, llms.txt
+### [2026-10-28T23:30:00Z] checkin | agent:antigravity | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
+- start:2026-10-28T23:30:00Z
+- end:2026-10-28T23:31:00Z
+- scope:src/rag/src/wiki.rs, src/rag/rag.py, .agents/wiki/, .agents/
 - triage:now
-- objective:Make the ainish-coder tooling runnable on native Windows, not only Linux/macOS/WSL
-- input:Operator report: `ainish-coder --rules` -> "'ainish-coder' is not recognized" in cmd.exe from D:\Code\system-care-and-updates
-- output:Root causes: no bin/ainish-coder.cmd launcher, no Windows PATH installer, Windows path args unnavigable, `python3` resolving to the 0-byte Store alias, and ainish-rag.cmd masking exit codes
+- objective:Clean up all stale branches/worktrees, finalize wiki operator ledger splicing, rebuild binary, verify gates, and push main to origin
+- input:Operator request to clean up all branches and push latest version
+- output:Removed merged worktree D:/Code/agents-rag-playbook and branch docs/agents-rag-playbook; synchronized Python rag.py with Rust wiki.rs operator ledger splicing
 - status:in-progress
 - blockers:none
 
-### [2026-10-28T01:43:00Z] intent-merge | agent:deepseek-dsh | branch:fix/windows-ainish-coder-shim | wt:d:\Code\ainish-win-shim
-- start:2026-10-28T01:24:00Z
-- end:2026-10-28T01:43:00Z
-- scope:bin/, src/runtime.sh, scripts/ainish-setup.ps1, README.md, bin/README.md, llms.txt
+### [2026-10-28T23:32:00Z] intent-merge | agent:antigravity | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
+- start:2026-10-28T23:30:00Z
+- end:2026-10-28T23:32:00Z
+- scope:src/rag/src/wiki.rs, src/rag/rag.py, .agents/wiki/, .agents/
 - triage:now
-- objective:Merge native Windows host support with green verification gates
-- input:Implementation complete; diff isolated to 5 modified + 3 new files
-- output:Verified from real cmd.exe and PowerShell: --help, --rules (cwd, absolute, spaces, relative .\child), exit codes 1/2/127, ainish-rag exit 2, PATH install/uninstall byte-identical round-trip, Linux-inert simulation, bash -n clean
+- objective:Merge wiki operator ledger splicing, clean up branch, and push main to origin
+- input:12/12 Rust unit tests passing, release binary rebuilt, ainish-rag gate and security_gate.py GREEN
+- output:Merged feat/wiki-operator-ledger to main (--no-ff), deleted branch, pushed main to origin/main
 - status:verifying
 - blockers:none
 
-### [2026-10-28T01:46:00Z] checkout | agent:deepseek-dsh | branch:fix/windows-ainish-coder-shim | wt:d:\Code\ainish-win-shim
-- start:2026-10-28T01:24:00Z
-- end:2026-10-28T01:46:00Z
-- scope:bin/ainish-coder, bin/ainish-coder.cmd, bin/ainish-rag.cmd, src/runtime.sh, scripts/ainish-setup.ps1, README.md, bin/README.md, llms.txt, .agents/
+### [2026-10-28T23:33:00Z] checkout | agent:antigravity | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
+- start:2026-10-28T23:30:00Z
+- end:2026-10-28T23:33:00Z
+- scope:src/rag/src/wiki.rs, src/rag/rag.py, .agents/wiki/, .agents/
 - triage:now
-- objective:Land native Windows host support on main
-- input:Green verification gates and byte-identical installer round-trip
-- output:Merged fix/windows-ainish-coder-shim to main (--no-ff); no-rebuild-needed (shell/docs only, no runtime service touched)
+- objective:Clean up all branches and push latest main to origin
+- input:All verification gates GREEN
+- output:All stale branches/worktrees cleaned up (only main remains), pushed latest commits to origin/main, no-rebuild-needed
 - status:merged
 - blockers:none
