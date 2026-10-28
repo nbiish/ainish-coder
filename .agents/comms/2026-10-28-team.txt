@@ -43,3 +43,14 @@ Append timestamped `checkin` → `update` → `intent-merge` → `checkout` entr
 - output:merge authorized by green gates; no operator gate required
 - status:merged
 - blockers:none
+
+### [2026-10-28T21:35:50Z] checkout | agent:workbuddy | branch:chore/install-latest-rules-distribution | wt:/Users/nbiish/code/ainish-latest-rules
+- start:2026-10-28T21:14:00Z
+- end:2026-10-28T21:35:50Z
+- scope:canonical CLI, eight configured repositories, global rules copies, local post-merge automation
+- objective:install latest CLI and establish automatic rules propagation
+- input:verified deployment and post-merge hook execution
+- output:CLI v1.5.2 installed; eight targets and two global copies byte-identical; nine backups retained; hook passed with zero failures
+- status:done
+- blockers:none
+- rebuild:no-rebuild-needed
