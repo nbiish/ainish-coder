@@ -33,3 +33,13 @@ Append timestamped `checkin` → `update` → `intent-merge` → `checkout` entr
 - output:confirmed tracked-copy design, --agents scope, candidate target state, and absence of built-in fleet refresh
 - status:done
 - blockers:none
+
+### [2026-10-28T21:31:04Z] intent-merge | agent:workbuddy | branch:chore/install-latest-rules-distribution | wt:/Users/nbiish/code/ainish-latest-rules
+- start:2026-10-28T21:31:04Z
+- end:2026-10-28T21:31:04Z
+- scope:bin/ainish-coder, src/help.sh, coordination records
+- objective:merge verified CLI startup fixes into main before installation
+- input:bash syntax checks, CLI v1.5.2 help/version smoke tests, and security gate all pass
+- output:merge authorized by green gates; no operator gate required
+- status:merged
+- blockers:none
