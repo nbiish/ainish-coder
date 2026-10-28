@@ -19,12 +19,10 @@ NATIVE_BIN=""
 case "$OS_TYPE" in
   Darwin*)
     [ -f "$SELF_DIR/ainish-rag-darwin" ] && NATIVE_BIN="$SELF_DIR/ainish-rag-darwin"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
     ;;
   Linux*)
     # Native Linux or WSL
     [ -f "$SELF_DIR/ainish-rag-linux" ] && NATIVE_BIN="$SELF_DIR/ainish-rag-linux"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
     # In WSL, if no Linux ELF binary, check for Windows .exe via interop
     if [ -z "$NATIVE_BIN" ] && grep -qi microsoft /proc/version 2>/dev/null && [ -f "$SELF_DIR/ainish-rag.exe" ]; then
       NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
@@ -32,11 +30,9 @@ case "$OS_TYPE" in
     ;;
   MINGW*|MSYS*|CYGWIN*)
     [ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
     ;;
   *)
-    [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
+    # Unknown POSIX host: fall through to the Python engine.
     ;;
 esac
 

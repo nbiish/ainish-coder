@@ -3407,7 +3407,8 @@ def run_tui_dashboard(repo_root: Path, server_url: str, client: EmbedClient) -> 
     print("\033[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \033[0m")
     print("\033[1;36m========================================================================\033[0m")
     print(f"  Timestamp:      {datetime.now(timezone.utc).isoformat()}")
-    print(f"  Server Status:  {'\033[1;32mONLINE (healthy)\033[0m' if is_running else '\033[1;31mOFFLINE\033[0m'}")
+    server_status = "\033[1;32mONLINE (healthy)\033[0m" if is_running else "\033[1;31mOFFLINE\033[0m"
+    print(f"  Server Status:  {server_status}")
     print(f"  Endpoint:       {server_url}")
     print(f"  Loopback Auth:  {psk_status}")
     print(f"  Symbol Salt:    {salt_status}")
@@ -3514,7 +3515,8 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
     print("\nVerification Summary:")
     print(f"  Total Receipts:  {len(receipts)}")
     print(f"  Passed:          \033[32m{passed}\033[0m")
-    print(f"  Failed:          {failed if failed == 0 else f'\033[31m{failed}\033[0m'}")
+    failed_display = str(failed) if failed == 0 else f"\033[31m{failed}\033[0m"
+    print(f"  Failed:          {failed_display}")
     if failed == 0 and receipts:
         print("  Status:          \033[1;32mALL RECEIPTS VERIFIED (FIPS 204 ML-DSA-65 Standard)\033[0m\n")
     elif not receipts:
@@ -3571,7 +3573,8 @@ def run_service_command(repo_root: Path, port: int, cmd: str, args: Any) -> None
         client = EmbedClient(f"http://127.0.0.1:{p}")
         print(f"=== ainish-rag Background Service Status ===")
         print(f"  Port:      {p}")
-        print(f"  Status:    {'\033[32mRUNNING\033[0m' if client.is_running() else '\033[31mSTOPPED\033[0m'}")
+        service_status = "\033[32mRUNNING\033[0m" if client.is_running() else "\033[31mSTOPPED\033[0m"
+        print(f"  Status:    {service_status}")
     elif cmd == "install":
         print(f"=== Installing ainish-rag Background Service (Port: {p}) ===")
         if os.name == "nt":
