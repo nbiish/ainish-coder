@@ -1,0 +1,6 @@
+# memory — 2026-10-28 (UTC)
+# Pairs with ../comms/2026-10-28-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 23:30 Removed merged worktree `D:/Code/agents-rag-playbook` and deleted branch `docs/agents-rag-playbook` after passing `<SERVERS>` 4-point ownership check.
+- 23:31 Synchronized `.agents/wiki/ledger.md` splicing into `.agents/wiki/04-improvements-and-debt.md` across both `src/rag/src/wiki.rs` (`read_operator_ledger`) and `src/rag/rag.py` (`generate_wiki`).
+- 23:33 Rebuilt `bin/ainish-rag.exe`, verified 12/12 Rust unit tests, `ainish-rag gate`, and `bin/security_gate.py` GREEN, merged `feat/wiki-operator-ledger` to `main`, and pushed `main` to `origin/main`.
