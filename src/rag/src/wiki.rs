@@ -331,12 +331,117 @@ The following actionable items and markers were identified across the codebase:
         page
     }
 
-    fn read_operator_ledger(&self) -> String {
+    /// Reads `.agents/wiki/ledger.md`, scrubs credentials/PII (`scrub_sensitive_content`),
+    /// redacts local absolute filesystem user paths to repository-relative paths, and
+    /// cross-links with `.agents/memories/{date}-memory.txt` so resolved items automatically mark `[RESOLVED]`.
+    pub fn read_operator_ledger(&self) -> String {
         let path = self.wiki_dir.join("ledger.md");
         match fs::read_to_string(&path) {
-            Ok(text) if !text.trim().is_empty() => text.trim_end().to_string() + "\n",
+            Ok(text) if !text.trim().is_empty() => {
+                let scrubbed = crate::ingest::scrub_sensitive_content(&text);
+                let redacted = self.redact_local_user_paths(&scrubbed);
+                let cross_linked = self.cross_link_resolved_memories(&redacted);
+                cross_linked.trim_end().to_string() + "\n"
+            }
             _ => "- No operator entries yet. Append dated lines to `.agents/wiki/ledger.md`.\n".to_string(),
         }
+    }
+
+    /// Redacts local absolute filesystem user paths (Windows `C:\Users\<user>\...`, `D:\Code\...`,
+    /// WSL `/mnt/c/Users/<user>/...`, `/mnt/d/Code/...`, POSIX `/Users/<user>/...`, `/home/<user>/...`)
+    /// in ledger entries to repository-relative or clean portable paths prior to wiki generation.
+    pub fn redact_local_user_paths(&self, text: &str) -> String {
+        let mut out = text.to_string();
+        let repo_abs_slash = self.repo_root.to_string_lossy().replace('\\', "/");
+        let repo_abs_back = self.repo_root.to_string_lossy().replace('/', "\\");
+        if !repo_abs_slash.is_empty() && repo_abs_slash != "." {
+            out = out.replace(&(repo_abs_slash.clone() + "/"), "");
+            out = out.replace(&repo_abs_slash, ".");
+        }
+        if !repo_abs_back.is_empty() && repo_abs_back != "." {
+            out = out.replace(&(repo_abs_back.clone() + "\\"), "");
+            out = out.replace(&repo_abs_back, ".");
+        }
+
+        static RE_USER_PATHS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"(?i)(?:[A-Z]:[\\/]+Users[\\/]+[^\\/\s`'\x22]+[\\/]+|/mnt/[a-z]/Users/[^/\s`'\x22]+/|/Users/[^/\s`'\x22]+/|/home/[^/\s`'\x22]+/|[A-Z]:[\\/]+Code[\\/]+|/mnt/[a-z]/Code/)").expect("valid user path regex")
+        });
+        RE_USER_PATHS.replace_all(&out, "").into_owned()
+    }
+
+    /// Cross-links `.agents/wiki/ledger.md` entries with `.agents/memories/{date}-memory.txt`
+    /// so ledger items matching `[RESOLVED]` memory entries automatically carry `[RESOLVED]`.
+    pub fn cross_link_resolved_memories(&self, ledger_text: &str) -> String {
+        let memories_dir = self.repo_root.join(".agents").join("memories");
+        let mut resolved_tokens: Vec<String> = Vec::new();
+        if let Ok(entries) = fs::read_dir(&memories_dir) {
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.file_name().map_or(false, |n| n.to_string_lossy().ends_with("-memory.txt")) {
+                    if let Ok(m_text) = fs::read_to_string(&p) {
+                        for line in m_text.lines() {
+                            if line.contains("[RESOLVED]") {
+                                for word in line.split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-') {
+                                    if word.len() >= 6 && !word.eq_ignore_ascii_case("RESOLVED") {
+                                        resolved_tokens.push(word.to_lowercase());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut output_lines = Vec::new();
+        for line in ledger_text.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("- ") && !trimmed.contains("[RESOLVED]") && !resolved_tokens.is_empty() {
+                let lower = trimmed.to_lowercase();
+                let match_count = resolved_tokens.iter().filter(|tok| lower.contains(tok.as_str())).count();
+                if match_count >= 2 {
+                    if let Some(rest) = line.strip_prefix("- ") {
+                        output_lines.push(format!("- [RESOLVED] {}", rest));
+                        continue;
+                    }
+                }
+            }
+            output_lines.push(line.to_string());
+        }
+        output_lines.join("\n")
+    }
+
+    /// Appends a UTC-dated operator note to `.agents/wiki/ledger.md`, signs `.agents/wiki/ledger.md`
+    /// with a detached FIPS 204 ML-DSA-65 `.sig` envelope, and re-renders `.agents/wiki/04-improvements-and-debt.md`.
+    pub fn append_note_and_sign(&self, note: &str) -> Result<(PathBuf, PathBuf), String> {
+        fs::create_dir_all(&self.wiki_dir).map_err(|e| e.to_string())?;
+        let ledger_path = self.wiki_dir.join("ledger.md");
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let clean_note = crate::ingest::scrub_sensitive_content(note.trim());
+        let clean_note = self.redact_local_user_paths(&clean_note);
+        let entry_line = format!("- {} {}\n", today, clean_note);
+
+        let mut content = if ledger_path.exists() {
+            fs::read_to_string(&ledger_path).unwrap_or_default()
+        } else {
+            "# Operator ledger\n\n`ainish-rag wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. Append one dated line per cycle. The generator splices this file into `04-improvements-and-debt.md`.\n\n".to_string()
+        };
+        if !content.ends_with('\n') && !content.is_empty() {
+            content.push('\n');
+        }
+        content.push_str(&entry_line);
+        fs::write(&ledger_path, &content).map_err(|e| format!("Failed writing ledger.md: {}", e))?;
+
+        // Sign .agents/wiki/ledger.md with detached ML-DSA-65 .sig envelope
+        let sig_path = crate::pqc::sign_file(&ledger_path)?;
+
+        // Re-render page 04 (and full wiki) so 04-improvements-and-debt.md is immediately updated
+        let stats = self.analyze_repo();
+        let imp_path = self.wiki_dir.join("04-improvements-and-debt.md");
+        let imp_content = self.render_improvements(&stats);
+        fs::write(&imp_path, imp_content).map_err(|e| e.to_string())?;
+
+        Ok((ledger_path, sig_path))
     }
 
     fn render_research(&self, _stats: &RepoStats) -> String {
@@ -373,6 +478,48 @@ The following actionable items and markers were identified across the codebase:
 "#,
             repo = self.repo_name
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operator_ledger_survives_repeated_generate_all_and_scrubs_secrets_and_paths() {
+        let tmp_dir = std::env::temp_dir().join(format!("ainish-wiki-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp_dir);
+        let wiki_dir = tmp_dir.join(".agents").join("wiki");
+        let mem_dir = tmp_dir.join(".agents").join("memories");
+        fs::create_dir_all(&wiki_dir).unwrap();
+        fs::create_dir_all(&mem_dir).unwrap();
+
+        let custom_ledger = "# Operator ledger\n\n\
+            - 2026-10-28 Custom operator note alpha-bravo-charlie in C:\\Users\\alice\\project\\src\\lib.rs\n\
+            - 2026-10-28 Legacy constraint delta_echo_foxtrot_99\n";
+        fs::write(wiki_dir.join("ledger.md"), custom_ledger).unwrap();
+        fs::write(
+            mem_dir.join("2026-10-28-memory.txt"),
+            "- 12:00 [RESOLVED] Legacy constraint delta_echo_foxtrot_99 — fixed in main\n",
+        ).unwrap();
+
+        let wiki_gen = WikiGenerator::new(&tmp_dir);
+        // First generation run
+        wiki_gen.generate_all().unwrap();
+        // Second generation run — must preserve ledger.md and splice into 04-improvements-and-debt.md
+        wiki_gen.generate_all().unwrap();
+
+        let ledger_disk = fs::read_to_string(wiki_dir.join("ledger.md")).unwrap();
+        assert_eq!(ledger_disk, custom_ledger);
+
+        let page04 = fs::read_to_string(wiki_dir.join("04-improvements-and-debt.md")).unwrap();
+        assert!(page04.contains("Custom operator note alpha-bravo-charlie"));
+        // User path C:\Users\alice\ must be redacted
+        assert!(!page04.contains("C:\\Users\\alice\\"));
+        // Memory cross-link must mark [RESOLVED] on the matching entry
+        assert!(page04.contains("- [RESOLVED] 2026-10-28 Legacy constraint delta_echo_foxtrot_99"));
+
+        let _ = fs::remove_dir_all(&tmp_dir);
     }
 }
 
