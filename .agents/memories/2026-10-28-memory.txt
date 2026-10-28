@@ -1,10 +1,6 @@
-# Repo Memory — 2026-10-28
+# memory — 2026-10-28 (UTC)
+# Pairs with ../comms/2026-10-28-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
 
-- 01:21 gotcha: on native Windows `python`/`python3` resolve to a 0-byte `WindowsApps` App Execution Alias that exits non-zero; `command -v` finds it, so presence checks lie — resolve by executing (src/runtime.sh `ainish_python`).
-- 01:21 gotcha: batch `%ERRORLEVEL%` inside an `if (...)` block expands at parse time; `cmd & exit /b %ERRORLEVEL%` reports the pre-block status — exit through labels (bin/ainish-rag.cmd).
-- 01:22 decision: native Windows runs the POSIX CLI through Git for Windows bash; `bin/ainish-coder.cmd` resolves it. WSL is no longer the only Windows path, and stays supported.
-- 01:23 fact: MSYS bash keeps backslashes in argv unless they precede a double quote, so `%*` forwards `D:\Code\app` intact — no arg quoting gymnastics needed in the .cmd launcher.
-- 01:24 decision: Windows path arguments are normalised once at the CLI boundary (`ainish_posix_path` over argv in `bin/ainish-coder`), not inside deploy modules.
-- 01:40 gotcha: `HKCU\Environment` PATH round-trips are only lossless if the installer appends its own `;` separator; reusing an existing trailing `;` makes `-Uninstall` strip a character the user owned. Verified byte-identical 1304/1304.
-- 01:42 fact: `ainish-coder --rules` exits 2 after a successful deploy at HEAD as well — pre-existing, platform-independent, not a Windows regression.
-- 01:42 gotcha: `skills_selection.sh:274` gates the TUI on tty only, so `-y` does not skip it when stdin is a console — contradicts `--yes` help text; pre-existing.
+- 23:30 Removed merged worktree `D:/Code/agents-rag-playbook` and deleted branch `docs/agents-rag-playbook` after passing `<SERVERS>` 4-point ownership check.
+- 23:31 Synchronized `.agents/wiki/ledger.md` splicing into `.agents/wiki/04-improvements-and-debt.md` across both `src/rag/src/wiki.rs` (`read_operator_ledger`) and `src/rag/rag.py` (`generate_wiki`).
+- 23:33 Rebuilt `bin/ainish-rag.exe`, verified 12/12 Rust unit tests, `ainish-rag gate`, and `bin/security_gate.py` GREEN, merged `feat/wiki-operator-ledger` to `main`, and pushed `main` to `origin/main`.
