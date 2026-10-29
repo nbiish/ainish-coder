@@ -135,7 +135,7 @@ enum Commands {
         /// Also index the generated wiki into LanceDB vector store (default: true)
         #[arg(long, default_value_t = true)]
         index: bool,
-        /// Append a UTC-dated bullet note to .agents/wiki/ledger.md, sign with ML-DSA-65, and re-render page 04
+        /// Append a UTC-dated bullet note to .agents/wiki/ledger.md (pass '-' to read from stdin), sign with ML-DSA-65, and re-render page 04
         #[arg(short, long)]
         note: Option<String>,
         /// Mark matching entries [RESOLVED] in both .agents/wiki/ledger.md and today's .agents/memories/{date}-memory.txt
@@ -144,6 +144,9 @@ enum Commands {
         /// Display current operator ledger entries and their [RESOLVED] status without regenerating all wiki pages
         #[arg(long)]
         list_notes: bool,
+        /// Output wiki note listing as structured JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Query the multimodal RAG vector store with two-stage decision reranking
     Query {
@@ -236,6 +239,9 @@ enum Commands {
         /// Automatically delete local branches already merged into main
         #[arg(long)]
         delete_merged: bool,
+        /// Preview branches slated for deletion without mutating refs
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Subagent context injection: formats top architectural wiki sections into primer
     Orient {
@@ -266,6 +272,9 @@ enum Commands {
         /// Continuously watch repository for file modifications and re-evaluate gate
         #[arg(short, long)]
         watch: bool,
+        /// Output one-line compact summary for shell prompt (PS1) or tmux status bar
+        #[arg(long)]
+        summary: bool,
         /// Output gate results as JSON
         #[arg(long)]
         json: bool,
@@ -456,6 +465,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Wiki Path:          {}", config.wiki_dir.display());
             println!("Wiki Pages:         {}", wiki_count);
 
+            let wiki_gen = WikiGenerator::new(&current_dir);
+            let ledger_notes = wiki_gen.list_notes();
+            let resolved_notes = ledger_notes.iter().filter(|n| n.contains("[RESOLVED]")).count();
+            let open_notes = ledger_notes.len().saturating_sub(resolved_notes);
+            println!("Wiki Ledger Notes:  {} total ({} open, {} resolved)", ledger_notes.len(), open_notes, resolved_notes);
+
             if config.llama_bin.is_none() {
                 println!("\n  [rag:tip] llama executable not found!");
                 #[cfg(target_os = "macos")]
@@ -603,30 +618,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Monitor { interval, once, json } => {
             run_drift_monitor(&config, &current_dir, interval, once, json).await?;
         }
-        Commands::Wiki { path, index, note, resolve, list_notes } => {
+        Commands::Wiki { path, index, note, resolve, list_notes, json } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             let generator = WikiGenerator::new(&target);
             if list_notes {
-                println!("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===");
                 let notes = generator.list_notes();
-                if notes.is_empty() {
-                    println!("  (No operator ledger entries recorded yet)");
+                if json {
+                    let items: Vec<serde_json::Value> = notes.iter().enumerate().map(|(idx, n)| {
+                        let resolved = n.contains("[RESOLVED]");
+                        let text = n.trim_start_matches("- ").trim_start_matches("[RESOLVED]").trim().to_string();
+                        serde_json::json!({
+                            "index": idx + 1,
+                            "status": if resolved { "RESOLVED" } else { "OPEN" },
+                            "resolved": resolved,
+                            "note": text,
+                            "raw": n,
+                        })
+                    }).collect();
+                    let open_cnt = items.iter().filter(|i| !i["resolved"].as_bool().unwrap_or(false)).count();
+                    let res_cnt = items.len().saturating_sub(open_cnt);
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "total": items.len(),
+                        "open": open_cnt,
+                        "resolved": res_cnt,
+                        "notes": items,
+                    }))?);
                 } else {
-                    for (idx, n) in notes.iter().enumerate() {
-                        let status = if n.contains("[RESOLVED]") { "\x1b[32m[RESOLVED]\x1b[0m" } else { "\x1b[33m[OPEN]\x1b[0m" };
-                        let clean_n = n.trim_start_matches("- ").trim_start_matches("[RESOLVED]").trim();
-                        println!("  [{}] {} {}", idx + 1, status, clean_n);
+                    println!("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===");
+                    if notes.is_empty() {
+                        println!("  (No operator ledger entries recorded yet)");
+                    } else {
+                        for (idx, n) in notes.iter().enumerate() {
+                            let status = if n.contains("[RESOLVED]") { "\x1b[32m[RESOLVED]\x1b[0m" } else { "\x1b[33m[OPEN]\x1b[0m" };
+                            let clean_n = n.trim_start_matches("- ").trim_start_matches("[RESOLVED]").trim();
+                            println!("  [{}] {} {}", idx + 1, status, clean_n);
+                        }
                     }
+                    println!();
                 }
-                println!();
                 return Ok(());
             }
             if let Some(ref kw) = resolve {
                 let count = generator.resolve_note(kw)?;
                 println!("  \x1b[32m[rag:wiki]\x1b[0m Marked {} matching ledger entries [RESOLVED] and recorded resolution in today's .agents/memories/ file.", count);
             }
-            if let Some(ref note_text) = note {
-                let (ledger_path, sig_path) = generator.append_note_and_sign(note_text)?;
+            if let Some(ref note_arg) = note {
+                let note_text = if note_arg.trim() == "-" {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    std::io::stdin().read_to_string(&mut buf)?;
+                    buf
+                } else {
+                    note_arg.clone()
+                };
+                let (ledger_path, sig_path) = generator.append_note_and_sign(&note_text)?;
                 println!("  \x1b[32m[rag:wiki]\x1b[0m Appended UTC-dated note (with HEAD SHA) to {} and signed detached ML-DSA-65 envelope ({})", ledger_path.display(), sig_path.display());
             } else {
                 let ledger_path = target.join(".agents").join("wiki").join("ledger.md");
@@ -967,7 +1012,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Cleanup { compact, prune_days, prune_worktrees, delete_merged } => {
+        Commands::Cleanup { compact, prune_days, prune_worktrees, delete_merged, dry_run } => {
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
             println!("=== ainish-rag Database Maintenance & Worktree Hygiene ===");
             if compact {
@@ -1007,20 +1052,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if merged_branches.is_empty() {
                     println!("  \x1b[32m[rag:worktrees]\x1b[0m Pruned stale git worktree metadata; 0 lingering merged branches detected.");
                 } else if delete_merged {
-                    let mut deleted = Vec::new();
-                    for b in &merged_branches {
-                        if std::process::Command::new("git")
-                            .args(["branch", "-d", b])
-                            .current_dir(&current_dir)
-                            .output()
-                            .map_or(false, |o| o.status.success())
-                        {
-                            deleted.push(b.clone());
+                    if dry_run {
+                        println!("  \x1b[36m[rag:worktrees:dry-run]\x1b[0m Would delete {} merged local branches: {}", merged_branches.len(), merged_branches.join(", "));
+                    } else {
+                        let mut deleted = Vec::new();
+                        for b in &merged_branches {
+                            if std::process::Command::new("git")
+                                .args(["branch", "-d", b])
+                                .current_dir(&current_dir)
+                                .output()
+                                .map_or(false, |o| o.status.success())
+                            {
+                                deleted.push(b.clone());
+                            }
                         }
+                        println!("  \x1b[32m[rag:worktrees]\x1b[0m Automatically deleted {} merged local branches: {}", deleted.len(), deleted.join(", "));
                     }
-                    println!("  \x1b[32m[rag:worktrees]\x1b[0m Automatically deleted {} merged local branches: {}", deleted.len(), deleted.join(", "));
                 } else {
-                    println!("  \x1b[33m[rag:worktrees]\x1b[0m Pruned worktree metadata; merged branches ready for cleanup (use --delete-merged): {}", merged_branches.join(", "));
+                    println!("  \x1b[33m[rag:worktrees]\x1b[0m Pruned worktree metadata; merged branches ready for cleanup (use --delete-merged [--dry-run]): {}", merged_branches.join(", "));
                 }
             }
         }
@@ -1029,8 +1078,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 run_orient_inject(&current_dir, query.as_deref(), task_conditioned, json)?;
             }
         }
-        Commands::Gate { patch, bell, notify, watch, json } => {
-            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, json).await?;
+        Commands::Gate { patch, bell, notify, watch, summary, json } => {
+            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, json).await?;
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
@@ -1671,7 +1720,8 @@ pub async fn evaluate_patch_internal(
     let mut added_symbols = Vec::new();
     let mut canary_leaks = Vec::new();
 
-    for line in patch_text.lines() {
+    let normalized_patch = patch_text.replace("\r\n", "\n");
+    for line in normalized_patch.lines() {
         if let Some(file_line) = line.strip_prefix("+++ b/") {
             let f = file_line.trim().to_string();
             if !modified_files.contains(&f) {
@@ -1684,6 +1734,9 @@ pub async fn evaluate_patch_internal(
             }
         } else if line.starts_with('+') && !line.starts_with("+++") {
             let added_line = &line[1..];
+            if WikiGenerator::contains_bidi_override(added_line) && !added_line.contains("\\u{202") && !added_line.contains("\\u202") {
+                canary_leaks.push("Trojan Source bidirectional Unicode override character detected in diff".to_string());
+            }
             if !added_line.contains("Regex::new") && !added_line.contains("RE_CANARY") && !added_line.contains("RE_TOKENS") {
                 static RE_CANARY: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
                     regex::Regex::new(r#"(?i)(?:CANARY_[A-Za-z0-9_-]{6,}|SECRET_TOKEN_[A-Za-z0-9_-]{6,}|(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{24,})|(?:gh[pousr]_[A-Za-z0-9]{20,})|(?:AKIA[0-9A-Z]{16})|-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)"#).expect("valid regex")
@@ -1905,6 +1958,44 @@ async fn run_eval_patch(
     Ok(())
 }
 
+/// Selects up to 6 operator wiki ledger notes, placing `[OPEN]` (unresolved) entries ahead of `[RESOLVED]` entries.
+pub fn select_prioritized_ledger_notes(clean_ledger: &str) -> Vec<String> {
+    let all_bullets: Vec<String> = clean_ledger
+        .lines()
+        .filter(|l| l.trim().starts_with("- "))
+        .map(|l| l.to_string())
+        .collect();
+    let unresolved: Vec<String> = all_bullets.iter().filter(|l| !l.contains("[RESOLVED]")).cloned().collect();
+    let resolved: Vec<String> = all_bullets.iter().filter(|l| l.contains("[RESOLVED]")).cloned().collect();
+
+    let open_take: Vec<String> = unresolved.iter().rev().take(6).cloned().collect::<Vec<_>>().into_iter().rev().collect();
+    let rem = 6usize.saturating_sub(open_take.len());
+    let res_take: Vec<String> = resolved.iter().rev().take(rem).cloned().collect::<Vec<_>>().into_iter().rev().collect();
+
+    open_take.into_iter().chain(res_take.into_iter()).collect()
+}
+
+/// Verifies that `.agents/comms/{date}-team.txt` files contain no legacy `| agent:` tags.
+pub fn check_comms_harness_agnostic(repo_root: &std::path::Path) -> Vec<String> {
+    let comms_dir = repo_root.join(".agents").join("comms");
+    let mut violations = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&comms_dir) {
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.file_name().map_or(false, |n| n.to_string_lossy().ends_with("-team.txt")) {
+                if let Ok(text) = std::fs::read_to_string(&p) {
+                    for (line_no, line) in text.lines().enumerate() {
+                        if line.starts_with("### [") && line.contains("| agent:") {
+                            violations.push(format!("{}:L{}", p.file_name().unwrap_or_default().to_string_lossy(), line_no + 1));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    violations
+}
+
 fn sanitize_orient_content(content: &str) -> (String, usize) {
     let mut sanitized = String::new();
     let mut count = 0;
@@ -2085,18 +2176,7 @@ fn run_orient_inject(
         let rendered_ledger = wiki_gen.read_operator_ledger();
         let (clean_ledger, san_cnt) = sanitize_orient_content(&rendered_ledger);
         total_sanitized += san_cnt;
-        let all_bullets: Vec<String> = clean_ledger
-            .lines()
-            .filter(|l| l.trim().starts_with("- "))
-            .map(|l| l.to_string())
-            .collect();
-        let mut unresolved: Vec<String> = all_bullets.iter().filter(|l| !l.contains("[RESOLVED]")).cloned().collect();
-        let mut resolved: Vec<String> = all_bullets.iter().filter(|l| l.contains("[RESOLVED]")).cloned().collect();
-        unresolved.reverse();
-        resolved.reverse();
-        let mut selected: Vec<String> = unresolved.into_iter().chain(resolved.into_iter()).take(6).collect();
-        selected.reverse();
-        wiki_ledger_notes = selected;
+        wiki_ledger_notes = select_prioritized_ledger_notes(&clean_ledger);
     }
     if !wiki_ledger_notes.is_empty() {
         primer_lines.push("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)".to_string());
@@ -2168,6 +2248,7 @@ async fn run_gate(
     bell: bool,
     notify: bool,
     watch: bool,
+    summary: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
@@ -2234,14 +2315,27 @@ async fn run_gate(
         Err(_) => (Vec::new(), Vec::new()),
     };
 
+    let comms_violations = check_comms_harness_agnostic(repo_root);
+    let comms_pass = comms_violations.is_empty();
+
     let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= 0.45);
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
 
-    let overall_pass = patch_pass && lock_pass && audit_pass;
+    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass;
 
-    if json {
+    if summary {
+        println!(
+            "GATE:{} | anchor:{:.0}% | lock:{} | pqc:{}/{} | comms:{}",
+            if overall_pass { "GREEN" } else { "RED" },
+            patch_eval.composite_anchor_score * 100.0,
+            if lock_pass { "OK" } else { "DRIFT" },
+            audit_receipts_passed,
+            audit_receipts_passed + audit_receipts_failed,
+            if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" }
+        );
+    } else if json {
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({
             "overall_pass": overall_pass,
             "patch_evaluation": patch_eval,
@@ -2262,6 +2356,10 @@ async fn run_gate(
                 "pass": audit_pass,
                 "passed_count": audit_receipts_passed,
                 "failed_count": audit_receipts_failed
+            },
+            "comms_hygiene": {
+                "pass": comms_pass,
+                "legacy_agent_tag_violations": comms_violations
             }
         }))?);
     } else {
@@ -2296,6 +2394,13 @@ async fn run_gate(
             pqc::VerifyOutcome::Invalid(_) => "\x1b[31mFAIL (tamper detected / mismatch)\x1b[0m".to_string(),
         };
         println!("  Canonical AGENTS.md:    {}", canon_label);
+
+        let comms_label = if comms_pass {
+            "\x1b[32mPASS (harness-agnostic headers)\x1b[0m".to_string()
+        } else {
+            format!("\x1b[31mFAIL ({} legacy agent: tags)\x1b[0m", comms_violations.len())
+        };
+        println!("  COMMS Ledger Hygiene:   {}", comms_label);
         println!("├────────────────────────────────────────────────────────────────────────┤");
         if overall_pass {
             println!("  OVERALL STATUS:         \x1b[1;32mGREEN (Autonomous Merge Authorized)\x1b[0m");
@@ -2609,6 +2714,31 @@ Set-Alias -Name rag -Value ainish-rag
         _ => {
             eprintln!("Unsupported shell: {}. Supported shells: bash, zsh, fish, pwsh", shell);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_orient_prioritizes_open_ledger_notes_ahead_of_resolved() {
+        let sample = "# Operator ledger\n\
+            - [RESOLVED] 2026-10-26 Old resolved item one\n\
+            - 2026-10-27 Open probe miss alpha\n\
+            - [RESOLVED] 2026-10-28 Resolved item two\n\
+            - 2026-10-29 Open probe miss beta\n";
+        let notes = select_prioritized_ledger_notes(sample);
+        assert_eq!(notes.len(), 4);
+        // First two entries must be the open (unresolved) items
+        assert!(notes[0].contains("Open probe miss alpha") && !notes[0].contains("[RESOLVED]"));
+        assert!(notes[1].contains("Open probe miss beta") && !notes[1].contains("[RESOLVED]"));
+        // Resolved items follow after open items
+        assert!(notes[2].contains("[RESOLVED]"));
+        assert!(notes[3].contains("[RESOLVED]"));
+
+        let root = crate::config::resolve_canonical_repo_root(std::path::Path::new("."));
+        assert!(check_comms_harness_agnostic(&root).is_empty());
     }
 }
 

@@ -204,7 +204,7 @@ pub fn verify_file(repo_root: &Path, target: &Path) -> VerifyOutcome {
 
 const LOCKFILE_NAMES: &[&str] = &[
     "Cargo.lock", "uv.lock", "poetry.lock", "Pipfile.lock", "package-lock.json", "pnpm-lock.yaml",
-    "yarn.lock", "bun.lock", "go.sum", "Gemfile.lock", "composer.lock",
+    "yarn.lock", "bun.lock", "go.sum", "Gemfile.lock", "composer.lock", ".gitattributes",
 ];
 
 fn is_lockfile(name: &str) -> bool {
@@ -222,6 +222,7 @@ fn hash_pinned(name: &str, text: &str) -> bool {
         "go.sum" => text.contains(" h1:"),
         "Gemfile.lock" => text.contains("CHECKSUMS"),
         "composer.lock" => text.contains("\"shasum\""),
+        ".gitattributes" => text.contains("eol=lf"),
         _ => text.contains("--hash=sha256:"),
     }
 }
