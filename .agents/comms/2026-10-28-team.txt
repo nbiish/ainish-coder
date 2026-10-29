@@ -427,3 +427,47 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:Merged feat/rules-autosync-round17 to main, pushed origin/main, branch deleted, root post-commit/post-merge hooks armed, no-rebuild-needed after merge
 - status:merged
 - blockers:none
+
+### [2026-10-29T05:10:00Z] checkin | branch:feat/rules-doctor-round18 | wt:d:\Code\ainish-coder
+- start:2026-10-29T05:10:00Z
+- end:2026-10-29T05:12:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Implement --rules-status --json, --rules-doctor [--json], and orient --inject --sync-rules; finalize and push the release
+- input:Operator request + 3 remaining Round 18 masters suggestions
+- output:Claimed task; implemented fleet dashboard JSON, self-healing doctor, and opt-in rules sync
+- status:in-progress
+- blockers:none
+
+### [2026-10-29T05:45:00Z] update | branch:feat/rules-doctor-round18 | wt:d:\Code\ainish-coder
+- start:2026-10-29T05:10:00Z
+- end:2026-10-29T05:45:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Verify status --json, doctor repair, orient --sync-rules gating; rebuild + full verification
+- input:Implementation complete; temp-repo deploy + doctor repair + sync-rules exercised
+- output:20/20 Rust tests + 3/3 Python parity tests, 12/12 ML-DSA-65 receipts, gate GREEN (code 49%), security_gate PASS, doctor repaired a deleted hook (repairs:1), sync-rules ok on gate_ready:false and gated off on true, canonical re-signed, binary rebuilt
+- status:verifying
+- blockers:none
+
+### [2026-10-29T05:50:00Z] intent-merge | branch:feat/rules-doctor-round18 | wt:d:\Code\ainish-coder
+- start:2026-10-29T05:10:00Z
+- end:2026-10-29T05:50:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Merge Round 18 (fleet dashboard JSON + self-healing doctor + opt-in rules sync) to main and push origin/main
+- input:All gates GREEN
+- output:Merging feat/rules-doctor-round18 to main (--no-ff); root auto-sync hooks already armed
+- status:verifying
+- blockers:none
+
+### [2026-10-29T05:55:00Z] checkout | branch:feat/rules-doctor-round18 | wt:d:\Code\ainish-coder
+- start:2026-10-29T05:10:00Z
+- end:2026-10-29T05:55:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Deliver Round 18 and finalize the release
+- input:All gates GREEN, merge complete, binary rebuilt
+- output:Merged feat/rules-doctor-round18 to main, pushed origin/main, root post-commit/post-merge hooks armed, no-rebuild-needed after merge
+- status:merged
+- blockers:none
