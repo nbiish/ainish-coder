@@ -153,3 +153,23 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: local-router carries one `pqc-secrets` pack with the merged reference; every vendored repo refreshed by explicit `--pqc-sync-targets <dir>` with the legacy pack pruned
 - status:merged
 - blockers:none
+### [2026-10-29T19:46:00Z] UPDATE | branch:fix/pqc-pack-digest | wt:D:\Code\pqc-digest
+- start:2026-10-29T19:41:00Z
+- end:2026-10-29T19:46:00Z
+- scope:src/pqc_dist.sh, scripts/test-pqc-dist.sh
+- triage:now
+- objective: stop distribution from pruning the legacy pack while skipping the merged documentation
+- input: the consolidation sync reported `state=current` for 11 repos because only `pqc_secrets.py` was compared; it pruned their old signature pack and never copied the merged reference
+- output: `_pqc_pack_sha` (sorted per-file digests over the whole pack) now drives both `--pqc-status` and `--pqc-sync-targets`; target entries carry `packSha256`, the sync emits `sourcePackSha256`, and the test adds a documentation-only drift cycle (stale -> re-sync -> byte-identical restore)
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:48:00Z] CHECKOUT | branch:fix/pqc-pack-digest | wt:D:\Code\pqc-digest
+- start:2026-10-29T19:46:00Z
+- end:2026-10-29T19:48:00Z
+- scope:same + fleet
+- objective: merge, then repair the 11 repos the engine-only check had skipped
+- input: test 32/32; the 11 repos still missing the reference
+- output: merged; every vendored repo re-synced on the pack digest and now carries the merged reference with one pqc pack
+- status:merged
+- blockers:none
