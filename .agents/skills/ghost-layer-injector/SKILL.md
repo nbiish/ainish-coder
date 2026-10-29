@@ -1,4 +1,5 @@
 ---
+name: ghost-layer-injector
 description: Inject covert AI/bot context ("Ghost Layer") into static HTML pages. Use when updating or applying the 8th Fire scrolls (.scrolls/llms.txt) to a website so LLMs and web crawlers auto-ingest the instructions without altering the human visual experience.
 ---
 

@@ -117,6 +117,82 @@ def verify_shell_lf_and_comms_hygiene(directory: str = ".") -> bool:
                     pass
     return ok
 
+def verify_skill_front_matter(directory: str = ".") -> bool:
+    """Every distributable skill pack must be loadable by a harness catalog.
+
+    A malformed YAML front matter silently removes a skill from agent catalogs
+    (this is how `pqc-secrets` stayed invisible), so it is a compliance failure,
+    not a formatting nit. Dependency-free checks catch the common case (an
+    unquoted ': ' inside a scalar); PyYAML validates the rest when installed.
+    """
+    skills_dir = os.path.join(directory, ".agents", "skills")
+    if not os.path.isdir(skills_dir):
+        return True
+
+    try:
+        import yaml  # optional, full validation when available
+    except Exception:
+        yaml = None
+
+    ok = True
+    for name in sorted(os.listdir(skills_dir)):
+        path = os.path.join(skills_dir, name, "SKILL.md")
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fp:
+                text = fp.read()
+        except Exception as exc:
+            print(f"[\033[91mFAIL\033[0m] {path}: unreadable ({exc}).")
+            ok = False
+            continue
+        if not text.startswith("---"):
+            print(f"[\033[91mFAIL\033[0m] {path}: missing YAML front matter.")
+            ok = False
+            continue
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            print(f"[\033[91mFAIL\033[0m] {path}: unterminated YAML front matter.")
+            ok = False
+            continue
+
+        front = parts[1]
+        fields = {}
+        for line_no, line in enumerate(front.splitlines(), 2):
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if line[0].isspace():
+                continue  # nested block; PyYAML validates it below when present
+            match = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", line)
+            if not match:
+                print(f"[\033[91mFAIL\033[0m] {path}:{line_no}: not a 'key: value' line.")
+                ok = False
+                continue
+            key, value = match.group(1), match.group(2).strip()
+            fields[key] = value
+            if value[:1] not in ("'", '"') and ": " in value:
+                print(
+                    f"[\033[91mFAIL\033[0m] {path}:{line_no}: unquoted ': ' in '{key}' "
+                    "breaks YAML (quote the value or use an em dash)."
+                )
+                ok = False
+
+        for required in ("name", "description"):
+            if not fields.get(required):
+                print(f"[\033[91mFAIL\033[0m] {path}: front matter has no '{required}'.")
+                ok = False
+
+        if yaml is not None:
+            try:
+                parsed = yaml.safe_load(front)
+                if not isinstance(parsed, dict):
+                    raise ValueError("front matter is not a mapping")
+            except Exception as exc:
+                print(f"[\033[91mFAIL\033[0m] {path}: YAML parse error: {str(exc).splitlines()[0]}")
+                ok = False
+    return ok
+
+
 def verify_compliance(directory: str = "."):
     print("Checking repository for Zero-Trust and PQC compliance...")
     failed = False
@@ -124,6 +200,8 @@ def verify_compliance(directory: str = "."):
     if not verify_canonical_agents_contract(directory):
         failed = True
     if not verify_shell_lf_and_comms_hygiene(directory):
+        failed = True
+    if not verify_skill_front_matter(directory):
         failed = True
     
     for root, dirs, files in os.walk(directory):
@@ -163,4 +241,4 @@ def verify_compliance(directory: str = "."):
         sys.exit(1)
 
 if __name__ == "__main__":
-    verify_compliance()
+    verify_compliance(sys.argv[1] if len(sys.argv) > 1 else ".")
