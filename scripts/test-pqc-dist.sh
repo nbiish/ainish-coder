@@ -89,6 +89,13 @@ else
     not_ok "windows launcher present when applicable"
 fi
 
+echo "== consolidation fixture =="
+# A target that predates the merge still carries the standalone signature pack.
+mkdir -p "${TARGET_ON}/.agents/skills/pqc-signatures-security"
+printf "legacy\n" > "${TARGET_ON}/.agents/skills/pqc-signatures-security/SKILL.md"
+pqc_packs=( "$REPO"/.agents/skills/pqc* )
+check "source ships exactly one pqc pack" "${#pqc_packs[@]}" "1"
+
 echo "== --pqc-sync-targets =="
 sync_json="${WORK}/sync.json"
 run_cli --pqc-sync-targets --all --json > "$sync_json"
@@ -96,6 +103,22 @@ check "one target synced" "$(jget synced "$sync_json")" "1"
 check "deselected target skipped" "$(jget deselected "$sync_json")" "1"
 check "missing target reported" "$(jget missing "$sync_json")" "1"
 check "no failures" "$(jget failed "$sync_json")" "0"
+check "legacy signature pack pruned" "$(jget legacyPruned "$sync_json")" "1"
+if [[ ! -d "${TARGET_ON}/.agents/skills/pqc-signatures-security" ]]; then
+    ok "legacy pack removed from target"
+else
+    not_ok "legacy pack removed from target"
+fi
+if [[ -f "${TARGET_ON}/.agents/skills/pqc-secrets/references/signatures-security.md" ]]; then
+    ok "merged signing reference distributed"
+else
+    not_ok "merged signing reference distributed"
+fi
+if [[ "$(find "${TARGET_ON}/.agents/skills" -maxdepth 1 -type d -name 'pqc*' | wc -l | tr -d ' ')" == "1" ]]; then
+    ok "target keeps one pqc pack"
+else
+    not_ok "target keeps one pqc pack"
+fi
 
 source_sha="$(sed -n 's/^[[:space:]]*"sourceSha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$sync_json" | head -n 1)"
 target_engine="${TARGET_ON}/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"
@@ -117,6 +140,7 @@ status_rc=$?
 check "status exits 0 when only optional packs are missing" "$status_rc" "0"
 check "target reports current" "$(jget current "${WORK}/status.json")" "1"
 check "deselected target is not a required miss" "$(jget missingRequired "${WORK}/status.json")" "0"
+check "status reports no legacy packs" "$(jget legacyPacks "${WORK}/status.json")" "0"
 
 # A selected target with no vendored engine must fail the check closed.
 printf '{"repos": {"%s": {"pqc-secrets": true}}}\n' "$(skills_selection_repo_key "$TARGET_BARE")" \
