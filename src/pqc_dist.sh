@@ -402,7 +402,7 @@ pqc_status() {
         fi
     fi
 
-    local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0
+    local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0 legacy_present=0
     registry="$(_pqc_config_dir)/targets.txt"
     if [[ -f "$registry" ]]; then
         while IFS= read -r target; do
@@ -424,8 +424,14 @@ pqc_status() {
             esac
             [[ "$selection" == "off" ]] && deselected=$((deselected + 1))
 
+            # Report (never mutate here) whether the pre-merge standalone pack
+            # is still present; --pqc-sync-targets removes it.
+            local legacy="no"
+            [[ -d "${target}/.agents/skills/pqc-signatures-security" ]] && legacy="yes"
+            [[ "$legacy" == "yes" ]] && legacy_present=$((legacy_present + 1))
+
             [[ -n "$targets_json" ]] && targets_json="${targets_json},"
-            targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"selection\": \"${selection}\", \"engineSha256\": \"${tsha}\"}"
+            targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"selection\": \"${selection}\", \"engineSha256\": \"${tsha}\", \"legacyPack\": \"${legacy}\"}"
         done < "$registry"
     fi
 
@@ -439,8 +445,8 @@ pqc_status() {
         printf '  "native": %s,\n' "${native_store:-null}"
         printf '  "wsl": {"attempted": %s, "detail": "%s", "store": %s},\n' "$wsl" "$(_pqc_json_escape "$wsl_detail")" "${wsl_store:-null}"
         printf '  "targets": [%s],\n' "$targets_json"
-        printf '  "summary": {"total": %s, "current": %s, "stale": %s, "missing": %s, "missingRequired": %s, "deselected": %s, "unreachable": %s}\n' \
-            "$total" "$current" "$stale" "$missing" "$missing_required" "$deselected" "$unreachable"
+        printf '  "summary": {"total": %s, "current": %s, "stale": %s, "missing": %s, "missingRequired": %s, "deselected": %s, "unreachable": %s, "legacyPacks": %s}\n' \
+            "$total" "$current" "$stale" "$missing" "$missing_required" "$deselected" "$unreachable" "$legacy_present"
         printf '}\n'
     else
         print_header "🔐 PQC secrets — store & distribution status"
@@ -476,6 +482,20 @@ pqc_status() {
     return 0
 }
 
+# The ML-DSA-65 signing guidance merged into this pack on 2026-10-29. Targets
+# that still carry the old standalone pack are cleaned once the consolidated
+# pack is in place, so a repo never ships two overlapping PQC skills.
+# Returns: 0 = pruned, 1 = nothing to do, 2 = would prune (dry run).
+_pqc_prune_legacy_pack() {
+    local target="$1" dry_run="${2:-false}"
+    local legacy="${target}/.agents/skills/pqc-signatures-security"
+    [[ -d "$legacy" ]] || return 1
+    if [[ "$dry_run" == "true" ]]; then
+        return 2
+    fi
+    rm -rf "$legacy"
+    return 0
+}
 # ── --pqc-sync-targets ───────────────────────────────────────────────────────
 pqc_sync_targets() {
     local json="false" dry_run="false" all="false" only=""
@@ -518,7 +538,7 @@ pqc_sync_targets() {
         return 0
     fi
 
-    local source_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0
+    local source_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0 legacy_pruned=0
     source_sha="$(_pqc_engine_sha)"
 
     for target in "${targets[@]}"; do
@@ -577,8 +597,21 @@ pqc_sync_targets() {
             fi
         fi
 
+        # Consolidation cleanup: drop the pre-merge standalone signature pack.
+        local legacy="absent"
+        if [[ "$state" == "current" || "$state" == "synced" || "$state" == "would-sync" ]]; then
+            # `|| prune_rc=$?` keeps `set -e` from aborting when there is
+            # nothing to prune (return 1 is the normal steady state).
+            local prune_rc=0
+            _pqc_prune_legacy_pack "$target" "$dry_run" || prune_rc=$?
+            case "$prune_rc" in
+                0) legacy="pruned"; legacy_pruned=$((legacy_pruned + 1)) ;;
+                2) legacy="would-prune" ;;
+            esac
+        fi
+
         [[ -n "$targets_json" ]] && targets_json="${targets_json},"
-        targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"note\": \"$(_pqc_json_escape "$note")\"}"
+        targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"note\": \"$(_pqc_json_escape "$note")\", \"legacy\": \"${legacy}\"}"
 
         if [[ "$json" != "true" ]]; then
             case "$state" in
@@ -600,12 +633,12 @@ pqc_sync_targets() {
         printf '  "sourceSha256": "%s",\n' "$source_sha"
         printf '  "dryRun": %s,\n' "$dry_run"
         printf '  "targets": [%s],\n' "$targets_json"
-        printf '  "summary": {"total": %s, "synced": %s, "current": %s, "deselected": %s, "failed": %s, "missing": %s}\n' \
-            "$total" "$synced" "$current" "$deselected" "$failed" "$missing_n"
+        printf '  "summary": {"total": %s, "synced": %s, "current": %s, "deselected": %s, "failed": %s, "missing": %s, "legacyPruned": %s}\n' \
+            "$total" "$synced" "$current" "$deselected" "$failed" "$missing_n" "$legacy_pruned"
         printf '}\n'
     else
         echo ""
-        echo "  ${total} target(s) · ${synced} synced · ${current} current · ${deselected} deselected · ${failed} failed"
+        echo "  ${total} target(s) · ${synced} synced · ${current} current · ${deselected} deselected · ${failed} failed · ${legacy_pruned} legacy pack(s) pruned"
     fi
 
     [[ "$failed" -eq 0 ]]
