@@ -167,12 +167,24 @@ snapshot_canonical_contract() {
     local dest_copy="${snapshot_dir}/AGENTS.md"
     local dest_hash="${snapshot_dir}/AGENTS.md.sha256"
 
+    local hash_val
+    hash_val="$(_calc_sha256 "$source_file")"
+    local current_hash=""
+    if [[ -f "$dest_hash" ]]; then
+        current_hash="$(tr -d '[:space:]' < "$dest_hash")"
+    fi
+
+    # Idempotent: an unchanged contract must not re-sign or append governance
+    # history on every target refresh (which would dirty the root on each sync).
+    if [[ -f "$dest_copy" ]] && cmp -s "$source_file" "$dest_copy" && [[ "$current_hash" == "$hash_val" ]]; then
+        lock_agents_contract "$dest_copy" 2>/dev/null || true
+        return 0
+    fi
+
     # Unlock destination if locked from previous run
     unlock_agents_contract "$dest_copy" 2>/dev/null || true
 
     cp "$source_file" "$dest_copy" || return 1
-    local hash_val
-    hash_val="$(_calc_sha256 "$source_file")"
     echo "$hash_val" > "$dest_hash"
 
     # Re-sign canonical contract with FIPS 204 ML-DSA-65 if ainish-rag is available

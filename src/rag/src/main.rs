@@ -272,6 +272,9 @@ enum Commands {
         /// Fine-grained per-section line truncation override
         #[arg(long)]
         max_lines: Option<usize>,
+        /// Maximum number of wiki sections to inject (default 3)
+        #[arg(long)]
+        sections: Option<usize>,
         /// Include key symbol graph anchors in the primer (pass `false` to omit)
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         include_symbols: bool,
@@ -395,6 +398,9 @@ pub enum AuditCommands {
         /// Dry-run PII/credential/path/IP/MAC redaction on an arbitrary file without mutating it
         #[arg(long)]
         redact_check: Option<PathBuf>,
+        /// Exit non-zero when the redaction dry-run detects unredacted sensitive classes
+        #[arg(long)]
+        fail_on_leak: bool,
         /// Output privacy budget ledger as JSON
         #[arg(long)]
         json: bool,
@@ -457,6 +463,50 @@ impl StatusReporter {
             let doc = serde_json::Value::Object(self.fields);
             println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".to_string()));
         }
+    }
+}
+
+/// Reports presence plus detached ML-DSA-65 verification state for a compliance artifact.
+fn artifact_signature_status(repo_root: &std::path::Path, rel_path: &str) -> serde_json::Value {
+    let path = repo_root.join(rel_path);
+    if !path.exists() {
+        return serde_json::json!({
+            "present": false,
+            "path": rel_path,
+            "signature_status": "MISSING",
+            "signature_verified": false
+        });
+    }
+    if !pqc::sig_path(&path).exists() {
+        return serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "UNSIGNED",
+            "signature_verified": false
+        });
+    }
+    match pqc::verify_file(repo_root, &path) {
+        pqc::VerifyOutcome::Verified { fingerprint } => serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "VERIFIED",
+            "signature_verified": true,
+            "key_fingerprint": &fingerprint[..12.min(fingerprint.len())]
+        }),
+        pqc::VerifyOutcome::Unsigned(reason) => serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "UNSIGNED",
+            "signature_verified": false,
+            "detail": reason
+        }),
+        pqc::VerifyOutcome::Invalid(err) => serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "INVALID",
+            "signature_verified": false,
+            "detail": err
+        }),
     }
 }
 
@@ -653,6 +703,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                 }
             }
+
+            let mut signatures = serde_json::Map::new();
+            for (key, rel_path) in [
+                ("model_manifest", ".agents/audit/model-manifest.json"),
+                ("lockfile_manifest", ".agents/audit/lockfile-manifest.json"),
+                ("privacy_budget", ".agents/audit/privacy-budget.json"),
+                ("privacy_report", ".agents/audit/privacy-report.json"),
+            ] {
+                signatures.insert(key.to_string(), artifact_signature_status(&current_dir, rel_path));
+            }
+            reporter.put("signatures", serde_json::Value::Object(signatures));
 
             if !json {
                 if config.llama_bin.is_none() {
@@ -1271,9 +1332,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, include_symbols, json } => {
+        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, sections, include_symbols, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, include_symbols, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, json)?;
             }
         }
         Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
@@ -1399,9 +1460,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
                 }
             }
-            AuditCommands::Privacy { max_budget, reset, out, redact_check, json } => {
+            AuditCommands::Privacy { max_budget, reset, out, redact_check, fail_on_leak, json } => {
                 if let Some(ref target) = redact_check {
-                    run_redact_check(&current_dir, target, json)?;
+                    run_redact_check(&current_dir, target, fail_on_leak, json)?;
                 } else {
                     run_audit_privacy(&current_dir, max_budget, reset, out.as_deref(), json)?;
                 }
@@ -1474,6 +1535,7 @@ fn run_audit_privacy(
 fn run_redact_check(
     repo_root: &std::path::Path,
     path: &std::path::Path,
+    fail_on_leak: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let raw_bytes = std::fs::read(path)?;
@@ -1530,7 +1592,9 @@ fn run_redact_check(
         "ansi_escape_detected": ansi_detected,
         "bidi_override_detected": bidi_detected,
         "file_unchanged": file_unchanged,
+        "fail_on_leak": fail_on_leak,
         "redacted_preview": redacted_preview.clone(),
+        "status": if classes.is_empty() { "CLEAN" } else if fail_on_leak { "LEAK_DETECTED" } else { "LEAK_REPORTED" },
     });
 
     if json {
@@ -1544,6 +1608,7 @@ fn run_redact_check(
         println!("  ANSI Escapes:     {}", if ansi_detected { "DETECTED" } else { "none" });
         println!("  Trojan Source:    {}", if bidi_detected { "DETECTED" } else { "none" });
         println!("  File Unchanged:   {}", if file_unchanged { "YES (dry-run only)" } else { "NO (unexpected mutation!)" });
+        println!("  Leak Gate:        {}", if classes.is_empty() { "CLEAN" } else if fail_on_leak { "FAIL (--fail-on-leak)" } else { "REPORTED (--fail-on-leak not set)" });
         if !redacted_preview.is_empty() {
             println!("  Redacted Preview (first {} changed lines):", redacted_preview.len());
             for line in &redacted_preview {
@@ -1551,6 +1616,14 @@ fn run_redact_check(
             }
         }
         println!();
+    }
+    if fail_on_leak && !classes.is_empty() {
+        return Err(format!(
+            "Redaction dry-run detected {} sensitive class(es) in {}: {}",
+            classes.len(),
+            path.display(),
+            classes.join(", ")
+        ).into());
     }
     Ok(())
 }
@@ -2012,6 +2085,26 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
         } else {
             println!("  \x1b[31m[FAIL]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={:?}, sig_ok={}", missing_lfs, sig_ok);
             failed += 1;
+        }
+    }
+
+    // Verify detached ML-DSA-65 signature on .agents/audit/privacy-budget.json
+    let privacy_budget = repo_root.join(".agents").join("audit").join("privacy-budget.json");
+    if privacy_budget.exists() {
+        receipts_checked += 1;
+        match pqc::verify_file(repo_root, &privacy_budget) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Privacy Budget Ledger (privacy-budget.json): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Budget Ledger (privacy-budget.json): {}", reason);
+                failed += 1;
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Budget Ledger (privacy-budget.json): {}", err);
+                failed += 1;
+            }
         }
     }
 
@@ -2597,8 +2690,10 @@ fn build_orient_report(
     task_conditioned: bool,
     compact: bool,
     max_lines: Option<usize>,
+    sections: Option<usize>,
     include_symbols: bool,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let section_limit = sections.unwrap_or(3);
     let wiki_dir = repo_root.join(".agents").join("wiki");
     let mut candidate_files = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&wiki_dir) {
@@ -2676,7 +2771,7 @@ fn build_orient_report(
             files.sort();
         }
 
-        for f in files.into_iter().take(3) {
+        for f in files.into_iter().take(section_limit) {
             candidate_files.push(f);
         }
     }
@@ -2704,6 +2799,16 @@ fn build_orient_report(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "HEAD".to_string());
+
+    let gate_cache_path = repo_root.join(".agents").join("rag").join("gate-status.json");
+    let gate_status_value = std::fs::read_to_string(&gate_cache_path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+    let gate_ready = gate_status_value.as_ref().map_or(false, |v| {
+        v.get("overall_pass").and_then(|b| b.as_bool()).unwrap_or(false)
+            && v.get("commit").and_then(|c| c.as_str()) == Some(git_sha.as_str())
+    });
+    let gate_status_value = gate_status_value.unwrap_or(serde_json::Value::Null);
 
     let mut primer_lines = Vec::new();
     primer_lines.push("<ORIENT_PRIMER>".to_string());
@@ -2837,6 +2942,9 @@ fn build_orient_report(
         "resolved_ledger_notes": resolved_ledger_notes,
         "symbol_anchors": symbol_anchors,
         "include_symbols": include_symbols,
+        "sections_limit": section_limit,
+        "gate_ready": gate_ready,
+        "gate_status": gate_status_value,
         "synced_resolutions": synced_resolutions,
         "max_lines_per_section": lines_per_section,
         "total_sanitized_tokens": total_sanitized,
@@ -2855,10 +2963,11 @@ fn run_orient_inject(
     verify: bool,
     compact: bool,
     max_lines: Option<usize>,
+    sections: Option<usize>,
     include_symbols: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, include_symbols)?;
+    let report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -2923,6 +3032,41 @@ fn trigger_desktop_notification(title: &str, message: &str) {
             .args(["-e", &script])
             .output();
     }
+}
+
+/// True when a patch path is documentation or agent-coordination state. Such patches
+/// legitimately touch no symbols, so the pre-merge gate must not force them through the
+/// code-anchoring threshold (which exists to catch unanchored code changes).
+pub fn is_docs_or_coord_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/").to_lowercase();
+    normalized.starts_with(".agents/")
+        || normalized.ends_with(".md")
+        || normalized.ends_with(".mdx")
+        || normalized.ends_with(".txt")
+        || normalized.ends_with(".rst")
+}
+
+/// Resolves the active branch and short HEAD SHA for primer/gate provenance.
+fn git_branch_sha(repo_root: &std::path::Path) -> (String, String) {
+    let branch = std::process::Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "main".to_string());
+    let sha = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "HEAD".to_string());
+    (branch, sha)
 }
 
 async fn run_gate(
@@ -3030,6 +3174,23 @@ async fn run_gate(
         true
     };
 
+    // Verify .agents/audit/privacy-report.sig during gate whenever .agents/audit/privacy-report.json is present
+    let privacy_report_file = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    let privacy_report_sig_ok = if privacy_report_file.exists() {
+        match pqc::verify_file(repo_root, &privacy_report_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
     let (lock_drift, lock_unpinned) = match lockfile_eval {
         Ok((d, u)) => (d, u),
         Err(_) => (Vec::new(), Vec::new()),
@@ -3056,22 +3217,49 @@ async fn run_gate(
     let trojan_source_clean = patch_eval.canary_leaks.is_empty();
     let contract_history_ok = pqc::verify_contract_history_chain(repo_root).is_ok();
     let redaction_self_test_ok = WikiGenerator::new(repo_root).verify_redaction_pipeline().is_ok();
-    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok && model_manifest_sig_ok && privacy_budget_sig_ok;
+    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok && model_manifest_sig_ok && privacy_budget_sig_ok && privacy_report_sig_ok;
 
     let effective_strict = strict || std::env::var("AINISH_GATE_STRICT").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
     let min_anchor = if effective_strict { 0.70 } else { 0.45 };
-    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= min_anchor);
+    let docs_only_patch = !patch_text.trim().is_empty()
+        && !patch_eval.modified_files.is_empty()
+        && patch_eval.modified_files.iter().all(|f| is_docs_or_coord_path(f));
+    let anchor_ok = patch_text.is_empty()
+        || docs_only_patch
+        || patch_eval.composite_anchor_score >= min_anchor;
+    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && anchor_ok;
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
 
     let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass;
 
+    // Persist the latest gate verdict for `orient --inject --json` (`gate_ready`) and statusline consumers.
+    let (cache_branch, cache_commit) = git_branch_sha(repo_root);
+    let gate_cache = serde_json::json!({
+        "format": "ainish-rag/gate-status/v1",
+        "overall_pass": overall_pass,
+        "status": if overall_pass { "GREEN" } else { "RED" },
+        "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+        "docs_only": docs_only_patch,
+        "branch": cache_branch,
+        "commit": cache_commit,
+        "updated_at": chrono::Utc::now().to_rfc3339(),
+    });
+    let cache_dir = repo_root.join(".agents").join("rag");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let _ = std::fs::write(
+        cache_dir.join("gate-status.json"),
+        serde_json::to_string_pretty(&gate_cache).unwrap_or_default(),
+    );
+
     if summary {
+        let anchor_label = if docs_only_patch { "N/A".to_string() } else { format!("{:.0}%", patch_eval.composite_anchor_score * 100.0) };
         let line_str = format!(
-            "GATE:{} | anchor:{:.0}% | lock:{} | pqc:{}/{} | comms:{} | zt:{}",
+            "GATE:{} | anchor:{} | patch:{} | lock:{} | pqc:{}/{} | comms:{} | zt:{}",
             if overall_pass { "GREEN" } else { "RED" },
-            patch_eval.composite_anchor_score * 100.0,
+            anchor_label,
+            if docs_only_patch { "DOCS" } else { "CODE" },
             if lock_pass { "OK" } else { "DRIFT" },
             audit_receipts_passed,
             audit_receipts_passed + audit_receipts_failed,
@@ -3083,6 +3271,8 @@ async fn run_gate(
                 "status": if overall_pass { "GREEN" } else { "RED" },
                 "overall_pass": overall_pass,
                 "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+                "docs_only": docs_only_patch,
+                "patch_kind": if docs_only_patch { "docs" } else { "code" },
                 "lock": if lock_pass { "OK" } else { "DRIFT" },
                 "pqc": format!("{}/{}", audit_receipts_passed, audit_receipts_passed + audit_receipts_failed),
                 "comms": if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" },
@@ -3095,6 +3285,8 @@ async fn run_gate(
     } else if json {
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({
             "overall_pass": overall_pass,
+            "docs_only": docs_only_patch,
+            "patch_kind": if docs_only_patch { "docs" } else { "code" },
             "patch_evaluation": patch_eval,
             "lockfile_check": {
                 "pass": lock_pass,
@@ -3127,7 +3319,8 @@ async fn run_gate(
                 "contract_history_verified": contract_history_ok,
                 "redaction_self_test": redaction_self_test_ok,
                 "model_manifest_sig_verified": model_manifest_sig_ok,
-                "privacy_budget_sig_verified": privacy_budget_sig_ok
+                "privacy_budget_sig_verified": privacy_budget_sig_ok,
+                "privacy_report_sig_verified": privacy_report_sig_ok
             }
         }))?);
     } else {
@@ -3135,7 +3328,9 @@ async fn run_gate(
         println!("┌────────────────────────────────────────────────────────────────────────┐");
         println!("│                    ainish-rag Pre-Merge Gate Card                      │");
         println!("├────────────────────────────────────────────────────────────────────────┤");
-        let patch_label = if patch_pass {
+        let patch_label = if docs_only_patch {
+            "\x1b[32mPASS (docs/coordination-only patch — anchor exempt)\x1b[0m".to_string()
+        } else if patch_pass {
             format!("\x1b[32mPASS ({:.1}% - {})\x1b[0m", patch_eval.composite_anchor_score * 100.0, patch_eval.status)
         } else {
             format!("\x1b[31mFAIL ({})\x1b[0m", patch_eval.status)
@@ -3462,12 +3657,28 @@ fn print_completion(shell: &str) {
         "bash" => {
             print!("{}", r#"# bash completion for ainish-rag
 _ainish_rag() {
-    local cur opts
+    local cur sub opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help"
+    sub="${COMP_WORDS[1]}"
+    case "$sub" in
+        status)     opts="--tui --json --help" ;;
+        orient)     opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --json --help" ;;
+        audit)      opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --verify-history --threshold --hardware-seal --json --help" ;;
+        gate)       opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
+        query)      opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
+        wiki)       opts="--path --no-index --note --resolve --sync-resolved --list-notes --json --help" ;;
+        index)      opts="--path --truncate --watch --anonymize-symbols --symbol-salt --dp-noise --dp-epsilon --dp-max-budget --help" ;;
+        cleanup)    opts="--compact --prune-days --prune-worktrees --delete-merged --dry-run --help" ;;
+        bench)      opts="--iterations --custom --regression --save-baseline --drift-injection --chaos --json --help" ;;
+        monitor)    opts="--interval --once --json --help" ;;
+        service)    opts="status install generate uninstall --warm --port --out --help" ;;
+        statusline) opts="--json --help" ;;
+        completion) opts="bash zsh fish pwsh --help" ;;
+        *)          opts="serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --json --help" ;;
+    esac
     if [[ ${cur} == -* ]] ; then
-        COMPREPLY=( $(compgen -W "--threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help" -- ${cur}) )
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
         return 0
     fi
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -3504,6 +3715,10 @@ _ainish_rag() {
         'service:Background embedding service management'
         'completion:Generate shell completions'
     )
+    if [[ "$words[CURRENT]" == -* ]]; then
+        compadd -- --redact-check --fail-on-leak --include-symbols --sections --json --tui --patch --strict --help
+        return
+    fi
     _describe 'commands' commands
 }
 compdef _ainish_rag ainish-rag
@@ -3515,6 +3730,13 @@ ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
             print!("{}", r#"# fish completion for ainish-rag
 complete -c ainish-rag -f
 complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion"
+complete -c ainish-rag -l redact-check -r -d "Dry-run redaction on a file without mutating it"
+complete -c ainish-rag -l fail-on-leak -d "Exit non-zero when redaction dry-run detects leaks"
+complete -c ainish-rag -l include-symbols -d "Include symbol anchors in orient primer"
+complete -c ainish-rag -l sections -x -d "Maximum wiki sections to inject"
+complete -c ainish-rag -l max-lines -x -d "Per-section line truncation override"
+complete -c ainish-rag -l json -d "Structured JSON output"
+complete -c ainish-rag -l tui -d "Interactive status dashboard"
 alias rag="ainish-rag"
 function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
 "#);
@@ -3524,6 +3746,11 @@ function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','bench','monitor','audit','service','completion')
+    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
+    if ($wordToComplete -like '-*') {
+        $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
+        return
+    }
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 Set-Alias -Name rag -Value ainish-rag
@@ -3588,6 +3815,7 @@ mod tests {
 
         let wiki_body: String = (1..=30).map(|i| format!("line-{:02} architectural detail\n", i)).collect();
         std::fs::write(wiki_dir.join("01-architecture.md"), wiki_body).unwrap();
+        std::fs::write(wiki_dir.join("02-codebase-connections.md"), "# 02 connections\nbody\n").unwrap();
         std::fs::write(
             mem_dir.join("2026-10-29-memory.txt"),
             "- 10:00 memory alpha\n- 10:01 memory beta\n- 10:02 memory gamma\n",
@@ -3601,8 +3829,11 @@ mod tests {
             "pub fn calculate_anchor_one() {}\npub fn calculate_anchor_two() {}\nstruct AlphaBeta {}\n",
         ).unwrap();
 
-        let limited = build_orient_report(&tmp, None, false, false, Some(4), false).unwrap();
+        let limited = build_orient_report(&tmp, None, false, false, Some(4), Some(1), false).unwrap();
         assert_eq!(limited["max_lines_per_section"], 4);
+        assert_eq!(limited["sections_limit"], 1);
+        assert_eq!(limited["sections"].as_array().unwrap().len(), 1);
+        assert_eq!(limited["gate_ready"], false);
         let content = limited["sections"][0]["content"].as_str().unwrap();
         assert_eq!(content.lines().count(), 4);
         assert!(!content.contains("line-05"));
@@ -3612,10 +3843,17 @@ mod tests {
         assert_eq!(limited["resolved_ledger_notes"], 1);
         assert!(limited["orient_verified"].as_bool().unwrap());
 
-        let with_symbols = build_orient_report(&tmp, None, false, false, Some(2), true).unwrap();
+        let with_symbols = build_orient_report(&tmp, None, false, false, Some(2), None, true).unwrap();
+        assert_eq!(with_symbols["sections"].as_array().unwrap().len(), 2);
         assert_eq!(with_symbols["sections"][0]["content"].as_str().unwrap().lines().count(), 2);
         assert!(with_symbols["symbol_anchors"].as_array().unwrap().len() >= 1);
         assert!(with_symbols["primer"].as_str().unwrap().contains("Key Symbol Graph Anchors"));
+
+        assert!(is_docs_or_coord_path(".agents/comms/2026-10-29-team.txt"));
+        assert!(is_docs_or_coord_path("AGENTS.md"));
+        assert!(is_docs_or_coord_path("llms.txt"));
+        assert!(!is_docs_or_coord_path("src/rag/src/main.rs"));
+        assert!(!is_docs_or_coord_path(".github/workflows/security.yml"));
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

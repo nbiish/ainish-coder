@@ -18,26 +18,40 @@ GLOBAL FLAGS:
                          and --skills-sync with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md — the singular, repository-agnostic
+    --rules [TARGET_DIR]      One-time setup of the full rules system:
+                              AGENTS.md — the singular, repository-agnostic
                               standard, copied from this root repository into the
                               target as a plain tracked file (the target owns its
-                              copy; committing it is allowed; re-run --rules to
-                              pull the latest root version) — plus
+                              copy; committing it is allowed) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
                                 .agents/comms/{date}-team.txt (merge-safe: refreshes
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
-                              and ALL skill packs from .agents/skills/
+                              ALL skill packs from .agents/skills/
                               (raw .scrolls* payload and the scroll-channel
                               packs 8thfire-scrolls / ghost-layer-injector
                               never included — they travel only via the
-                              explicit --scrolls channel).
+                              explicit --scrolls channel),
+                              an llms.txt PRD template when the target has none,
+                              and continuous auto-sync:
+                                .agents/ainish-deploy.json (source provenance)
+                                .agents/bin/ainish-rules-sync (portable refresher)
+                                post-merge/post-checkout git hooks (auto-refresh)
+                              The target is registered in
+                              ~/.config/ainish-coder/targets.txt, and the root
+                              repo's post-commit/post-merge hooks refresh every
+                              registered target whenever the root contract
+                              advances — no repeated --rules runs needed.
                               Project-specific direction stays in each repo's
                               llms.txt (the PRD and guiding document).
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
+    --rules-sync [DIR|--all]  Refresh managed rules immediately: this target, or
+                              every registered target with --all (--quiet).
+    --rules-status            Show registered targets with CURRENT/STALE state.
+    --rules-watch [SECONDS]   Foreground watcher: sync the fleet when root HEAD moves.
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
                               agnostic standard, copied into the target as a
                               plain tracked file (refresh with --agents).
@@ -50,7 +64,8 @@ CORE COMMANDS:
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + all skill packs.
+    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + all skill packs,
+    and to arm continuous auto-sync for that repository. Use --rules-sync --all to refresh the fleet now.
     Use --llms-txt to deploy llms.txt.
     Use --skills-sync to synchronize and selectively ingest skills.
 
@@ -103,7 +118,7 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 wiki [PATH]           Generate 6 living wiki documents & splice .agents/wiki/ledger.md
                                                       (--note "<entry>" | --note - | --resolve "<kw>" | --sync-resolved | --list-notes [--json])
                                 orient --inject       Inject top task-conditioned wiki sections + memories + open ledger notes
-                                                      (--verify, --compact, --max-lines N, --include-symbols true|false, --json)
+                                                      (--verify, --compact, --max-lines N, --sections N, --include-symbols true|false, --json)
                                 query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking (--code, --fzf)
                                 rerank <QUERY>        Standalone decision-model reranking of candidates
                                 secrets               Inspect PQC vault status & OpenRouter API key
@@ -113,7 +128,7 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 gate [--watch]        Unified pre-merge gate: patch (--strict), lockfiles, PQC receipts (model-manifest.sig, privacy-budget.sig), contract, COMMS (--summary)
                                 statusline [--json]   Emit one-line or JSON compact gate status for PS1, Cursor statusLine, or tmux
                                 cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged [--dry-run])
-                                audit <cmd>           verify | lock [--update] | privacy [--out] [--redact-check <file>] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
+                                audit <cmd>           verify | lock [--update] | privacy [--out] [--redact-check <file> [--fail-on-leak]] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
                                 service <cmd>         status [--warm] | install | generate | uninstall background daemon
                                 bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
@@ -293,8 +308,13 @@ EXAMPLES:
     ainish-coder --gitignore                # Create comprehensive .gitignore
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
+    ainish-coder --rules ~/my-repo          # One-time full rules setup + continuous auto-sync
+    ainish-coder --rules-sync --all         # Refresh every registered target now
+    ainish-coder --rules-status             # Show registered targets and staleness
     ainish-rag audit contract --verify-history   # Inspect & verify hash-chained contract governance history
     ainish-rag audit privacy --redact-check FILE # Dry-run PII/credential/path/IP/MAC redaction without mutating FILE
+    ainish-rag audit privacy --redact-check FILE --fail-on-leak  # Exit non-zero when leaks are detected (CI gate)
+    ainish-rag orient --inject --sections 2       # Cap the number of injected wiki sections
     ainish-rag orient --inject --max-lines 15    # Inject task-conditioned subagent primer with custom line cap
     ainish-rag orient --inject --include-symbols false  # Prose-only primer (omit symbol graph anchors)
     ainish-rag status --json                     # Structured health & telemetry report for orchestrators

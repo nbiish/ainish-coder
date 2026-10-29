@@ -35,6 +35,7 @@ source "${SRC_DIR}/ignore_patterns.sh"
 source "${SRC_DIR}/help.sh"
 source "${SRC_DIR}/deploy_commands.sh"
 source "${SRC_DIR}/deploy_agents.sh"
+source "${SRC_DIR}/deploy_rules_sync.sh"
 source "${SRC_DIR}/agents_protection.sh"
 
 source "${SRC_DIR}/deploy_critical.sh"
@@ -147,6 +148,69 @@ main() {
         fi
     }
 
+    # Deploy the full rules bundle. Shared by --rules and the auto-sync refresher
+    # so one code path keeps every target repository in sync.
+    deploy_rules_bundle() {
+        local target_dir="$1"
+        _TRACK_DETAIL="AGENTS.md+gitignore"
+        echo -e "${BRIGHT_BLUE}Deploying Rules System to: $target_dir${RESET}"
+
+        if confirm_action "Deploy the universal AGENTS.md (repo-agnostic standard; llms.txt remains the per-repo PRD)?" "y"; then
+            deploy_agents "$target_dir"
+        fi
+
+        # Ensure global AGENTS.md copies are always fresh
+        deploy_agents_global
+
+        if confirm_action "Deploy/merge .gitignore configuration to: $target_dir?" "y"; then
+            _with_link_choice deploy_gitignore "$target_dir"
+        fi
+
+        # Seed the PRD template only when the target has none: never overwrite a
+        # repository's own llms.txt DOX chain.
+        if [[ ! -f "$target_dir/llms.txt" && -f "${REPO_DIR}/src/templates/llms.txt" ]]; then
+            cp "${REPO_DIR}/src/templates/llms.txt" "$target_dir/llms.txt" || true
+            chmod 644 "$target_dir/llms.txt" 2>/dev/null || true
+            echo -e "${GREEN}✓ Seeded llms.txt PRD template (existing PRDs are never overwritten)${RESET}"
+        fi
+
+        if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
+            # Headless: persisted selection governs; no prompts.
+            deploy_skills "$target_dir" || \
+                print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
+        elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
+            # Interactive: open the toggle UI first so this run's choices
+            # persist for every future --rules/--skills-sync.
+            _skills_toggle_ui "$target_dir" && {
+                if _confirm_symlink; then
+                    AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
+                        print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+                else
+                    AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
+                        print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+                fi
+            }
+            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
+        fi
+
+        # Agent Communication System — .agents/comms/{date}-team.txt (one per UTC date)
+        # Merge-safe: refreshes protocol template, preserves agent entries.
+        if confirm_action "Deploy Agent Communication System (.agents/comms/{date}-team.txt)?" "y"; then
+            deploy_agents_comms "$target_dir"
+            _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
+        fi
+
+        # Ensure workspace customizations root (.agents/tasks, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
+        mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
+
+        # Arm continuous auto-sync (manifest + refresher + git hooks + fleet registry)
+        deploy_rules_sync "$target_dir" || \
+            print_warning "Auto-sync deployment reported errors — rules are deployed but may need a manual refresh"
+
+        echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
+    }
+
     case "$command" in
         --help|-h)
             show_help
@@ -170,51 +234,32 @@ main() {
 
         # Core rules deployment
         --rules)
-            _TRACK_DETAIL="AGENTS.md+gitignore"
-            echo -e "${BRIGHT_BLUE}Deploying Rules System to: $target_dir${RESET}"
+            deploy_rules_bundle "$target_dir"
+            ;;
 
-            if confirm_action "Deploy the universal AGENTS.md (repo-agnostic standard; llms.txt remains the per-repo PRD)?" "y"; then
-                deploy_agents "$target_dir"
+        --rules-sync)
+            local _all=false _quiet=false _sync_target=""
+            local _a
+            for _a in "$@"; do
+                case "$_a" in
+                    --all) _all=true ;;
+                    --quiet|-q) _quiet=true ;;
+                    *) _sync_target="$_a" ;;
+                esac
+            done
+            if [[ "$_all" == "true" ]]; then
+                rules_sync_all "$_quiet"
+            else
+                rules_sync_target "${_sync_target:-$(pwd)}"
             fi
+            ;;
 
-            # Ensure global AGENTS.md copies are always fresh
-            deploy_agents_global
+        --rules-status)
+            rules_status
+            ;;
 
-            if confirm_action "Deploy/merge .gitignore configuration to: $target_dir?" "y"; then
-                _with_link_choice deploy_gitignore "$target_dir"
-            fi
-
-            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-                # Headless: persisted selection governs; no prompts.
-                deploy_skills "$target_dir" || \
-                    print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
-            elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
-                # Interactive: open the toggle UI first so this run's choices
-                # persist for every future --rules/--skills-sync.
-                _skills_toggle_ui "$target_dir" && {
-                    if _confirm_symlink; then
-                        AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
-                            print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                    else
-                        AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
-                            print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                    fi
-                }
-                _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
-            fi
-
-            # Agent Communication System — .agents/comms/{date}-team.txt (one per UTC date)
-            # Merge-safe: refreshes protocol template, preserves agent entries.
-            if confirm_action "Deploy Agent Communication System (.agents/comms/{date}-team.txt)?" "y"; then
-                deploy_agents_comms "$target_dir"
-                _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
-            fi
-
-            # Ensure workspace customizations root (.agents/tasks, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki) is scaffolded
-            mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" 2>/dev/null || true
-
-            echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
+        --rules-watch)
+            rules_watch "${1:-30}"
             ;;
 
         --agents)
