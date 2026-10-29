@@ -1,6 +1,6 @@
 ---
 name: browser-use
-description: Direct browser control via CDP for web interaction: automation, scraping, testing, screenshots, and site/app work across macOS, Linux, and Windows.
+description: Direct browser control via CDP for web interaction — automation, scraping, testing, screenshots, and site/app work across macOS, Linux, and Windows.
 homepage: https://browser-use.com
 ---
 
