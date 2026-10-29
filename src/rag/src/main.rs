@@ -365,6 +365,9 @@ pub enum AuditCommands {
         /// Unwrap hardware-backed FIDO2 / TPM 2.0 sealed signing seed
         #[arg(long)]
         hardware_seal: bool,
+        /// Inspect and verify all hash-chained transitions in .agents/audit/contract-history.jsonl
+        #[arg(long)]
+        verify_history: bool,
     },
     /// Inspect or reset the cumulative differential privacy budget ledger (.agents/audit/privacy-budget.json)
     Privacy {
@@ -1175,7 +1178,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AuditCommands::Sign { path } => {
                 run_audit_sign(&path)?;
             }
-            AuditCommands::Contract { threshold, hardware_seal } => {
+            AuditCommands::Contract { threshold, hardware_seal, verify_history } => {
+                if verify_history {
+                    let history_file = current_dir.join(".agents").join("audit").join("contract-history.jsonl");
+                    println!("=== ainish-rag Canonical Contract Governance History ===");
+                    println!("  History Log: {}", history_file.display());
+                    match pqc::verify_contract_history_chain(&current_dir) {
+                        Ok(cnt) => {
+                            if let Ok(text) = std::fs::read_to_string(&history_file) {
+                                for (idx, line) in text.lines().filter(|l| !l.trim().is_empty()).enumerate() {
+                                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                                        let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
+                                        let sha = v.get("contract_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                        let fpr = v.get("signer_fingerprint").and_then(|s| s.as_str()).unwrap_or("");
+                                        let prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                        println!(
+                                            "  [#{:>2}] {} | sha256:{}... | signer:{}... | prev:{}...",
+                                            idx + 1,
+                                            ts,
+                                            &sha[..12.min(sha.len())],
+                                            &fpr[..12.min(fpr.len())],
+                                            &prev[..12.min(prev.len())]
+                                        );
+                                    }
+                                }
+                            }
+                            println!("  \x1b[32m[PASS]\x1b[0m Verified {} hash-chained governance transitions & ML-DSA-65 signature.\n", cnt);
+                        }
+                        Err(e) => {
+                            eprintln!("  \x1b[31m[FAIL]\x1b[0m Governance history verification failed: {}\n", e);
+                        }
+                    }
+                    return Ok(());
+                }
                 if hardware_seal {
                     println!("  \x1b[36m[rag:audit]\x1b[0m Unwrapping hardware-backed FIDO2 / TPM 2.0 seal for council signing seed...");
                 }
@@ -1490,6 +1525,14 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
         "\x1b[33mUNINITIALIZED (run 'ainish-rag service status --warm')\x1b[0m".to_string()
     };
 
+    let dp_summary = if let Ok(pb) = crate::embed::read_or_init_privacy_budget(_repo_root, false) {
+        let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+        format!("\x1b[32mepsilon={:.4}\x1b[0m ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt)
+    } else {
+        "\x1b[33mUNINITIALIZED\x1b[0m".to_string()
+    };
+
     println!("\x1b[2J\x1b[H");
     println!("\x1b[1;36m========================================================================\x1b[0m");
     println!("\x1b[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \x1b[0m");
@@ -1502,6 +1545,7 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     println!("  Model Manifest: {}", manifest_status);
     println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
     println!("  Runtime Profile:{}", profile_summary);
+    println!("  Privacy Budget: {}", dp_summary);
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
     println!("\x1b[1;34m  LanceDB Vector Store & Knowledge Base                                 \x1b[0m");
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
@@ -1682,6 +1726,21 @@ fn run_audit_manifest(config: &RagConfig, manifest_path: Option<&std::path::Path
         return Ok(());
     }
 
+    let repo_root = mpath.parent().and_then(|p| p.parent()).and_then(|p| p.parent()).unwrap_or_else(|| std::path::Path::new("."));
+    if pqc::sig_path(&mpath).exists() {
+        match pqc::verify_file(repo_root, &mpath) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  Manifest Sig:  \x1b[32m[VERIFIED]\x1b[0m FIPS 204 ML-DSA-65 detached signature (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+            }
+            pqc::VerifyOutcome::Unsigned(r) => {
+                println!("  Manifest Sig:  \x1b[33m[UNSIGNED]\x1b[0m {}", r);
+            }
+            pqc::VerifyOutcome::Invalid(e) => {
+                println!("  Manifest Sig:  \x1b[31m[INVALID]\x1b[0m {}", e);
+            }
+        }
+    }
+
     let content = std::fs::read_to_string(&mpath)?;
     let parsed: serde_json::Value = serde_json::from_str(&content)?;
     let models = parsed.get("models").and_then(|m| m.as_object());
@@ -1786,6 +1845,9 @@ fn run_audit_lock(
                 let _ = pqc::sign_file(&cdx_path);
                 println!("  \x1b[32m[rag:lock]\x1b[0m Synchronized & signed CycloneDX 1.6 SBOM ({})", cdx_path.display());
             }
+        }
+        if config.model_manifest_path.exists() {
+            let _ = pqc::sign_file(&config.model_manifest_path);
         }
     }
     if verify {
@@ -2286,10 +2348,35 @@ fn run_orient_inject(
 
     let mut sections = Vec::new();
     let mut total_sanitized = 0;
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let _ = wiki_gen.sync_bidirectional_resolutions();
+
+    let git_branch = std::process::Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "main".to_string());
+    let git_sha = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "HEAD".to_string());
+
     let mut primer_lines = Vec::new();
     primer_lines.push("<ORIENT_PRIMER>".to_string());
     primer_lines.push("## Grounded Architectural Context".to_string());
-    primer_lines.push("<!-- Auto-injected by ainish-rag orient --inject for subagent primer -->\n".to_string());
+    primer_lines.push(format!(
+        "<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {} | commit: {} -->\n",
+        git_branch, git_sha
+    ));
 
     let lines_per_section = if compact { 8 } else { 25 };
     let max_items = if compact { 3 } else { 6 };
@@ -2344,7 +2431,6 @@ fn run_orient_inject(
     // Surface latest .agents/wiki/ledger.md operator entries inside <ORIENT_PRIMER>
     // Prioritize unresolved probe misses ahead of [RESOLVED] entries when selecting top ledger notes
     let mut wiki_ledger_notes = Vec::new();
-    let wiki_gen = WikiGenerator::new(repo_root);
     let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
     if ledger_file.is_file() {
         let rendered_ledger = wiki_gen.read_operator_ledger();
@@ -2397,6 +2483,8 @@ fn run_orient_inject(
     if json {
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({
             "primer": primer_text,
+            "branch": git_branch,
+            "commit": git_sha,
             "sections": sections,
             "recent_memories": memory_notes,
             "wiki_ledger_notes": wiki_ledger_notes,
@@ -2404,6 +2492,7 @@ fn run_orient_inject(
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": true,
             "orient_verified": orient_verified,
+            "compact": compact,
             "classical_crypto_redacted": total_sanitized > 0,
             "task_conditioned": task_conditioned,
         }))?);
@@ -2560,7 +2649,8 @@ async fn run_gate(
     let redaction_self_test_ok = WikiGenerator::new(repo_root).verify_redaction_pipeline().is_ok();
     let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok;
 
-    let min_anchor = if strict { 0.70 } else { 0.45 };
+    let effective_strict = strict || std::env::var("AINISH_GATE_STRICT").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+    let min_anchor = if effective_strict { 0.70 } else { 0.45 };
     let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= min_anchor);
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
@@ -2964,7 +3054,7 @@ _ainish_rag() {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help"
+    opts="serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help"
     if [[ ${cur} == -* ]] ; then
         COMPREPLY=( $(compgen -W "--threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help" -- ${cur}) )
         return 0
@@ -2974,7 +3064,7 @@ _ainish_rag() {
 }
 complete -F _ainish_rag ainish-rag
 alias rag="ainish-rag"
-ainish_rag_statusline() { ainish-rag gate --summary 2>/dev/null; }
+ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
 "#);
         }
         "zsh" => {
@@ -2994,6 +3084,7 @@ _ainish_rag() {
         'decide:Evaluate decision state'
         'eval:Bi-phasic faithfulness and patch evaluation'
         'gate:Unified pre-merge verification gate'
+        'statusline:Emit one-line compact gate status for PS1/Cursor/tmux'
         'cleanup:Compact LanceDB database and prune versions'
         'orient:Inject architectural wiki context into agent primer'
         'bench:Run synthetic regression benchmark'
@@ -3006,26 +3097,26 @@ _ainish_rag() {
 }
 compdef _ainish_rag ainish-rag
 alias rag="ainish-rag"
-ainish_rag_statusline() { ainish-rag gate --summary 2>/dev/null; }
+ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
 "#);
         }
         "fish" => {
             print!("{}", r#"# fish completion for ainish-rag
 complete -c ainish-rag -f
-complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval gate cleanup orient bench monitor audit service completion"
+complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion"
 alias rag="ainish-rag"
-function ainish_rag_statusline; ainish-rag gate --summary 2>/dev/null; end
+function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
 "#);
         }
         "pwsh" | "powershell" => {
             print!("{}", r#"# PowerShell completion for ainish-rag
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','cleanup','orient','bench','monitor','audit','service','completion')
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','bench','monitor','audit','service','completion')
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 Set-Alias -Name rag -Value ainish-rag
-function Invoke-AinishRagStatusLine { ainish-rag gate --summary 2>$null }
+function Invoke-AinishRagStatusLine { ainish-rag statusline 2>$null }
 "#);
         }
         _ => {
@@ -3056,6 +3147,23 @@ mod tests {
 
         let root = crate::config::resolve_canonical_repo_root(std::path::Path::new("."));
         assert!(check_comms_harness_agnostic(&root).is_empty());
+    }
+
+    #[test]
+    fn test_orient_compact_caps_token_budget() {
+        let root = crate::config::resolve_canonical_repo_root(std::path::Path::new("."));
+        let wiki_gen = WikiGenerator::new(&root);
+        let compact_syms = wiki_gen.extract_key_symbols_for_orient(&[], 3);
+        assert!(compact_syms.len() <= 3);
+
+        let sample_ledger = "# Operator ledger\n\
+            - 2026-10-25 Item 1\n\
+            - 2026-10-26 Item 2\n\
+            - 2026-10-27 Item 3\n\
+            - 2026-10-28 Item 4\n\
+            - 2026-10-29 Item 5\n";
+        let compact_notes: Vec<String> = select_prioritized_ledger_notes(sample_ledger).into_iter().take(3).collect();
+        assert_eq!(compact_notes.len(), 3);
     }
 }
 
