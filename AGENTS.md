@@ -22,7 +22,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 ## Docs model
 
 - This file is the singular, repository-agnostic governing contract, deployed to targets as a plain tracked copy by `ainish-coder --rules` / `--agents` (root → target only). Propose universal changes at the root repo; keep repo-specific detail out.
-- `ainish-coder --rules` is one-time per-repo setup: it deploys this contract, `.gitignore`, skills, comms, `.agents/ainish-deploy.json`, `.agents/bin/ainish-rules-sync`, and post-merge/post-checkout hooks. The root repo's post-commit/post-merge hooks run `--rules-sync --all`, so registered targets refresh automatically when the root contract advances; `--rules-status` audits staleness.
+- `ainish-coder --rules` is one-time per-repo setup: it deploys this contract, `.gitignore`, skills, comms, `.agents/ainish-deploy.json`, `.agents/bin/ainish-rules-sync`, and post-merge/post-checkout hooks. The root repo's post-commit/post-merge hooks run `--rules-sync --all`, so registered targets refresh automatically when the root contract advances; `--rules-status [--json]` audits staleness and `--rules-doctor [--json]` verifies and repairs manifest/refresh-script/hook/registry health.
 - `llms.txt` (root → child → target path) is each repo's PRD: read it before editing; it wins on repo-local detail. Drift discovered at work time goes to the nearest `llms.txt`, never here.
   </DOCUMENT_MODEL>
 
@@ -92,7 +92,7 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | Command | Action | Standard / Use |
 | :--- | :--- | :--- |
 | `ainish-rag query "<term>"` | Semantic vector search | Recon & symbol lookup; `--code` for code mode, `--fzf` for interactive terminal finder |
-| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki + memories + `ledger.md` + symbol anchors (`--verify`, `--compact`, `--max-lines <N>`, `--sections <N>`, `--include-symbols <bool>`, `--json` incl. `gate_ready`) |
+| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki + memories + `ledger.md` + symbol anchors (`--verify`, `--compact`, `--max-lines <N>`, `--sections <N>`, `--include-symbols <bool>`, `--sync-rules`, `--json` incl. `gate_ready`) |
 | `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Scores coverage, symbol anchoring, grounding; `--generate-patch` outputs `git apply --check` diff |
 | `ainish-rag gate [--watch]` | Unified pre-merge gate | Runs patch eval (`--strict`, docs/coordination-only patches anchor-exempt), lockfiles, ML-DSA-65 receipts, `model-manifest.sig`, `privacy-budget.sig`, `privacy-report.sig`, contract, COMMS, Zero-Trust (`--summary`) |
 | `ainish-rag statusline [--json]` | Compact gate statusline | One-line or JSON (`--json`) status bar output for shell prompts (`PS1`), Cursor `statusLine`, and `tmux` |
