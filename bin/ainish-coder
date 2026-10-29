@@ -238,17 +238,22 @@ main() {
             ;;
 
         --rules-sync)
-            local _all=false _quiet=false _sync_target=""
+            local _all=false _quiet=false _gc=false _json=false _sync_target=""
             local _a
             for _a in "$@"; do
                 case "$_a" in
                     --all) _all=true ;;
                     --quiet|-q) _quiet=true ;;
+                    --gc) _gc=true ;;
+                    --json) _json=true ;;
+                    --*) ;;
                     *) _sync_target="$_a" ;;
                 esac
             done
             if [[ "$_all" == "true" ]]; then
-                rules_sync_all "$_quiet"
+                rules_sync_all "$_quiet" "$_gc" "$_json"
+            elif [[ "$_gc" == "true" ]]; then
+                rules_sync_all "$_quiet" "$_gc" "$_json"
             else
                 rules_sync_target "${_sync_target:-$(pwd)}"
             fi
@@ -258,6 +263,18 @@ main() {
             local _json=false _a
             for _a in "$@"; do [[ "$_a" == "--json" ]] && _json=true; done
             rules_status "$_json"
+            ;;
+
+        --rules-verify)
+            rules_verify "$@"
+            ;;
+
+        --rules-provenance)
+            rules_provenance_stamp "${1:-$(pwd)}"
+            ;;
+
+        --rules-unenroll)
+            rules_unenroll "$@"
             ;;
 
         --rules-doctor)
