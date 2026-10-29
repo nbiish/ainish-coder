@@ -552,6 +552,9 @@ The following actionable items and markers were identified across the codebase:
         }
         fs::write(&mem_path, &mem_content).map_err(|e| e.to_string())?;
 
+        // Also synchronize any other cross-linked resolutions between memories and ledger.md
+        let _ = self.sync_bidirectional_resolutions();
+
         // Re-render page 04
         let stats = self.analyze_repo();
         let imp_path = self.wiki_dir.join("04-improvements-and-debt.md");
@@ -569,6 +572,71 @@ The following actionable items and markers were identified across the codebase:
             .filter(|l| l.trim().starts_with("- "))
             .map(|l| l.trim().to_string())
             .collect()
+    }
+
+    /// Synchronizes `[RESOLVED]` status bidirectionally between `.agents/wiki/ledger.md` and `.agents/memories/` on disk.
+    pub fn sync_bidirectional_resolutions(&self) -> Result<usize, String> {
+        let ledger_path = self.wiki_dir.join("ledger.md");
+        if !ledger_path.exists() {
+            return Ok(0);
+        }
+        let raw = fs::read_to_string(&ledger_path).map_err(|e| e.to_string())?;
+        let synced = self.cross_link_resolved_memories(&raw);
+        let before_res = raw.lines().filter(|l| l.contains("[RESOLVED]")).count();
+        let after_res = synced.lines().filter(|l| l.contains("[RESOLVED]")).count();
+        let newly_synced = after_res.saturating_sub(before_res);
+        if newly_synced > 0 {
+            let out = synced.trim_end().to_string() + "\n";
+            fs::write(&ledger_path, &out).map_err(|e| e.to_string())?;
+            let _ = crate::pqc::sign_file(&ledger_path);
+        }
+        Ok(newly_synced)
+    }
+
+    /// Executes a live self-test of the full PII, credential, user-path, internal-IP, MAC, ANSI, and Trojan-Source redaction pipeline.
+    pub fn verify_redaction_pipeline(&self) -> Result<(), String> {
+        let synth_token = format!("{}_{}", "ghp", "a".repeat(24));
+        let probe = format!(
+            "user jane.doe@example.org ssn 123-45-6789 phone 555-867-5309 card 4111 1111 1111 1111 \
+             token {} path C:\\Users\\alice\\repo\\main.rs \
+             ip 192.168.10.25 cgnat 100.64.5.1 mac 00:1A:2B:3C:4D:5E \x1b[31m\u{202E}end",
+            synth_token
+        );
+        let step1 = Self::sanitize_note_input(&probe);
+        let step2 = crate::ingest::scrub_sensitive_content(&step1);
+        let step3 = self.redact_local_user_paths(&step2);
+
+        for forbidden in [
+            "jane.doe@example.org",
+            "123-45-6789",
+            "867-5309",
+            "4111 1111",
+            synth_token.as_str(),
+            "C:\\Users\\alice\\",
+            "192.168.10.25",
+            "100.64.5.1",
+            "00:1A:2B:3C:4D:5E",
+            "\u{202E}",
+            "\x1b[31m",
+        ] {
+            if step3.contains(forbidden) {
+                return Err(format!("Redaction pipeline self-test failed: leaked '{}'", forbidden));
+            }
+        }
+        for required in [
+            "[REDACTED:EMAIL]",
+            "[REDACTED:SSN]",
+            "[REDACTED:PHONE]",
+            "[REDACTED:CARD]",
+            "[REDACTED:TOKEN]",
+            "[REDACTED:INTERNAL_IP]",
+            "[REDACTED:MAC]",
+        ] {
+            if !step3.contains(required) {
+                return Err(format!("Redaction pipeline self-test missing marker '{}'", required));
+            }
+        }
+        Ok(())
     }
 
     /// Extracts key symbol graph anchors (`fn`, `struct`, `enum`, `trait`, `def`, `class`) across
@@ -720,6 +788,12 @@ mod tests {
         assert!(notes.iter().all(|n| n.contains("[RESOLVED]")));
 
         let _ = fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn redaction_pipeline_self_test_verifies_all_classes() {
+        let wiki_gen = WikiGenerator::new(Path::new("."));
+        assert!(wiki_gen.verify_redaction_pipeline().is_ok());
     }
 }
 

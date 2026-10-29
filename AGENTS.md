@@ -91,9 +91,9 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | Command | Action | Standard / Use |
 | :--- | :--- | :--- |
 | `ainish-rag query "<term>"` | Semantic vector search | Recon & symbol lookup; `--code` for code mode, `--fzf` for interactive terminal finder |
-| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki sections + `.agents/memories/` + unresolved-first `ledger.md` notes |
+| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki sections + `.agents/memories/` + `ledger.md` notes + symbol anchors (`--verify`) |
 | `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Scores coverage, symbol anchoring, grounding; `--generate-patch` outputs `git apply --check` diff |
-| `ainish-rag gate [--watch]` | Unified pre-merge gate | Runs patch eval, lockfiles, ML-DSA-65 receipts, `ledger.sig`, contract, COMMS hygiene (`--summary`, `--bell`) |
+| `ainish-rag gate [--watch]` | Unified pre-merge gate | Runs patch eval, lockfiles, ML-DSA-65 receipts, `ledger.sig`, contract, COMMS, Zero-Trust (`--summary`, `statusline`) |
 | `ainish-rag index [--watch]` | Vectorize codebase into LanceDB | Adaptive batch sizing; supports `--anonymize-symbols` and `--dp-noise` (`privacy-budget.json`) |
 | `ainish-rag wiki [--note]` | Build 6-part living wiki | Writes `01..06.md`, splices & ML-DSA-65 signs `ledger.md` (`--note <str|->`, `--resolve`, `--list-notes [--json]`) |
 | `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance, WAL pruning (`--prune-days`), worktree/branch hygiene (`--delete-merged [--dry-run]`) |
