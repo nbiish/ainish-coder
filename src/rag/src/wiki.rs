@@ -1,4 +1,4 @@
-﻿use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::{HashMap, HashSet};
 use walkdir::WalkDir;
@@ -400,6 +400,28 @@ The following actionable items and markers were identified across the codebase:
     /// Checks whether text contains Trojan Source bidirectional Unicode override characters.
     pub fn contains_bidi_override(text: &str) -> bool {
         text.chars().any(|c| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
+    }
+
+    /// Strips ANSI escape sequences, non-printable control characters, and Trojan Source
+    /// bidirectional overrides from multi-line text while preserving line structure and indentation.
+    /// Used by `ainish-rag audit privacy --redact-check` dry-runs.
+    pub fn sanitize_text_for_redaction(text: &str) -> String {
+        static RE_ANSI: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[@-_]").expect("valid ansi regex")
+        });
+        text.split('\n')
+            .map(|line| {
+                RE_ANSI
+                    .replace_all(line, "")
+                    .chars()
+                    .filter(|&c| {
+                        (!c.is_control() || c == '\t')
+                            && !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+                    })
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Resolves the active short git commit hash (`HEAD`) for provenance stamping in `ledger.md`.
