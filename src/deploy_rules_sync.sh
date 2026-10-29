@@ -637,12 +637,22 @@ rules_verify() {
 
     local entries="" human=""
     local total=0 verified=0 failed=0 target
+    local lock_ok_count=0 lock_fail_count=0
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
         total=$((total + 1))
         local manifest="${target}/.agents/ainish-deploy.json"
         local state
         state="$(_ainish_rules_verify_manifest_sig "$manifest" || true)"
+        # Supply-chain: a target's dependency pinning is audited alongside its deployment manifest.
+        local lf_state
+        lf_state="$(_ainish_rules_lockfile_state "$target")"
+        local lf_ok=false
+        case "$lf_state" in
+            VERIFIED) lf_ok=true; lock_ok_count=$((lock_ok_count + 1)) ;;
+            ABSENT)   lock_ok_count=$((lock_ok_count + 1)) ;;   # not enrolled for lockfiles
+            *)        lock_fail_count=$((lock_fail_count + 1)) ;;
+        esac
         local ok=false
         if [[ "$state" == "VERIFIED" ]]; then
             ok=true; verified=$((verified + 1))
@@ -650,19 +660,20 @@ rules_verify() {
             failed=$((failed + 1))
         fi
         local p_path=$(_ainish_rules_json_escape "$target")
-        entries+="{\"path\": \"$p_path\", \"manifest_sig\": \"$state\", \"verified\": $ok},"
-        human+="$(printf '  %b %s (manifest: %s)\n' \
+        entries+="{\"path\": \"$p_path\", \"manifest_sig\": \"$state\", \"verified\": $ok, \"lockfile_manifest\": \"$lf_state\"},"
+        human+="$(printf '  %b %s (manifest: %s, lockfile: %s)\n' \
             "$([ "$ok" = "true" ] && printf '%s' "${GREEN}VERIFIED${RESET}" || printf '%s' "${RED}${state}${RESET}")" \
-            "$target" "$state")"$'\n'
+            "$target" "$state" "$lf_state")"$'\n'
     done <<< "$targets"
     entries="${entries%,}"
 
     local rc=0
     [[ $failed -gt 0 ]] && rc=1
+    [[ $lock_fail_count -gt 0 ]] && rc=1
 
     if [[ "$json" == "true" ]]; then
-        printf '{"format": "ainish-coder/rules-verify/v1", "source_commit": "%s", "targets": [%s], "summary": {"total": %d, "verified": %d, "failed": %d}}\n' \
-            "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$entries" "$total" "$verified" "$failed"
+        printf '{"format": "ainish-coder/rules-verify/v1", "source_commit": "%s", "targets": [%s], "summary": {"total": %d, "verified": %d, "failed": %d, "lockfile_ok": %d, "lockfile_failed": %d}}\n' \
+            "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$entries" "$total" "$verified" "$failed" "$lock_ok_count" "$lock_fail_count"
         return $rc
     fi
 
@@ -674,8 +685,9 @@ rules_verify() {
     fi
     printf '%s' "$human"
     echo -e "  Summary:     ${total} target(s) — ${verified} verified, ${failed} failed"
+    echo -e "  Lockfiles:   ${lock_ok_count} ok, ${lock_fail_count} failed"
     [[ $rc -eq 0 ]] && echo -e "${BRIGHT_GREEN}🔐 All deployment manifests carry valid signatures${RESET}" \
-                     || echo -e "${BRIGHT_RED}🔐 One or more manifests failed signature verification${RESET}"
+                     || echo -e "${BRIGHT_RED}🔐 One or more manifests or lockfile manifests failed verification${RESET}"
     return $rc
 }
 
@@ -727,14 +739,155 @@ rules_unenroll() {
 
 # Emits the provenance stamp (root commit SHA + deployment-manifest digest) for a target.
 # Used to embed auditable provenance into per-session COMMS `checkin` headers.
-# Usage: rules_provenance_stamp <TARGET_DIR>
+# Usage: rules_provenance_stamp [--json] [--sign] <TARGET_DIR>
+# `--sign` writes .agents/audit/provenance-stamp.json and detached-signs it with ML-DSA-65 so a
+# COMMS `provenance:` header can be verified against the trust anchor, not merely cross-referenced.
 rules_provenance_stamp() {
+    local target="." want_json=false do_sign=false
+    local a
+    for a in "$@"; do
+        case "$a" in
+            --json) want_json=true ;;
+            --sign) do_sign=true ;;
+            -*) ;;
+            *) target="$a" ;;
+        esac
+    done
+
+    local target_abs
+    target_abs="$(cd -P "$target" 2>/dev/null && pwd)" || target_abs="$target"
+    local manifest="${target_abs}/.agents/ainish-deploy.json"
+    local src_commit manifest_digest manifest_sig_status fingerprint=""
+    src_commit="$(_ainish_rules_source_commit)"
+    manifest_digest="$(_calc_sha256 "$manifest" 2>/dev/null | tr -d '[:space:]')"
+    manifest_sig_status="$(_ainish_rules_verify_manifest_sig "$manifest" 2>/dev/null || true)"
+
+    local stamp_sig_status="UNSIGNED" stamp_path=""
+    if [[ "$do_sign" == "true" && -n "$manifest_digest" ]]; then
+        local audit_dir="${target_abs}/.agents/audit"
+        mkdir -p "$audit_dir" 2>/dev/null
+        stamp_path="${audit_dir}/provenance-stamp.json"
+        cat > "$stamp_path" <<STAMP_EOF
+{
+  "format": "ainish-coder/provenance-stamp/v1",
+  "source_commit": "${src_commit}",
+  "manifest_sha256": "${manifest_digest}",
+  "signed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+STAMP_EOF
+        _ainish_rules_sign_manifest "$stamp_path"
+        if [[ -f "${stamp_path%.json}.sig" ]]; then
+            stamp_sig_status="SIGNED"
+            fingerprint="$(sed -n 's/.*"public_key_fingerprint": *"\([^"]*\)".*/\1/p' "${stamp_path%.json}.sig" 2>/dev/null | head -1 || true)"
+        fi
+    fi
+
+    if [[ "$want_json" == "true" ]]; then
+        printf '{"format": "ainish-coder/rules-provenance/v1", "source_commit": "%s", "source_commit_short": "%s", "manifest_sha256": "%s", "manifest_sig": "%s", "stamp_path": "%s", "stamp_sig": "%s", "signer_fingerprint": "%s"}\n' \
+            "$(_ainish_rules_json_escape "$src_commit")" \
+            "${src_commit:0:12}" \
+            "$manifest_digest" \
+            "$manifest_sig_status" \
+            "$(_ainish_rules_json_escape "$stamp_path")" \
+            "$stamp_sig_status" \
+            "$fingerprint"
+        return 0
+    fi
+
+    printf 'source_commit=%s manifest_sha256=%s\n' "${src_commit:0:12}" "${manifest_digest:0:12}"
+    if [[ "$do_sign" == "true" ]]; then
+        echo -e "${GREEN}✓ Signed provenance stamp → ${stamp_path}${RESET}"
+        echo -e "  Stamp signature: ${stamp_sig_status}${fingerprint:+ (signer ${fingerprint:0:16}...)}"
+        echo -e "  Manifest sig:    ${manifest_sig_status}"
+    fi
+}
+
+# Verifies every registered target's deployment manifest AND its dependency lockfile manifest,
+# so supply-chain pinning is audited alongside the rules provenance.
+# Usage: rules_verify [--json] [TARGET_DIR]
+_ainish_rules_lockfile_state() {
+    local target="$1"
+    local lf="${target}/.agents/audit/lockfile-manifest.json"
+    if [[ ! -f "$lf" ]]; then
+        printf 'ABSENT\n'
+        return 0
+    fi
+    local state
+    state="$(_ainish_rules_verify_manifest_sig "$lf" 2>/dev/null || true)"
+    printf '%s\n' "$state"
+}
+
+# Re-stamps every registered target's deployment manifest with the current source commit, so
+# `--rules-verify` reflects the latest fleet state after a bulk sync.
+# Usage: rules_rotate [--json]
+rules_rotate() {
+    local want_json=false a
+    for a in "$@"; do [[ "$a" == "--json" ]] && want_json=true; done
+
+    local src_commit src_sha registry
+    src_commit="$(_ainish_rules_source_commit)"
+    src_sha="$(_ainish_rules_source_agents_sha)"
+    registry="$(_ainish_rules_registry_file)" || return 1
+
+    local entries="" rotated=0 failed=0 total=0 target
+    if [[ -f "$registry" ]]; then
+        while IFS= read -r target; do
+            [[ -z "$target" ]] && continue
+            total=$((total + 1))
+            if [[ ! -d "$target" ]]; then
+                failed=$((failed + 1))
+                entries+="{\"path\": \"$(_ainish_rules_json_escape "$target")\", \"state\": \"missing\"},"
+                continue
+            fi
+            _ainish_rules_manifest_write "$target" "${REPO_DIR}" "$src_commit" "$src_sha" >/dev/null 2>&1 \
+                && { _ainish_rules_sign_manifest "${target}/.agents/ainish-deploy.json"; rotated=$((rotated + 1)); entries+="{\"path\": \"$(_ainish_rules_json_escape "$target")\", \"state\": \"rotated\"},"; } \
+                || { failed=$((failed + 1)); entries+="{\"path\": \"$(_ainish_rules_json_escape "$target")\", \"state\": \"failed\"},"; }
+        done < "$registry"
+    fi
+    entries="${entries%,}"
+
+    if [[ "$want_json" == "true" ]]; then
+        printf '{"format": "ainish-coder/rules-rotate/v1", "source_commit": "%s", "targets": [%s], "summary": {"total": %d, "rotated": %d, "failed": %d}}\n' \
+            "$src_commit" "$entries" "$total" "$rotated" "$failed"
+        return 0
+    fi
+    echo -e "${BRIGHT_GREEN}🔁 Rules rotate: ${rotated} target manifest(s) re-stamped at ${src_commit:0:12}, ${failed} failed${RESET}"
+}
+
+# Shows a target's deployment-manifest provenance history: current commit/digest, signature
+# envelope metadata, and the git history of the manifest file itself.
+# Usage: rules_history <TARGET_DIR>
+rules_history() {
     local target="${1:-.}"
     local target_abs
     target_abs="$(cd -P "$target" 2>/dev/null && pwd)" || target_abs="$target"
     local manifest="${target_abs}/.agents/ainish-deploy.json"
-    local src_commit manifest_digest
-    src_commit="$(_ainish_rules_source_commit)"
-    manifest_digest="$(_calc_sha256 "$manifest" 2>/dev/null | tr -d '[:space:]')"
-    printf 'source_commit=%s manifest_sha256=%s\n' "${src_commit:0:12}" "${manifest_digest:0:12}"
+
+    echo -e "${BRIGHT_BLUE}ainish-coder Rules Provenance History${RESET}"
+    echo -e "  Target:   ${target_abs}"
+    echo -e "  Manifest: ${manifest}"
+    if [[ ! -f "$manifest" ]]; then
+        echo -e "  ${YELLOW}No deployment manifest — target not enrolled via 'ainish-coder --rules'.${RESET}"
+        return 1
+    fi
+
+    local src_commit deployed_at sig_status signed_at fingerprint
+    src_commit="$(sed -n 's/.*"source_commit": *"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -1 || true)"
+    deployed_at="$(sed -n 's/.*"deployed_at": *"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -1 || true)"
+    sig_status="$(_ainish_rules_verify_manifest_sig "$manifest" 2>/dev/null || true)"
+    signed_at="$(sed -n 's/.*"signed_at": *"\([^"]*\)".*/\1/p' "${manifest%.json}.sig" 2>/dev/null | head -1 || true)"
+    fingerprint="$(sed -n 's/.*"public_key_fingerprint": *"\([^"]*\)".*/\1/p' "${manifest%.json}.sig" 2>/dev/null | head -1 || true)"
+
+    echo -e "  Source:   ${src_commit:-unknown}"
+    echo -e "  Deployed: ${deployed_at:-unknown}"
+    echo -e "  Sig:      ${sig_status}$([[ -n "$signed_at" ]] && printf ' (signed %s)' "$signed_at")"
+    [[ -n "$fingerprint" ]] && echo -e "  Signer:   ${fingerprint:0:16}..."
+    echo -e "  Lockfile: $(_ainish_rules_lockfile_state "$target_abs")"
+
+    if git -C "$target_abs" rev-parse --git-dir >/dev/null 2>&1; then
+        echo -e "${BRIGHT_BLUE}  Manifest commits:${RESET}"
+        git -C "$target_abs" log --format='    %h %ad %s' --date=short -5 -- .agents/ainish-deploy.json 2>/dev/null \
+            || echo "    (no git history)"
+    fi
+    return 0
 }

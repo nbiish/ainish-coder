@@ -467,6 +467,59 @@ def check_memory_cap(max_mem_mb: Optional[int]) -> Tuple[bool, int, str]:
     return True, avail, f"Verified safe ({avail} MB available)"
 
 
+DEFAULT_MEM_BUDGET_MB = 2048
+
+
+def derive_ctx_batch(max_mem_mb: Optional[int], repo_root: Optional[Path] = None) -> Tuple[int, int]:
+    """Derives a KV-cache-safe (ctx_size, batch_size) for llama's `serve` from the operator's
+    memory budget. Mirrors `LlamaServer::derive_ctx_batch` in the Rust engine.
+
+    Explicit overrides (highest precedence): `AINISH_RAG_CTX` / `AINISH_RAG_BATCH`.
+    """
+    env_ctx = os.environ.get("AINISH_RAG_CTX", "").strip()
+    if env_ctx:
+        try:
+            ctx = int(env_ctx)
+            if ctx > 0:
+                env_batch = os.environ.get("AINISH_RAG_BATCH", "").strip()
+                try:
+                    batch = int(env_batch)
+                except ValueError:
+                    batch = 0
+                return ctx, (batch if batch > 0 else min(ctx, 2048))
+        except ValueError:
+            pass
+
+    budget = max_mem_mb if max_mem_mb else DEFAULT_MEM_BUDGET_MB
+    if budget >= 16000:
+        ctx, batch = 8192, 4096
+    elif budget >= 8000:
+        ctx, batch = 8192, 2048
+    elif budget >= 4000:
+        ctx, batch = 4096, 1024
+    elif budget >= 2000:
+        ctx, batch = 2048, 512
+    else:
+        ctx, batch = 1024, 256
+
+    if repo_root is not None:
+        try:
+            out = subprocess.run(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if out.returncode == 0:
+                worktrees = sum(1 for l in out.stdout.splitlines() if l.startswith("worktree "))
+                if worktrees > 1:
+                    batch = max(batch // worktrees, 128)
+        except Exception:
+            pass
+    return ctx, batch
+
+
 def anonymize_content_and_symbols(content: str, symbols: List[str], salt: Optional[str] = None) -> Tuple[str, List[str]]:
     replaced = content
     anon_symbols = []
@@ -641,6 +694,20 @@ class EmbedClient:
             float(os.environ["AINISH_RAG_DP_EPSILON"]) if "AINISH_RAG_DP_EPSILON" in os.environ and os.environ["AINISH_RAG_DP_EPSILON"].strip() else None
         )
         self.adaptive_batch_size = 16
+        # Remote API embeddings provider (operator opt-in); key held in memory only.
+        self.api_base: Optional[str] = None
+        self.api_model: Optional[str] = None
+        self.api_key: Optional[str] = None
+
+    def with_api_provider(self, base: str, model: str, key: Optional[str] = None) -> "EmbedClient":
+        """Routes embeddings to a remote OpenAI-compatible /embeddings endpoint instead of local llama."""
+        self.api_base = base.rstrip("/")
+        self.api_model = model
+        self.api_key = key
+        return self
+
+    def uses_api_provider(self) -> bool:
+        return bool(self.api_base and self.api_model)
 
     def recommended_batch_size(self) -> int:
         return self.adaptive_batch_size
@@ -675,34 +742,45 @@ class EmbedClient:
         if not inputs:
             return []
 
-        # Real-time anti-DNS rebinding and IP-binding verification
-        validate_loopback_host(self.server_url)
+        # Remote API provider: POST to {base}/embeddings with the API key; no loopback guard
+        # (the endpoint is remote), but the response shape matches the local server.
+        if self.uses_api_provider():
+            url = f"{self.api_base}/embeddings"
+        else:
+            # Real-time anti-DNS rebinding and IP-binding verification
+            validate_loopback_host(self.server_url)
+            url = f"{self.server_url}/v1/embeddings"
 
         # Loopback rate limiting: ensure minimum inter-batch pacing (15ms)
         time.sleep(0.015)
 
-        url = f"{self.server_url}/v1/embeddings"
+        model = self.api_model if self.uses_api_provider() else "embeddinggemma2"
         payload = json.dumps({
-            "model": "embeddinggemma2",
+            "model": model,
             "input": inputs,
             "encoding_format": "float",
         }).encode("utf-8")
 
-        headers = {
-            "Content-Type": "application/json",
-            "Host": "127.0.0.1",
-            "Origin": "http://127.0.0.1",
-            "X-Requested-With": "ainish-rag",
-        }
-        if self.psk:
-            if self.repo_root:
-                psk_file = self.repo_root / ".agents" / "rag" / "session.psk"
-                if psk_file.exists():
-                    expected_psk = psk_file.read_text(encoding="utf-8").strip()
-                    if expected_psk and not verify_psk_constant_time(expected_psk, self.psk.strip()):
-                        raise PermissionError("Invalid loopback PSK token")
-            headers["Authorization"] = f"Bearer {self.psk}"
-            headers["X-Ainish-PSK"] = self.psk
+        if self.uses_api_provider():
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+        else:
+            headers = {
+                "Content-Type": "application/json",
+                "Host": "127.0.0.1",
+                "Origin": "http://127.0.0.1",
+                "X-Requested-With": "ainish-rag",
+            }
+            if self.psk:
+                if self.repo_root:
+                    psk_file = self.repo_root / ".agents" / "rag" / "session.psk"
+                    if psk_file.exists():
+                        expected_psk = psk_file.read_text(encoding="utf-8").strip()
+                        if expected_psk and not verify_psk_constant_time(expected_psk, self.psk.strip()):
+                            raise PermissionError("Invalid loopback PSK token")
+                headers["Authorization"] = f"Bearer {self.psk}"
+                headers["X-Ainish-PSK"] = self.psk
 
         req = urllib.request.Request(
             url,
@@ -799,6 +877,54 @@ def resolve_psk(pid_dir: Path, ttl_secs: int = 86400, repo_root: Optional[Path] 
     return token
 
 
+def read_embed_provider_cfg(repo_root: Path) -> Dict[str, Any]:
+    """Reads non-secret provider config from `.agents/rag/embed-provider.json` (written by
+    `ainish-coder --embed-config`). Secrets are never stored there; the key comes from env."""
+    cfg = {
+        "provider": os.environ.get("AINISH_EMBED_PROVIDER", "local").strip().lower() or "local",
+        "api_base": os.environ.get("AINISH_EMBED_API_BASE") or None,
+        "model": os.environ.get("AINISH_EMBED_MODEL") or None,
+        "dim": None,
+        "api_key": os.environ.get("AINISH_EMBED_API_KEY") or None,
+    }
+    f = repo_root / ".agents" / "rag" / "embed-provider.json"
+    if f.is_file():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            for k in ("provider", "api_base", "model"):
+                v = data.get(k)
+                if isinstance(v, str) and v.strip() and not cfg.get(k):
+                    cfg[k] = v.strip() if k != "provider" else v.strip().lower()
+            d = data.get("dim")
+            if d is not None:
+                try:
+                    cfg["dim"] = int(d)
+                except (TypeError, ValueError):
+                    pass
+        except Exception:
+            pass
+    try:
+        if os.environ.get("AINISH_EMBED_DIM", "").strip():
+            cfg["dim"] = int(os.environ["AINISH_EMBED_DIM"].strip())
+    except ValueError:
+        pass
+    return cfg
+
+
+def embed_client_from_config(server_url: str, repo_root: Path, truncate_dim: Optional[int] = None) -> EmbedClient:
+    """Builds an EmbedClient, applying the remote API provider when the operator configured one."""
+    client = EmbedClient(server_url, truncate_dim=truncate_dim, repo_root=repo_root)
+    cfg = read_embed_provider_cfg(repo_root)
+    if cfg["provider"] == "api" and cfg.get("api_base") and cfg.get("model"):
+        client.with_api_provider(cfg["api_base"], cfg["model"], cfg.get("api_key"))
+    return client
+
+
+def embed_provider_active(repo_root: Path) -> bool:
+    cfg = read_embed_provider_cfg(repo_root)
+    return cfg["provider"] == "api" and bool(cfg.get("api_base")) and bool(cfg.get("model"))
+
+
 def start_server(
     repo_root: Path,
     port: int,
@@ -808,7 +934,17 @@ def start_server(
     numa: Optional[str] = None,
     cpu_affinity: Optional[str] = None,
     psk_ttl: int = 86400,
+
 ) -> bool:
+    # Remote API embedding provider: no local llama process is spawned at all, so a
+    # multi-GB resident server never materializes.
+    if client.uses_api_provider() or embed_provider_active(repo_root):
+        print(
+            f"  \033[36m[rag:embed-provider]\033[0m Using remote API embeddings at "
+            f"{client.api_base or read_embed_provider_cfg(repo_root).get('api_base')} "
+            f"(model {client.api_model or read_embed_provider_cfg(repo_root).get('model')}) — local llama server skipped"
+        )
+        return True
     if client.is_running():
         print(f"  [rag] Server already running at {client.server_url}")
         return True
@@ -878,15 +1014,23 @@ def start_server(
         if llama_bin.name.lower() in ("llama.exe", "llama"):
             cmd.append("serve")
 
+        tuned_ctx, tuned_batch = derive_ctx_batch(max_mem, repo_root)
+        print(
+            f"  \033[36m[rag:memory]\033[0m Context/batch sized for "
+            f"{max_mem if max_mem else DEFAULT_MEM_BUDGET_MB} MB budget: "
+            f"ctx={tuned_ctx} batch={tuned_batch} "
+            f"(override with AINISH_RAG_CTX / AINISH_RAG_BATCH)"
+        )
+
         cmd.extend([
             "-m", str(model),
             "-ngl", "99",
             "-fa", "on",
             "--embeddings",
             "--pooling", "mean",
-            "--ctx-size", "8192",
-            "--batch-size", "8192",
-            "--ubatch-size", "8192",
+            "--ctx-size", str(tuned_ctx),
+            "--batch-size", str(tuned_batch),
+            "--ubatch-size", str(tuned_batch),
             "--host", "127.0.0.1",
             "--port", str(port),
             "--no-webui",
@@ -2104,7 +2248,7 @@ _ainish_rag() {
     case "$sub" in
         status)       opts="--tui --json --help" ;;
         orient)       opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --sync-rules --json --help" ;;
-        audit)        opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --verify-history --threshold --hardware-seal --json --help" ;;
+        audit)        opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --max-files --exclude --verify-history --threshold --hardware-seal --json --help" ;;
         gate)         opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
         query)        opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
         wiki)         opts="--path --no-index --note --resolve --sync-resolved --list-notes --json --help" ;;
@@ -2154,7 +2298,7 @@ _ainish_rag() {
         'completion:Generate shell tab completion script'
     )
     if [[ "$words[CURRENT]" == -* ]]; then
-        compadd -- --redact-check --fail-on-leak --include-symbols --sync-rules --sections --json --tui --patch --strict --help
+        compadd -- --redact-check --fail-on-leak --max-files --exclude --include-symbols --sync-rules --sections --json --tui --patch --strict --help
         return
     fi
     _describe 'command' commands
@@ -2190,7 +2334,7 @@ function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
         print("""Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','bench','monitor','audit','service','completion')
-    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sync-rules','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
+    $options = @('--redact-check','--fail-on-leak','--max-files','--exclude','--include-symbols','--sync-rules','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
     if ($wordToComplete -like '-*') {
         $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
         return
@@ -2549,6 +2693,14 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             )
         if total_sanitized > 0:
             print(f"<!-- Note: {total_sanitized} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->")
+        # Surface a self-heal to operators in human mode: `--verify` auto-enabled the rules sync.
+        if rules_sync_auto:
+            print(
+                "<!-- Rules auto-sync: --verify found gate_ready=false, refreshed deployed rules "
+                f"({'ok' if rules_sync_ok else 'attempted'}) -->"
+            )
+        elif rules_sync_attempted:
+            print(f"<!-- Rules sync: {'ok' if rules_sync_ok else 'failed'} -->")
 
 
 def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store: LanceStore, generate_patch: bool = False, json_out: bool = False, quiet: bool = False) -> Dict[str, Any]:
@@ -3659,6 +3811,8 @@ def main():
     audit_privacy_p.add_argument("-o", "--out", type=Path, default=None, help="Export signed privacy compliance report to file")
     audit_privacy_p.add_argument("--redact-check", type=Path, default=None, help="Dry-run PII/credential/path/IP/MAC redaction on an arbitrary file without mutating it")
     audit_privacy_p.add_argument("--fail-on-leak", action="store_true", help="Exit non-zero when the redaction dry-run detects unredacted sensitive classes")
+    audit_privacy_p.add_argument("--max-files", type=int, default=None, help="Cap the number of files scanned in directory --redact-check mode (default: 5000)")
+    audit_privacy_p.add_argument("--exclude", action="append", default=None, metavar="GLOB", help="Skip paths matching this glob/substring in directory --redact-check mode (repeatable)")
     audit_privacy_p.add_argument("--json", action="store_true", help="Output privacy budget ledger as JSON")
 
     gate_p = sub.add_parser("gate", help="Unified pre-merge verification gate")
@@ -3691,7 +3845,7 @@ def main():
     repo_root = resolve_canonical_repo_root()
     port = int(os.environ.get("AINISH_RAG_PORT", DEFAULT_SERVER_PORT))
     server_url = os.environ.get("AINISH_RAG_URL", f"http://127.0.0.1:{port}")
-    client = EmbedClient(server_url, repo_root=repo_root)
+    client = embed_client_from_config(server_url, repo_root)
     threads = args.threads
     max_mem = args.max_mem
     numa = getattr(args, "numa", None)
@@ -3809,6 +3963,12 @@ def main():
         print(f"Server Endpoint:    {server_url}")
         print(f"Server Status:      {'ONLINE (ready)' if server_running else 'OFFLINE'}")
         print(f"Loopback Auth:      {'AUTHENTICATED (' + client.psk[:8] + '...)' if client.psk else 'DISABLED'}")
+        if client.uses_api_provider() or embed_provider_active(repo_root):
+            _pc = read_embed_provider_cfg(repo_root)
+            print(f"Embed Provider:     API {_pc.get('api_base') or client.api_base} (model: {_pc.get('model') or client.api_model}, no local server)")
+        else:
+            _ctx, _batch = derive_ctx_batch(max_mem, repo_root)
+            print(f"Embed Provider:     local llama (ctx={_ctx} batch={_batch})")
         print(f"Symbol Salt:        {'ACTIVE (len: ' + str(len(salt)) + ')' if salt else 'DEFAULT'}")
         print(f"Model Manifest:     {'PRESENT (pinned hashes)' if manifest_f.exists() else 'NOT PRESENT'}")
         print(f"LanceDB Path:       {db_dir}")
@@ -4329,6 +4489,8 @@ def main():
                     redact_target,
                     json_out=getattr(args, "json", False),
                     fail_on_leak=getattr(args, "fail_on_leak", False),
+                    max_files=getattr(args, "max_files", None),
+                    excludes=getattr(args, "exclude", None),
                 )
             else:
                 run_audit_privacy(
@@ -4448,24 +4610,54 @@ _REDACT_TEXT_EXTS = {".md", ".mdx", ".txt", ".rst", ".rs", ".py", ".ts", ".js", 
 _REDACT_MAX_FILES = 5000
 
 
-def _collect_redact_targets(directory: Path) -> List[Path]:
-    """Recursively collects candidate text files, skipping binary/oversized paths."""
+def _glob_match(pattern: str, path: str) -> bool:
+    """Minimal glob matcher supporting `*`/`?`. A wildcard-free pattern also matches as a
+    substring so `--exclude vendor` skips vendored trees without a full glob."""
+    if "*" not in pattern and "?" not in pattern:
+        return pattern in path
+    import fnmatch
+    return fnmatch.fnmatch(path, pattern)
+
+
+def _collect_redact_targets(
+    directory: Path,
+    max_files: Optional[int] = None,
+    excludes: Optional[List[str]] = None,
+) -> List[Path]:
+    """Recursively collects candidate text files, skipping binary/oversized/excluded paths."""
+    cap = max_files if max_files and max_files > 0 else _REDACT_MAX_FILES
+    excludes = excludes or []
     out: List[Path] = []
     for root, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if d not in _REDACT_SKIP_DIRS]
         for name in files:
-            if len(out) >= _REDACT_MAX_FILES:
-                return out
+            if len(out) >= cap:
+                return sorted(out)
             p = Path(root) / name
+            try:
+                rel = p.relative_to(directory).as_posix()
+            except ValueError:
+                rel = p.as_posix()
+            if excludes and any(_glob_match(pat, rel) for pat in excludes):
+                continue
             if p.suffix.lower() in _REDACT_TEXT_EXTS:
                 out.append(p)
     return sorted(out)
 
 
-def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool = False, fail_on_leak: bool = False) -> None:
+def run_audit_privacy_redact_check(
+    repo_root: Path,
+    path: Path,
+    json_out: bool = False,
+    fail_on_leak: bool = False,
+    max_files: Optional[int] = None,
+    excludes: Optional[List[str]] = None,
+) -> None:
     # Directory mode: dry-run every text file beneath `path`, aggregate, never mutate.
     if path.is_dir():
-        targets = _collect_redact_targets(path)
+        cap = max_files if max_files and max_files > 0 else _REDACT_MAX_FILES
+        targets = _collect_redact_targets(path, max_files=cap, excludes=excludes)
+        truncated = len(targets) >= cap
         all_classes: List[str] = []
         per_file: List[Dict[str, Any]] = []
         total_changed = 0
@@ -4498,6 +4690,9 @@ def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool =
             "redaction_classes": all_classes,
             "all_files_unchanged": all_unchanged,
             "fail_on_leak": fail_on_leak,
+            "max_files": cap,
+            "truncated": truncated,
+            "exclude": excludes or [],
             "files": per_file,
             "status": "CLEAN" if files_with_leaks == 0 else ("LEAK_DETECTED" if fail_on_leak else "LEAK_REPORTED"),
         }

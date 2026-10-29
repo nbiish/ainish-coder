@@ -29,6 +29,10 @@ pub struct EmbedClient {
     pub dp_max_budget: Option<f32>,
     pub repo_root: Option<std::path::PathBuf>,
     adaptive_batch_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// When set, embeddings go to this remote OpenAI-compatible endpoint instead of local llama.
+    api_base: Option<String>,
+    api_key: Option<String>,
+    api_model: Option<String>,
 }
 
 static PSK_GUARD: crate::server::PskAuthGuard = crate::server::PskAuthGuard::new(5);
@@ -49,7 +53,42 @@ impl EmbedClient {
             dp_max_budget: None,
             repo_root: None,
             adaptive_batch_size: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(16)),
+            api_base: None,
+            api_key: None,
+            api_model: None,
         }
+    }
+
+    /// Routes embeddings to a remote OpenAI-compatible `/embeddings` endpoint instead of the
+    /// local llama server. The key is held in memory only and never written to disk.
+    pub fn with_api_provider(mut self, base: String, model: String, key: Option<String>) -> Self {
+        self.api_base = Some(base.trim_end_matches('/').to_string());
+        self.api_model = Some(model);
+        self.api_key = key;
+        self
+    }
+
+    /// True when this client is configured for a remote API embedding provider.
+    pub fn uses_api_provider(&self) -> bool {
+        self.api_base.is_some() && self.api_model.is_some()
+    }
+
+    /// Builds a client from `RagConfig`, automatically applying the remote API provider when
+    /// the operator configured one. Every call site should use this so API mode cannot be
+    /// silently bypassed by forgetting `.with_api_provider(..)`.
+    pub fn with_config(config: &crate::config::RagConfig, truncate_dim: Option<usize>) -> Self {
+        let mut c = Self::new(&config.server_url, truncate_dim, config.psk.clone())
+            .with_dp_epsilon(config.dp_epsilon)
+            .with_dp_max_budget(config.dp_max_budget);
+
+        if config.uses_api_embeddings() {
+            c = c.with_api_provider(
+                config.embed_api_base.clone().unwrap_or_default(),
+                config.embed_model.clone().unwrap_or_default(),
+                config.embed_api_key.clone(),
+            );
+        }
+        c
     }
 
     pub fn with_dp_epsilon(mut self, epsilon: Option<f32>) -> Self {
@@ -120,37 +159,58 @@ impl EmbedClient {
             return Ok(Vec::new());
         }
 
-        // Real-time anti-DNS rebinding and IP-binding verification
-        crate::server::AntiDnsRebinding::validate_host(&self.server_url)?;
+        // Remote API provider: POST to {base}/embeddings with the API key; no loopback guard
+        // (the endpoint is remote), but the response shape matches the local server.
+        let url = if self.uses_api_provider() {
+            let base = self.api_base.as_deref().unwrap_or_default();
+            format!("{}/embeddings", base)
+        } else {
+            // Real-time anti-DNS rebinding and IP-binding verification
+            crate::server::AntiDnsRebinding::validate_host(&self.server_url)?;
+            format!("{}/v1/embeddings", self.server_url)
+        };
 
         // Automated loopback rate limiting: ensure inter-request spacing to prevent server overload
         tokio::time::sleep(Duration::from_millis(15)).await;
 
-        let url = format!("{}/v1/embeddings", self.server_url);
+        let model_name = if self.uses_api_provider() {
+            self.api_model.clone().unwrap_or_else(|| "text-embedding-3-small".to_string())
+        } else {
+            "embeddinggemma2".to_string()
+        };
         let req = EmbeddingRequest {
-            model: "embeddinggemma2".to_string(),
+            model: model_name,
             input: inputs.to_vec(),
             encoding_format: "float".to_string(),
         };
 
-        let mut req_builder = self.client.post(&url)
-            .header("Host", "127.0.0.1")
-            .header("Origin", "http://127.0.0.1")
-            .header("X-Requested-With", "ainish-rag");
+        let mut req_builder = self.client.post(&url);
 
-        if let Some(token) = &self.psk {
-            if let Some(ref root) = self.repo_root {
-                let psk_file = root.join(".agents").join("rag").join("session.psk");
-                if let Ok(expected) = std::fs::read_to_string(&psk_file) {
-                    let exp_clean = expected.trim();
-                    if !exp_clean.is_empty() {
-                        PSK_GUARD.verify(exp_clean, token.trim())?;
+        if self.uses_api_provider() {
+            req_builder = req_builder.header("Content-Type", "application/json");
+            if let Some(key) = &self.api_key {
+                req_builder = req_builder.header("Authorization", format!("Bearer {}", key));
+            }
+        } else {
+            req_builder = req_builder
+                .header("Host", "127.0.0.1")
+                .header("Origin", "http://127.0.0.1")
+                .header("X-Requested-With", "ainish-rag");
+
+            if let Some(token) = &self.psk {
+                if let Some(ref root) = self.repo_root {
+                    let psk_file = root.join(".agents").join("rag").join("session.psk");
+                    if let Ok(expected) = std::fs::read_to_string(&psk_file) {
+                        let exp_clean = expected.trim();
+                        if !exp_clean.is_empty() {
+                            PSK_GUARD.verify(exp_clean, token.trim())?;
+                        }
                     }
                 }
+                req_builder = req_builder
+                    .header("Authorization", format!("Bearer {}", token))
+                    .header("X-Ainish-PSK", token);
             }
-            req_builder = req_builder
-                .header("Authorization", format!("Bearer {}", token))
-                .header("X-Ainish-PSK", token);
         }
 
         let t0 = std::time::Instant::now();

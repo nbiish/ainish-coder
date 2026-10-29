@@ -404,6 +404,12 @@ pub enum AuditCommands {
         /// Exit non-zero when the redaction dry-run detects unredacted sensitive classes
         #[arg(long)]
         fail_on_leak: bool,
+        /// Cap the number of files scanned in directory `--redact-check` mode (default: 5000)
+        #[arg(long)]
+        max_files: Option<usize>,
+        /// Skip paths matching this glob/substring in directory `--redact-check` mode (repeatable)
+        #[arg(long = "exclude")]
+        exclude: Vec<String>,
         /// Output privacy budget ledger as JSON
         #[arg(long)]
         json: bool,
@@ -612,19 +618,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("ENABLED (Loopback PSK: {}...)", preview)
             } else {
                 "DISABLED (unauthenticated loopback)".to_string()
-            };
-            reporter.line(
+            };            reporter.line(
                 "loopback_auth",
                 serde_json::json!({ "enabled": config.psk.is_some() }),
                 format!("Loopback Auth:      {}", psk_status),
+            );
+
+            let provider_line = if config.uses_api_embeddings() {
+                format!(
+                    "API {} (model: {}, no local server)",
+                    config.embed_api_base.as_deref().unwrap_or_default(),
+                    config.embed_model.as_deref().unwrap_or_default()
+                )
+            } else {
+                let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, &current_dir);
+                format!("local llama (ctx={} batch={})", ctx, batch)
+            };
+            reporter.line(
+                "embed_provider",
+                serde_json::json!({
+                    "provider": if config.uses_api_embeddings() { "api" } else { "local" },
+                    "api_base": config.embed_api_base,
+                    "model": config.embed_model,
+                }),
+                format!("Embed Provider:     {}", provider_line),
             );
 
             let salt_status = if let Some(ref s) = config.symbol_salt {
                 format!("ACTIVE (len: {})", s.len())
             } else {
                 "DEFAULT (machine/repo hash)".to_string()
-            };
-            reporter.line(
+            };            reporter.line(
                 "symbol_salt",
                 serde_json::json!({
                     "active": config.symbol_salt.is_some(),
@@ -760,9 +784,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             LlamaServer::ensure_running(&config, &current_dir).await?;
 
             let dim = truncate.unwrap_or(config.embedding_dim);
-            let embed_client = EmbedClient::new(&config.server_url, truncate, config.psk.clone())
-                .with_dp_epsilon(config.dp_epsilon)
-                .with_dp_max_budget(config.dp_max_budget)
+            let embed_client = EmbedClient::with_config(&config, truncate)
                 .with_repo_root(&current_dir);
             let store = LanceStore::new(&config.lancedb_dir, dim);
             let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
@@ -944,7 +966,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if index {
                 println!("=== Indexing Generated Wiki Pages ===");
                 LlamaServer::ensure_running(&config, &current_dir).await?;
-                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone())
+                let embed_client = EmbedClient::with_config(&config, None)
                     .with_repo_root(&current_dir);
                 let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
                 let ingestor = CodebaseIngestor::new_with_options(&target, false, config.symbol_salt.clone());
@@ -974,7 +996,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance, fzf } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+            let embed_client = EmbedClient::with_config(&config, None);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             if fzf {
@@ -1062,7 +1084,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Rerank { query, limit, doc_type, json } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+            let embed_client = EmbedClient::with_config(&config, None);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             let formatted_query = EmbedClient::format_query(&query, false);
@@ -1094,7 +1116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Bench { iterations, json, custom, regression, save_baseline, drift_injection, chaos } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone())
+            let embed_client = EmbedClient::with_config(&config, None)
                 .with_repo_root(&current_dir);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
@@ -1463,9 +1485,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
                 }
             }
-            AuditCommands::Privacy { max_budget, reset, out, redact_check, fail_on_leak, json } => {
+            AuditCommands::Privacy { max_budget, reset, out, redact_check, fail_on_leak, max_files, exclude, json } => {
                 if let Some(ref target) = redact_check {
-                    run_redact_check(&current_dir, target, fail_on_leak, json)?;
+                    run_redact_check(&current_dir, target, fail_on_leak, max_files, &exclude, json)?;
                 } else {
                     run_audit_privacy(&current_dir, max_budget, reset, out.as_deref(), json)?;
                 }
@@ -1600,26 +1622,37 @@ fn redact_check_file(
 }
 
 /// Recursively collects candidate text files under `dir`, skipping binary/oversized paths.
-fn collect_redact_targets(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    const MAX_FILES: usize = 5000;
+fn collect_redact_targets(
+    dir: &std::path::Path,
+    out: &mut Vec<std::path::PathBuf>,
+    max_files: usize,
+    excludes: &[String],
+    root: &std::path::Path,
+) {
     const SKIP_DIRS: [&str; 6] = [".git", "node_modules", "target", "__pycache__", ".venv", "venv"];
     const TEXT_EXTS: [&str; 12] = ["md", "mdx", "txt", "rst", "rs", "py", "ts", "js", "go", "sh", "json", "yaml"];
-    if out.len() >= MAX_FILES {
+    if out.len() >= max_files {
         return;
     }
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
-        if out.len() >= MAX_FILES {
+        if out.len() >= max_files {
             return;
         }
         let p = entry.path();
+        // Operator `--exclude` patterns match the path relative to the scan root, so a pattern
+        // like `vendor` or `*.min.js` skips vendored/generated trees without listing them all.
+        let rel = p.strip_prefix(root).unwrap_or(&p).to_string_lossy().replace('\\', "/");
+        if !excludes.is_empty() && excludes.iter().any(|pat| glob_match(pat, &rel)) {
+            continue;
+        }
         if p.is_dir() {
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
                 if SKIP_DIRS.contains(&name) {
                     continue;
                 }
             }
-            collect_redact_targets(&p, out);
+            collect_redact_targets(&p, out, max_files, excludes, root);
         } else if p.extension().and_then(|e| e.to_str()).map_or(false, |e| {
             TEXT_EXTS.contains(&e.to_lowercase().as_str())
         }) {
@@ -1628,17 +1661,58 @@ fn collect_redact_targets(dir: &std::path::Path, out: &mut Vec<std::path::PathBu
     }
 }
 
+/// Minimal glob matcher supporting `*`, `?`, and path-prefix segments (no external dependency).
+/// A pattern with no wildcard also matches when it is a substring of the path, which keeps
+/// `--exclude vendor` intuitive.
+fn glob_match(pattern: &str, path: &str) -> bool {
+    if !pattern.contains('*') && !pattern.contains('?') {
+        return path.contains(pattern);
+    }
+    // Translate to a simple recursive matcher over chars.
+    fn rec(p: &[u8], s: &[u8]) -> bool {
+        if p.is_empty() {
+            return s.is_empty();
+        }
+        match p[0] {
+            b'*' => {
+                // collapse consecutive '*'
+                let mut i = 1;
+                while i < p.len() && p[i] == b'*' {
+                    i += 1;
+                }
+                let rest = &p[i..];
+                if rest.is_empty() {
+                    return true;
+                }
+                for k in 0..=s.len() {
+                    if rec(rest, &s[k..]) {
+                        return true;
+                    }
+                }
+                false
+            }
+            b'?' => !s.is_empty() && rec(&p[1..], &s[1..]),
+            c => !s.is_empty() && s[0] == c && rec(&p[1..], &s[1..]),
+        }
+    }
+    rec(pattern.as_bytes(), path.as_bytes())
+}
+
 fn run_redact_check(
     repo_root: &std::path::Path,
     path: &std::path::Path,
     fail_on_leak: bool,
+    max_files: Option<usize>,
+    exclude: &[String],
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Directory mode: dry-run every text file beneath `path`, aggregate, never mutate.
     if path.is_dir() {
+        let cap = max_files.unwrap_or(5000).max(1);
         let mut targets = Vec::new();
-        collect_redact_targets(path, &mut targets);
+        collect_redact_targets(path, &mut targets, cap, exclude, path);
         targets.sort();
+        let truncated = targets.len() >= cap;
 
         let mut all_classes: Vec<String> = Vec::new();
         let mut per_file: Vec<serde_json::Value> = Vec::new();
@@ -1687,6 +1761,9 @@ fn run_redact_check(
             "redaction_classes": all_classes,
             "all_files_unchanged": any_unchanged,
             "fail_on_leak": fail_on_leak,
+            "max_files": cap,
+            "truncated": truncated,
+            "exclude": exclude,
             "files": per_file,
             "status": if files_with_leaks == 0 { "CLEAN" } else if fail_on_leak { "LEAK_DETECTED" } else { "LEAK_REPORTED" },
         });
@@ -1701,6 +1778,12 @@ fn run_redact_check(
             println!("  Total Changed Ln: {}", total_changed);
             println!("  Classes Detected: {}", if all_classes.is_empty() { "none".to_string() } else { all_classes.join(", ") });
             println!("  All Unchanged:    {}", if any_unchanged { "YES (dry-run only)" } else { "NO (unexpected mutation!)" });
+            if truncated {
+                println!("  \x1b[33mScan capped at --max-files {}\x1b[0m (raise it to cover the whole tree)", cap);
+            }
+            if !exclude.is_empty() {
+                println!("  Excluded:         {}", exclude.join(", "));
+            }
             if files_with_leaks > 0 {
                 for r in per_file.iter().filter(|r| r["redaction_classes"].as_array().map_or(false, |a| !a.is_empty())) {
                     println!("    {} — {}", r["relative_path"].as_str().unwrap_or("?"), r["redaction_classes"].as_array().unwrap().iter().filter_map(|c| c.as_str()).collect::<Vec<_>>().join(", "));
@@ -1829,7 +1912,7 @@ async fn run_drift_monitor(
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+    let embed_client = EmbedClient::with_config(&config, None);
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
     let test_suite = vec![
@@ -2048,6 +2131,16 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     println!("  Server Status:  {}", if is_running { "\x1b[1;32mONLINE (healthy)\x1b[0m" } else { "\x1b[1;31mOFFLINE\x1b[0m" });
     println!("  Endpoint:       {}", config.server_url);
     println!("  Loopback Auth:  {}", psk_status);
+    println!("  Embed Provider: {}", if config.uses_api_embeddings() {
+        format!(
+            "\x1b[1;36mAPI\x1b[0m {} (model: {}, no local server)",
+            config.embed_api_base.as_deref().unwrap_or_default(),
+            config.embed_model.as_deref().unwrap_or_default()
+        )
+    } else {
+        let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, _repo_root);
+        format!("\x1b[32mlocal llama\x1b[0m (ctx={} batch={})", ctx, batch)
+    });
     println!("  Symbol Salt:    {}", salt_status);
     println!("  Model Manifest: {}", manifest_status);
     println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
@@ -2584,7 +2677,7 @@ pub async fn evaluate_patch_internal(
     }
 
     LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+    let embed_client = EmbedClient::with_config(&config, None);
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
     let mut covered_files = 0;
@@ -3178,6 +3271,18 @@ fn run_orient_inject(
     }
     if total_sanitized > 0 {
         println!("<!-- Note: {} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->", total_sanitized);
+    }
+    // Surface a self-heal to operators in human mode: `--verify` auto-enabled the rules sync.
+    if report.get("rules_sync_auto").and_then(|v| v.as_bool()).unwrap_or(false) {
+        println!(
+            "<!-- Rules auto-sync: --verify found gate_ready=false, refreshed deployed rules ({}) -->",
+            if report.get("rules_sync_ok").and_then(|v| v.as_bool()).unwrap_or(false) { "ok" } else { "attempted" }
+        );
+    } else if report.get("rules_sync_attempted").and_then(|v| v.as_bool()).unwrap_or(false) {
+        println!(
+            "<!-- Rules sync: {} -->",
+            if report.get("rules_sync_ok").and_then(|v| v.as_bool()).unwrap_or(false) { "ok" } else { "failed" }
+        );
     }
     if verify && !orient_verified {
         return Err("Orient primer verification failed: one or more context pillars empty".into());
@@ -3847,7 +3952,7 @@ async fn run_service_command(
             let mut rtt_ms = t0.elapsed().as_millis();
             let mut adaptive_batch = 16usize;
             if is_running && warm {
-                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+                let embed_client = EmbedClient::with_config(&config, None);
                 let t_warm = std::time::Instant::now();
                 let _ = embed_client.embed_one("warmup probe").await;
                 rtt_ms = t_warm.elapsed().as_millis();
