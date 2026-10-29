@@ -167,7 +167,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "b488ba9402ba4aeed38e8417b225d9eea7ea14c72fdcebe7a19d51f71a72ec91"
+          "content": "abf312f1537c848ffc6a9e9a78567c8b687ec70497dc6b3230a1ff4f7c3173c1"
         }
       ],
       "name": ".agents/canonical/AGENTS.md",
@@ -237,7 +237,7 @@
       "name": "ainish-coder",
       "type": "application"
     },
-    "timestamp": "2026-10-29T01:46:14Z",
+    "timestamp": "2026-10-29T02:06:43Z",
     "tools": {
       "components": [
         {
@@ -276,9 +276,13 @@
     {
       "name": "ainish:lockfile:src/rag/Cargo.lock:sha256",
       "value": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+    },
+    {
+      "name": "ainish:privacy-report:sha256",
+      "value": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a"
     }
   ],
-  "serialNumber": "urn:uuid:b773a106-757c-47bd-96e8-015c7c4a747a",
+  "serialNumber": "urn:uuid:a6b0a662-1530-47cc-822c-1fab81ad7926",
   "specVersion": "1.6",
   "version": 1
 }
