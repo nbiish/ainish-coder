@@ -534,6 +534,15 @@ pub fn build_cyclonedx(repo_root: &Path, model_manifest: &Path, llama_bin: Optio
             }));
         }
     }
+    let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    if privacy_report.is_file() {
+        if let Ok(h) = sha256_file(&privacy_report) {
+            root_props.push(json!({
+                "name": "ainish:privacy-report:sha256",
+                "value": h
+            }));
+        }
+    }
 
     json!({
         "bomFormat": "CycloneDX",
