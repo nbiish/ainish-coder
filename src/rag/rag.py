@@ -2103,7 +2103,7 @@ _ainish_rag() {
     local opts=""
     case "$sub" in
         status)       opts="--tui --json --help" ;;
-        orient)       opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --json --help" ;;
+        orient)       opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --sync-rules --json --help" ;;
         audit)        opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --verify-history --threshold --hardware-seal --json --help" ;;
         gate)         opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
         query)        opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
@@ -2154,7 +2154,7 @@ _ainish_rag() {
         'completion:Generate shell tab completion script'
     )
     if [[ "$words[CURRENT]" == -* ]]; then
-        compadd -- --redact-check --fail-on-leak --include-symbols --sections --json --tui --patch --strict --help
+        compadd -- --redact-check --fail-on-leak --include-symbols --sync-rules --sections --json --tui --patch --strict --help
         return
     fi
     _describe 'command' commands
@@ -2179,6 +2179,7 @@ complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage backgrou
 complete -c ainish-rag -l redact-check -r -d "Dry-run redaction on a file without mutating it"
 complete -c ainish-rag -l fail-on-leak -d "Exit non-zero when redaction dry-run detects leaks"
 complete -c ainish-rag -l include-symbols -d "Include symbol anchors in orient primer"
+complete -c ainish-rag -l sync-rules -d "Run deployed rules refresher when gate_ready is false"
 complete -c ainish-rag -l sections -x -d "Maximum wiki sections to inject"
 complete -c ainish-rag -l max-lines -x -d "Per-section line truncation override"
 complete -c ainish-rag -l json -d "Structured JSON output"
@@ -2189,7 +2190,7 @@ function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
         print("""Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','bench','monitor','audit','service','completion')
-    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
+    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sync-rules','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
     if ($wordToComplete -like '-*') {
         $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
         return
@@ -2281,7 +2282,44 @@ def sanitize_orient_content(content: str) -> Tuple[str, int]:
     return "\n".join(lines), count
 
 
-def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, sections: Optional[int] = None, include_symbols: bool = True, json_out: bool = False) -> None:
+def _find_sync_shell() -> Optional[str]:
+    """Locates a POSIX shell able to run the deployed rules refresher (Git Bash on Windows).
+    Skips the WindowsApps WSL stub, which cannot execute scripts."""
+    for cand in ("sh", "bash", "bash.exe"):
+        found = shutil.which(cand)
+        if found and "windowsapps" not in found.lower():
+            return found
+    if os.name == "nt":
+        for base_var in ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData"):
+            base = os.environ.get(base_var)
+            if not base:
+                continue
+            candidate = Path(base) / "Git" / "bin" / "bash.exe"
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def sync_rules_if_stale(repo_root: Path, gate_ready: bool) -> Tuple[bool, bool]:
+    """Opt-in `orient --inject --sync-rules`: when the cached gate verdict is not GREEN for the
+    current commit, run the repo's deployed `.agents/bin/ainish-rules-sync` before emitting the
+    primer. Returns (attempted, succeeded); never fails the primer."""
+    if gate_ready:
+        return False, False
+    script = repo_root / ".agents" / "bin" / "ainish-rules-sync"
+    if not script.is_file():
+        return True, False
+    shell = _find_sync_shell()
+    if not shell:
+        return True, False
+    try:
+        res = subprocess.run([shell, str(script), "--quiet"], cwd=str(repo_root), capture_output=True)
+        return True, res.returncode == 0
+    except Exception:
+        return True, False
+
+
+def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, sections: Optional[int] = None, include_symbols: bool = True, sync_rules: bool = False, json_out: bool = False) -> None:
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_files = []
     if wiki_dir.exists():
@@ -2347,6 +2385,11 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             gate_ready = bool(gate_status.get("overall_pass")) and gate_status.get("commit") == git_sha
         except Exception:
             gate_status = None
+
+    rules_sync_attempted: Optional[bool] = None
+    rules_sync_ok: Optional[bool] = None
+    if sync_rules:
+        rules_sync_attempted, rules_sync_ok = sync_rules_if_stale(repo_root, gate_ready)
 
     primer_content = [
         "<ORIENT_PRIMER>",
@@ -2469,6 +2512,8 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "sections_limit": section_limit,
             "gate_ready": gate_ready,
             "gate_status": gate_status,
+            "rules_sync_attempted": rules_sync_attempted,
+            "rules_sync_ok": rules_sync_ok,
             "synced_resolutions": synced_resolutions,
             "max_lines_per_section": lines_per_sec,
             "total_sanitized_tokens": total_sanitized,
@@ -3553,6 +3598,7 @@ def main():
     orient_p.add_argument("--max-lines", type=int, default=None, help="Fine-grained per-section line truncation override")
     orient_p.add_argument("--sections", type=int, default=None, help="Maximum number of wiki sections to inject (default 3)")
     orient_p.add_argument("--include-symbols", nargs="?", const=True, default=True, type=lambda v: str(v).lower() not in ("false", "0", "no"), help="Include key symbol graph anchors in the primer (pass 'false' to omit)")
+    orient_p.add_argument("--sync-rules", action="store_true", help="Invoke the deployed .agents/bin/ainish-rules-sync when gate_ready is false (opt-in)")
     orient_p.add_argument("--json", action="store_true", help="Format primer and sections as structured JSON")
 
     bench_p = sub.add_parser("bench", help="Run synthetic query regression benchmark")
@@ -3659,6 +3705,7 @@ def main():
             max_lines=getattr(args, "max_lines", None),
             sections=getattr(args, "sections", None),
             include_symbols=getattr(args, "include_symbols", True),
+            sync_rules=getattr(args, "sync_rules", False),
             json_out=args.json,
         )
 

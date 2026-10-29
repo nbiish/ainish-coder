@@ -50,7 +50,10 @@ CORE COMMANDS:
                                 ~/.config/AGENTS.md (tracked copy)
     --rules-sync [DIR|--all]  Refresh managed rules immediately: this target, or
                               every registered target with --all (--quiet).
-    --rules-status            Show registered targets with CURRENT/STALE state.
+    --rules-status [--json]   Show registered targets with CURRENT/STALE state
+                              (--json for fleet dashboards and CI enrollment checks).
+    --rules-doctor [--json]   Verify manifest, refresher, hook, and registry health,
+                              repairing missing hooks/manifests in place.
     --rules-watch [SECONDS]   Foreground watcher: sync the fleet when root HEAD moves.
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
                               agnostic standard, copied into the target as a
@@ -118,7 +121,7 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 wiki [PATH]           Generate 6 living wiki documents & splice .agents/wiki/ledger.md
                                                       (--note "<entry>" | --note - | --resolve "<kw>" | --sync-resolved | --list-notes [--json])
                                 orient --inject       Inject top task-conditioned wiki sections + memories + open ledger notes
-                                                      (--verify, --compact, --max-lines N, --sections N, --include-symbols true|false, --json)
+                                                      (--verify, --compact, --max-lines N, --sections N, --include-symbols true|false, --sync-rules, --json)
                                 query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking (--code, --fzf)
                                 rerank <QUERY>        Standalone decision-model reranking of candidates
                                 secrets               Inspect PQC vault status & OpenRouter API key
@@ -310,13 +313,15 @@ EXAMPLES:
     ainish-coder --github-actions           # Deploy CI/CD secret protection
     ainish-coder --rules ~/my-repo          # One-time full rules setup + continuous auto-sync
     ainish-coder --rules-sync --all         # Refresh every registered target now
-    ainish-coder --rules-status             # Show registered targets and staleness
+    ainish-coder --rules-status --json      # Structured fleet status for CI enrollment checks
+    ainish-coder --rules-doctor             # Verify + repair deployment health (manifest, hooks, registry)
     ainish-rag audit contract --verify-history   # Inspect & verify hash-chained contract governance history
     ainish-rag audit privacy --redact-check FILE # Dry-run PII/credential/path/IP/MAC redaction without mutating FILE
     ainish-rag audit privacy --redact-check FILE --fail-on-leak  # Exit non-zero when leaks are detected (CI gate)
     ainish-rag orient --inject --sections 2       # Cap the number of injected wiki sections
     ainish-rag orient --inject --max-lines 15    # Inject task-conditioned subagent primer with custom line cap
     ainish-rag orient --inject --include-symbols false  # Prose-only primer (omit symbol graph anchors)
+    ainish-rag orient --inject --sync-rules  # Refresh stale rules before emitting the primer (opt-in)
     ainish-rag status --json                     # Structured health & telemetry report for orchestrators
     ainish-rag gate                              # Run unified Zero-Trust & PQC pre-merge verification gate
 
