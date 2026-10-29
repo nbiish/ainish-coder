@@ -173,3 +173,13 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: merged; every vendored repo re-synced on the pack digest and now carries the merged reference with one pqc pack
 - status:merged
 - blockers:none
+### [2026-10-29T19:54:00Z] CHECKOUT | branch:fix/pqc-skill-yaml | wt:D:\Code\pqc-yaml
+- start:2026-10-29T19:52:00Z
+- end:2026-10-29T19:54:00Z
+- scope:.agents/skills/pqc-secrets/SKILL.md, .agents/skills/browser-use/SKILL.md, fleet
+- triage:now
+- objective: make the consolidated pack discoverable by harness skill catalogs
+- input: the pack never appeared in a catalog; PyYAML rejected its front matter (`v1.2.0: ` unquoted) and browser-use had the same defect
+- output: both descriptions use an em dash; every distributed pack validates; `pqc-secrets` now appears in the harness catalog; all 11 vendored repos re-synced on the pack digest and local-router updated (source 9d37ce9)
+- status:merged
+- blockers:none
