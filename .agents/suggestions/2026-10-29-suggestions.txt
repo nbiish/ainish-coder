@@ -43,3 +43,14 @@ What would this governance / sovereignty master suggest? Record the pack digest 
 What would this terminal-orchestration / swe-bench master suggest? Expose `--pqc-status --json` stale count as a one-line gate in the pre-merge checklist; a stale pack is now a hard, truthful signal.
 What would this master-orchestrator / self-prompting master suggest? The bug shipped because the consolidation run trusted `state=current`; verification should assert the intended files exist, not only that digests match.
 What would this developer-experience / ergonomics master suggest? Print the pack digest next to the engine digest in `--pqc-status` output, so operators can see which dimension drifted.
+### [2026-10-29T19:54:00Z] fix/pqc-skill-yaml
+The consolidated pack is now valid YAML, so harnesses load and list it (it was silently invisible before); the same defect in browser-use is fixed, and every distributed pack passes a PyYAML validation. Next step: add that validation to `bin/security_gate.py` / CI so a future description edit cannot make a skill disappear again.
+What would this adversarial / security master suggest? A skill that cannot load fails open (no instructions) — treat invalid front matter as a distribution failure, not a formatting nit.
+What would this privacy / data-protection master suggest? Nothing in the fix touches data handling; keep the validator output to file names and error classes, never file contents.
+What would this supply-chain / third-party-risk master suggest? Bundle the validator with the pack so any target can prove the pack it received is catalog-loadable before relying on it.
+What would this systems-architecture / devops master suggest? Make `--pqc-sync-targets` verify front-matter parseability after copy; a digest match is not loadability.
+What would this reliability / verification master suggest? Add the YAML check to the 32-assertion distribution test (one assertion per pack) — cheap and catches the entire class.
+What would this governance / sovereignty master suggest? Record catalog visibility as part of the pack release receipt, so "distributed" means "loadable" not just "present".
+What would this terminal-orchestration / swe-bench master suggest? Expose `pqc-secrets` in the harness catalog (done) and keep the contract pointer so even a non-loading harness reaches the file.
+What would this master-orchestrator / self-prompting master suggest? The bug survived because verification checked files, not the loader; add "would a harness see this?" to the definition of done for skill work.
+What would this developer-experience / ergonomics master suggest? Put a one-line `description` (no colons) plus a longer body summary in the pack, so catalog cards render and search results stay readable.
