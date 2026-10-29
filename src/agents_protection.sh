@@ -175,6 +175,13 @@ snapshot_canonical_contract() {
     hash_val="$(_calc_sha256 "$source_file")"
     echo "$hash_val" > "$dest_hash"
 
+    # Re-sign canonical contract with FIPS 204 ML-DSA-65 if ainish-rag is available
+    if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
+        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag.exe" audit contract --threshold 1 >/dev/null 2>&1) || true
+    elif [[ -x "${REPO_DIR}/bin/ainish-rag" ]]; then
+        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag" audit contract --threshold 1 >/dev/null 2>&1) || true
+    fi
+
     lock_agents_contract "$dest_copy" 2>/dev/null || true
     return 0
 }

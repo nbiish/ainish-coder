@@ -20,12 +20,15 @@
     "signer_fingerprint": "d98405ea368484f51e64840d725343be",
     "target_arch": "x86_64",
     "target_os": "windows",
-    "timestamp": "2026-10-29T00:14:12Z",
+    "timestamp": "2026-10-29T01:00:39Z",
     "tool": "ainish-rag 0.1.0"
   },
   "materials": {
+    ".gitattributes": {
+      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+    },
     "AGENTS.md": {
-      "sha256": "ee748d8a0f5d05803b5891ce4a74a96744e0bcfdfee1ddac2a1bfd144156192a"
+      "sha256": "b81cca834216c32057a23e6370de68be7e508e2419a70c4388e8f887f5391011"
     },
     "src/cmd-tracker/Cargo.lock": {
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
@@ -49,16 +52,20 @@
     },
     ".agents/audit/2026-10-29-index-receipt.json": {
       "kind": "data",
-      "sha256": "4c2aeb390ba4bd34160a01998397237f9cee02eb2b270d6a717dfac5c55df744"
+      "sha256": "af5763f734dd9c7237f403b7e458606d0f776d2763630064ab71106fbd97065b"
     },
     ".agents/canonical/AGENTS.md": {
       "kind": "data",
-      "sha256": "b9b87fbbe7e9b92320881c406e65c8c2da4879bd23725731dc2ca33dd0202ada"
+      "sha256": "b81cca834216c32057a23e6370de68be7e508e2419a70c4388e8f887f5391011"
     },
     ".agents/wiki/ledger.md": {
       "kind": "wiki_ledger",
-      "sha256": "a8c1a305e4e374c67eeb6cb91f44723f186c4961aa7e68867a0924c4d494e103",
-      "wiki_ledger_sha256": "a8c1a305e4e374c67eeb6cb91f44723f186c4961aa7e68867a0924c4d494e103"
+      "sha256": "ea665afd1b3ef9fcd457baf7049f0382ef8bcc0d025f304ed326d9611f9df7f5",
+      "wiki_ledger_sha256": "ea665afd1b3ef9fcd457baf7049f0382ef8bcc0d025f304ed326d9611f9df7f5"
+    },
+    ".gitattributes": {
+      "kind": "file",
+      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
     },
     "embeddinggemma-2-BF16.gguf": {
       "kind": "machine-learning-model",

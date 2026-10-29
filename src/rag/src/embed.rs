@@ -26,6 +26,7 @@ pub struct EmbedClient {
     truncate_dim: Option<usize>,
     pub psk: Option<String>,
     pub dp_epsilon: Option<f32>,
+    pub dp_max_budget: Option<f32>,
     pub repo_root: Option<std::path::PathBuf>,
     adaptive_batch_size: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
@@ -45,6 +46,7 @@ impl EmbedClient {
             truncate_dim,
             psk,
             dp_epsilon: None,
+            dp_max_budget: None,
             repo_root: None,
             adaptive_batch_size: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(16)),
         }
@@ -52,6 +54,11 @@ impl EmbedClient {
 
     pub fn with_dp_epsilon(mut self, epsilon: Option<f32>) -> Self {
         self.dp_epsilon = epsilon;
+        self
+    }
+
+    pub fn with_dp_max_budget(mut self, max_budget: Option<f32>) -> Self {
+        self.dp_max_budget = max_budget;
         self
     }
 
@@ -187,6 +194,18 @@ impl EmbedClient {
 
         if let Some(eps) = self.dp_epsilon {
             if let Some(ref root) = self.repo_root {
+                if let Some(max_b) = self.dp_max_budget {
+                    let current_b = read_or_init_privacy_budget(root, false)
+                        .ok()
+                        .and_then(|v| v.get("cumulative_epsilon").and_then(|x| x.as_f64()))
+                        .unwrap_or(0.0) as f32;
+                    if current_b + eps > max_b {
+                        return Err(format!(
+                            "Differential privacy budget ceiling exceeded: current {:.4} + session {:.4} > max_budget {:.4}",
+                            current_b, eps, max_b
+                        ));
+                    }
+                }
                 let _ = record_privacy_budget_expenditure(root, eps, results.len(), "embed_batch");
             }
         }
@@ -303,7 +322,38 @@ pub fn record_privacy_budget_expenditure(
 
     std::fs::write(&ledger_path, serde_json::to_string_pretty(&doc).unwrap_or_default())
         .map_err(|e| format!("Failed writing privacy budget ledger: {}", e))?;
+    let _ = crate::pqc::sign_file(&ledger_path);
     Ok(ledger_path)
+}
+
+/// Reads or initializes `.agents/audit/privacy-budget.json` (and signs with ML-DSA-65).
+pub fn read_or_init_privacy_budget(repo_root: &std::path::Path, reset: bool) -> Result<serde_json::Value, String> {
+    let audit_dir = repo_root.join(".agents").join("audit");
+    let _ = std::fs::create_dir_all(&audit_dir);
+    let ledger_path = audit_dir.join("privacy-budget.json");
+
+    if !reset && ledger_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&ledger_path) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                return Ok(val);
+            }
+        }
+    }
+
+    let doc = serde_json::json!({
+        "format": "ainish-rag/privacy-budget-ledger/v1",
+        "mechanism": "Gaussian-DP-L2",
+        "delta": 1e-5,
+        "sensitivity": 0.05,
+        "cumulative_epsilon": 0.0,
+        "total_protected_vectors": 0,
+        "updated_at": chrono::Utc::now().to_rfc3339(),
+        "expenditure_log": [],
+    });
+    std::fs::write(&ledger_path, serde_json::to_string_pretty(&doc).unwrap_or_default())
+        .map_err(|e| format!("Failed writing privacy budget ledger: {}", e))?;
+    let _ = crate::pqc::sign_file(&ledger_path);
+    Ok(doc)
 }
 
 #[cfg(test)]
