@@ -249,7 +249,7 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 21 skill packs:
+                              Deploys 20 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
@@ -262,8 +262,7 @@ UTILITY COMMANDS:
                               - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
-                              - pqc-secrets/               (PQC secrets: API key encryption, ML-KEM-768)
-                              - pqc-signatures-security/   (PQC signatures: ML-DSA-65 code signing & integrity)
+                              - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing)
                               - production-security/       (Core security policies & PQC mandates)
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
