@@ -1,4 +1,4 @@
-### [2026-09-17T22:29:00Z] checkin | agent:antigravity | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
+### [2026-09-17T22:29:00Z] checkin | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
 - start:2026-09-17T22:29:00Z
 - end:2026-09-17T22:29:00Z
 - scope:AGENTS.md,.agents/tasks/TASK.2026-09-17.strip-subagents-agents-md.md
@@ -8,7 +8,7 @@
 - output:task active
 - status:active
 - blockers:none
-### [2026-09-17T22:30:30Z] intent-merge | agent:antigravity | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
+### [2026-09-17T22:30:30Z] intent-merge | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
 - start:2026-09-17T22:30:30Z
 - end:2026-09-17T22:30:30Z
 - scope:AGENTS.md,.agents/tasks/TASK.2026-09-17.strip-subagents-agents-md.md
@@ -17,7 +17,7 @@
 - output:merging now; no-rebuild-needed (docs-only)
 - status:merged
 - blockers:none
-### [2026-09-17T22:30:45Z] checkout | agent:antigravity | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
+### [2026-09-17T22:30:45Z] checkout | branch:chore/agents-strip-subagents | wt:d:/Code/ainish-coder-strip-subagents
 - start:2026-09-17T22:30:45Z
 - end:2026-09-17T22:30:45Z
 - scope:AGENTS.md,.agents/tasks/TASK.2026-09-17.strip-subagents-agents-md.md

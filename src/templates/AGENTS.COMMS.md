@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 \*\*Entry block:\*\*
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only

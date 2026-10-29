@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 \*\*Entry block:\*\*
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
@@ -43,7 +43,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-### [2026-10-28T23:30:00Z] checkin | agent:antigravity | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
+### [2026-10-28T23:30:00Z] checkin | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
 - start:2026-10-28T23:30:00Z
 - end:2026-10-28T23:31:00Z
 - scope:src/rag/src/wiki.rs, src/rag/rag.py, .agents/wiki/, .agents/
@@ -54,7 +54,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-10-28T23:32:00Z] intent-merge | agent:antigravity | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
+### [2026-10-28T23:32:00Z] intent-merge | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
 - start:2026-10-28T23:30:00Z
 - end:2026-10-28T23:32:00Z
 - scope:src/rag/src/wiki.rs, src/rag/rag.py, .agents/wiki/, .agents/
@@ -65,7 +65,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-10-28T23:33:00Z] checkout | agent:antigravity | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
+### [2026-10-28T23:33:00Z] checkout | branch:feat/wiki-operator-ledger | wt:d:\Code\ainish-coder
 - start:2026-10-28T23:30:00Z
 - end:2026-10-28T23:33:00Z
 - scope:src/rag/src/wiki.rs, src/rag/rag.py, .agents/wiki/, .agents/
@@ -76,7 +76,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-10-28T23:40:00Z] checkin | agent:antigravity | branch:feat/rag-round8-masters | wt:d:\Code\ainish-coder
+### [2026-10-28T23:40:00Z] checkin | branch:feat/rag-round8-masters | wt:d:\Code\ainish-coder
 - start:2026-10-28T23:40:00Z
 - end:2026-10-28T23:40:30Z
 - scope:src/rag/src/wiki.rs, src/rag/src/main.rs, src/rag/rag.py, AGENTS.md, llms.txt, .agents/
@@ -87,7 +87,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-10-28T23:48:00Z] intent-merge | agent:antigravity | branch:feat/rag-round8-masters | wt:d:\Code\ainish-coder
+### [2026-10-28T23:48:00Z] intent-merge | branch:feat/rag-round8-masters | wt:d:\Code\ainish-coder
 - start:2026-10-28T23:40:00Z
 - end:2026-10-28T23:48:00Z
 - scope:src/rag/src/wiki.rs, src/rag/src/main.rs, src/rag/src/pqc.rs, src/rag/rag.py, AGENTS.md, llms.txt, .agents/
@@ -98,7 +98,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-10-28T23:49:00Z] checkout | agent:antigravity | branch:feat/rag-round8-masters | wt:d:\Code\ainish-coder
+### [2026-10-28T23:49:00Z] checkout | branch:feat/rag-round8-masters | wt:d:\Code\ainish-coder
 - start:2026-10-28T23:40:00Z
 - end:2026-10-28T23:49:00Z
 - scope:src/rag/src/wiki.rs, src/rag/src/main.rs, src/rag/src/pqc.rs, src/rag/rag.py, AGENTS.md, llms.txt, .agents/
@@ -106,5 +106,38 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - objective:Complete all 9 Round 8 masters suggestions and push latest release to origin/main
 - input:All verification gates GREEN
 - output:Merged feat/rag-round8-masters to main, branch deleted, pushed to origin/main, no-rebuild-needed
+- status:merged
+- blockers:none
+
+### [2026-10-29T00:01:00Z] checkin | branch:feat/rag-round9-masters-agents | wt:d:\Code\ainish-coder
+- start:2026-10-29T00:01:00Z
+- end:2026-10-29T00:01:30Z
+- scope:src/rag/src/wiki.rs, src/rag/src/main.rs, src/rag/src/pqc.rs, src/rag/rag.py, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Implement all 9 Round 9 masters suggestions from 2026-10-28-suggestions.txt:18-27, tighten AGENTS.md concisely for universal multi-harness mastery, verify gates, merge, and push to origin/main
+- input:Operator request to implement 2026-10-28-suggestions.txt (18-27) and concisely update AGENTS.md
+- output:Claimed task in 'now' lane on feat/rag-round9-masters-agents, initialized implementation
+- status:in-progress
+- blockers:none
+
+### [2026-10-29T00:17:00Z] intent-merge | branch:feat/rag-round9-masters-agents | wt:d:\Code\ainish-coder
+- start:2026-10-29T00:01:00Z
+- end:2026-10-29T00:17:00Z
+- scope:src/rag/src/wiki.rs, src/rag/src/main.rs, src/rag/src/pqc.rs, src/rag/rag.py, src/templates/AGENTS.COMMS.md, src/scroll_integrity.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Complete all 9 Round 9 masters suggestions, remove agent:<name> verbiage repo-wide, concisely update AGENTS.md, verify all gates, merge, and push
+- input:13/13 Rust unit tests passing, 7/7 ML-DSA-65 audit receipts verified, ainish-rag gate and security_gate.py GREEN
+- output:Merged feat/rag-round9-masters-agents to main (--no-ff), deleted branch, pushed main to origin/main
+- status:verifying
+- blockers:none
+
+### [2026-10-29T00:18:00Z] checkout | branch:feat/rag-round9-masters-agents | wt:d:\Code\ainish-coder
+- start:2026-10-29T00:01:00Z
+- end:2026-10-29T00:18:00Z
+- scope:src/rag/src/wiki.rs, src/rag/src/main.rs, src/rag/src/pqc.rs, src/rag/rag.py, src/templates/AGENTS.COMMS.md, src/scroll_integrity.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Complete Round 9 masters implementation, harness-agnostic COMMS cleanup, and concise AGENTS.md update
+- input:All verification gates GREEN
+- output:Merged feat/rag-round9-masters-agents to main, branch deleted, pushed to origin/main, no-rebuild-needed
 - status:merged
 - blockers:none

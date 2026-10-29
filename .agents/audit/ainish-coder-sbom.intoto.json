@@ -20,12 +20,12 @@
     "signer_fingerprint": "d98405ea368484f51e64840d725343be",
     "target_arch": "x86_64",
     "target_os": "windows",
-    "timestamp": "2026-10-24T21:07:14Z",
+    "timestamp": "2026-10-29T00:14:12Z",
     "tool": "ainish-rag 0.1.0"
   },
   "materials": {
     "AGENTS.md": {
-      "sha256": "5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0"
+      "sha256": "ee748d8a0f5d05803b5891ce4a74a96744e0bcfdfee1ddac2a1bfd144156192a"
     },
     "src/cmd-tracker/Cargo.lock": {
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
@@ -43,9 +43,22 @@
       "kind": "data",
       "sha256": "5442094dc1e2d9422f3d2bd5e10debc555b73bcb2838c0e86414a7e55e8b5fe7"
     },
+    ".agents/audit/2026-10-28-index-receipt.json": {
+      "kind": "data",
+      "sha256": "9104de6ec3e3fbe99fde270bf069aa1761cf960e8bfeb5af1bb41cd8dbb2943e"
+    },
+    ".agents/audit/2026-10-29-index-receipt.json": {
+      "kind": "data",
+      "sha256": "4c2aeb390ba4bd34160a01998397237f9cee02eb2b270d6a717dfac5c55df744"
+    },
     ".agents/canonical/AGENTS.md": {
       "kind": "data",
-      "sha256": "5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0"
+      "sha256": "b9b87fbbe7e9b92320881c406e65c8c2da4879bd23725731dc2ca33dd0202ada"
+    },
+    ".agents/wiki/ledger.md": {
+      "kind": "wiki_ledger",
+      "sha256": "a8c1a305e4e374c67eeb6cb91f44723f186c4961aa7e68867a0924c4d494e103",
+      "wiki_ledger_sha256": "a8c1a305e4e374c67eeb6cb91f44723f186c4961aa7e68867a0924c4d494e103"
     },
     "embeddinggemma-2-BF16.gguf": {
       "kind": "machine-learning-model",

@@ -1,0 +1,7 @@
+# memory — 2026-10-29 (UTC)
+# Pairs with ../comms/2026-10-28-team.txt. Format law: AGENTS.md <REPO_MEMORY>.
+
+- 00:14 [RESOLVED] 2026-10-29 (d693f37) Round 9 verified HEAD SHA, ANSI scrubbing, and intoto binding. — resolved in wiki ledger
+- 00:15 Removed `agent:<name>` and `agent:antigravity` from `src/templates/AGENTS.COMMS.md`, `src/scroll_integrity.sh`, `.agents/skills/orchestrate-subagent-masters/SKILL.md`, `.agents/comms/*.txt`, and `.agents/suggestions/*.txt` so COMMS and suggestions headers are 100% harness-agnostic (`### [<ISO-8601>] <EVENT> | branch:<branch> | wt:<worktree-path>`).
+- 00:16 Implemented all 9 Round 9 masters suggestions across `src/rag/src/wiki.rs`, `src/rag/src/main.rs`, `src/rag/src/pqc.rs`, and `src/rag/rag.py`: ANSI/control-char stripping (`sanitize_note_input`), RFC-1918/Tailscale/WireGuard IP redaction (`redact_local_user_paths`), `wiki_ledger_sha256` binding in `in-toto` SBOM products, `cleanup --delete-merged`, `ledger.sig` verification in `ainish-rag gate`, `HEAD` commit SHA stamping in `wiki --note`, unresolved-first sorting in `orient --inject`, simultaneous `.agents/wiki/ledger.md` + `.agents/memories/` resolution (`wiki --resolve "<kw>"`), and `wiki --list-notes`.
+- 00:17 Updated `AGENTS.md` concisely (`ee748d8a0f5d05803b5891ce4a74a96744e0bcfdfee1ddac2a1bfd144156192a`); passed 13/13 unit tests, 7/7 ML-DSA-65 audit receipts, and GREEN `ainish-rag gate` + `bin/security_gate.py`.
