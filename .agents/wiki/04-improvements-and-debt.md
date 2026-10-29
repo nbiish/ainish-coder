@@ -23,3 +23,4 @@ The following actionable items and markers were identified across the codebase:
 - [RESOLVED] 2026-10-28 Psionics vault RAG records probe misses in `psionics-self-hypnosis/.agents/wiki/ledger.md` (`uv run -m tools.rag.verify`). Read that file before the next index or context-map pass.
 - [RESOLVED] 2026-10-28 Verified Round 8 operator ledger signing, path redaction, and memory cross-linking.
 - [RESOLVED] 2026-10-29 (d693f37) Round 9 verified HEAD SHA, ANSI scrubbing, and intoto binding.
+- [RESOLVED] 2026-10-29 (7843e11) Round 10 stdin pipeline test with MAC [REDACTED:MAC]

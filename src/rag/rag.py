@@ -602,11 +602,19 @@ class EmbedClient:
     def __init__(self, server_url: str, truncate_dim: Optional[int] = None, psk: Optional[str] = None, dp_epsilon: Optional[float] = None, repo_root: Optional[Path] = None):
         self.server_url = server_url.rstrip("/")
         self.truncate_dim = truncate_dim
-        self.psk = psk or os.environ.get("AINISH_RAG_PSK")
+        self.repo_root = repo_root
+        resolved_psk = psk or os.environ.get("AINISH_RAG_PSK")
+        if not resolved_psk and repo_root:
+            psk_f = repo_root / ".agents" / "rag" / "session.psk"
+            if psk_f.is_file():
+                try:
+                    resolved_psk = psk_f.read_text(encoding="utf-8").strip()
+                except Exception:
+                    pass
+        self.psk = resolved_psk
         self.dp_epsilon = dp_epsilon if dp_epsilon is not None else (
             float(os.environ["AINISH_RAG_DP_EPSILON"]) if "AINISH_RAG_DP_EPSILON" in os.environ and os.environ["AINISH_RAG_DP_EPSILON"].strip() else None
         )
-        self.repo_root = repo_root
         self.adaptive_batch_size = 16
 
     def recommended_batch_size(self) -> int:
@@ -1073,13 +1081,19 @@ class LanceStore:
 
 
 def sanitize_note_input(note: str) -> str:
-    """Strips ANSI escape sequences and non-printable control characters from operator note input."""
+    """Strips ANSI escape sequences, non-printable control characters, and Trojan Source bidirectional Unicode overrides."""
     no_ansi = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[@-_]", "", note)
-    return "".join(c for c in no_ansi if not (ord(c) < 32 and c != "\t") and ord(c) != 127).strip()
+    bidi_chars = {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
+    return "".join(c for c in no_ansi if not (ord(c) < 32 and c != "\t") and ord(c) != 127 and c not in bidi_chars).strip()
+
+
+def contains_bidi_override(text: str) -> bool:
+    bidi_chars = {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
+    return any(c in bidi_chars for c in text)
 
 
 def redact_local_user_paths(text: str, repo_root: Path) -> str:
-    """Redacts local absolute filesystem user paths and internal RFC-1918 / Tailscale / WireGuard IP addresses."""
+    """Redacts local absolute filesystem user paths, internal RFC-1918 / Tailscale / WireGuard IP addresses, and MAC addresses."""
     out = text
     repo_slash = str(repo_root).replace("\\", "/")
     repo_back = str(repo_root).replace("/", "\\")
@@ -1095,6 +1109,11 @@ def redact_local_user_paths(text: str, repo_root: Path) -> str:
     out = re.sub(
         r"(?i)\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3}|(?:fd[0-9a-f]{2}|fe80):[0-9a-f:]+)\b",
         "[REDACTED:INTERNAL_IP]",
+        out,
+    )
+    out = re.sub(
+        r"(?i)\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b",
+        "[REDACTED:MAC]",
         out,
     )
     return out
@@ -1988,7 +2007,7 @@ complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage backgrou
 """)
 
 
-def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7, prune_worktrees: bool = True, delete_merged: bool = False) -> None:
+def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7, prune_worktrees: bool = True, delete_merged: bool = False, dry_run: bool = False) -> None:
     print("=== ainish-rag Database Maintenance & Worktree Hygiene ===")
     rag_dir = repo_root / ".agents" / "rag"
     cleaned_files = 0
@@ -2023,14 +2042,17 @@ def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7, pru
             if not merged_branches:
                 print("  \033[32m[rag:worktrees]\033[0m Pruned stale git worktree metadata; 0 lingering merged branches detected.")
             elif delete_merged:
-                deleted = []
-                for b in merged_branches:
-                    d_res = subprocess.run(["git", "branch", "-d", b], cwd=str(repo_root), capture_output=True, text=True)
-                    if d_res.returncode == 0:
-                        deleted.append(b)
-                print(f"  \033[32m[rag:worktrees]\033[0m Automatically deleted {len(deleted)} merged local branches: {', '.join(deleted)}")
+                if dry_run:
+                    print(f"  \033[36m[rag:worktrees:dry-run]\033[0m Would delete {len(merged_branches)} merged local branches: {', '.join(merged_branches)}")
+                else:
+                    deleted = []
+                    for b in merged_branches:
+                        d_res = subprocess.run(["git", "branch", "-d", b], cwd=str(repo_root), capture_output=True, text=True)
+                        if d_res.returncode == 0:
+                            deleted.append(b)
+                    print(f"  \033[32m[rag:worktrees]\033[0m Automatically deleted {len(deleted)} merged local branches: {', '.join(deleted)}")
             else:
-                print(f"  \033[33m[rag:worktrees]\033[0m Pruned worktree metadata; merged branches ready for cleanup (use --delete-merged): {', '.join(merged_branches)}")
+                print(f"  \033[33m[rag:worktrees]\033[0m Pruned worktree metadata; merged branches ready for cleanup (use --delete-merged [--dry-run]): {', '.join(merged_branches)}")
         except Exception:
             pass
     print("  Cleanup completed successfully.\n")
@@ -2162,9 +2184,10 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         clean_l, san_cnt = sanitize_orient_content(rendered_l)
         total_sanitized += san_cnt
         all_bullets = [l for l in clean_l.splitlines() if l.strip().startswith("- ")]
-        unresolved = [l for l in reversed(all_bullets) if "[RESOLVED]" not in l]
-        resolved = [l for l in reversed(all_bullets) if "[RESOLVED]" in l]
-        wiki_ledger_notes = list(reversed((unresolved + resolved)[:6]))
+        unresolved = [l for l in all_bullets if "[RESOLVED]" not in l][-6:]
+        rem = max(0, 6 - len(unresolved))
+        resolved = [l for l in all_bullets if "[RESOLVED]" in l][-rem:] if rem > 0 else []
+        wiki_ledger_notes = unresolved + resolved
     if wiki_ledger_notes:
         primer_content.append("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)")
         for note in wiki_ledger_notes:
@@ -2191,7 +2214,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             print(f"<!-- Note: {total_sanitized} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->")
 
 
-def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store: LanceStore, generate_patch: bool = False, json_out: bool = False) -> Dict[str, Any]:
+def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store: LanceStore, generate_patch: bool = False, json_out: bool = False, quiet: bool = False) -> Dict[str, Any]:
     if isinstance(patch_path, Path) and patch_path.is_file():
         diff_text = patch_path.read_text(encoding="utf-8", errors="replace")
     elif isinstance(patch_path, str) and len(patch_path) < 1000 and Path(patch_path).is_file():
@@ -2205,9 +2228,11 @@ def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store:
     symbols = list(dict.fromkeys(symbol_matches))
 
     canary_leaks = []
-    for line in diff_text.splitlines():
+    for line in diff_text.replace("\r\n", "\n").splitlines():
         if line.startswith("+") and not line.startswith("+++"):
             added_line = line[1:]
+            if contains_bidi_override(added_line) and "\\u202" not in added_line and "0x202" not in added_line:
+                canary_leaks.append("Trojan Source bidirectional Unicode override character detected in diff")
             if not any(ign in added_line for ign in ("re.compile", "RE_CANARY", "RE_TOKENS", "Regex::new")):
                 m = RE_CANARY.search(added_line)
                 if m:
@@ -2298,6 +2323,9 @@ def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store:
             print(repair_patch, end="")
         else:
             print("No repair patch generated: symbol anchoring is adequate or no candidate definitions were found.", file=sys.stderr)
+        return eval_result
+
+    if quiet:
         return eval_result
 
     if json_out:
@@ -2391,6 +2419,7 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
         "package-lock.json",
         "pnpm-lock.yaml",
         "yarn.lock",
+        ".gitattributes",
     ]
     discovered = []
     unpinned = []
@@ -2410,6 +2439,9 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
                     is_pinned = False
             elif "yarn.lock" in p.name:
                 if "integrity" not in content and "sha512" not in content:
+                    is_pinned = False
+            elif p.name == ".gitattributes":
+                if "eol=lf" not in content:
                     is_pinned = False
 
             rec = {
@@ -2761,7 +2793,21 @@ def trigger_desktop_notification(title: str, message: str) -> None:
         pass
 
 
-def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, json_out: bool = False) -> bool:
+def check_comms_harness_agnostic(repo_root: Path) -> List[str]:
+    comms_dir = repo_root / ".agents" / "comms"
+    violations = []
+    if comms_dir.is_dir():
+        for p in sorted(comms_dir.glob("*-team.txt")):
+            try:
+                for idx, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                    if line.startswith("### [") and "| agent:" in line:
+                        violations.append(f"{p.name}:L{idx}")
+            except Exception:
+                pass
+    return violations
+
+
+def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, json_out: bool = False) -> bool:
     while True:
         if patch_arg:
             p = Path(patch_arg)
@@ -2792,7 +2838,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                     diff_text = res2.stdout if res2.returncode == 0 else ""
             except Exception:
                 diff_text = ""
-        patch_eval = run_eval_patch(repo_root, diff_text, client, store, json_out=True)
+        patch_eval = run_eval_patch(repo_root, diff_text, client, store, quiet=True)
 
         lock_res = check_lockfiles(repo_root)
         lock_pass = len(lock_res.get("drift_files", [])) == 0
@@ -2854,16 +2900,26 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 audit_receipts_failed += 1
         audit_pass = audit_receipts_failed == 0
 
-        patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and (not diff_text or patch_eval.get("composite_score", 0.0) >= 0.45)
-        overall_pass = patch_pass and lock_pass and audit_pass
+        comms_violations = check_comms_harness_agnostic(repo_root)
+        comms_pass = len(comms_violations) == 0
 
-        if json_out:
+        patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and (not diff_text or patch_eval.get("composite_score", 0.0) >= 0.45)
+        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass
+
+        if summary:
+            print(
+                f"GATE:{'GREEN' if overall_pass else 'RED'} | anchor:{patch_eval.get('composite_score', 0)*100:.0f}% | "
+                f"lock:{'OK' if lock_pass else 'DRIFT'} | pqc:{audit_receipts_passed}/{audit_receipts_passed + audit_receipts_failed} | "
+                f"comms:{'OK' if comms_pass else 'LEGACY_AGENT_TAG'}"
+            )
+        elif json_out:
             print(json.dumps({
                 "overall_pass": overall_pass,
                 "patch_evaluation": patch_eval,
                 "lockfile_check": lock_res,
                 "audit_receipts": {"pass": audit_pass, "passed": audit_receipts_passed, "failed": audit_receipts_failed},
                 "canonical_contract": {"pass": canon_pass},
+                "comms_hygiene": {"pass": comms_pass, "legacy_agent_tag_violations": comms_violations},
             }, indent=2))
         else:
             print("\n┌────────────────────────────────────────────────────────────────────────┐")
@@ -2876,6 +2932,8 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
             print(f"  Post-Quantum Receipts:  {audit_status}")
             print(f"  Canonical AGENTS.md:    {canon_label}")
+            comms_status = "\033[32mPASS (harness-agnostic headers)\033[0m" if comms_pass else f"\033[31mFAIL ({len(comms_violations)} legacy agent: tags)\033[0m"
+            print(f"  COMMS Ledger Hygiene:   {comms_status}")
             print("├────────────────────────────────────────────────────────────────────────┤")
             if overall_pass:
                 print("  OVERALL STATUS:         \033[1;32mGREEN (Autonomous Merge Authorized)\033[0m")
@@ -2944,9 +3002,10 @@ def main():
     wiki_p = sub.add_parser("wiki")
     wiki_p.add_argument("--path", type=Path, default=Path.cwd())
     wiki_p.add_argument("--no-index", action="store_true")
-    wiki_p.add_argument("-n", "--note", type=str, default=None, help="Append UTC-dated note (with HEAD SHA) to .agents/wiki/ledger.md, sign with ML-DSA-65, and re-render page 04")
+    wiki_p.add_argument("-n", "--note", type=str, default=None, help="Append UTC-dated note (pass '-' for stdin) to .agents/wiki/ledger.md, sign with ML-DSA-65, and re-render page 04")
     wiki_p.add_argument("--resolve", type=str, default=None, help="Mark matching entries [RESOLVED] in .agents/wiki/ledger.md and today's .agents/memories/ file")
     wiki_p.add_argument("--list-notes", action="store_true", help="Display current operator ledger entries and their [RESOLVED] status")
+    wiki_p.add_argument("--json", action="store_true", help="Output wiki note listing as structured JSON")
 
     q_p = sub.add_parser("query")
     q_p.add_argument("query")
@@ -2985,6 +3044,7 @@ def main():
     cleanup_p.add_argument("--prune-days", type=int, default=7, help="Prune WAL versions older than N days")
     cleanup_p.add_argument("--prune-worktrees", action="store_true", default=True, help="Prune stale git worktree metadata and detect merged branches")
     cleanup_p.add_argument("--delete-merged", action="store_true", help="Automatically delete local branches already merged into main")
+    cleanup_p.add_argument("--dry-run", action="store_true", help="Preview branches slated for deletion without mutating refs")
 
     orient_p = sub.add_parser("orient", help="Subagent context injection primer")
     orient_p.add_argument("--inject", action="store_true", default=True, help="Format top architectural wiki sections into <ORIENT_PRIMER>")
@@ -3031,6 +3091,7 @@ def main():
     gate_p.add_argument("-b", "--bell", action="store_true", help="Emit terminal bell upon gate completion")
     gate_p.add_argument("--notify", action="store_true", help="Trigger desktop notification upon gate completion")
     gate_p.add_argument("-w", "--watch", action="store_true", help="Continuously watch repository and re-evaluate gate")
+    gate_p.add_argument("--summary", action="store_true", help="Output one-line compact status for PS1/tmux")
     gate_p.add_argument("--json", action="store_true", help="Output gate report as JSON")
 
     service_p = sub.add_parser("service", help="Background embedding service management")
@@ -3067,6 +3128,7 @@ def main():
             prune_days=args.prune_days,
             prune_worktrees=getattr(args, "prune_worktrees", True),
             delete_merged=getattr(args, "delete_merged", False),
+            dry_run=getattr(args, "dry_run", False),
         )
 
     elif args.subcommand == "orient":
@@ -3112,6 +3174,10 @@ def main():
         wiki_dir = repo_root / ".agents" / "wiki"
         print(f"Wiki Path:          {wiki_dir}")
         print(f"Wiki Pages:         {len(list(wiki_dir.glob('*.md'))) if wiki_dir.exists() else 0}")
+        l_notes = list_wiki_notes(repo_root)
+        r_notes = sum(1 for n in l_notes if "[RESOLVED]" in n)
+        o_notes = max(0, len(l_notes) - r_notes)
+        print(f"Wiki Ledger Notes:  {len(l_notes)} total ({o_notes} open, {r_notes} resolved)")
         print(f"PQC Vault Detected: {sec['pqc_vault_exists']} ({sec['pqc_bundle_path']})")
         print(f"OpenRouter API Key: {'RESOLVED (' + sec['key_source'] + ')' if sec['api_key_resolved'] else 'UNRESOLVED (fallback: calibrated local)'}")
 
@@ -3247,22 +3313,39 @@ def main():
     elif args.subcommand == "wiki":
         target = args.path.resolve()
         if getattr(args, "list_notes", False):
-            print("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===")
             notes = list_wiki_notes(target)
-            if not notes:
-                print("  (No operator ledger entries recorded yet)")
-            else:
+            if getattr(args, "json", False):
+                items = []
                 for idx, n in enumerate(notes, 1):
-                    status = "\033[32m[RESOLVED]\033[0m" if "[RESOLVED]" in n else "\033[33m[OPEN]\033[0m"
+                    res_flag = "[RESOLVED]" in n
                     clean_n = n.removeprefix("- ").removeprefix("[RESOLVED]").strip()
-                    print(f"  [{idx}] {status} {clean_n}")
-            print()
+                    items.append({
+                        "index": idx,
+                        "status": "RESOLVED" if res_flag else "OPEN",
+                        "resolved": res_flag,
+                        "note": clean_n,
+                        "raw": n,
+                    })
+                open_cnt = sum(1 for i in items if not i["resolved"])
+                res_cnt = len(items) - open_cnt
+                print(json.dumps({"total": len(items), "open": open_cnt, "resolved": res_cnt, "notes": items}, indent=2))
+            else:
+                print("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===")
+                if not notes:
+                    print("  (No operator ledger entries recorded yet)")
+                else:
+                    for idx, n in enumerate(notes, 1):
+                        status = "\033[32m[RESOLVED]\033[0m" if "[RESOLVED]" in n else "\033[33m[OPEN]\033[0m"
+                        clean_n = n.removeprefix("- ").removeprefix("[RESOLVED]").strip()
+                        print(f"  [{idx}] {status} {clean_n}")
+                print()
             return
         if getattr(args, "resolve", None):
             cnt = resolve_wiki_note(target, args.resolve)
             print(f"  \033[32m[rag:wiki]\033[0m Marked {cnt} matching ledger entries [RESOLVED] and recorded resolution in today's .agents/memories/ file.")
         if getattr(args, "note", None):
-            l_path, s_path = append_wiki_note_and_sign(target, args.note)
+            note_val = sys.stdin.read() if args.note.strip() == "-" else args.note
+            l_path, s_path = append_wiki_note_and_sign(target, note_val)
             print(f"  \033[32m[rag:wiki]\033[0m Appended UTC-dated note (with HEAD SHA) to {l_path} and signed detached ML-DSA-65 envelope ({s_path})")
         else:
             ledger_f = target / ".agents" / "wiki" / "ledger.md"
@@ -3552,6 +3635,7 @@ def main():
             bell=getattr(args, "bell", False),
             notify=getattr(args, "notify", False),
             watch=getattr(args, "watch", False),
+            summary=getattr(args, "summary", False),
             json_out=args.json,
         )
         if not ok:

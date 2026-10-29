@@ -1,7 +1,13 @@
 {
   "format": "ainish-rag/lockfile-manifest/v1",
-  "generated_at": "2026-10-26T22:15:12.980784600+00:00",
+  "generated_at": "2026-10-29T00:31:20.725059+00:00",
   "lockfiles": [
+    {
+      "bytes": 783,
+      "hash_pinned": true,
+      "path": ".gitattributes",
+      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+    },
     {
       "bytes": 155,
       "hash_pinned": false,

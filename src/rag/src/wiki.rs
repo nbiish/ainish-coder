@@ -370,12 +370,17 @@ The following actionable items and markers were identified across the codebase:
         static RE_INTERNAL_IPS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
             regex::Regex::new(r"(?i)\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3}|(?:fd[0-9a-f]{2}|fe80):[0-9a-f:]+)\b").expect("valid internal ip regex")
         });
+        static RE_MAC_ADDR: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"(?i)\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b").expect("valid mac address regex")
+        });
         let no_paths = RE_USER_PATHS.replace_all(&out, "").into_owned();
-        RE_INTERNAL_IPS.replace_all(&no_paths, "[REDACTED:INTERNAL_IP]").into_owned()
+        let no_ips = RE_INTERNAL_IPS.replace_all(&no_paths, "[REDACTED:INTERNAL_IP]").into_owned();
+        RE_MAC_ADDR.replace_all(&no_ips, "[REDACTED:MAC]").into_owned()
     }
 
-    /// Strips ANSI escape sequences and non-printable control characters from operator note input
-    /// to prevent terminal escape injection when subagents or operators inspect `ledger.md`.
+    /// Strips ANSI escape sequences, non-printable control characters, and Trojan Source
+    /// bidirectional Unicode override characters (`U+202A`..`U+202E`, `U+2066`..`U+2069`)
+    /// from operator note input.
     pub fn sanitize_note_input(note: &str) -> String {
         static RE_ANSI: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
             regex::Regex::new(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[@-_]").expect("valid ansi regex")
@@ -383,10 +388,18 @@ The following actionable items and markers were identified across the codebase:
         let without_ansi = RE_ANSI.replace_all(note, "");
         without_ansi
             .chars()
-            .filter(|&c| !c.is_control() || c == '\t')
+            .filter(|&c| {
+                (!c.is_control() || c == '\t')
+                    && !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+            })
             .collect::<String>()
             .trim()
             .to_string()
+    }
+
+    /// Checks whether text contains Trojan Source bidirectional Unicode override characters.
+    pub fn contains_bidi_override(text: &str) -> bool {
+        text.chars().any(|c| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
     }
 
     /// Resolves the active short git commit hash (`HEAD`) for provenance stamping in `ledger.md`.
@@ -609,7 +622,7 @@ mod tests {
         fs::create_dir_all(&mem_dir).unwrap();
 
         let custom_ledger = "# Operator ledger\n\n\
-            - 2026-10-28 Custom operator note alpha-bravo-charlie in C:\\Users\\alice\\project\\src\\lib.rs at 192.168.1.42 and 100.88.12.5\n\
+            - 2026-10-28 Custom operator note alpha-bravo-charlie in C:\\Users\\alice\\project\\src\\lib.rs at 192.168.1.42 and 100.88.12.5 mac AA:BB:CC:DD:EE:FF\n\
             - 2026-10-28 Legacy constraint delta_echo_foxtrot_99\n";
         fs::write(wiki_dir.join("ledger.md"), custom_ledger).unwrap();
         fs::write(
@@ -619,9 +632,11 @@ mod tests {
 
         let wiki_gen = WikiGenerator::new(&tmp_dir);
         assert_eq!(
-            WikiGenerator::sanitize_note_input("hello \x1b[31mred\x1b[0m\x07 world"),
+            WikiGenerator::sanitize_note_input("hello \x1b[31mred\x1b[0m\x07\u{202E} world"),
             "hello red world"
         );
+        assert!(WikiGenerator::contains_bidi_override("evil \u{202E} code"));
+        assert!(!WikiGenerator::contains_bidi_override("clean code"));
         // First generation run
         wiki_gen.generate_all().unwrap();
         // Second generation run — must preserve ledger.md and splice into 04-improvements-and-debt.md
@@ -632,11 +647,13 @@ mod tests {
 
         let page04 = fs::read_to_string(wiki_dir.join("04-improvements-and-debt.md")).unwrap();
         assert!(page04.contains("Custom operator note alpha-bravo-charlie"));
-        // User path C:\Users\alice\ and internal IPs must be redacted
+        // User path C:\Users\alice\, internal IPs, and MAC addresses must be redacted
         assert!(!page04.contains("C:\\Users\\alice\\"));
         assert!(!page04.contains("192.168.1.42"));
         assert!(!page04.contains("100.88.12.5"));
+        assert!(!page04.contains("AA:BB:CC:DD:EE:FF"));
         assert!(page04.contains("[REDACTED:INTERNAL_IP]"));
+        assert!(page04.contains("[REDACTED:MAC]"));
         // Memory cross-link must mark [RESOLVED] on the matching entry
         assert!(page04.contains("- [RESOLVED] 2026-10-28 Legacy constraint delta_echo_foxtrot_99"));
 
