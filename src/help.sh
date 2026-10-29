@@ -111,7 +111,7 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 gate [--watch]        Unified pre-merge gate: patch (--strict), lockfiles, PQC receipts, contract, COMMS (--summary)
                                 statusline [--json]   Emit one-line or JSON compact gate status for PS1, Cursor statusLine, or tmux
                                 cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged [--dry-run])
-                                audit <cmd>           verify | lock [--update] | privacy [--out] | sbom [--format cyclonedx|spdx|intoto] | contract | sign | keygen
+                                audit <cmd>           verify | lock [--update] | privacy [--out] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
                                 service <cmd>         status [--warm] | install | generate | uninstall background daemon
                                 bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
@@ -287,10 +287,13 @@ EXAMPLES:
     ainish-coder -i --llms-txt              # Prompt for llms.txt deployment choices
     ainish-coder -i --skills-sync           # Prompt for skills sync with toggle UI
 
-    # Utility deployments
+    # Utility deployments & post-quantum RAG/audit verification
     ainish-coder --gitignore                # Create comprehensive .gitignore
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
+    ainish-rag audit contract --verify-history   # Inspect & verify hash-chained contract governance history
+    ainish-rag orient --inject --max-lines 15    # Inject task-conditioned subagent primer with custom line cap
+    ainish-rag gate                              # Run unified Zero-Trust & PQC pre-merge verification gate
 
     ainish-coder --unlock                   # Deploy Pliny Research collection
 

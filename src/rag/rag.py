@@ -2180,7 +2180,7 @@ def sanitize_orient_content(content: str) -> Tuple[str, int]:
     return "\n".join(lines), count
 
 
-def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, json_out: bool = False) -> None:
+def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, json_out: bool = False) -> None:
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_files = []
     if wiki_dir.exists():
@@ -2224,7 +2224,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         else:
             wiki_files.sort()
 
-    sync_bidirectional_resolutions_py(repo_root)
+    synced_resolutions = sync_bidirectional_resolutions_py(repo_root)
     git_branch = "main"
     git_sha = "HEAD"
     try:
@@ -2246,7 +2246,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
     sections = []
     total_sanitized = 0
 
-    lines_per_sec = 8 if compact else 40
+    lines_per_sec = max_lines if max_lines is not None else (8 if compact else 40)
     max_items = 3 if compact else 6
 
     if not wiki_files:
@@ -2346,6 +2346,8 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "recent_memories": memory_notes,
             "wiki_ledger_notes": wiki_ledger_notes,
             "symbol_anchors": symbol_anchors,
+            "synced_resolutions": synced_resolutions,
+            "max_lines_per_section": lines_per_sec,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": True,
             "orient_verified": orient_verified,
@@ -2798,6 +2800,14 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
                 "kind": "governance_history",
                 "contract_history_head_sha256": head_sha,
             }
+        priv_rep_f = repo_root / ".agents" / "audit" / "privacy-report.json"
+        if priv_rep_f.is_file():
+            p_sha = hashlib.sha256(priv_rep_f.read_bytes()).hexdigest()
+            products[".agents/audit/privacy-report.json"] = {
+                "sha256": p_sha,
+                "kind": "privacy_report",
+                "ainish:privacy-report:sha256": p_sha,
+            }
         doc = {
             "_type": "link",
             "name": "build/provenance",
@@ -2904,23 +2914,36 @@ def run_audit_keygen(repo_root: Path, out_dir: Optional[Path] = None) -> None:
     print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 public key: {target_dir / 'signer.mldsa65.pub'}\n")
 
 
-def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool = False, verify_history: bool = False) -> None:
+def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool = False, verify_history: bool = False, json_out: bool = False) -> None:
     if verify_history:
         history_file = repo_root / ".agents" / "audit" / "contract-history.jsonl"
-        print("=== ainish-rag Canonical Contract Governance History ===")
-        print(f"  History Log: {history_file}")
         ok, cnt = verify_contract_history_chain_py(repo_root)
+        entries_list = []
         if history_file.is_file():
             for idx, line in enumerate([l.strip() for l in history_file.read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()], 1):
                 try:
                     v = json.loads(line)
-                    ts = v.get("timestamp", "")
-                    sha = v.get("contract_sha256", "")[:12]
-                    fpr = v.get("signer_fingerprint", "")[:12]
-                    prev = v.get("prev_entry_sha256", "")[:12]
-                    print(f"  [#{idx:>2}] {ts} | sha256:{sha}... | signer:{fpr}... | prev:{prev}...")
+                    v["index"] = idx
+                    entries_list.append(v)
                 except Exception:
                     pass
+        if json_out:
+            print(json.dumps({
+                "verified": ok,
+                "transitions_count": cnt,
+                "history_file": str(history_file),
+                "transitions": entries_list,
+            }, indent=2))
+            return
+        print("=== ainish-rag Canonical Contract Governance History ===")
+        print(f"  History Log: {history_file}")
+        for v in entries_list:
+            idx = v.get("index", 0)
+            ts = v.get("timestamp", "")
+            sha = v.get("contract_sha256", "")[:12]
+            fpr = v.get("signer_fingerprint", "")[:12]
+            prev = v.get("prev_entry_sha256", "")[:12]
+            print(f"  [#{idx:>2}] {ts} | sha256:{sha}... | signer:{fpr}... | prev:{prev}...")
         if ok:
             print(f"  \033[32m[PASS]\033[0m Verified {cnt} hash-chained governance transitions & ML-DSA-65 signature.\n")
         else:
@@ -3108,6 +3131,25 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                     audit_receipts_failed += 1
             else:
                 audit_receipts_failed += 1
+
+        model_manifest_f = repo_root / ".agents" / "audit" / "model-manifest.json"
+        model_manifest_sig_ok = True
+        if model_manifest_f.is_file():
+            mm_sig = model_manifest_f.with_suffix(".sig")
+            if mm_sig.is_file():
+                try:
+                    ms_data = json.loads(mm_sig.read_text(encoding="utf-8"))
+                    if ms_data.get("sha256", "").lower() == hashlib.sha256(model_manifest_f.read_bytes()).hexdigest().lower():
+                        audit_receipts_passed += 1
+                    else:
+                        audit_receipts_failed += 1
+                        model_manifest_sig_ok = False
+                except Exception:
+                    audit_receipts_failed += 1
+                    model_manifest_sig_ok = False
+            else:
+                audit_receipts_failed += 1
+                model_manifest_sig_ok = False
         audit_pass = audit_receipts_failed == 0
 
         comms_violations = check_comms_harness_agnostic(repo_root)
@@ -3122,7 +3164,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
         zt_lf_ok = (b"\r\n" not in bin_ac.read_bytes()) if bin_ac.is_file() else True
         history_ok, _ = verify_contract_history_chain_py(repo_root)
         redaction_ok = verify_redaction_pipeline_py(repo_root)
-        zt_pass = zt_hash_ok and zt_lf_ok and comms_pass and history_ok and redaction_ok
+        zt_pass = zt_hash_ok and zt_lf_ok and comms_pass and history_ok and redaction_ok and model_manifest_sig_ok
 
         effective_strict = strict or os.environ.get("AINISH_GATE_STRICT", "").lower() in ("1", "true")
         min_anchor = 0.70 if effective_strict else 0.45
@@ -3298,6 +3340,7 @@ def main():
     orient_p.add_argument("--task-conditioned", action="store_true", default=True, help="Condition wiki sections on active task metadata")
     orient_p.add_argument("--verify", action="store_true", help="Verify all 4 orient primer pillars are populated")
     orient_p.add_argument("--compact", action="store_true", help="Emit single-screen token-budgeted <ORIENT_PRIMER> for small-context models")
+    orient_p.add_argument("--max-lines", type=int, default=None, help="Fine-grained per-section line truncation override")
     orient_p.add_argument("--json", action="store_true", help="Format primer and sections as structured JSON")
 
     bench_p = sub.add_parser("bench", help="Run synthetic query regression benchmark")
@@ -3334,6 +3377,7 @@ def main():
     audit_contract_p.add_argument("--threshold", type=int, default=1, help="Threshold k for k-of-n multi-party signing")
     audit_contract_p.add_argument("--hardware-seal", action="store_true", help="Unwrap hardware-backed FIDO2 / TPM 2.0 sealed seed")
     audit_contract_p.add_argument("--verify-history", action="store_true", help="Inspect and verify hash-chained contract-history.jsonl")
+    audit_contract_p.add_argument("--json", action="store_true", help="Output contract governance history as structured JSON")
     audit_privacy_p = audit_sub.add_parser("privacy", help="Inspect or reset differential privacy budget ledger")
     audit_privacy_p.add_argument("--max-budget", type=float, default=10.0, help="Maximum allowed cumulative epsilon budget")
     audit_privacy_p.add_argument("--reset", action="store_true", help="Reset cumulative privacy budget to 0.0")
@@ -3398,6 +3442,7 @@ def main():
             task_conditioned=getattr(args, "task_conditioned", True),
             verify=getattr(args, "verify", False),
             compact=getattr(args, "compact", False),
+            max_lines=getattr(args, "max_lines", None),
             json_out=args.json,
         )
 
@@ -3449,6 +3494,9 @@ def main():
         print(f"Wiki Ledger Notes:  {len(l_notes)} total ({o_notes} open, {r_notes} resolved)")
         pb = read_or_init_privacy_budget(repo_root, reset=False)
         print(f"Privacy Budget:     epsilon={float(pb.get('cumulative_epsilon', 0.0)):.4f} ({int(pb.get('total_protected_vectors', 0))} protected vectors in privacy-budget.json)")
+        hist_ok, hist_cnt = verify_contract_history_chain_py(repo_root)
+        if hist_ok:
+            print(f"Contract History:   {hist_cnt} hash-chained transitions verified (contract-history.jsonl)")
         print(f"PQC Vault Detected: {sec['pqc_vault_exists']} ({sec['pqc_bundle_path']})")
         print(f"OpenRouter API Key: {'RESOLVED (' + sec['key_source'] + ')' if sec['api_key_resolved'] else 'UNRESOLVED (fallback: calibrated local)'}")
 
@@ -3949,6 +3997,7 @@ def main():
                 threshold=getattr(args, "threshold", 1),
                 hardware_seal=getattr(args, "hardware_seal", False),
                 verify_history=getattr(args, "verify_history", False),
+                json_out=getattr(args, "json", False),
             )
         elif args.audit_command == "privacy":
             pb = read_or_init_privacy_budget(repo_root, reset=getattr(args, "reset", False))
@@ -4166,6 +4215,30 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
             print("  \033[31m[FAIL]\033[0m Contract Governance History (contract-history.jsonl): hash chain broken")
             failed += 1
         receipts.append(history_file)
+
+    lf_manifest = repo_root / ".agents" / "audit" / "lockfile-manifest.json"
+    if lf_manifest.is_file():
+        missing_lfs = []
+        lf_count = 0
+        try:
+            lf_data = json.loads(lf_manifest.read_text(encoding="utf-8"))
+            arr = lf_data.get("lockfiles", lf_data.get("files", []))
+            for item in arr:
+                rel_p = item.get("path", item.get("file", ""))
+                if rel_p:
+                    lf_count += 1
+                    if not (repo_root / rel_p).exists():
+                        missing_lfs.append(rel_p)
+        except Exception:
+            pass
+        lf_sig_ok = lf_manifest.with_suffix(".sig").is_file()
+        if not missing_lfs and lf_sig_ok:
+            print(f"  \033[32m[PASS]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {lf_count} lockfiles present on disk & ML-DSA-65 verified")
+            passed += 1
+        else:
+            print(f"  \033[31m[FAIL]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={missing_lfs}, sig_ok={lf_sig_ok}")
+            failed += 1
+        receipts.append(lf_manifest)
 
     print("\nVerification Summary:")
     print(f"  Total Receipts:  {len(receipts)}")
