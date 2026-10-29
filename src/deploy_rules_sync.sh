@@ -45,11 +45,17 @@ _ainish_rag_bin() {
 }
 
 # Signs a deployed manifest with FIPS 204 ML-DSA-65 (no-op if rag unavailable).
+# A signer that stalls must never hang a deploy or a fleet sync: bound it with
+# timeout where the platform provides one.
 _ainish_rules_sign_manifest() {
     local manifest="$1"
     local rag
     rag="$(_ainish_rag_bin)" || return 0
-    (cd "${REPO_DIR}" && "$rag" audit sign "$manifest" >/dev/null 2>&1) || true
+    if command -v timeout >/dev/null 2>&1; then
+        (cd "${REPO_DIR}" && timeout 20 "$rag" audit sign "$manifest" >/dev/null 2>&1) || true
+    else
+        (cd "${REPO_DIR}" && "$rag" audit sign "$manifest" >/dev/null 2>&1) || true
+    fi
 }
 
 # Verifies a deployed manifest's detached signature envelope. Compares the manifest's
@@ -168,12 +174,37 @@ AINISH_RULES_SYNC_EOF
     return 0
 }
 
+# Digest of the distributed PQC skill pack. Mirrors _pqc_pack_sha when the
+# distribution module is loaded (it normally is); the fallback keeps manifest
+# writing self-contained for the rules path.
+_ainish_rules_pack_digest() {
+    local dir="${REPO_DIR}/.agents/skills/pqc-secrets"
+    [[ -d "$dir" ]] || return 1
+    if declare -F _pqc_pack_sha >/dev/null 2>&1; then
+        _pqc_pack_sha "$dir" 2>/dev/null && return 0
+    fi
+    local tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-pack.XXXXXX" 2>/dev/null)" || return 1
+    (
+        cd "$dir" || exit 1
+        find . -type f | LC_ALL=C sort | while IFS= read -r file; do
+            printf '%s  %s\n' \
+                "$(_calc_sha256 "$file" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')" \
+                "$file"
+        done
+    ) > "$tmp" 2>/dev/null
+    _calc_sha256 "$tmp" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f'
+    rm -f "$tmp"
+}
+
 _ainish_rules_manifest_write() {
     local target_dir="$1"
     local manifest="${target_dir}/.agents/ainish-deploy.json"
     local source_repo="$2"
     local source_commit="$3"
     local source_sha="$4"
+    local source_pack_sha
+    source_pack_sha="$(_ainish_rules_pack_digest 2>/dev/null || true)"
     mkdir -p "$(dirname "$manifest")" 2>/dev/null || return 1
 
     cat > "$manifest" <<MANIFEST_EOF
@@ -182,6 +213,7 @@ _ainish_rules_manifest_write() {
   "source_repo": "${source_repo}",
   "source_commit": "${source_commit}",
   "source_agents_sha256": "${source_sha}",
+  "source_pack_sha256": "${source_pack_sha}",
   "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "auto_sync": true,
   "managed_paths": [
@@ -638,6 +670,8 @@ rules_verify() {
     local entries="" human=""
     local total=0 verified=0 failed=0 target
     local lock_ok_count=0 lock_fail_count=0
+    local source_pack_sha pack_ok_count=0 pack_fail_count=0
+    source_pack_sha="$(_ainish_rules_pack_digest 2>/dev/null || true)"
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
         total=$((total + 1))
@@ -653,6 +687,19 @@ rules_verify() {
             ABSENT)   lock_ok_count=$((lock_ok_count + 1)) ;;   # not enrolled for lockfiles
             *)        lock_fail_count=$((lock_fail_count + 1)) ;;
         esac
+        # Authorship: the signed manifest attests the pack digest it deployed, so
+        # a target can prove the content on disk came from this root.
+        local pack_signed pack_state
+        pack_signed="$(sed -n 's/.*"source_pack_sha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -n 1 | tr 'A-F' 'a-f')"
+        if [[ -z "$source_pack_sha" ]]; then
+            pack_state="PACK_UNAVAILABLE"
+        elif [[ -z "$pack_signed" ]]; then
+            pack_state="PACK_UNSIGNED"; pack_fail_count=$((pack_fail_count + 1))
+        elif [[ "$source_pack_sha" == "$pack_signed" ]]; then
+            pack_state="PACK_BOUND"; pack_ok_count=$((pack_ok_count + 1))
+        else
+            pack_state="PACK_MISMATCH"; pack_fail_count=$((pack_fail_count + 1))
+        fi
         local ok=false
         if [[ "$state" == "VERIFIED" ]]; then
             ok=true; verified=$((verified + 1))
@@ -660,20 +707,21 @@ rules_verify() {
             failed=$((failed + 1))
         fi
         local p_path=$(_ainish_rules_json_escape "$target")
-        entries+="{\"path\": \"$p_path\", \"manifest_sig\": \"$state\", \"verified\": $ok, \"lockfile_manifest\": \"$lf_state\"},"
-        human+="$(printf '  %b %s (manifest: %s, lockfile: %s)\n' \
+        entries+="{\"path\": \"$p_path\", \"manifest_sig\": \"$state\", \"verified\": $ok, \"lockfile_manifest\": \"$lf_state\", \"pack\": \"$pack_state\"},"
+        human+="$(printf '  %b %s (manifest: %s, lockfile: %s, pack: %s)\n' \
             "$([ "$ok" = "true" ] && printf '%s' "${GREEN}VERIFIED${RESET}" || printf '%s' "${RED}${state}${RESET}")" \
-            "$target" "$state" "$lf_state")"$'\n'
+            "$target" "$state" "$lf_state" "$pack_state")"$'\n'
     done <<< "$targets"
     entries="${entries%,}"
 
     local rc=0
     [[ $failed -gt 0 ]] && rc=1
     [[ $lock_fail_count -gt 0 ]] && rc=1
+    [[ $pack_fail_count -gt 0 ]] && rc=1
 
     if [[ "$json" == "true" ]]; then
-        printf '{"format": "ainish-coder/rules-verify/v1", "source_commit": "%s", "targets": [%s], "summary": {"total": %d, "verified": %d, "failed": %d, "lockfile_ok": %d, "lockfile_failed": %d}}\n' \
-            "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$entries" "$total" "$verified" "$failed" "$lock_ok_count" "$lock_fail_count"
+        printf '{"format": "ainish-coder/rules-verify/v1", "source_commit": "%s", "targets": [%s], "summary": {"total": %d, "verified": %d, "failed": %d, "lockfile_ok": %d, "lockfile_failed": %d, "pack_bound": %d, "pack_failed": %d}}\n' \
+            "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$entries" "$total" "$verified" "$failed" "$lock_ok_count" "$lock_fail_count" "$pack_ok_count" "$pack_fail_count"
         return $rc
     fi
 
