@@ -51,3 +51,45 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:Merged feat/embed-mem-round20 to main, pushed origin/main, binary rebuilt, llama server restarted at 2.4 GB, fleet registry EMPTY
 - status:merged
 - blockers:none
+
+### [2026-10-29T19:10:00Z] CHECKIN | branch:feat/pqc-distribution | wt:D:\Code\pqc-dist
+- start:2026-10-29T18:45:00Z
+- end:2026-10-29T19:10:00Z
+- scope:src/pqc_dist.sh, src/skills_selection.sh, bin/ainish-coder, bin/pqc-secrets.cmd, scripts/test-pqc-dist.sh, src/help.sh, llms.txt, .agents/skills/pqc-secrets/{SKILL.md,references/cross-repo-key-sharing.md}
+- triage:now
+- objective: make the working PQC engine installable once and distributed to every toolchain and repo, and fix the Windows selection bug that broke fleet distribution
+- input: operator asked for the working pqc system to be distributed and working across other tooling; a survey found 15 repos carrying a vendored engine across 6 distinct digests
+- output: `--pqc-install` (launcher on PATH + .cmd, root marker, keygen only when no bundle, WSL verify/provision), `--pqc-status --json` (digest/build, launcher, native+WSL store, per-target drift, exit 1 on stale/required-missing), `--pqc-sync-targets` (selection-aware refresh + digest verify); MSYS selection fix; hermetic 22-assertion test; docs
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:10:00Z] INTENT-MERGE | branch:feat/pqc-distribution | wt:D:\Code\pqc-dist
+- start:2026-10-29T19:05:00Z
+- end:2026-10-29T19:10:00Z
+- scope:same
+- objective: merge after syntax checks, the security gate, and the distribution test
+- input: commit 8fdd02d
+- output: `bash -n` on every touched script; `python3 bin/security_gate.py .` PASS; `scripts/test-pqc-dist.sh` 22/22; `--help` renders the new block
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:10:00Z] CHECKOUT | branch:feat/pqc-distribution | wt:D:\Code\pqc-dist
+- start:2026-10-29T19:10:00Z
+- end:2026-10-29T19:12:00Z
+- provenance:source_commit=8fdd02d manifest_sha256=n/a (root repo)
+- scope:same + fix/pqc-dist-followup
+- objective: close the loop after merge, install for real, and distribute to the repos that already vendor the pack
+- input: main after f0fb948
+- output: launcher installed at ~/.local/bin/pqc-secrets (on PATH); native engine resolves the WSL host store (host-interop); WSL reports "present"; stale vendored engines refreshed by explicit `--pqc-sync-targets <dir>` because only local-router is enrolled
+- status:merged
+- blockers:none
+
+### [2026-10-29T19:12:00Z] UPDATE | branch:feat/pqc-key-upsert | wt:D:\Code\pqc-key-upsert
+- start:2026-10-29T19:12:00Z
+- end:2026-10-29T19:12:00Z
+- scope:.agents/comms
+- objective: log the merge that shipped without an entry (retroactive)
+- input: merge 932b37b (set/del/store, cross-environment store resolution) closed with no COMMS entry or memory line
+- output: retroactive record; worktree left in place because it is inside the 24h quiet window
+- status:merged
+- blockers:none

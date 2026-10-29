@@ -40,3 +40,8 @@
 - 17:09 Gotcha: `std::env::set_var` is `unsafe` in this Rust edition — wrap env-mutating tests in `unsafe {}`. `read_provider_cfg` must accept JSON numbers (for `dim`), not only strings.
 - 17:09 Gotcha: `--embed-config --status` initially exited 2 because `sed` on a missing file returns 1/2 and `set -euo pipefail` aborted the bare `var="$(sed … | head)"` assignment; guard with `|| true`. Also parse all args before dispatching `--status` so `--status DIR` works in any order.
 - 17:09 Canonical `AGENTS.md` re-signed; 23/23 Rust + 16/16 Python tests; 13/13 ML-DSA-65 receipts; gate GREEN (52%); `bin/security_gate.py` PASS; `bin/ainish-rag.exe` rebuilt; merged `feat/embed-mem-round20` to `main` (`769cd31`) and pushed `origin/main`; fleet registry EMPTY.
+- 19:05 `ainish-coder --pqc-install` installed C:\Users\kenwa\.local\bin\pqc-secrets (on PATH); the Windows engine resolves the WSL host store (source host-interop), so keygen is skipped — one store, both OSes.
+- 19:06 15 repos vendor the pqc engine across 6 distinct digests; only local-router is enrolled, so cross-repo distribution must also run by explicit dir (`--pqc-sync-targets <dir>`), not just `--all`.
+- 19:07 MSYS rewrites path-shaped env values when exec'ing native python: REPO=/d/Code/x arrives as D:/Code/x and every selection lookup misses. MSYS2_ENV_CONV_EXCL needs a SEMICOLON list (`REPO;ALT_REPO`); a colon list was ignored, which is why the 14:xx cygpath-only attempt still returned "on".
+- 19:08 `--pqc-status` exits 1 only for a stale engine or a required target without one; a deselected repo reporting `missing` is expected and does not fail the check.
+- 19:09 [RESOLVED] merge 932b37b (feat/pqc-key-upsert) shipped without a ledger entry — retroactive entry appended at 19:12Z.
