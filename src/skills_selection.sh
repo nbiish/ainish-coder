@@ -32,6 +32,23 @@ skills_selection_config_path() {
     printf '%s\n' "$dir/skills-selection.json"
 }
 
+# Windows Git Bash (MSYS2) rewrites path-shaped values when it execs a native
+# binary: REPO=/d/Code/app arrives as D:/Code/app and the JSON lookup misses,
+# which made every pack fall back to "on" (a deploy then pinned them all true).
+# Keep the repo key byte-identical to the key Linux/WSL wrote, and hand the
+# config path to the interpreter in native form.
+skills_selection_engine_path() {
+    local path="$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w -- "$path" 2>/dev/null || printf '%s\n' "$path"
+    else
+        printf '%s\n' "$path"
+    fi
+}
+
+skills_selection_env_guard() {
+    printf '%s' "${MSYS2_ENV_CONV_EXCL:+${MSYS2_ENV_CONV_EXCL};}REPO;ALT_REPO"
+}
 # True when a skill name may NEVER be selected for skills/rules distribution.
 # .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
 # — never listed or selectable.
@@ -67,7 +84,8 @@ skills_selection_has_entry() {
     local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
     local name="$2"
     REPO="$repo_key" ALT_REPO="$raw_repo" NAME="$name" \
-        SELECTION_PATH="$(skills_selection_config_path)" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
         python3 -c "
 import json, os
 try:
@@ -94,7 +112,8 @@ skills_selection_state() {
     local global_default="on"
     skills_selection_default_on || global_default="off"
     REPO="$repo_key" ALT_REPO="$raw_repo" NAME="$name" GLOBAL_DEFAULT="$global_default" \
-        SELECTION_PATH="$(skills_selection_config_path)" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
         python3 -c "
 import json, os
 try:
@@ -123,7 +142,8 @@ skills_selection_set() {
     local name="$2" state="$3"
     [[ "$state" == "on" || "$state" == "off" ]] || { print_error "state must be on|off"; return 1; }
     REPO="$repo_key" NAME="$name" STATE="$state" \
-        SELECTION_PATH="$(skills_selection_config_path)" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
         python3 -c "
 import json, os
 path = os.environ['SELECTION_PATH']
@@ -149,7 +169,8 @@ skills_selection_set_default() {
     local state="$2"
     [[ "$state" == "on" || "$state" == "off" ]] || { print_error "state must be on|off"; return 1; }
     REPO="$repo_key" STATE="$state" \
-        SELECTION_PATH="$(skills_selection_config_path)" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
         python3 -c "
 import json, os
 path = os.environ['SELECTION_PATH']
@@ -179,7 +200,8 @@ skills_selection_batch_save() {
     local -a pairs=("$@")
 
     REPO="$repo_key" ALT_REPO="$raw_repo" DEFAULT_STATE="$default_state" \
-    PAIRS="${pairs[*]}" SELECTION_PATH="$(skills_selection_config_path)" \
+    PAIRS="${pairs[*]}" SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
     python3 -c "
 import json, os
 path = os.environ['SELECTION_PATH']
@@ -241,7 +263,8 @@ _skills_selection_repo_default() {
     local global_default="on"
     skills_selection_default_on || global_default="off"
     REPO="$repo_key" ALT_REPO="$raw_repo" GLOBAL_DEFAULT="$global_default" \
-        SELECTION_PATH="$(skills_selection_config_path)" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
         python3 -c "
 import json, os
 try:
