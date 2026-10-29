@@ -295,7 +295,11 @@ pqc_install() {
     local wsl_ok="false" wsl_detail="skipped"
     if [[ "$wsl" == "true" ]]; then
         wsl_detail="$(_pqc_wsl_install 2>/dev/null || printf 'not provisioned')"
-        [[ "$wsl_detail" == installed* ]] && wsl_ok="true"
+        # "present" means the WSL side already had a working launcher; both are a
+        # healthy mirror, only "not provisioned" is a gap.
+        case "$wsl_detail" in
+            installed*|present*) wsl_ok="true" ;;
+        esac
     fi
 
     local ok="true"
