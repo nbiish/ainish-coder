@@ -1,0 +1,53 @@
+# AGENT COMMS — 2026-10-29
+
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once. Solo? Still check in/out — the ledger is the audit trail.
+Durable ledger = this file (committed, append-only). Live board = `2026-10-29-team.live.txt` (gitignored, never committed).
+Full protocol: `src/templates/AGENTS.COMMS.md`.
+
+---
+
+### [2026-10-29T17:09:00Z] checkin | branch:feat/embed-mem-round20 | wt:d:\Code\ainish-coder
+- start:2026-10-29T17:09:00Z
+- end:2026-10-29T17:09:00Z
+- scope:src/rag/src/, src/rag/rag.py, src/rag/tests/, src/deploy_rules_sync.sh, src/embed_config.sh, bin/ainish-coder, src/help.sh, llms.txt, AGENTS.md, .agents/
+- triage:now
+- objective:Implement the newest masters suggestions (Round 20) plus the operator's memory-reduction and API-embedding-provider asks
+- input:Operator report of excessive system memory + request for API-based embeddings configurable via ainish-coder tooling; Round 20 suggestions block
+- output:Root-caused 9,657 MB llama RSS to hardcoded ctx/batch 8192 regardless of --max-mem; claimed task
+- status:in-progress
+- blockers:none
+
+### [2026-10-29T17:09:00Z] update | branch:feat/embed-mem-round20 | wt:d:\Code\ainish-coder
+- start:2026-10-29T17:09:00Z
+- end:2026-10-29T17:09:00Z
+- scope:src/rag/src/, src/rag/rag.py, src/rag/tests/, src/deploy_rules_sync.sh, src/embed_config.sh, bin/ainish-coder, src/help.sh, llms.txt, AGENTS.md, .agents/
+- triage:now
+- objective:Deliver budget-aware llama sizing, API embedding provider, and the nine Round 20 items
+- input:Implementation complete across Rust, Python, shell, tests, and docs
+- output:llama RSS 9,657 MB -> 2,416 MB (-75%); API provider (OpenAI-compatible) skips llama entirely and is configured by `ainish-coder --embed-config`; 23/23 Rust + 16/16 Python tests; 13/13 ML-DSA-65 receipts; gate GREEN (52%); security_gate PASS; --rules-verify/--rules-rotate/--rules-provenance/--rules-history exercised; lockfile check proven to fail closed (exit 1)
+- status:verifying
+- blockers:none
+
+### [2026-10-29T17:09:00Z] intent-merge | branch:feat/embed-mem-round20 | wt:d:\Code\ainish-coder
+- start:2026-10-29T17:09:00Z
+- end:2026-10-29T17:09:00Z
+- scope:src/rag/src/, src/rag/rag.py, src/rag/tests/, src/deploy_rules_sync.sh, src/embed_config.sh, bin/ainish-coder, src/help.sh, llms.txt, AGENTS.md, .agents/
+- triage:now
+- objective:Merge Round 20 (memory budget, API embedding provider, fleet provenance) to main and push origin/main
+- input:All gates GREEN, canonical contract re-signed, lockfile + SBOMs refreshed
+- output:Merging feat/embed-mem-round20 to main (--no-ff)
+- status:verifying
+- blockers:none
+
+### [2026-10-29T17:09:00Z] checkout | branch:feat/embed-mem-round20 | wt:d:\Code\ainish-coder
+- start:2026-10-29T17:09:00Z
+- end:2026-10-29T17:09:00Z
+- scope:src/rag/src/, src/rag/rag.py, src/rag/tests/, src/deploy_rules_sync.sh, src/embed_config.sh, bin/ainish-coder, src/help.sh, llms.txt, AGENTS.md, .agents/
+- triage:now
+- objective:Deliver Round 20 and finalize the release
+- input:All gates GREEN, merge complete (769cd31), binary rebuilt
+- output:Merged feat/embed-mem-round20 to main, pushed origin/main, binary rebuilt, llama server restarted at 2.4 GB, fleet registry EMPTY
+- status:merged
+- blockers:none
