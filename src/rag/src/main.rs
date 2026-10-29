@@ -61,6 +61,9 @@ enum Commands {
         /// Launch interactive TUI telemetry dashboard
         #[arg(long)]
         tui: bool,
+        /// Output health and telemetry report as structured JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Index codebase or target path into LanceDB
     Index {
@@ -266,6 +269,12 @@ enum Commands {
         /// Emit a single-screen token-budgeted <ORIENT_PRIMER> for small-context local models
         #[arg(long)]
         compact: bool,
+        /// Fine-grained per-section line truncation override
+        #[arg(long)]
+        max_lines: Option<usize>,
+        /// Include key symbol graph anchors in the primer (pass `false` to omit)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        include_symbols: bool,
         /// Output primer and section metadata as structured JSON
         #[arg(long)]
         json: bool,
@@ -368,6 +377,9 @@ pub enum AuditCommands {
         /// Inspect and verify all hash-chained transitions in .agents/audit/contract-history.jsonl
         #[arg(long)]
         verify_history: bool,
+        /// Output contract governance history as structured JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Inspect or reset the cumulative differential privacy budget ledger (.agents/audit/privacy-budget.json)
     Privacy {
@@ -380,6 +392,9 @@ pub enum AuditCommands {
         /// Export signed privacy compliance report to file (e.g. .agents/audit/privacy-report.json)
         #[arg(short, long)]
         out: Option<PathBuf>,
+        /// Dry-run PII/credential/path/IP/MAC redaction on an arbitrary file without mutating it
+        #[arg(long)]
+        redact_check: Option<PathBuf>,
         /// Output privacy budget ledger as JSON
         #[arg(long)]
         json: bool,
@@ -411,6 +426,38 @@ pub enum ServiceCommands {
     },
     /// Uninstall continuous background service
     Uninstall,
+}
+
+/// Collects `ainish-rag status` telemetry into a stable keyed report while optionally
+/// emitting the legacy human-readable lines. `--json` suppresses the text rows entirely
+/// so orchestrators receive a single parseable document.
+struct StatusReporter {
+    json: bool,
+    fields: serde_json::Map<String, serde_json::Value>,
+}
+
+impl StatusReporter {
+    fn new(json: bool) -> Self {
+        Self { json, fields: serde_json::Map::new() }
+    }
+
+    fn put(&mut self, key: &str, value: serde_json::Value) {
+        self.fields.insert(key.to_string(), value);
+    }
+
+    fn line(&mut self, key: &str, value: serde_json::Value, text: String) {
+        self.put(key, value);
+        if !self.json {
+            println!("{}", text);
+        }
+    }
+
+    fn finish(self) {
+        if self.json {
+            let doc = serde_json::Value::Object(self.fields);
+            println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".to_string()));
+        }
+    }
 }
 
 #[tokio::main]
@@ -445,27 +492,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Stop => {
             LlamaServer::stop(&current_dir)?;
         }
-        Commands::Status { tui } => {
+        Commands::Status { tui, json } => {
             if tui {
                 run_tui_dashboard(&config, &current_dir).await?;
                 return Ok(());
             }
 
-            println!("=== ainish-rag Multimodal RAG Status ===");
-            println!("HF Cache Root:      {}", config.hf_hub_cache.display());
-            println!("Model GGUF:         {}", config.model_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
+            let mut reporter = StatusReporter::new(json);
+            if !json {
+                println!("=== ainish-rag Multimodal RAG Status ===");
+            }
+
+            let hf_cache = config.hf_hub_cache.display().to_string();
+            reporter.line("hf_cache_root", serde_json::json!(hf_cache), format!("HF Cache Root:      {}", hf_cache));
+
+            let model_gguf = config.model_path.as_ref().map(|p| p.display().to_string());
+            reporter.line(
+                "model_gguf",
+                serde_json::json!(model_gguf),
+                format!("Model GGUF:         {}", model_gguf.as_deref().unwrap_or("NOT FOUND")),
+            );
             if let Some(ref mp) = config.model_path {
                 match LlamaServer::verify_model_integrity(mp) {
-                    Ok(stat) => println!("Model Integrity:    VALID ({})", stat),
-                    Err(e)   => println!("Model Integrity:    FAILED ({})", e),
+                    Ok(stat) => reporter.line(
+                        "model_integrity",
+                        serde_json::json!(format!("VALID ({})", stat)),
+                        format!("Model Integrity:    VALID ({})", stat),
+                    ),
+                    Err(e) => reporter.line(
+                        "model_integrity",
+                        serde_json::json!(format!("FAILED ({})", e)),
+                        format!("Model Integrity:    FAILED ({})", e),
+                    ),
                 }
+            } else {
+                reporter.put("model_integrity", serde_json::Value::Null);
             }
-            println!("Multimodal Projector:{}", config.mmproj_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
-            println!("Llama Binary:       {}", config.llama_bin.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
-            println!("Server Endpoint:    {}", config.server_url);
 
+            let mmproj = config.mmproj_path.as_ref().map(|p| p.display().to_string());
+            reporter.line(
+                "multimodal_projector",
+                serde_json::json!(mmproj),
+                format!("Multimodal Projector:{}", mmproj.as_deref().unwrap_or("NOT FOUND")),
+            );
+            let llama_bin = config.llama_bin.as_ref().map(|p| p.display().to_string());
+            reporter.line(
+                "llama_binary",
+                serde_json::json!(llama_bin),
+                format!("Llama Binary:       {}", llama_bin.as_deref().unwrap_or("NOT FOUND")),
+            );
+
+            reporter.line(
+                "server_endpoint",
+                serde_json::json!(config.server_url),
+                format!("Server Endpoint:    {}", config.server_url),
+            );
             let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
-            println!("Server Status:      {}", if is_running { "ONLINE (ready)" } else { "OFFLINE" });
+            reporter.line(
+                "server_online",
+                serde_json::json!(is_running),
+                format!("Server Status:      {}", if is_running { "ONLINE (ready)" } else { "OFFLINE" }),
+            );
 
             let psk_status = if let Some(ref psk) = config.psk {
                 let preview = if psk.len() > 8 { &psk[..8] } else { psk };
@@ -473,29 +560,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 "DISABLED (unauthenticated loopback)".to_string()
             };
-            println!("Loopback Auth:      {}", psk_status);
+            reporter.line(
+                "loopback_auth",
+                serde_json::json!({ "enabled": config.psk.is_some() }),
+                format!("Loopback Auth:      {}", psk_status),
+            );
 
             let salt_status = if let Some(ref s) = config.symbol_salt {
                 format!("ACTIVE (len: {})", s.len())
             } else {
                 "DEFAULT (machine/repo hash)".to_string()
             };
-            println!("Symbol Salt:        {}", salt_status);
+            reporter.line(
+                "symbol_salt",
+                serde_json::json!({
+                    "active": config.symbol_salt.is_some(),
+                    "length": config.symbol_salt.as_ref().map(|s| s.len()).unwrap_or(0)
+                }),
+                format!("Symbol Salt:        {}", salt_status),
+            );
 
-            let manifest_status = match LlamaServer::verify_model_manifest(
+            let (manifest_state, manifest_text) = match LlamaServer::verify_model_manifest(
                 config.model_path.as_ref().unwrap_or(&PathBuf::from("")),
                 &config.model_manifest_path
             ) {
-                Ok(Some(hash)) => format!("VERIFIED ({})", &hash[..16]),
-                Ok(None) => "NOT PRESENT (manifest absent)".to_string(),
-                Err(e) => format!("TAMPERED ({})", e),
+                Ok(Some(hash)) => ("VERIFIED", format!("VERIFIED ({})", &hash[..16.min(hash.len())])),
+                Ok(None) => ("NOT_PRESENT", "NOT PRESENT (manifest absent)".to_string()),
+                Err(e) => ("TAMPERED", format!("TAMPERED ({})", e)),
             };
-            println!("Model Manifest:     {}", manifest_status);
+            reporter.line(
+                "model_manifest",
+                serde_json::json!({ "status": manifest_state }),
+                format!("Model Manifest:     {}", manifest_text),
+            );
 
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
             let count = store.count().await.unwrap_or(0);
-            println!("LanceDB Path:       {}", config.lancedb_dir.display());
-            println!("Indexed Chunks:     {}", count);
+            let lancedb_path = config.lancedb_dir.display().to_string();
+            reporter.line("lancedb_path", serde_json::json!(lancedb_path), format!("LanceDB Path:       {}", lancedb_path));
+            reporter.line("indexed_chunks", serde_json::json!(count), format!("Indexed Chunks:     {}", count));
 
             let wiki_exists = config.wiki_dir.exists();
             let wiki_count = if wiki_exists {
@@ -505,36 +608,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 0
             };
-            println!("Wiki Path:          {}", config.wiki_dir.display());
-            println!("Wiki Pages:         {}", wiki_count);
+            let wiki_path = config.wiki_dir.display().to_string();
+            reporter.line("wiki_path", serde_json::json!(wiki_path), format!("Wiki Path:          {}", wiki_path));
+            reporter.line("wiki_pages", serde_json::json!(wiki_count), format!("Wiki Pages:         {}", wiki_count));
 
             let wiki_gen = WikiGenerator::new(&current_dir);
             let ledger_notes = wiki_gen.list_notes();
             let resolved_notes = ledger_notes.iter().filter(|n| n.contains("[RESOLVED]")).count();
             let open_notes = ledger_notes.len().saturating_sub(resolved_notes);
-            println!("Wiki Ledger Notes:  {} total ({} open, {} resolved)", ledger_notes.len(), open_notes, resolved_notes);
+            reporter.line(
+                "wiki_ledger_notes",
+                serde_json::json!({
+                    "total": ledger_notes.len(),
+                    "open": open_notes,
+                    "resolved": resolved_notes
+                }),
+                format!("Wiki Ledger Notes:  {} total ({} open, {} resolved)", ledger_notes.len(), open_notes, resolved_notes),
+            );
 
             if let Ok(pb) = crate::embed::read_or_init_privacy_budget(&current_dir, false) {
                 let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
-                println!("Privacy Budget:     epsilon={:.4} ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt);
+                reporter.line(
+                    "privacy_budget",
+                    serde_json::json!({ "cumulative_epsilon": cum_eps, "total_protected_vectors": vec_cnt }),
+                    format!("Privacy Budget:     epsilon={:.4} ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt),
+                );
+            } else {
+                reporter.put("privacy_budget", serde_json::Value::Null);
             }
 
-            if config.llama_bin.is_none() {
-                println!("\n  [rag:tip] llama executable not found!");
-                #[cfg(target_os = "macos")]
-                println!("            Install via Homebrew: brew install llama.cpp");
-                #[cfg(target_os = "windows")]
-                println!("            Install via WinGet:   winget install llama.cpp (or download from GitHub)");
-                #[cfg(target_os = "linux")]
-                println!("            Download release:     https://github.com/ggerganov/llama.cpp/releases");
-                println!("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server");
+            match pqc::verify_contract_history_chain(&current_dir) {
+                Ok(transitions) => reporter.line(
+                    "contract_history",
+                    serde_json::json!({ "verified": true, "transitions": transitions }),
+                    format!("Contract History:   {} hash-chained transitions verified (contract-history.jsonl)", transitions),
+                ),
+                Err(err) => {
+                    let text = format!("Contract History:   INVALID ({})", err);
+                    reporter.line(
+                        "contract_history",
+                        serde_json::json!({ "verified": false, "error": err }),
+                        text,
+                    );
+                }
             }
-            if config.model_path.is_none() {
-                println!("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!");
-                println!("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf");
-                println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
+
+            if !json {
+                if config.llama_bin.is_none() {
+                    println!("\n  [rag:tip] llama executable not found!");
+                    #[cfg(target_os = "macos")]
+                    println!("            Install via Homebrew: brew install llama.cpp");
+                    #[cfg(target_os = "windows")]
+                    println!("            Install via WinGet:   winget install llama.cpp (or download from GitHub)");
+                    #[cfg(target_os = "linux")]
+                    println!("            Download release:     https://github.com/ggerganov/llama.cpp/releases");
+                    println!("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server");
+                }
+                if config.model_path.is_none() {
+                    println!("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!");
+                    println!("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf");
+                    println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
+                }
             }
+            reporter.finish();
         }
         Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
@@ -1134,9 +1271,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Orient { inject, query, task_conditioned, verify, compact, json } => {
+        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, include_symbols, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, include_symbols, json)?;
             }
         }
         Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
@@ -1178,30 +1315,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AuditCommands::Sign { path } => {
                 run_audit_sign(&path)?;
             }
-            AuditCommands::Contract { threshold, hardware_seal, verify_history } => {
+            AuditCommands::Contract { threshold, hardware_seal, verify_history, json } => {
                 if verify_history {
                     let history_file = current_dir.join(".agents").join("audit").join("contract-history.jsonl");
+                    let chain_res = pqc::verify_contract_history_chain(&current_dir);
+                    let history_sig_file = pqc::sig_path(&history_file);
+                    let signature_status = if !history_sig_file.exists() {
+                        "MISSING"
+                    } else {
+                        match pqc::verify_file(&current_dir, &history_file) {
+                            pqc::VerifyOutcome::Verified { .. } => "VERIFIED",
+                            pqc::VerifyOutcome::Unsigned(_) => "UNSIGNED",
+                            pqc::VerifyOutcome::Invalid(_) => "INVALID",
+                        }
+                    };
+                    let mut entries_list = Vec::new();
+                    if let Ok(text) = std::fs::read_to_string(&history_file) {
+                        for (idx, line) in text.lines().filter(|l| !l.trim().is_empty()).enumerate() {
+                            if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(line) {
+                                if let Some(obj) = v.as_object_mut() {
+                                    obj.insert("index".to_string(), serde_json::json!(idx + 1));
+                                }
+                                entries_list.push(v);
+                            }
+                        }
+                    }
+                    if json {
+                        let verified = chain_res.is_ok();
+                        let count = chain_res.unwrap_or(entries_list.len());
+                        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                            "verified": verified,
+                            "transitions_count": count,
+                            "history_file": history_file.to_string_lossy(),
+                            "signature_file": history_sig_file.to_string_lossy(),
+                            "signature_status": signature_status,
+                            "signature_verified": signature_status == "VERIFIED",
+                            "transitions": entries_list,
+                        }))?);
+                        return Ok(());
+                    }
                     println!("=== ainish-rag Canonical Contract Governance History ===");
                     println!("  History Log: {}", history_file.display());
-                    match pqc::verify_contract_history_chain(&current_dir) {
+                    let sig_label = match signature_status {
+                        "VERIFIED" => "\x1b[32mVERIFIED\x1b[0m",
+                        "UNSIGNED" => "\x1b[33mUNSIGNED\x1b[0m",
+                        "INVALID" => "\x1b[31mINVALID\x1b[0m",
+                        _ => "\x1b[33mMISSING\x1b[0m",
+                    };
+                    println!("  ML-DSA-65 Sig: {} (contract-history.sig)", sig_label);
+                    match chain_res {
                         Ok(cnt) => {
-                            if let Ok(text) = std::fs::read_to_string(&history_file) {
-                                for (idx, line) in text.lines().filter(|l| !l.trim().is_empty()).enumerate() {
-                                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
-                                        let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
-                                        let sha = v.get("contract_sha256").and_then(|s| s.as_str()).unwrap_or("");
-                                        let fpr = v.get("signer_fingerprint").and_then(|s| s.as_str()).unwrap_or("");
-                                        let prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
-                                        println!(
-                                            "  [#{:>2}] {} | sha256:{}... | signer:{}... | prev:{}...",
-                                            idx + 1,
-                                            ts,
-                                            &sha[..12.min(sha.len())],
-                                            &fpr[..12.min(fpr.len())],
-                                            &prev[..12.min(prev.len())]
-                                        );
-                                    }
-                                }
+                            for v in &entries_list {
+                                let idx = v.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+                                let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
+                                let sha = v.get("contract_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                let fpr = v.get("signer_fingerprint").and_then(|s| s.as_str()).unwrap_or("");
+                                let prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                println!(
+                                    "  [#{:>2}] {} | sha256:{}... | signer:{}... | prev:{}...",
+                                    idx,
+                                    ts,
+                                    &sha[..12.min(sha.len())],
+                                    &fpr[..12.min(fpr.len())],
+                                    &prev[..12.min(prev.len())]
+                                );
                             }
                             println!("  \x1b[32m[PASS]\x1b[0m Verified {} hash-chained governance transitions & ML-DSA-65 signature.\n", cnt);
                         }
@@ -1222,49 +1399,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
                 }
             }
-            AuditCommands::Privacy { max_budget, reset, out, json } => {
-                let pb = crate::embed::read_or_init_privacy_budget(&current_dir, reset)?;
-                let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
-                let within_budget = cum_eps <= max_budget;
-                let wiki_gen = WikiGenerator::new(&current_dir);
-                let redaction_ok = wiki_gen.verify_redaction_pipeline().is_ok();
-                let ledger_path = current_dir.join(".agents").join("audit").join("privacy-budget.json");
-                let sig_ok = matches!(pqc::verify_file(&current_dir, &ledger_path), pqc::VerifyOutcome::Verified { .. });
-                let report_payload = serde_json::json!({
-                    "format": "ainish-rag/privacy-compliance-report/v1",
-                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                    "within_budget": within_budget,
-                    "max_budget": max_budget,
-                    "cumulative_epsilon": cum_eps,
-                    "total_protected_vectors": vec_cnt,
-                    "redaction_self_test": if redaction_ok { "PASS" } else { "FAIL" },
-                    "redaction_classes_verified": ["PII", "Credentials", "UserPaths", "InternalIPs", "MAC", "ANSI", "TrojanSourceBidi"],
-                    "signature_verified": sig_ok,
-                    "ledger": pb,
-                });
-                if let Some(ref out_path) = out {
-                    if let Some(parent) = out_path.parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    let report_str = serde_json::to_string_pretty(&report_payload)?;
-                    std::fs::write(out_path, &report_str)?;
-                    let sig_res = pqc::sign_file(out_path);
-                    let sig_note = if let Ok(ref sp) = sig_res { format!(" + signed ({})", sp.display()) } else { String::new() };
-                    println!("  \x1b[32m[rag:privacy]\x1b[0m Exported privacy compliance report to {}{}", out_path.display(), sig_note);
-                }
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&report_payload)?);
+            AuditCommands::Privacy { max_budget, reset, out, redact_check, json } => {
+                if let Some(ref target) = redact_check {
+                    run_redact_check(&current_dir, target, json)?;
                 } else {
-                    println!("=== ainish-rag Differential Privacy & Redaction Audit ===");
-                    println!("  Ledger File:      {}", ledger_path.display());
-                    println!("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)");
-                    println!("  Protected Vecs:   {}", vec_cnt);
-                    println!("  Cumulative Eps:   {:.4} / {:.4} max budget", cum_eps, max_budget);
-                    println!("  Redaction Test:   {}", if redaction_ok { "\x1b[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" });
-                    println!("  ML-DSA-65 Sig:    {}", if sig_ok { "\x1b[32mVERIFIED (privacy-budget.sig)\x1b[0m" } else { "\x1b[33mUNSIGNED\x1b[0m" });
-                    println!("  Status:           {}", if within_budget && redaction_ok { "\x1b[32mPASS (Within Privacy Budget & Redaction Verified)\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" });
-                    println!();
+                    run_audit_privacy(&current_dir, max_budget, reset, out.as_deref(), json)?;
                 }
             }
         },
@@ -1273,6 +1412,146 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    Ok(())
+}
+
+/// Reports differential-privacy budget state and runs the live redaction self-test.
+fn run_audit_privacy(
+    repo_root: &std::path::Path,
+    max_budget: f64,
+    reset: bool,
+    out: Option<&std::path::Path>,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pb = crate::embed::read_or_init_privacy_budget(repo_root, reset)?;
+    let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+    let within_budget = cum_eps <= max_budget;
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let redaction_ok = wiki_gen.verify_redaction_pipeline().is_ok();
+    let ledger_path = repo_root.join(".agents").join("audit").join("privacy-budget.json");
+    let sig_ok = matches!(pqc::verify_file(repo_root, &ledger_path), pqc::VerifyOutcome::Verified { .. });
+    let report_payload = serde_json::json!({
+        "format": "ainish-rag/privacy-compliance-report/v1",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "within_budget": within_budget,
+        "max_budget": max_budget,
+        "cumulative_epsilon": cum_eps,
+        "total_protected_vectors": vec_cnt,
+        "redaction_self_test": if redaction_ok { "PASS" } else { "FAIL" },
+        "redaction_classes_verified": ["PII", "Credentials", "UserPaths", "InternalIPs", "MAC", "ANSI", "TrojanSourceBidi"],
+        "signature_verified": sig_ok,
+        "ledger": pb,
+    });
+    if let Some(out_path) = out {
+        if let Some(parent) = out_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let report_str = serde_json::to_string_pretty(&report_payload)?;
+        std::fs::write(out_path, &report_str)?;
+        let sig_res = pqc::sign_file(out_path);
+        let sig_note = if let Ok(ref sp) = sig_res { format!(" + signed ({})", sp.display()) } else { String::new() };
+        println!("  \x1b[32m[rag:privacy]\x1b[0m Exported privacy compliance report to {}{}", out_path.display(), sig_note);
+    }
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report_payload)?);
+    } else {
+        println!("=== ainish-rag Differential Privacy & Redaction Audit ===");
+        println!("  Ledger File:      {}", ledger_path.display());
+        println!("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)");
+        println!("  Protected Vecs:   {}", vec_cnt);
+        println!("  Cumulative Eps:   {:.4} / {:.4} max budget", cum_eps, max_budget);
+        println!("  Redaction Test:   {}", if redaction_ok { "\x1b[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" });
+        println!("  ML-DSA-65 Sig:    {}", if sig_ok { "\x1b[32mVERIFIED (privacy-budget.sig)\x1b[0m" } else { "\x1b[33mUNSIGNED\x1b[0m" });
+        println!("  Status:           {}", if within_budget && redaction_ok { "\x1b[32mPASS (Within Privacy Budget & Redaction Verified)\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" });
+        println!();
+    }
+    Ok(())
+}
+
+/// Dry-runs the complete redaction pipeline against an arbitrary file and reports what
+/// would be scrubbed, without ever mutating the target.
+fn run_redact_check(
+    repo_root: &std::path::Path,
+    path: &std::path::Path,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let raw_bytes = std::fs::read(path)?;
+    let raw = String::from_utf8_lossy(&raw_bytes).into_owned();
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let sanitized = WikiGenerator::sanitize_text_for_redaction(&raw);
+    let scrubbed = crate::ingest::scrub_sensitive_content(&sanitized);
+    let redacted = wiki_gen.redact_local_user_paths(&scrubbed);
+
+    let mut classes: Vec<&str> = Vec::new();
+    for (marker, label) in [
+        ("[REDACTED:EMAIL]", "PII:EMAIL"),
+        ("[REDACTED:SSN]", "PII:SSN"),
+        ("[REDACTED:PHONE]", "PII:PHONE"),
+        ("[REDACTED:CARD]", "PII:CARD"),
+        ("[REDACTED:TOKEN]", "CREDENTIAL:TOKEN"),
+        ("[REDACTED:PRIVATE_KEY]", "CREDENTIAL:PRIVATE_KEY"),
+        ("[REDACTED:INTERNAL_IP]", "INTERNAL_IP"),
+        ("[REDACTED:MAC]", "MAC"),
+    ] {
+        if redacted.contains(marker) {
+            classes.push(label);
+        }
+    }
+    let ansi_detected = raw.contains('\x1b');
+    let bidi_detected = WikiGenerator::contains_bidi_override(&raw);
+    if ansi_detected {
+        classes.push("ANSI_ESCAPE");
+    }
+    if bidi_detected {
+        classes.push("TROJAN_SOURCE_BIDI");
+    }
+
+    let mut changed_line_numbers: Vec<usize> = Vec::new();
+    let mut redacted_preview: Vec<String> = Vec::new();
+    for (idx, (original, cleaned)) in raw.split('\n').zip(redacted.split('\n')).enumerate() {
+        if original != cleaned {
+            changed_line_numbers.push(idx + 1);
+            if redacted_preview.len() < 10 {
+                redacted_preview.push(format!("L{}: {}", idx + 1, cleaned));
+            }
+        }
+    }
+
+    let file_unchanged = std::fs::read(path).map(|after| after == raw_bytes).unwrap_or(false);
+    let report = serde_json::json!({
+        "format": "ainish-rag/redact-check/v1",
+        "file": path.to_string_lossy(),
+        "bytes": raw_bytes.len(),
+        "lines": raw.lines().count(),
+        "changed_lines": changed_line_numbers.len(),
+        "changed_line_numbers": changed_line_numbers.clone(),
+        "redaction_classes": classes.clone(),
+        "ansi_escape_detected": ansi_detected,
+        "bidi_override_detected": bidi_detected,
+        "file_unchanged": file_unchanged,
+        "redacted_preview": redacted_preview.clone(),
+    });
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("=== ainish-rag Redaction Dry-Run (No File Mutation) ===");
+        println!("  File:             {}", path.display());
+        println!("  Size:             {} bytes / {} lines", raw_bytes.len(), raw.lines().count());
+        println!("  Changed Lines:    {}", report["changed_lines"].as_u64().unwrap_or(0));
+        println!("  Classes Detected: {}", if classes.is_empty() { "none".to_string() } else { classes.join(", ") });
+        println!("  ANSI Escapes:     {}", if ansi_detected { "DETECTED" } else { "none" });
+        println!("  Trojan Source:    {}", if bidi_detected { "DETECTED" } else { "none" });
+        println!("  File Unchanged:   {}", if file_unchanged { "YES (dry-run only)" } else { "NO (unexpected mutation!)" });
+        if !redacted_preview.is_empty() {
+            println!("  Redacted Preview (first {} changed lines):", redacted_preview.len());
+            for line in &redacted_preview {
+                println!("    {}", line);
+            }
+        }
+        println!();
+    }
     Ok(())
 }
 
@@ -1533,6 +1812,11 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
         "\x1b[33mUNINITIALIZED\x1b[0m".to_string()
     };
 
+    let contract_history_summary = match pqc::verify_contract_history_chain(_repo_root) {
+        Ok(transitions) => format!("\x1b[32m{} transition(s)\x1b[0m (hash-chained & ML-DSA-65 verified)", transitions),
+        Err(e) => format!("\x1b[31mINVALID\x1b[0m ({})", e),
+    };
+
     println!("\x1b[2J\x1b[H");
     println!("\x1b[1;36m========================================================================\x1b[0m");
     println!("\x1b[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \x1b[0m");
@@ -1546,6 +1830,7 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
     println!("  Runtime Profile:{}", profile_summary);
     println!("  Privacy Budget: {}", dp_summary);
+    println!("  Contract History: {}", contract_history_summary);
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
     println!("\x1b[1;34m  LanceDB Vector Store & Knowledge Base                                 \x1b[0m");
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
@@ -1696,6 +1981,56 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
                 println!("  \x1b[31m[FAIL]\x1b[0m Contract Governance History (contract-history.jsonl): {}", err);
                 failed += 1;
                 receipts_checked += 1;
+            }
+        }
+    }
+
+    // Verify all lockfiles in .agents/audit/lockfile-manifest.json exist on disk & signature verifies
+    let lf_manifest = pqc::lockfile_manifest_path(repo_root);
+    if lf_manifest.exists() {
+        receipts_checked += 1;
+        let mut missing_lfs = Vec::new();
+        let mut lf_count = 0usize;
+        if let Ok(text) = std::fs::read_to_string(&lf_manifest) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(arr) = v.get("lockfiles").or_else(|| v.get("files")).and_then(|a| a.as_array()) {
+                    for item in arr {
+                        if let Some(rel_p) = item.get("path").or_else(|| item.get("file")).and_then(|s| s.as_str()) {
+                            lf_count += 1;
+                            if !repo_root.join(rel_p).exists() {
+                                missing_lfs.push(rel_p.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let sig_ok = matches!(pqc::verify_file(repo_root, &lf_manifest), pqc::VerifyOutcome::Verified { .. });
+        if missing_lfs.is_empty() && sig_ok {
+            println!("  \x1b[32m[PASS]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {} lockfiles present on disk & ML-DSA-65 verified", lf_count);
+            passed += 1;
+        } else {
+            println!("  \x1b[31m[FAIL]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={:?}, sig_ok={}", missing_lfs, sig_ok);
+            failed += 1;
+        }
+    }
+
+    // Verify detached ML-DSA-65 signature on .agents/audit/model-manifest.json
+    let model_manifest = repo_root.join(".agents").join("audit").join("model-manifest.json");
+    if model_manifest.exists() {
+        receipts_checked += 1;
+        match pqc::verify_file(repo_root, &model_manifest) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Model Manifest (model-manifest.json): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Model Manifest (model-manifest.json): {}", reason);
+                failed += 1;
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Model Manifest (model-manifest.json): {}", err);
+                failed += 1;
             }
         }
     }
@@ -2256,14 +2591,14 @@ fn sanitize_orient_content(content: &str) -> (String, usize) {
     (sanitized, count)
 }
 
-fn run_orient_inject(
+fn build_orient_report(
     repo_root: &std::path::Path,
     query: Option<&str>,
     task_conditioned: bool,
-    verify: bool,
     compact: bool,
-    json: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+    max_lines: Option<usize>,
+    include_symbols: bool,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let wiki_dir = repo_root.join(".agents").join("wiki");
     let mut candidate_files = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&wiki_dir) {
@@ -2349,7 +2684,7 @@ fn run_orient_inject(
     let mut sections = Vec::new();
     let mut total_sanitized = 0;
     let wiki_gen = WikiGenerator::new(repo_root);
-    let _ = wiki_gen.sync_bidirectional_resolutions();
+    let synced_resolutions = wiki_gen.sync_bidirectional_resolutions().unwrap_or(0);
 
     let git_branch = std::process::Command::new("git")
         .args(["branch", "--show-current"])
@@ -2378,7 +2713,7 @@ fn run_orient_inject(
         git_branch, git_sha
     ));
 
-    let lines_per_section = if compact { 8 } else { 25 };
+    let lines_per_section = max_lines.unwrap_or(if compact { 8 } else { 25 });
     let max_items = if compact { 3 } else { 6 };
 
     for p in &candidate_files {
@@ -2431,11 +2766,16 @@ fn run_orient_inject(
     // Surface latest .agents/wiki/ledger.md operator entries inside <ORIENT_PRIMER>
     // Prioritize unresolved probe misses ahead of [RESOLVED] entries when selecting top ledger notes
     let mut wiki_ledger_notes = Vec::new();
+    let mut open_ledger_notes = 0usize;
+    let mut resolved_ledger_notes = 0usize;
     let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
     if ledger_file.is_file() {
         let rendered_ledger = wiki_gen.read_operator_ledger();
         let (clean_ledger, san_cnt) = sanitize_orient_content(&rendered_ledger);
         total_sanitized += san_cnt;
+        let all_bullets: Vec<&str> = clean_ledger.lines().filter(|l| l.trim().starts_with("- ")).collect();
+        resolved_ledger_notes = all_bullets.iter().filter(|l| l.contains("[RESOLVED]")).count();
+        open_ledger_notes = all_bullets.len().saturating_sub(resolved_ledger_notes);
         wiki_ledger_notes = select_prioritized_ledger_notes(&clean_ledger).into_iter().take(max_items).collect();
     }
     if !wiki_ledger_notes.is_empty() {
@@ -2447,70 +2787,105 @@ fn run_orient_inject(
     }
 
     // Extract and inject key symbol graph anchors from active task scope or core codebase modules
-    let mut scope_hints = Vec::new();
-    let tasks_dir = repo_root.join(".agents").join("tasks");
-    if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
-        let mut t_files: Vec<PathBuf> = t_entries.flatten().map(|e| e.path()).filter(|p| p.extension().map_or(false, |ext| ext == "md")).collect();
-        t_files.sort();
-        if let Some(latest_t) = t_files.last() {
-            if let Ok(t_text) = std::fs::read_to_string(latest_t) {
-                for line in t_text.lines() {
-                    if let Some(rest) = line.strip_prefix("- scope:") {
-                        for part in rest.split(',') {
-                            let clean_p = part.trim().trim_end_matches('/');
-                            if !clean_p.is_empty() {
-                                scope_hints.push(clean_p.to_string());
+    let mut symbol_anchors = Vec::new();
+    if include_symbols {
+        let mut scope_hints = Vec::new();
+        let tasks_dir = repo_root.join(".agents").join("tasks");
+        if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
+            let mut t_files: Vec<PathBuf> = t_entries.flatten().map(|e| e.path()).filter(|p| p.extension().map_or(false, |ext| ext == "md")).collect();
+            t_files.sort();
+            if let Some(latest_t) = t_files.last() {
+                if let Ok(t_text) = std::fs::read_to_string(latest_t) {
+                    for line in t_text.lines() {
+                        if let Some(rest) = line.strip_prefix("- scope:") {
+                            for part in rest.split(',') {
+                                let clean_p = part.trim().trim_end_matches('/');
+                                if !clean_p.is_empty() {
+                                    scope_hints.push(clean_p.to_string());
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-    let symbol_anchors = wiki_gen.extract_key_symbols_for_orient(&scope_hints, max_items);
-    if !symbol_anchors.is_empty() {
-        primer_lines.push("### Key Symbol Graph Anchors".to_string());
-        for anchor in &symbol_anchors {
-            primer_lines.push(anchor.clone());
+        symbol_anchors = wiki_gen.extract_key_symbols_for_orient(&scope_hints, max_items);
+        if !symbol_anchors.is_empty() {
+            primer_lines.push("### Key Symbol Graph Anchors".to_string());
+            for anchor in &symbol_anchors {
+                primer_lines.push(anchor.clone());
+            }
+            primer_lines.push(String::new());
         }
-        primer_lines.push(String::new());
     }
 
     primer_lines.push("</ORIENT_PRIMER>".to_string());
     let primer_text = primer_lines.join("\n");
-    let orient_verified = !sections.is_empty() && !memory_notes.is_empty() && !wiki_ledger_notes.is_empty() && !symbol_anchors.is_empty();
+    let orient_verified = !sections.is_empty()
+        && !memory_notes.is_empty()
+        && !wiki_ledger_notes.is_empty()
+        && (!include_symbols || !symbol_anchors.is_empty());
+
+    Ok(serde_json::json!({
+        "primer": primer_text,
+        "branch": git_branch,
+        "commit": git_sha,
+        "sections": sections,
+        "recent_memories": memory_notes,
+        "wiki_ledger_notes": wiki_ledger_notes,
+        "open_ledger_notes": open_ledger_notes,
+        "resolved_ledger_notes": resolved_ledger_notes,
+        "symbol_anchors": symbol_anchors,
+        "include_symbols": include_symbols,
+        "synced_resolutions": synced_resolutions,
+        "max_lines_per_section": lines_per_section,
+        "total_sanitized_tokens": total_sanitized,
+        "quarantine_verified": true,
+        "orient_verified": orient_verified,
+        "compact": compact,
+        "classical_crypto_redacted": total_sanitized > 0,
+        "task_conditioned": task_conditioned,
+    }))
+}
+
+fn run_orient_inject(
+    repo_root: &std::path::Path,
+    query: Option<&str>,
+    task_conditioned: bool,
+    verify: bool,
+    compact: bool,
+    max_lines: Option<usize>,
+    include_symbols: bool,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, include_symbols)?;
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-            "primer": primer_text,
-            "branch": git_branch,
-            "commit": git_sha,
-            "sections": sections,
-            "recent_memories": memory_notes,
-            "wiki_ledger_notes": wiki_ledger_notes,
-            "symbol_anchors": symbol_anchors,
-            "total_sanitized_tokens": total_sanitized,
-            "quarantine_verified": true,
-            "orient_verified": orient_verified,
-            "compact": compact,
-            "classical_crypto_redacted": total_sanitized > 0,
-            "task_conditioned": task_conditioned,
-        }))?);
-    } else {
-        println!("{}", primer_text);
-        if verify {
-            println!(
-                "<!-- Orient Primer Verified: {} (sections={}, memories={}, ledger={}, symbols={}) -->",
-                if orient_verified { "PASS" } else { "INCOMPLETE" },
-                sections.len(),
-                memory_notes.len(),
-                wiki_ledger_notes.len(),
-                symbol_anchors.len()
-            );
-        }
-        if total_sanitized > 0 {
-            println!("<!-- Note: {} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->", total_sanitized);
-        }
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    let primer_text = report.get("primer").and_then(|v| v.as_str()).unwrap_or_default();
+    let section_count = report.get("sections").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let memory_count = report.get("recent_memories").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let ledger_count = report.get("wiki_ledger_notes").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let symbol_count = report.get("symbol_anchors").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let total_sanitized = report.get("total_sanitized_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+    let orient_verified = report.get("orient_verified").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    println!("{}", primer_text);
+    if verify {
+        println!(
+            "<!-- Orient Primer Verified: {} (sections={}, memories={}, ledger={}, symbols={}) -->",
+            if orient_verified { "PASS" } else { "INCOMPLETE" },
+            section_count,
+            memory_count,
+            ledger_count,
+            symbol_count
+        );
+    }
+    if total_sanitized > 0 {
+        println!("<!-- Note: {} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->", total_sanitized);
     }
     if verify && !orient_verified {
         return Err("Orient primer verification failed: one or more context pillars empty".into());
@@ -2621,6 +2996,40 @@ async fn run_gate(
         }
     }
 
+    // Verify .agents/audit/model-manifest.sig during gate whenever .agents/audit/model-manifest.json is present
+    let model_manifest_file = repo_root.join(".agents").join("audit").join("model-manifest.json");
+    let model_manifest_sig_ok = if model_manifest_file.exists() {
+        match pqc::verify_file(repo_root, &model_manifest_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
+    // Verify .agents/audit/privacy-budget.sig during gate whenever .agents/audit/privacy-budget.json is present
+    let privacy_budget_file = repo_root.join(".agents").join("audit").join("privacy-budget.json");
+    let privacy_budget_sig_ok = if privacy_budget_file.exists() {
+        match pqc::verify_file(repo_root, &privacy_budget_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
     let (lock_drift, lock_unpinned) = match lockfile_eval {
         Ok((d, u)) => (d, u),
         Err(_) => (Vec::new(), Vec::new()),
@@ -2629,7 +3038,7 @@ async fn run_gate(
     let comms_violations = check_comms_harness_agnostic(repo_root);
     let comms_pass = comms_violations.is_empty();
 
-    // Execute Zero-Trust, Loopback PSK, Trojan-Source & Contract Governance History checks
+    // Execute Zero-Trust, Loopback PSK, Trojan-Source, Model-Manifest Sig & Contract Governance History checks
     let agents_file = repo_root.join("AGENTS.md");
     let canon_hash_file = repo_root.join(".agents").join("canonical").join("AGENTS.md.sha256");
     let zt_hash_ok = if agents_file.is_file() && canon_hash_file.is_file() {
@@ -2647,7 +3056,7 @@ async fn run_gate(
     let trojan_source_clean = patch_eval.canary_leaks.is_empty();
     let contract_history_ok = pqc::verify_contract_history_chain(repo_root).is_ok();
     let redaction_self_test_ok = WikiGenerator::new(repo_root).verify_redaction_pipeline().is_ok();
-    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok;
+    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok && model_manifest_sig_ok && privacy_budget_sig_ok;
 
     let effective_strict = strict || std::env::var("AINISH_GATE_STRICT").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
     let min_anchor = if effective_strict { 0.70 } else { 0.45 };
@@ -2716,7 +3125,9 @@ async fn run_gate(
                 "loopback_psk_verified": loopback_psk_ok,
                 "trojan_source_clean": trojan_source_clean,
                 "contract_history_verified": contract_history_ok,
-                "redaction_self_test": redaction_self_test_ok
+                "redaction_self_test": redaction_self_test_ok,
+                "model_manifest_sig_verified": model_manifest_sig_ok,
+                "privacy_budget_sig_verified": privacy_budget_sig_ok
             }
         }))?);
     } else {
@@ -3164,6 +3575,49 @@ mod tests {
             - 2026-10-29 Item 5\n";
         let compact_notes: Vec<String> = select_prioritized_ledger_notes(sample_ledger).into_iter().take(3).collect();
         assert_eq!(compact_notes.len(), 3);
+    }
+
+    #[test]
+    fn test_orient_respects_max_lines_and_symbol_toggle() {
+        let tmp = std::env::temp_dir().join(format!("ainish-orient-maxlines-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let wiki_dir = tmp.join(".agents").join("wiki");
+        let mem_dir = tmp.join(".agents").join("memories");
+        std::fs::create_dir_all(&wiki_dir).unwrap();
+        std::fs::create_dir_all(&mem_dir).unwrap();
+
+        let wiki_body: String = (1..=30).map(|i| format!("line-{:02} architectural detail\n", i)).collect();
+        std::fs::write(wiki_dir.join("01-architecture.md"), wiki_body).unwrap();
+        std::fs::write(
+            mem_dir.join("2026-10-29-memory.txt"),
+            "- 10:00 memory alpha\n- 10:01 memory beta\n- 10:02 memory gamma\n",
+        ).unwrap();
+        std::fs::write(
+            wiki_dir.join("ledger.md"),
+            "# Operator ledger\n\n- 2026-10-29 open ledger item one\n- [RESOLVED] 2026-10-29 closed ledger item two\n",
+        ).unwrap();
+        std::fs::write(
+            tmp.join("sample.rs"),
+            "pub fn calculate_anchor_one() {}\npub fn calculate_anchor_two() {}\nstruct AlphaBeta {}\n",
+        ).unwrap();
+
+        let limited = build_orient_report(&tmp, None, false, false, Some(4), false).unwrap();
+        assert_eq!(limited["max_lines_per_section"], 4);
+        let content = limited["sections"][0]["content"].as_str().unwrap();
+        assert_eq!(content.lines().count(), 4);
+        assert!(!content.contains("line-05"));
+        assert_eq!(limited["symbol_anchors"].as_array().unwrap().len(), 0);
+        assert_eq!(limited["include_symbols"], false);
+        assert_eq!(limited["open_ledger_notes"], 1);
+        assert_eq!(limited["resolved_ledger_notes"], 1);
+        assert!(limited["orient_verified"].as_bool().unwrap());
+
+        let with_symbols = build_orient_report(&tmp, None, false, false, Some(2), true).unwrap();
+        assert_eq!(with_symbols["sections"][0]["content"].as_str().unwrap().lines().count(), 2);
+        assert!(with_symbols["symbol_anchors"].as_array().unwrap().len() >= 1);
+        assert!(with_symbols["primer"].as_str().unwrap().contains("Key Symbol Graph Anchors"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
 

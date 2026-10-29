@@ -638,6 +638,19 @@ pub fn build_intoto(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&
             );
         }
     }
+    let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    if privacy_report.is_file() {
+        if let Ok(priv_sha) = sha256_file(&privacy_report) {
+            products.insert(
+                ".agents/audit/privacy-report.json".into(),
+                json!({
+                    "sha256": priv_sha,
+                    "kind": "privacy_report",
+                    "ainish:privacy-report:sha256": priv_sha
+                }),
+            );
+        }
+    }
 
     let rustc_ver = std::process::Command::new("rustc").arg("--version").output().ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -1005,6 +1018,34 @@ mod tests {
         let tampered_line2 = line2.replace("\"bbbb\"", "\"tampered\"");
         std::fs::write(&history_path, format!("{}\n{}\n{}\n", line1, tampered_line2, line3)).unwrap();
         assert!(verify_contract_history_chain(&tmp_dir).is_err());
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn cyclonedx_and_intoto_include_privacy_report_sha256() {
+        let tmp_dir = std::env::temp_dir().join(format!("ainish-sbom-priv-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let audit_dir = tmp_dir.join(".agents").join("audit");
+        std::fs::create_dir_all(&audit_dir).unwrap();
+        let priv_report = audit_dir.join("privacy-report.json");
+        std::fs::write(&priv_report, r#"{"within_budget":true}"#).unwrap();
+        let expected_sha = sha256_file(&priv_report).unwrap();
+
+        let manifest = audit_dir.join("model-manifest.json");
+        let cdx = build_cyclonedx(&tmp_dir, &manifest, None);
+        let props = cdx.get("properties").and_then(|p| p.as_array()).unwrap();
+        assert!(props.iter().any(|item| {
+            item.get("name").and_then(|n| n.as_str()) == Some("ainish:privacy-report:sha256")
+                && item.get("value").and_then(|v| v.as_str()) == Some(expected_sha.as_str())
+        }));
+
+        let intoto = build_intoto(&tmp_dir, &manifest, None);
+        let prod = intoto.get("products").and_then(|p| p.get(".agents/audit/privacy-report.json")).unwrap();
+        assert_eq!(
+            prod.get("ainish:privacy-report:sha256").and_then(|v| v.as_str()),
+            Some(expected_sha.as_str())
+        );
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }
