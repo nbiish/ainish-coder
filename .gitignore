@@ -163,5 +163,9 @@ audit.log.*
 # Multimodal RAG local vector store and runtime process PID
 .agents/rag/
 
+# Rules auto-sync runtime artifacts (manifest and sync script ARE committed)
+.agents/ainish-sync.log
+.agents/.rules-sync.lock/
+
 # Compiled native binaries (built locally via cargo or distributed wrappers)
 *.exe
