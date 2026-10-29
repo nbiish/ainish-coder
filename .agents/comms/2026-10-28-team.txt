@@ -383,3 +383,47 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:Merged feat/rag-round16-masters (including 4309d9a) to main, rebuilt bin/ainish-rag.exe, deleted both feature branches, pushed origin/main, no-rebuild-needed after merge
 - status:merged
 - blockers:none
+
+### [2026-10-29T03:20:00Z] checkin | branch:feat/rules-autosync-round17 | wt:d:\Code\ainish-coder
+- start:2026-10-29T03:17:00Z
+- end:2026-10-29T03:20:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/agents_protection.sh, src/deploy_agents_comms.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Fix the docs-only gate penalty, arm one-time `--rules` setup with continuous fleet auto-sync, and implement all 9 Round 17 masters suggestions
+- input:Operator request + 2026-10-28-suggestions.txt Round 17 block
+- output:Claimed task; implemented gate exemption, auto-sync deployment layer, and Round 17 RAG/audit capabilities
+- status:in-progress
+- blockers:none
+
+### [2026-10-29T03:42:00Z] update | branch:feat/rules-autosync-round17 | wt:d:\Code\ainish-coder
+- start:2026-10-29T03:17:00Z
+- end:2026-10-29T03:42:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/agents_protection.sh, src/deploy_agents_comms.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Verify docs-only gate exemption, privacy-report/privacy-budget signatures, fail-on-leak, status signature_status, sections/gate_ready, completions, target auto-sync hooks
+- input:Implementation complete; temp-repo deployment exercised
+- output:19/19 Rust tests + 3/3 Python parity tests, 12/12 ML-DSA-65 receipts, gate GREEN (docs-only anchor:N/A), security_gate PASS, target manifest/sync script/hooks verified, canonical 8748dfbbd1517b4dc000414696e2fb35ed1f2b217d37a76810650c3640d0ec13
+- status:verifying
+- blockers:none
+
+### [2026-10-29T03:44:00Z] intent-merge | branch:feat/rules-autosync-round17 | wt:d:\Code\ainish-coder
+- start:2026-10-29T03:17:00Z
+- end:2026-10-29T03:44:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/agents_protection.sh, src/deploy_agents_comms.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Merge Round 17 (gate fix + continuous rules auto-sync + 9 masters items) to main and push origin/main
+- input:All gates GREEN
+- output:Merging feat/rules-autosync-round17 to main (--no-ff); root auto-sync hooks already armed
+- status:verifying
+- blockers:none
+
+### [2026-10-29T03:46:00Z] checkout | branch:feat/rules-autosync-round17 | wt:d:\Code\ainish-coder
+- start:2026-10-29T03:17:00Z
+- end:2026-10-29T03:46:00Z
+- scope:bin/ainish-coder, src/deploy_rules_sync.sh, src/agents_protection.sh, src/deploy_agents_comms.sh, src/rag/src/, src/rag/rag.py, src/help.sh, AGENTS.md, llms.txt, .agents/
+- triage:now
+- objective:Deliver Round 17 with one-time `--rules` setup and continuous propagation
+- input:All gates GREEN, merge complete, binary rebuilt
+- output:Merged feat/rules-autosync-round17 to main, pushed origin/main, branch deleted, root post-commit/post-merge hooks armed, no-rebuild-needed after merge
+- status:merged
+- blockers:none
