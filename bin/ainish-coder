@@ -56,6 +56,7 @@ source "${SRC_DIR}/deploy_license.sh"
 source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
 source "${SRC_DIR}/embed_config.sh"
+source "${SRC_DIR}/pqc_dist.sh"
 
 # Main function
 main() {
@@ -631,8 +632,22 @@ main() {
             fi
             ;;
 
-        --rag)
-            _TRACK_DETAIL="rag"
+        --pqc-install)
+            _TRACK_DETAIL="pqc-install"
+            pqc_install "$@"
+            ;;
+
+        --pqc-status)
+            _TRACK_DETAIL="pqc-status"
+            pqc_status "$@"
+            ;;
+
+        --pqc-sync-targets)
+            _TRACK_DETAIL="pqc-sync"
+            pqc_sync_targets "$@"
+            ;;
+
+        --rag)            _TRACK_DETAIL="rag"
             "${SCRIPT_DIR}/ainish-rag" "$@"
             ;;
 
