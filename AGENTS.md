@@ -91,22 +91,22 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | Command | Action | Standard / Use |
 | :--- | :--- | :--- |
 | `ainish-rag query "<term>"` | Semantic vector search | Recon & symbol lookup; `--code` for code mode, `--fzf` for interactive terminal finder |
-| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki + memories + `ledger.md` + symbol anchors (`--verify`, `--compact`, `--json`) |
+| `ainish-rag orient --inject` | Synthesize `<ORIENT_PRIMER>` | Task-conditioned wiki + memories + `ledger.md` + symbol anchors (`--verify`, `--compact`, `--max-lines <N>`, `--include-symbols <bool>`, `--json`) |
 | `ainish-rag eval --patch <diff>` | Patch anchoring evaluation | Scores coverage, symbol anchoring, grounding; `--generate-patch` outputs `git apply --check` diff |
-| `ainish-rag gate [--watch]` | Unified pre-merge gate | Runs patch eval (`--strict`), lockfiles, ML-DSA-65 receipts, `ledger.sig`, contract, COMMS, Zero-Trust (`--summary`) |
+| `ainish-rag gate [--watch]` | Unified pre-merge gate | Runs patch eval (`--strict`), lockfiles, ML-DSA-65 receipts, `model-manifest.sig`, `privacy-budget.sig`, contract, COMMS, Zero-Trust (`--summary`) |
 | `ainish-rag statusline [--json]` | Compact gate statusline | One-line or JSON (`--json`) status bar output for shell prompts (`PS1`), Cursor `statusLine`, and `tmux` |
 | `ainish-rag index [--watch]` | Vectorize codebase into LanceDB | Adaptive batch sizing; supports `--anonymize-symbols` and `--dp-noise` (`privacy-budget.json`) |
 | `ainish-rag wiki [--note]` | Build 6-part living wiki | Writes `01..06.md`, splices & signs `ledger.md` (`--note <str|->`, `--resolve`, `--sync-resolved`, `--list-notes [--json]`) |
 | `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance, WAL pruning (`--prune-days`), worktree/branch hygiene (`--delete-merged [--dry-run]`) |
-| `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts, `ledger.sig`, `contract-history.jsonl`, and k-of-n thresholds |
+| `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies all receipts, `lockfile-manifest.json` disk presence, `model-manifest.sig`, `ledger.sig`, `contract-history.jsonl`, and k-of-n thresholds |
 | `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfiles, `.gitattributes`, sparse-index checksums, and SBOM `.sig` envelopes (`--update`) |
-| `ainish-rag audit privacy` | DP & redaction audit | Verifies DP budget & redaction self-test (`--max-budget`, `--reset`, `--out <report.json>`, `--json`) |
-| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6 (with `privacy-report` digest), SPDX 3.0.1, or `in-toto` v1.0 signed SBOM |
-| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`, `--verify-history`) |
+| `ainish-rag audit privacy` | DP & redaction audit | Verifies DP budget & redaction self-test (`--max-budget`, `--reset`, `--out <report.json>`, `--redact-check <file>`, `--json`) |
+| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6 or `in-toto` v1.0 (with `privacy-report` digest) or SPDX 3.0.1 signed SBOM |
+| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`, `--verify-history [--json]` incl. `contract-history.sig` status) |
 | `ainish-rag audit manifest` | Model manifest audit | Verifies GGUF SHA-256 hashes and detached `.agents/audit/model-manifest.sig` envelope |
 | `ainish-rag audit sign <file>` | Detached ML-DSA-65 sign | Cryptographically signs compliance artifact generating `.sig` envelope |
 | `ainish-rag bench [--chaos]` | Retrieval & chaos benchmark | Asserts 100% Recall@3 stability (`--regression`, `--drift-injection`, `--chaos` fault-injection recovery) |
-| `ainish-rag status [--tui]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, chunk count, and privacy/ledger stats |
+| `ainish-rag status [--tui] [--json]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, chunk count, contract-history transitions, and privacy/ledger stats (`--json` for programmatic health checks) |
 | `ainish-rag service <cmd>` | Background embedding server | `status [--warm]` (sub-50ms warm check) · `install` · `generate` · `uninstall` |
 
 </REFERENCE>

@@ -95,23 +95,25 @@ MULTIMODAL RAG & CODEBASE WIKI:
                               Commands:
                                 serve [--port PORT]   Launch/ensure loopback embedding server
                                 stop                  Stop running embedding server
-                                status [--tui]        Check model cache, server, LanceDB, wiki & ledger stats
+                                status [--tui] [--json]
+                                                      Check model cache, server, LanceDB, wiki, privacy & contract-history stats
                                 index [PATH] [-w]     Index codebase into LanceDB (--anonymize-symbols, --dp-noise;
                                                       records FIPS 204 ML-DSA-65 audit receipt in .agents/audit/)
                                 monitor [--json]      Run continuous vector drift and recall monitor
                                 wiki [PATH]           Generate 6 living wiki documents & splice .agents/wiki/ledger.md
                                                       (--note "<entry>" | --note - | --resolve "<kw>" | --sync-resolved | --list-notes [--json])
-                                orient --inject       Inject top task-conditioned wiki sections + memories + open ledger notes (--verify, --compact)
+                                orient --inject       Inject top task-conditioned wiki sections + memories + open ledger notes
+                                                      (--verify, --compact, --max-lines N, --include-symbols true|false, --json)
                                 query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking (--code, --fzf)
                                 rerank <QUERY>        Standalone decision-model reranking of candidates
                                 secrets               Inspect PQC vault status & OpenRouter API key
                                 route <QUERY>         Jev/calibrated System One intent & domain routing
                                 decide <STATE>        Evaluate decision question with calibrated probability
                                 eval --patch <DIFF>   Evaluate patch anchoring (--generate-patch for git apply import diff)
-                                gate [--watch]        Unified pre-merge gate: patch (--strict), lockfiles, PQC receipts, contract, COMMS (--summary)
+                                gate [--watch]        Unified pre-merge gate: patch (--strict), lockfiles, PQC receipts (model-manifest.sig, privacy-budget.sig), contract, COMMS (--summary)
                                 statusline [--json]   Emit one-line or JSON compact gate status for PS1, Cursor statusLine, or tmux
                                 cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged [--dry-run])
-                                audit <cmd>           verify | lock [--update] | privacy [--out] | sbom [--format cyclonedx|spdx|intoto] | contract | sign | keygen
+                                audit <cmd>           verify | lock [--update] | privacy [--out] [--redact-check <file>] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
                                 service <cmd>         status [--warm] | install | generate | uninstall background daemon
                                 bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
@@ -287,10 +289,16 @@ EXAMPLES:
     ainish-coder -i --llms-txt              # Prompt for llms.txt deployment choices
     ainish-coder -i --skills-sync           # Prompt for skills sync with toggle UI
 
-    # Utility deployments
+    # Utility deployments & post-quantum RAG/audit verification
     ainish-coder --gitignore                # Create comprehensive .gitignore
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
+    ainish-rag audit contract --verify-history   # Inspect & verify hash-chained contract governance history
+    ainish-rag audit privacy --redact-check FILE # Dry-run PII/credential/path/IP/MAC redaction without mutating FILE
+    ainish-rag orient --inject --max-lines 15    # Inject task-conditioned subagent primer with custom line cap
+    ainish-rag orient --inject --include-symbols false  # Prose-only primer (omit symbol graph anchors)
+    ainish-rag status --json                     # Structured health & telemetry report for orchestrators
+    ainish-rag gate                              # Run unified Zero-Trust & PQC pre-merge verification gate
 
     ainish-coder --unlock                   # Deploy Pliny Research collection
 
