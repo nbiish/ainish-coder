@@ -20,7 +20,7 @@
     "signer_fingerprint": "d98405ea368484f51e64840d725343be",
     "target_arch": "x86_64",
     "target_os": "windows",
-    "timestamp": "2026-10-29T01:33:00Z",
+    "timestamp": "2026-10-29T01:46:08Z",
     "tool": "ainish-rag 0.1.0"
   },
   "materials": {
@@ -28,7 +28,7 @@
       "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
     },
     "AGENTS.md": {
-      "sha256": "adf8a9bb542d2e89a694ed392055a21d01c648aa581a21f6ccf894d610cefba2"
+      "sha256": "b488ba9402ba4aeed38e8417b225d9eea7ea14c72fdcebe7a19d51f71a72ec91"
     },
     "src/cmd-tracker/Cargo.lock": {
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
@@ -54,14 +54,19 @@
       "kind": "data",
       "sha256": "af5763f734dd9c7237f403b7e458606d0f776d2763630064ab71106fbd97065b"
     },
+    ".agents/audit/contract-history.jsonl": {
+      "contract_history_head_sha256": "219cb88750a9c00e2d37124e3dff25f9e6b6a43d94290dd17874f55d200084e8",
+      "kind": "governance_history",
+      "sha256": "151bf878e376c308dfe74d216f1b01f8e7d820ab1e889cd2ed6bf2b894f34027"
+    },
     ".agents/canonical/AGENTS.md": {
       "kind": "data",
-      "sha256": "adf8a9bb542d2e89a694ed392055a21d01c648aa581a21f6ccf894d610cefba2"
+      "sha256": "b488ba9402ba4aeed38e8417b225d9eea7ea14c72fdcebe7a19d51f71a72ec91"
     },
     ".agents/wiki/ledger.md": {
       "kind": "wiki_ledger",
-      "sha256": "ea665afd1b3ef9fcd457baf7049f0382ef8bcc0d025f304ed326d9611f9df7f5",
-      "wiki_ledger_sha256": "ea665afd1b3ef9fcd457baf7049f0382ef8bcc0d025f304ed326d9611f9df7f5"
+      "sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891",
+      "wiki_ledger_sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891"
     },
     ".gitattributes": {
       "kind": "file",

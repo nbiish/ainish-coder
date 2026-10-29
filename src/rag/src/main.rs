@@ -147,6 +147,9 @@ enum Commands {
         /// Display current operator ledger entries and their [RESOLVED] status without regenerating all wiki pages
         #[arg(long)]
         list_notes: bool,
+        /// Synchronize [RESOLVED] status bidirectionally between .agents/memories/ and .agents/wiki/ledger.md
+        #[arg(long)]
+        sync_resolved: bool,
         /// Output wiki note listing as structured JSON
         #[arg(long)]
         json: bool,
@@ -260,6 +263,9 @@ enum Commands {
         /// Verify that all 4 orient primer pillars (wiki sections, memories, ledger notes, symbol anchors) are populated
         #[arg(long)]
         verify: bool,
+        /// Emit a single-screen token-budgeted <ORIENT_PRIMER> for small-context local models
+        #[arg(long)]
+        compact: bool,
         /// Output primer and section metadata as structured JSON
         #[arg(long)]
         json: bool,
@@ -281,12 +287,19 @@ enum Commands {
         /// Output one-line compact summary for shell prompt (PS1) or tmux status bar
         #[arg(long)]
         summary: bool,
+        /// Require STRONG_ANCHOR (>= 70.0% composite score) for security-critical modules
+        #[arg(long)]
+        strict: bool,
         /// Output gate results as JSON
         #[arg(long)]
         json: bool,
     },
     /// Emit one-line compact gate status for shell prompts (PS1), Cursor statusLine, or tmux bars
-    Statusline,
+    Statusline {
+        /// Output structured JSON status bar payload for IDE plugins
+        #[arg(long)]
+        json: bool,
+    },
     /// Inspect PQC secrets vault configuration and OpenRouter key status
     Secrets {
         /// Output status as JSON
@@ -361,6 +374,9 @@ pub enum AuditCommands {
         /// Reset cumulative privacy budget expenditure to 0.0
         #[arg(long)]
         reset: bool,
+        /// Export signed privacy compliance report to file (e.g. .agents/audit/privacy-report.json)
+        #[arg(short, long)]
+        out: Option<PathBuf>,
         /// Output privacy budget ledger as JSON
         #[arg(long)]
         json: bool,
@@ -652,9 +668,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Monitor { interval, once, json } => {
             run_drift_monitor(&config, &current_dir, interval, once, json).await?;
         }
-        Commands::Wiki { path, index, note, resolve, list_notes, json } => {
+        Commands::Wiki { path, index, note, resolve, list_notes, sync_resolved, json } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             let generator = WikiGenerator::new(&target);
+            if sync_resolved {
+                let newly_synced = generator.sync_bidirectional_resolutions()?;
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Bidirectionally synchronized [RESOLVED] entries between .agents/memories/ and .agents/wiki/ledger.md ({} newly marked).", newly_synced);
+                return Ok(());
+            }
             if list_notes {
                 let notes = generator.list_notes();
                 if json {
@@ -1110,16 +1131,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Orient { inject, query, task_conditioned, verify, json } => {
+        Commands::Orient { inject, query, task_conditioned, verify, compact, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, json)?;
             }
         }
-        Commands::Gate { patch, bell, notify, watch, summary, json } => {
-            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, json).await?;
+        Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
+            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, strict, false, json).await?;
         }
-        Commands::Statusline => {
-            run_gate(&config, &current_dir, None, false, false, false, true, false).await?;
+        Commands::Statusline { json } => {
+            run_gate(&config, &current_dir, None, false, false, false, true, false, json, false).await?;
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
@@ -1166,7 +1187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
                 }
             }
-            AuditCommands::Privacy { max_budget, reset, json } => {
+            AuditCommands::Privacy { max_budget, reset, out, json } => {
                 let pb = crate::embed::read_or_init_privacy_budget(&current_dir, reset)?;
                 let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -1175,16 +1196,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let redaction_ok = wiki_gen.verify_redaction_pipeline().is_ok();
                 let ledger_path = current_dir.join(".agents").join("audit").join("privacy-budget.json");
                 let sig_ok = matches!(pqc::verify_file(&current_dir, &ledger_path), pqc::VerifyOutcome::Verified { .. });
+                let report_payload = serde_json::json!({
+                    "format": "ainish-rag/privacy-compliance-report/v1",
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                    "within_budget": within_budget,
+                    "max_budget": max_budget,
+                    "cumulative_epsilon": cum_eps,
+                    "total_protected_vectors": vec_cnt,
+                    "redaction_self_test": if redaction_ok { "PASS" } else { "FAIL" },
+                    "redaction_classes_verified": ["PII", "Credentials", "UserPaths", "InternalIPs", "MAC", "ANSI", "TrojanSourceBidi"],
+                    "signature_verified": sig_ok,
+                    "ledger": pb,
+                });
+                if let Some(ref out_path) = out {
+                    if let Some(parent) = out_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let report_str = serde_json::to_string_pretty(&report_payload)?;
+                    std::fs::write(out_path, &report_str)?;
+                    let sig_res = pqc::sign_file(out_path);
+                    let sig_note = if let Ok(ref sp) = sig_res { format!(" + signed ({})", sp.display()) } else { String::new() };
+                    println!("  \x1b[32m[rag:privacy]\x1b[0m Exported privacy compliance report to {}{}", out_path.display(), sig_note);
+                }
                 if json {
-                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                        "within_budget": within_budget,
-                        "max_budget": max_budget,
-                        "cumulative_epsilon": cum_eps,
-                        "total_protected_vectors": vec_cnt,
-                        "redaction_self_test": if redaction_ok { "PASS" } else { "FAIL" },
-                        "signature_verified": sig_ok,
-                        "ledger": pb,
-                    }))?);
+                    println!("{}", serde_json::to_string_pretty(&report_payload)?);
                 } else {
                     println!("=== ainish-rag Differential Privacy & Redaction Audit ===");
                     println!("  Ledger File:      {}", ledger_path.display());
@@ -1440,6 +1475,21 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     let avail_mem = LlamaServer::get_available_memory_mb();
     let mem_cap = config.max_mem.unwrap_or(2048);
 
+    let profile_path = _repo_root.join(".agents").join("rag").join("runtime-profile.json");
+    let profile_summary = if let Ok(p_text) = std::fs::read_to_string(&profile_path) {
+        if let Ok(pv) = serde_json::from_str::<serde_json::Value>(&p_text) {
+            let wts = pv.get("worktree_count").and_then(|v| v.as_u64()).unwrap_or(1);
+            let ths = pv.get("allocated_threads").and_then(|v| v.as_u64()).unwrap_or(4);
+            let ab = pv.get("adaptive_batch_size").and_then(|v| v.as_u64()).unwrap_or(16);
+            let rtt = pv.get("last_warm_rtt_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+            format!("\x1b[32m{} wt(s) -> {} threads | Batch: {} | Warm RTT: {}ms\x1b[0m", wts, ths, ab, rtt)
+        } else {
+            "\x1b[33mDEFAULT\x1b[0m".to_string()
+        }
+    } else {
+        "\x1b[33mUNINITIALIZED (run 'ainish-rag service status --warm')\x1b[0m".to_string()
+    };
+
     println!("\x1b[2J\x1b[H");
     println!("\x1b[1;36m========================================================================\x1b[0m");
     println!("\x1b[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \x1b[0m");
@@ -1451,6 +1501,7 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     println!("  Symbol Salt:    {}", salt_status);
     println!("  Model Manifest: {}", manifest_status);
     println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
+    println!("  Runtime Profile:{}", profile_summary);
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
     println!("\x1b[1;34m  LanceDB Vector Store & Knowledge Base                                 \x1b[0m");
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
@@ -1765,6 +1816,16 @@ fn run_audit_lock(
                             println!("  \x1b[31m[SPARSE-INDEX TAMPER]\x1b[0m {}", anomaly);
                         }
                     }
+                }
+                let audit_dir = repo_root.join(".agents").join("audit");
+                let cdx_sbom = audit_dir.join("ainish-coder-sbom.cyclonedx.json");
+                let intoto_sbom = audit_dir.join("ainish-coder-sbom.intoto.json");
+                let cdx_ok = cdx_sbom.exists() && matches!(pqc::verify_file(repo_root, &cdx_sbom), pqc::VerifyOutcome::Verified { .. });
+                let intoto_ok = intoto_sbom.exists() && matches!(pqc::verify_file(repo_root, &intoto_sbom), pqc::VerifyOutcome::Verified { .. });
+                if cdx_ok && intoto_ok {
+                    println!("  \x1b[32m[PASS]\x1b[0m Verified detached FIPS 204 ML-DSA-65 signatures on CycloneDX 1.6 and in-toto v1.0 SBOMs.");
+                } else {
+                    println!("  \x1b[33m[WARN]\x1b[0m Detached SBOM signature verification incomplete (run 'ainish-rag audit lock --update').");
                 }
             }
             Err(e) => {
@@ -2138,6 +2199,7 @@ fn run_orient_inject(
     query: Option<&str>,
     task_conditioned: bool,
     verify: bool,
+    compact: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let wiki_dir = repo_root.join(".agents").join("wiki");
@@ -2229,12 +2291,15 @@ fn run_orient_inject(
     primer_lines.push("## Grounded Architectural Context".to_string());
     primer_lines.push("<!-- Auto-injected by ainish-rag orient --inject for subagent primer -->\n".to_string());
 
+    let lines_per_section = if compact { 8 } else { 25 };
+    let max_items = if compact { 3 } else { 6 };
+
     for p in &candidate_files {
         let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
         if let Ok(content) = std::fs::read_to_string(p) {
             let (clean_content, sanitized_cnt) = sanitize_orient_content(&content);
             total_sanitized += sanitized_cnt;
-            let first_part = clean_content.lines().take(25).collect::<Vec<_>>().join("\n");
+            let first_part = clean_content.lines().take(lines_per_section).collect::<Vec<_>>().join("\n");
             primer_lines.push(format!("### [{}]({})\n{}\n", fname, p.to_string_lossy(), first_part));
             sections.push(serde_json::json!({
                 "file": fname,
@@ -2262,7 +2327,7 @@ fn run_orient_inject(
             if let Ok(m_text) = std::fs::read_to_string(latest_mem) {
                 let (clean_mem, san_cnt) = sanitize_orient_content(&m_text);
                 total_sanitized += san_cnt;
-                for line in clean_mem.lines().filter(|l| l.trim().starts_with("- ")).rev().take(6).collect::<Vec<_>>().into_iter().rev() {
+                for line in clean_mem.lines().filter(|l| l.trim().starts_with("- ")).rev().take(max_items).collect::<Vec<_>>().into_iter().rev() {
                     memory_notes.push(line.to_string());
                 }
             }
@@ -2277,7 +2342,7 @@ fn run_orient_inject(
     }
 
     // Surface latest .agents/wiki/ledger.md operator entries inside <ORIENT_PRIMER>
-    // Prioritize unresolved probe misses ahead of [RESOLVED] entries when selecting top 6 ledger notes
+    // Prioritize unresolved probe misses ahead of [RESOLVED] entries when selecting top ledger notes
     let mut wiki_ledger_notes = Vec::new();
     let wiki_gen = WikiGenerator::new(repo_root);
     let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
@@ -2285,7 +2350,7 @@ fn run_orient_inject(
         let rendered_ledger = wiki_gen.read_operator_ledger();
         let (clean_ledger, san_cnt) = sanitize_orient_content(&rendered_ledger);
         total_sanitized += san_cnt;
-        wiki_ledger_notes = select_prioritized_ledger_notes(&clean_ledger);
+        wiki_ledger_notes = select_prioritized_ledger_notes(&clean_ledger).into_iter().take(max_items).collect();
     }
     if !wiki_ledger_notes.is_empty() {
         primer_lines.push("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)".to_string());
@@ -2316,7 +2381,7 @@ fn run_orient_inject(
             }
         }
     }
-    let symbol_anchors = wiki_gen.extract_key_symbols_for_orient(&scope_hints, 6);
+    let symbol_anchors = wiki_gen.extract_key_symbols_for_orient(&scope_hints, max_items);
     if !symbol_anchors.is_empty() {
         primer_lines.push("### Key Symbol Graph Anchors".to_string());
         for anchor in &symbol_anchors {
@@ -2404,6 +2469,8 @@ async fn run_gate(
     notify: bool,
     watch: bool,
     summary: bool,
+    strict: bool,
+    statusline_json: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
@@ -2493,7 +2560,8 @@ async fn run_gate(
     let redaction_self_test_ok = WikiGenerator::new(repo_root).verify_redaction_pipeline().is_ok();
     let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok;
 
-    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= 0.45);
+    let min_anchor = if strict { 0.70 } else { 0.45 };
+    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= min_anchor);
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
@@ -2501,7 +2569,7 @@ async fn run_gate(
     let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass;
 
     if summary {
-        println!(
+        let line_str = format!(
             "GATE:{} | anchor:{:.0}% | lock:{} | pqc:{}/{} | comms:{} | zt:{}",
             if overall_pass { "GREEN" } else { "RED" },
             patch_eval.composite_anchor_score * 100.0,
@@ -2511,6 +2579,20 @@ async fn run_gate(
             if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" },
             if zt_pass { "OK" } else { "FAIL" }
         );
+        if statusline_json {
+            println!("{}", serde_json::to_string(&serde_json::json!({
+                "status": if overall_pass { "GREEN" } else { "RED" },
+                "overall_pass": overall_pass,
+                "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+                "lock": if lock_pass { "OK" } else { "DRIFT" },
+                "pqc": format!("{}/{}", audit_receipts_passed, audit_receipts_passed + audit_receipts_failed),
+                "comms": if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" },
+                "zt": if zt_pass { "OK" } else { "FAIL" },
+                "text": line_str,
+            }))?);
+        } else {
+            println!("{}", line_str);
+        }
     } else if json {
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({
             "overall_pass": overall_pass,
