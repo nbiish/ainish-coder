@@ -31,6 +31,25 @@ _pqc_engine() {
     printf '%s\n' "$engine"
 }
 
+# Deterministic digest of a whole pack (every file, sorted). Engine-only
+# comparison misses documentation/consolidation changes — a target can carry
+# the right engine and still be missing the merged signing reference.
+_pqc_pack_sha() {
+    local dir="${1:-}"
+    [[ -d "$dir" ]] || return 1
+    local tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/pqc-pack.XXXXXX" 2>/dev/null)" || return 1
+    (
+        cd "$dir" || exit 1
+        find . -type f | LC_ALL=C sort | while IFS= read -r file; do
+            printf '%s  %s\n' \
+                "$(_calc_sha256 "$file" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')" \
+                "$file"
+        done
+    ) > "$tmp" 2>/dev/null
+    _calc_sha256 "$tmp" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f'
+    rm -f "$tmp"
+}
 _pqc_engine_sha() {
     local engine
     engine="$(_pqc_engine)" || return 1
@@ -343,7 +362,7 @@ pqc_install() {
 _pqc_target_line() {
     local target="$1"
     local engine="${target}/${_PQC_ENGINE_REL}"
-    local state="missing" selection="unknown" sha=""
+    local state="missing" selection="unknown" sha="" pack_sha=""
 
     if declare -F skills_selection_state >/dev/null 2>&1 && [[ -d "$target" ]]; then
         selection="$(skills_selection_state "$target" pqc-secrets 2>/dev/null || printf 'unknown')"
@@ -355,14 +374,15 @@ _pqc_target_line() {
         state="missing"
     else
         sha="$(_calc_sha256 "$engine" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')"
-        if [[ "$sha" == "$(_pqc_engine_sha)" ]]; then
+        pack_sha="$(_pqc_pack_sha "${target}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
+        if [[ "$pack_sha" == "$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)" ]]; then
             state="current"
         else
             state="stale"
         fi
     fi
 
-    printf '%s\t%s\t%s\n' "$state" "$selection" "$sha"
+    printf '%s\t%s\t%s\t%s\n' "$state" "$selection" "$sha" "$pack_sha"
 }
 
 pqc_status() {
@@ -409,11 +429,12 @@ pqc_status() {
             target="$(printf '%s' "$target" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
             [[ -n "$target" ]] || continue
             target="$(ainish_posix_path "$target" 2>/dev/null || printf '%s' "$target")"
-            local line state selection tsha
+            local line state selection tsha psha
             line="$(_pqc_target_line "$target")"
             state="$(printf '%s' "$line" | cut -f1)"
             selection="$(printf '%s' "$line" | cut -f2)"
             tsha="$(printf '%s' "$line" | cut -f3)"
+            psha="$(printf '%s' "$line" | cut -f4)"
 
             total=$((total + 1))
             case "$state" in
@@ -538,8 +559,9 @@ pqc_sync_targets() {
         return 0
     fi
 
-    local source_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0 legacy_pruned=0
+    local source_sha source_pack_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0 legacy_pruned=0
     source_sha="$(_pqc_engine_sha)"
+    source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
 
     for target in "${targets[@]}"; do
         local state="pending" note=""
@@ -557,10 +579,10 @@ pqc_sync_targets() {
             note="pqc-secrets is off for this repo"
         else
             local target_engine="${target}/${_PQC_ENGINE_REL}"
-            local target_sha=""
-            [[ -f "$target_engine" ]] && target_sha="$(_calc_sha256 "$target_engine" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')"
+            local target_pack_sha=""
+            target_pack_sha="$(_pqc_pack_sha "${target}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
 
-            if [[ "$target_sha" == "$source_sha" ]]; then
+            if [[ -n "$target_pack_sha" && "$target_pack_sha" == "$source_pack_sha" ]]; then
                 state="current"
                 current=$((current + 1))
             elif [[ "$dry_run" == "true" ]]; then
@@ -580,8 +602,8 @@ pqc_sync_targets() {
                         fi
                     fi
                     local after_sha
-                    after_sha="$(_calc_sha256 "$target_engine" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')"
-                    if [[ "$after_sha" == "$source_sha" ]]; then
+                    after_sha="$(_pqc_pack_sha "$skill_dst" 2>/dev/null || true)"
+                    if [[ -n "$after_sha" && "$after_sha" == "$source_pack_sha" ]]; then
                         state="synced"
                         synced=$((synced + 1))
                     else
@@ -631,6 +653,7 @@ pqc_sync_targets() {
         printf '  "format": "ainish-coder/pqc-sync/v1",\n'
         printf '  "source": "%s",\n' "$(_pqc_json_escape "$REPO_DIR")"
         printf '  "sourceSha256": "%s",\n' "$source_sha"
+        printf '  "sourcePackSha256": "%s",\n' "$source_pack_sha"
         printf '  "dryRun": %s,\n' "$dry_run"
         printf '  "targets": [%s],\n' "$targets_json"
         printf '  "summary": {"total": %s, "synced": %s, "current": %s, "deselected": %s, "failed": %s, "missing": %s, "legacyPruned": %s}\n' \
