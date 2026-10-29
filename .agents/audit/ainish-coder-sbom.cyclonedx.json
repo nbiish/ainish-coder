@@ -67,6 +67,31 @@
       "hashes": [
         {
           "alg": "SHA-256",
+          "content": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+        }
+      ],
+      "name": ".gitattributes",
+      "properties": [
+        {
+          "name": "ainish:role",
+          "value": "lockfile"
+        },
+        {
+          "name": "ainish:lockfile:sha256",
+          "value": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+        },
+        {
+          "name": "ainish:lockfile:attestation",
+          "value": "FIPS 204 ML-DSA-65 bound"
+        }
+      ],
+      "type": "file"
+    },
+    {
+      "bom-ref": "ainish:file:4",
+      "hashes": [
+        {
+          "alg": "SHA-256",
           "content": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
         }
       ],
@@ -88,7 +113,7 @@
       "type": "file"
     },
     {
-      "bom-ref": "ainish:file:4",
+      "bom-ref": "ainish:file:5",
       "hashes": [
         {
           "alg": "SHA-256",
@@ -113,7 +138,7 @@
       "type": "file"
     },
     {
-      "bom-ref": "ainish:file:5",
+      "bom-ref": "ainish:file:6",
       "hashes": [
         {
           "alg": "SHA-256",
@@ -138,11 +163,11 @@
       "type": "file"
     },
     {
-      "bom-ref": "ainish:data:6",
+      "bom-ref": "ainish:data:7",
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "56cf2ffa2634255943e83d431470a55656b34d44cbc63409300a7e09b29c74ef"
+          "content": "b81cca834216c32057a23e6370de68be7e508e2419a70c4388e8f887f5391011"
         }
       ],
       "name": ".agents/canonical/AGENTS.md",
@@ -155,7 +180,7 @@
       "type": "data"
     },
     {
-      "bom-ref": "ainish:data:7",
+      "bom-ref": "ainish:data:8",
       "hashes": [
         {
           "alg": "SHA-256",
@@ -163,6 +188,40 @@
         }
       ],
       "name": ".agents/audit/2026-10-12-index-receipt.json",
+      "properties": [
+        {
+          "name": "ainish:signature",
+          "value": "ML-DSA-65 verified"
+        }
+      ],
+      "type": "data"
+    },
+    {
+      "bom-ref": "ainish:data:9",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9104de6ec3e3fbe99fde270bf069aa1761cf960e8bfeb5af1bb41cd8dbb2943e"
+        }
+      ],
+      "name": ".agents/audit/2026-10-28-index-receipt.json",
+      "properties": [
+        {
+          "name": "ainish:signature",
+          "value": "ML-DSA-65 verified"
+        }
+      ],
+      "type": "data"
+    },
+    {
+      "bom-ref": "ainish:data:10",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "af5763f734dd9c7237f403b7e458606d0f776d2763630064ab71106fbd97065b"
+        }
+      ],
+      "name": ".agents/audit/2026-10-29-index-receipt.json",
       "properties": [
         {
           "name": "ainish:signature",
@@ -178,7 +237,7 @@
       "name": "ainish-coder",
       "type": "application"
     },
-    "timestamp": "2026-10-12T23:06:20Z",
+    "timestamp": "2026-10-29T01:00:41Z",
     "tools": {
       "components": [
         {
@@ -203,6 +262,10 @@
       "value": "d98405ea368484f51e64840d725343be"
     },
     {
+      "name": "ainish:lockfile:.gitattributes:sha256",
+      "value": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+    },
+    {
       "name": "ainish:lockfile:src/cmd-tracker/Cargo.lock:sha256",
       "value": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
     },
@@ -215,7 +278,7 @@
       "value": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
     }
   ],
-  "serialNumber": "urn:uuid:6036245a-59d3-482a-affa-957ef90956d1",
+  "serialNumber": "urn:uuid:84d1e101-9a54-414f-a3cf-3c80c7fe1c53",
   "specVersion": "1.6",
   "version": 1
 }

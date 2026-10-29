@@ -566,7 +566,32 @@ def record_privacy_budget_expenditure(repo_root: Path, epsilon: float, vectors_c
         "expenditure_log": sessions,
     }
     ledger_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    run_audit_sign(repo_root, ledger_path)
     return ledger_path
+
+
+def read_or_init_privacy_budget(repo_root: Path, reset: bool = False) -> Dict[str, Any]:
+    audit_dir = repo_root / ".agents" / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    ledger_path = audit_dir / "privacy-budget.json"
+    if not reset and ledger_path.is_file():
+        try:
+            return json.loads(ledger_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    doc = {
+        "format": "ainish-rag/privacy-budget-ledger/v1",
+        "mechanism": "Gaussian-DP-L2",
+        "delta": 1e-5,
+        "sensitivity": 0.05,
+        "cumulative_epsilon": 0.0,
+        "total_protected_vectors": 0,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "expenditure_log": [],
+    }
+    ledger_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    run_audit_sign(repo_root, ledger_path)
+    return doc
 
 
 def apply_differential_privacy_noise(vec: List[float], epsilon: float = 1.0, sensitivity: float = 0.05) -> List[float]:
@@ -2194,6 +2219,35 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             primer_content.append(note)
         primer_content.append("")
 
+    symbol_anchors = []
+    re_sym = re.compile(r"(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|def|class)\s+([A-Za-z0-9_]+)")
+    code_candidates = sorted([
+        p for p in repo_root.rglob("*")
+        if p.is_file() and not is_ignored_path(p) and p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go"}
+    ])[:12]
+    for cp in code_candidates:
+        try:
+            c_text = cp.read_text(encoding="utf-8", errors="replace")
+            f_syms = []
+            for m in re_sym.finditer(c_text):
+                s = m.group(1)
+                if len(s) >= 4 and s not in f_syms:
+                    f_syms.append(s)
+                    if len(f_syms) >= 6:
+                        break
+            if f_syms:
+                rel_cp = str(cp.relative_to(repo_root)).replace("\\", "/")
+                symbol_anchors.append(f"- `{rel_cp}`: " + ", ".join(f"`{s}`" for s in f_syms))
+                if len(symbol_anchors) >= 6:
+                    break
+        except Exception:
+            pass
+    if symbol_anchors:
+        primer_content.append("### Key Symbol Graph Anchors")
+        for sa in symbol_anchors:
+            primer_content.append(sa)
+        primer_content.append("")
+
     primer_content.append("</ORIENT_PRIMER>")
     primer_text = "\n".join(primer_content)
 
@@ -2203,6 +2257,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "sections": sections,
             "recent_memories": memory_notes,
             "wiki_ledger_notes": wiki_ledger_notes,
+            "symbol_anchors": symbol_anchors,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": True,
             "classical_crypto_redacted": total_sanitized > 0,
@@ -2361,7 +2416,7 @@ def run_query_fzf(query: str, hits: List[Dict[str, Any]], code: bool = False) ->
         return
 
     fzf_bin = shutil.which("fzf")
-    if fzf_bin:
+    if fzf_bin and sys.stdin.isatty() and sys.stdout.isatty():
         items = []
         for i, h in enumerate(hits):
             score = h.get("decision_score", h.get("score", 0.0))
@@ -2394,6 +2449,14 @@ def run_query_fzf(query: str, hits: List[Dict[str, Any]], code: bool = False) ->
     for i, h in enumerate(hits, 1):
         score = h.get("decision_score", h.get("score", 0.0))
         print(f"  [{i}] ({score:.4f}) {h['path']}:L{h['start_line']}-L{h['end_line']} | {h['title']}")
+
+    if not sys.stdin.isatty():
+        top = hits[0]
+        print(f"\n\033[1;36m=== Top Match Preview: {top['title']} ===\033[0m")
+        for line in top.get("content", "").splitlines()[:6]:
+            print(f"  {line}")
+        print()
+        return
 
     print("\nEnter result number (1-{}) to preview snippet, or press Enter to exit: ".format(len(hits)), end="")
     sys.stdout.flush()
@@ -2558,6 +2621,14 @@ def run_audit_lock(repo_root: Path, update: bool = False) -> None:
         manifest_file.write_text(json.dumps(res, indent=2), encoding="utf-8")
         run_audit_sign(repo_root, manifest_file)
         print(f"  [rag:lock] Snapshotted {res['lockfiles_found']} lockfiles to {manifest_file}")
+        intoto_out = audit_dir / "ainish-coder-sbom.intoto.json"
+        intoto_out.write_text(generate_sbom(repo_root, "intoto"), encoding="utf-8")
+        run_audit_sign(repo_root, intoto_out)
+        print(f"  [rag:lock] Synchronized & signed in-toto v1.0 provenance attestation ({intoto_out})")
+        cdx_out = audit_dir / "ainish-coder-sbom.cyclonedx.json"
+        cdx_out.write_text(generate_sbom(repo_root, "cyclonedx"), encoding="utf-8")
+        run_audit_sign(repo_root, cdx_out)
+        print(f"  [rag:lock] Synchronized & signed CycloneDX 1.6 SBOM ({cdx_out})")
 
     if res["unpinned_files"]:
         print("  [UNPINNED ARTIFACTS] Lockfiles missing package hash verification:")
@@ -2903,14 +2974,23 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
         comms_violations = check_comms_harness_agnostic(repo_root)
         comms_pass = len(comms_violations) == 0
 
+        agents_f = repo_root / "AGENTS.md"
+        canon_hash_f = repo_root / ".agents" / "canonical" / "AGENTS.md.sha256"
+        zt_hash_ok = True
+        if agents_f.is_file() and canon_hash_f.is_file():
+            zt_hash_ok = hashlib.sha256(agents_f.read_bytes()).hexdigest().lower() == canon_hash_f.read_text(encoding="utf-8").strip().lower()
+        bin_ac = repo_root / "bin" / "ainish-coder"
+        zt_lf_ok = (b"\r\n" not in bin_ac.read_bytes()) if bin_ac.is_file() else True
+        zt_pass = zt_hash_ok and zt_lf_ok and comms_pass
+
         patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and (not diff_text or patch_eval.get("composite_score", 0.0) >= 0.45)
-        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass
+        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass
 
         if summary:
             print(
                 f"GATE:{'GREEN' if overall_pass else 'RED'} | anchor:{patch_eval.get('composite_score', 0)*100:.0f}% | "
                 f"lock:{'OK' if lock_pass else 'DRIFT'} | pqc:{audit_receipts_passed}/{audit_receipts_passed + audit_receipts_failed} | "
-                f"comms:{'OK' if comms_pass else 'LEGACY_AGENT_TAG'}"
+                f"comms:{'OK' if comms_pass else 'LEGACY_AGENT_TAG'} | zt:{'OK' if zt_pass else 'FAIL'}"
             )
         elif json_out:
             print(json.dumps({
@@ -2920,6 +3000,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 "audit_receipts": {"pass": audit_pass, "passed": audit_receipts_passed, "failed": audit_receipts_failed},
                 "canonical_contract": {"pass": canon_pass},
                 "comms_hygiene": {"pass": comms_pass, "legacy_agent_tag_violations": comms_violations},
+                "zero_trust_gate": {"pass": zt_pass, "canonical_sha256_match": zt_hash_ok, "posix_lf_verified": zt_lf_ok},
             }, indent=2))
         else:
             print("\n┌────────────────────────────────────────────────────────────────────────┐")
@@ -2934,6 +3015,8 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             print(f"  Canonical AGENTS.md:    {canon_label}")
             comms_status = "\033[32mPASS (harness-agnostic headers)\033[0m" if comms_pass else f"\033[31mFAIL ({len(comms_violations)} legacy agent: tags)\033[0m"
             print(f"  COMMS Ledger Hygiene:   {comms_status}")
+            zt_status = "\033[32mPASS (Zero-Trust PQC & LF compliance verified)\033[0m" if zt_pass else "\033[31mFAIL (AGENTS.md hash mismatch or CRLF detected)\033[0m"
+            print(f"  Zero-Trust Security:    {zt_status}")
             print("├────────────────────────────────────────────────────────────────────────┤")
             if overall_pass:
                 print("  OVERALL STATUS:         \033[1;32mGREEN (Autonomous Merge Authorized)\033[0m")
@@ -3085,6 +3168,10 @@ def main():
     audit_contract_p = audit_sub.add_parser("contract", help="Sign canonical AGENTS.md contract with ML-DSA-65")
     audit_contract_p.add_argument("--threshold", type=int, default=1, help="Threshold k for k-of-n multi-party signing")
     audit_contract_p.add_argument("--hardware-seal", action="store_true", help="Unwrap hardware-backed FIDO2 / TPM 2.0 sealed seed")
+    audit_privacy_p = audit_sub.add_parser("privacy", help="Inspect or reset differential privacy budget ledger")
+    audit_privacy_p.add_argument("--max-budget", type=float, default=10.0, help="Maximum allowed cumulative epsilon budget")
+    audit_privacy_p.add_argument("--reset", action="store_true", help="Reset cumulative privacy budget to 0.0")
+    audit_privacy_p.add_argument("--json", action="store_true", help="Output privacy budget ledger as JSON")
 
     gate_p = sub.add_parser("gate", help="Unified pre-merge verification gate")
     gate_p.add_argument("--patch", default=None, help="Unified patch file or diff string")
@@ -3101,7 +3188,8 @@ def main():
     serv_gen.add_argument("--out", type=Path, default=None)
     serv_inst = service_sub.add_parser("install", help="Install continuous service")
     serv_inst.add_argument("--port", type=int, default=None)
-    service_sub.add_parser("status", help="Check background service status")
+    serv_stat = service_sub.add_parser("status", help="Check background service status and warm latency")
+    serv_stat.add_argument("-w", "--warm", action="store_true", help="Ensure service is running and warmed up for sub-50ms latency")
     service_sub.add_parser("uninstall", help="Uninstall background service")
 
     comp_p = sub.add_parser("completion", help="Generate shell completions")
@@ -3178,6 +3266,8 @@ def main():
         r_notes = sum(1 for n in l_notes if "[RESOLVED]" in n)
         o_notes = max(0, len(l_notes) - r_notes)
         print(f"Wiki Ledger Notes:  {len(l_notes)} total ({o_notes} open, {r_notes} resolved)")
+        pb = read_or_init_privacy_budget(repo_root, reset=False)
+        print(f"Privacy Budget:     epsilon={float(pb.get('cumulative_epsilon', 0.0)):.4f} ({int(pb.get('total_protected_vectors', 0))} protected vectors in privacy-budget.json)")
         print(f"PQC Vault Detected: {sec['pqc_vault_exists']} ({sec['pqc_bundle_path']})")
         print(f"OpenRouter API Key: {'RESOLVED (' + sec['key_source'] + ')' if sec['api_key_resolved'] else 'UNRESOLVED (fallback: calibrated local)'}")
 
@@ -3576,7 +3666,7 @@ def main():
         avg_lat = total_lat / len(test_suite) if test_suite else 0.0
 
         baseline_file = repo_root / ".agents" / "rag" / "bench-baseline.json"
-        if getattr(args, "save_baseline", False):
+        if getattr(args, "save_baseline", False) or (getattr(args, "regression", False) and not baseline_file.exists()):
             baseline_file.parent.mkdir(parents=True, exist_ok=True)
             baseline_data = {
                 "saved_at": datetime.now(timezone.utc).isoformat(),
@@ -3669,6 +3759,27 @@ def main():
             run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None))
         elif args.audit_command == "contract":
             run_audit_contract(repo_root, threshold=getattr(args, "threshold", 1), hardware_seal=getattr(args, "hardware_seal", False))
+        elif args.audit_command == "privacy":
+            pb = read_or_init_privacy_budget(repo_root, reset=getattr(args, "reset", False))
+            cum_eps = float(pb.get("cumulative_epsilon", 0.0))
+            vec_cnt = int(pb.get("total_protected_vectors", 0))
+            max_b = float(getattr(args, "max_budget", 10.0))
+            within = cum_eps <= max_b
+            if getattr(args, "json", False):
+                print(json.dumps({
+                    "within_budget": within,
+                    "max_budget": max_b,
+                    "cumulative_epsilon": cum_eps,
+                    "total_protected_vectors": vec_cnt,
+                    "ledger": pb,
+                }, indent=2))
+            else:
+                print("=== ainish-rag Differential Privacy Budget Audit ===")
+                print(f"  Ledger File:      {repo_root / '.agents' / 'audit' / 'privacy-budget.json'}")
+                print("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)")
+                print(f"  Protected Vecs:   {vec_cnt}")
+                print(f"  Cumulative Eps:   {cum_eps:.4f} / {max_b:.4f} max budget")
+                print(f"  Status:           {'\033[32mPASS (Within Privacy Budget)\033[0m' if within else '\033[31mEXCEEDED (Budget Ceiling Reached)\033[0m'}\n")
 
     elif args.subcommand == "service":
         run_service_command(repo_root, port, args.service_command, args)
@@ -3883,10 +3994,26 @@ def run_service_command(repo_root: Path, port: int, cmd: str, args: Any) -> None
         out.write_text(content, encoding="utf-8")
         print(f"  \033[32m[rag:service]\033[0m Generated service configuration at: {out}")
     elif cmd == "status":
-        client = EmbedClient(f"http://127.0.0.1:{p}")
-        print(f"=== ainish-rag Background Service Status ===")
+        client = EmbedClient(f"http://127.0.0.1:{p}", repo_root=repo_root)
+        if getattr(args, "warm", False):
+            start_server(repo_root, p, client)
+        t0 = time.time()
+        running = client.is_running()
+        rtt_ms = int((time.time() - t0) * 1000)
+        if running and getattr(args, "warm", False):
+            t_w = time.time()
+            try:
+                client.embed_one("warmup probe")
+                rtt_ms = int((time.time() - t_w) * 1000)
+            except Exception:
+                pass
+        print("=== ainish-rag Background Service Status ===")
         print(f"  Port:      {p}")
-        print(f"  Status:    {'\033[32mRUNNING\033[0m' if client.is_running() else '\033[31mSTOPPED\033[0m'}")
+        print(f"  Status:    {'\033[32mRUNNING\033[0m' if running else '\033[31mSTOPPED\033[0m'}")
+        if running:
+            thermal = "\033[32mWARM (sub-50ms ready)\033[0m" if rtt_ms <= 50 else "\033[33mACTIVE\033[0m"
+            print(f"  Latency:   {rtt_ms} ms ({thermal})")
+        print(f"  Endpoint:  http://127.0.0.1:{p}")
     elif cmd == "install":
         print(f"=== Installing ainish-rag Background Service (Port: {p}) ===")
         if os.name == "nt":

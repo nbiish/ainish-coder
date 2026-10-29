@@ -85,6 +85,9 @@ enum Commands {
         /// Differential privacy epsilon parameter (default: 1.0)
         #[arg(long)]
         dp_epsilon: Option<f32>,
+        /// Hard ceiling for cumulative differential privacy epsilon expenditure
+        #[arg(long)]
+        dp_max_budget: Option<f32>,
     },
     /// Continuous drift monitoring and regression evaluation
     Monitor {
@@ -345,6 +348,18 @@ pub enum AuditCommands {
         #[arg(long)]
         hardware_seal: bool,
     },
+    /// Inspect or reset the cumulative differential privacy budget ledger (.agents/audit/privacy-budget.json)
+    Privacy {
+        /// Maximum allowed cumulative epsilon budget ceiling (default: 10.0)
+        #[arg(long, default_value_t = 10.0)]
+        max_budget: f64,
+        /// Reset cumulative privacy budget expenditure to 0.0
+        #[arg(long)]
+        reset: bool,
+        /// Output privacy budget ledger as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -364,8 +379,12 @@ pub enum ServiceCommands {
         #[arg(short, long)]
         port: Option<u16>,
     },
-    /// Check background service status
-    Status,
+    /// Check background service status and sub-50ms warm latency
+    Status {
+        /// Ensure service is running and warmed up for sub-50ms query/gate latency
+        #[arg(short, long)]
+        warm: bool,
+    },
     /// Uninstall continuous background service
     Uninstall,
 }
@@ -471,6 +490,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let open_notes = ledger_notes.len().saturating_sub(resolved_notes);
             println!("Wiki Ledger Notes:  {} total ({} open, {} resolved)", ledger_notes.len(), open_notes, resolved_notes);
 
+            if let Ok(pb) = crate::embed::read_or_init_privacy_budget(&current_dir, false) {
+                let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+                println!("Privacy Budget:     epsilon={:.4} ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt);
+            }
+
             if config.llama_bin.is_none() {
                 println!("\n  [rag:tip] llama executable not found!");
                 #[cfg(target_os = "macos")]
@@ -487,7 +512,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
             }
         }
-        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon } => {
+        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -503,12 +528,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.dp_epsilon = Some(eps);
                 println!("  \x1b[35m[rag:privacy]\x1b[0m Differential privacy active (epsilon={:.2}, sensitivity=0.05)", eps);
             }
+            if let Some(mb) = dp_max_budget {
+                config.dp_max_budget = Some(mb);
+            }
 
             LlamaServer::ensure_running(&config, &current_dir).await?;
 
             let dim = truncate.unwrap_or(config.embedding_dim);
             let embed_client = EmbedClient::new(&config.server_url, truncate, config.psk.clone())
                 .with_dp_epsilon(config.dp_epsilon)
+                .with_dp_max_budget(config.dp_max_budget)
                 .with_repo_root(&current_dir);
             let store = LanceStore::new(&config.lancedb_dir, dim);
             let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
@@ -847,6 +876,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  \x1b[33m[rag:chaos]\x1b[0m Chaos fault injection active: simulating transient embedding server timeout and retry-loop recovery...");
                 tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
                 LlamaServer::ensure_running(&config, &current_dir).await?;
+                if let Ok(integrity_msg) = store.verify_or_recover().await {
+                    println!("  \x1b[32m[rag:chaos]\x1b[0m LanceDB self-healing check: {}", integrity_msg);
+                }
                 println!("  \x1b[32m[rag:chaos]\x1b[0m Retry-loop resilience verified: server healthy and responsive after simulated fault.");
             }
             let test_suite: Vec<(String, String)> = if let Some(ref c_path) = custom {
@@ -902,7 +934,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let avg_latency = if test_suite.is_empty() { 0.0 } else { total_latency_ms as f64 / test_suite.len() as f64 };
             let baseline_file = current_dir.join(".agents").join("rag").join("bench-baseline.json");
 
-            if save_baseline {
+            if save_baseline || (regression && !baseline_file.exists()) {
                 if let Some(parent) = baseline_file.parent() {
                     let _ = std::fs::create_dir_all(parent);
                 }
@@ -1106,7 +1138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 run_audit_sbom(&config, &current_dir, &format, out.as_deref())?;
             }
             AuditCommands::Lock { update, verify } => {
-                run_audit_lock(&current_dir, update, verify)?;
+                run_audit_lock(&config, &current_dir, update, verify)?;
             }
             AuditCommands::Keygen => {
                 run_audit_keygen(&current_dir)?;
@@ -1124,6 +1156,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("    Envelope:  {}", thresh_file.display());
                     }
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
+                }
+            }
+            AuditCommands::Privacy { max_budget, reset, json } => {
+                let pb = crate::embed::read_or_init_privacy_budget(&current_dir, reset)?;
+                let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+                let within_budget = cum_eps <= max_budget;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "within_budget": within_budget,
+                        "max_budget": max_budget,
+                        "cumulative_epsilon": cum_eps,
+                        "total_protected_vectors": vec_cnt,
+                        "ledger": pb,
+                    }))?);
+                } else {
+                    println!("=== ainish-rag Differential Privacy Budget Audit ===");
+                    println!("  Ledger File:      {}", current_dir.join(".agents").join("audit").join("privacy-budget.json").display());
+                    println!("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)");
+                    println!("  Protected Vecs:   {}", vec_cnt);
+                    println!("  Cumulative Eps:   {:.4} / {:.4} max budget", cum_eps, max_budget);
+                    println!("  Status:           {}", if within_budget { "\x1b[32mPASS (Within Privacy Budget)\x1b[0m" } else { "\x1b[31mEXCEEDED (Budget Ceiling Reached)\x1b[0m" });
+                    println!();
                 }
             }
         },
@@ -1615,6 +1670,7 @@ fn run_audit_sbom(
 }
 
 fn run_audit_lock(
+    config: &RagConfig,
     repo_root: &std::path::Path,
     update: bool,
     verify: bool,
@@ -1627,6 +1683,25 @@ fn run_audit_lock(
                 println!("  \x1b[32m[rag:lock]\x1b[0m Snapshotted {} lockfiles to {}{}", count, path.display(), sig_note);
             }
             Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed writing lockfile manifest: {}", e),
+        }
+        // Automatically refresh and sign in-toto v1.0 and CycloneDX 1.6 SBOMs so provenance stays in lockstep
+        let audit_dir = repo_root.join(".agents").join("audit");
+        let _ = std::fs::create_dir_all(&audit_dir);
+        let intoto_path = audit_dir.join("ainish-coder-sbom.intoto.json");
+        let intoto_val = pqc::build_intoto(repo_root, &config.model_manifest_path, config.llama_bin.as_deref());
+        if let Ok(s) = serde_json::to_string_pretty(&intoto_val) {
+            if std::fs::write(&intoto_path, s).is_ok() {
+                let _ = pqc::sign_file(&intoto_path);
+                println!("  \x1b[32m[rag:lock]\x1b[0m Synchronized & signed in-toto v1.0 provenance attestation ({})", intoto_path.display());
+            }
+        }
+        let cdx_path = audit_dir.join("ainish-coder-sbom.cyclonedx.json");
+        let cdx_val = pqc::build_cyclonedx(repo_root, &config.model_manifest_path, config.llama_bin.as_deref());
+        if let Ok(s) = serde_json::to_string_pretty(&cdx_val) {
+            if std::fs::write(&cdx_path, s).is_ok() {
+                let _ = pqc::sign_file(&cdx_path);
+                println!("  \x1b[32m[rag:lock]\x1b[0m Synchronized & signed CycloneDX 1.6 SBOM ({})", cdx_path.display());
+            }
         }
     }
     if verify {
@@ -2186,6 +2261,36 @@ fn run_orient_inject(
         primer_lines.push(String::new());
     }
 
+    // Extract and inject key symbol graph anchors from active task scope or core codebase modules
+    let mut scope_hints = Vec::new();
+    let tasks_dir = repo_root.join(".agents").join("tasks");
+    if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
+        let mut t_files: Vec<PathBuf> = t_entries.flatten().map(|e| e.path()).filter(|p| p.extension().map_or(false, |ext| ext == "md")).collect();
+        t_files.sort();
+        if let Some(latest_t) = t_files.last() {
+            if let Ok(t_text) = std::fs::read_to_string(latest_t) {
+                for line in t_text.lines() {
+                    if let Some(rest) = line.strip_prefix("- scope:") {
+                        for part in rest.split(',') {
+                            let clean_p = part.trim().trim_end_matches('/');
+                            if !clean_p.is_empty() {
+                                scope_hints.push(clean_p.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let symbol_anchors = wiki_gen.extract_key_symbols_for_orient(&scope_hints, 6);
+    if !symbol_anchors.is_empty() {
+        primer_lines.push("### Key Symbol Graph Anchors".to_string());
+        for anchor in &symbol_anchors {
+            primer_lines.push(anchor.clone());
+        }
+        primer_lines.push(String::new());
+    }
+
     primer_lines.push("</ORIENT_PRIMER>".to_string());
     let primer_text = primer_lines.join("\n");
 
@@ -2195,6 +2300,7 @@ fn run_orient_inject(
             "sections": sections,
             "recent_memories": memory_notes,
             "wiki_ledger_notes": wiki_ledger_notes,
+            "symbol_anchors": symbol_anchors,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": true,
             "classical_crypto_redacted": total_sanitized > 0,
@@ -2318,22 +2424,38 @@ async fn run_gate(
     let comms_violations = check_comms_harness_agnostic(repo_root);
     let comms_pass = comms_violations.is_empty();
 
+    // Execute Zero-Trust & PQC compliance check (AGENTS.md sha256 match + LF shell hygiene)
+    let agents_file = repo_root.join("AGENTS.md");
+    let canon_hash_file = repo_root.join(".agents").join("canonical").join("AGENTS.md.sha256");
+    let zt_hash_ok = if agents_file.is_file() && canon_hash_file.is_file() {
+        let actual = pqc::sha256_file(&agents_file).unwrap_or_default().to_lowercase();
+        let expected = std::fs::read_to_string(&canon_hash_file).unwrap_or_default().trim().to_lowercase();
+        actual == expected
+    } else {
+        true
+    };
+    let zt_lf_ok = std::fs::read(repo_root.join("bin").join("ainish-coder"))
+        .map(|b| !b.windows(2).any(|w| w == b"\r\n"))
+        .unwrap_or(true);
+    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass;
+
     let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= 0.45);
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
 
-    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass;
+    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass;
 
     if summary {
         println!(
-            "GATE:{} | anchor:{:.0}% | lock:{} | pqc:{}/{} | comms:{}",
+            "GATE:{} | anchor:{:.0}% | lock:{} | pqc:{}/{} | comms:{} | zt:{}",
             if overall_pass { "GREEN" } else { "RED" },
             patch_eval.composite_anchor_score * 100.0,
             if lock_pass { "OK" } else { "DRIFT" },
             audit_receipts_passed,
             audit_receipts_passed + audit_receipts_failed,
-            if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" }
+            if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" },
+            if zt_pass { "OK" } else { "FAIL" }
         );
     } else if json {
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({
@@ -2360,6 +2482,11 @@ async fn run_gate(
             "comms_hygiene": {
                 "pass": comms_pass,
                 "legacy_agent_tag_violations": comms_violations
+            },
+            "zero_trust_gate": {
+                "pass": zt_pass,
+                "canonical_sha256_match": zt_hash_ok,
+                "posix_lf_verified": zt_lf_ok
             }
         }))?);
     } else {
@@ -2401,6 +2528,13 @@ async fn run_gate(
             format!("\x1b[31mFAIL ({} legacy agent: tags)\x1b[0m", comms_violations.len())
         };
         println!("  COMMS Ledger Hygiene:   {}", comms_label);
+
+        let zt_label = if zt_pass {
+            "\x1b[32mPASS (Zero-Trust PQC & LF compliance verified)\x1b[0m".to_string()
+        } else {
+            "\x1b[31mFAIL (AGENTS.md hash mismatch or CRLF detected)\x1b[0m".to_string()
+        };
+        println!("  Zero-Trust Security:    {}", zt_label);
         println!("├────────────────────────────────────────────────────────────────────────┤");
         if overall_pass {
             println!("  OVERALL STATUS:         \x1b[1;32mGREEN (Autonomous Merge Authorized)\x1b[0m");
@@ -2489,29 +2623,32 @@ async fn run_query_fzf(
         return Ok(());
     }
 
-    if let Some(fzf_path) = which_cmd("fzf") {
-        use std::process::{Command, Stdio};
-        use std::io::Write;
-        let mut child = Command::new(fzf_path)
-            .args(["--ansi", "--header", "ainish-rag Codebase Search | Press Enter to select, ESC to exit", "--delimiter", "\t", "--with-nth", "1,2,3"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?;
+    use std::io::IsTerminal;
+    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        if let Some(fzf_path) = which_cmd("fzf") {
+            use std::process::{Command, Stdio};
+            use std::io::Write;
+            let mut child = Command::new(fzf_path)
+                .args(["--ansi", "--header", "ainish-rag Codebase Search | Press Enter to select, ESC to exit", "--delimiter", "\t", "--with-nth", "1,2,3"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()?;
 
-        if let Some(mut stdin) = child.stdin.take() {
-            for (i, h) in hits.iter().enumerate() {
-                let first_line = h.content.lines().next().unwrap_or("").trim();
-                let line_text = format!("[{}] {:.4}\t{}:L{}-L{}\t{}\t{}\n", i + 1, h.score, h.path, h.start_line, h.end_line, h.title, first_line);
-                let _ = stdin.write_all(line_text.as_bytes());
+            if let Some(mut stdin) = child.stdin.take() {
+                for (i, h) in hits.iter().enumerate() {
+                    let first_line = h.content.lines().next().unwrap_or("").trim();
+                    let line_text = format!("[{}] {:.4}\t{}:L{}-L{}\t{}\t{}\n", i + 1, h.score, h.path, h.start_line, h.end_line, h.title, first_line);
+                    let _ = stdin.write_all(line_text.as_bytes());
+                }
             }
-        }
 
-        let output = child.wait_with_output()?;
-        if output.status.success() {
-            let selected = String::from_utf8_lossy(&output.stdout);
-            println!("\nSelected Chunk:\n{}", selected.trim());
+            let output = child.wait_with_output()?;
+            if output.status.success() {
+                let selected = String::from_utf8_lossy(&output.stdout);
+                println!("\nSelected Chunk:\n{}", selected.trim());
+            }
+            return Ok(());
         }
-        return Ok(());
     }
 
     // Terminal fallback interactive browser
@@ -2618,11 +2755,26 @@ async fn run_service_command(
                 println!("  \x1b[33m[rag:service]\x1b[0m Automatic service install for this OS is manual. Use 'ainish-rag service generate'.");
             }
         }
-        ServiceCommands::Status => {
+        ServiceCommands::Status { warm } => {
+            if warm {
+                LlamaServer::ensure_running(config, repo_root).await?;
+            }
+            let t0 = std::time::Instant::now();
             let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
+            let mut rtt_ms = t0.elapsed().as_millis();
+            if is_running && warm {
+                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+                let t_warm = std::time::Instant::now();
+                let _ = embed_client.embed_one("warmup probe").await;
+                rtt_ms = t_warm.elapsed().as_millis();
+            }
             println!("=== ainish-rag Background Service Status ===");
             println!("  Port:      {}", config.server_port);
             println!("  Status:    {}", if is_running { "\x1b[32mRUNNING\x1b[0m" } else { "\x1b[31mSTOPPED\x1b[0m" });
+            if is_running {
+                let thermal = if rtt_ms <= 50 { "\x1b[32mWARM (sub-50ms ready)\x1b[0m" } else { "\x1b[33mACTIVE\x1b[0m" };
+                println!("  Latency:   {} ms ({})", rtt_ms, thermal);
+            }
             println!("  Endpoint:  {}", config.server_url);
         }
         ServiceCommands::Uninstall => {
@@ -2662,6 +2814,7 @@ _ainish_rag() {
 }
 complete -F _ainish_rag ainish-rag
 alias rag="ainish-rag"
+ainish_rag_statusline() { ainish-rag gate --summary 2>/dev/null; }
 "#);
         }
         "zsh" => {
@@ -2680,6 +2833,7 @@ _ainish_rag() {
         'route:Intent domain routing'
         'decide:Evaluate decision state'
         'eval:Bi-phasic faithfulness and patch evaluation'
+        'gate:Unified pre-merge verification gate'
         'cleanup:Compact LanceDB database and prune versions'
         'orient:Inject architectural wiki context into agent primer'
         'bench:Run synthetic regression benchmark'
@@ -2692,23 +2846,26 @@ _ainish_rag() {
 }
 compdef _ainish_rag ainish-rag
 alias rag="ainish-rag"
+ainish_rag_statusline() { ainish-rag gate --summary 2>/dev/null; }
 "#);
         }
         "fish" => {
             print!("{}", r#"# fish completion for ainish-rag
 complete -c ainish-rag -f
-complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion"
+complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval gate cleanup orient bench monitor audit service completion"
 alias rag="ainish-rag"
+function ainish_rag_statusline; ainish-rag gate --summary 2>/dev/null; end
 "#);
         }
         "pwsh" | "powershell" => {
             print!("{}", r#"# PowerShell completion for ainish-rag
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','cleanup','orient','bench','monitor','audit','service','completion')
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','cleanup','orient','bench','monitor','audit','service','completion')
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 Set-Alias -Name rag -Value ainish-rag
+function Invoke-AinishRagStatusLine { ainish-rag gate --summary 2>$null }
 "#);
         }
         _ => {
