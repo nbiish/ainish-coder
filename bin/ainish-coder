@@ -55,6 +55,7 @@ source "${SRC_DIR}/scroll_integrity.sh"
 source "${SRC_DIR}/deploy_license.sh"
 source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
+source "${SRC_DIR}/embed_config.sh"
 
 # Main function
 main() {
@@ -270,7 +271,19 @@ main() {
             ;;
 
         --rules-provenance)
-            rules_provenance_stamp "${1:-$(pwd)}"
+            rules_provenance_stamp "$@"
+            ;;
+
+        --rules-rotate)
+            rules_rotate "$@"
+            ;;
+
+        --rules-history)
+            rules_history "$@"
+            ;;
+
+        --embed-config)
+            embed_config "$@"
             ;;
 
         --rules-unenroll)

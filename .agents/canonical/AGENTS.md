@@ -22,7 +22,7 @@ description: Universal AGENTS.md rules standard for AI coding assistants. PQC se
 ## Docs model
 
 - This file is the singular, repository-agnostic governing contract, deployed to targets as a plain tracked copy by `ainish-coder --rules` / `--agents` (root → target only). Propose universal changes at the root repo; keep repo-specific detail out.
-- `ainish-coder --rules` is one-time per-repo setup: it deploys this contract, `.gitignore`, skills, comms, `.agents/ainish-deploy.json`, `.agents/bin/ainish-rules-sync`, and post-merge/post-checkout hooks. The root repo's post-commit/post-merge hooks run `--rules-sync --all`, so registered targets refresh automatically when the root contract advances; `--rules-status [--json]` audits staleness and `--rules-doctor [--json]` verifies and repairs manifest/refresh-script/hook/registry health.
+- `ainish-coder --rules` is one-time per-repo setup: it deploys this contract, `.gitignore`, skills, comms, `.agents/ainish-deploy.json`, `.agents/bin/ainish-rules-sync`, and post-merge/post-checkout hooks. The root repo's post-commit/post-merge hooks run `--rules-sync --all`, so registered targets refresh automatically when the root contract advances; `--rules-status [--json]` audits staleness, `--rules-doctor [--json]` verifies and repairs manifest/refresh-script/hook/registry health, `--rules-verify [--json]` cryptographically verifies each target's ML-DSA-65 manifest **and** `lockfile-manifest.json` (exit 1 for CI), `--rules-sync --gc` prunes dead registry entries, `--rules-rotate [--json]` re-stamps the fleet at the current source commit, `--rules-unenroll <dir>` severs a target, and `--rules-provenance [--json] [--sign] <dir>` / `--rules-history <dir>` expose auditable deployment provenance for COMMS `provenance:` headers.
 - `llms.txt` (root → child → target path) is each repo's PRD: read it before editing; it wins on repo-local detail. Drift discovered at work time goes to the nearest `llms.txt`, never here.
   </DOCUMENT_MODEL>
 
@@ -101,14 +101,15 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance, WAL pruning (`--prune-days`), worktree/branch hygiene (`--delete-merged [--dry-run]`) |
 | `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies all receipts, `lockfile-manifest.json` disk presence, `model-manifest.sig`, `privacy-budget.sig`, `ledger.sig`, `contract-history.jsonl`, and k-of-n thresholds |
 | `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfiles, `.gitattributes`, sparse-index checksums, and SBOM `.sig` envelopes (`--update`) |
-| `ainish-rag audit privacy` | DP & redaction audit | Verifies DP budget & redaction self-test (`--max-budget`, `--reset`, `--out <report.json>`, `--redact-check <file> [--fail-on-leak]`, `--json`) |
+| `ainish-rag audit privacy` | DP & redaction audit | Verifies DP budget & redaction self-test (`--max-budget`, `--reset`, `--out <report.json>`, `--redact-check <file\|dir> [--fail-on-leak] [--max-files <N>] [--exclude <glob>]`, `--json`); directory mode is recursive and reports `files_scanned`/`files_with_leaks` |
 | `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6 or `in-toto` v1.0 (with `privacy-report` digest) or SPDX 3.0.1 signed SBOM |
 | `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`, `--verify-history [--json]` incl. `contract-history.sig` status) |
 | `ainish-rag audit manifest` | Model manifest audit | Verifies GGUF SHA-256 hashes and detached `.agents/audit/model-manifest.sig` envelope |
 | `ainish-rag audit sign <file>` | Detached ML-DSA-65 sign | Cryptographically signs compliance artifact generating `.sig` envelope |
 | `ainish-rag bench [--chaos]` | Retrieval & chaos benchmark | Asserts 100% Recall@3 stability (`--regression`, `--drift-injection`, `--chaos` fault-injection recovery) |
 | `ainish-rag status [--tui] [--json]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, chunk count, contract-history transitions, artifact `signature_status`, and privacy/ledger stats (`--json` for programmatic health checks) |
-| `ainish-rag service <cmd>` | Background embedding server | `status [--warm]` (sub-50ms warm check) · `install` · `generate` · `uninstall` |
+| `ainish-rag service <cmd>` | Background embedding server | `status [--warm]` (sub-50ms warm check) · `install` · `generate` · `uninstall`; context/batch sized from `--max-mem` (`AINISH_RAG_CTX`/`AINISH_RAG_BATCH` override) |
+| `ainish-coder --embed-config` | Embedding provider switch | `--provider api --api-base <url> --model <name> [--dim <N>]` uses a remote OpenAI-compatible model and skips the local server; `--provider local` reverts; `--status` reports. Writes non-secret `.agents/rag/embed-provider.json`; key from `AINISH_EMBED_API_KEY` only |
 
 </REFERENCE>
 
