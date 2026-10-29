@@ -278,6 +278,9 @@ enum Commands {
         /// Include key symbol graph anchors in the primer (pass `false` to omit)
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         include_symbols: bool,
+        /// Invoke the deployed .agents/bin/ainish-rules-sync when gate_ready is false (opt-in)
+        #[arg(long)]
+        sync_rules: bool,
         /// Output primer and section metadata as structured JSON
         #[arg(long)]
         json: bool,
@@ -1332,9 +1335,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, sections, include_symbols, json } => {
+        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json)?;
             }
         }
         Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
@@ -2965,9 +2968,17 @@ fn run_orient_inject(
     max_lines: Option<usize>,
     sections: Option<usize>,
     include_symbols: bool,
+    sync_rules: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
+    let mut report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
+
+    if sync_rules {
+        let gate_ready = report.get("gate_ready").and_then(|v| v.as_bool()).unwrap_or(false);
+        let (attempted, ok) = sync_rules_if_stale(repo_root, gate_ready);
+        report["rules_sync_attempted"] = serde_json::json!(attempted);
+        report["rules_sync_ok"] = serde_json::json!(ok);
+    }
 
     if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
@@ -3458,6 +3469,55 @@ fn which_cmd(cmd: &str) -> Option<PathBuf> {
     None
 }
 
+/// Locates a POSIX shell able to run the deployed rules refresher (Git Bash on Windows).
+/// Skips the WindowsApps WSL stub, which cannot execute scripts.
+fn rules_sync_shell() -> Option<PathBuf> {
+    for candidate in ["sh", "bash", "bash.exe"] {
+        if let Some(p) = which_cmd(candidate) {
+            let s = p.to_string_lossy().to_lowercase();
+            if !s.contains("windowsapps") {
+                return Some(p);
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        for var in ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"] {
+            if let Ok(base) = std::env::var(var) {
+                let p = std::path::Path::new(&base).join("Git").join("bin").join("bash.exe");
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Opt-in `orient --inject --sync-rules`: when the cached gate verdict is not GREEN for the
+/// current commit, run the repo's deployed `.agents/bin/ainish-rules-sync` before emitting the
+/// primer. Returns (attempted, succeeded); never fails the primer.
+pub fn sync_rules_if_stale(repo_root: &std::path::Path, gate_ready: bool) -> (bool, bool) {
+    if gate_ready {
+        return (false, false);
+    }
+    let script = repo_root.join(".agents").join("bin").join("ainish-rules-sync");
+    if !script.is_file() {
+        return (true, false);
+    }
+    let Some(shell) = rules_sync_shell() else {
+        return (true, false);
+    };
+    let ok = std::process::Command::new(&shell)
+        .arg(&script)
+        .arg("--quiet")
+        .current_dir(repo_root)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    (true, ok)
+}
+
 async fn run_query_fzf(
     store: &LanceStore,
     embed_client: &EmbedClient,
@@ -3678,7 +3738,7 @@ _ainish_rag() {
     sub="${COMP_WORDS[1]}"
     case "$sub" in
         status)     opts="--tui --json --help" ;;
-        orient)     opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --json --help" ;;
+        orient)     opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --sync-rules --json --help" ;;
         audit)      opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --verify-history --threshold --hardware-seal --json --help" ;;
         gate)       opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
         query)      opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
@@ -3731,7 +3791,7 @@ _ainish_rag() {
         'completion:Generate shell completions'
     )
     if [[ "$words[CURRENT]" == -* ]]; then
-        compadd -- --redact-check --fail-on-leak --include-symbols --sections --json --tui --patch --strict --help
+        compadd -- --redact-check --fail-on-leak --include-symbols --sync-rules --sections --json --tui --patch --strict --help
         return
     fi
     _describe 'commands' commands
@@ -3748,6 +3808,7 @@ complete -c ainish-rag -a "serve stop status secrets index wiki query rerank rou
 complete -c ainish-rag -l redact-check -r -d "Dry-run redaction on a file without mutating it"
 complete -c ainish-rag -l fail-on-leak -d "Exit non-zero when redaction dry-run detects leaks"
 complete -c ainish-rag -l include-symbols -d "Include symbol anchors in orient primer"
+complete -c ainish-rag -l sync-rules -d "Run deployed rules refresher when gate_ready is false"
 complete -c ainish-rag -l sections -x -d "Maximum wiki sections to inject"
 complete -c ainish-rag -l max-lines -x -d "Per-section line truncation override"
 complete -c ainish-rag -l json -d "Structured JSON output"
@@ -3761,7 +3822,7 @@ function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','bench','monitor','audit','service','completion')
-    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
+    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sync-rules','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
     if ($wordToComplete -like '-*') {
         $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
         return
@@ -3872,6 +3933,30 @@ mod tests {
         assert!(!is_docs_or_coord_path(".agents/bin/ainish-rules-sync"));
         assert!(!is_docs_or_coord_path("src/rag/src/main.rs"));
         assert!(!is_docs_or_coord_path(".github/workflows/security.yml"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_sync_rules_opt_in_gated_by_gate_ready() {
+        // gate_ready=true → the refresher must never run
+        assert_eq!(sync_rules_if_stale(std::path::Path::new("/nonexistent/for/sure"), true), (false, false));
+
+        let tmp = std::env::temp_dir().join(format!("ainish-sync-rules-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        // missing refresher → attempted but unsuccessful
+        assert_eq!(sync_rules_if_stale(&tmp, false), (true, false));
+
+        let bin = tmp.join(".agents").join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("ainish-rules-sync"), "#!/bin/sh\nexit 0\n").unwrap();
+
+        let (attempted, ok) = sync_rules_if_stale(&tmp, false);
+        assert!(attempted, "a deployed refresher must be attempted when gate_ready is false");
+        if rules_sync_shell().is_some() {
+            assert!(ok, "the trivially-successful refresher must succeed");
+        }
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

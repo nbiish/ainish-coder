@@ -255,7 +255,13 @@ main() {
             ;;
 
         --rules-status)
-            rules_status
+            local _json=false _a
+            for _a in "$@"; do [[ "$_a" == "--json" ]] && _json=true; done
+            rules_status "$_json"
+            ;;
+
+        --rules-doctor)
+            rules_doctor "$@"
             ;;
 
         --rules-watch)
