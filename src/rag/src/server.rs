@@ -160,6 +160,53 @@ impl LlamaServer {
         Ok(avail_mb)
     }
 
+    /// Default memory budget in MB when `--max-mem` is not configured. Kept in sync with the
+    /// `mem_cap` displayed by `ainish-rag status`.
+    pub fn default_mem_budget_mb() -> usize {
+        2048
+    }
+
+    /// Derives a KV-cache-safe `(ctx_size, batch_size)` for llama's `serve` from the operator's
+    /// memory budget. The previous behaviour hardcoded 8192/8192, which drove resident memory to
+    /// ~9.6GB regardless of `--max-mem`; sizing now tracks the budget so the cap is real.
+    ///
+    /// Explicit overrides (highest precedence): `AINISH_RAG_CTX` / `AINISH_RAG_BATCH`.
+    pub fn derive_ctx_batch(max_mem_mb: Option<usize>, repo_root: &Path) -> (usize, usize) {
+        if let Ok(v) = std::env::var("AINISH_RAG_CTX") {
+            if let Ok(ctx) = v.trim().parse::<usize>() {
+                if ctx > 0 {
+                    let batch = std::env::var("AINISH_RAG_BATCH")
+                        .ok()
+                        .and_then(|b| b.trim().parse::<usize>().ok())
+                        .filter(|b| *b > 0)
+                        .unwrap_or_else(|| ctx.min(2048));
+                    return (ctx, batch);
+                }
+            }
+        }
+
+        let budget = max_mem_mb.unwrap_or_else(Self::default_mem_budget_mb);
+        let mut pair = if budget >= 16_000 {
+            (8192, 4096)
+        } else if budget >= 8_000 {
+            (8192, 2048)
+        } else if budget >= 4_000 {
+            (4096, 1024)
+        } else if budget >= 2_000 {
+            (2048, 512)
+        } else {
+            (1024, 256)
+        };
+
+        // Multiple worktrees contend for the same host, so halve the batch to keep the
+        // aggregate footprint inside the budget.
+        let worktrees = Self::detect_active_worktrees(repo_root);
+        if worktrees > 1 {
+            pair = (pair.0, (pair.1 / worktrees).max(128));
+        }
+        pair
+    }
+
     /// Verifies GGUF model SHA-256 integrity against .agents/audit/model-manifest.json
     pub fn verify_model_manifest(model_path: &Path, manifest_path: &Path) -> Result<Option<String>, String> {
         if !manifest_path.exists() {
@@ -298,6 +345,16 @@ impl LlamaServer {
     }
 
     pub async fn ensure_running(config: &RagConfig, repo_root: &Path) -> Result<(), String> {
+        // Remote API embedding provider: no local llama process is spawned at all, so a
+        // 9+ GB resident server never materializes. The endpoint is health-checked by callers.
+        if config.uses_api_embeddings() {
+            println!(
+                "  \x1b[36m[rag:embed-provider]\x1b[0m Using remote API embeddings at {} (model {}) — local llama server skipped",
+                config.embed_api_base.as_deref().unwrap_or_default(),
+                config.embed_model.as_deref().unwrap_or_default()
+            );
+            return Ok(());
+        }
         let pid_dir = repo_root.join(".agents").join("rag");
         let _ = fs::create_dir_all(&pid_dir);
         let pid_file = pid_dir.join("llama-server.pid");
@@ -371,10 +428,18 @@ impl LlamaServer {
                 let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
                 let threads = (cpus / worktrees).max(2);
                 println!("  \x1b[36m[rag:concurrency]\x1b[0m Detected {} active worktrees: auto-tuning thread allocation ({} threads) and batch scaling", worktrees, threads);
-                (8192, 4096, config.threads.unwrap_or(threads))
+                let (ctx, batch) = Self::derive_ctx_batch(config.max_mem, repo_root);
+                (ctx, batch, config.threads.unwrap_or(threads))
             } else {
-                (8192, 8192, config.threads.unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4)))
+                let (ctx, batch) = Self::derive_ctx_batch(config.max_mem, repo_root);
+                (ctx, batch, config.threads.unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4)))
             };
+            println!(
+                "  \x1b[36m[rag:memory]\x1b[0m Context/batch sized for {} MB budget: ctx={} batch={} (override with AINISH_RAG_CTX / AINISH_RAG_BATCH)",
+                config.max_mem.unwrap_or_else(Self::default_mem_budget_mb),
+                tuned_ctx,
+                tuned_batch
+            );
 
             cmd.arg("--embeddings")
                 .arg("--pooling").arg("mean")
@@ -633,5 +698,32 @@ mod tests {
         assert!(guard.verify(secret, "bad2").is_err());
         // 3rd attempt should be locked out even with valid secret
         assert!(guard.verify(secret, secret).is_err());
+    }
+
+    #[test]
+    fn test_derive_ctx_batch_respects_memory_budget() {
+        // The old behaviour hardcoded ctx=8192/batch=8192 regardless of --max-mem, which drove
+        // resident memory to ~9.6GB. The default 2048 MB budget must now yield a small pair.
+        let (ctx, batch) = LlamaServer::derive_ctx_batch(None, std::path::Path::new("."));
+        assert_eq!(ctx, 2048, "default 2048MB budget must use 2048 ctx");
+        assert!(batch <= 512, "default budget must keep batch small, got {}", batch);
+
+        // A generous budget scales up, but batch never exceeds ctx.
+        let (big_ctx, big_batch) = LlamaServer::derive_ctx_batch(Some(32_000), std::path::Path::new("."));
+        assert_eq!(big_ctx, 8192);
+        assert!(big_batch <= big_ctx);
+
+        // A tight budget scales down.
+        let (small_ctx, small_batch) = LlamaServer::derive_ctx_batch(Some(1024), std::path::Path::new("."));
+        assert!(small_ctx <= 1024);
+        assert!(small_batch <= 256);
+
+        // Explicit operator override wins over any budget. (env mutation is process-global,
+        // hence the unsafe block required by this Rust edition.)
+        unsafe { std::env::set_var("AINISH_RAG_CTX", "4096") };
+        let (ov_ctx, ov_batch) = LlamaServer::derive_ctx_batch(Some(512), std::path::Path::new("."));
+        assert_eq!(ov_ctx, 4096);
+        assert!(ov_batch <= 4096);
+        unsafe { std::env::remove_var("AINISH_RAG_CTX") };
     }
 }

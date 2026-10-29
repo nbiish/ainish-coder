@@ -48,13 +48,38 @@ CORE COMMANDS:
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
-    --rules-sync [DIR|--all]  Refresh managed rules immediately: this target, or
+    --rules-sync [DIR|--all] [--gc] [--json]
+                              Refresh managed rules immediately: this target, or
                               every registered target with --all (--quiet).
+                              --gc also prunes registry entries whose dirs are gone;
+                              --json emits ainish-coder/rules-sync/v1 for CI.
     --rules-status [--json]   Show registered targets with CURRENT/STALE state
                               (--json for fleet dashboards and CI enrollment checks).
+    --rules-verify [--json] [DIR]
+                              Cryptographically verify every target's ML-DSA-65
+                              deployment manifest AND lockfile-manifest digest.
+                              Exits 1 on any failure (CI gate).
+    --rules-rotate [--json]   Re-stamp every registered target's manifest at the
+                              current source commit after a bulk sync.
+    --rules-unenroll DIR      Remove a target from the fleet registry and uninstall
+                              its sync hooks in place.
+    --rules-provenance [--json] [--sign] DIR
+                              Emit source_commit=… manifest_sha256=… for COMMS
+                              provenance headers; --sign writes an ML-DSA-65-signed
+                              .agents/audit/provenance-stamp.json.
+    --rules-history DIR       Show a target's manifest commit/digest, signer
+                              fingerprint, lockfile state, and git history.
     --rules-doctor [--json]   Verify manifest, refresher, hook, and registry health,
                               repairing missing hooks/manifests in place.
     --rules-watch [SECONDS]   Foreground watcher: sync the fleet when root HEAD moves.
+    --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]
+                              Use a remote OpenAI-compatible embedding model and
+                              skip the local llama server entirely (saves GBs of
+                              RAM). Writes .agents/rag/embed-provider.json with
+                              non-secret fields only; the key is read from
+                              AINISH_EMBED_API_KEY at runtime.
+    --embed-config --provider local [DIR]   Revert to the local llama server.
+    --embed-config --status [DIR]           Show the active embedding provider.
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
                               agnostic standard, copied into the target as a
                               plain tracked file (refresh with --agents).
@@ -131,7 +156,7 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 gate [--watch]        Unified pre-merge gate: patch (--strict), lockfiles, PQC receipts (model-manifest.sig, privacy-budget.sig), contract, COMMS (--summary)
                                 statusline [--json]   Emit one-line or JSON compact gate status for PS1, Cursor statusLine, or tmux
                                 cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged [--dry-run])
-                                audit <cmd>           verify | lock [--update] | privacy [--out] [--redact-check <file> [--fail-on-leak]] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
+                                audit <cmd>           verify | lock [--update] | privacy [--out] [--redact-check <file|dir> [--fail-on-leak] [--max-files N] [--exclude GLOB]] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
                                 service <cmd>         status [--warm] | install | generate | uninstall background daemon
                                 bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
@@ -315,6 +340,15 @@ EXAMPLES:
     ainish-coder --rules-sync --all         # Refresh every registered target now
     ainish-coder --rules-status --json      # Structured fleet status for CI enrollment checks
     ainish-coder --rules-doctor             # Verify + repair deployment health (manifest, hooks, registry)
+    ainish-coder --rules-verify --json      # Cryptographically verify fleet manifests + lockfile digests (CI)
+    ainish-coder --rules-rotate             # Re-stamp every target's manifest at the current source commit
+    ainish-coder --rules-provenance --sign  # Emit + ML-DSA-65-sign a COMMS provenance stamp
+    ainish-coder --rules-history ~/my-repo  # Inspect a target's manifest commit, signer, and history
+    ainish-coder --rules-unenroll ~/my-repo # Remove a target from the fleet registry + uninstall its hooks
+    ainish-coder --embed-config --provider api --api-base https://api.openai.com/v1 --model text-embedding-3-small
+                                            # Use a remote API embedding model; skip the local llama server
+    ainish-coder --embed-config --status    # Show the active embedding provider and whether llama runs
+    ainish-coder --embed-config --provider local  # Revert to the local llama server
     ainish-rag audit contract --verify-history   # Inspect & verify hash-chained contract governance history
     ainish-rag audit privacy --redact-check FILE # Dry-run PII/credential/path/IP/MAC redaction without mutating FILE
     ainish-rag audit privacy --redact-check FILE --fail-on-leak  # Exit non-zero when leaks are detected (CI gate)
