@@ -123,3 +123,33 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: merge --no-ff; hook refreshes local-router AGENTS.md + manifest at the new HEAD
 - status:verifying
 - blockers:none
+### [2026-10-29T19:35:00Z] CHECKIN | branch:feat/pqc-skill-consolidation | wt:D:\Code\pqc-skill
+- start:2026-10-29T19:26:00Z
+- end:2026-10-29T19:35:00Z
+- scope:.agents/skills/pqc-secrets (SKILL.md + references/signatures-security.md), .agents/skills/pqc-signatures-security (removed), src/pqc_dist.sh, src/help.sh, scripts/test-pqc-dist.sh
+- triage:now
+- objective: ship the secured PQC system as one distributable skill pack instead of two overlapping packs
+- input: operator asked to consolidate `.agents/skills/pqc*` into a singular skill folder/files for other repo tooling
+- output: signing/integrity guidance (17.5 KB, sections 1-11) moved verbatim to `pqc-secrets/references/signatures-security.md`; SKILL description and top banner now cover both halves; standalone pack deleted; help lists 20 packs; `--pqc-sync-targets` prunes the legacy pack and reports it; test extended to 28 assertions
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:35:00Z] INTENT-MERGE | branch:feat/pqc-skill-consolidation | wt:D:\Code\pqc-skill
+- start:2026-10-29T19:33:00Z
+- end:2026-10-29T19:35:00Z
+- scope:same
+- objective: merge after the distribution test, syntax checks, and the repo security gate
+- input: working tree with one added reference, one deletion, four touched files
+- output: `scripts/test-pqc-dist.sh` 28/28 (one source pack, legacy pruned, merged reference distributed, one pack left in the target); `bash -n` clean
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:38:00Z] CHECKOUT | branch:feat/pqc-skill-consolidation | wt:D:\Code\pqc-skill
+- start:2026-10-29T19:35:00Z
+- end:2026-10-29T19:38:00Z
+- scope:same + fleet distribution
+- objective: merge, let the hook deploy local-router, then refresh every repo that vendors the pack
+- input: main after the merge; local-router enrolled, 11 other repos vendor the pack unenrolled
+- output: local-router carries one `pqc-secrets` pack with the merged reference; every vendored repo refreshed by explicit `--pqc-sync-targets <dir>` with the legacy pack pruned
+- status:merged
+- blockers:none
