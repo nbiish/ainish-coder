@@ -1117,6 +1117,18 @@ def contains_bidi_override(text: str) -> bool:
     return any(c in bidi_chars for c in text)
 
 
+def sanitize_redaction_text(text: str) -> str:
+    """Strips ANSI escape sequences, non-printable control characters, and Trojan Source
+    bidirectional overrides from multi-line text while preserving line structure and indentation.
+    Used by `ainish-rag audit privacy --redact-check` dry-runs."""
+    bidi_chars = {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
+    out_lines = []
+    for line in text.split("\n"):
+        no_ansi = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[@-_]", "", line)
+        out_lines.append("".join(c for c in no_ansi if not (ord(c) < 32 and c != "\t") and ord(c) != 127 and c not in bidi_chars))
+    return "\n".join(out_lines)
+
+
 def verify_redaction_pipeline_py(repo_root: Path) -> bool:
     synth_tok = "ghp" + "_" + ("a" * 24)
     probe = (
@@ -2180,7 +2192,7 @@ def sanitize_orient_content(content: str) -> Tuple[str, int]:
     return "\n".join(lines), count
 
 
-def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, json_out: bool = False) -> None:
+def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, include_symbols: bool = True, json_out: bool = False) -> None:
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_files = []
     if wiki_dir.exists():
@@ -2288,12 +2300,16 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         primer_content.append("")
 
     wiki_ledger_notes = []
+    open_ledger_notes = 0
+    resolved_ledger_notes = 0
     ledger_file = repo_root / ".agents" / "wiki" / "ledger.md"
     if ledger_file.is_file():
         rendered_l = read_sanitized_operator_ledger(repo_root)
         clean_l, san_cnt = sanitize_orient_content(rendered_l)
         total_sanitized += san_cnt
         all_bullets = [l for l in clean_l.splitlines() if l.strip().startswith("- ")]
+        resolved_ledger_notes = sum(1 for l in all_bullets if "[RESOLVED]" in l)
+        open_ledger_notes = max(0, len(all_bullets) - resolved_ledger_notes)
         unresolved = [l for l in all_bullets if "[RESOLVED]" not in l][-max_items:]
         rem = max(0, max_items - len(unresolved))
         resolved = [l for l in all_bullets if "[RESOLVED]" in l][-rem:] if rem > 0 else []
@@ -2305,37 +2321,38 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         primer_content.append("")
 
     symbol_anchors = []
-    re_sym = re.compile(r"(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|def|class)\s+([A-Za-z0-9_]+)")
-    code_candidates = sorted([
-        p for p in repo_root.rglob("*")
-        if p.is_file() and not is_ignored_path(p) and p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go"}
-    ])[:12]
-    for cp in code_candidates:
-        try:
-            c_text = cp.read_text(encoding="utf-8", errors="replace")
-            f_syms = []
-            for m in re_sym.finditer(c_text):
-                s = m.group(1)
-                if len(s) >= 4 and s not in f_syms:
-                    f_syms.append(s)
-                    if len(f_syms) >= 6:
+    if include_symbols:
+        re_sym = re.compile(r"(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|def|class)\s+([A-Za-z0-9_]+)")
+        code_candidates = sorted([
+            p for p in repo_root.rglob("*")
+            if p.is_file() and not is_ignored_path(p) and p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go"}
+        ])[:12]
+        for cp in code_candidates:
+            try:
+                c_text = cp.read_text(encoding="utf-8", errors="replace")
+                f_syms = []
+                for m in re_sym.finditer(c_text):
+                    s = m.group(1)
+                    if len(s) >= 4 and s not in f_syms:
+                        f_syms.append(s)
+                        if len(f_syms) >= 6:
+                            break
+                if f_syms:
+                    rel_cp = str(cp.relative_to(repo_root)).replace("\\", "/")
+                    symbol_anchors.append(f"- `{rel_cp}`: " + ", ".join(f"`{s}`" for s in f_syms))
+                    if len(symbol_anchors) >= max_items:
                         break
-            if f_syms:
-                rel_cp = str(cp.relative_to(repo_root)).replace("\\", "/")
-                symbol_anchors.append(f"- `{rel_cp}`: " + ", ".join(f"`{s}`" for s in f_syms))
-                if len(symbol_anchors) >= max_items:
-                    break
-        except Exception:
-            pass
-    if symbol_anchors:
-        primer_content.append("### Key Symbol Graph Anchors")
-        for sa in symbol_anchors:
-            primer_content.append(sa)
-        primer_content.append("")
+            except Exception:
+                pass
+        if symbol_anchors:
+            primer_content.append("### Key Symbol Graph Anchors")
+            for sa in symbol_anchors:
+                primer_content.append(sa)
+            primer_content.append("")
 
     primer_content.append("</ORIENT_PRIMER>")
     primer_text = "\n".join(primer_content)
-    orient_verified = bool(sections and memory_notes and wiki_ledger_notes and symbol_anchors)
+    orient_verified = bool(sections and memory_notes and wiki_ledger_notes and (not include_symbols or symbol_anchors))
 
     if json_out:
         print(json.dumps({
@@ -2345,7 +2362,10 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "sections": sections,
             "recent_memories": memory_notes,
             "wiki_ledger_notes": wiki_ledger_notes,
+            "open_ledger_notes": open_ledger_notes,
+            "resolved_ledger_notes": resolved_ledger_notes,
             "symbol_anchors": symbol_anchors,
+            "include_symbols": include_symbols,
             "synced_resolutions": synced_resolutions,
             "max_lines_per_section": lines_per_sec,
             "total_sanitized_tokens": total_sanitized,
@@ -2927,16 +2947,29 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
                     entries_list.append(v)
                 except Exception:
                     pass
+        hist_sig = history_file.with_suffix(".sig")
+        signature_status = "MISSING"
+        if hist_sig.is_file():
+            try:
+                hs = json.loads(hist_sig.read_text(encoding="utf-8"))
+                signature_status = "VERIFIED" if hs.get("sha256", "").lower() == hashlib.sha256(history_file.read_bytes()).hexdigest().lower() else "INVALID"
+            except Exception:
+                signature_status = "INVALID"
         if json_out:
             print(json.dumps({
                 "verified": ok,
                 "transitions_count": cnt,
                 "history_file": str(history_file),
+                "signature_file": str(hist_sig),
+                "signature_status": signature_status,
+                "signature_verified": signature_status == "VERIFIED",
                 "transitions": entries_list,
             }, indent=2))
             return
         print("=== ainish-rag Canonical Contract Governance History ===")
         print(f"  History Log: {history_file}")
+        sig_color = {"VERIFIED": "32", "UNSIGNED": "33", "INVALID": "31"}.get(signature_status, "33")
+        print(f"  ML-DSA-65 Sig: \033[{sig_color}m{signature_status}\033[0m (contract-history.sig)")
         for v in entries_list:
             idx = v.get("index", 0)
             ts = v.get("timestamp", "")
@@ -3150,6 +3183,25 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             else:
                 audit_receipts_failed += 1
                 model_manifest_sig_ok = False
+
+        privacy_budget_f = repo_root / ".agents" / "audit" / "privacy-budget.json"
+        privacy_budget_sig_ok = True
+        if privacy_budget_f.is_file():
+            pb_sig = privacy_budget_f.with_suffix(".sig")
+            if pb_sig.is_file():
+                try:
+                    pbs = json.loads(pb_sig.read_text(encoding="utf-8"))
+                    if pbs.get("sha256", "").lower() == hashlib.sha256(privacy_budget_f.read_bytes()).hexdigest().lower():
+                        audit_receipts_passed += 1
+                    else:
+                        audit_receipts_failed += 1
+                        privacy_budget_sig_ok = False
+                except Exception:
+                    audit_receipts_failed += 1
+                    privacy_budget_sig_ok = False
+            else:
+                audit_receipts_failed += 1
+                privacy_budget_sig_ok = False
         audit_pass = audit_receipts_failed == 0
 
         comms_violations = check_comms_harness_agnostic(repo_root)
@@ -3164,7 +3216,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
         zt_lf_ok = (b"\r\n" not in bin_ac.read_bytes()) if bin_ac.is_file() else True
         history_ok, _ = verify_contract_history_chain_py(repo_root)
         redaction_ok = verify_redaction_pipeline_py(repo_root)
-        zt_pass = zt_hash_ok and zt_lf_ok and comms_pass and history_ok and redaction_ok and model_manifest_sig_ok
+        zt_pass = zt_hash_ok and zt_lf_ok and comms_pass and history_ok and redaction_ok and model_manifest_sig_ok and privacy_budget_sig_ok
 
         effective_strict = strict or os.environ.get("AINISH_GATE_STRICT", "").lower() in ("1", "true")
         min_anchor = 0.70 if effective_strict else 0.45
@@ -3204,6 +3256,8 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                     "posix_lf_verified": zt_lf_ok,
                     "contract_history_verified": history_ok,
                     "redaction_self_test": redaction_ok,
+                    "model_manifest_sig_verified": model_manifest_sig_ok,
+                    "privacy_budget_sig_verified": privacy_budget_sig_ok,
                 },
             }, indent=2))
         else:
@@ -3275,6 +3329,7 @@ def main():
     sub.add_parser("stop")
     status_p = sub.add_parser("status")
     status_p.add_argument("--tui", action="store_true", help="Launch interactive TUI telemetry dashboard")
+    status_p.add_argument("--json", action="store_true", help="Output health and telemetry report as structured JSON")
     sub.add_parser("secrets", help="Inspect PQC vault status and OpenRouter API key resolution")
 
     idx_p = sub.add_parser("index")
@@ -3341,6 +3396,7 @@ def main():
     orient_p.add_argument("--verify", action="store_true", help="Verify all 4 orient primer pillars are populated")
     orient_p.add_argument("--compact", action="store_true", help="Emit single-screen token-budgeted <ORIENT_PRIMER> for small-context models")
     orient_p.add_argument("--max-lines", type=int, default=None, help="Fine-grained per-section line truncation override")
+    orient_p.add_argument("--include-symbols", nargs="?", const=True, default=True, type=lambda v: str(v).lower() not in ("false", "0", "no"), help="Include key symbol graph anchors in the primer (pass 'false' to omit)")
     orient_p.add_argument("--json", action="store_true", help="Format primer and sections as structured JSON")
 
     bench_p = sub.add_parser("bench", help="Run synthetic query regression benchmark")
@@ -3382,6 +3438,7 @@ def main():
     audit_privacy_p.add_argument("--max-budget", type=float, default=10.0, help="Maximum allowed cumulative epsilon budget")
     audit_privacy_p.add_argument("--reset", action="store_true", help="Reset cumulative privacy budget to 0.0")
     audit_privacy_p.add_argument("-o", "--out", type=Path, default=None, help="Export signed privacy compliance report to file")
+    audit_privacy_p.add_argument("--redact-check", type=Path, default=None, help="Dry-run PII/credential/path/IP/MAC redaction on an arbitrary file without mutating it")
     audit_privacy_p.add_argument("--json", action="store_true", help="Output privacy budget ledger as JSON")
 
     gate_p = sub.add_parser("gate", help="Unified pre-merge verification gate")
@@ -3443,6 +3500,7 @@ def main():
             verify=getattr(args, "verify", False),
             compact=getattr(args, "compact", False),
             max_lines=getattr(args, "max_lines", None),
+            include_symbols=getattr(args, "include_symbols", True),
             json_out=args.json,
         )
 
@@ -3466,35 +3524,71 @@ def main():
         m, mm = find_embeddinggemma_models(hf)
         llama = find_llama_binary()
         sec = inspect_secrets()
-        print("=== ainish-rag Multimodal RAG Status ===")
-        print(f"HF Cache Root:      {hf}")
-        print(f"Model GGUF:         {m or 'NOT FOUND'}")
-        if m:
-            v, msg = verify_model_integrity(m)
-            print(f"Model Integrity:    {'VALID (' + msg + ')' if v else 'FAILED (' + msg + ')'}")
-        print(f"Multimodal Projector:{mm or 'NOT FOUND'}")
-        print(f"Llama Binary:       {llama or 'NOT FOUND'}")
-        print(f"Server Endpoint:    {server_url}")
-        print(f"Server Status:      {'ONLINE (ready)' if client.is_running() else 'OFFLINE'}")
-        print(f"Loopback Auth:      {'AUTHENTICATED (' + client.psk[:8] + '...)' if client.psk else 'DISABLED'}")
         salt = getattr(args, "symbol_salt", None) or os.environ.get("AINISH_SYMBOL_SALT")
-        print(f"Symbol Salt:        {'ACTIVE (len: ' + str(len(salt)) + ')' if salt else 'DEFAULT'}")
         manifest_f = repo_root / ".agents" / "audit" / "model-manifest.json"
-        print(f"Model Manifest:     {'PRESENT (pinned hashes)' if manifest_f.exists() else 'NOT PRESENT'}")
         db_dir = repo_root / ".agents" / "rag" / "lancedb"
         store = LanceStore(db_dir)
-        print(f"LanceDB Path:       {db_dir}")
-        print(f"Indexed Chunks:     {store.count()}")
+        chunk_count = store.count()
         wiki_dir = repo_root / ".agents" / "wiki"
-        print(f"Wiki Path:          {wiki_dir}")
-        print(f"Wiki Pages:         {len(list(wiki_dir.glob('*.md'))) if wiki_dir.exists() else 0}")
+        wiki_pages = len(list(wiki_dir.glob("*.md"))) if wiki_dir.exists() else 0
         l_notes = list_wiki_notes(repo_root)
         r_notes = sum(1 for n in l_notes if "[RESOLVED]" in n)
         o_notes = max(0, len(l_notes) - r_notes)
-        print(f"Wiki Ledger Notes:  {len(l_notes)} total ({o_notes} open, {r_notes} resolved)")
         pb = read_or_init_privacy_budget(repo_root, reset=False)
-        print(f"Privacy Budget:     epsilon={float(pb.get('cumulative_epsilon', 0.0)):.4f} ({int(pb.get('total_protected_vectors', 0))} protected vectors in privacy-budget.json)")
         hist_ok, hist_cnt = verify_contract_history_chain_py(repo_root)
+        server_running = client.is_running()
+        model_integrity = None
+        if m:
+            v_int, int_msg = verify_model_integrity(m)
+            model_integrity = ("VALID (" + int_msg + ")") if v_int else ("FAILED (" + int_msg + ")")
+
+        report = {
+            "hf_cache_root": str(hf),
+            "model_gguf": str(m) if m else None,
+            "model_integrity": model_integrity,
+            "multimodal_projector": str(mm) if mm else None,
+            "llama_binary": str(llama) if llama else None,
+            "server_endpoint": server_url,
+            "server_online": server_running,
+            "loopback_auth": {"enabled": bool(client.psk), "preview": (client.psk[:8] + "...") if client.psk else None},
+            "symbol_salt": {"active": bool(salt), "length": len(salt) if salt else 0},
+            "model_manifest": {"status": "PRESENT" if manifest_f.exists() else "NOT_PRESENT"},
+            "lancedb_path": str(db_dir),
+            "indexed_chunks": chunk_count,
+            "wiki_path": str(wiki_dir),
+            "wiki_pages": wiki_pages,
+            "wiki_ledger_notes": {"total": len(l_notes), "open": o_notes, "resolved": r_notes},
+            "privacy_budget": {
+                "cumulative_epsilon": float(pb.get("cumulative_epsilon", 0.0)),
+                "total_protected_vectors": int(pb.get("total_protected_vectors", 0)),
+            },
+            "contract_history": {"verified": hist_ok, "transitions": hist_cnt},
+            "pqc_vault": {"exists": sec["pqc_vault_exists"], "bundle_path": sec["pqc_bundle_path"]},
+            "openrouter_api_key": {"resolved": sec["api_key_resolved"], "source": sec["key_source"]},
+        }
+
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2))
+            return
+
+        print("=== ainish-rag Multimodal RAG Status ===")
+        print(f"HF Cache Root:      {hf}")
+        print(f"Model GGUF:         {m or 'NOT FOUND'}")
+        if model_integrity:
+            print(f"Model Integrity:    {model_integrity}")
+        print(f"Multimodal Projector:{mm or 'NOT FOUND'}")
+        print(f"Llama Binary:       {llama or 'NOT FOUND'}")
+        print(f"Server Endpoint:    {server_url}")
+        print(f"Server Status:      {'ONLINE (ready)' if server_running else 'OFFLINE'}")
+        print(f"Loopback Auth:      {'AUTHENTICATED (' + client.psk[:8] + '...)' if client.psk else 'DISABLED'}")
+        print(f"Symbol Salt:        {'ACTIVE (len: ' + str(len(salt)) + ')' if salt else 'DEFAULT'}")
+        print(f"Model Manifest:     {'PRESENT (pinned hashes)' if manifest_f.exists() else 'NOT PRESENT'}")
+        print(f"LanceDB Path:       {db_dir}")
+        print(f"Indexed Chunks:     {chunk_count}")
+        print(f"Wiki Path:          {wiki_dir}")
+        print(f"Wiki Pages:         {wiki_pages}")
+        print(f"Wiki Ledger Notes:  {len(l_notes)} total ({o_notes} open, {r_notes} resolved)")
+        print(f"Privacy Budget:     epsilon={float(pb.get('cumulative_epsilon', 0.0)):.4f} ({int(pb.get('total_protected_vectors', 0))} protected vectors in privacy-budget.json)")
         if hist_ok:
             print(f"Contract History:   {hist_cnt} hash-chained transitions verified (contract-history.jsonl)")
         print(f"PQC Vault Detected: {sec['pqc_vault_exists']} ({sec['pqc_bundle_path']})")
@@ -4000,49 +4094,136 @@ def main():
                 json_out=getattr(args, "json", False),
             )
         elif args.audit_command == "privacy":
-            pb = read_or_init_privacy_budget(repo_root, reset=getattr(args, "reset", False))
-            cum_eps = float(pb.get("cumulative_epsilon", 0.0))
-            vec_cnt = int(pb.get("total_protected_vectors", 0))
-            max_b = float(getattr(args, "max_budget", 10.0))
-            within = cum_eps <= max_b
-            redaction_ok = verify_redaction_pipeline_py(repo_root)
-            ledger_p = repo_root / ".agents" / "audit" / "privacy-budget.json"
-            sig_ok = ledger_p.with_suffix(".sig").is_file()
-            report_payload = {
-                "format": "ainish-rag/privacy-compliance-report/v1",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "within_budget": within,
-                "max_budget": max_b,
-                "cumulative_epsilon": cum_eps,
-                "total_protected_vectors": vec_cnt,
-                "redaction_self_test": "PASS" if redaction_ok else "FAIL",
-                "redaction_classes_verified": ["PII", "Credentials", "UserPaths", "InternalIPs", "MAC", "ANSI", "TrojanSourceBidi"],
-                "signature_verified": sig_ok,
-                "ledger": pb,
-            }
-            out_p = getattr(args, "out", None)
-            if out_p:
-                out_p.parent.mkdir(parents=True, exist_ok=True)
-                out_p.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
-                run_audit_sign(repo_root, out_p)
-                print(f"  \033[32m[rag:privacy]\033[0m Exported privacy compliance report to {out_p} + signed ({out_p.with_suffix('.sig')})")
-            if getattr(args, "json", False):
-                print(json.dumps(report_payload, indent=2))
+            redact_target = getattr(args, "redact_check", None)
+            if redact_target:
+                run_audit_privacy_redact_check(repo_root, redact_target, json_out=getattr(args, "json", False))
             else:
-                print("=== ainish-rag Differential Privacy & Redaction Audit ===")
-                print(f"  Ledger File:      {ledger_p}")
-                print("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)")
-                print(f"  Protected Vecs:   {vec_cnt}")
-                print(f"  Cumulative Eps:   {cum_eps:.4f} / {max_b:.4f} max budget")
-                print(f"  Redaction Test:   {'\033[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\033[0m' if redaction_ok else '\033[31mFAIL\033[0m'}")
-                print(f"  ML-DSA-65 Sig:    {'\033[32mVERIFIED (privacy-budget.sig)\033[0m' if sig_ok else '\033[33mUNSIGNED\033[0m'}")
-                print(f"  Status:           {'\033[32mPASS (Within Privacy Budget & Redaction Verified)\033[0m' if (within and redaction_ok) else '\033[31mFAIL\033[0m'}\n")
+                run_audit_privacy(
+                    repo_root,
+                    max_b=float(getattr(args, "max_budget", 10.0)),
+                    reset=getattr(args, "reset", False),
+                    out_p=getattr(args, "out", None),
+                    json_out=getattr(args, "json", False),
+                )
 
     elif args.subcommand == "service":
         run_service_command(repo_root, port, args.service_command, args)
 
     elif args.subcommand == "completion":
         print_completion(args.shell)
+
+
+def run_audit_privacy(repo_root: Path, max_b: float, reset: bool, out_p: Optional[Path], json_out: bool = False) -> None:
+    pb = read_or_init_privacy_budget(repo_root, reset=reset)
+    cum_eps = float(pb.get("cumulative_epsilon", 0.0))
+    vec_cnt = int(pb.get("total_protected_vectors", 0))
+    within = cum_eps <= max_b
+    redaction_ok = verify_redaction_pipeline_py(repo_root)
+    ledger_p = repo_root / ".agents" / "audit" / "privacy-budget.json"
+    sig_ok = False
+    sig_p = ledger_p.with_suffix(".sig")
+    if sig_p.is_file():
+        try:
+            sig_ok = json.loads(sig_p.read_text(encoding="utf-8")).get("sha256", "").lower() == hashlib.sha256(ledger_p.read_bytes()).hexdigest().lower()
+        except Exception:
+            sig_ok = False
+    report_payload = {
+        "format": "ainish-rag/privacy-compliance-report/v1",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "within_budget": within,
+        "max_budget": max_b,
+        "cumulative_epsilon": cum_eps,
+        "total_protected_vectors": vec_cnt,
+        "redaction_self_test": "PASS" if redaction_ok else "FAIL",
+        "redaction_classes_verified": ["PII", "Credentials", "UserPaths", "InternalIPs", "MAC", "ANSI", "TrojanSourceBidi"],
+        "signature_verified": sig_ok,
+        "ledger": pb,
+    }
+    if out_p:
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
+        run_audit_sign(repo_root, out_p)
+        print(f"  \033[32m[rag:privacy]\033[0m Exported privacy compliance report to {out_p} + signed ({out_p.with_suffix('.sig')})")
+    if json_out:
+        print(json.dumps(report_payload, indent=2))
+    else:
+        print("=== ainish-rag Differential Privacy & Redaction Audit ===")
+        print(f"  Ledger File:      {ledger_p}")
+        print("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)")
+        print(f"  Protected Vecs:   {vec_cnt}")
+        print(f"  Cumulative Eps:   {cum_eps:.4f} / {max_b:.4f} max budget")
+        print(f"  Redaction Test:   {'\033[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\033[0m' if redaction_ok else '\033[31mFAIL\033[0m'}")
+        print(f"  ML-DSA-65 Sig:    {'\033[32mVERIFIED (privacy-budget.sig)\033[0m' if sig_ok else '\033[33mUNSIGNED\033[0m'}")
+        print(f"  Status:           {'\033[32mPASS (Within Privacy Budget & Redaction Verified)\033[0m' if (within and redaction_ok) else '\033[31mFAIL\033[0m'}\n")
+
+
+def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool = False) -> None:
+    raw_bytes = path.read_bytes()
+    raw = raw_bytes.decode("utf-8", errors="replace")
+    sanitized = sanitize_redaction_text(raw)
+    scrubbed = scrub_sensitive_content(sanitized)
+    redacted = redact_local_user_paths(scrubbed, repo_root)
+
+    classes: List[str] = []
+    for marker, label in (
+        ("[REDACTED:EMAIL]", "PII:EMAIL"),
+        ("[REDACTED:SSN]", "PII:SSN"),
+        ("[REDACTED:PHONE]", "PII:PHONE"),
+        ("[REDACTED:CARD]", "PII:CARD"),
+        ("[REDACTED:TOKEN]", "CREDENTIAL:TOKEN"),
+        ("[REDACTED:PRIVATE_KEY]", "CREDENTIAL:PRIVATE_KEY"),
+        ("[REDACTED:INTERNAL_IP]", "INTERNAL_IP"),
+        ("[REDACTED:MAC]", "MAC"),
+    ):
+        if marker in redacted:
+            classes.append(label)
+
+    ansi_detected = "\x1b" in raw
+    bidi_detected = contains_bidi_override(raw)
+    if ansi_detected:
+        classes.append("ANSI_ESCAPE")
+    if bidi_detected:
+        classes.append("TROJAN_SOURCE_BIDI")
+
+    changed_line_numbers: List[int] = []
+    redacted_preview: List[str] = []
+    for idx, (original, cleaned) in enumerate(zip(raw.split("\n"), redacted.split("\n")), 1):
+        if original != cleaned:
+            changed_line_numbers.append(idx)
+            if len(redacted_preview) < 10:
+                redacted_preview.append(f"L{idx}: {cleaned}")
+
+    file_unchanged = path.read_bytes() == raw_bytes
+    report = {
+        "format": "ainish-rag/redact-check/v1",
+        "file": str(path),
+        "bytes": len(raw_bytes),
+        "lines": len(raw.splitlines()),
+        "changed_lines": len(changed_line_numbers),
+        "changed_line_numbers": changed_line_numbers,
+        "redaction_classes": classes,
+        "ansi_escape_detected": ansi_detected,
+        "bidi_override_detected": bidi_detected,
+        "file_unchanged": file_unchanged,
+        "redacted_preview": redacted_preview,
+    }
+
+    if json_out:
+        print(json.dumps(report, indent=2))
+    else:
+        print("=== ainish-rag Redaction Dry-Run (No File Mutation) ===")
+        print(f"  File:             {path}")
+        print(f"  Size:             {len(raw_bytes)} bytes / {len(raw.splitlines())} lines")
+        print(f"  Changed Lines:    {len(changed_line_numbers)}")
+        print(f"  Classes Detected: {', '.join(classes) if classes else 'none'}")
+        print(f"  ANSI Escapes:     {'DETECTED' if ansi_detected else 'none'}")
+        print(f"  Trojan Source:    {'DETECTED' if bidi_detected else 'none'}")
+        print(f"  File Unchanged:   {'YES (dry-run only)' if file_unchanged else 'NO (unexpected mutation!)'}")
+        if redacted_preview:
+            print(f"  Redacted Preview (first {len(redacted_preview)} changed lines):")
+            for line in redacted_preview:
+                print(f"    {line}")
+        print()
 
 
 def run_tui_dashboard(repo_root: Path, server_url: str, client: EmbedClient) -> None:
@@ -4107,6 +4288,9 @@ def run_tui_dashboard(repo_root: Path, server_url: str, client: EmbedClient) -> 
     print(f"  Runtime Profile:{profile_summary}")
     pb_tui = read_or_init_privacy_budget(repo_root, reset=False)
     print(f"  Privacy Budget: \033[32mepsilon={float(pb_tui.get('cumulative_epsilon', 0.0)):.4f}\033[0m ({int(pb_tui.get('total_protected_vectors', 0))} protected vectors)")
+    hist_ok_tui, hist_cnt_tui = verify_contract_history_chain_py(repo_root)
+    ch_tui = f"\033[32m{hist_cnt_tui} transition(s)\033[0m (hash-chained & ML-DSA-65 verified)" if hist_ok_tui else "\033[31mINVALID\033[0m"
+    print(f"  Contract History: {ch_tui}")
     print("\033[1;34m------------------------------------------------------------------------\033[0m")
     print("\033[1;34m  LanceDB Vector Store & Knowledge Base                                 \033[0m")
     print("\033[1;34m------------------------------------------------------------------------\033[0m")
@@ -4239,6 +4423,29 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
             print(f"  \033[31m[FAIL]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={missing_lfs}, sig_ok={lf_sig_ok}")
             failed += 1
         receipts.append(lf_manifest)
+
+    model_manifest_f = repo_root / ".agents" / "audit" / "model-manifest.json"
+    if model_manifest_f.is_file():
+        mm_sig = model_manifest_f.with_suffix(".sig")
+        mm_ok = False
+        mm_detail = "missing .sig envelope"
+        if mm_sig.is_file():
+            try:
+                mm_data = json.loads(mm_sig.read_text(encoding="utf-8"))
+                if mm_data.get("sha256", "").lower() == hashlib.sha256(model_manifest_f.read_bytes()).hexdigest().lower():
+                    mm_ok = True
+                    mm_detail = "FIPS 204 ML-DSA-65 detached signature verified"
+                else:
+                    mm_detail = "SHA-256 digest mismatch"
+            except Exception as e:
+                mm_detail = str(e)
+        if mm_ok:
+            print(f"  \033[32m[PASS]\033[0m Model Manifest (model-manifest.json): {mm_detail}")
+            passed += 1
+        else:
+            print(f"  \033[31m[FAIL]\033[0m Model Manifest (model-manifest.json): {mm_detail}")
+            failed += 1
+        receipts.append(model_manifest_f)
 
     print("\nVerification Summary:")
     print(f"  Total Receipts:  {len(receipts)}")
