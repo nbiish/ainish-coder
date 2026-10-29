@@ -32,12 +32,15 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
 - scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
 - objective:<one line>
 - input:<one line — what was received or requested>
 - output:<one line — what was produced or handed off>
 - status:<new|in-progress|blocked|verifying|merged|abandoned>
 - blockers:<none | description>
 ~~~
+
+**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
 
 </PROTOCOL>
 

@@ -2300,6 +2300,23 @@ def _find_sync_shell() -> Optional[str]:
     return None
 
 
+def read_gate_status(gate_cache_f: Path, git_sha: str) -> Tuple[Optional[Dict[str, Any]], bool]:
+    """Reads the cached gate verdict and reports whether it is GREEN for `git_sha`.
+
+    `gate_ready` is true only when the cache records `overall_pass` AND the commit it was
+    produced for matches the current HEAD, so a stale cache never masquerades as fresh.
+    Returns (gate_status_or_None, gate_ready).
+    """
+    if not gate_cache_f.is_file():
+        return None, False
+    try:
+        gate_status = json.loads(gate_cache_f.read_text(encoding="utf-8"))
+    except Exception:
+        return None, False
+    gate_ready = bool(gate_status.get("overall_pass")) and gate_status.get("commit") == git_sha
+    return gate_status, gate_ready
+
+
 def sync_rules_if_stale(repo_root: Path, gate_ready: bool) -> Tuple[bool, bool]:
     """Opt-in `orient --inject --sync-rules`: when the cached gate verdict is not GREEN for the
     current commit, run the repo's deployed `.agents/bin/ainish-rules-sync` before emitting the
@@ -2377,19 +2394,18 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         pass
 
     gate_cache_f = repo_root / ".agents" / "rag" / "gate-status.json"
-    gate_status = None
-    gate_ready = False
-    if gate_cache_f.is_file():
-        try:
-            gate_status = json.loads(gate_cache_f.read_text(encoding="utf-8"))
-            gate_ready = bool(gate_status.get("overall_pass")) and gate_status.get("commit") == git_sha
-        except Exception:
-            gate_status = None
+    gate_status, gate_ready = read_gate_status(gate_cache_f, git_sha)
 
+    # Master-orchestrator: verified primers must run against fresh rules. When the caller
+    # passes --verify and the cached gate verdict is not GREEN, auto-enable the sync so the
+    # primer reflects current rules instead of a stale deployment.
     rules_sync_attempted: Optional[bool] = None
     rules_sync_ok: Optional[bool] = None
-    if sync_rules:
+    rules_sync_auto: Optional[bool] = None
+    effective_sync = sync_rules or (verify and not gate_ready)
+    if effective_sync:
         rules_sync_attempted, rules_sync_ok = sync_rules_if_stale(repo_root, gate_ready)
+        rules_sync_auto = not sync_rules and verify
 
     primer_content = [
         "<ORIENT_PRIMER>",
@@ -2514,6 +2530,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "gate_status": gate_status,
             "rules_sync_attempted": rules_sync_attempted,
             "rules_sync_ok": rules_sync_ok,
+            "rules_sync_auto": rules_sync_auto,
             "synced_resolutions": synced_resolutions,
             "max_lines_per_section": lines_per_sec,
             "total_sanitized_tokens": total_sanitized,
@@ -4373,7 +4390,8 @@ def run_audit_privacy(repo_root: Path, max_b: float, reset: bool, out_p: Optiona
         print(f"  Status:           {'\033[32mPASS (Within Privacy Budget & Redaction Verified)\033[0m' if (within and redaction_ok) else '\033[31mFAIL\033[0m'}\n")
 
 
-def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool = False, fail_on_leak: bool = False) -> None:
+def _redact_check_file(repo_root: Path, path: Path) -> Tuple[Dict[str, Any], bool]:
+    """Runs the non-mutating redaction dry-run on one file. Returns (report, leaked)."""
     raw_bytes = path.read_bytes()
     raw = raw_bytes.decode("utf-8", errors="replace")
     sanitized = sanitize_redaction_text(raw)
@@ -4411,10 +4429,112 @@ def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool =
 
     file_unchanged = path.read_bytes() == raw_bytes
     report = {
-        "format": "ainish-rag/redact-check/v1",
         "file": str(path),
         "bytes": len(raw_bytes),
         "lines": len(raw.splitlines()),
+        "changed_lines": len(changed_line_numbers),
+        "changed_line_numbers": changed_line_numbers,
+        "redaction_classes": classes,
+        "ansi_escape_detected": ansi_detected,
+        "bidi_override_detected": bidi_detected,
+        "file_unchanged": file_unchanged,
+        "redacted_preview": redacted_preview,
+    }
+    return report, bool(classes)
+
+
+_REDACT_SKIP_DIRS = {".git", "node_modules", "target", "__pycache__", ".venv", "venv"}
+_REDACT_TEXT_EXTS = {".md", ".mdx", ".txt", ".rst", ".rs", ".py", ".ts", ".js", ".go", ".sh", ".json", ".yaml"}
+_REDACT_MAX_FILES = 5000
+
+
+def _collect_redact_targets(directory: Path) -> List[Path]:
+    """Recursively collects candidate text files, skipping binary/oversized paths."""
+    out: List[Path] = []
+    for root, dirs, files in os.walk(directory):
+        dirs[:] = [d for d in dirs if d not in _REDACT_SKIP_DIRS]
+        for name in files:
+            if len(out) >= _REDACT_MAX_FILES:
+                return out
+            p = Path(root) / name
+            if p.suffix.lower() in _REDACT_TEXT_EXTS:
+                out.append(p)
+    return sorted(out)
+
+
+def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool = False, fail_on_leak: bool = False) -> None:
+    # Directory mode: dry-run every text file beneath `path`, aggregate, never mutate.
+    if path.is_dir():
+        targets = _collect_redact_targets(path)
+        all_classes: List[str] = []
+        per_file: List[Dict[str, Any]] = []
+        total_changed = 0
+        files_with_leaks = 0
+        total_bytes = 0
+        for f in targets:
+            try:
+                report, leaked = _redact_check_file(repo_root, f)
+            except Exception as e:
+                per_file.append({"file": str(f), "error": str(e)})
+                continue
+            total_bytes += report["bytes"]
+            total_changed += report["changed_lines"]
+            if leaked:
+                files_with_leaks += 1
+                for c in report["redaction_classes"]:
+                    if c not in all_classes:
+                        all_classes.append(c)
+            report["relative_path"] = str(f.relative_to(path)) if f.is_relative_to(path) else str(f)
+            per_file.append(report)
+
+        all_unchanged = all(r.get("file_unchanged", True) for r in per_file)
+        agg = {
+            "format": "ainish-rag/redact-check-dir/v1",
+            "directory": str(path),
+            "files_scanned": len(per_file),
+            "files_with_leaks": files_with_leaks,
+            "total_bytes": total_bytes,
+            "changed_lines": total_changed,
+            "redaction_classes": all_classes,
+            "all_files_unchanged": all_unchanged,
+            "fail_on_leak": fail_on_leak,
+            "files": per_file,
+            "status": "CLEAN" if files_with_leaks == 0 else ("LEAK_DETECTED" if fail_on_leak else "LEAK_REPORTED"),
+        }
+        if json_out:
+            print(json.dumps(agg, indent=2))
+        else:
+            print("=== ainish-rag Redaction Dry-Run — Directory (No File Mutation) ===")
+            print(f"  Directory:        {path}")
+            print(f"  Files Scanned:    {len(per_file)}")
+            print(f"  Files w/ Leaks:   {files_with_leaks}")
+            print(f"  Total Changed Ln: {total_changed}")
+            print(f"  Classes Detected: {', '.join(all_classes) if all_classes else 'none'}")
+            print(f"  All Unchanged:    {'YES (dry-run only)' if all_unchanged else 'NO (unexpected mutation!)'}")
+            if files_with_leaks:
+                for r in per_file:
+                    rcls = r.get("redaction_classes") or []
+                    if rcls:
+                        print(f"    {r.get('relative_path', '?')} — {', '.join(rcls)}")
+            print()
+        if fail_on_leak and files_with_leaks:
+            print(f"Error: redaction dry-run detected leaks in {files_with_leaks} of {len(per_file)} file(s) under {path}: {', '.join(all_classes)}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    report, leaked = _redact_check_file(repo_root, path)
+    classes = report["redaction_classes"]
+    ansi_detected = report["ansi_escape_detected"]
+    bidi_detected = report["bidi_override_detected"]
+    file_unchanged = report["file_unchanged"]
+    redacted_preview = report["redacted_preview"]
+    changed_line_numbers = report["changed_line_numbers"]
+
+    full_report = {
+        "format": "ainish-rag/redact-check/v1",
+        "file": str(path),
+        "bytes": report["bytes"],
+        "lines": report["lines"],
         "changed_lines": len(changed_line_numbers),
         "changed_line_numbers": changed_line_numbers,
         "redaction_classes": classes,
@@ -4427,11 +4547,11 @@ def run_audit_privacy_redact_check(repo_root: Path, path: Path, json_out: bool =
     }
 
     if json_out:
-        print(json.dumps(report, indent=2))
+        print(json.dumps(full_report, indent=2))
     else:
         print("=== ainish-rag Redaction Dry-Run (No File Mutation) ===")
         print(f"  File:             {path}")
-        print(f"  Size:             {len(raw_bytes)} bytes / {len(raw.splitlines())} lines")
+        print(f"  Size:             {report['bytes']} bytes / {report['lines']} lines")
         print(f"  Changed Lines:    {len(changed_line_numbers)}")
         print(f"  Classes Detected: {', '.join(classes) if classes else 'none'}")
         print(f"  ANSI Escapes:     {'DETECTED' if ansi_detected else 'none'}")
@@ -4691,6 +4811,29 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
             print(f"  \033[31m[FAIL]\033[0m Model Manifest (model-manifest.json): {mm_detail}")
             failed += 1
         receipts.append(model_manifest_f)
+
+    pr_manifest = repo_root / ".agents" / "audit" / "privacy-report.json"
+    if pr_manifest.is_file():
+        pr_sig = pr_manifest.with_suffix(".sig")
+        pr_ok = False
+        pr_detail = "missing .sig envelope"
+        if pr_sig.is_file():
+            try:
+                pr_data = json.loads(pr_sig.read_text(encoding="utf-8"))
+                if pr_data.get("sha256", "").lower() == hashlib.sha256(pr_manifest.read_bytes()).hexdigest().lower():
+                    pr_ok = True
+                    pr_detail = "FIPS 204 ML-DSA-65 detached signature verified"
+                else:
+                    pr_detail = "SHA-256 digest mismatch"
+            except Exception as e:
+                pr_detail = str(e)
+        if pr_ok:
+            print(f"  \033[32m[PASS]\033[0m Privacy Compliance Report (privacy-report.json): {pr_detail}")
+            passed += 1
+        else:
+            print(f"  \033[31m[FAIL]\033[0m Privacy Compliance Report (privacy-report.json): {pr_detail}")
+            failed += 1
+        receipts.append(pr_manifest)
 
     print("\nVerification Summary:")
     print(f"  Total Receipts:  {len(receipts)}")

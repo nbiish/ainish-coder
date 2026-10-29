@@ -1535,12 +1535,12 @@ fn run_audit_privacy(
 
 /// Dry-runs the complete redaction pipeline against an arbitrary file and reports what
 /// would be scrubbed, without ever mutating the target.
-fn run_redact_check(
+/// Runs the non-mutating redaction dry-run on a single file, returning the report JSON
+/// plus whether any sensitive class was detected. Never writes to the target.
+fn redact_check_file(
     repo_root: &std::path::Path,
     path: &std::path::Path,
-    fail_on_leak: bool,
-    json: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(serde_json::Value, bool), Box<dyn std::error::Error>> {
     let raw_bytes = std::fs::read(path)?;
     let raw = String::from_utf8_lossy(&raw_bytes).into_owned();
     let wiki_gen = WikiGenerator::new(repo_root);
@@ -1584,13 +1584,160 @@ fn run_redact_check(
     }
 
     let file_unchanged = std::fs::read(path).map(|after| after == raw_bytes).unwrap_or(false);
+    let leaked = !classes.is_empty();
     let report = serde_json::json!({
-        "format": "ainish-rag/redact-check/v1",
         "file": path.to_string_lossy(),
         "bytes": raw_bytes.len(),
         "lines": raw.lines().count(),
-        "changed_lines": changed_line_numbers.len(),
-        "changed_line_numbers": changed_line_numbers.clone(),
+        "changed_lines": changed_line_numbers.clone(),
+        "redaction_classes": classes.clone(),
+        "ansi_escape_detected": ansi_detected,
+        "bidi_override_detected": bidi_detected,
+        "file_unchanged": file_unchanged,
+        "redacted_preview": redacted_preview.clone(),
+    });
+    Ok((report, leaked))
+}
+
+/// Recursively collects candidate text files under `dir`, skipping binary/oversized paths.
+fn collect_redact_targets(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    const MAX_FILES: usize = 5000;
+    const SKIP_DIRS: [&str; 6] = [".git", "node_modules", "target", "__pycache__", ".venv", "venv"];
+    const TEXT_EXTS: [&str; 12] = ["md", "mdx", "txt", "rst", "rs", "py", "ts", "js", "go", "sh", "json", "yaml"];
+    if out.len() >= MAX_FILES {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        if out.len() >= MAX_FILES {
+            return;
+        }
+        let p = entry.path();
+        if p.is_dir() {
+            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                if SKIP_DIRS.contains(&name) {
+                    continue;
+                }
+            }
+            collect_redact_targets(&p, out);
+        } else if p.extension().and_then(|e| e.to_str()).map_or(false, |e| {
+            TEXT_EXTS.contains(&e.to_lowercase().as_str())
+        }) {
+            out.push(p);
+        }
+    }
+}
+
+fn run_redact_check(
+    repo_root: &std::path::Path,
+    path: &std::path::Path,
+    fail_on_leak: bool,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Directory mode: dry-run every text file beneath `path`, aggregate, never mutate.
+    if path.is_dir() {
+        let mut targets = Vec::new();
+        collect_redact_targets(path, &mut targets);
+        targets.sort();
+
+        let mut all_classes: Vec<String> = Vec::new();
+        let mut per_file: Vec<serde_json::Value> = Vec::new();
+        let mut total_changed = 0usize;
+        let mut files_with_leaks = 0usize;
+        let mut total_bytes = 0usize;
+        for f in &targets {
+            match redact_check_file(repo_root, f) {
+                Ok((mut report, leaked)) => {
+                    total_bytes += report["bytes"].as_u64().unwrap_or(0) as usize;
+                    total_changed += report["changed_lines"].as_array().map(|a| a.len()).unwrap_or(0);
+                    if leaked {
+                        files_with_leaks += 1;
+                        if let Some(arr) = report["redaction_classes"].as_array() {
+                            for c in arr {
+                                if let Some(s) = c.as_str() {
+                                    if !all_classes.iter().any(|x| x == s) {
+                                        all_classes.push(s.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    report["relative_path"] = serde_json::json!(
+                        f.strip_prefix(path).unwrap_or(f).to_string_lossy()
+                    );
+                    per_file.push(report);
+                }
+                Err(err) => {
+                    per_file.push(serde_json::json!({
+                        "file": f.to_string_lossy(),
+                        "error": err.to_string(),
+                    }));
+                }
+            }
+        }
+
+        let any_unchanged = per_file.iter().all(|r| r["file_unchanged"].as_bool().unwrap_or(true));
+        let report = serde_json::json!({
+            "format": "ainish-rag/redact-check-dir/v1",
+            "directory": path.to_string_lossy(),
+            "files_scanned": per_file.len(),
+            "files_with_leaks": files_with_leaks,
+            "total_bytes": total_bytes,
+            "changed_lines": total_changed,
+            "redaction_classes": all_classes,
+            "all_files_unchanged": any_unchanged,
+            "fail_on_leak": fail_on_leak,
+            "files": per_file,
+            "status": if files_with_leaks == 0 { "CLEAN" } else if fail_on_leak { "LEAK_DETECTED" } else { "LEAK_REPORTED" },
+        });
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        } else {
+            println!("=== ainish-rag Redaction Dry-Run — Directory (No File Mutation) ===");
+            println!("  Directory:        {}", path.display());
+            println!("  Files Scanned:    {}", per_file.len());
+            println!("  Files w/ Leaks:   {}", files_with_leaks);
+            println!("  Total Changed Ln: {}", total_changed);
+            println!("  Classes Detected: {}", if all_classes.is_empty() { "none".to_string() } else { all_classes.join(", ") });
+            println!("  All Unchanged:    {}", if any_unchanged { "YES (dry-run only)" } else { "NO (unexpected mutation!)" });
+            if files_with_leaks > 0 {
+                for r in per_file.iter().filter(|r| r["redaction_classes"].as_array().map_or(false, |a| !a.is_empty())) {
+                    println!("    {} — {}", r["relative_path"].as_str().unwrap_or("?"), r["redaction_classes"].as_array().unwrap().iter().filter_map(|c| c.as_str()).collect::<Vec<_>>().join(", "));
+                }
+            }
+            println!();
+        }
+        if fail_on_leak && files_with_leaks > 0 {
+            return Err(format!(
+                "Redaction dry-run detected leaks in {} of {} file(s) under {}: {}",
+                files_with_leaks,
+                per_file.len(),
+                path.display(),
+                all_classes.join(", ")
+            ).into());
+        }
+        return Ok(());
+    }
+
+    let (report, leaked) = redact_check_file(repo_root, path)?;
+    let classes: Vec<String> = report["redaction_classes"].as_array()
+        .map(|a| a.iter().filter_map(|c| c.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+    let ansi_detected = report["ansi_escape_detected"].as_bool().unwrap_or(false);
+    let bidi_detected = report["bidi_override_detected"].as_bool().unwrap_or(false);
+    let file_unchanged = report["file_unchanged"].as_bool().unwrap_or(false);
+    let redacted_preview: Vec<String> = report["redacted_preview"].as_array()
+        .map(|a| a.iter().filter_map(|c| c.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+
+    let full_report = serde_json::json!({
+        "format": "ainish-rag/redact-check/v1",
+        "file": path.to_string_lossy(),
+        "bytes": report["bytes"].as_u64().unwrap_or(0),
+        "lines": report["lines"].as_u64().unwrap_or(0),
+        "changed_lines": report["changed_lines"].as_array().map(|a| a.len()).unwrap_or(0),
+        "changed_line_numbers": report["changed_lines"].clone(),
         "redaction_classes": classes.clone(),
         "ansi_escape_detected": ansi_detected,
         "bidi_override_detected": bidi_detected,
@@ -1601,12 +1748,12 @@ fn run_redact_check(
     });
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println!("{}", serde_json::to_string_pretty(&full_report)?);
     } else {
         println!("=== ainish-rag Redaction Dry-Run (No File Mutation) ===");
         println!("  File:             {}", path.display());
-        println!("  Size:             {} bytes / {} lines", raw_bytes.len(), raw.lines().count());
-        println!("  Changed Lines:    {}", report["changed_lines"].as_u64().unwrap_or(0));
+        println!("  Size:             {} bytes / {} lines", full_report["bytes"].as_u64().unwrap_or(0), full_report["lines"].as_u64().unwrap_or(0));
+        println!("  Changed Lines:    {}", full_report["changed_lines"].as_u64().unwrap_or(0));
         println!("  Classes Detected: {}", if classes.is_empty() { "none".to_string() } else { classes.join(", ") });
         println!("  ANSI Escapes:     {}", if ansi_detected { "DETECTED" } else { "none" });
         println!("  Trojan Source:    {}", if bidi_detected { "DETECTED" } else { "none" });
@@ -1620,7 +1767,7 @@ fn run_redact_check(
         }
         println!();
     }
-    if fail_on_leak && !classes.is_empty() {
+    if fail_on_leak && leaked {
         return Err(format!(
             "Redaction dry-run detected {} sensitive class(es) in {}: {}",
             classes.len(),
@@ -2126,6 +2273,26 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
             }
             pqc::VerifyOutcome::Invalid(err) => {
                 println!("  \x1b[31m[FAIL]\x1b[0m Model Manifest (model-manifest.json): {}", err);
+                failed += 1;
+            }
+        }
+    }
+
+    // Verify detached ML-DSA-65 signature on .agents/audit/privacy-report.json
+    let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    if privacy_report.exists() {
+        receipts_checked += 1;
+        match pqc::verify_file(repo_root, &privacy_report) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Privacy Compliance Report (privacy-report.json): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Compliance Report (privacy-report.json): {}", reason);
+                failed += 1;
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Compliance Report (privacy-report.json): {}", err);
                 failed += 1;
             }
         }
@@ -2973,11 +3140,16 @@ fn run_orient_inject(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
 
-    if sync_rules {
-        let gate_ready = report.get("gate_ready").and_then(|v| v.as_bool()).unwrap_or(false);
-        let (attempted, ok) = sync_rules_if_stale(repo_root, gate_ready);
+    // Master-orchestrator: verified primers must run against fresh rules. When the caller
+    // passes --verify and the cached gate verdict is not GREEN, auto-enable the sync so the
+    // primer reflects current rules instead of a stale deployment.
+    let gate_ready_now = report.get("gate_ready").and_then(|v| v.as_bool()).unwrap_or(false);
+    let effective_sync = sync_rules || (verify && !gate_ready_now);
+    if effective_sync {
+        let (attempted, ok) = sync_rules_if_stale(repo_root, gate_ready_now);
         report["rules_sync_attempted"] = serde_json::json!(attempted);
         report["rules_sync_ok"] = serde_json::json!(ok);
+        report["rules_sync_auto"] = serde_json::json!(!sync_rules && verify);
     }
 
     if json {
