@@ -33,6 +33,44 @@ _ainish_rules_source_agents_sha() {
     _calc_sha256 "${REPO_DIR}/AGENTS.md" 2>/dev/null | tr -d '[:space:]'
 }
 
+# Resolves the ainish-rag binary (native exe preferred) for ML-DSA-65 signing/verification.
+_ainish_rag_bin() {
+    if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
+        printf '%s\n' "${REPO_DIR}/bin/ainish-rag.exe"
+    elif [[ -x "${REPO_DIR}/bin/ainish-rag" ]]; then
+        printf '%s\n' "${REPO_DIR}/bin/ainish-rag"
+    else
+        return 1
+    fi
+}
+
+# Signs a deployed manifest with FIPS 204 ML-DSA-65 (no-op if rag unavailable).
+_ainish_rules_sign_manifest() {
+    local manifest="$1"
+    local rag
+    rag="$(_ainish_rag_bin)" || return 0
+    (cd "${REPO_DIR}" && "$rag" audit sign "$manifest" >/dev/null 2>&1) || true
+}
+
+# Verifies a deployed manifest's detached signature envelope. Compares the manifest's
+# SHA-256 to the digest recorded in the ML-DSA-65 `.sig` envelope (proves the manifest
+# was not altered after signing). Echoes status; returns 0 only on a match.
+_ainish_rules_verify_manifest_sig() {
+    local manifest="$1"
+    local sig="${manifest%.json}.sig"
+    [[ -f "$manifest" ]] || { printf 'MISSING_MANIFEST\n'; return 1; }
+    [[ -f "$sig" ]] || { printf 'MISSING_SIG\n'; return 1; }
+    local expected actual
+    expected="$(sed -n 's/^[[:space:]]*"sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$sig" 2>/dev/null | head -n 1 | tr 'A-F' 'a-f')"
+    actual="$(_calc_sha256 "$manifest" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')"
+    if [[ -n "$expected" && -n "$actual" && "$expected" == "$actual" ]]; then
+        printf 'VERIFIED\n'
+        return 0
+    fi
+    printf 'MISMATCH\n'
+    return 1
+}
+
 _ainish_rules_install_hook_block() {
     local hook="$1"
     local block="$2"
@@ -247,6 +285,7 @@ deploy_rules_sync() {
         print_warning "Could not write .agents/ainish-deploy.json in ${target_abs}"
         return 1
     }
+    _ainish_rules_sign_manifest "$target_abs/.agents/ainish-deploy.json"
     install_rules_sync_hooks "$target_abs"
     register_rules_target "$target_abs"
     mkdir -p "$target_abs/.agents/memories" 2>/dev/null || true
@@ -278,42 +317,88 @@ rules_sync_target() {
     AINISH_HEADLESS=true "${SCRIPT_DIR}/ainish-coder" --rules "$target_abs" --headless -y
 }
 
+# Prunes registry entries whose target directories no longer exist. Echoes the number
+# of entries removed; rewrites the registry atomically.
+_ainish_rules_prune_registry() {
+    local registry
+    registry="$(_ainish_rules_registry_file)" || { printf '0\n'; return 0; }
+    [[ -f "$registry" ]] || { printf '0\n'; return 0; }
+    local kept="" pruned=0 target
+    while IFS= read -r target; do
+        [[ -z "$target" ]] && continue
+        if [[ -d "$target" ]]; then
+            kept+="${target}"$'\n'
+        else
+            pruned=$((pruned + 1))
+        fi
+    done < "$registry"
+    local tmp="${registry}.tmp.$$"
+    printf '%s' "$kept" > "$tmp" && mv "$tmp" "$registry"
+    printf '%d\n' "$pruned"
+}
+
+# Runs the deployed refresher across every registered target.
+# Usage: rules_sync_all [true|false] [gc] [json]
 rules_sync_all() {
     local quiet="${1:-false}"
+    local gc="${2:-false}"
+    local json="${3:-false}"
     local registry
     registry="$(_ainish_rules_registry_file)" || return 1
+
+    local pruned=0
+    if [[ "$gc" == "true" ]]; then
+        pruned="$(_ainish_rules_prune_registry)"
+    fi
+
     if [[ ! -f "$registry" ]]; then
+        if [[ "$json" == "true" ]]; then
+            printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "targets": [], "pruned": %d, "summary": {"total": 0, "synced": 0, "skipped": 0, "failed": 0}}\n' \
+                "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$pruned"
+            return 0
+        fi
         echo -e "${YELLOW}No registered rules targets yet. Run 'ainish-coder --rules <dir>' in a repo.${RESET}"
         return 0
     fi
 
     local src_commit
     src_commit="$(_ainish_rules_source_commit)"
-    local total=0 synced=0 skipped=0 failed=0 target
+    local total=0 synced=0 skipped=0 failed=0 target rc
+    local entries=""
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
         total=$((total + 1))
+        local state="synced" p_path=$(_ainish_rules_json_escape "$target")
         if [[ ! -d "$target" ]]; then
-            [[ "$quiet" == "true" ]] || echo -e "${YELLOW}⊘ Missing target: ${target}${RESET}"
-            failed=$((failed + 1))
-            continue
-        fi
-        if [[ ! -x "${target}/.agents/bin/ainish-rules-sync" ]]; then
-            [[ "$quiet" == "true" ]] || echo -e "${YELLOW}⊘ No sync script (legacy target): ${target}${RESET}"
-            skipped=$((skipped + 1))
-            continue
-        fi
-        if [[ "$quiet" == "true" ]]; then
-            AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" --quiet >/dev/null 2>&1 || failed=$((failed + 1))
+            [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${YELLOW}⊘ Missing target: ${target}${RESET}"
+            failed=$((failed + 1)); state="missing"
+        elif [[ ! -x "${target}/.agents/bin/ainish-rules-sync" ]]; then
+            [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${YELLOW}⊘ No sync script (legacy target): ${target}${RESET}"
+            skipped=$((skipped + 1)); state="skipped"
         else
-            echo -e "${BRIGHT_BLUE}→ ${target}${RESET}"
-            AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" || failed=$((failed + 1))
+            if [[ "$quiet" == "true" || "$json" == "true" ]]; then
+                AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" --quiet >/dev/null 2>&1
+                rc=$?
+            else
+                echo -e "${BRIGHT_BLUE}→ ${target}${RESET}"
+                AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync"
+                rc=$?
+            fi
+            [[ $rc -eq 0 ]] || { failed=$((failed + 1)); state="failed"; }
+            synced=$((synced + 1))
         fi
-        synced=$((synced + 1))
+        entries+="{\"path\": \"$p_path\", \"state\": \"$state\"},"
     done < "$registry"
+    entries="${entries%,}"
+
+    if [[ "$json" == "true" ]]; then
+        printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "pruned": %d, "targets": [%s], "summary": {"total": %d, "synced": %d, "skipped": %d, "failed": %d}}\n' \
+            "$(_ainish_rules_json_escape "$src_commit")" "$pruned" "$entries" "$total" "$synced" "$skipped" "$failed"
+        return 0
+    fi
 
     [[ "$quiet" == "true" ]] || {
-        echo -e "${BRIGHT_GREEN}✅ Rules fleet sync complete: ${synced} checked, ${skipped} skipped, ${failed} failed (source ${src_commit:0:12})${RESET}"
+        echo -e "${BRIGHT_GREEN}✅ Rules fleet sync complete: ${synced} checked, ${skipped} skipped, ${failed} failed, ${pruned} pruned (source ${src_commit:0:12})${RESET}"
     }
     return 0
 }
@@ -527,4 +612,129 @@ rules_watch() {
             rules_sync_all false
         fi
     done
+}
+
+# Verifies deployment provenance cryptographically: every registered target's manifest
+# must carry a detached signature envelope whose digest matches the manifest bytes.
+# Usage: rules_verify [TARGET_DIR] [--json]
+rules_verify() {
+    local json=false target_filter=""
+    local a
+    for a in "$@"; do
+        case "$a" in
+            --json) json=true ;;
+            -*) ;;
+            *) target_filter="$a" ;;
+        esac
+    done
+
+    local targets=""
+    if [[ -n "$target_filter" ]]; then
+        targets="$target_filter"
+    else
+        targets="$(list_rules_targets)"
+    fi
+
+    local entries="" human=""
+    local total=0 verified=0 failed=0 target
+    while IFS= read -r target; do
+        [[ -z "$target" ]] && continue
+        total=$((total + 1))
+        local manifest="${target}/.agents/ainish-deploy.json"
+        local state
+        state="$(_ainish_rules_verify_manifest_sig "$manifest" || true)"
+        local ok=false
+        if [[ "$state" == "VERIFIED" ]]; then
+            ok=true; verified=$((verified + 1))
+        else
+            failed=$((failed + 1))
+        fi
+        local p_path=$(_ainish_rules_json_escape "$target")
+        entries+="{\"path\": \"$p_path\", \"manifest_sig\": \"$state\", \"verified\": $ok},"
+        human+="$(printf '  %b %s (manifest: %s)\n' \
+            "$([ "$ok" = "true" ] && printf '%s' "${GREEN}VERIFIED${RESET}" || printf '%s' "${RED}${state}${RESET}")" \
+            "$target" "$state")"$'\n'
+    done <<< "$targets"
+    entries="${entries%,}"
+
+    local rc=0
+    [[ $failed -gt 0 ]] && rc=1
+
+    if [[ "$json" == "true" ]]; then
+        printf '{"format": "ainish-coder/rules-verify/v1", "source_commit": "%s", "targets": [%s], "summary": {"total": %d, "verified": %d, "failed": %d}}\n' \
+            "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$entries" "$total" "$verified" "$failed"
+        return $rc
+    fi
+
+    echo -e "${BRIGHT_BLUE}ainish-coder Rules Provenance Verification${RESET}"
+    echo -e "  Source HEAD: $(_ainish_rules_source_commit | cut -c1-12)"
+    if [[ "$total" -eq 0 ]]; then
+        echo -e "  Targets:     ${YELLOW}none registered${RESET}"
+        return 0
+    fi
+    printf '%s' "$human"
+    echo -e "  Summary:     ${total} target(s) — ${verified} verified, ${failed} failed"
+    [[ $rc -eq 0 ]] && echo -e "${BRIGHT_GREEN}🔐 All deployment manifests carry valid signatures${RESET}" \
+                     || echo -e "${BRIGHT_RED}🔐 One or more manifests failed signature verification${RESET}"
+    return $rc
+}
+
+# Removes a target from the fleet registry and uninstalls its sync hooks in place.
+# Managed files (.agents/ainish-deploy.json, .agents/bin/ainish-rules-sync) are left for
+# the operator to delete; this only severs the auto-sync wiring.
+# Usage: rules_unenroll <TARGET_DIR>
+rules_unenroll() {
+    local target="${1:-}"
+    if [[ -z "$target" ]]; then
+        print_error "Usage: ainish-coder --rules-unenroll <dir>"
+        return 1
+    fi
+    local target_abs
+    target_abs="$(cd -P "$target" 2>/dev/null && pwd)" || target_abs="$target"
+
+    local registry pruned
+    registry="$(_ainish_rules_registry_file)" || return 1
+    pruned=0
+    if [[ -f "$registry" ]]; then
+        local tmp="${registry}.tmp.$$"
+        while IFS= read -r line; do
+            [[ "$line" == "$target_abs" ]] && { pruned=$((pruned + 1)); continue; }
+            printf '%s\n' "$line"
+        done < "$registry" > "$tmp" && mv "$tmp" "$registry"
+    fi
+
+    local hooks_removed=0 hook
+    if [[ -d "${target_abs}/.git/hooks" ]]; then
+        for hook in post-merge post-checkout; do
+            local hp="${target_abs}/.git/hooks/${hook}"
+            if [[ -f "$hp" ]] && grep -qF "$_AINISH_RULES_HOOK_START" "$hp" 2>/dev/null; then
+                local tmp="${hp}.tmp.$$"
+                BLOCK="" START="$_AINISH_RULES_HOOK_START" END="$_AINISH_RULES_HOOK_END" \
+                    awk '
+                        $0 == ENVIRON["START"] { inblock=1; next }
+                        $0 == ENVIRON["END"]   { inblock=0; next }
+                        !inblock
+                    ' "$hp" > "$tmp" && mv "$tmp" "$hp"
+                hooks_removed=$((hooks_removed + 1))
+            fi
+        done
+    fi
+
+    echo -e "${GREEN}✓ Unenrolled ${target_abs} (${pruned} registry entr$( [[ $pruned -eq 1 ]] && echo y || echo ies ), ${hooks_removed} hook(s) uninstalled)${RESET}"
+    echo -e "${YELLOW}Managed files left in place: .agents/ainish-deploy.json, .agents/bin/ainish-rules-sync${RESET}"
+    return 0
+}
+
+# Emits the provenance stamp (root commit SHA + deployment-manifest digest) for a target.
+# Used to embed auditable provenance into per-session COMMS `checkin` headers.
+# Usage: rules_provenance_stamp <TARGET_DIR>
+rules_provenance_stamp() {
+    local target="${1:-.}"
+    local target_abs
+    target_abs="$(cd -P "$target" 2>/dev/null && pwd)" || target_abs="$target"
+    local manifest="${target_abs}/.agents/ainish-deploy.json"
+    local src_commit manifest_digest
+    src_commit="$(_ainish_rules_source_commit)"
+    manifest_digest="$(_calc_sha256 "$manifest" 2>/dev/null | tr -d '[:space:]')"
+    printf 'source_commit=%s manifest_sha256=%s\n' "${src_commit:0:12}" "${manifest_digest:0:12}"
 }
