@@ -97,6 +97,24 @@ TOOL-SPECIFIC CONFIGURATION:
     Use --llms-txt to deploy llms.txt.
     Use --skills-sync to synchronize and selectively ingest skills.
 
+PQC SECRETS DISTRIBUTION (one engine, every tool):
+    --pqc-install [--json] [--no-wsl]
+                              Install ~/.local/bin/pqc-secrets (+ .cmd on Windows)
+                              resolving this checkout's canonical engine; generate the
+                              ML-KEM-768 identity when no bundle exists; on Windows
+                              also provision the WSL side. Any tool can then run
+                              `pqc-secrets list|export|set|store` from any directory.
+    --pqc-status [--json] [--no-wsl]
+                              Prove which store each environment resolves (native and
+                              WSL), whether the launcher is on PATH, and whether every
+                              enrolled target's vendored engine is current. Exit 1 when
+                              a target is stale so CI can fail closed.
+    --pqc-sync-targets [DIR|--all] [--dry-run] [--json]
+                              Refresh the vendored engine + launchers in every enrolled
+                              target, skip repos that deselected the pqc-secrets pack,
+                              and verify the digest after copy.
+                              JSON: ainish-coder/pqc-sync/v1.
+
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
 
