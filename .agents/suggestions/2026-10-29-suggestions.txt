@@ -54,3 +54,14 @@ What would this governance / sovereignty master suggest? Record catalog visibili
 What would this terminal-orchestration / swe-bench master suggest? Expose `pqc-secrets` in the harness catalog (done) and keep the contract pointer so even a non-loading harness reaches the file.
 What would this master-orchestrator / self-prompting master suggest? The bug survived because verification checked files, not the loader; add "would a harness see this?" to the definition of done for skill work.
 What would this developer-experience / ergonomics master suggest? Put a one-line `description` (no colons) plus a longer body summary in the pack, so catalog cards render and search results stay readable.
+### [2026-10-29T23:05:00Z] feat/pack-authorship
+A target's signed deployment manifest now attests the exact pack digest it shipped (`source_pack_sha256`), `--rules-verify` fails closed on unsigned or mismatched packs, and distribution re-signs the stamp after a pack-only sync; the security gate rejects malformed skill front matter. Next step: surface `packAuth` in `--rules-doctor` output and make the CI gate run with PyYAML installed so the deep YAML validation always executes.
+What would this adversarial / security master suggest? A signed digest proves the pack the root shipped; pin the signer public key in the target so the target can verify the envelope without trusting the source repo.
+What would this privacy / data-protection master suggest? The manifest records digests only; keep it that way — never add file contents or local paths beyond the existing ones.
+What would this supply-chain / third-party-risk master suggest? Verify the envelope cryptographically, not just the bound sha, when the native `ainish-rag audit sign` verifier is present.
+What would this systems-architecture / devops master suggest? `--rules-sync` and `--pqc-sync-targets` both mutate the manifest; document the ownership order so they never race on a target.
+What would this reliability / verification master suggest? Add the negative gate fixture to CI (a temp tree with a bad SKILL.md) so the validator cannot regress silently.
+What would this governance / sovereignty master suggest? Record the pack digest transition in contract-history style provenance, next to the contract hash.
+What would this terminal-orchestration / swe-bench master suggest? Make `--pqc-status --json` exit non-zero when `packAuth` is `mismatch`, not just when the pack is stale.
+What would this master-orchestrator / self-prompting master suggest? The stamp helper shipped after three failed quoting attempts; prefer file-based scripts or `sed` over inline multi-line awk for anything that edits JSON in shell.
+What would this developer-experience / ergonomics master suggest? Show `PACK_BOUND` in the human `--rules-status` line so operators see authorship without `--json`.

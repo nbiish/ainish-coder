@@ -183,3 +183,23 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: both descriptions use an em dash; every distributed pack validates; `pqc-secrets` now appears in the harness catalog; all 11 vendored repos re-synced on the pack digest and local-router updated (source 9d37ce9)
 - status:merged
 - blockers:none
+### [2026-10-29T23:05:00Z] CHECKIN | branch:feat/pack-authorship | wt:D:\Code\pack-authorship
+- start:2026-10-29T22:30:00Z
+- end:2026-10-29T23:05:00Z
+- scope:src/deploy_rules_sync.sh, src/pqc_dist.sh, bin/security_gate.py, .agents/skills/ghost-layer-injector/SKILL.md, scripts/test-pqc-dist.sh
+- triage:now
+- objective: make pack authorship provable and make a catalog-invisible skill impossible to ship
+- input: follow-ups from the consolidation — sign the pack digest so a target can prove whom the content came from; add front-matter validation to the gate/CI
+- output: signed manifest carries `source_pack_sha256`; `--rules-verify` fails closed on unsigned/mismatched packs; `--pqc-sync-targets` stamps + re-signs and reports `manifest: stamped|attested`; `--pqc-status` reports `packAuth`; the gate validates every `SKILL.md` front matter (name, description, unquoted ': '); 36/36 distribution assertions
+- status:verifying
+- blockers:none
+
+### [2026-10-29T23:05:00Z] INTENT-MERGE | branch:feat/pack-authorship | wt:D:\Code\pack-authorship
+- start:2026-10-29T23:02:00Z
+- end:2026-10-29T23:05:00Z
+- scope:same
+- objective: merge after the hermetic distribution test, the gate self-check, and a negative fixture test
+- input: 36/36 assertions; gate passes the repo and fails a crafted invalid front matter with exit 1
+- output: merged, deployed to the enrolled target, fleet re-synced
+- status:merged
+- blockers:none

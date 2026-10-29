@@ -46,8 +46,10 @@ cat > "${HOME_DIR}/.config/ainish-coder/skills-selection.json" <<JSON
 JSON
 
 run_cli() {
+    # Signing is exercised by the real manifests; the hermetic test asserts the
+    # attestation fields and must never touch the operator's signing key.
     env HOME="$HOME_DIR" AINISH_NO_TRACKING=true AINISH_NON_INTERACTIVE=true \
-        bash "$CLI" "$@" 2>&1
+        PQC_SKIP_MANIFEST_SIGN=1 bash "$CLI" "$@" 2>&1
 }
 
 ok() { PASS=$((PASS + 1)); printf '  ok   %s\n' "$1"; }
@@ -64,6 +66,11 @@ contains() { # contains <label> <haystack> <needle>
 jget() {
     sed -n "s/.*\"$1\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p; s/.*\"$1\":[[:space:]]*\\(true\\|false\\|[0-9][0-9]*\\).*/\\1/p" "$2" \
         | head -n 1
+}
+
+# First occurrence on the line (jget is greedy and would read the last target).
+jget_first() {
+    grep -o "\"$1\": \"[^\"]*\"" "$2" | head -n 1 | sed 's/.*": "//; s/"$//'
 }
 
 echo "== selection guard =="
@@ -93,6 +100,17 @@ echo "== consolidation fixture =="
 # A target that predates the merge still carries the standalone signature pack.
 mkdir -p "${TARGET_ON}/.agents/skills/pqc-signatures-security"
 printf "legacy\n" > "${TARGET_ON}/.agents/skills/pqc-signatures-security/SKILL.md"
+# A pre-attestation deploy: signed manifest template without a pack digest.
+mkdir -p "${TARGET_ON}/.agents"
+cat > "${TARGET_ON}/.agents/ainish-deploy.json" <<'JSON'
+{
+  "format": "ainish-coder/rules-deploy/v1",
+  "source_repo": "/tmp/source",
+  "source_commit": "deadbeef",
+  "source_agents_sha256": "0",
+  "deployed_at": "2026-10-29T00:00:00Z"
+}
+JSON
 pqc_packs=( "$REPO"/.agents/skills/pqc* )
 check "source ships exactly one pqc pack" "${#pqc_packs[@]}" "1"
 
@@ -104,6 +122,10 @@ check "deselected target skipped" "$(jget deselected "$sync_json")" "1"
 check "missing target reported" "$(jget missing "$sync_json")" "1"
 check "no failures" "$(jget failed "$sync_json")" "0"
 check "legacy signature pack pruned" "$(jget legacyPruned "$sync_json")" "1"
+check "manifest stamped with the pack digest" "$(jget_first manifest "$sync_json")" "stamped"
+pack_digest="$(jget sourcePackSha256 "$sync_json")"
+grep -q "\"source_pack_sha256\": \"${pack_digest}\"" "${TARGET_ON}/.agents/ainish-deploy.json" \
+    && ok "manifest attests the source pack digest" || not_ok "manifest attests the source pack digest"
 if [[ ! -d "${TARGET_ON}/.agents/skills/pqc-signatures-security" ]]; then
     ok "legacy pack removed from target"
 else
@@ -150,6 +172,7 @@ fi
 
 run_cli --pqc-sync-targets --all --json > "${WORK}/sync2.json"
 check "second sync is a no-op" "$(jget current "${WORK}/sync2.json")" "1"
+check "second sync reuses the attested manifest" "$(jget_first manifest "${WORK}/sync2.json")" "attested"
 
 echo "== --pqc-status =="
 run_cli --pqc-status --json --no-wsl > "${WORK}/status.json"
@@ -158,6 +181,7 @@ check "status exits 0 when only optional packs are missing" "$status_rc" "0"
 check "target reports current" "$(jget current "${WORK}/status.json")" "1"
 check "deselected target is not a required miss" "$(jget missingRequired "${WORK}/status.json")" "0"
 check "status reports no legacy packs" "$(jget legacyPacks "${WORK}/status.json")" "0"
+check "status binds the pack to the signed manifest" "$(jget_first packAuth "${WORK}/status.json")" "bound"
 
 # A selected target with no vendored engine must fail the check closed.
 printf '{"repos": {"%s": {"pqc-secrets": true}}}\n' "$(skills_selection_repo_key "$TARGET_BARE")" \

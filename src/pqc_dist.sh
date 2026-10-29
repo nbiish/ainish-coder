@@ -422,7 +422,9 @@ pqc_status() {
         fi
     fi
 
-    local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0 legacy_present=0
+    local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0 legacy_present=0 pack_bound=0 pack_unsigned=0
+    local source_pack_sha
+    source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
     registry="$(_pqc_config_dir)/targets.txt"
     if [[ -f "$registry" ]]; then
         while IFS= read -r target; do
@@ -451,8 +453,31 @@ pqc_status() {
             [[ -d "${target}/.agents/skills/pqc-signatures-security" ]] && legacy="yes"
             [[ "$legacy" == "yes" ]] && legacy_present=$((legacy_present + 1))
 
+            # Authorship: the deployment manifest is ML-DSA-65 signed and records
+            # the pack digest plus its source commit. `bound` means the digest on
+            # disk still equals what the signed manifest attests to.
+            local signed_pack="absent" pack_state="unsigned"
+            if [[ -f "${target}/.agents/ainish-deploy.json" ]]; then
+                signed_pack="$(sed -n 's/.*"source_pack_sha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                    "${target}/.agents/ainish-deploy.json" 2>/dev/null | head -n 1 | tr 'A-F' 'a-f')"
+                if [[ -n "$signed_pack" ]]; then
+                    pack_state="signed"
+                else
+                    pack_state="unsigned"
+                fi
+                if [[ -n "$psha" && -n "$signed_pack" && "$psha" == "$signed_pack" ]]; then
+                    pack_state="bound"
+                elif [[ -n "$signed_pack" ]]; then
+                    pack_state="mismatch"
+                fi
+            fi
+            case "$pack_state" in
+                bound|signed) pack_bound=$((pack_bound + 1)) ;;
+                *) pack_unsigned=$((pack_unsigned + 1)) ;;
+            esac
+
             [[ -n "$targets_json" ]] && targets_json="${targets_json},"
-            targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"selection\": \"${selection}\", \"engineSha256\": \"${tsha}\", \"legacyPack\": \"${legacy}\"}"
+            targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"selection\": \"${selection}\", \"engineSha256\": \"${tsha}\", \"packSha256\": \"${psha}\", \"signedPackSha256\": \"${signed_pack}\", \"packAuth\": \"${pack_state}\", \"legacyPack\": \"${legacy}\"}"
         done < "$registry"
     fi
 
@@ -466,8 +491,8 @@ pqc_status() {
         printf '  "native": %s,\n' "${native_store:-null}"
         printf '  "wsl": {"attempted": %s, "detail": "%s", "store": %s},\n' "$wsl" "$(_pqc_json_escape "$wsl_detail")" "${wsl_store:-null}"
         printf '  "targets": [%s],\n' "$targets_json"
-        printf '  "summary": {"total": %s, "current": %s, "stale": %s, "missing": %s, "missingRequired": %s, "deselected": %s, "unreachable": %s, "legacyPacks": %s}\n' \
-            "$total" "$current" "$stale" "$missing" "$missing_required" "$deselected" "$unreachable" "$legacy_present"
+        printf '  "summary": {"total": %s, "current": %s, "stale": %s, "missing": %s, "missingRequired": %s, "deselected": %s, "unreachable": %s, "legacyPacks": %s, "packBound": %s, "packUnattested": %s}\n' \
+            "$total" "$current" "$stale" "$missing" "$missing_required" "$deselected" "$unreachable" "$legacy_present" "$pack_bound" "$pack_unsigned"
         printf '}\n'
     else
         print_header "🔐 PQC secrets — store & distribution status"
@@ -517,6 +542,49 @@ _pqc_prune_legacy_pack() {
     rm -rf "$legacy"
     return 0
 }
+# Attests the pack digest in the target's deployment manifest and re-signs it.
+# The manifest already carries `source_commit` + an ML-DSA-65 `.sig`; adding the
+# pack digest makes authorship provable per pack, not just per contract deploy.
+# Returns: 0 = stamped, 2 = already current, 1 = no manifest / write failed.
+_pqc_stamp_manifest_pack() {
+    local target="$1" digest="$2" dry_run="${3:-false}"
+    local manifest="${target}/.agents/ainish-deploy.json"
+    if [[ -z "$digest" || ! -f "$manifest" ]]; then
+        return 1
+    fi
+    local current=""
+    current="$(sed -n 's/.*"source_pack_sha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -n 1)"
+
+    if [[ "$current" == "$digest" ]]; then
+        return 2
+    fi
+    if [[ "$dry_run" == "true" ]]; then
+        return 0
+    fi
+
+    local tmp="${manifest}.tmp.$$"
+    # Works for pretty-printed and compact manifests: drop any stale field, then
+    # re-insert it right after source_agents_sha256. The replacement stays on one
+    # line because BSD and GNU sed disagree about "\n" in replacements.
+    sed -e 's/"source_pack_sha256"[[:space:]]*:[[:space:]]*"[^"]*",\{0,1\}//g' \
+        -e "s/\(\"source_agents_sha256\"[[:space:]]*:[[:space:]]*\"[^\"]*\"\),/\1, \"source_pack_sha256\": \"${digest}\",/" \
+        "$manifest" > "$tmp" 2>/dev/null
+    if [[ $? -ne 0 ]]; then
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
+    fi
+    if ! mv "$tmp" "$manifest" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
+    fi
+
+    if declare -F _ainish_rules_sign_manifest >/dev/null 2>&1 \
+        && [[ "${PQC_SKIP_MANIFEST_SIGN:-0}" != "1" ]]; then
+        _ainish_rules_sign_manifest "$manifest" || true
+    fi
+    return 0
+}
+
 # ── --pqc-sync-targets ───────────────────────────────────────────────────────
 pqc_sync_targets() {
     local json="false" dry_run="false" all="false" only=""
@@ -559,7 +627,7 @@ pqc_sync_targets() {
         return 0
     fi
 
-    local source_sha source_pack_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0 legacy_pruned=0
+    local source_sha source_pack_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0 legacy_pruned=0 stamped=0
     source_sha="$(_pqc_engine_sha)"
     source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
 
@@ -632,8 +700,21 @@ pqc_sync_targets() {
             esac
         fi
 
+        # Authorship attestation: stamp the signed manifest with the pack digest
+        # once the pack on disk is current (or was just synced).
+        local manifest_state="absent"
+        if [[ "$state" == "current" || "$state" == "synced" || "$state" == "would-sync" ]]; then
+            local stamp_rc=0
+            _pqc_stamp_manifest_pack "$target" "$source_pack_sha" "$dry_run" || stamp_rc=$?
+            case "$stamp_rc" in
+                0) manifest_state="$([[ "$dry_run" == "true" ]] && printf 'would-stamp' || printf 'stamped')"; stamped=$((stamped + 1)) ;;
+                2) manifest_state="attested" ;;
+                *) manifest_state="absent" ;;
+            esac
+        fi
+
         [[ -n "$targets_json" ]] && targets_json="${targets_json},"
-        targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"note\": \"$(_pqc_json_escape "$note")\", \"legacy\": \"${legacy}\"}"
+        targets_json="${targets_json}{\"dir\": \"$(_pqc_json_escape "$target")\", \"state\": \"${state}\", \"note\": \"$(_pqc_json_escape "$note")\", \"legacy\": \"${legacy}\", \"manifest\": \"${manifest_state}\"}"
 
         if [[ "$json" != "true" ]]; then
             case "$state" in
@@ -656,8 +737,8 @@ pqc_sync_targets() {
         printf '  "sourcePackSha256": "%s",\n' "$source_pack_sha"
         printf '  "dryRun": %s,\n' "$dry_run"
         printf '  "targets": [%s],\n' "$targets_json"
-        printf '  "summary": {"total": %s, "synced": %s, "current": %s, "deselected": %s, "failed": %s, "missing": %s, "legacyPruned": %s}\n' \
-            "$total" "$synced" "$current" "$deselected" "$failed" "$missing_n" "$legacy_pruned"
+        printf '  "summary": {"total": %s, "synced": %s, "current": %s, "deselected": %s, "failed": %s, "missing": %s, "legacyPruned": %s, "manifestsStamped": %s}\n' \
+            "$total" "$synced" "$current" "$deselected" "$failed" "$missing_n" "$legacy_pruned" "$stamped"
         printf '}\n'
     else
         echo ""
