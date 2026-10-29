@@ -203,3 +203,20 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: merged, deployed to the enrolled target, fleet re-synced
 - status:merged
 - blockers:none
+### [2026-10-29T23:30:00Z] INTENT-REBUILD | branch:main | wt:D:\Code\local-router
+- start:2026-10-29T23:29:00Z
+- scope: local-router runtime (WSL node build/index.js, pid 119690)
+- objective: prove `/config` PQC keys survive a process restart by restarting the router and reading `/api/pqc/status`
+- input: 4 bundle keys (openrouter, zai, zenmux, admin token); bundle on disk; machine.kek present
+- output: pending restart + post-restart verification
+- status:in-progress
+- blockers:none
+### [2026-10-29T23:34:00Z] CHECKOUT | branch:main | wt:D:\Code\local-router
+- start:2026-10-29T23:29:00Z
+- end:2026-10-29T23:34:00Z
+- scope: local-router runtime (WSL node build/index.js)
+- objective: prove `/config` PQC keys survive a process restart
+- input: 4 bundle keys; bundle 2744 B on disk; machine.kek present
+- output: stopped pid 119690, started pid 143518; `/api/pqc/status` bundleLoaded=true with openrouter/zai/zenmux loaded; log "Loaded 3 provider key(s) from bundle"; live completion through zenmux returned OK (117 tokens); `pqc-secrets list` still shows the same 4 names
+- status:verified
+- blockers:none
