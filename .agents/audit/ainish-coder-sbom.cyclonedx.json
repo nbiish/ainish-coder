@@ -167,7 +167,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "abf312f1537c848ffc6a9e9a78567c8b687ec70497dc6b3230a1ff4f7c3173c1"
+          "content": "907fd72ed250961497b35241db889dfb32dbc4588d1f8c988562585a47fc7912"
         }
       ],
       "name": ".agents/canonical/AGENTS.md",
@@ -237,7 +237,7 @@
       "name": "ainish-coder",
       "type": "application"
     },
-    "timestamp": "2026-10-29T02:06:43Z",
+    "timestamp": "2026-10-29T02:25:21Z",
     "tools": {
       "components": [
         {
@@ -282,7 +282,7 @@
       "value": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a"
     }
   ],
-  "serialNumber": "urn:uuid:a6b0a662-1530-47cc-822c-1fab81ad7926",
+  "serialNumber": "urn:uuid:a04e8e1d-5493-4b59-beb3-29e19145912a",
   "specVersion": "1.6",
   "version": 1
 }

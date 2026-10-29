@@ -266,6 +266,9 @@ enum Commands {
         /// Emit a single-screen token-budgeted <ORIENT_PRIMER> for small-context local models
         #[arg(long)]
         compact: bool,
+        /// Fine-grained per-section line truncation override
+        #[arg(long)]
+        max_lines: Option<usize>,
         /// Output primer and section metadata as structured JSON
         #[arg(long)]
         json: bool,
@@ -368,6 +371,9 @@ pub enum AuditCommands {
         /// Inspect and verify all hash-chained transitions in .agents/audit/contract-history.jsonl
         #[arg(long)]
         verify_history: bool,
+        /// Output contract governance history as structured JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Inspect or reset the cumulative differential privacy budget ledger (.agents/audit/privacy-budget.json)
     Privacy {
@@ -518,6 +524,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
                 println!("Privacy Budget:     epsilon={:.4} ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt);
+            }
+
+            if let Ok(transitions) = pqc::verify_contract_history_chain(&current_dir) {
+                println!("Contract History:   {} hash-chained transitions verified (contract-history.jsonl)", transitions);
             }
 
             if config.llama_bin.is_none() {
@@ -1134,9 +1144,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Orient { inject, query, task_conditioned, verify, compact, json } => {
+        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, json)?;
             }
         }
         Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
@@ -1178,30 +1188,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AuditCommands::Sign { path } => {
                 run_audit_sign(&path)?;
             }
-            AuditCommands::Contract { threshold, hardware_seal, verify_history } => {
+            AuditCommands::Contract { threshold, hardware_seal, verify_history, json } => {
                 if verify_history {
                     let history_file = current_dir.join(".agents").join("audit").join("contract-history.jsonl");
+                    let chain_res = pqc::verify_contract_history_chain(&current_dir);
+                    let mut entries_list = Vec::new();
+                    if let Ok(text) = std::fs::read_to_string(&history_file) {
+                        for (idx, line) in text.lines().filter(|l| !l.trim().is_empty()).enumerate() {
+                            if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(line) {
+                                if let Some(obj) = v.as_object_mut() {
+                                    obj.insert("index".to_string(), serde_json::json!(idx + 1));
+                                }
+                                entries_list.push(v);
+                            }
+                        }
+                    }
+                    if json {
+                        let verified = chain_res.is_ok();
+                        let count = chain_res.unwrap_or(entries_list.len());
+                        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                            "verified": verified,
+                            "transitions_count": count,
+                            "history_file": history_file.to_string_lossy(),
+                            "transitions": entries_list,
+                        }))?);
+                        return Ok(());
+                    }
                     println!("=== ainish-rag Canonical Contract Governance History ===");
                     println!("  History Log: {}", history_file.display());
-                    match pqc::verify_contract_history_chain(&current_dir) {
+                    match chain_res {
                         Ok(cnt) => {
-                            if let Ok(text) = std::fs::read_to_string(&history_file) {
-                                for (idx, line) in text.lines().filter(|l| !l.trim().is_empty()).enumerate() {
-                                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
-                                        let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
-                                        let sha = v.get("contract_sha256").and_then(|s| s.as_str()).unwrap_or("");
-                                        let fpr = v.get("signer_fingerprint").and_then(|s| s.as_str()).unwrap_or("");
-                                        let prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
-                                        println!(
-                                            "  [#{:>2}] {} | sha256:{}... | signer:{}... | prev:{}...",
-                                            idx + 1,
-                                            ts,
-                                            &sha[..12.min(sha.len())],
-                                            &fpr[..12.min(fpr.len())],
-                                            &prev[..12.min(prev.len())]
-                                        );
-                                    }
-                                }
+                            for v in &entries_list {
+                                let idx = v.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+                                let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
+                                let sha = v.get("contract_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                let fpr = v.get("signer_fingerprint").and_then(|s| s.as_str()).unwrap_or("");
+                                let prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                println!(
+                                    "  [#{:>2}] {} | sha256:{}... | signer:{}... | prev:{}...",
+                                    idx,
+                                    ts,
+                                    &sha[..12.min(sha.len())],
+                                    &fpr[..12.min(fpr.len())],
+                                    &prev[..12.min(prev.len())]
+                                );
                             }
                             println!("  \x1b[32m[PASS]\x1b[0m Verified {} hash-chained governance transitions & ML-DSA-65 signature.\n", cnt);
                         }
@@ -1697,6 +1727,36 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
                 failed += 1;
                 receipts_checked += 1;
             }
+        }
+    }
+
+    // Verify all lockfiles in .agents/audit/lockfile-manifest.json exist on disk & signature verifies
+    let lf_manifest = pqc::lockfile_manifest_path(repo_root);
+    if lf_manifest.exists() {
+        receipts_checked += 1;
+        let mut missing_lfs = Vec::new();
+        let mut lf_count = 0usize;
+        if let Ok(text) = std::fs::read_to_string(&lf_manifest) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(arr) = v.get("lockfiles").or_else(|| v.get("files")).and_then(|a| a.as_array()) {
+                    for item in arr {
+                        if let Some(rel_p) = item.get("path").or_else(|| item.get("file")).and_then(|s| s.as_str()) {
+                            lf_count += 1;
+                            if !repo_root.join(rel_p).exists() {
+                                missing_lfs.push(rel_p.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let sig_ok = matches!(pqc::verify_file(repo_root, &lf_manifest), pqc::VerifyOutcome::Verified { .. });
+        if missing_lfs.is_empty() && sig_ok {
+            println!("  \x1b[32m[PASS]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {} lockfiles present on disk & ML-DSA-65 verified", lf_count);
+            passed += 1;
+        } else {
+            println!("  \x1b[31m[FAIL]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={:?}, sig_ok={}", missing_lfs, sig_ok);
+            failed += 1;
         }
     }
 
@@ -2262,6 +2322,7 @@ fn run_orient_inject(
     task_conditioned: bool,
     verify: bool,
     compact: bool,
+    max_lines: Option<usize>,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let wiki_dir = repo_root.join(".agents").join("wiki");
@@ -2349,7 +2410,7 @@ fn run_orient_inject(
     let mut sections = Vec::new();
     let mut total_sanitized = 0;
     let wiki_gen = WikiGenerator::new(repo_root);
-    let _ = wiki_gen.sync_bidirectional_resolutions();
+    let synced_resolutions = wiki_gen.sync_bidirectional_resolutions().unwrap_or(0);
 
     let git_branch = std::process::Command::new("git")
         .args(["branch", "--show-current"])
@@ -2378,7 +2439,7 @@ fn run_orient_inject(
         git_branch, git_sha
     ));
 
-    let lines_per_section = if compact { 8 } else { 25 };
+    let lines_per_section = max_lines.unwrap_or(if compact { 8 } else { 25 });
     let max_items = if compact { 3 } else { 6 };
 
     for p in &candidate_files {
@@ -2489,6 +2550,8 @@ fn run_orient_inject(
             "recent_memories": memory_notes,
             "wiki_ledger_notes": wiki_ledger_notes,
             "symbol_anchors": symbol_anchors,
+            "synced_resolutions": synced_resolutions,
+            "max_lines_per_section": lines_per_section,
             "total_sanitized_tokens": total_sanitized,
             "quarantine_verified": true,
             "orient_verified": orient_verified,
@@ -2621,6 +2684,23 @@ async fn run_gate(
         }
     }
 
+    // Verify .agents/audit/model-manifest.sig during gate whenever .agents/audit/model-manifest.json is present
+    let model_manifest_file = repo_root.join(".agents").join("audit").join("model-manifest.json");
+    let model_manifest_sig_ok = if model_manifest_file.exists() {
+        match pqc::verify_file(repo_root, &model_manifest_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
     let (lock_drift, lock_unpinned) = match lockfile_eval {
         Ok((d, u)) => (d, u),
         Err(_) => (Vec::new(), Vec::new()),
@@ -2629,7 +2709,7 @@ async fn run_gate(
     let comms_violations = check_comms_harness_agnostic(repo_root);
     let comms_pass = comms_violations.is_empty();
 
-    // Execute Zero-Trust, Loopback PSK, Trojan-Source & Contract Governance History checks
+    // Execute Zero-Trust, Loopback PSK, Trojan-Source, Model-Manifest Sig & Contract Governance History checks
     let agents_file = repo_root.join("AGENTS.md");
     let canon_hash_file = repo_root.join(".agents").join("canonical").join("AGENTS.md.sha256");
     let zt_hash_ok = if agents_file.is_file() && canon_hash_file.is_file() {
@@ -2647,7 +2727,7 @@ async fn run_gate(
     let trojan_source_clean = patch_eval.canary_leaks.is_empty();
     let contract_history_ok = pqc::verify_contract_history_chain(repo_root).is_ok();
     let redaction_self_test_ok = WikiGenerator::new(repo_root).verify_redaction_pipeline().is_ok();
-    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok;
+    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok && model_manifest_sig_ok;
 
     let effective_strict = strict || std::env::var("AINISH_GATE_STRICT").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
     let min_anchor = if effective_strict { 0.70 } else { 0.45 };
@@ -2716,7 +2796,8 @@ async fn run_gate(
                 "loopback_psk_verified": loopback_psk_ok,
                 "trojan_source_clean": trojan_source_clean,
                 "contract_history_verified": contract_history_ok,
-                "redaction_self_test": redaction_self_test_ok
+                "redaction_self_test": redaction_self_test_ok,
+                "model_manifest_sig_verified": model_manifest_sig_ok
             }
         }))?);
     } else {
