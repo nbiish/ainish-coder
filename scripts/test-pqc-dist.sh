@@ -131,6 +131,23 @@ check "target engine digest matches source" "$target_sha" "$source_sha"
 [[ -x "${TARGET_ON}/bin/pqc-secrets" ]] && ok "launcher copied with the pack" || not_ok "launcher copied with the pack"
 [[ ! -e "${TARGET_OFF}/bin/pqc-secrets" ]] && ok "deselected target untouched" || not_ok "deselected target untouched"
 
+echo "== documentation-only drift =="
+# The engine is untouched; only the merged reference changes. Freshness must be
+# pack-level, otherwise the consolidation silently skips doc updates.
+printf '\nlocal drift marker\n' >> "${TARGET_ON}/.agents/skills/pqc-secrets/references/signatures-security.md"
+run_cli --pqc-status --json --no-wsl > "${WORK}/drift-status.json"
+drift_rc=$?
+check "doc-only drift exits 1" "$drift_rc" "1"
+check "doc-only drift is stale" "$(jget stale "${WORK}/drift-status.json")" "1"
+run_cli --pqc-sync-targets --all --json > "${WORK}/repair.json"
+check "doc-only drift re-synced" "$(jget synced "${WORK}/repair.json")" "1"
+if cmp -s "${TARGET_ON}/.agents/skills/pqc-secrets/references/signatures-security.md" \
+          "${REPO}/.agents/skills/pqc-secrets/references/signatures-security.md"; then
+    ok "reference restored byte-for-byte"
+else
+    not_ok "reference restored byte-for-byte"
+fi
+
 run_cli --pqc-sync-targets --all --json > "${WORK}/sync2.json"
 check "second sync is a no-op" "$(jget current "${WORK}/sync2.json")" "1"
 
