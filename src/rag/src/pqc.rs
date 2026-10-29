@@ -612,6 +612,23 @@ pub fn build_intoto(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&
             );
         }
     }
+    let contract_history = repo_root.join(".agents").join("audit").join("contract-history.jsonl");
+    if contract_history.is_file() {
+        if let Ok(file_sha) = sha256_file(&contract_history) {
+            let head_sha = std::fs::read_to_string(&contract_history)
+                .ok()
+                .and_then(|t| t.lines().rev().find(|l| !l.trim().is_empty()).map(|l| sha256_hex(l.trim().as_bytes())))
+                .unwrap_or_else(|| file_sha.clone());
+            products.insert(
+                ".agents/audit/contract-history.jsonl".into(),
+                json!({
+                    "sha256": file_sha,
+                    "kind": "governance_history",
+                    "contract_history_head_sha256": head_sha
+                }),
+            );
+        }
+    }
 
     let rustc_ver = std::process::Command::new("rustc").arg("--version").output().ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -941,5 +958,45 @@ mod tests {
         // Zero-external-dependency Cargo.lock (like cmd-tracker) is considered pinned
         assert!(hash_pinned("Cargo.lock", "[[package]]\nname = \"cmd-tracker\"\nversion = \"1.0.0\"\n"));
         assert!(!hash_pinned("Cargo.lock", "[[package]]\nname = \"foo\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n"));
+    }
+
+    #[test]
+    fn contract_history_chain_tamper_detection() {
+        let tmp_dir = std::env::temp_dir().join(format!("ainish-history-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let audit_dir = tmp_dir.join(".agents").join("audit");
+        std::fs::create_dir_all(&audit_dir).unwrap();
+        let history_path = audit_dir.join("contract-history.jsonl");
+
+        let line1 = serde_json::to_string(&json!({
+            "timestamp": "2026-10-29T00:00:00Z",
+            "target": "AGENTS.md",
+            "contract_sha256": "aaaa",
+            "prev_entry_sha256": "0".repeat(64)
+        })).unwrap();
+        let h1 = sha256_hex(line1.as_bytes());
+        let line2 = serde_json::to_string(&json!({
+            "timestamp": "2026-10-29T00:10:00Z",
+            "target": "AGENTS.md",
+            "contract_sha256": "bbbb",
+            "prev_entry_sha256": h1
+        })).unwrap();
+        let h2 = sha256_hex(line2.as_bytes());
+        let line3 = serde_json::to_string(&json!({
+            "timestamp": "2026-10-29T00:20:00Z",
+            "target": "AGENTS.md",
+            "contract_sha256": "cccc",
+            "prev_entry_sha256": h2
+        })).unwrap();
+
+        std::fs::write(&history_path, format!("{}\n{}\n{}\n", line1, line2, line3)).unwrap();
+        assert_eq!(verify_contract_history_chain(&tmp_dir).unwrap(), 3);
+
+        // Tamper with intermediate line 2
+        let tampered_line2 = line2.replace("\"bbbb\"", "\"tampered\"");
+        std::fs::write(&history_path, format!("{}\n{}\n{}\n", line1, tampered_line2, line3)).unwrap();
+        assert!(verify_contract_history_chain(&tmp_dir).is_err());
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }
