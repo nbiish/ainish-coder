@@ -109,9 +109,10 @@ MULTIMODAL RAG & CODEBASE WIKI:
                                 decide <STATE>        Evaluate decision question with calibrated probability
                                 eval --patch <DIFF>   Evaluate patch anchoring (--generate-patch for git apply import diff)
                                 gate [--watch]        Unified pre-merge gate: patch, lockfiles, PQC receipts, contract, COMMS (--summary)
+                                statusline            Emit one-line compact gate status for shell prompts (PS1), Cursor statusLine, or tmux
                                 cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged)
-                                audit <cmd>           verify | lock [--update] | sbom [--format cyclonedx|spdx|intoto] | contract | sign | keygen
-                                service <cmd>         status | install | generate | uninstall background daemon
+                                audit <cmd>           verify | lock [--update] | privacy | sbom [--format cyclonedx|spdx|intoto] | contract | sign | keygen
+                                service <cmd>         status [--warm] | install | generate | uninstall background daemon
                                 bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
 

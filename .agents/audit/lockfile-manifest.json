@@ -1,6 +1,6 @@
 {
   "format": "ainish-rag/lockfile-manifest/v1",
-  "generated_at": "2026-10-29T01:00:34.840246+00:00",
+  "generated_at": "2026-10-29T01:32:56.058069400+00:00",
   "lockfiles": [
     {
       "bytes": 783,
@@ -10,7 +10,7 @@
     },
     {
       "bytes": 155,
-      "hash_pinned": false,
+      "hash_pinned": true,
       "path": "src/cmd-tracker/Cargo.lock",
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
     },

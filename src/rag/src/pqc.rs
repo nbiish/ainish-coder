@@ -214,7 +214,7 @@ fn is_lockfile(name: &str) -> bool {
 /// Whether the lockfile pins artifact digests (so installers can refuse tampered upstream packages).
 fn hash_pinned(name: &str, text: &str) -> bool {
     match name {
-        "Cargo.lock" => text.contains("checksum = "),
+        "Cargo.lock" => text.contains("checksum = ") || !text.contains("source = "),
         "uv.lock" | "poetry.lock" => text.contains("sha256:"),
         "Pipfile.lock" => text.contains("\"sha256:"),
         "package-lock.json" | "pnpm-lock.yaml" | "bun.lock" => text.contains("integrity"),
@@ -780,9 +780,44 @@ pub fn sign_canonical_contract_threshold(repo_root: &Path, threshold: usize) -> 
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&history_file) {
             let _ = writeln!(f, "{}", line_json);
         }
+        let _ = sign_file(&history_file);
     }
 
     Ok(threshold_file)
+}
+
+/// Verifies the cryptographic hash chain and detached ML-DSA-65 signature of `.agents/audit/contract-history.jsonl`.
+pub fn verify_contract_history_chain(repo_root: &Path) -> Result<usize, String> {
+    let history_file = repo_root.join(".agents").join("audit").join("contract-history.jsonl");
+    if !history_file.exists() {
+        return Ok(0);
+    }
+    let text = std::fs::read_to_string(&history_file).map_err(|e| format!("read contract-history.jsonl: {}", e))?;
+    let mut expected_prev = "0".repeat(64);
+    let mut count = 0usize;
+    for (idx, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let v: Value = serde_json::from_str(trimmed)
+            .map_err(|e| format!("contract-history.jsonl line {} invalid JSON: {}", idx + 1, e))?;
+        let recorded_prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
+        if recorded_prev != expected_prev {
+            return Err(format!(
+                "contract-history.jsonl hash chain broken at line {}: expected prev {}, found {}",
+                idx + 1, expected_prev, recorded_prev
+            ));
+        }
+        expected_prev = sha256_hex(trimmed.as_bytes());
+        count += 1;
+    }
+    if sig_path(&history_file).exists() {
+        if let VerifyOutcome::Invalid(err) = verify_file(repo_root, &history_file) {
+            return Err(format!("contract-history.jsonl signature invalid: {}", err));
+        }
+    }
+    Ok(count)
 }
 
 /// Verifies canonical AGENTS.md against k-of-n threshold signatures
@@ -902,5 +937,9 @@ mod tests {
 
         let seed = unwrap_hardware_sealed_seed(&root).unwrap();
         assert_eq!(seed.len(), 32);
+
+        // Zero-external-dependency Cargo.lock (like cmd-tracker) is considered pinned
+        assert!(hash_pinned("Cargo.lock", "[[package]]\nname = \"cmd-tracker\"\nversion = \"1.0.0\"\n"));
+        assert!(!hash_pinned("Cargo.lock", "[[package]]\nname = \"foo\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n"));
     }
 }
