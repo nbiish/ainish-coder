@@ -93,3 +93,33 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: retroactive record; worktree left in place because it is inside the 24h quiet window
 - status:merged
 - blockers:none
+### [2026-10-29T19:20:00Z] CHECKIN | branch:feat/agents-tooling-contract | wt:D:\Code\agents-contract
+- start:2026-10-29T19:05:00Z
+- end:2026-10-29T19:20:00Z
+- scope:AGENTS.md (description, RULES, REFERENCE, EXECUTION, AUDIT)
+- triage:now
+- objective: instruct every model on every harness how to use the installed tooling — accurately, tersely, and without changing the contract schema
+- input: operator asked for expert tooling instructions across harnesses while keeping the concise instruction schema
+- output: pqc-secrets named as the access path in the description; five terse secrets rules (no plaintext/argv, one resolved store + interop, consumer-prefixed names, write-then-prove, installed-once tooling); new `Secrets & PQC quick reference` table (store/list/set/del/pack/export/verify/sync/rename/gen/version + install/status/sync-targets); detect→write→prove→consume protocol; darwin-only vault/issue caveat; JSON-only machine I/O in EXECUTION; AUDIT proves writes
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:20:00Z] UPDATE | branch:feat/agents-tooling-contract | wt:D:\Code\agents-contract
+- start:2026-10-29T19:12:00Z
+- end:2026-10-29T19:20:00Z
+- scope:same
+- objective: prove every documented command and keep the schema intact
+- input: edits staged in the worktree
+- output: ran keygen/set/set --stdin/pack --merge/export --json/rename/del/verify/store on a throwaway PQC_CONFIG_DIR (all rc=0, JSON shapes as documented); section markers unchanged in order; +28/−4 lines only
+- status:verifying
+- blockers:canonical `.sig`/`AGENTS.threshold.sig` cannot be regenerated here (no bin/ainish-rag.exe; rag.py's fallback writes a labelled SHA-256 placeholder, not ML-DSA-65)
+
+### [2026-10-29T19:20:00Z] INTENT-MERGE | branch:feat/agents-tooling-contract | wt:D:\Code\agents-contract
+- start:2026-10-29T19:20:00Z
+- end:2026-10-29T19:20:00Z
+- scope:AGENTS.md, .agents/{comms,memories,tasks,suggestions}
+- objective: land the contract change and let the post-merge hook deploy it to the fleet
+- input: commit pending; local-router is the only enrolled target
+- output: merge --no-ff; hook refreshes local-router AGENTS.md + manifest at the new HEAD
+- status:verifying
+- blockers:none
