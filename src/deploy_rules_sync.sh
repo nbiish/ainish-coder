@@ -318,35 +318,197 @@ rules_sync_all() {
     return 0
 }
 
+_ainish_rules_json_escape() {
+    local s="${1-}"
+    s="${s//\\/\\\\}"
+    printf '%s' "$s" | sed 's/"/\\"/g'
+}
+
 rules_status() {
+    local json="${1:-false}"
     local registry src_commit
     registry="$(_ainish_rules_registry_file)" || return 1
     src_commit="$(_ainish_rules_source_commit)"
+
+    local entries="" human=""
+    local total=0 current=0 stale=0 missing=0
+    local target manifest deployed status label
+    if [[ -f "$registry" ]]; then
+        while IFS= read -r target; do
+            [[ -z "$target" ]] && continue
+            total=$((total + 1))
+            manifest="${target}/.agents/ainish-deploy.json"
+            deployed=""
+            if [[ ! -d "$target" ]]; then
+                status="MISSING_DIR"; label="${YELLOW}?${RESET}"; missing=$((missing + 1))
+            elif [[ ! -f "$manifest" ]]; then
+                status="MISSING_MANIFEST"; label="${YELLOW}?${RESET}"; missing=$((missing + 1))
+            else
+                deployed="$(sed -n 's/^[[:space:]]*"source_commit":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                if [[ "$deployed" == "$src_commit" ]]; then
+                    status="CURRENT"; label="${GREEN}CURRENT${RESET}"; current=$((current + 1))
+                else
+                    status="STALE"; label="${YELLOW}STALE${RESET} (deployed ${deployed:0:12})"; stale=$((stale + 1))
+                fi
+            fi
+            local p_path=$(_ainish_rules_json_escape "$target")
+            local p_commit=$(_ainish_rules_json_escape "$deployed")
+            entries+="{\"path\": \"$p_path\", \"status\": \"$status\", \"deployed_commit\": \"$p_commit\"},"
+            human+="$(printf '  %b %s\n' "$label" "$target")"$'\n'
+        done < "$registry"
+    fi
+    entries="${entries%,}"
+
+    if [[ "$json" == "true" ]]; then
+        printf '{\n'
+        printf '  "format": "ainish-coder/rules-status/v1",\n'
+        printf '  "source": "%s",\n' "$(_ainish_rules_json_escape "$REPO_DIR")"
+        printf '  "source_commit": "%s",\n' "$(_ainish_rules_json_escape "$src_commit")"
+        printf '  "registry": "%s",\n' "$(_ainish_rules_json_escape "$registry")"
+        printf '  "targets": [%s],\n' "$entries"
+        printf '  "summary": {"total": %d, "current": %d, "stale": %d, "missing": %d}\n' "$total" "$current" "$stale" "$missing"
+        printf '}\n'
+        return 0
+    fi
+
     echo -e "${BRIGHT_BLUE}ainish-coder Rules Deployment Status${RESET}"
     echo -e "  Source:      ${REPO_DIR}"
     echo -e "  Source HEAD: ${src_commit}"
     echo -e "  Registry:    ${registry}"
-    if [[ ! -f "$registry" ]]; then
+    if [[ "$total" -eq 0 ]]; then
         echo -e "  Targets:     ${YELLOW}none registered${RESET}"
         return 0
     fi
-    local target manifest deployed detail
+    printf '%s' "$human"
+    echo -e "  Summary:     ${total} target(s) — ${current} current, ${stale} stale, ${missing} missing"
+    return 0
+}
+
+# Verifies auto-sync health for the root repo and every registered target,
+# repairing infrastructure (manifest, refresher, hooks, registration) in place.
+# Content staleness is reported only — use `--rules-sync` to redeploy content.
+rules_doctor() {
+    local json=false target_filter=""
+    local a
+    for a in "$@"; do
+        case "$a" in
+            --json) json=true ;;
+            -*) ;;
+            *) target_filter="$a" ;;
+        esac
+    done
+
+    local hooks_dir="${REPO_DIR}/.git/hooks"
+    local root_issues=0 root_repairs=0 root_hooks_ok=true
+    if [[ -d "${REPO_DIR}/.git" ]]; then
+        local hook
+        for hook in post-commit post-merge; do
+            if [[ ! -f "${hooks_dir}/${hook}" ]] || ! grep -qF "$_AINISH_RULES_HOOK_START" "${hooks_dir}/${hook}" 2>/dev/null; then
+                root_hooks_ok=false
+                install_root_rules_sync_hook >/dev/null 2>&1 || true
+                if [[ -f "${hooks_dir}/${hook}" ]] && grep -qF "$_AINISH_RULES_HOOK_START" "${hooks_dir}/${hook}" 2>/dev/null; then
+                    root_repairs=$((root_repairs + 1))
+                    root_hooks_ok=true
+                else
+                    root_issues=$((root_issues + 1))
+                fi
+            fi
+        done
+    fi
+
+    local targets=""
+    if [[ -n "$target_filter" ]]; then
+        targets="$target_filter"
+    elif [[ -f "$(_ainish_rules_registry_file)" ]]; then
+        targets="$(list_rules_targets)"
+    fi
+
+    local entries="" human=""
+    local total=0 healthy=0 stale=0 issues=0 repairs=0
+    local target
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
-        manifest="${target}/.agents/ainish-deploy.json"
-        if [[ ! -f "$manifest" ]]; then
-            printf '  %s %s (no manifest)\n' "${YELLOW}?${RESET}" "$target"
-            continue
-        fi
-        deployed="$(sed -n 's/^[[:space:]]*"source_commit":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
-        if [[ "$deployed" == "$src_commit" ]]; then
-            detail="${GREEN}CURRENT${RESET}"
+        total=$((total + 1))
+        local manifest="${target}/.agents/ainish-deploy.json"
+        local script="${target}/.agents/bin/ainish-rules-sync"
+        local status="HEALTHY" t_issues=0 t_repairs=0 content="CURRENT"
+
+        if [[ ! -d "$target" ]]; then
+            status="MISSING_DIR"; t_issues=1; issues=$((issues + 1))
         else
-            detail="${YELLOW}STALE${RESET} (deployed ${deployed:0:12})"
+            local need_repair=false
+            [[ -f "$manifest" ]] || need_repair=true
+            [[ -f "$script" ]] || need_repair=true
+            if [[ ! -f "${target}/.git/hooks/post-merge" ]] || ! grep -qF "$_AINISH_RULES_HOOK_START" "${target}/.git/hooks/post-merge" 2>/dev/null; then
+                need_repair=true
+            fi
+            if [[ -f "$manifest" ]]; then
+                local m_src
+                m_src="$(sed -n 's/^[[:space:]]*"source_repo":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                [[ "$m_src" == "$REPO_DIR" ]] || need_repair=true
+            fi
+            if [[ "$need_repair" == "true" ]]; then
+                if deploy_rules_sync "$target" >/dev/null 2>&1; then
+                    t_repairs=1; repairs=$((repairs + 1))
+                else
+                    t_issues=1; issues=$((issues + 1))
+                fi
+            fi
+            # Re-evaluate after the (idempotent) repair pass
+            if [[ -f "$manifest" && -f "$script" && -f "${target}/.git/hooks/post-merge" ]] \
+                && grep -qF "$_AINISH_RULES_HOOK_START" "${target}/.git/hooks/post-merge" 2>/dev/null; then
+                if [[ "$status" != "UNHEALTHY" ]]; then status="HEALTHY"; healthy=$((healthy + 1)); fi
+            else
+                status="UNHEALTHY"; t_issues=1; issues=$((issues + 1))
+            fi
+            # Advisory: content staleness (deployed AGENTS digest vs source digest)
+            local src_sha deployed_sha
+            src_sha="$(_ainish_rules_source_agents_sha)"
+            deployed_sha="$(sed -n 's/^[[:space:]]*"source_agents_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -n 1)"
+            if [[ -n "$deployed_sha" && "$src_sha" != "$deployed_sha" ]]; then
+                content="STALE"
+                if [[ "$status" == "HEALTHY" ]]; then
+                    status="RULES_STALE"; stale=$((stale + 1)); healthy=$((healthy - 1))
+                fi
+            fi
         fi
-        printf '  %b %s\n' "$detail" "$target"
-    done < "$registry"
-    return 0
+        entries+="{\"path\": \"$(_ainish_rules_json_escape "$target")\", \"status\": \"$status\", \"issues\": ${t_issues}, \"repairs\": ${t_repairs}, \"rules_content\": \"$content\"},"
+        human+="$(printf '  %b %s (content: %s)\n' \
+            "$([ "$status" = "HEALTHY" ] && printf '%s' "${GREEN}HEALTHY${RESET}" || printf '%s' "${YELLOW}${status}${RESET}")" \
+            "$target" "$content")"$'\n'
+    done <<< "$targets"
+    entries="${entries%,}"
+
+    local rc=0
+    [[ $((issues + root_issues)) -gt 0 ]] && rc=1
+
+    if [[ "$json" == "true" ]]; then
+        printf '{\n'
+        printf '  "format": "ainish-coder/rules-doctor/v1",\n'
+        printf '  "source": "%s",\n' "$(_ainish_rules_json_escape "$REPO_DIR")"
+        printf '  "source_commit": "%s",\n' "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")"
+        printf '  "root_hooks": {"healthy": %s, "issues": %d, "repairs": %d},\n' "$root_hooks_ok" "$root_issues" "$root_repairs"
+        printf '  "targets": [%s],\n' "$entries"
+        printf '  "summary": {"total": %d, "healthy": %d, "stale": %d, "issues": %d, "repairs": %d}\n' "$total" "$healthy" "$stale" "$issues" "$repairs"
+        printf '}\n'
+        return $rc
+    fi
+
+    echo -e "${BRIGHT_BLUE}ainish-coder Rules Doctor${RESET}"
+    echo -e "  Source:      ${REPO_DIR} ($(_ainish_rules_source_commit | cut -c1-12))"
+    echo -e "  Root hooks:  $([ "$root_hooks_ok" = "true" ] && printf '%s' "${GREEN}HEALTHY${RESET}" || printf '%s' "${RED}UNHEALTHY${RESET}")"
+    if [[ "$total" -eq 0 ]]; then
+        echo -e "  Targets:     ${YELLOW}none registered${RESET} (run 'ainish-coder --rules <dir>' to enroll one)"
+    else
+        printf '%s' "$human"
+    fi
+    echo -e "  Summary:     ${total} target(s) — ${healthy} healthy, ${stale} stale content, ${issues} issue(s), ${repairs} repaired"
+    if [[ $rc -eq 0 ]]; then
+        echo -e "${BRIGHT_GREEN}🩺 Rules deployment is healthy${RESET}"
+    else
+        echo -e "${BRIGHT_RED}🩺 Rules deployment has unresolved issues${RESET}"
+    fi
+    return $rc
 }
 
 # Optional foreground watcher: polls the source HEAD and syncs the fleet on change.

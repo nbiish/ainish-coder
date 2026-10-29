@@ -167,7 +167,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "8748dfbbd1517b4dc000414696e2fb35ed1f2b217d37a76810650c3640d0ec13"
+          "content": "2205992d9eb782253a57ce7df96c8bef13f7e077def80c17e586504a20e49a60"
         }
       ],
       "name": ".agents/canonical/AGENTS.md",
@@ -218,7 +218,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "b2deb081388283092cc13af6bf97f037a32d78c112b5e29eaa39666d225d356a"
+          "content": "cc9189d249aac31d38d48a76a6b18b589e2cca300a63fc7c9af6614f0f5ca374"
         }
       ],
       "name": ".agents/audit/2026-10-29-index-receipt.json",
@@ -237,7 +237,7 @@
       "name": "ainish-coder",
       "type": "application"
     },
-    "timestamp": "2026-10-29T03:32:38Z",
+    "timestamp": "2026-10-29T05:55:46Z",
     "tools": {
       "components": [
         {
@@ -282,7 +282,7 @@
       "value": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a"
     }
   ],
-  "serialNumber": "urn:uuid:02f897db-5694-4713-b1a3-2aca467040a0",
+  "serialNumber": "urn:uuid:de032e8d-36fc-4019-b7a2-45735f88dcef",
   "specVersion": "1.6",
   "version": 1
 }
