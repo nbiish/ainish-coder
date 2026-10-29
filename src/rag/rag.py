@@ -1156,8 +1156,16 @@ def verify_redaction_pipeline_py(repo_root: Path) -> bool:
 
 def is_docs_or_coord_path(path: str) -> bool:
     """True when a patch path is documentation or agent-coordination state, which is exempt
-    from the code-anchoring threshold (such patches legitimately touch no symbols)."""
+    from the code-anchoring threshold. Code (including scripts under `.agents/skills/` and
+    `.agents/bin/`) is never exempt."""
     normalized = str(path).replace("\\", "/").lower()
+    code_exts = {
+        "rs", "py", "ts", "tsx", "js", "jsx", "go", "sh", "bash", "zsh", "fish",
+        "ps1", "cmd", "bat", "c", "cc", "cpp", "h", "hpp", "cs", "java", "rb",
+        "php", "lua", "swift", "kt",
+    }
+    if normalized.startswith(".agents/bin/") or normalized.rsplit(".", 1)[-1] in code_exts:
+        return False
     return normalized.startswith(".agents/") or normalized.endswith((".md", ".mdx", ".txt", ".rst"))
 
 
