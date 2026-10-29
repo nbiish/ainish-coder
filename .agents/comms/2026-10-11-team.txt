@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 **Entry block:**
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
@@ -43,7 +43,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-### [2026-10-11T18:18:00Z] checkin | agent:antigravity | branch:feat/rag-multimodal-wiki | wt:D:/Code/ainish-rag
+### [2026-10-11T18:18:00Z] checkin | branch:feat/rag-multimodal-wiki | wt:D:/Code/ainish-rag
 - start:2026-10-11T18:18:00Z
 - end:2026-10-11T18:18:00Z
 - scope:src/rag/, bin/ainish-coder, llms.txt, .agents/
@@ -54,7 +54,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-10-11T18:44:00Z] intent-merge | agent:antigravity | branch:feat/rag-multimodal-wiki | wt:D:/Code/ainish-rag
+### [2026-10-11T18:44:00Z] intent-merge | branch:feat/rag-multimodal-wiki | wt:D:/Code/ainish-rag
 - start:2026-10-11T18:44:00Z
 - end:2026-10-11T18:44:00Z
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, llms.txt, .agents/
@@ -64,7 +64,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-10-11T18:45:00Z] checkout | agent:antigravity | branch:feat/rag-multimodal-wiki | wt:D:/Code/ainish-rag
+### [2026-10-11T18:45:00Z] checkout | branch:feat/rag-multimodal-wiki | wt:D:/Code/ainish-rag
 - start:2026-10-11T18:45:00Z
 - end:2026-10-11T18:45:00Z
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, llms.txt, .agents/
@@ -74,7 +74,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-10-11T18:56:00Z] checkin | agent:antigravity | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
+### [2026-10-11T18:56:00Z] checkin | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
 - start:2026-10-11T18:56:00Z
 - end:2026-10-11T18:56:00Z
 - scope:AGENTS.md, llms.txt, src/rag/, bin/ainish-rag
@@ -85,7 +85,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-10-11T19:06:00Z] intent-merge | agent:antigravity | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
+### [2026-10-11T19:06:00Z] intent-merge | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
 - start:2026-10-11T19:06:00Z
 - end:2026-10-11T19:06:00Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, src/rag/, bin/ainish-rag, src/help.sh
@@ -95,7 +95,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-10-11T19:07:00Z] checkout | agent:antigravity | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
+### [2026-10-11T19:07:00Z] checkout | branch:feat/agents-rag-decision | wt:D:/Code/agents-rag-decision
 - start:2026-10-11T19:07:00Z
 - end:2026-10-11T19:07:00Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, src/rag/, bin/ainish-rag, src/help.sh
@@ -105,7 +105,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-10-11T19:31:00Z] checkin | agent:antigravity | branch:feat/rag-decision-rerank-pqc | wt:D:/Code/rag-decision-rerank-pqc
+### [2026-10-11T19:31:00Z] checkin | branch:feat/rag-decision-rerank-pqc | wt:D:/Code/rag-decision-rerank-pqc
 - start:2026-10-11T19:31:00Z
 - end:2026-10-11T19:31:00Z
 - scope:AGENTS.md, src/rag/, bin/ainish-rag, src/help.sh, llms.txt, bin/ainish-coder
@@ -128,7 +128,7 @@ status: completed
 blockers: none
 end: 2026-10-11T19:41:08.850689+00:00
 
-### [2026-10-11T19:42:00Z] checkout | agent:antigravity | branch:feat/rag-decision-rerank-pqc | wt:D:/Code/rag-decision-rerank-pqc
+### [2026-10-11T19:42:00Z] checkout | branch:feat/rag-decision-rerank-pqc | wt:D:/Code/rag-decision-rerank-pqc
 - start:2026-10-11T19:42:00Z
 - end:2026-10-11T19:42:00Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, src/rag/, bin/ainish-rag, src/help.sh
@@ -138,7 +138,7 @@ end: 2026-10-11T19:41:08.850689+00:00
 - status:merged
 - blockers:none
 
-### [2026-10-11T20:16:00Z] checkin | agent:antigravity | branch:feat/rag-cross-platform-wsl-mac | wt:D:/Code/rag-cross-platform-wsl-mac
+### [2026-10-11T20:16:00Z] checkin | branch:feat/rag-cross-platform-wsl-mac | wt:D:/Code/rag-cross-platform-wsl-mac
 - start:2026-10-11T20:15:42.102715+00:00
 - end:2026-10-11T20:15:42.102715+00:00
 - scope:src/rag/, bin/, AGENTS.md, llms.txt
@@ -162,7 +162,7 @@ status: completed
 blockers: none
 end: 2026-10-11T20:25:01.779998+00:00
 
-### [2026-10-11T20:25:00Z] checkout | agent:antigravity | branch:feat/rag-cross-platform-wsl-mac | wt:D:/Code/rag-cross-platform-wsl-mac
+### [2026-10-11T20:25:00Z] checkout | branch:feat/rag-cross-platform-wsl-mac | wt:D:/Code/rag-cross-platform-wsl-mac
 - start:2026-10-11T20:25:00Z
 - end:2026-10-11T20:25:00Z
 - scope:src/rag/, bin/ainish-rag, AGENTS.md, llms.txt
@@ -172,7 +172,7 @@ end: 2026-10-11T20:25:01.779998+00:00
 - status:merged
 - blockers:none
 
-### [2026-10-11T21:52:00Z] checkin | agent:antigravity | branch:feat/rag-masters-sota | wt:D:/Code/rag-masters-sota
+### [2026-10-11T21:52:00Z] checkin | branch:feat/rag-masters-sota | wt:D:/Code/rag-masters-sota
 - start:2026-10-11T21:51:35.475397+00:00
 - end:2026-10-11T21:51:35.475397+00:00
 - scope:src/rag/, bin/, AGENTS.md, llms.txt
@@ -196,7 +196,7 @@ status: completed
 blockers: none
 end: 2026-10-11T22:03:03.145343+00:00
 
-### [2026-10-11T22:03:00Z] checkout | agent:antigravity | branch:feat/rag-masters-sota | wt:D:/Code/rag-masters-sota
+### [2026-10-11T22:03:00Z] checkout | branch:feat/rag-masters-sota | wt:D:/Code/rag-masters-sota
 - start:2026-10-11T22:03:00Z
 - end:2026-10-11T22:03:00Z
 - scope:src/rag/, bin/ainish-rag, AGENTS.md, llms.txt
@@ -206,7 +206,7 @@ end: 2026-10-11T22:03:03.145343+00:00
 - status:merged
 - blockers:none
 
-### [2026-10-11T23:35:00Z] checkin | agent:antigravity | branch:feat/rag-masters-round2 | wt:D:/Code/rag-masters-round2
+### [2026-10-11T23:35:00Z] checkin | branch:feat/rag-masters-round2 | wt:D:/Code/rag-masters-round2
 - start:2026-10-11T23:35:09.408432+00:00
 - end:2026-10-11T23:35:09.408432+00:00
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, AGENTS.md, llms.txt
@@ -228,7 +228,7 @@ output: release binary bin/ainish-rag.exe, passing security_gate.py, verified be
 status: completed
 blockers: none
 end: 2026-10-11T23:50:39.119782+00:00
-### [2026-10-11T23:52:00Z] checkout | agent:antigravity | branch:feat/rag-masters-round2 | wt:D:/Code/rag-masters-round2
+### [2026-10-11T23:52:00Z] checkout | branch:feat/rag-masters-round2 | wt:D:/Code/rag-masters-round2
 - start:2026-10-11T23:52:00Z
 - end:2026-10-11T23:52:00Z
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, AGENTS.md, src/help.sh
@@ -238,7 +238,7 @@ end: 2026-10-11T23:50:39.119782+00:00
 - status:merged
 - blockers:none
 
-### [2026-10-11T23:58:00Z] checkin | agent:antigravity | branch:feat/dist-rules-masters | wt:D:/Code/dist-rules-masters
+### [2026-10-11T23:58:00Z] checkin | branch:feat/dist-rules-masters | wt:D:/Code/dist-rules-masters
 - start:2026-10-11T23:58:00Z
 - end:2026-10-11T23:58:00Z
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, bin/git-context.sh, AGENTS.md, src/templates/AGENTS.COMMS.md, llms.txt
@@ -249,7 +249,7 @@ end: 2026-10-11T23:50:39.119782+00:00
 - status:in-progress
 - blockers:none
 
-### [2026-10-12T00:26:00Z] intent-merge | agent:antigravity | branch:feat/dist-rules-masters | wt:D:/Code/ainish-coder
+### [2026-10-12T00:26:00Z] intent-merge | branch:feat/dist-rules-masters | wt:D:/Code/ainish-coder
 - start:2026-10-12T00:26:00Z
 - end:2026-10-12T00:26:00Z
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, bin/git-context.sh, AGENTS.md, .agents/canonical/, src/deploy_agents.sh, src/help.sh
@@ -259,7 +259,7 @@ end: 2026-10-11T23:50:39.119782+00:00
 - status:merged
 - blockers:none
 
-### [2026-10-12T00:28:00Z] checkout | agent:antigravity | branch:feat/dist-rules-masters | wt:D:/Code/ainish-coder
+### [2026-10-12T00:28:00Z] checkout | branch:feat/dist-rules-masters | wt:D:/Code/ainish-coder
 - start:2026-10-12T00:28:00Z
 - end:2026-10-12T00:28:00Z
 - scope:src/rag/, bin/ainish-rag, bin/ainish-coder, bin/git-context.sh, AGENTS.md, .agents/canonical/, src/deploy_agents.sh, src/help.sh

@@ -138,6 +138,12 @@ enum Commands {
         /// Append a UTC-dated bullet note to .agents/wiki/ledger.md, sign with ML-DSA-65, and re-render page 04
         #[arg(short, long)]
         note: Option<String>,
+        /// Mark matching entries [RESOLVED] in both .agents/wiki/ledger.md and today's .agents/memories/{date}-memory.txt
+        #[arg(long)]
+        resolve: Option<String>,
+        /// Display current operator ledger entries and their [RESOLVED] status without regenerating all wiki pages
+        #[arg(long)]
+        list_notes: bool,
     },
     /// Query the multimodal RAG vector store with two-stage decision reranking
     Query {
@@ -227,6 +233,9 @@ enum Commands {
         /// Prune stale git worktree metadata and detect merged branches
         #[arg(long, default_value_t = true)]
         prune_worktrees: bool,
+        /// Automatically delete local branches already merged into main
+        #[arg(long)]
+        delete_merged: bool,
     },
     /// Subagent context injection: formats top architectural wiki sections into primer
     Orient {
@@ -594,12 +603,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Monitor { interval, once, json } => {
             run_drift_monitor(&config, &current_dir, interval, once, json).await?;
         }
-        Commands::Wiki { path, index, note } => {
+        Commands::Wiki { path, index, note, resolve, list_notes } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             let generator = WikiGenerator::new(&target);
+            if list_notes {
+                println!("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===");
+                let notes = generator.list_notes();
+                if notes.is_empty() {
+                    println!("  (No operator ledger entries recorded yet)");
+                } else {
+                    for (idx, n) in notes.iter().enumerate() {
+                        let status = if n.contains("[RESOLVED]") { "\x1b[32m[RESOLVED]\x1b[0m" } else { "\x1b[33m[OPEN]\x1b[0m" };
+                        let clean_n = n.trim_start_matches("- ").trim_start_matches("[RESOLVED]").trim();
+                        println!("  [{}] {} {}", idx + 1, status, clean_n);
+                    }
+                }
+                println!();
+                return Ok(());
+            }
+            if let Some(ref kw) = resolve {
+                let count = generator.resolve_note(kw)?;
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Marked {} matching ledger entries [RESOLVED] and recorded resolution in today's .agents/memories/ file.", count);
+            }
             if let Some(ref note_text) = note {
                 let (ledger_path, sig_path) = generator.append_note_and_sign(note_text)?;
-                println!("  \x1b[32m[rag:wiki]\x1b[0m Appended UTC-dated note to {} and signed detached ML-DSA-65 envelope ({})", ledger_path.display(), sig_path.display());
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Appended UTC-dated note (with HEAD SHA) to {} and signed detached ML-DSA-65 envelope ({})", ledger_path.display(), sig_path.display());
             } else {
                 let ledger_path = target.join(".agents").join("wiki").join("ledger.md");
                 if ledger_path.exists() {
@@ -939,7 +967,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Cleanup { compact, prune_days, prune_worktrees } => {
+        Commands::Cleanup { compact, prune_days, prune_worktrees, delete_merged } => {
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
             println!("=== ainish-rag Database Maintenance & Worktree Hygiene ===");
             if compact {
@@ -950,11 +978,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Compaction failed: {}", e),
                 }
             }
-            if prune_worktrees {
+            if prune_worktrees || delete_merged {
                 let _ = std::process::Command::new("git")
                     .args(["worktree", "prune"])
                     .current_dir(&current_dir)
                     .output();
+                let current_branch = std::process::Command::new("git")
+                    .args(["branch", "--show-current"])
+                    .current_dir(&current_dir)
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
                 let merged_branches: Vec<String> = std::process::Command::new("git")
                     .args(["branch", "--merged", "main"])
                     .current_dir(&current_dir)
@@ -964,14 +1000,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map(|s| {
                         s.lines()
                             .map(|l| l.trim().trim_start_matches('*').trim_start_matches('+').trim().to_string())
-                            .filter(|b| !b.is_empty() && b != "main" && b != "master")
+                            .filter(|b| !b.is_empty() && b != "main" && b != "master" && b != &current_branch)
                             .collect()
                     })
                     .unwrap_or_default();
                 if merged_branches.is_empty() {
                     println!("  \x1b[32m[rag:worktrees]\x1b[0m Pruned stale git worktree metadata; 0 lingering merged branches detected.");
+                } else if delete_merged {
+                    let mut deleted = Vec::new();
+                    for b in &merged_branches {
+                        if std::process::Command::new("git")
+                            .args(["branch", "-d", b])
+                            .current_dir(&current_dir)
+                            .output()
+                            .map_or(false, |o| o.status.success())
+                        {
+                            deleted.push(b.clone());
+                        }
+                    }
+                    println!("  \x1b[32m[rag:worktrees]\x1b[0m Automatically deleted {} merged local branches: {}", deleted.len(), deleted.join(", "));
                 } else {
-                    println!("  \x1b[33m[rag:worktrees]\x1b[0m Pruned worktree metadata; merged branches ready for cleanup: {}", merged_branches.join(", "));
+                    println!("  \x1b[33m[rag:worktrees]\x1b[0m Pruned worktree metadata; merged branches ready for cleanup (use --delete-merged): {}", merged_branches.join(", "));
                 }
             }
         }
@@ -2028,6 +2077,7 @@ fn run_orient_inject(
     }
 
     // Surface latest .agents/wiki/ledger.md operator entries inside <ORIENT_PRIMER>
+    // Prioritize unresolved probe misses ahead of [RESOLVED] entries when selecting top 6 ledger notes
     let mut wiki_ledger_notes = Vec::new();
     let wiki_gen = WikiGenerator::new(repo_root);
     let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
@@ -2035,9 +2085,18 @@ fn run_orient_inject(
         let rendered_ledger = wiki_gen.read_operator_ledger();
         let (clean_ledger, san_cnt) = sanitize_orient_content(&rendered_ledger);
         total_sanitized += san_cnt;
-        for line in clean_ledger.lines().filter(|l| l.trim().starts_with("- ")).rev().take(6).collect::<Vec<_>>().into_iter().rev() {
-            wiki_ledger_notes.push(line.to_string());
-        }
+        let all_bullets: Vec<String> = clean_ledger
+            .lines()
+            .filter(|l| l.trim().starts_with("- "))
+            .map(|l| l.to_string())
+            .collect();
+        let mut unresolved: Vec<String> = all_bullets.iter().filter(|l| !l.contains("[RESOLVED]")).cloned().collect();
+        let mut resolved: Vec<String> = all_bullets.iter().filter(|l| l.contains("[RESOLVED]")).cloned().collect();
+        unresolved.reverse();
+        resolved.reverse();
+        let mut selected: Vec<String> = unresolved.into_iter().chain(resolved.into_iter()).take(6).collect();
+        selected.reverse();
+        wiki_ledger_notes = selected;
     }
     if !wiki_ledger_notes.is_empty() {
         primer_lines.push("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)".to_string());
@@ -2157,6 +2216,16 @@ async fn run_gate(
                     pqc::VerifyOutcome::Invalid(_) => audit_receipts_failed += 1,
                 }
             }
+        }
+    }
+
+    // Verify .agents/wiki/ledger.sig during gate when .agents/wiki/ledger.md is modified in the evaluated patch diff
+    let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
+    let ledger_modified_in_patch = patch_eval.modified_files.iter().any(|f| f.ends_with("ledger.md"));
+    if ledger_modified_in_patch && ledger_file.exists() {
+        match pqc::verify_file(repo_root, &ledger_file) {
+            pqc::VerifyOutcome::Verified { .. } => audit_receipts_passed += 1,
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => audit_receipts_failed += 1,
         }
     }
 
