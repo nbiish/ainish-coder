@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 **Entry block:**
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
@@ -43,7 +43,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-### [2026-09-23T14:10:00Z] checkin | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+### [2026-09-23T14:10:00Z] checkin | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
 - start:2026-09-23T14:10:00Z
 - end:2026-09-23T14:10:00Z
 - scope:AGENTS.md, src/templates/AGENTS.COMMS.md, src/deploy_agents_comms.sh, src/scroll_integrity.sh, src/help.sh, bin/ainish-coder, bin/git-context.sh, llms.txt, src/README.md, .agents/canonical/
@@ -54,7 +54,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-09-23T14:10:00Z] update | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+### [2026-09-23T14:10:00Z] update | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
 - start:2026-09-23T14:10:00Z
 - end:2026-09-23T14:10:00Z
 - scope:AGENTS.md, COMMS template + deploy/log lookups, help, CLI, git-context, llms.txt, .agents/canonical/, .agents/memories/MEMORY.md, .agents/tasks/2026-09-22-task.md
@@ -64,7 +64,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-09-23T14:18:55Z] intent-merge | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+### [2026-09-23T14:18:55Z] intent-merge | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
 - start:2026-09-23T14:18:55Z
 - end:2026-09-23T14:18:55Z
 - scope:AGENTS.md, .agents/canonical/, src/, bin/, llms.txt, .agents/
@@ -74,7 +74,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-09-23T14:37:25Z] checkout | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation (removed)
+### [2026-09-23T14:37:25Z] checkout | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation (removed)
 - start:2026-09-23T14:18:55Z
 - end:2026-09-23T14:37:25Z
 - scope:AGENTS.md, .agents/canonical/, src/, bin/, llms.txt, .gitignore, .agents/
@@ -84,7 +84,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-09-23T17:45:00Z] checkin | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
+### [2026-09-23T17:45:00Z] checkin | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
 - start:2026-09-23T17:45:00Z
 - end:2026-09-23T17:45:00Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
@@ -95,7 +95,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:active
 - blockers:none
 
-### [2026-09-23T18:08:00Z] update | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
+### [2026-09-23T18:08:00Z] update | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
 - start:2026-09-23T17:45:00Z
 - end:2026-09-23T18:08:00Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
@@ -105,7 +105,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-09-23T18:05:00Z] intent-merge | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
+### [2026-09-23T18:05:00Z] intent-merge | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory
 - start:2026-09-23T18:05:00Z
 - end:2026-09-23T18:05:00Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh
@@ -115,7 +115,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-09-23T18:25:33Z] checkout | agent:omp | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory (removed)
+### [2026-09-23T18:25:33Z] checkout | branch:chore/agent-agnostic-memory | wt:/mnt/d/Code/agent-agnostic-memory (removed)
 - start:2026-09-23T17:45:00Z
 - end:2026-09-23T18:25:33Z
 - scope:AGENTS.md, .agents/canonical/, llms.txt, .agents/memories/, .agents/suggestions/, .agents/skills/, .agents/mcp-settings.json, .gitignore, bin/git-context.sh, src/deploy_skills.sh, src/verify_skills.sh, src/help.sh

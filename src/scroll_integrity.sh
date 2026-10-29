@@ -113,7 +113,7 @@ PYEOF
         )
     fi
 
-    local header_line="### [${start_ts}] ${event} | agent:IntegrityLayer | branch:${branch} | wt:${wt_path#${REPO_DIR%/}/}"
+    local header_line="### [${start_ts}] ${event} | branch:${branch} | wt:${wt_path#${REPO_DIR%/}/}"
     local block="${header_line}
 - start:${start_ts}
 - end:${end_ts}
