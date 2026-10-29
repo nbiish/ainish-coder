@@ -20,7 +20,7 @@
     "signer_fingerprint": "d98405ea368484f51e64840d725343be",
     "target_arch": "x86_64",
     "target_os": "windows",
-    "timestamp": "2026-10-29T02:51:58Z",
+    "timestamp": "2026-10-29T03:32:37Z",
     "tool": "ainish-rag 0.1.0"
   },
   "materials": {
@@ -28,7 +28,7 @@
       "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
     },
     "AGENTS.md": {
-      "sha256": "1d6a1833c59a687d2cf680ec0e5f13f6bfb3200902d6006a833b7e38bf6623f6"
+      "sha256": "8748dfbbd1517b4dc000414696e2fb35ed1f2b217d37a76810650c3640d0ec13"
     },
     "src/cmd-tracker/Cargo.lock": {
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
@@ -52,12 +52,17 @@
     },
     ".agents/audit/2026-10-29-index-receipt.json": {
       "kind": "data",
-      "sha256": "af5763f734dd9c7237f403b7e458606d0f776d2763630064ab71106fbd97065b"
+      "sha256": "b2deb081388283092cc13af6bf97f037a32d78c112b5e29eaa39666d225d356a"
     },
     ".agents/audit/contract-history.jsonl": {
-      "contract_history_head_sha256": "3fee79d0b84225172e7ec776938b0293c8d208cb2030fb310357b5149020da30",
+      "contract_history_head_sha256": "8f3fcf4da4f57b4e439871a0f5651a151af356f0b0dd5909d3a639d798f7c351",
       "kind": "governance_history",
-      "sha256": "f0e1f4ea60321bbec9f90e43c388fe26fd46ae18957da8af1c3b58d11002534c"
+      "sha256": "0fbcb7fcd5c845a3cb0259528af0ae3af06962d979a8c4ea73d8d99718efe267"
+    },
+    ".agents/audit/contract-history.sig": {
+      "ainish:contract-history-sig:sha256": "e69e7add8bb0591d8c1f2fb31da735bf2894ad2e45516536fbe470aa87759ae0",
+      "kind": "governance_signature",
+      "sha256": "e69e7add8bb0591d8c1f2fb31da735bf2894ad2e45516536fbe470aa87759ae0"
     },
     ".agents/audit/privacy-report.json": {
       "ainish:privacy-report:sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a",
@@ -66,7 +71,7 @@
     },
     ".agents/canonical/AGENTS.md": {
       "kind": "data",
-      "sha256": "1d6a1833c59a687d2cf680ec0e5f13f6bfb3200902d6006a833b7e38bf6623f6"
+      "sha256": "8748dfbbd1517b4dc000414696e2fb35ed1f2b217d37a76810650c3640d0ec13"
     },
     ".agents/wiki/ledger.md": {
       "kind": "wiki_ledger",

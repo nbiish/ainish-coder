@@ -638,6 +638,19 @@ pub fn build_intoto(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&
             );
         }
     }
+    let contract_history_sig = repo_root.join(".agents").join("audit").join("contract-history.sig");
+    if contract_history_sig.is_file() {
+        if let Ok(sig_sha) = sha256_file(&contract_history_sig) {
+            products.insert(
+                ".agents/audit/contract-history.sig".into(),
+                json!({
+                    "sha256": sig_sha,
+                    "kind": "governance_signature",
+                    "ainish:contract-history-sig:sha256": sig_sha
+                }),
+            );
+        }
+    }
     let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
     if privacy_report.is_file() {
         if let Ok(priv_sha) = sha256_file(&privacy_report) {
@@ -1031,6 +1044,9 @@ mod tests {
         let priv_report = audit_dir.join("privacy-report.json");
         std::fs::write(&priv_report, r#"{"within_budget":true}"#).unwrap();
         let expected_sha = sha256_file(&priv_report).unwrap();
+        let history_sig = audit_dir.join("contract-history.sig");
+        std::fs::write(&history_sig, r#"{"format":"envelope","signature":"c2ln"}"#).unwrap();
+        let expected_sig_sha = sha256_file(&history_sig).unwrap();
 
         let manifest = audit_dir.join("model-manifest.json");
         let cdx = build_cyclonedx(&tmp_dir, &manifest, None);
@@ -1045,6 +1061,11 @@ mod tests {
         assert_eq!(
             prod.get("ainish:privacy-report:sha256").and_then(|v| v.as_str()),
             Some(expected_sha.as_str())
+        );
+        let sig_prod = intoto.get("products").and_then(|p| p.get(".agents/audit/contract-history.sig")).unwrap();
+        assert_eq!(
+            sig_prod.get("ainish:contract-history-sig:sha256").and_then(|v| v.as_str()),
+            Some(expected_sig_sha.as_str())
         );
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
