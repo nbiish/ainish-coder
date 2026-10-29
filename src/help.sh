@@ -95,19 +95,24 @@ MULTIMODAL RAG & CODEBASE WIKI:
                               Commands:
                                 serve [--port PORT]   Launch/ensure loopback embedding server
                                 stop                  Stop running embedding server
-                                status                Check model cache, server, LanceDB & wiki stats
-                                index [PATH] [-w]     Index codebase into LanceDB (--anonymize-symbols to hash proprietary symbols;
+                                status [--tui]        Check model cache, server, LanceDB, wiki & ledger stats
+                                index [PATH] [-w]     Index codebase into LanceDB (--anonymize-symbols, --dp-noise;
                                                       records FIPS 204 ML-DSA-65 audit receipt in .agents/audit/)
                                 monitor [--json]      Run continuous vector drift and recall monitor
-                                wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
-                                query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking
+                                wiki [PATH]           Generate 6 living wiki documents & splice .agents/wiki/ledger.md
+                                                      (--note "<entry>" | --note - | --resolve "<kw>" | --list-notes [--json])
+                                orient --inject       Inject top task-conditioned wiki sections + memories + open ledger notes
+                                query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking (--code, --fzf)
                                 rerank <QUERY>        Standalone decision-model reranking of candidates
                                 secrets               Inspect PQC vault status & OpenRouter API key
                                 route <QUERY>         Jev/calibrated System One intent & domain routing
                                 decide <STATE>        Evaluate decision question with calibrated probability
-                                eval --context <CTX> --output <OUT>
-                                                      Bi-phasic evaluation gate for answer faithfulness
-                                bench [--json]        Run automated synthetic query regression benchmark
+                                eval --patch <DIFF>   Evaluate patch anchoring (--generate-patch for git apply import diff)
+                                gate [--watch]        Unified pre-merge gate: patch, lockfiles, PQC receipts, contract, COMMS (--summary)
+                                cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged)
+                                audit <cmd>           verify | lock [--update] | sbom [--format cyclonedx|spdx|intoto] | contract | sign | keygen
+                                service <cmd>         status | install | generate | uninstall background daemon
+                                bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
 
 UTILITY COMMANDS:

@@ -82,11 +82,48 @@ def verify_canonical_agents_contract(directory: str = ".") -> bool:
         
     return True
 
+def verify_shell_lf_and_comms_hygiene(directory: str = ".") -> bool:
+    """Verifies POSIX shell entrypoints have LF line endings (no CRLF) and COMMS ledgers have no legacy `| agent:` tags."""
+    ok = True
+    for sub in ("bin", "src", "scripts"):
+        sub_dir = os.path.join(directory, sub)
+        if not os.path.isdir(sub_dir):
+            continue
+        for root, _, files in os.walk(sub_dir):
+            if "target" in root.split(os.sep):
+                continue
+            for f in files:
+                if f.endswith(".sh") or (root.endswith("bin") and f in ("ainish-coder", "ainish-rag", "pqc-secrets", "auto-thinking-classify")):
+                    p = os.path.join(root, f)
+                    try:
+                        with open(p, "rb") as fp:
+                            if b"\r\n" in fp.read():
+                                print(f"[\033[91mFAIL\033[0m] {p} contains CRLF (\\r\\n) bytes; POSIX entrypoints require LF (\\n).")
+                                ok = False
+                    except Exception:
+                        pass
+    comms_dir = os.path.join(directory, ".agents", "comms")
+    if os.path.isdir(comms_dir):
+        for f in os.listdir(comms_dir):
+            if f.endswith("-team.txt"):
+                p = os.path.join(comms_dir, f)
+                try:
+                    with open(p, "r", encoding="utf-8", errors="ignore") as fp:
+                        for idx, line in enumerate(fp, 1):
+                            if line.startswith("### [") and "| agent:" in line:
+                                print(f"[\033[91mFAIL\033[0m] {p}:{idx} contains legacy '| agent:' tag; COMMS headers must be harness-agnostic.")
+                                ok = False
+                except Exception:
+                    pass
+    return ok
+
 def verify_compliance(directory: str = "."):
     print("Checking repository for Zero-Trust and PQC compliance...")
     failed = False
     
     if not verify_canonical_agents_contract(directory):
+        failed = True
+    if not verify_shell_lf_and_comms_hygiene(directory):
         failed = True
     
     for root, dirs, files in os.walk(directory):
