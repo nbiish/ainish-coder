@@ -571,6 +571,62 @@ The following actionable items and markers were identified across the codebase:
             .collect()
     }
 
+    /// Extracts key symbol graph anchors (`fn`, `struct`, `enum`, `trait`, `def`, `class`) across
+    /// files matching `scope_hints` (or top codebase modules) for `ainish-rag orient --inject`.
+    pub fn extract_key_symbols_for_orient(&self, scope_hints: &[String], max_anchors: usize) -> Vec<String> {
+        let mut anchors = Vec::new();
+        let re_sym = regex::Regex::new(r"(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|def|class)\s+([A-Za-z0-9_]+)").expect("valid sym regex");
+
+        let mut candidate_files = Vec::new();
+        for entry in WalkDir::new(&self.repo_root).follow_links(false).into_iter().flatten() {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let p = entry.path();
+            if crate::ingest::is_ignored_path(p) {
+                continue;
+            }
+            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            if !matches!(ext.as_str(), "rs" | "py" | "ts" | "js" | "go") {
+                continue;
+            }
+            let rel = p.strip_prefix(&self.repo_root).unwrap_or(p).to_string_lossy().replace('\\', "/");
+            let priority = if scope_hints.iter().any(|h| !h.is_empty() && rel.to_lowercase().contains(&h.to_lowercase())) {
+                0
+            } else {
+                1
+            };
+            candidate_files.push((priority, rel, p.to_path_buf()));
+        }
+        candidate_files.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+
+        for (_prio, rel, path) in candidate_files.into_iter().take(12) {
+            if let Ok(content) = fs::read_to_string(&path) {
+                let mut file_syms = Vec::new();
+                for line in content.lines() {
+                    if let Some(cap) = re_sym.captures(line) {
+                        if let Some(m) = cap.get(1) {
+                            let s = m.as_str().to_string();
+                            if s.len() >= 4 && !file_syms.contains(&s) {
+                                file_syms.push(s);
+                                if file_syms.len() >= 6 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if !file_syms.is_empty() {
+                    anchors.push(format!("- `{}`: {}", rel, file_syms.iter().map(|s| format!("`{}`", s)).collect::<Vec<_>>().join(", ")));
+                    if anchors.len() >= max_anchors {
+                        break;
+                    }
+                }
+            }
+        }
+        anchors
+    }
+
     fn render_research(&self, _stats: &RepoStats) -> String {
         format!(r#"# 05. Research & Intelligence — {repo}
 
