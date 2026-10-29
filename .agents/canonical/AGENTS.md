@@ -101,8 +101,9 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts, `ledger.sig`, `contract-history.jsonl`, and k-of-n thresholds |
 | `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfiles, `.gitattributes`, sparse-index checksums, and SBOM `.sig` envelopes (`--update`) |
 | `ainish-rag audit privacy` | DP & redaction audit | Verifies DP budget & redaction self-test (`--max-budget`, `--reset`, `--out <report.json>`, `--json`) |
-| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6, SPDX 3.0.1, or in-toto v1.0 (`--format intoto`) signed SBOM |
-| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`) + `contract-history.jsonl` |
+| `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6 (with `privacy-report` digest), SPDX 3.0.1, or `in-toto` v1.0 signed SBOM |
+| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`, `--verify-history`) |
+| `ainish-rag audit manifest` | Model manifest audit | Verifies GGUF SHA-256 hashes and detached `.agents/audit/model-manifest.sig` envelope |
 | `ainish-rag audit sign <file>` | Detached ML-DSA-65 sign | Cryptographically signs compliance artifact generating `.sig` envelope |
 | `ainish-rag bench [--chaos]` | Retrieval & chaos benchmark | Asserts 100% Recall@3 stability (`--regression`, `--drift-injection`, `--chaos` fault-injection recovery) |
 | `ainish-rag status [--tui]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, chunk count, and privacy/ledger stats |
