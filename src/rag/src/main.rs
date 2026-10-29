@@ -3034,11 +3034,26 @@ fn trigger_desktop_notification(title: &str, message: &str) {
     }
 }
 
+/// True when a path carries a source-code extension (never anchor-exempt).
+fn has_code_extension(normalized_path: &str) -> bool {
+    let ext = normalized_path.rsplit('.').next().unwrap_or("").to_lowercase();
+    matches!(
+        ext.as_str(),
+        "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "go" | "sh" | "bash" | "zsh" | "fish"
+            | "ps1" | "cmd" | "bat" | "c" | "cc" | "cpp" | "h" | "hpp" | "cs" | "java" | "rb"
+            | "php" | "lua" | "swift" | "kt"
+    )
+}
+
 /// True when a patch path is documentation or agent-coordination state. Such patches
 /// legitimately touch no symbols, so the pre-merge gate must not force them through the
-/// code-anchoring threshold (which exists to catch unanchored code changes).
+/// code-anchoring threshold. Code (including scripts under `.agents/skills/` and
+/// `.agents/bin/`) is never exempt.
 pub fn is_docs_or_coord_path(path: &str) -> bool {
     let normalized = path.replace('\\', "/").to_lowercase();
+    if normalized.starts_with(".agents/bin/") || has_code_extension(&normalized) {
+        return false;
+    }
     normalized.starts_with(".agents/")
         || normalized.ends_with(".md")
         || normalized.ends_with(".mdx")
@@ -3852,6 +3867,9 @@ mod tests {
         assert!(is_docs_or_coord_path(".agents/comms/2026-10-29-team.txt"));
         assert!(is_docs_or_coord_path("AGENTS.md"));
         assert!(is_docs_or_coord_path("llms.txt"));
+        assert!(is_docs_or_coord_path(".agents/audit/model-manifest.json"));
+        assert!(!is_docs_or_coord_path(".agents/skills/example/helper.py"));
+        assert!(!is_docs_or_coord_path(".agents/bin/ainish-rules-sync"));
         assert!(!is_docs_or_coord_path("src/rag/src/main.rs"));
         assert!(!is_docs_or_coord_path(".github/workflows/security.yml"));
 
