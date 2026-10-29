@@ -98,13 +98,14 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | `ainish-rag wiki [--note]` | Build 6-part living wiki | Writes `01..06.md`, splices & ML-DSA-65 signs `ledger.md` (`--note <str|->`, `--resolve`, `--list-notes [--json]`) |
 | `ainish-rag cleanup --compact` | Compact LanceDB & prune WAL | Fragment maintenance, WAL pruning (`--prune-days`), worktree/branch hygiene (`--delete-merged [--dry-run]`) |
 | `ainish-rag audit verify` | FIPS 204 ML-DSA-65 audit | Verifies cryptographic signatures of all receipts, `ledger.sig`, and k-of-n contract thresholds |
-| `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfile integrity, `.gitattributes`, hash pinning, and `Cargo.lock` sparse-index checksums (`--update`) |
+| `ainish-rag audit lock` | Dependency lockfile audit | Verifies lockfiles, `.gitattributes`, sparse-index checksums (`--update` also syncs & signs SBOMs) |
+| `ainish-rag audit privacy` | DP privacy budget audit | Inspects/resets `.agents/audit/privacy-budget.json` (`--max-budget`, `--reset`, `--json`) |
 | `ainish-rag audit sbom` | Export signed SBOM | Exports CycloneDX 1.6, SPDX 3.0.1, or in-toto v1.0 (`--format intoto`) signed SBOM |
-| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`) for `AGENTS.md` |
+| `ainish-rag audit contract` | Sign canonical contract | Multi-party threshold ML-DSA-65 signing (`--threshold <k>`, `--hardware-seal`) + `contract-history.jsonl` |
 | `ainish-rag audit sign <file>` | Detached ML-DSA-65 sign | Cryptographically signs compliance artifact generating `.sig` envelope |
-| `ainish-rag bench [--chaos]` | Retrieval & chaos benchmark | Asserts Recall@3 stability (`--drift-injection <ratio>`, `--chaos` fault-injection recovery) |
-| `ainish-rag status [--tui]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, and chunk count |
-| `ainish-rag service <cmd>` | Background embedding server | `status` · `install` · `generate` · `uninstall` for supervised OS daemon service |
+| `ainish-rag bench [--chaos]` | Retrieval & chaos benchmark | Asserts 100% Recall@3 stability (`--regression`, `--drift-injection`, `--chaos` fault-injection recovery) |
+| `ainish-rag status [--tui]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, chunk count, and privacy/ledger stats |
+| `ainish-rag service <cmd>` | Background embedding server | `status [--warm]` (sub-50ms warm check) · `install` · `generate` · `uninstall` |
 
 </REFERENCE>
 

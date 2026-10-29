@@ -754,6 +754,34 @@ pub fn sign_canonical_contract_threshold(repo_root: &Path, threshold: usize) -> 
 
     let _ = sign_canonical_contract(repo_root);
 
+    // Record hash-chained governance transition in .agents/audit/contract-history.jsonl
+    let audit_dir = repo_root.join(".agents").join("audit");
+    let _ = std::fs::create_dir_all(&audit_dir);
+    let history_file = audit_dir.join("contract-history.jsonl");
+    let prev_entry_hash = if history_file.exists() {
+        std::fs::read_to_string(&history_file)
+            .ok()
+            .and_then(|t| t.lines().last().map(|l| sha256_hex(l.as_bytes())))
+            .unwrap_or_else(|| "0".repeat(64))
+    } else {
+        "0".repeat(64)
+    };
+    let history_entry = json!({
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "target": "AGENTS.md",
+        "contract_sha256": hash,
+        "threshold_k": k,
+        "signers_count": sigs.len(),
+        "signer_fingerprint": fpr,
+        "prev_entry_sha256": prev_entry_hash,
+    });
+    if let Ok(line_json) = serde_json::to_string(&history_entry) {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&history_file) {
+            let _ = writeln!(f, "{}", line_json);
+        }
+    }
+
     Ok(threshold_file)
 }
 
