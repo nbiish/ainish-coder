@@ -602,6 +602,15 @@ pub fn build_intoto(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&
     for it in items {
         products.insert(it.name, json!({ "sha256": it.sha256, "kind": it.kind }));
     }
+    let wiki_ledger = repo_root.join(".agents").join("wiki").join("ledger.md");
+    if wiki_ledger.is_file() {
+        if let Ok(ledger_sha) = sha256_file(&wiki_ledger) {
+            products.insert(
+                ".agents/wiki/ledger.md".into(),
+                json!({ "sha256": ledger_sha, "kind": "wiki_ledger", "wiki_ledger_sha256": ledger_sha }),
+            );
+        }
+    }
 
     let rustc_ver = std::process::Command::new("rustc").arg("--version").output().ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())

@@ -1,0 +1,13 @@
+{
+  "action": "batch_index",
+  "algorithm_guarantee": "FIPS 204 ML-DSA-65",
+  "anonymized_symbols": false,
+  "chunks_generated": 27,
+  "files_indexed": 7,
+  "receipt_id": "idx-1793232850628",
+  "status": "verified",
+  "target": "d:\\Code\\ainish-coder",
+  "timestamp": "2026-10-29T00:14:10.628523300+00:00",
+  "total_store_records": 2938,
+  "wiki_ledger_sha256": "a8c1a305e4e374c67eeb6cb91f44723f186c4961aa7e68867a0924c4d494e103"
+}
