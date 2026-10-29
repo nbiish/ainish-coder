@@ -20,7 +20,7 @@
     "signer_fingerprint": "d98405ea368484f51e64840d725343be",
     "target_arch": "x86_64",
     "target_os": "windows",
-    "timestamp": "2026-10-29T05:55:45Z",
+    "timestamp": "2026-10-29T17:07:51Z",
     "tool": "ainish-rag 0.1.0"
   },
   "materials": {
@@ -28,7 +28,7 @@
       "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
     },
     "AGENTS.md": {
-      "sha256": "2205992d9eb782253a57ce7df96c8bef13f7e077def80c17e586504a20e49a60"
+      "sha256": "97701b66dfe9a41fdfdbafe112ad0447ade9c9a6c8f6978f5ab57f282fe82e84"
     },
     "src/cmd-tracker/Cargo.lock": {
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
@@ -52,17 +52,17 @@
     },
     ".agents/audit/2026-10-29-index-receipt.json": {
       "kind": "data",
-      "sha256": "cc9189d249aac31d38d48a76a6b18b589e2cca300a63fc7c9af6614f0f5ca374"
+      "sha256": "1c681d174dd8337691880ff8fdb637f66edac67573fd60e91aca50f20c3bbe4e"
     },
     ".agents/audit/contract-history.jsonl": {
-      "contract_history_head_sha256": "716fcdcb34977a042ff5a290bc966ca4f97c79f855bc2ce8d4bc0475531f8eb7",
+      "contract_history_head_sha256": "6b1c884d0e2195ed8cf60e5b263b958e7bba6ce778c438ce4e12a1981bed5583",
       "kind": "governance_history",
-      "sha256": "1b38d8cfd0a3cdf4b92107812f207b71e525493b7957fa3501dd2baa414e2809"
+      "sha256": "4aab1a760e710c723aafd7184a37d86f222ea07638a5084662e0fec608af4c62"
     },
     ".agents/audit/contract-history.sig": {
-      "ainish:contract-history-sig:sha256": "d20f964f8876c46a1117a079bf2bc67b6a001cf15c209093d654db4818fc5b99",
+      "ainish:contract-history-sig:sha256": "1aabc4af0d1cc8cb16d82a2404caa4fc974ef810263dbc2ae155cc313d9f9276",
       "kind": "governance_signature",
-      "sha256": "d20f964f8876c46a1117a079bf2bc67b6a001cf15c209093d654db4818fc5b99"
+      "sha256": "1aabc4af0d1cc8cb16d82a2404caa4fc974ef810263dbc2ae155cc313d9f9276"
     },
     ".agents/audit/privacy-report.json": {
       "ainish:privacy-report:sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a",
@@ -71,7 +71,7 @@
     },
     ".agents/canonical/AGENTS.md": {
       "kind": "data",
-      "sha256": "2205992d9eb782253a57ce7df96c8bef13f7e077def80c17e586504a20e49a60"
+      "sha256": "97701b66dfe9a41fdfdbafe112ad0447ade9c9a6c8f6978f5ab57f282fe82e84"
     },
     ".agents/wiki/ledger.md": {
       "kind": "wiki_ledger",

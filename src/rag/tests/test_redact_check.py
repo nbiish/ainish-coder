@@ -109,6 +109,67 @@ class RedactCheckParityTest(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 rag.run_audit_privacy_redact_check(root, target, json_out=True, fail_on_leak=True)
 
+    def test_recursive_directory_mode_aggregates_counts(self):
+        """Parity contract for `--redact-check DIR`: the aggregate `files_scanned` /
+        `files_with_leaks` / `redaction_classes` must match the fixture tree, and no file
+        may be mutated. Mirrors the Rust `ainish-rag/redact-check-dir/v1` report."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "clean.md").write_text("ordinary prose\n", encoding="utf-8")
+            (root / "leaky.md").write_text(SENSITIVE, encoding="utf-8")
+            vendor = root / "vendor"
+            vendor.mkdir()
+            (vendor / "skipme.md").write_text("user bob@x.org\n", encoding="utf-8")
+
+            digests = {p: hashlib.sha256(p.read_bytes()).hexdigest()
+                       for p in (root / "clean.md", root / "leaky.md", vendor / "skipme.md")}
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rag.run_audit_privacy_redact_check(root, root, json_out=True)
+            report = json.loads(buf.getvalue())
+
+            self.assertEqual(report["format"], "ainish-rag/redact-check-dir/v1")
+            self.assertEqual(report["files_scanned"], 3)
+            self.assertEqual(report["files_with_leaks"], 2)
+            self.assertTrue(report["all_files_unchanged"])
+            self.assertEqual(set(report["redaction_classes"]), EXPECTED_CLASSES)
+            self.assertEqual(report["status"], "LEAK_REPORTED")
+            self.assertFalse(report["truncated"])
+
+            for p, before in digests.items():
+                self.assertEqual(before, hashlib.sha256(p.read_bytes()).hexdigest(),
+                                 f"directory mode mutated {p.name}")
+
+    def test_directory_mode_exclude_and_max_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.md").write_text("clean\n", encoding="utf-8")
+            (root / "b.md").write_text(f"user jane@x.org token {TOKEN}\n", encoding="utf-8")
+            vendor = root / "vendor"
+            vendor.mkdir()
+            (vendor / "c.md").write_text(f"token {TOKEN}\n", encoding="utf-8")
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rag.run_audit_privacy_redact_check(root, root, json_out=True)
+            self.assertEqual(json.loads(buf.getvalue())["files_scanned"], 3)
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rag.run_audit_privacy_redact_check(root, root, json_out=True, excludes=["vendor"])
+            excl = json.loads(buf.getvalue())
+            self.assertEqual(excl["files_scanned"], 2)
+            self.assertEqual(excl["exclude"], ["vendor"])
+
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rag.run_audit_privacy_redact_check(root, root, json_out=True, max_files=1)
+            capped = json.loads(buf.getvalue())
+            self.assertEqual(capped["files_scanned"], 1)
+            self.assertTrue(capped["truncated"])
+            self.assertEqual(capped["max_files"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
