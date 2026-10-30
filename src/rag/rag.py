@@ -1180,7 +1180,10 @@ def resolve_embed_provider(repo_root: Path, override: Optional[str] = None) -> D
         intent = "api"
         pinned = env_intent if env_intent in EMBED_PROVIDER_CATALOG else None
     elif env_intent == "auto":
+        # `auto` is explicitly non-pinning: detection stays free to pick a provider (or fall
+        # back to local) each run, and --write must never persist a local verdict for it.
         intent = "auto"
+        explicit = False
     elif env_intent:
         warnings = [f"Unknown AINISH_EMBED_PROVIDER '{env_intent}'; expected local|api|auto|openrouter|zenmux"]
         resolved = _auto_embed_resolution(repo_root)

@@ -169,6 +169,14 @@ class EmbedProviderResolutionTest(unittest.TestCase):
         self.assertEqual(resolved["provider"], "local")
         self.assertTrue(resolved["explicit"])
 
+    def test_auto_override_is_non_pinning_and_writes_nothing(self):
+        resolved = rag.resolve_embed_provider(self.tmp, override="auto")
+        self.assertEqual(resolved["provider"], "local")
+        self.assertFalse(resolved["explicit"])
+        # --write with auto and no credentials must not persist a `local` pin.
+        rag.run_embed_provider_cmd(self.tmp, write=True, pinned="auto")
+        self.assertFalse((self.tmp / ".agents" / "rag" / "embed-provider.json").exists())
+
     def test_pqc_openrouter_key_auto_selects_api_provider(self):
         rag._PQC_SECRETS_CACHE = {"LOCALROUTER_OPENROUTER_API_KEY": "sk-or-test"}
         resolved = rag.resolve_embed_provider(self.tmp)
