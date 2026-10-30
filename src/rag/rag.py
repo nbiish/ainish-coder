@@ -8,10 +8,12 @@ Uses Google DeepMind EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector store
 from __future__ import annotations
 
 import argparse
+import atexit
 import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -704,6 +706,9 @@ class EmbedClient:
         self.api_base = base.rstrip("/")
         self.api_model = model
         self.api_key = key
+        # Remote endpoints tolerate far larger batches than a shared loopback llama server, and
+        # per-request latency dominates indexing time. Start wide and adapt.
+        self.adaptive_batch_size = 32
         return self
 
     def uses_api_provider(self) -> bool:
@@ -713,10 +718,15 @@ class EmbedClient:
         return self.adaptive_batch_size
 
     def record_rtt_and_scale_batch(self, rtt_ms: float) -> int:
-        if rtt_ms < 120.0:
-            self.adaptive_batch_size = min(64, self.adaptive_batch_size * 2)
-        elif rtt_ms > 600.0:
-            self.adaptive_batch_size = max(4, self.adaptive_batch_size // 2)
+        """Remote APIs have higher absolute latency but far higher throughput than loopback."""
+        if self.uses_api_provider():
+            fast_ms, slow_ms, max_batch, min_batch = 1500.0, 6000.0, 128, 8
+        else:
+            fast_ms, slow_ms, max_batch, min_batch = 120.0, 600.0, 64, 4
+        if rtt_ms < fast_ms:
+            self.adaptive_batch_size = min(max_batch, self.adaptive_batch_size * 2)
+        elif rtt_ms > slow_ms:
+            self.adaptive_batch_size = max(min_batch, self.adaptive_batch_size // 2)
         return self.adaptive_batch_size
 
     def is_running(self) -> bool:
@@ -877,44 +887,418 @@ def resolve_psk(pid_dir: Path, ttl_secs: int = 86400, repo_root: Optional[Path] 
     return token
 
 
-def read_embed_provider_cfg(repo_root: Path) -> Dict[str, Any]:
-    """Reads non-secret provider config from `.agents/rag/embed-provider.json` (written by
-    `ainish-coder --embed-config`). Secrets are never stored there; the key comes from env."""
-    cfg = {
-        "provider": os.environ.get("AINISH_EMBED_PROVIDER", "local").strip().lower() or "local",
-        "api_base": os.environ.get("AINISH_EMBED_API_BASE") or None,
-        "model": os.environ.get("AINISH_EMBED_MODEL") or None,
-        "dim": None,
-        "api_key": os.environ.get("AINISH_EMBED_API_KEY") or None,
-    }
-    f = repo_root / ".agents" / "rag" / "embed-provider.json"
-    if f.is_file():
+EMBED_PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
+    "openrouter": {
+        "label": "OpenRouter",
+        "api_base": "https://openrouter.ai/api/v1",
+        "default_model": "openai/text-embedding-3-small",
+        "key_names": [
+            "OPENROUTER_EMBED_API_KEY",
+            "OPENROUTER_API_KEY",
+            "LOCALROUTER_OPENROUTER_API_KEY",
+            "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
+            "AINISHCODER_OPENROUTER_API_KEY",
+        ],
+        "base_vars": ["OPENROUTER_EMBED_API_BASE", "OPENROUTER_API_BASE", "OPENROUTER_BASE_URL"],
+        "model_vars": ["OPENROUTER_EMBED_MODEL", "OPENROUTER_EMBEDDING_MODEL"],
+        "dim_vars": ["OPENROUTER_EMBED_DIM"],
+    },
+    "zenmux": {
+        "label": "ZenMux",
+        "api_base": "https://zenmux.ai/api/v1",
+        "default_model": "openai/text-embedding-3-small",
+        "key_names": [
+            "ZENMUX_EMBED_API_KEY",
+            "ZENMUX_API_KEY",
+            "LOCALROUTER_ZENMUX_API_KEY",
+            "LOCALROUTER_ZENMUX_EMBED_API_KEY",
+            "AINISHCODER_ZENMUX_API_KEY",
+        ],
+        "base_vars": ["ZENMUX_EMBED_API_BASE", "ZENMUX_API_BASE", "ZENMUX_BASE_URL"],
+        "model_vars": ["ZENMUX_EMBED_MODEL", "ZENMUX_EMBEDDING_MODEL"],
+        "dim_vars": ["ZENMUX_EMBED_DIM"],
+    },
+}
+GENERIC_EMBED_KEY_NAMES = ["AINISH_EMBED_API_KEY"]
+GENERIC_EMBED_BASE_VARS = ["AINISH_EMBED_API_BASE"]
+GENERIC_EMBED_MODEL_VARS = ["AINISH_EMBED_MODEL"]
+GENERIC_EMBED_DIM_VARS = ["AINISH_EMBED_DIM"]
+
+# Operator residency choice for the local embedding server (see --keep-server).
+KEEP_SERVER = False
+_EPHEMERAL_SERVER_ROOT: Optional[Path] = None
+_EPHEMERAL_HOOK_INSTALLED = False
+_PQC_SECRETS_CACHE: Optional[Dict[str, str]] = None
+
+
+def _env_nonempty(name: str) -> Optional[str]:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _first_env(names: List[str]) -> Optional[Tuple[str, str]]:
+    for name in names:
+        value = _env_nonempty(name)
+        if value:
+            return value, f"env:{name}"
+    return None
+
+
+def infer_provider_id(api_base: Optional[str]) -> Optional[str]:
+    """Infers the provider identity from an API base URL."""
+    base = (api_base or "").lower()
+    if "openrouter.ai" in base:
+        return "openrouter"
+    if "zenmux.ai" in base:
+        return "zenmux"
+    return None
+
+
+def _pqc_export() -> Dict[str, str]:
+    """Decrypts the PQC store once per process. Values stay in memory and are never logged."""
+    global _PQC_SECRETS_CACHE
+    if _PQC_SECRETS_CACHE is not None:
+        return _PQC_SECRETS_CACHE
+    if (_env_nonempty("AINISH_RAG_NO_PQC") or "").lower() in ("1", "true", "yes"):
+        _PQC_SECRETS_CACHE = {}
+        return _PQC_SECRETS_CACHE
+
+    candidates = [["pqc-secrets", "export", "--json"]]
+    bin_path = _env_nonempty("PQC_SECRETS_BIN")
+    if bin_path:
+        candidates.insert(0, [bin_path, "export", "--json"])
+
+    resolved = shutil.which("pqc-secrets")
+    if resolved:
+        candidates.append([resolved, "export", "--json"])
+
+    stdout = None
+    for cmd in candidates:
+        run_cmd = cmd
+        if os.name == "nt" and cmd[0].lower().endswith((".cmd", ".bat")):
+            run_cmd = ["cmd", "/C", *cmd]
         try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            for k in ("provider", "api_base", "model"):
-                v = data.get(k)
-                if isinstance(v, str) and v.strip() and not cfg.get(k):
-                    cfg[k] = v.strip() if k != "provider" else v.strip().lower()
-            d = data.get("dim")
-            if d is not None:
-                try:
-                    cfg["dim"] = int(d)
-                except (TypeError, ValueError):
-                    pass
-        except Exception:
+            proc = subprocess.run(
+                run_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            continue
+        if proc.returncode == 0 and proc.stdout and proc.stdout.strip():
+            stdout = proc.stdout
+            break
+
+    _PQC_SECRETS_CACHE = _parse_secret_export(stdout or "")
+    return _PQC_SECRETS_CACHE
+
+
+def _parse_secret_export(text: str) -> Dict[str, str]:
+    """Parses `pqc-secrets export --json` and the line-oriented `export NAME=value` form."""
+    out: Dict[str, str] = {}
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(stripped)
+            secrets = data.get("secrets") if isinstance(data, dict) else None
+            if not isinstance(secrets, dict) and isinstance(data, dict):
+                secrets = data
+            if isinstance(secrets, dict):
+                for name, value in secrets.items():
+                    if isinstance(value, str) and value.strip():
+                        out[str(name)] = value.strip()
+                if out:
+                    return out
+        except (ValueError, TypeError):
             pass
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("export "):
+            line = line[len("export "):]
+        if "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name = name.strip()
+        value = value.strip().strip("'").strip('"')
+        if name and value:
+            out[name] = value
+    return out
+
+
+def _spec_secret(spec: Optional[Dict[str, Any]]) -> Optional[Tuple[str, str]]:
+    names = list(GENERIC_EMBED_KEY_NAMES)
+    if spec:
+        names.extend(spec["key_names"])
+    found = _first_env(names)
+    if found:
+        return found
+    vault = _pqc_export()
+    for name in names:
+        value = vault.get(name)
+        if value:
+            return value, f"pqc:{name}"
+    return None
+
+
+def _first_env_var(names: List[str]) -> Optional[str]:
+    for name in names:
+        value = _env_nonempty(name)
+        if value:
+            return value
+    return None
+
+
+def _persisted_provider_cfg(repo_root: Path) -> Optional[Dict[str, Any]]:
+    f = repo_root / ".agents" / "rag" / "embed-provider.json"
+    if not f.is_file():
+        return None
     try:
-        if os.environ.get("AINISH_EMBED_DIM", "").strip():
-            cfg["dim"] = int(os.environ["AINISH_EMBED_DIM"].strip())
-    except ValueError:
-        pass
-    return cfg
+        data = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    provider = str(data.get("provider") or "").strip().lower()
+    if not provider:
+        return None
+    dim = data.get("dim")
+    try:
+        dim = int(dim) if dim not in (None, "", 0, "0") else None
+    except (TypeError, ValueError):
+        dim = None
+    return {
+        "provider": provider,
+        "provider_id": (str(data.get("provider_id")).strip().lower() or None) if data.get("provider_id") else None,
+        "api_base": (str(data.get("api_base")).strip() or None) if data.get("api_base") else None,
+        "model": (str(data.get("model")).strip() or None) if data.get("model") else None,
+        "dim": dim,
+        "key_source": data.get("key_source"),
+        "source": data.get("source"),
+    }
+
+
+def _auto_embed_resolution(repo_root: Path) -> Dict[str, Any]:
+    warnings: List[str] = []
+    generic_base = _first_env_var(GENERIC_EMBED_BASE_VARS)
+    generic_model = _first_env_var(GENERIC_EMBED_MODEL_VARS)
+    generic_dim = None
+    dim_raw = _first_env_var(GENERIC_EMBED_DIM_VARS)
+    if dim_raw:
+        try:
+            generic_dim = int(dim_raw)
+        except ValueError:
+            generic_dim = None
+    generic_secret = _spec_secret(None)
+
+    if generic_base:
+        provider_id = infer_provider_id(generic_base)
+        spec = EMBED_PROVIDER_CATALOG.get(provider_id or "")
+        model = generic_model or (_first_env_var(spec["model_vars"]) if spec else None) or (
+            spec["default_model"] if spec else None
+        )
+        secret = generic_secret or _spec_secret(spec)
+        if model:
+            if not secret:
+                warnings.append("AINISH_EMBED_API_BASE is set but no embedding API key was resolved")
+            return {
+                "provider": "api",
+                "provider_id": provider_id,
+                "api_base": generic_base,
+                "model": model,
+                "dim": generic_dim,
+                "api_key": secret[0] if secret else None,
+                "key_source": secret[1] if secret else None,
+                "source": "env-auto",
+                "explicit": False,
+                "warnings": warnings,
+            }
+        warnings.append("AINISH_EMBED_API_BASE is set but no embedding model could be resolved")
+
+    for provider_id, spec in EMBED_PROVIDER_CATALOG.items():
+        secret = _spec_secret(spec)
+        if not secret:
+            continue
+        base = _first_env_var(spec["base_vars"]) or spec["api_base"]
+        model = _first_env_var(spec["model_vars"]) or spec["default_model"]
+        dim = None
+        dim_raw = _first_env_var(spec["dim_vars"])
+        if dim_raw:
+            try:
+                dim = int(dim_raw)
+            except ValueError:
+                dim = None
+        return {
+            "provider": "api",
+            "provider_id": provider_id,
+            "api_base": base,
+            "model": model,
+            "dim": dim,
+            "api_key": secret[0],
+            "key_source": secret[1],
+            "source": "pqc-auto" if secret[1].startswith("pqc:") else "env-auto",
+            "explicit": False,
+            "warnings": warnings,
+        }
+
+    return {
+        "provider": "local",
+        "provider_id": None,
+        "api_base": None,
+        "model": None,
+        "dim": generic_dim,
+        "api_key": None,
+        "key_source": None,
+        "source": "default-local",
+        "explicit": False,
+        "warnings": warnings,
+    }
+
+
+def resolve_embed_provider(repo_root: Path, override: Optional[str] = None) -> Dict[str, Any]:
+    """Resolves local llama embeddings vs a remote OpenRouter/ZenMux-style API endpoint.
+
+    Operator intent (env var or persisted non-secret config) always wins; otherwise remote
+    credentials detected in the environment or the PQC store select the API provider. Keys are
+    returned in memory only and must never be logged or persisted.
+    """
+    persisted = _persisted_provider_cfg(repo_root)
+    env_intent = (override or _env_nonempty("AINISH_EMBED_PROVIDER") or "").strip().lower()
+
+    intent = None
+    pinned = None
+    explicit = bool(env_intent)
+    if env_intent in ("local", "off", "none", "llama"):
+        intent = "local"
+    elif env_intent in ("api", "openrouter", "zenmux"):
+        intent = "api"
+        pinned = env_intent if env_intent in EMBED_PROVIDER_CATALOG else None
+    elif env_intent == "auto":
+        intent = "auto"
+    elif env_intent:
+        warnings = [f"Unknown AINISH_EMBED_PROVIDER '{env_intent}'; expected local|api|auto|openrouter|zenmux"]
+        resolved = _auto_embed_resolution(repo_root)
+        resolved["warnings"] = warnings + resolved["warnings"]
+        return resolved
+    elif persisted:
+        p = persisted["provider"]
+        explicit = True
+        if p in ("local", "off", "none"):
+            intent = "local"
+        elif p in ("api", "openrouter", "zenmux"):
+            intent = "api"
+            pinned = persisted.get("provider_id") or (p if p in EMBED_PROVIDER_CATALOG else None)
+        else:
+            intent = "auto"
+
+    if intent == "local":
+        return {
+            "provider": "local",
+            "provider_id": None,
+            "api_base": None,
+            "model": None,
+            "dim": persisted.get("dim") if persisted else None,
+            "api_key": None,
+            "key_source": None,
+            "source": "operator-local",
+            "explicit": explicit,
+            "warnings": [],
+        }
+
+    if intent == "api":
+        spec = EMBED_PROVIDER_CATALOG.get((pinned or "").strip().lower())
+        provider_id = pinned or (persisted or {}).get("provider_id") or infer_provider_id(
+            (persisted or {}).get("api_base")
+        )
+        spec = EMBED_PROVIDER_CATALOG.get((provider_id or "").strip().lower()) or spec
+        api_base = (
+            _first_env_var(GENERIC_EMBED_BASE_VARS)
+            or (_first_env_var(spec["base_vars"]) if spec else None)
+            or (persisted or {}).get("api_base")
+            or (spec["api_base"] if spec else None)
+        )
+        model = (
+            _first_env_var(GENERIC_EMBED_MODEL_VARS)
+            or (_first_env_var(spec["model_vars"]) if spec else None)
+            or (persisted or {}).get("model")
+            or (spec["default_model"] if spec else None)
+        )
+        if not provider_id and api_base:
+            provider_id = infer_provider_id(api_base)
+        dim = None
+        dim_raw = _first_env_var(GENERIC_EMBED_DIM_VARS) or (
+            _first_env_var(spec["dim_vars"]) if spec else None
+        )
+        if dim_raw:
+            try:
+                dim = int(dim_raw)
+            except ValueError:
+                dim = None
+        if dim is None:
+            dim = (persisted or {}).get("dim")
+        secret = _spec_secret(EMBED_PROVIDER_CATALOG.get((provider_id or "").strip().lower() or ""))
+
+        warnings = []
+        if not api_base or not model:
+            warnings.append(
+                "API embedding intent is incomplete: set --embed-config --provider api --api-base <url> "
+                "--model <name> (or AINISH_EMBED_API_BASE / AINISH_EMBED_MODEL)"
+            )
+            return {
+                "provider": "invalid" if explicit else "local",
+                "provider_id": provider_id,
+                "api_base": api_base,
+                "model": model,
+                "dim": dim,
+                "api_key": secret[0] if secret else None,
+                "key_source": secret[1] if secret else None,
+                "source": "operator" if explicit else "default-local",
+                "explicit": explicit,
+                "warnings": warnings,
+            }
+        if not secret:
+            warnings.append(
+                f"No API key resolved for {provider_id or 'the configured provider'}; "
+                "the endpoint will be called unauthenticated"
+            )
+        return {
+            "provider": "api",
+            "provider_id": provider_id,
+            "api_base": api_base,
+            "model": model,
+            "dim": dim,
+            "api_key": secret[0] if secret else None,
+            "key_source": secret[1] if secret else None,
+            "source": "operator" if explicit else "env-auto",
+            "explicit": explicit,
+            "warnings": warnings,
+        }
+
+    return _auto_embed_resolution(repo_root)
+
+
+def read_embed_provider_cfg(repo_root: Path) -> Dict[str, Any]:
+    """Reads the resolved embedding provider (env → persisted non-secret config → PQC detection).
+
+    Secrets are never stored on disk; the key comes from the environment or the PQC store and is
+    held in memory only.
+    """
+    return resolve_embed_provider(repo_root)
 
 
 def embed_client_from_config(server_url: str, repo_root: Path, truncate_dim: Optional[int] = None) -> EmbedClient:
-    """Builds an EmbedClient, applying the remote API provider when the operator configured one."""
-    client = EmbedClient(server_url, truncate_dim=truncate_dim, repo_root=repo_root)
+    """Builds an EmbedClient, applying the remote API provider when one is configured/detected."""
     cfg = read_embed_provider_cfg(repo_root)
+    effective_truncate = truncate_dim
+    if cfg["provider"] == "api":
+        effective_truncate = truncate_dim or cfg.get("dim") or DEFAULT_EMBED_DIM
+    client = EmbedClient(server_url, truncate_dim=effective_truncate, repo_root=repo_root)
     if cfg["provider"] == "api" and cfg.get("api_base") and cfg.get("model"):
         client.with_api_provider(cfg["api_base"], cfg["model"], cfg.get("api_key"))
     return client
@@ -923,6 +1307,165 @@ def embed_client_from_config(server_url: str, repo_root: Path, truncate_dim: Opt
 def embed_provider_active(repo_root: Path) -> bool:
     cfg = read_embed_provider_cfg(repo_root)
     return cfg["provider"] == "api" and bool(cfg.get("api_base")) and bool(cfg.get("model"))
+
+
+def write_embed_provider_config(repo_root: Path, resolved: Dict[str, Any]) -> Path:
+    """Persists non-secret provider settings. Key material is never written."""
+    path = repo_root / ".agents" / "rag" / "embed-provider.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    provider = "api" if resolved.get("provider") in ("api", "invalid") else "local"
+    payload = {
+        "format": "ainish-rag/embed-provider/v1",
+        "provider": provider,
+        "provider_id": resolved.get("provider_id"),
+        "api_base": resolved.get("api_base"),
+        "model": resolved.get("model"),
+        "dim": resolved.get("dim"),
+        "key_source": resolved.get("key_source"),
+        "source": resolved.get("source"),
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+INDEX_FINGERPRINT_PATH = Path(".agents") / "rag" / "index-fingerprint.json"
+
+
+def embedding_identity_from_cfg(cfg: Dict[str, Any]) -> str:
+    """Stable identity of the embedding model that produced the vectors in the store."""
+    if cfg.get("provider") == "api":
+        return f"api:{cfg.get('provider_id') or 'custom'}:{cfg.get('model') or 'unknown-model'}"
+    return "local:embeddinggemma-2"
+
+
+def write_index_fingerprint(repo_root: Path, identity: str, dim: int) -> Path:
+    path = repo_root / INDEX_FINGERPRINT_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "format": "ainish-rag/index-fingerprint/v1",
+        "identity": identity,
+        "dim": int(dim),
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def index_mismatch_warning(repo_root: Path, identity: str) -> Optional[str]:
+    """Warns when the store was built with a different embedding model than the one in use."""
+    path = repo_root / INDEX_FINGERPRINT_PATH
+    if not path.is_file():
+        return None
+    try:
+        recorded = str(json.loads(path.read_text(encoding="utf-8")).get("identity") or "").strip()
+    except Exception:
+        return None
+    if not recorded or recorded == identity:
+        return None
+    return (
+        f"Vector index was built with '{recorded}' but embeddings now come from '{identity}'; "
+        "run `ainish-rag index --rebuild` to rebuild the store before trusting retrieval results"
+    )
+
+
+def run_embed_provider_cmd(
+    repo_root: Path,
+    json_out: bool = False,
+    write: bool = False,
+    clear: bool = False,
+    pinned: Optional[str] = None,
+) -> None:
+    """`ainish-rag embed-provider` — inspect, persist, or clear the provider posture.
+
+    Only provenance (`env:NAME` / `pqc:NAME`) is printed; key material never leaves memory.
+    """
+    config_path = repo_root / ".agents" / "rag" / "embed-provider.json"
+
+    if clear:
+        removed = config_path.exists()
+        if removed:
+            config_path.unlink()
+        if json_out:
+            print(json.dumps({
+                "cleared": removed,
+                "config_path": str(config_path),
+                "config_persisted": False,
+            }, indent=2))
+        elif removed:
+            print(f"✓ Removed {config_path} — embeddings fall back to auto-detection")
+        else:
+            print(f"  No persisted embedding provider config at {config_path}")
+        return
+
+    if pinned and pinned.strip().lower() not in ("local", "api", "auto", "openrouter", "zenmux", "off", "none"):
+        print(f"Unknown provider '{pinned}': expected local|api|auto|openrouter|zenmux", file=sys.stderr)
+        sys.exit(2)
+
+    resolved = resolve_embed_provider(repo_root, override=pinned)
+    if resolved.get("provider") == "invalid" and (write or pinned):
+        print(
+            "Cannot persist an unusable API embedding intent: "
+            + "; ".join(resolved.get("warnings") or []),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Persist only a usable remote posture (or an explicit operator pin). Auto-detection that
+    # found nothing must not write `local`, otherwise a key added later would be ignored.
+    should_write = write and (resolved.get("provider") == "api" or bool(resolved.get("explicit")))
+    persisted_path = write_embed_provider_config(repo_root, resolved) if should_write else None
+    if write and not should_write and not json_out:
+        print("  No remote embedding credentials detected — nothing persisted (auto-detection stays active)")
+    local_running = (repo_root / ".agents" / "rag" / "llama-server.pid").exists()
+
+    if json_out:
+        print(json.dumps({
+            "provider": resolved.get("provider"),
+            "provider_id": resolved.get("provider_id"),
+            "api_base": resolved.get("api_base"),
+            "model": resolved.get("model"),
+            "dim": resolved.get("dim"),
+            "key_present": bool(resolved.get("api_key")),
+            "key_source": resolved.get("key_source"),
+            "source": resolved.get("source"),
+            "explicit": bool(resolved.get("explicit")),
+            "warnings": resolved.get("warnings") or [],
+            "config_path": str(config_path),
+            "config_persisted": config_path.exists(),
+            "local_server_running": local_running,
+        }, indent=2))
+    else:
+        print("\033[94mainish-rag Embedding Provider\033[0m")
+        print(f"  Config:        {config_path}")
+        print(f"  Intent:        {'operator-pinned' if resolved.get('explicit') else 'auto-detect'}")
+        provider = resolved.get("provider")
+        if provider == "api":
+            pid = resolved.get("provider_id")
+            print(f"  Provider:      api ({pid})  [source: {resolved.get('source')}]")
+            print(f"  API Base:      {resolved.get('api_base')}")
+            print(f"  Model:         {resolved.get('model')}")
+            print(f"  Vector Width:  {resolved.get('dim') if resolved.get('dim') else 'model default'}")
+            if resolved.get("key_source"):
+                print(f"  Key:           present via {resolved['key_source']} (never printed)")
+            else:
+                print("  Key:           absent (unauthenticated endpoint)")
+            print("  Local Server:  not used while API embeddings are active (no resident model)")
+        elif provider == "invalid":
+            print("  Provider:      \033[31minvalid\033[0m (explicit API intent cannot be satisfied)")
+            for warning in resolved.get("warnings") or []:
+                print(f"  \033[33m!\033[0m {warning}")
+        else:
+            suffix = " [operator-pinned]" if resolved.get("explicit") else " [auto-detect: no remote credentials]"
+            print(f"  Provider:      local llama{suffix}")
+            print(
+                "  Local Server:  "
+                + ("resident" if local_running else "not resident (spawned only for the command that needs it)")
+            )
+            print("  Hint:          point at OpenRouter/ZenMux with `ainish-rag embed-provider --provider openrouter`")
+
+    if persisted_path is not None:
+        print(f"✓ Persisted non-secret provider config → {persisted_path}")
 
 
 def start_server(
@@ -936,14 +1479,39 @@ def start_server(
     psk_ttl: int = 86400,
 
 ) -> bool:
+    # Vectors from different embedding models are not comparable: warn when the store was built
+    # with a different provider than the one now in use.
+    _cfg = read_embed_provider_cfg(repo_root)
+    _mismatch = index_mismatch_warning(repo_root, embedding_identity_from_cfg(_cfg))
+    if _mismatch:
+        print(f"  \033[33m[rag:index]\033[0m WARNING: {_mismatch}", file=sys.stderr)
+
     # Remote API embedding provider: no local llama process is spawned at all, so a
-    # multi-GB resident server never materializes.
+    # multi-GB resident server never materializes. Any local server left from an earlier run is
+    # reclaimed first, releasing its memory immediately.
     if client.uses_api_provider() or embed_provider_active(repo_root):
+        cfg = _cfg
+        if (repo_root / ".agents" / "rag" / "llama-server.pid").exists():
+            if stop_server(repo_root, quiet=True):
+                print("  \033[36m[rag:memory]\033[0m Released the previously resident local embedding model")
         print(
-            f"  \033[36m[rag:embed-provider]\033[0m Using remote API embeddings at "
-            f"{client.api_base or read_embed_provider_cfg(repo_root).get('api_base')} "
-            f"(model {client.api_model or read_embed_provider_cfg(repo_root).get('model')}) — local llama server skipped"
+            f"  \033[36m[rag:embed-provider]\033[0m Using remote API embeddings via "
+            f"{cfg.get('provider_id') or 'custom'} at "
+            f"{client.api_base or cfg.get('api_base')} "
+            f"(model {client.api_model or cfg.get('model')}, source: {cfg.get('source')}) — local llama server skipped"
         )
+        for warning in cfg.get("warnings") or []:
+            print(f"  \033[33m[rag:embed-provider]\033[0m {warning}", file=sys.stderr)
+        probe_enabled = (os.environ.get("AINISH_EMBED_PROBE", "").strip().lower() not in ("0", "false", "off", "no"))
+        if probe_enabled and client.uses_api_provider():
+            try:
+                client.embed_one("ainish-rag provider probe")
+                print("  \033[32m[rag:embed-provider]\033[0m Remote embeddings verified")
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{exc} — revert with `ainish-rag embed-provider --provider local` "
+                    "or set AINISH_EMBED_PROBE=0 to skip the probe"
+                )
         return True
     if client.is_running():
         print(f"  [rag] Server already running at {client.server_url}")
@@ -1071,6 +1639,12 @@ def start_server(
             if client.is_running():
                 print(f"  [rag] Server healthy and listening at {client.server_url} (Loopback PSK active)!")
                 healthy = True
+                if not KEEP_SERVER:
+                    _arm_ephemeral_cleanup(repo_root)
+                    print(
+                        "  \033[36m[rag:memory]\033[0m Server will be stopped when this command exits "
+                        "(pass --keep-server to keep it resident)"
+                    )
                 return True
 
         if not healthy:
@@ -1085,21 +1659,63 @@ def start_server(
     return False
 
 
-def stop_server(repo_root: Path) -> None:
-    pid_file = repo_root / ".agents" / "rag" / "llama-server.pid"
-    if not pid_file.exists():
-        print("  [rag] No running server PID found.")
+def _arm_ephemeral_cleanup(repo_root: Path) -> None:
+    """Registers process-exit teardown so a spawned local embedding model never stays resident."""
+    global _EPHEMERAL_SERVER_ROOT, _EPHEMERAL_HOOK_INSTALLED
+    _EPHEMERAL_SERVER_ROOT = repo_root
+    if _EPHEMERAL_HOOK_INSTALLED:
         return
+    _EPHEMERAL_HOOK_INSTALLED = True
+    atexit.register(_cleanup_ephemeral_server)
 
-    pid = pid_file.read_text(encoding="utf-8").strip()
-    if pid.isdigit():
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.run(["kill", "-9", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"  [rag] Stopped server PID {pid}.")
+    def _sigterm_handler(signum, _frame):
+        _cleanup_ephemeral_server()
+        sys.exit(128 + signum)
 
-    pid_file.unlink(missing_ok=True)
+    if hasattr(signal, "SIGTERM"):
+        try:
+            signal.signal(signal.SIGTERM, _sigterm_handler)
+        except (ValueError, OSError):
+            pass
+
+
+def _cleanup_ephemeral_server() -> None:
+    global _EPHEMERAL_SERVER_ROOT
+    root = _EPHEMERAL_SERVER_ROOT
+    _EPHEMERAL_SERVER_ROOT = None
+    if root is not None:
+        stop_server(root, quiet=True)
+
+
+def stop_server(repo_root: Path, quiet: bool = False, purge: bool = False) -> bool:
+    """Stops the recorded embedding server (release memory) and optionally purges PSK material."""
+    rag_dir = repo_root / ".agents" / "rag"
+    pid_file = rag_dir / "llama-server.pid"
+    stopped = False
+
+    if pid_file.exists():
+        pid = pid_file.read_text(encoding="utf-8").strip()
+        if pid.isdigit():
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(["kill", "-9", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stopped = True
+            if not quiet:
+                print(f"  [rag] Stopped server PID {pid}.")
+        pid_file.unlink(missing_ok=True)
+    elif not quiet:
+        print("  [rag] No running server PID found.")
+
+    if purge:
+        for name in ("session.psk", "session.psk.meta"):
+            path = rag_dir / name
+            if path.exists():
+                path.unlink(missing_ok=True)
+        if not quiet:
+            print(f"  [rag] Purged loopback PSK material from {rag_dir}.")
+
+    return stopped
 
 
 class LanceStore:
@@ -3680,6 +4296,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
 
 
 def main():
+    global KEEP_SERVER
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -3692,10 +4309,21 @@ def main():
     parser.add_argument("--numa", type=str, default=None, help="NUMA node binding mode (distribute, isolate, numactl)")
     parser.add_argument("--cpu-affinity", type=str, default=None, help="CPU affinity pinning (range e.g. 0-7, or hex mask)")
     parser.add_argument("--psk-ttl", type=int, default=86400, help="TTL in seconds for loopback session PSK rotation")
+    parser.add_argument(
+        "--keep-server",
+        action="store_true",
+        help="Keep the local embedding server resident after this command (default: stop it, releasing model memory)",
+    )
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
     sub.add_parser("serve")
-    sub.add_parser("stop")
+    stop_p = sub.add_parser("stop")
+    stop_p.add_argument("--purge", action="store_true", help="Also remove loopback PSK material (.agents/rag/session.psk*)")
+    embed_p = sub.add_parser("embed-provider", help="Inspect, persist, or clear the embedding provider")
+    embed_p.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    embed_p.add_argument("--write", action="store_true", help="Persist the resolved non-secret provider config")
+    embed_p.add_argument("--clear", action="store_true", help="Remove the persisted provider config")
+    embed_p.add_argument("--provider", type=str, default=None, help="Pin intent: local|api|auto|openrouter|zenmux")
     status_p = sub.add_parser("status")
     status_p.add_argument("--tui", action="store_true", help="Launch interactive TUI telemetry dashboard")
     status_p.add_argument("--json", action="store_true", help="Output health and telemetry report as structured JSON")
@@ -3705,6 +4333,7 @@ def main():
     idx_p.add_argument("-w", "--watch", action="store_true", help="Watch directory for changes")
     idx_p.add_argument("--path", type=Path, default=Path.cwd())
     idx_p.add_argument("--truncate", type=int, default=None)
+    idx_p.add_argument("--rebuild", action="store_true", help="Drop the existing vector store before indexing (required after switching embedding models)")
     idx_p.add_argument("--anonymize-symbols", action="store_true", help="Hash proprietary symbols before vector embedding")
     idx_p.add_argument("--symbol-salt", type=str, default=None, help="Configurable symbol salt preventing rainbow-table deanonymization")
     idx_p.add_argument("--dp-noise", action="store_true", help="Inject differential privacy noise into embeddings")
@@ -3842,6 +4471,11 @@ def main():
     comp_p.add_argument("shell", choices=["bash", "zsh", "fish", "pwsh"])
 
     args = parser.parse_args()
+    KEEP_SERVER = bool(
+        getattr(args, "keep_server", False)
+        or (os.environ.get("AINISH_RAG_KEEP_SERVER", "").strip().lower() in ("1", "true", "yes", "on"))
+        or args.subcommand == "serve"
+    )
     repo_root = resolve_canonical_repo_root()
     port = int(os.environ.get("AINISH_RAG_PORT", DEFAULT_SERVER_PORT))
     server_url = os.environ.get("AINISH_RAG_URL", f"http://127.0.0.1:{port}")
@@ -3889,7 +4523,16 @@ def main():
             sys.exit(1)
 
     elif args.subcommand == "stop":
-        stop_server(repo_root)
+        stop_server(repo_root, purge=getattr(args, "purge", False))
+
+    elif args.subcommand == "embed-provider":
+        run_embed_provider_cmd(
+            repo_root,
+            json_out=getattr(args, "json", False),
+            write=getattr(args, "write", False),
+            clear=getattr(args, "clear", False),
+            pinned=getattr(args, "provider", None),
+        )
 
     elif args.subcommand == "status":
         if getattr(args, "tui", False):
@@ -3965,7 +4608,12 @@ def main():
         print(f"Loopback Auth:      {'AUTHENTICATED (' + client.psk[:8] + '...)' if client.psk else 'DISABLED'}")
         if client.uses_api_provider() or embed_provider_active(repo_root):
             _pc = read_embed_provider_cfg(repo_root)
-            print(f"Embed Provider:     API {_pc.get('api_base') or client.api_base} (model: {_pc.get('model') or client.api_model}, no local server)")
+            print(
+                f"Embed Provider:     API {_pc.get('provider_id') or 'custom'} "
+                f"{_pc.get('api_base') or client.api_base} "
+                f"(model: {_pc.get('model') or client.api_model}, "
+                f"dim: {_pc.get('dim') or 'model default'}, source: {_pc.get('source')}, no local server)"
+            )
         else:
             _ctx, _batch = derive_ctx_batch(max_mem, repo_root)
             print(f"Embed Provider:     local llama (ctx={_ctx} batch={_batch})")
@@ -4024,6 +4672,9 @@ def main():
 
         start_server(repo_root, port, client, threads=threads, max_mem=max_mem)
         db_dir = repo_root / ".agents" / "rag" / "lancedb"
+        if getattr(args, "rebuild", False) and db_dir.exists():
+            shutil.rmtree(db_dir, ignore_errors=True)
+            print(f"  \033[36m[rag:index]\033[0m Rebuilt vector store (removed {db_dir})")
         store = LanceStore(db_dir)
 
         files = [p for p in target.rglob("*") if p.is_file() and not is_ignored_path(p)]
@@ -4084,6 +4735,11 @@ def main():
 
         if indexed_chunks:
             store.upsert(indexed_chunks)
+            write_index_fingerprint(
+                repo_root,
+                embedding_identity_from_cfg(read_embed_provider_cfg(repo_root)),
+                client.truncate_dim or DEFAULT_EMBED_DIM,
+            )
 
         total_records = store.count()
         print(f"  \033[32m[rag:index]\033[0m Successfully indexed {len(indexed_chunks)} chunks into LanceDB (Total records: {total_records})")
@@ -4186,6 +4842,11 @@ def main():
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 })
             store.upsert(chunks)
+            write_index_fingerprint(
+                repo_root,
+                embedding_identity_from_cfg(read_embed_provider_cfg(repo_root)),
+                client.truncate_dim or DEFAULT_EMBED_DIM,
+            )
             record_index_audit_receipt(
                 repo_root=repo_root,
                 target=target,
