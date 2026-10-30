@@ -1,0 +1,76 @@
+---
+description: Agent Communication System protocol template. One file per UTC date; append-only durable ledger.
+---
+
+# AGENT COMMS — 2026-10-30
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once. Solo work still checks in and out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** — committed, append-only durable ledger, one file per UTC date.
+- **Live board** (`.agents/comms/2026-10-30-team.live.txt`) — gitignored, main repo path only.
+
+**Timestamps:** bracket every entry with ISO-8601 UTC `start:` / `end:`.
+
+**Entry block:**
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>
+- end:<ISO-8601>
+- scope:<paths/modules>
+- objective:<one line>
+- input:<one line>
+- output:<one line>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+</PROTOCOL>
+
+---
+
+### [2026-10-30T01:09:53Z] checkin | branch:chore/install-latest-2026-10-29 | wt:/Users/nbiish/code/ainish-latest-20261029
+- start:2026-10-30T01:09:53Z
+- end:2026-10-30T01:12:00Z
+- scope:canonical CLI, RAG engine, rules distribution
+- triage:now
+- objective:pull and install the latest remote release on this machine
+- input:operator reported updates pushed from another machine
+- output:fetched 30 commits through ce46980 and merged with six local commits
+- status:verifying
+- blockers:none
+
+### [2026-10-30T01:12:00Z] update | branch:chore/install-latest-2026-10-29 | wt:/Users/nbiish/code/ainish-latest-20261029
+- start:2026-10-30T01:12:00Z
+- end:2026-10-30T01:13:00Z
+- scope:src/rag/rag.py, RAG tests, COMMS ledgers
+- objective:resolve merge conflicts and restore compatibility
+- input:conflicts in service-status output and historical ledger headers
+- output:preserved Round 20 latency output, fixed three Python 3.10 f-string expressions, 16/16 tests passed
+- status:verifying
+- blockers:none
+
+### [2026-10-30T01:13:00Z] intent-merge | branch:chore/install-latest-2026-10-29 | wt:/Users/nbiish/code/ainish-latest-20261029
+- start:2026-10-30T01:13:00Z
+- end:2026-10-30T01:13:06Z
+- scope:canonical main, eight configured target repositories
+- objective:merge verified release and refresh distributed rules
+- input:RAG compile, 16/16 tests, security gate, and CLI/RAG help all green
+- output:merged as 8389213; canonical install completed; post-merge hook refreshed 8 targets
+- status:merged
+- blockers:none
+
+### [2026-10-30T01:16:00Z] checkout | branch:chore/install-latest-2026-10-29 | wt:/Users/nbiish/code/ainish-latest-20261029
+- start:2026-10-30T01:09:53Z
+- end:2026-10-30T01:16:00Z
+- scope:installed CLI, RAG gate, rules copies, skills, worktree
+- objective:deliver a verified local installation of the latest release
+- input:final verification sweep
+- output:10/10 rules copies current, 21/21 skills identical, RAG gate GREEN with 10 receipts verified, worktree removed
+- status:done
+- blockers:none
+- rebuild:no-rebuild-needed
