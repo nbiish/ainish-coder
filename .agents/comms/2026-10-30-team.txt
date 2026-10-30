@@ -68,3 +68,13 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: worktree and branch removed; main clean at 8a83fdb; no llama/ainish-rag process resident; `--provider auto --write` left the api config byte-identical
 - status:verified
 - blockers:none
+
+### [2026-10-30T02:08:00Z] update | branch:main | wt:D:\Code\ainish-coder
+- start:2026-10-30T02:04:00Z
+- end:2026-10-30T02:08:00Z
+- scope:src/embed_config.sh
+- objective: repair a runtime syntax break found while smoke-testing the launcher after the merge
+- input: `ainish-coder --embed-config --status` aborted sourcing embed_config.sh with "unexpected EOF" (an apostrophe inside a `${dim:-...}` default opened an unterminated single-quoted region; `bash -n` had been run before that line was added)
+- output: default reworded; `bash -n` clean; `--embed-config --status` prints the detected api/openrouter posture; `--embed-config --detect --json` resolves `pqc:LOCALROUTER_OPENROUTER_API_KEY`; gate GREEN 82.4% STRONG_ANCHOR; commit ec198b3
+- status:verified
+- blockers:none
