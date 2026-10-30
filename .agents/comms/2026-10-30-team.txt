@@ -1,0 +1,50 @@
+# AGENT COMMS — 2026-10-30
+
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once. Solo? Still check in/out — the ledger is the audit trail.
+Durable ledger = this file (committed, append-only). Live board = `2026-10-30-team.live.txt` (gitignored, never committed).
+Full protocol: `src/templates/AGENTS.COMMS.md`.
+
+---
+
+### [2026-10-30T01:20:00Z] checkin | branch:feat/rag-pqc-embed-ephemeral | wt:D:\Code\ainish-embed-pqc
+- start:2026-10-30T01:20:00Z
+- end:2026-10-30T01:21:00Z
+- scope:src/rag/src/{provider.rs,config.rs,embed.rs,server.rs,main.rs}, src/rag/rag.py, src/rag/tests/test_embed_provider.py, src/embed_config.sh, bin/ainish-coder, src/help.sh, llms.txt, AGENTS.md
+- triage:now
+- objective: (1) use PQC-set OpenRouter/ZenMux embedding credentials for RAG instead of always running the local model; (2) never leave the model or its memory resident outside a command's usage
+- input: operator report — PQC store already holds LOCALROUTER_OPENROUTER_API_KEY and LOCALROUTER_ZENMUX_API_KEY; a llama process was resident at 2,034 MB after its command finished
+- output: env→PQC provider resolution, `ainish-rag embed-provider`, `--rules` detection step, ephemeral server teardown, `--keep-server`, `stop --purge`, `index --rebuild` + index fingerprint
+- status:in-progress
+- blockers:none
+
+### [2026-10-30T01:39:00Z] update | branch:feat/rag-pqc-embed-ephemeral | wt:D:\Code\ainish-embed-pqc
+- start:2026-10-30T01:21:00Z
+- end:2026-10-30T01:39:00Z
+- scope:same
+- objective: prove detection, provider switch, and memory release end to end
+- input: clean `cargo build --release`; 34/34 Rust tests; 23/23 Python tests; patch eval 62.6% ADEQUATE (10/12 files)
+- output: `embed-provider --json` -> api/openrouter via pqc:LOCALROUTER_OPENROUTER_API_KEY; config persisted with zero key material; live probe 1536 dims; resident 2,034 MB llama stopped and never returned; `index --rebuild` embedded 3,355 chunks in ~1 min and wrote the fingerprint; local-mode query answered then left no process
+- status:verifying
+- blockers:none
+
+### [2026-10-30T01:47:00Z] intent-merge | branch:feat/rag-pqc-embed-ephemeral | wt:D:\Code\ainish-embed-pqc
+- start:2026-10-30T01:46:00Z
+- end:2026-10-30T01:47:00Z
+- scope:src/rag/src/{provider.rs,config.rs,embed.rs,server.rs,main.rs}, src/rag/rag.py, tests, src/embed_config.sh, bin/ainish-coder, src/help.sh, llms.txt, AGENTS.md
+- objective: merge to main, re-sign the canonical contract, rebuild the native engine, and prove the gate
+- input: gate on the branch green except the canonical sha (regenerated post-merge by design); receipts PASS after removing the worktree-signed receipt
+- output: merge b6b5d22 (--no-ff); canonical re-signed (sha e2338ddc…); 3,411 chunks reindexed on main; gate GREEN on main (patch 52.8%, 10 receipts, Zero-Trust PASS)
+- status:merged
+- blockers:none
+
+### [2026-10-30T01:50:00Z] checkout | branch:feat/rag-pqc-embed-ephemeral | wt:D:\Code\ainish-embed-pqc
+- start:2026-10-30T01:20:00Z
+- end:2026-10-30T01:50:00Z
+- scope:same
+- objective: close the loop and leave main clean
+- input: merged branch; rebuilt bin/ainish-rag.exe; `audit verify` 14/14 PASS
+- output: main clean after the release commit; no embedding process resident; worktree and branch removed
+- status:verified
+- blockers:none
