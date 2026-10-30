@@ -48,3 +48,23 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: main clean after the release commit; no embedding process resident; worktree and branch removed
 - status:verified
 - blockers:none
+
+### [2026-10-30T02:02:00Z] update | branch:fix/rag-auto-intent | wt:D:\Code\ainish-auto-intent
+- start:2026-10-30T01:52:00Z
+- end:2026-10-30T02:02:00Z
+- scope:src/rag/src/provider.rs, src/rag/rag.py, src/rag/tests/test_embed_provider.py
+- objective: fix a regression found during post-merge verification — `--provider auto --write` with no credentials persisted `local`, which would have ignored a key added later
+- input: gate GREEN on main at cf8a2b3; 35/35 Rust tests; 24/24 Python tests
+- output: auto intent is non-pinning in both engines, with regression tests; branch patch gate GREEN (71.2% STRONG_ANCHOR); merged 8a83fdb; gate on main GREEN (70.8%); engine rebuilt
+- status:merged
+- blockers:none
+
+### [2026-10-30T02:03:00Z] checkout | branch:fix/rag-auto-intent | wt:D:\Code\ainish-auto-intent
+- start:2026-10-30T01:52:00Z
+- end:2026-10-30T02:03:00Z
+- scope:same
+- objective: close the follow-up loop
+- input: merged fix; worktree clean of tracked edits
+- output: worktree and branch removed; main clean at 8a83fdb; no llama/ainish-rag process resident; `--provider auto --write` left the api config byte-identical
+- status:verified
+- blockers:none
