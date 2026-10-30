@@ -23,7 +23,9 @@ deploy_agents_comms() {
     # history; when both exist the daily file wins).
     local dest="$comms_dir/${today}-team.txt"
     if [[ ! -f "$dest" ]]; then
-        dest="$(ls -1 "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1)"
+        # No daily ledger yet: fall back to the latest rotation for today, if any.
+        # The `|| true` keeps `set -e`/`pipefail` from aborting when the glob is empty.
+        dest="$(ls -1 "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1 || true)"
     fi
     [[ -z "$dest" ]] && dest="$comms_dir/${today}-team.txt"
     local source="${REPO_DIR}/src/templates/AGENTS.COMMS.md"

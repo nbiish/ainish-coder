@@ -1,0 +1,29 @@
+{
+  "cumulative_epsilon": 0.0,
+  "format": "ainish-rag/privacy-compliance-report/v1",
+  "ledger": {
+    "cumulative_epsilon": 0.0,
+    "delta": 0.00001,
+    "expenditure_log": [],
+    "format": "ainish-rag/privacy-budget-ledger/v1",
+    "mechanism": "Gaussian-DP-L2",
+    "sensitivity": 0.05,
+    "total_protected_vectors": 0,
+    "updated_at": "2026-10-29T00:58:25.342952400+00:00"
+  },
+  "max_budget": 10.0,
+  "redaction_classes_verified": [
+    "PII",
+    "Credentials",
+    "UserPaths",
+    "InternalIPs",
+    "MAC",
+    "ANSI",
+    "TrojanSourceBidi"
+  ],
+  "redaction_self_test": "PASS",
+  "signature_verified": true,
+  "timestamp": "2026-10-29T01:43:59.040080800+00:00",
+  "total_protected_vectors": 0,
+  "within_budget": true
+}

@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 **Entry block:**
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
@@ -43,7 +43,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-### [2026-09-22T14:53:42Z] checkin | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+### [2026-09-22T14:53:42Z] checkin | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
 - start:2026-09-22T14:53:42Z
 - end:2026-09-22T14:53:42Z
 - scope:AGENTS.md (draft artifact AGENTS.consolidated.md)
@@ -54,7 +54,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-09-22T14:57:00Z] update | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+### [2026-09-22T14:57:00Z] update | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
 - start:2026-09-22T14:57:00Z
 - end:2026-09-22T14:57:00Z
 - scope:AGENTS.consolidated.md, .agents/tasks/2026-09-22-task.md, .agents/suggestions/2026-09-22-suggestions.md, .agents/memories/MEMORY.md
@@ -64,7 +64,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:awaiting operator review before swap-in (explicit operator review gate)
 
-### [2026-09-22T14:57:30Z] checkout | agent:omp | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
+### [2026-09-22T14:57:30Z] checkout | branch:docs/agents-md-consolidation | wt:/mnt/d/Code/agents-md-consolidation
 - start:2026-09-22T14:57:30Z
 - end:2026-09-22T14:57:30Z
 - scope:AGENTS.consolidated.md

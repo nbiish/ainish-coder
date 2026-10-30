@@ -185,6 +185,12 @@ if [ -d .agents/rag ] || [ -d .agents/wiki ]; then
   if [ -d .agents/wiki ]; then
     wiki_count=$(find .agents/wiki -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
     echo "  wiki pages:     ${wiki_count}"
+    if [ -f .agents/wiki/ledger.md ]; then
+      ledger_total=$(grep -c '^- ' .agents/wiki/ledger.md 2>/dev/null || echo 0)
+      ledger_res=$(grep -c '^- \[RESOLVED\]' .agents/wiki/ledger.md 2>/dev/null || echo 0)
+      ledger_open=$((ledger_total - ledger_res))
+      echo "  wiki ledger:    ${ledger_total} notes (${ledger_open} open, ${ledger_res} resolved)"
+    fi
   fi
   if [ -f .agents/rag/drift-monitor.json ]; then
     status=$(grep -o '"status": *"[^"]*"' .agents/rag/drift-monitor.json 2>/dev/null | cut -d'"' -f4 || echo "UNKNOWN")

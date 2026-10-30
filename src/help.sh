@@ -18,26 +18,68 @@ GLOBAL FLAGS:
                          and --skills-sync with guided symlink/dest choices
 
 CORE COMMANDS:
-    --rules [TARGET_DIR]      Deploy AGENTS.md — the singular, repository-agnostic
+    --rules [TARGET_DIR]      One-time setup of the full rules system:
+                              AGENTS.md — the singular, repository-agnostic
                               standard, copied from this root repository into the
                               target as a plain tracked file (the target owns its
-                              copy; committing it is allowed; re-run --rules to
-                              pull the latest root version) — plus
+                              copy; committing it is allowed) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
                                 .agents/comms/{date}-team.txt (merge-safe: refreshes
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
-                              and ALL skill packs from .agents/skills/
+                              ALL skill packs from .agents/skills/
                               (raw .scrolls* payload and the scroll-channel
                               packs 8thfire-scrolls / ghost-layer-injector
                               never included — they travel only via the
-                              explicit --scrolls channel).
+                              explicit --scrolls channel),
+                              an llms.txt PRD template when the target has none,
+                              and continuous auto-sync:
+                                .agents/ainish-deploy.json (source provenance)
+                                .agents/bin/ainish-rules-sync (portable refresher)
+                                post-merge/post-checkout git hooks (auto-refresh)
+                              The target is registered in
+                              ~/.config/ainish-coder/targets.txt, and the root
+                              repo's post-commit/post-merge hooks refresh every
+                              registered target whenever the root contract
+                              advances — no repeated --rules runs needed.
                               Project-specific direction stays in each repo's
                               llms.txt (the PRD and guiding document).
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
+    --rules-sync [DIR|--all] [--gc] [--json]
+                              Refresh managed rules immediately: this target, or
+                              every registered target with --all (--quiet).
+                              --gc also prunes registry entries whose dirs are gone;
+                              --json emits ainish-coder/rules-sync/v1 for CI.
+    --rules-status [--json]   Show registered targets with CURRENT/STALE state
+                              (--json for fleet dashboards and CI enrollment checks).
+    --rules-verify [--json] [DIR]
+                              Cryptographically verify every target's ML-DSA-65
+                              deployment manifest AND lockfile-manifest digest.
+                              Exits 1 on any failure (CI gate).
+    --rules-rotate [--json]   Re-stamp every registered target's manifest at the
+                              current source commit after a bulk sync.
+    --rules-unenroll DIR      Remove a target from the fleet registry and uninstall
+                              its sync hooks in place.
+    --rules-provenance [--json] [--sign] DIR
+                              Emit source_commit=… manifest_sha256=… for COMMS
+                              provenance headers; --sign writes an ML-DSA-65-signed
+                              .agents/audit/provenance-stamp.json.
+    --rules-history DIR       Show a target's manifest commit/digest, signer
+                              fingerprint, lockfile state, and git history.
+    --rules-doctor [--json]   Verify manifest, refresher, hook, and registry health,
+                              repairing missing hooks/manifests in place.
+    --rules-watch [SECONDS]   Foreground watcher: sync the fleet when root HEAD moves.
+    --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]
+                              Use a remote OpenAI-compatible embedding model and
+                              skip the local llama server entirely (saves GBs of
+                              RAM). Writes .agents/rag/embed-provider.json with
+                              non-secret fields only; the key is read from
+                              AINISH_EMBED_API_KEY at runtime.
+    --embed-config --provider local [DIR]   Revert to the local llama server.
+    --embed-config --status [DIR]           Show the active embedding provider.
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
                               agnostic standard, copied into the target as a
                               plain tracked file (refresh with --agents).
@@ -50,7 +92,8 @@ CORE COMMANDS:
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + all skill packs.
+    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + all skill packs,
+    and to arm continuous auto-sync for that repository. Use --rules-sync --all to refresh the fleet now.
     Use --llms-txt to deploy llms.txt.
     Use --skills-sync to synchronize and selectively ingest skills.
 
@@ -95,19 +138,27 @@ MULTIMODAL RAG & CODEBASE WIKI:
                               Commands:
                                 serve [--port PORT]   Launch/ensure loopback embedding server
                                 stop                  Stop running embedding server
-                                status                Check model cache, server, LanceDB & wiki stats
-                                index [PATH] [-w]     Index codebase into LanceDB (--anonymize-symbols to hash proprietary symbols;
+                                status [--tui] [--json]
+                                                      Check model cache, server, LanceDB, wiki, privacy & contract-history stats
+                                index [PATH] [-w]     Index codebase into LanceDB (--anonymize-symbols, --dp-noise;
                                                       records FIPS 204 ML-DSA-65 audit receipt in .agents/audit/)
                                 monitor [--json]      Run continuous vector drift and recall monitor
-                                wiki [PATH]           Generate 6 living wiki documents in .agents/wiki/
-                                query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking
+                                wiki [PATH]           Generate 6 living wiki documents & splice .agents/wiki/ledger.md
+                                                      (--note "<entry>" | --note - | --resolve "<kw>" | --sync-resolved | --list-notes [--json])
+                                orient --inject       Inject top task-conditioned wiki sections + memories + open ledger notes
+                                                      (--verify, --compact, --max-lines N, --sections N, --include-symbols true|false, --sync-rules, --json)
+                                query <PROMPT>        Two-stage retrieval: coarse ANN + decision reranking (--code, --fzf)
                                 rerank <QUERY>        Standalone decision-model reranking of candidates
                                 secrets               Inspect PQC vault status & OpenRouter API key
                                 route <QUERY>         Jev/calibrated System One intent & domain routing
                                 decide <STATE>        Evaluate decision question with calibrated probability
-                                eval --context <CTX> --output <OUT>
-                                                      Bi-phasic evaluation gate for answer faithfulness
-                                bench [--json]        Run automated synthetic query regression benchmark
+                                eval --patch <DIFF>   Evaluate patch anchoring (--generate-patch for git apply import diff)
+                                gate [--watch]        Unified pre-merge gate: patch (--strict), lockfiles, PQC receipts (model-manifest.sig, privacy-budget.sig), contract, COMMS (--summary)
+                                statusline [--json]   Emit one-line or JSON compact gate status for PS1, Cursor statusLine, or tmux
+                                cleanup --compact     Compact LanceDB, prune WAL, and prune worktrees/merged branches (--delete-merged [--dry-run])
+                                audit <cmd>           verify | lock [--update] | privacy [--out] [--redact-check <file|dir> [--fail-on-leak] [--max-files N] [--exclude GLOB]] | sbom [--format cyclonedx|spdx|intoto] | contract [--verify-history [--json]] | sign | keygen
+                                service <cmd>         status [--warm] | install | generate | uninstall background daemon
+                                bench [--chaos]       Run synthetic query regression & chaos fault-injection benchmark
                                 completion <SHELL>    Generate shell completions (bash, zsh, fish, pwsh)
 
 UTILITY COMMANDS:
@@ -281,10 +332,32 @@ EXAMPLES:
     ainish-coder -i --llms-txt              # Prompt for llms.txt deployment choices
     ainish-coder -i --skills-sync           # Prompt for skills sync with toggle UI
 
-    # Utility deployments
+    # Utility deployments & post-quantum RAG/audit verification
     ainish-coder --gitignore                # Create comprehensive .gitignore
     ainish-coder --local-security           # Deploy local-only secret protection
     ainish-coder --github-actions           # Deploy CI/CD secret protection
+    ainish-coder --rules ~/my-repo          # One-time full rules setup + continuous auto-sync
+    ainish-coder --rules-sync --all         # Refresh every registered target now
+    ainish-coder --rules-status --json      # Structured fleet status for CI enrollment checks
+    ainish-coder --rules-doctor             # Verify + repair deployment health (manifest, hooks, registry)
+    ainish-coder --rules-verify --json      # Cryptographically verify fleet manifests + lockfile digests (CI)
+    ainish-coder --rules-rotate             # Re-stamp every target's manifest at the current source commit
+    ainish-coder --rules-provenance --sign  # Emit + ML-DSA-65-sign a COMMS provenance stamp
+    ainish-coder --rules-history ~/my-repo  # Inspect a target's manifest commit, signer, and history
+    ainish-coder --rules-unenroll ~/my-repo # Remove a target from the fleet registry + uninstall its hooks
+    ainish-coder --embed-config --provider api --api-base https://api.openai.com/v1 --model text-embedding-3-small
+                                            # Use a remote API embedding model; skip the local llama server
+    ainish-coder --embed-config --status    # Show the active embedding provider and whether llama runs
+    ainish-coder --embed-config --provider local  # Revert to the local llama server
+    ainish-rag audit contract --verify-history   # Inspect & verify hash-chained contract governance history
+    ainish-rag audit privacy --redact-check FILE # Dry-run PII/credential/path/IP/MAC redaction without mutating FILE
+    ainish-rag audit privacy --redact-check FILE --fail-on-leak  # Exit non-zero when leaks are detected (CI gate)
+    ainish-rag orient --inject --sections 2       # Cap the number of injected wiki sections
+    ainish-rag orient --inject --max-lines 15    # Inject task-conditioned subagent primer with custom line cap
+    ainish-rag orient --inject --include-symbols false  # Prose-only primer (omit symbol graph anchors)
+    ainish-rag orient --inject --sync-rules  # Refresh stale rules before emitting the primer (opt-in)
+    ainish-rag status --json                     # Structured health & telemetry report for orchestrators
+    ainish-rag gate                              # Run unified Zero-Trust & PQC pre-merge verification gate
 
     ainish-coder --unlock                   # Deploy Pliny Research collection
 

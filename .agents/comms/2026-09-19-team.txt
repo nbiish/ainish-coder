@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 **Entry block:**
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
@@ -43,7 +43,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-### [2026-09-19T04:38:00Z] checkin | agent:antigravity | branch:chore/agents-suggestions-schema | wt:d:/Code/ainish-coder-suggestions
+### [2026-09-19T04:38:00Z] checkin | branch:chore/agents-suggestions-schema | wt:d:/Code/ainish-coder-suggestions
 - start:2026-09-19T04:38:00Z
 - end:2026-09-19T04:38:00Z
 - scope:AGENTS.md,llms.txt,bin/git-context.sh,bin/lib/auto_thinking_context.sh,bin/ainish-coder,src/deploy_skills.sh,src/verify_skills.sh,.agents/tasks/2026-09-19-task.md,.agents/suggestions/2026-09-19-suggestions.md
@@ -54,7 +54,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:active
 - blockers:none
 
-### [2026-09-19T04:42:00Z] intent-merge | agent:antigravity | branch:chore/agents-suggestions-schema | wt:d:/Code/ainish-coder-suggestions
+### [2026-09-19T04:42:00Z] intent-merge | branch:chore/agents-suggestions-schema | wt:d:/Code/ainish-coder-suggestions
 - start:2026-09-19T04:42:00Z
 - end:2026-09-19T04:42:00Z
 - scope:AGENTS.md,llms.txt,bin/git-context.sh,bin/lib/auto_thinking_context.sh,bin/ainish-coder,src/deploy_skills.sh,src/verify_skills.sh,.agents/tasks/2026-09-19-task.md,.agents/suggestions/2026-09-19-suggestions.md
@@ -64,7 +64,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-09-19T04:43:30Z] checkout | agent:antigravity | branch:chore/agents-suggestions-schema | wt:d:/Code/ainish-coder-suggestions
+### [2026-09-19T04:43:30Z] checkout | branch:chore/agents-suggestions-schema | wt:d:/Code/ainish-coder-suggestions
 - start:2026-09-19T04:43:30Z
 - end:2026-09-19T04:43:30Z
 - scope:AGENTS.md,llms.txt,bin/git-context.sh,bin/lib/auto_thinking_context.sh,bin/ainish-coder,src/deploy_skills.sh,src/verify_skills.sh,.agents/tasks/2026-09-19-task.md,.agents/suggestions/2026-09-19-suggestions.md
@@ -72,7 +72,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:closed
 - blockers:none
 
-### [2026-09-19T19:17:35Z] checkin | agent:antigravity | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
+### [2026-09-19T19:17:35Z] checkin | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
 - start:2026-09-19T19:17:35Z
 - end:2026-09-19T19:17:35Z
 - scope:AGENTS.md,llms.txt,bin/ainish-coder,src/deploy_agents.sh,src/file_operations.sh,src/agents_protection.sh,src/deploy_local_security.sh,bin/security_gate.py
@@ -83,7 +83,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:active
 - blockers:none
 
-### [2026-09-19T19:28:52Z] intent-merge | agent:antigravity | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
+### [2026-09-19T19:28:52Z] intent-merge | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
 - start:2026-09-19T19:28:52Z
 - end:2026-09-19T19:28:52Z
 - scope:AGENTS.md,llms.txt,bin/ainish-coder,bin/security_gate.py,src/deploy_agents.sh,src/agents_protection.sh,src/help.sh,.agents/canonical/
@@ -93,14 +93,14 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-09-19T19:29:36Z] checkout | agent:antigravity | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
+### [2026-09-19T19:29:36Z] checkout | branch:feat/rules-symlink-protection | wt:d:/Code/ainish-coder-rules-symlink
 - start:2026-09-19T19:29:36Z
 - end:2026-09-19T19:29:36Z
 - scope:AGENTS.md,llms.txt,bin/ainish-coder,bin/security_gate.py,src/deploy_agents.sh,src/agents_protection.sh,src/help.sh,.agents/canonical/
 - objective:completed symlinked AGENTS.md deployment with OS write-protection, downstream pre-commit guard, canonical self-healing, and CLI management helpers; verified against scratch target and deployed to local-router; merged to main and worktree cleaned up
 - status:closed
 - blockers:none
-### [2026-09-19T19:35:00Z] checkin | agent:antigravity | branch:feat/rules-cross-platform-posix | wt:d:/Code/ainish-coder-posix
+### [2026-09-19T19:35:00Z] checkin | branch:feat/rules-cross-platform-posix | wt:d:/Code/ainish-coder-posix
 - start:2026-09-19T19:35:00Z
 - end:2026-09-19T19:35:00Z
 - scope:src/agents_protection.sh,src/deploy_agents.sh,src/deploy_local_security.sh,scripts/setup-hooks.sh,scripts/hooks/agents-md-sync.sh,bin/ainish-coder
@@ -111,7 +111,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:active
 - blockers:none
 
-### [2026-09-19T19:40:00Z] intent-merge | agent:antigravity | branch:feat/rules-cross-platform-posix | wt:d:/Code/ainish-coder-posix
+### [2026-09-19T19:40:00Z] intent-merge | branch:feat/rules-cross-platform-posix | wt:d:/Code/ainish-coder-posix
 - start:2026-09-19T19:40:00Z
 - end:2026-09-19T19:40:00Z
 - scope:src/agents_protection.sh,src/deploy_agents.sh,src/deploy_local_security.sh,scripts/setup-hooks.sh,scripts/hooks/agents-md-sync.sh,bin/ainish-coder
@@ -121,7 +121,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-09-19T19:41:30Z] checkout | agent:antigravity | branch:feat/rules-cross-platform-posix | wt:d:/Code/ainish-coder-posix
+### [2026-09-19T19:41:30Z] checkout | branch:feat/rules-cross-platform-posix | wt:d:/Code/ainish-coder-posix
 - start:2026-09-19T19:41:30Z
 - end:2026-09-19T19:41:30Z
 - scope:src/agents_protection.sh,src/deploy_agents.sh,src/deploy_local_security.sh,scripts/setup-hooks.sh,scripts/hooks/agents-md-sync.sh,bin/ainish-coder
@@ -130,7 +130,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - blockers:none
 
 
-### [2026-09-19T19:52:00Z] checkin | agent:antigravity | branch:feat/agent-memory-lifecycle | wt:d:/Code/ainish-coder-memory
+### [2026-09-19T19:52:00Z] checkin | branch:feat/agent-memory-lifecycle | wt:d:/Code/ainish-coder-memory
 - start:2026-09-19T19:52:00Z
 - end:2026-09-19T19:52:00Z
 - scope:AGENTS.md,.agents/skills/repo-memory-graph-intelligence/,.agents/memories/,bin/git-context.sh,src/deploy_skills.sh,src/verify_skills.sh,llms.txt
@@ -141,7 +141,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:active
 - blockers:none
 
-### [2026-09-19T19:57:00Z] intent-merge | agent:antigravity | branch:feat/agent-memory-lifecycle | wt:d:/Code/ainish-coder-memory
+### [2026-09-19T19:57:00Z] intent-merge | branch:feat/agent-memory-lifecycle | wt:d:/Code/ainish-coder-memory
 - start:2026-09-19T19:57:00Z
 - end:2026-09-19T19:57:00Z
 - scope:AGENTS.md,.agents/canonical/,.agents/skills/repo-memory-graph-intelligence/,.agents/memories/,bin/git-context.sh,src/deploy_skills.sh,src/verify_skills.sh,llms.txt
@@ -151,7 +151,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:merged
 - blockers:none
 
-### [2026-09-19T19:57:30Z] checkout | agent:antigravity | branch:feat/agent-memory-lifecycle | wt:d:/Code/ainish-coder-memory
+### [2026-09-19T19:57:30Z] checkout | branch:feat/agent-memory-lifecycle | wt:d:/Code/ainish-coder-memory
 - start:2026-09-19T19:57:30Z
 - end:2026-09-19T19:57:30Z
 - scope:AGENTS.md,.agents/canonical/,.agents/skills/repo-memory-graph-intelligence/,.agents/memories/,bin/git-context.sh,src/deploy_skills.sh,src/verify_skills.sh,llms.txt

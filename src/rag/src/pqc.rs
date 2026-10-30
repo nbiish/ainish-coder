@@ -204,7 +204,7 @@ pub fn verify_file(repo_root: &Path, target: &Path) -> VerifyOutcome {
 
 const LOCKFILE_NAMES: &[&str] = &[
     "Cargo.lock", "uv.lock", "poetry.lock", "Pipfile.lock", "package-lock.json", "pnpm-lock.yaml",
-    "yarn.lock", "bun.lock", "go.sum", "Gemfile.lock", "composer.lock",
+    "yarn.lock", "bun.lock", "go.sum", "Gemfile.lock", "composer.lock", ".gitattributes",
 ];
 
 fn is_lockfile(name: &str) -> bool {
@@ -214,7 +214,7 @@ fn is_lockfile(name: &str) -> bool {
 /// Whether the lockfile pins artifact digests (so installers can refuse tampered upstream packages).
 fn hash_pinned(name: &str, text: &str) -> bool {
     match name {
-        "Cargo.lock" => text.contains("checksum = "),
+        "Cargo.lock" => text.contains("checksum = ") || !text.contains("source = "),
         "uv.lock" | "poetry.lock" => text.contains("sha256:"),
         "Pipfile.lock" => text.contains("\"sha256:"),
         "package-lock.json" | "pnpm-lock.yaml" | "bun.lock" => text.contains("integrity"),
@@ -222,6 +222,7 @@ fn hash_pinned(name: &str, text: &str) -> bool {
         "go.sum" => text.contains(" h1:"),
         "Gemfile.lock" => text.contains("CHECKSUMS"),
         "composer.lock" => text.contains("\"shasum\""),
+        ".gitattributes" => text.contains("eol=lf"),
         _ => text.contains("--hash=sha256:"),
     }
 }
@@ -533,6 +534,15 @@ pub fn build_cyclonedx(repo_root: &Path, model_manifest: &Path, llama_bin: Optio
             }));
         }
     }
+    let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    if privacy_report.is_file() {
+        if let Ok(h) = sha256_file(&privacy_report) {
+            root_props.push(json!({
+                "name": "ainish:privacy-report:sha256",
+                "value": h
+            }));
+        }
+    }
 
     json!({
         "bomFormat": "CycloneDX",
@@ -602,6 +612,58 @@ pub fn build_intoto(repo_root: &Path, model_manifest: &Path, llama_bin: Option<&
     for it in items {
         products.insert(it.name, json!({ "sha256": it.sha256, "kind": it.kind }));
     }
+    let wiki_ledger = repo_root.join(".agents").join("wiki").join("ledger.md");
+    if wiki_ledger.is_file() {
+        if let Ok(ledger_sha) = sha256_file(&wiki_ledger) {
+            products.insert(
+                ".agents/wiki/ledger.md".into(),
+                json!({ "sha256": ledger_sha, "kind": "wiki_ledger", "wiki_ledger_sha256": ledger_sha }),
+            );
+        }
+    }
+    let contract_history = repo_root.join(".agents").join("audit").join("contract-history.jsonl");
+    if contract_history.is_file() {
+        if let Ok(file_sha) = sha256_file(&contract_history) {
+            let head_sha = std::fs::read_to_string(&contract_history)
+                .ok()
+                .and_then(|t| t.lines().rev().find(|l| !l.trim().is_empty()).map(|l| sha256_hex(l.trim().as_bytes())))
+                .unwrap_or_else(|| file_sha.clone());
+            products.insert(
+                ".agents/audit/contract-history.jsonl".into(),
+                json!({
+                    "sha256": file_sha,
+                    "kind": "governance_history",
+                    "contract_history_head_sha256": head_sha
+                }),
+            );
+        }
+    }
+    let contract_history_sig = repo_root.join(".agents").join("audit").join("contract-history.sig");
+    if contract_history_sig.is_file() {
+        if let Ok(sig_sha) = sha256_file(&contract_history_sig) {
+            products.insert(
+                ".agents/audit/contract-history.sig".into(),
+                json!({
+                    "sha256": sig_sha,
+                    "kind": "governance_signature",
+                    "ainish:contract-history-sig:sha256": sig_sha
+                }),
+            );
+        }
+    }
+    let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    if privacy_report.is_file() {
+        if let Ok(priv_sha) = sha256_file(&privacy_report) {
+            products.insert(
+                ".agents/audit/privacy-report.json".into(),
+                json!({
+                    "sha256": priv_sha,
+                    "kind": "privacy_report",
+                    "ainish:privacy-report:sha256": priv_sha
+                }),
+            );
+        }
+    }
 
     let rustc_ver = std::process::Command::new("rustc").arg("--version").output().ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -661,6 +723,13 @@ pub fn sign_canonical_contract(repo_root: &Path) -> Result<(PathBuf, PathBuf), S
     let src = repo_root.join("AGENTS.md");
     let canonical_dest = canonical_dir.join("AGENTS.md");
     if src.exists() && src != canonical_dest {
+        if let Ok(meta) = std::fs::metadata(&canonical_dest) {
+            let mut perms = meta.permissions();
+            if perms.readonly() {
+                perms.set_readonly(false);
+                let _ = std::fs::set_permissions(&canonical_dest, perms);
+            }
+        }
         std::fs::copy(&src, &canonical_dest).map_err(|e| format!("copy AGENTS.md: {}", e))?;
     }
     let data = std::fs::read(&canonical_dest).map_err(|e| format!("read canonical AGENTS.md: {}", e))?;
@@ -678,6 +747,13 @@ pub fn sign_canonical_contract_threshold(repo_root: &Path, threshold: usize) -> 
     let src = repo_root.join("AGENTS.md");
     let canonical_dest = canonical_dir.join("AGENTS.md");
     if src.exists() && src != canonical_dest {
+        if let Ok(meta) = std::fs::metadata(&canonical_dest) {
+            let mut perms = meta.permissions();
+            if perms.readonly() {
+                perms.set_readonly(false);
+                let _ = std::fs::set_permissions(&canonical_dest, perms);
+            }
+        }
         std::fs::copy(&src, &canonical_dest).map_err(|e| format!("copy AGENTS.md: {}", e))?;
     }
     let data = std::fs::read(&canonical_dest).map_err(|e| format!("read canonical AGENTS.md: {}", e))?;
@@ -730,7 +806,70 @@ pub fn sign_canonical_contract_threshold(repo_root: &Path, threshold: usize) -> 
 
     let _ = sign_canonical_contract(repo_root);
 
+    // Record hash-chained governance transition in .agents/audit/contract-history.jsonl
+    let audit_dir = repo_root.join(".agents").join("audit");
+    let _ = std::fs::create_dir_all(&audit_dir);
+    let history_file = audit_dir.join("contract-history.jsonl");
+    let prev_entry_hash = if history_file.exists() {
+        std::fs::read_to_string(&history_file)
+            .ok()
+            .and_then(|t| t.lines().last().map(|l| sha256_hex(l.as_bytes())))
+            .unwrap_or_else(|| "0".repeat(64))
+    } else {
+        "0".repeat(64)
+    };
+    let history_entry = json!({
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "target": "AGENTS.md",
+        "contract_sha256": hash,
+        "threshold_k": k,
+        "signers_count": sigs.len(),
+        "signer_fingerprint": fpr,
+        "prev_entry_sha256": prev_entry_hash,
+    });
+    if let Ok(line_json) = serde_json::to_string(&history_entry) {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&history_file) {
+            let _ = writeln!(f, "{}", line_json);
+        }
+        let _ = sign_file(&history_file);
+    }
+
     Ok(threshold_file)
+}
+
+/// Verifies the cryptographic hash chain and detached ML-DSA-65 signature of `.agents/audit/contract-history.jsonl`.
+pub fn verify_contract_history_chain(repo_root: &Path) -> Result<usize, String> {
+    let history_file = repo_root.join(".agents").join("audit").join("contract-history.jsonl");
+    if !history_file.exists() {
+        return Ok(0);
+    }
+    let text = std::fs::read_to_string(&history_file).map_err(|e| format!("read contract-history.jsonl: {}", e))?;
+    let mut expected_prev = "0".repeat(64);
+    let mut count = 0usize;
+    for (idx, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let v: Value = serde_json::from_str(trimmed)
+            .map_err(|e| format!("contract-history.jsonl line {} invalid JSON: {}", idx + 1, e))?;
+        let recorded_prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
+        if recorded_prev != expected_prev {
+            return Err(format!(
+                "contract-history.jsonl hash chain broken at line {}: expected prev {}, found {}",
+                idx + 1, expected_prev, recorded_prev
+            ));
+        }
+        expected_prev = sha256_hex(trimmed.as_bytes());
+        count += 1;
+    }
+    if sig_path(&history_file).exists() {
+        if let VerifyOutcome::Invalid(err) = verify_file(repo_root, &history_file) {
+            return Err(format!("contract-history.jsonl signature invalid: {}", err));
+        }
+    }
+    Ok(count)
 }
 
 /// Verifies canonical AGENTS.md against k-of-n threshold signatures
@@ -850,5 +989,85 @@ mod tests {
 
         let seed = unwrap_hardware_sealed_seed(&root).unwrap();
         assert_eq!(seed.len(), 32);
+
+        // Zero-external-dependency Cargo.lock (like cmd-tracker) is considered pinned
+        assert!(hash_pinned("Cargo.lock", "[[package]]\nname = \"cmd-tracker\"\nversion = \"1.0.0\"\n"));
+        assert!(!hash_pinned("Cargo.lock", "[[package]]\nname = \"foo\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n"));
+    }
+
+    #[test]
+    fn contract_history_chain_tamper_detection() {
+        let tmp_dir = std::env::temp_dir().join(format!("ainish-history-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let audit_dir = tmp_dir.join(".agents").join("audit");
+        std::fs::create_dir_all(&audit_dir).unwrap();
+        let history_path = audit_dir.join("contract-history.jsonl");
+
+        let line1 = serde_json::to_string(&json!({
+            "timestamp": "2026-10-29T00:00:00Z",
+            "target": "AGENTS.md",
+            "contract_sha256": "aaaa",
+            "prev_entry_sha256": "0".repeat(64)
+        })).unwrap();
+        let h1 = sha256_hex(line1.as_bytes());
+        let line2 = serde_json::to_string(&json!({
+            "timestamp": "2026-10-29T00:10:00Z",
+            "target": "AGENTS.md",
+            "contract_sha256": "bbbb",
+            "prev_entry_sha256": h1
+        })).unwrap();
+        let h2 = sha256_hex(line2.as_bytes());
+        let line3 = serde_json::to_string(&json!({
+            "timestamp": "2026-10-29T00:20:00Z",
+            "target": "AGENTS.md",
+            "contract_sha256": "cccc",
+            "prev_entry_sha256": h2
+        })).unwrap();
+
+        std::fs::write(&history_path, format!("{}\n{}\n{}\n", line1, line2, line3)).unwrap();
+        assert_eq!(verify_contract_history_chain(&tmp_dir).unwrap(), 3);
+
+        // Tamper with intermediate line 2
+        let tampered_line2 = line2.replace("\"bbbb\"", "\"tampered\"");
+        std::fs::write(&history_path, format!("{}\n{}\n{}\n", line1, tampered_line2, line3)).unwrap();
+        assert!(verify_contract_history_chain(&tmp_dir).is_err());
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn cyclonedx_and_intoto_include_privacy_report_sha256() {
+        let tmp_dir = std::env::temp_dir().join(format!("ainish-sbom-priv-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let audit_dir = tmp_dir.join(".agents").join("audit");
+        std::fs::create_dir_all(&audit_dir).unwrap();
+        let priv_report = audit_dir.join("privacy-report.json");
+        std::fs::write(&priv_report, r#"{"within_budget":true}"#).unwrap();
+        let expected_sha = sha256_file(&priv_report).unwrap();
+        let history_sig = audit_dir.join("contract-history.sig");
+        std::fs::write(&history_sig, r#"{"format":"envelope","signature":"c2ln"}"#).unwrap();
+        let expected_sig_sha = sha256_file(&history_sig).unwrap();
+
+        let manifest = audit_dir.join("model-manifest.json");
+        let cdx = build_cyclonedx(&tmp_dir, &manifest, None);
+        let props = cdx.get("properties").and_then(|p| p.as_array()).unwrap();
+        assert!(props.iter().any(|item| {
+            item.get("name").and_then(|n| n.as_str()) == Some("ainish:privacy-report:sha256")
+                && item.get("value").and_then(|v| v.as_str()) == Some(expected_sha.as_str())
+        }));
+
+        let intoto = build_intoto(&tmp_dir, &manifest, None);
+        let prod = intoto.get("products").and_then(|p| p.get(".agents/audit/privacy-report.json")).unwrap();
+        assert_eq!(
+            prod.get("ainish:privacy-report:sha256").and_then(|v| v.as_str()),
+            Some(expected_sha.as_str())
+        );
+        let sig_prod = intoto.get("products").and_then(|p| p.get(".agents/audit/contract-history.sig")).unwrap();
+        assert_eq!(
+            sig_prod.get("ainish:contract-history-sig:sha256").and_then(|v| v.as_str()),
+            Some(expected_sig_sha.as_str())
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }

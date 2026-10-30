@@ -219,7 +219,7 @@ Each handoff = one `FLEET-HANDOFF` COMMS entry (§6).
 ## 6. COMMS Receipts (ledger = the receipt)
 
 ```markdown
-### [ISO-8601] SUBAGENT-DISPATCH | agent:<modality> | parent:<orchestrator> | wt:../<slug>
+### [ISO-8601] SUBAGENT-DISPATCH | branch:<branch> | wt:../<slug>
 - start:<ISO> / end:<ISO>
 - persona:<Master persona>
 - scope:<allowlist files>

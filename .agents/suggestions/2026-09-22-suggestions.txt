@@ -5,7 +5,7 @@ Reviewed at cycle start; appended at turn close using the masters schema.
 
 ---
 
-### [2026-09-22T14:57:30Z] docs/agents-md-consolidation | agent:omp
+### [2026-09-22T14:57:30Z] docs/agents-md-consolidation
 Consolidated AGENTS.md from 302 to ~140 lines with all contracts retained, inlined the two-channel COMMS protocol (durable ledger + live board, entry schema, one writer per branch, close-every-loop peer law), added the <GRAPH> dual-recon block referenced by llms.txt, and recorded the ledger-naming drift in MEMORY.md; branch parked for operator review. Next step: review AGENTS.consolidated.md on docs/agents-md-consolidation, approve the three open decisions (ledger naming, tag anchors, swap-in plan), then clean-cutover into AGENTS.md with canonical snapshot refresh and fleet --rules propagation.
 What would this adversarial / security master suggest? Keep the banned-algorithm list and PQC mandate verbatim in any further trim — it is the fail-closed surface agents audit against every cycle.
 What would this privacy / data-protection regulatory master suggest? Add a standing scrub reminder that coordination artifacts are pushed across machines and must never carry hostnames, paths with usernames, or session tokens.

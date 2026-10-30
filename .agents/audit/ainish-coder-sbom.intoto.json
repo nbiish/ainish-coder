@@ -20,12 +20,15 @@
     "signer_fingerprint": "d98405ea368484f51e64840d725343be",
     "target_arch": "x86_64",
     "target_os": "windows",
-    "timestamp": "2026-10-24T21:07:14Z",
+    "timestamp": "2026-10-29T17:07:51Z",
     "tool": "ainish-rag 0.1.0"
   },
   "materials": {
+    ".gitattributes": {
+      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+    },
     "AGENTS.md": {
-      "sha256": "5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0"
+      "sha256": "97701b66dfe9a41fdfdbafe112ad0447ade9c9a6c8f6978f5ab57f282fe82e84"
     },
     "src/cmd-tracker/Cargo.lock": {
       "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
@@ -43,9 +46,41 @@
       "kind": "data",
       "sha256": "5442094dc1e2d9422f3d2bd5e10debc555b73bcb2838c0e86414a7e55e8b5fe7"
     },
+    ".agents/audit/2026-10-28-index-receipt.json": {
+      "kind": "data",
+      "sha256": "9104de6ec3e3fbe99fde270bf069aa1761cf960e8bfeb5af1bb41cd8dbb2943e"
+    },
+    ".agents/audit/2026-10-29-index-receipt.json": {
+      "kind": "data",
+      "sha256": "1c681d174dd8337691880ff8fdb637f66edac67573fd60e91aca50f20c3bbe4e"
+    },
+    ".agents/audit/contract-history.jsonl": {
+      "contract_history_head_sha256": "6b1c884d0e2195ed8cf60e5b263b958e7bba6ce778c438ce4e12a1981bed5583",
+      "kind": "governance_history",
+      "sha256": "4aab1a760e710c723aafd7184a37d86f222ea07638a5084662e0fec608af4c62"
+    },
+    ".agents/audit/contract-history.sig": {
+      "ainish:contract-history-sig:sha256": "1aabc4af0d1cc8cb16d82a2404caa4fc974ef810263dbc2ae155cc313d9f9276",
+      "kind": "governance_signature",
+      "sha256": "1aabc4af0d1cc8cb16d82a2404caa4fc974ef810263dbc2ae155cc313d9f9276"
+    },
+    ".agents/audit/privacy-report.json": {
+      "ainish:privacy-report:sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a",
+      "kind": "privacy_report",
+      "sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a"
+    },
     ".agents/canonical/AGENTS.md": {
       "kind": "data",
-      "sha256": "5db2bd5cd9626dc00e56d1d87e6d519b0ee7e98cdc9e4fcc19942f5709d6ade0"
+      "sha256": "97701b66dfe9a41fdfdbafe112ad0447ade9c9a6c8f6978f5ab57f282fe82e84"
+    },
+    ".agents/wiki/ledger.md": {
+      "kind": "wiki_ledger",
+      "sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891",
+      "wiki_ledger_sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891"
+    },
+    ".gitattributes": {
+      "kind": "file",
+      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
     },
     "embeddinggemma-2-BF16.gguf": {
       "kind": "machine-learning-model",

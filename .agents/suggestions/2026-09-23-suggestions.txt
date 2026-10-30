@@ -5,7 +5,7 @@ Reviewed at cycle start; appended at turn close using the masters schema.
 
 ---
 
-### [2026-09-23T14:10:00Z] docs/agents-md-consolidation | agent:omp
+### [2026-09-23T14:10:00Z] docs/agents-md-consolidation
 Swapped in the consolidated 133-line AGENTS.md (from 302, all contracts retained) and applied the operator's one-ledger-per-UTC-date decision across all COMMS naming callers — template, deploy and scroll logging lookups, help text, CLI, git-context, llms.txt, .gitignore — with canonical snapshot + sha256 refresh (verified OK), two --no-ff merges to main, and fleet --rules refresh across all 13 deployed targets (copies verified at 133 lines). Next step: trace and fix bin/ainish-coder's uniform exit=2 after successful --rules runs (pinned: --help exits 0, --rules exits 2 even on a fresh /tmp target) and have each target commit its refreshed AGENTS.md copy.
 What would this adversarial / security master suggest? Re-audit the trim now live: confirm the banned-algorithm list, PQC mandate, and no-plaintext rule survived verbatim in the merged AGENTS.md.
 What would this privacy / data-protection regulatory master suggest? Keep ledger entries free of hostnames and user paths — the daily file now aggregates a whole day of history and is pushed across machines.
@@ -17,7 +17,7 @@ What would this terminal-orchestration / swe-bench master suggest? Have orchestr
 What would this master-orchestrator / self-prompting master suggest? Keep one Next step per turn and close the ledger even when a merge ends mid-cycle.
 What would this developer-experience / ergonomics master suggest? The 2.3x contract shrink is the win — resist re-adding detail; grow llms.txt instead when a repo needs more.
 
-### [2026-09-23T18:05:00Z] chore/agent-agnostic-memory | agent:omp
+### [2026-09-23T18:05:00Z] chore/agent-agnostic-memory
 Stripped the GitNexus + memory-MCP doctrine and made memory agent/system/dependency agnostic: `<GRAPH>` deleted, `<REPO_MEMORY>` rewritten to dated `.agents/memories/{date}-memory.txt` pairing with the `{date}-team.txt` ledger (MEMORY.md digest + exports/ + the 1460-line repo-memory-graph-intelligence pack retired, 5 live facts carried forward), suggestions moved to `{date}-suggestions.txt`, and every doctrine caller (llms.txt, orchestrate-subagent-masters, question-me, help, mcp-settings, git-context, deploy/verify) de-gitnexused. Next step: trace and fix `bin/ainish-coder --rules` exit=2 after successful runs, then have each fleet target commit its refreshed AGENTS.md copy and confirm the retired skill pack is gone there.
 What would this adversarial / security master suggest? Confirm the PQC mandate, banned-algorithm list, and no-plaintext rule survived verbatim in the slimmed AGENTS.md — the fail-closed surface must not shrink with the bloat.
 What would this privacy / data-protection regulatory master suggest? Keep `{date}-memory.txt` entries free of hostnames, usernames, and absolute home paths — memory now travels with every push.

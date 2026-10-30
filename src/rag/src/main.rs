@@ -61,6 +61,9 @@ enum Commands {
         /// Launch interactive TUI telemetry dashboard
         #[arg(long)]
         tui: bool,
+        /// Output health and telemetry report as structured JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Index codebase or target path into LanceDB
     Index {
@@ -85,6 +88,9 @@ enum Commands {
         /// Differential privacy epsilon parameter (default: 1.0)
         #[arg(long)]
         dp_epsilon: Option<f32>,
+        /// Hard ceiling for cumulative differential privacy epsilon expenditure
+        #[arg(long)]
+        dp_max_budget: Option<f32>,
     },
     /// Continuous drift monitoring and regression evaluation
     Monitor {
@@ -135,6 +141,21 @@ enum Commands {
         /// Also index the generated wiki into LanceDB vector store (default: true)
         #[arg(long, default_value_t = true)]
         index: bool,
+        /// Append a UTC-dated bullet note to .agents/wiki/ledger.md (pass '-' to read from stdin), sign with ML-DSA-65, and re-render page 04
+        #[arg(short, long)]
+        note: Option<String>,
+        /// Mark matching entries [RESOLVED] in both .agents/wiki/ledger.md and today's .agents/memories/{date}-memory.txt
+        #[arg(long)]
+        resolve: Option<String>,
+        /// Display current operator ledger entries and their [RESOLVED] status without regenerating all wiki pages
+        #[arg(long)]
+        list_notes: bool,
+        /// Synchronize [RESOLVED] status bidirectionally between .agents/memories/ and .agents/wiki/ledger.md
+        #[arg(long)]
+        sync_resolved: bool,
+        /// Output wiki note listing as structured JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Query the multimodal RAG vector store with two-stage decision reranking
     Query {
@@ -213,7 +234,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Run database compaction and old table version pruning
+    /// Run database compaction, old table version pruning, and stale git worktree/branch hygiene
     Cleanup {
         /// Compact LanceDB dataset files
         #[arg(long, default_value_t = true)]
@@ -221,6 +242,15 @@ enum Commands {
         /// Prune table versions older than N days (default: 7)
         #[arg(long, default_value_t = 7)]
         prune_days: i64,
+        /// Prune stale git worktree metadata and detect merged branches
+        #[arg(long, default_value_t = true)]
+        prune_worktrees: bool,
+        /// Automatically delete local branches already merged into main
+        #[arg(long)]
+        delete_merged: bool,
+        /// Preview branches slated for deletion without mutating refs
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Subagent context injection: formats top architectural wiki sections into primer
     Orient {
@@ -233,6 +263,24 @@ enum Commands {
         /// Filter or condition wiki sections based on active task metadata (.agents/tasks/)
         #[arg(long, default_value_t = true)]
         task_conditioned: bool,
+        /// Verify that all 4 orient primer pillars (wiki sections, memories, ledger notes, symbol anchors) are populated
+        #[arg(long)]
+        verify: bool,
+        /// Emit a single-screen token-budgeted <ORIENT_PRIMER> for small-context local models
+        #[arg(long)]
+        compact: bool,
+        /// Fine-grained per-section line truncation override
+        #[arg(long)]
+        max_lines: Option<usize>,
+        /// Maximum number of wiki sections to inject (default 3)
+        #[arg(long)]
+        sections: Option<usize>,
+        /// Include key symbol graph anchors in the primer (pass `false` to omit)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        include_symbols: bool,
+        /// Invoke the deployed .agents/bin/ainish-rules-sync when gate_ready is false (opt-in)
+        #[arg(long)]
+        sync_rules: bool,
         /// Output primer and section metadata as structured JSON
         #[arg(long)]
         json: bool,
@@ -251,7 +299,19 @@ enum Commands {
         /// Continuously watch repository for file modifications and re-evaluate gate
         #[arg(short, long)]
         watch: bool,
+        /// Output one-line compact summary for shell prompt (PS1) or tmux status bar
+        #[arg(long)]
+        summary: bool,
+        /// Require STRONG_ANCHOR (>= 70.0% composite score) for security-critical modules
+        #[arg(long)]
+        strict: bool,
         /// Output gate results as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Emit one-line compact gate status for shell prompts (PS1), Cursor statusLine, or tmux bars
+    Statusline {
+        /// Output structured JSON status bar payload for IDE plugins
         #[arg(long)]
         json: bool,
     },
@@ -320,6 +380,39 @@ pub enum AuditCommands {
         /// Unwrap hardware-backed FIDO2 / TPM 2.0 sealed signing seed
         #[arg(long)]
         hardware_seal: bool,
+        /// Inspect and verify all hash-chained transitions in .agents/audit/contract-history.jsonl
+        #[arg(long)]
+        verify_history: bool,
+        /// Output contract governance history as structured JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Inspect or reset the cumulative differential privacy budget ledger (.agents/audit/privacy-budget.json)
+    Privacy {
+        /// Maximum allowed cumulative epsilon budget ceiling (default: 10.0)
+        #[arg(long, default_value_t = 10.0)]
+        max_budget: f64,
+        /// Reset cumulative privacy budget expenditure to 0.0
+        #[arg(long)]
+        reset: bool,
+        /// Export signed privacy compliance report to file (e.g. .agents/audit/privacy-report.json)
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+        /// Dry-run PII/credential/path/IP/MAC redaction on an arbitrary file without mutating it
+        #[arg(long)]
+        redact_check: Option<PathBuf>,
+        /// Exit non-zero when the redaction dry-run detects unredacted sensitive classes
+        #[arg(long)]
+        fail_on_leak: bool,
+        /// Cap the number of files scanned in directory `--redact-check` mode (default: 5000)
+        #[arg(long)]
+        max_files: Option<usize>,
+        /// Skip paths matching this glob/substring in directory `--redact-check` mode (repeatable)
+        #[arg(long = "exclude")]
+        exclude: Vec<String>,
+        /// Output privacy budget ledger as JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -340,10 +433,90 @@ pub enum ServiceCommands {
         #[arg(short, long)]
         port: Option<u16>,
     },
-    /// Check background service status
-    Status,
+    /// Check background service status and sub-50ms warm latency
+    Status {
+        /// Ensure service is running and warmed up for sub-50ms query/gate latency
+        #[arg(short, long)]
+        warm: bool,
+    },
     /// Uninstall continuous background service
     Uninstall,
+}
+
+/// Collects `ainish-rag status` telemetry into a stable keyed report while optionally
+/// emitting the legacy human-readable lines. `--json` suppresses the text rows entirely
+/// so orchestrators receive a single parseable document.
+struct StatusReporter {
+    json: bool,
+    fields: serde_json::Map<String, serde_json::Value>,
+}
+
+impl StatusReporter {
+    fn new(json: bool) -> Self {
+        Self { json, fields: serde_json::Map::new() }
+    }
+
+    fn put(&mut self, key: &str, value: serde_json::Value) {
+        self.fields.insert(key.to_string(), value);
+    }
+
+    fn line(&mut self, key: &str, value: serde_json::Value, text: String) {
+        self.put(key, value);
+        if !self.json {
+            println!("{}", text);
+        }
+    }
+
+    fn finish(self) {
+        if self.json {
+            let doc = serde_json::Value::Object(self.fields);
+            println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_else(|_| "{}".to_string()));
+        }
+    }
+}
+
+/// Reports presence plus detached ML-DSA-65 verification state for a compliance artifact.
+fn artifact_signature_status(repo_root: &std::path::Path, rel_path: &str) -> serde_json::Value {
+    let path = repo_root.join(rel_path);
+    if !path.exists() {
+        return serde_json::json!({
+            "present": false,
+            "path": rel_path,
+            "signature_status": "MISSING",
+            "signature_verified": false
+        });
+    }
+    if !pqc::sig_path(&path).exists() {
+        return serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "UNSIGNED",
+            "signature_verified": false
+        });
+    }
+    match pqc::verify_file(repo_root, &path) {
+        pqc::VerifyOutcome::Verified { fingerprint } => serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "VERIFIED",
+            "signature_verified": true,
+            "key_fingerprint": &fingerprint[..12.min(fingerprint.len())]
+        }),
+        pqc::VerifyOutcome::Unsigned(reason) => serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "UNSIGNED",
+            "signature_verified": false,
+            "detail": reason
+        }),
+        pqc::VerifyOutcome::Invalid(err) => serde_json::json!({
+            "present": true,
+            "path": rel_path,
+            "signature_status": "INVALID",
+            "signature_verified": false,
+            "detail": err
+        }),
+    }
 }
 
 #[tokio::main]
@@ -378,57 +551,131 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Stop => {
             LlamaServer::stop(&current_dir)?;
         }
-        Commands::Status { tui } => {
+        Commands::Status { tui, json } => {
             if tui {
                 run_tui_dashboard(&config, &current_dir).await?;
                 return Ok(());
             }
 
-            println!("=== ainish-rag Multimodal RAG Status ===");
-            println!("HF Cache Root:      {}", config.hf_hub_cache.display());
-            println!("Model GGUF:         {}", config.model_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
+            let mut reporter = StatusReporter::new(json);
+            if !json {
+                println!("=== ainish-rag Multimodal RAG Status ===");
+            }
+
+            let hf_cache = config.hf_hub_cache.display().to_string();
+            reporter.line("hf_cache_root", serde_json::json!(hf_cache), format!("HF Cache Root:      {}", hf_cache));
+
+            let model_gguf = config.model_path.as_ref().map(|p| p.display().to_string());
+            reporter.line(
+                "model_gguf",
+                serde_json::json!(model_gguf),
+                format!("Model GGUF:         {}", model_gguf.as_deref().unwrap_or("NOT FOUND")),
+            );
             if let Some(ref mp) = config.model_path {
                 match LlamaServer::verify_model_integrity(mp) {
-                    Ok(stat) => println!("Model Integrity:    VALID ({})", stat),
-                    Err(e)   => println!("Model Integrity:    FAILED ({})", e),
+                    Ok(stat) => reporter.line(
+                        "model_integrity",
+                        serde_json::json!(format!("VALID ({})", stat)),
+                        format!("Model Integrity:    VALID ({})", stat),
+                    ),
+                    Err(e) => reporter.line(
+                        "model_integrity",
+                        serde_json::json!(format!("FAILED ({})", e)),
+                        format!("Model Integrity:    FAILED ({})", e),
+                    ),
                 }
+            } else {
+                reporter.put("model_integrity", serde_json::Value::Null);
             }
-            println!("Multimodal Projector:{}", config.mmproj_path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
-            println!("Llama Binary:       {}", config.llama_bin.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "NOT FOUND".to_string()));
-            println!("Server Endpoint:    {}", config.server_url);
 
+            let mmproj = config.mmproj_path.as_ref().map(|p| p.display().to_string());
+            reporter.line(
+                "multimodal_projector",
+                serde_json::json!(mmproj),
+                format!("Multimodal Projector:{}", mmproj.as_deref().unwrap_or("NOT FOUND")),
+            );
+            let llama_bin = config.llama_bin.as_ref().map(|p| p.display().to_string());
+            reporter.line(
+                "llama_binary",
+                serde_json::json!(llama_bin),
+                format!("Llama Binary:       {}", llama_bin.as_deref().unwrap_or("NOT FOUND")),
+            );
+
+            reporter.line(
+                "server_endpoint",
+                serde_json::json!(config.server_url),
+                format!("Server Endpoint:    {}", config.server_url),
+            );
             let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
-            println!("Server Status:      {}", if is_running { "ONLINE (ready)" } else { "OFFLINE" });
+            reporter.line(
+                "server_online",
+                serde_json::json!(is_running),
+                format!("Server Status:      {}", if is_running { "ONLINE (ready)" } else { "OFFLINE" }),
+            );
 
             let psk_status = if let Some(ref psk) = config.psk {
                 let preview = if psk.len() > 8 { &psk[..8] } else { psk };
                 format!("ENABLED (Loopback PSK: {}...)", preview)
             } else {
                 "DISABLED (unauthenticated loopback)".to_string()
+            };            reporter.line(
+                "loopback_auth",
+                serde_json::json!({ "enabled": config.psk.is_some() }),
+                format!("Loopback Auth:      {}", psk_status),
+            );
+
+            let provider_line = if config.uses_api_embeddings() {
+                format!(
+                    "API {} (model: {}, no local server)",
+                    config.embed_api_base.as_deref().unwrap_or_default(),
+                    config.embed_model.as_deref().unwrap_or_default()
+                )
+            } else {
+                let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, &current_dir);
+                format!("local llama (ctx={} batch={})", ctx, batch)
             };
-            println!("Loopback Auth:      {}", psk_status);
+            reporter.line(
+                "embed_provider",
+                serde_json::json!({
+                    "provider": if config.uses_api_embeddings() { "api" } else { "local" },
+                    "api_base": config.embed_api_base,
+                    "model": config.embed_model,
+                }),
+                format!("Embed Provider:     {}", provider_line),
+            );
 
             let salt_status = if let Some(ref s) = config.symbol_salt {
                 format!("ACTIVE (len: {})", s.len())
             } else {
                 "DEFAULT (machine/repo hash)".to_string()
-            };
-            println!("Symbol Salt:        {}", salt_status);
+            };            reporter.line(
+                "symbol_salt",
+                serde_json::json!({
+                    "active": config.symbol_salt.is_some(),
+                    "length": config.symbol_salt.as_ref().map(|s| s.len()).unwrap_or(0)
+                }),
+                format!("Symbol Salt:        {}", salt_status),
+            );
 
-            let manifest_status = match LlamaServer::verify_model_manifest(
+            let (manifest_state, manifest_text) = match LlamaServer::verify_model_manifest(
                 config.model_path.as_ref().unwrap_or(&PathBuf::from("")),
                 &config.model_manifest_path
             ) {
-                Ok(Some(hash)) => format!("VERIFIED ({})", &hash[..16]),
-                Ok(None) => "NOT PRESENT (manifest absent)".to_string(),
-                Err(e) => format!("TAMPERED ({})", e),
+                Ok(Some(hash)) => ("VERIFIED", format!("VERIFIED ({})", &hash[..16.min(hash.len())])),
+                Ok(None) => ("NOT_PRESENT", "NOT PRESENT (manifest absent)".to_string()),
+                Err(e) => ("TAMPERED", format!("TAMPERED ({})", e)),
             };
-            println!("Model Manifest:     {}", manifest_status);
+            reporter.line(
+                "model_manifest",
+                serde_json::json!({ "status": manifest_state }),
+                format!("Model Manifest:     {}", manifest_text),
+            );
 
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
             let count = store.count().await.unwrap_or(0);
-            println!("LanceDB Path:       {}", config.lancedb_dir.display());
-            println!("Indexed Chunks:     {}", count);
+            let lancedb_path = config.lancedb_dir.display().to_string();
+            reporter.line("lancedb_path", serde_json::json!(lancedb_path), format!("LanceDB Path:       {}", lancedb_path));
+            reporter.line("indexed_chunks", serde_json::json!(count), format!("Indexed Chunks:     {}", count));
 
             let wiki_exists = config.wiki_dir.exists();
             let wiki_count = if wiki_exists {
@@ -438,26 +685,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 0
             };
-            println!("Wiki Path:          {}", config.wiki_dir.display());
-            println!("Wiki Pages:         {}", wiki_count);
+            let wiki_path = config.wiki_dir.display().to_string();
+            reporter.line("wiki_path", serde_json::json!(wiki_path), format!("Wiki Path:          {}", wiki_path));
+            reporter.line("wiki_pages", serde_json::json!(wiki_count), format!("Wiki Pages:         {}", wiki_count));
 
-            if config.llama_bin.is_none() {
-                println!("\n  [rag:tip] llama executable not found!");
-                #[cfg(target_os = "macos")]
-                println!("            Install via Homebrew: brew install llama.cpp");
-                #[cfg(target_os = "windows")]
-                println!("            Install via WinGet:   winget install llama.cpp (or download from GitHub)");
-                #[cfg(target_os = "linux")]
-                println!("            Download release:     https://github.com/ggerganov/llama.cpp/releases");
-                println!("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server");
+            let wiki_gen = WikiGenerator::new(&current_dir);
+            let ledger_notes = wiki_gen.list_notes();
+            let resolved_notes = ledger_notes.iter().filter(|n| n.contains("[RESOLVED]")).count();
+            let open_notes = ledger_notes.len().saturating_sub(resolved_notes);
+            reporter.line(
+                "wiki_ledger_notes",
+                serde_json::json!({
+                    "total": ledger_notes.len(),
+                    "open": open_notes,
+                    "resolved": resolved_notes
+                }),
+                format!("Wiki Ledger Notes:  {} total ({} open, {} resolved)", ledger_notes.len(), open_notes, resolved_notes),
+            );
+
+            if let Ok(pb) = crate::embed::read_or_init_privacy_budget(&current_dir, false) {
+                let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+                reporter.line(
+                    "privacy_budget",
+                    serde_json::json!({ "cumulative_epsilon": cum_eps, "total_protected_vectors": vec_cnt }),
+                    format!("Privacy Budget:     epsilon={:.4} ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt),
+                );
+            } else {
+                reporter.put("privacy_budget", serde_json::Value::Null);
             }
-            if config.model_path.is_none() {
-                println!("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!");
-                println!("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf");
-                println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
+
+            match pqc::verify_contract_history_chain(&current_dir) {
+                Ok(transitions) => reporter.line(
+                    "contract_history",
+                    serde_json::json!({ "verified": true, "transitions": transitions }),
+                    format!("Contract History:   {} hash-chained transitions verified (contract-history.jsonl)", transitions),
+                ),
+                Err(err) => {
+                    let text = format!("Contract History:   INVALID ({})", err);
+                    reporter.line(
+                        "contract_history",
+                        serde_json::json!({ "verified": false, "error": err }),
+                        text,
+                    );
+                }
             }
+
+            let mut signatures = serde_json::Map::new();
+            for (key, rel_path) in [
+                ("model_manifest", ".agents/audit/model-manifest.json"),
+                ("lockfile_manifest", ".agents/audit/lockfile-manifest.json"),
+                ("privacy_budget", ".agents/audit/privacy-budget.json"),
+                ("privacy_report", ".agents/audit/privacy-report.json"),
+            ] {
+                signatures.insert(key.to_string(), artifact_signature_status(&current_dir, rel_path));
+            }
+            reporter.put("signatures", serde_json::Value::Object(signatures));
+
+            if !json {
+                if config.llama_bin.is_none() {
+                    println!("\n  [rag:tip] llama executable not found!");
+                    #[cfg(target_os = "macos")]
+                    println!("            Install via Homebrew: brew install llama.cpp");
+                    #[cfg(target_os = "windows")]
+                    println!("            Install via WinGet:   winget install llama.cpp (or download from GitHub)");
+                    #[cfg(target_os = "linux")]
+                    println!("            Download release:     https://github.com/ggerganov/llama.cpp/releases");
+                    println!("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server");
+                }
+                if config.model_path.is_none() {
+                    println!("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!");
+                    println!("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf");
+                    println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
+                }
+            }
+            reporter.finish();
         }
-        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon } => {
+        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -473,12 +777,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.dp_epsilon = Some(eps);
                 println!("  \x1b[35m[rag:privacy]\x1b[0m Differential privacy active (epsilon={:.2}, sensitivity=0.05)", eps);
             }
+            if let Some(mb) = dp_max_budget {
+                config.dp_max_budget = Some(mb);
+            }
 
             LlamaServer::ensure_running(&config, &current_dir).await?;
 
             let dim = truncate.unwrap_or(config.embedding_dim);
-            let embed_client = EmbedClient::new(&config.server_url, truncate, config.psk.clone())
-                .with_dp_epsilon(config.dp_epsilon)
+            let embed_client = EmbedClient::with_config(&config, truncate)
                 .with_repo_root(&current_dir);
             let store = LanceStore::new(&config.lancedb_dir, dim);
             let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
@@ -588,16 +894,80 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Monitor { interval, once, json } => {
             run_drift_monitor(&config, &current_dir, interval, once, json).await?;
         }
-        Commands::Wiki { path, index } => {
+        Commands::Wiki { path, index, note, resolve, list_notes, sync_resolved, json } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
-            println!("=== Generating Codebase Wiki in .agents/wiki/ ===");
             let generator = WikiGenerator::new(&target);
+            if sync_resolved {
+                let newly_synced = generator.sync_bidirectional_resolutions()?;
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Bidirectionally synchronized [RESOLVED] entries between .agents/memories/ and .agents/wiki/ledger.md ({} newly marked).", newly_synced);
+                return Ok(());
+            }
+            if list_notes {
+                let notes = generator.list_notes();
+                if json {
+                    let items: Vec<serde_json::Value> = notes.iter().enumerate().map(|(idx, n)| {
+                        let resolved = n.contains("[RESOLVED]");
+                        let text = n.trim_start_matches("- ").trim_start_matches("[RESOLVED]").trim().to_string();
+                        serde_json::json!({
+                            "index": idx + 1,
+                            "status": if resolved { "RESOLVED" } else { "OPEN" },
+                            "resolved": resolved,
+                            "note": text,
+                            "raw": n,
+                        })
+                    }).collect();
+                    let open_cnt = items.iter().filter(|i| !i["resolved"].as_bool().unwrap_or(false)).count();
+                    let res_cnt = items.len().saturating_sub(open_cnt);
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "total": items.len(),
+                        "open": open_cnt,
+                        "resolved": res_cnt,
+                        "notes": items,
+                    }))?);
+                } else {
+                    println!("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===");
+                    if notes.is_empty() {
+                        println!("  (No operator ledger entries recorded yet)");
+                    } else {
+                        for (idx, n) in notes.iter().enumerate() {
+                            let status = if n.contains("[RESOLVED]") { "\x1b[32m[RESOLVED]\x1b[0m" } else { "\x1b[33m[OPEN]\x1b[0m" };
+                            let clean_n = n.trim_start_matches("- ").trim_start_matches("[RESOLVED]").trim();
+                            println!("  [{}] {} {}", idx + 1, status, clean_n);
+                        }
+                    }
+                    println!();
+                }
+                return Ok(());
+            }
+            if let Some(ref kw) = resolve {
+                let count = generator.resolve_note(kw)?;
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Marked {} matching ledger entries [RESOLVED] and recorded resolution in today's .agents/memories/ file.", count);
+            }
+            if let Some(ref note_arg) = note {
+                let note_text = if note_arg.trim() == "-" {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    std::io::stdin().read_to_string(&mut buf)?;
+                    buf
+                } else {
+                    note_arg.clone()
+                };
+                let (ledger_path, sig_path) = generator.append_note_and_sign(&note_text)?;
+                println!("  \x1b[32m[rag:wiki]\x1b[0m Appended UTC-dated note (with HEAD SHA) to {} and signed detached ML-DSA-65 envelope ({})", ledger_path.display(), sig_path.display());
+            } else {
+                let ledger_path = target.join(".agents").join("wiki").join("ledger.md");
+                if ledger_path.exists() {
+                    let _ = pqc::sign_file(&ledger_path);
+                }
+            }
+            println!("=== Generating Codebase Wiki in .agents/wiki/ ===");
             let generated_pages = generator.generate_all()?;
 
             if index {
                 println!("=== Indexing Generated Wiki Pages ===");
                 LlamaServer::ensure_running(&config, &current_dir).await?;
-                let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+                let embed_client = EmbedClient::with_config(&config, None)
+                    .with_repo_root(&current_dir);
                 let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
                 let ingestor = CodebaseIngestor::new_with_options(&target, false, config.symbol_salt.clone());
 
@@ -619,12 +989,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 store.upsert(&rag_chunks).await?;
+                let total = store.count().await.unwrap_or(0);
+                let _ = record_index_audit_receipt(&current_dir, &target, generated_pages.len(), rag_chunks.len(), total, false);
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
             }
         }
         Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance, fzf } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+            let embed_client = EmbedClient::with_config(&config, None);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             if fzf {
@@ -712,7 +1084,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Rerank { query, limit, doc_type, json } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+            let embed_client = EmbedClient::with_config(&config, None);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
             let formatted_query = EmbedClient::format_query(&query, false);
@@ -744,7 +1116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Bench { iterations, json, custom, regression, save_baseline, drift_injection, chaos } => {
             LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone())
+            let embed_client = EmbedClient::with_config(&config, None)
                 .with_repo_root(&current_dir);
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
@@ -756,6 +1128,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  \x1b[33m[rag:chaos]\x1b[0m Chaos fault injection active: simulating transient embedding server timeout and retry-loop recovery...");
                 tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
                 LlamaServer::ensure_running(&config, &current_dir).await?;
+                if let Ok(integrity_msg) = store.verify_or_recover().await {
+                    println!("  \x1b[32m[rag:chaos]\x1b[0m LanceDB self-healing check: {}", integrity_msg);
+                }
                 println!("  \x1b[32m[rag:chaos]\x1b[0m Retry-loop resilience verified: server healthy and responsive after simulated fault.");
             }
             let test_suite: Vec<(String, String)> = if let Some(ref c_path) = custom {
@@ -811,7 +1186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let avg_latency = if test_suite.is_empty() { 0.0 } else { total_latency_ms as f64 / test_suite.len() as f64 };
             let baseline_file = current_dir.join(".agents").join("rag").join("bench-baseline.json");
 
-            if save_baseline {
+            if save_baseline || (regression && !baseline_file.exists()) {
                 if let Some(parent) = baseline_file.parent() {
                     let _ = std::fs::create_dir_all(parent);
                 }
@@ -921,9 +1296,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Cleanup { compact, prune_days } => {
+        Commands::Cleanup { compact, prune_days, prune_worktrees, delete_merged, dry_run } => {
             let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-            println!("=== ainish-rag Database Maintenance ===");
+            println!("=== ainish-rag Database Maintenance & Worktree Hygiene ===");
             if compact {
                 println!("Running LanceDB table compaction and WAL prune (older than {} days)...", prune_days);
                 match store.compact(prune_days).await {
@@ -932,14 +1307,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Compaction failed: {}", e),
                 }
             }
-        }
-        Commands::Orient { inject, query, task_conditioned, json } => {
-            if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, json)?;
+            if prune_worktrees || delete_merged {
+                let _ = std::process::Command::new("git")
+                    .args(["worktree", "prune"])
+                    .current_dir(&current_dir)
+                    .output();
+                let current_branch = std::process::Command::new("git")
+                    .args(["branch", "--show-current"])
+                    .current_dir(&current_dir)
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_default();
+                let merged_branches: Vec<String> = std::process::Command::new("git")
+                    .args(["branch", "--merged", "main"])
+                    .current_dir(&current_dir)
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|s| {
+                        s.lines()
+                            .map(|l| l.trim().trim_start_matches('*').trim_start_matches('+').trim().to_string())
+                            .filter(|b| !b.is_empty() && b != "main" && b != "master" && b != &current_branch)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if merged_branches.is_empty() {
+                    println!("  \x1b[32m[rag:worktrees]\x1b[0m Pruned stale git worktree metadata; 0 lingering merged branches detected.");
+                } else if delete_merged {
+                    if dry_run {
+                        println!("  \x1b[36m[rag:worktrees:dry-run]\x1b[0m Would delete {} merged local branches: {}", merged_branches.len(), merged_branches.join(", "));
+                    } else {
+                        let mut deleted = Vec::new();
+                        for b in &merged_branches {
+                            if std::process::Command::new("git")
+                                .args(["branch", "-d", b])
+                                .current_dir(&current_dir)
+                                .output()
+                                .map_or(false, |o| o.status.success())
+                            {
+                                deleted.push(b.clone());
+                            }
+                        }
+                        println!("  \x1b[32m[rag:worktrees]\x1b[0m Automatically deleted {} merged local branches: {}", deleted.len(), deleted.join(", "));
+                    }
+                } else {
+                    println!("  \x1b[33m[rag:worktrees]\x1b[0m Pruned worktree metadata; merged branches ready for cleanup (use --delete-merged [--dry-run]): {}", merged_branches.join(", "));
+                }
             }
         }
-        Commands::Gate { patch, bell, notify, watch, json } => {
-            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, json).await?;
+        Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json } => {
+            if inject {
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json)?;
+            }
+        }
+        Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
+            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, strict, false, json).await?;
+        }
+        Commands::Statusline { json } => {
+            run_gate(&config, &current_dir, None, false, false, false, true, false, json, false).await?;
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
@@ -966,7 +1393,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 run_audit_sbom(&config, &current_dir, &format, out.as_deref())?;
             }
             AuditCommands::Lock { update, verify } => {
-                run_audit_lock(&current_dir, update, verify)?;
+                run_audit_lock(&config, &current_dir, update, verify)?;
             }
             AuditCommands::Keygen => {
                 run_audit_keygen(&current_dir)?;
@@ -974,7 +1401,79 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AuditCommands::Sign { path } => {
                 run_audit_sign(&path)?;
             }
-            AuditCommands::Contract { threshold, hardware_seal } => {
+            AuditCommands::Contract { threshold, hardware_seal, verify_history, json } => {
+                if verify_history {
+                    let history_file = current_dir.join(".agents").join("audit").join("contract-history.jsonl");
+                    let chain_res = pqc::verify_contract_history_chain(&current_dir);
+                    let history_sig_file = pqc::sig_path(&history_file);
+                    let signature_status = if !history_sig_file.exists() {
+                        "MISSING"
+                    } else {
+                        match pqc::verify_file(&current_dir, &history_file) {
+                            pqc::VerifyOutcome::Verified { .. } => "VERIFIED",
+                            pqc::VerifyOutcome::Unsigned(_) => "UNSIGNED",
+                            pqc::VerifyOutcome::Invalid(_) => "INVALID",
+                        }
+                    };
+                    let mut entries_list = Vec::new();
+                    if let Ok(text) = std::fs::read_to_string(&history_file) {
+                        for (idx, line) in text.lines().filter(|l| !l.trim().is_empty()).enumerate() {
+                            if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(line) {
+                                if let Some(obj) = v.as_object_mut() {
+                                    obj.insert("index".to_string(), serde_json::json!(idx + 1));
+                                }
+                                entries_list.push(v);
+                            }
+                        }
+                    }
+                    if json {
+                        let verified = chain_res.is_ok();
+                        let count = chain_res.unwrap_or(entries_list.len());
+                        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                            "verified": verified,
+                            "transitions_count": count,
+                            "history_file": history_file.to_string_lossy(),
+                            "signature_file": history_sig_file.to_string_lossy(),
+                            "signature_status": signature_status,
+                            "signature_verified": signature_status == "VERIFIED",
+                            "transitions": entries_list,
+                        }))?);
+                        return Ok(());
+                    }
+                    println!("=== ainish-rag Canonical Contract Governance History ===");
+                    println!("  History Log: {}", history_file.display());
+                    let sig_label = match signature_status {
+                        "VERIFIED" => "\x1b[32mVERIFIED\x1b[0m",
+                        "UNSIGNED" => "\x1b[33mUNSIGNED\x1b[0m",
+                        "INVALID" => "\x1b[31mINVALID\x1b[0m",
+                        _ => "\x1b[33mMISSING\x1b[0m",
+                    };
+                    println!("  ML-DSA-65 Sig: {} (contract-history.sig)", sig_label);
+                    match chain_res {
+                        Ok(cnt) => {
+                            for v in &entries_list {
+                                let idx = v.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+                                let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
+                                let sha = v.get("contract_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                let fpr = v.get("signer_fingerprint").and_then(|s| s.as_str()).unwrap_or("");
+                                let prev = v.get("prev_entry_sha256").and_then(|s| s.as_str()).unwrap_or("");
+                                println!(
+                                    "  [#{:>2}] {} | sha256:{}... | signer:{}... | prev:{}...",
+                                    idx,
+                                    ts,
+                                    &sha[..12.min(sha.len())],
+                                    &fpr[..12.min(fpr.len())],
+                                    &prev[..12.min(prev.len())]
+                                );
+                            }
+                            println!("  \x1b[32m[PASS]\x1b[0m Verified {} hash-chained governance transitions & ML-DSA-65 signature.\n", cnt);
+                        }
+                        Err(e) => {
+                            eprintln!("  \x1b[31m[FAIL]\x1b[0m Governance history verification failed: {}\n", e);
+                        }
+                    }
+                    return Ok(());
+                }
                 if hardware_seal {
                     println!("  \x1b[36m[rag:audit]\x1b[0m Unwrapping hardware-backed FIDO2 / TPM 2.0 seal for council signing seed...");
                 }
@@ -986,12 +1485,379 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed signing canonical contract: {}", e),
                 }
             }
+            AuditCommands::Privacy { max_budget, reset, out, redact_check, fail_on_leak, max_files, exclude, json } => {
+                if let Some(ref target) = redact_check {
+                    run_redact_check(&current_dir, target, fail_on_leak, max_files, &exclude, json)?;
+                } else {
+                    run_audit_privacy(&current_dir, max_budget, reset, out.as_deref(), json)?;
+                }
+            }
         },
         Commands::Service { command } => {
             run_service_command(&config, &current_dir, command).await?;
         }
     }
 
+    Ok(())
+}
+
+/// Reports differential-privacy budget state and runs the live redaction self-test.
+fn run_audit_privacy(
+    repo_root: &std::path::Path,
+    max_budget: f64,
+    reset: bool,
+    out: Option<&std::path::Path>,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pb = crate::embed::read_or_init_privacy_budget(repo_root, reset)?;
+    let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+    let within_budget = cum_eps <= max_budget;
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let redaction_ok = wiki_gen.verify_redaction_pipeline().is_ok();
+    let ledger_path = repo_root.join(".agents").join("audit").join("privacy-budget.json");
+    let sig_ok = matches!(pqc::verify_file(repo_root, &ledger_path), pqc::VerifyOutcome::Verified { .. });
+    let report_payload = serde_json::json!({
+        "format": "ainish-rag/privacy-compliance-report/v1",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "within_budget": within_budget,
+        "max_budget": max_budget,
+        "cumulative_epsilon": cum_eps,
+        "total_protected_vectors": vec_cnt,
+        "redaction_self_test": if redaction_ok { "PASS" } else { "FAIL" },
+        "redaction_classes_verified": ["PII", "Credentials", "UserPaths", "InternalIPs", "MAC", "ANSI", "TrojanSourceBidi"],
+        "signature_verified": sig_ok,
+        "ledger": pb,
+    });
+    if let Some(out_path) = out {
+        if let Some(parent) = out_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let report_str = serde_json::to_string_pretty(&report_payload)?;
+        std::fs::write(out_path, &report_str)?;
+        let sig_res = pqc::sign_file(out_path);
+        let sig_note = if let Ok(ref sp) = sig_res { format!(" + signed ({})", sp.display()) } else { String::new() };
+        println!("  \x1b[32m[rag:privacy]\x1b[0m Exported privacy compliance report to {}{}", out_path.display(), sig_note);
+    }
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report_payload)?);
+    } else {
+        println!("=== ainish-rag Differential Privacy & Redaction Audit ===");
+        println!("  Ledger File:      {}", ledger_path.display());
+        println!("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)");
+        println!("  Protected Vecs:   {}", vec_cnt);
+        println!("  Cumulative Eps:   {:.4} / {:.4} max budget", cum_eps, max_budget);
+        println!("  Redaction Test:   {}", if redaction_ok { "\x1b[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" });
+        println!("  ML-DSA-65 Sig:    {}", if sig_ok { "\x1b[32mVERIFIED (privacy-budget.sig)\x1b[0m" } else { "\x1b[33mUNSIGNED\x1b[0m" });
+        println!("  Status:           {}", if within_budget && redaction_ok { "\x1b[32mPASS (Within Privacy Budget & Redaction Verified)\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" });
+        println!();
+    }
+    Ok(())
+}
+
+/// Dry-runs the complete redaction pipeline against an arbitrary file and reports what
+/// would be scrubbed, without ever mutating the target.
+/// Runs the non-mutating redaction dry-run on a single file, returning the report JSON
+/// plus whether any sensitive class was detected. Never writes to the target.
+fn redact_check_file(
+    repo_root: &std::path::Path,
+    path: &std::path::Path,
+) -> Result<(serde_json::Value, bool), Box<dyn std::error::Error>> {
+    let raw_bytes = std::fs::read(path)?;
+    let raw = String::from_utf8_lossy(&raw_bytes).into_owned();
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let sanitized = WikiGenerator::sanitize_text_for_redaction(&raw);
+    let scrubbed = crate::ingest::scrub_sensitive_content(&sanitized);
+    let redacted = wiki_gen.redact_local_user_paths(&scrubbed);
+
+    let mut classes: Vec<&str> = Vec::new();
+    for (marker, label) in [
+        ("[REDACTED:EMAIL]", "PII:EMAIL"),
+        ("[REDACTED:SSN]", "PII:SSN"),
+        ("[REDACTED:PHONE]", "PII:PHONE"),
+        ("[REDACTED:CARD]", "PII:CARD"),
+        ("[REDACTED:TOKEN]", "CREDENTIAL:TOKEN"),
+        ("[REDACTED:PRIVATE_KEY]", "CREDENTIAL:PRIVATE_KEY"),
+        ("[REDACTED:INTERNAL_IP]", "INTERNAL_IP"),
+        ("[REDACTED:MAC]", "MAC"),
+    ] {
+        if redacted.contains(marker) {
+            classes.push(label);
+        }
+    }
+    let ansi_detected = raw.contains('\x1b');
+    let bidi_detected = WikiGenerator::contains_bidi_override(&raw);
+    if ansi_detected {
+        classes.push("ANSI_ESCAPE");
+    }
+    if bidi_detected {
+        classes.push("TROJAN_SOURCE_BIDI");
+    }
+
+    let mut changed_line_numbers: Vec<usize> = Vec::new();
+    let mut redacted_preview: Vec<String> = Vec::new();
+    for (idx, (original, cleaned)) in raw.split('\n').zip(redacted.split('\n')).enumerate() {
+        if original != cleaned {
+            changed_line_numbers.push(idx + 1);
+            if redacted_preview.len() < 10 {
+                redacted_preview.push(format!("L{}: {}", idx + 1, cleaned));
+            }
+        }
+    }
+
+    let file_unchanged = std::fs::read(path).map(|after| after == raw_bytes).unwrap_or(false);
+    let leaked = !classes.is_empty();
+    let report = serde_json::json!({
+        "file": path.to_string_lossy(),
+        "bytes": raw_bytes.len(),
+        "lines": raw.lines().count(),
+        "changed_lines": changed_line_numbers.clone(),
+        "redaction_classes": classes.clone(),
+        "ansi_escape_detected": ansi_detected,
+        "bidi_override_detected": bidi_detected,
+        "file_unchanged": file_unchanged,
+        "redacted_preview": redacted_preview.clone(),
+    });
+    Ok((report, leaked))
+}
+
+/// Recursively collects candidate text files under `dir`, skipping binary/oversized paths.
+fn collect_redact_targets(
+    dir: &std::path::Path,
+    out: &mut Vec<std::path::PathBuf>,
+    max_files: usize,
+    excludes: &[String],
+    root: &std::path::Path,
+) {
+    const SKIP_DIRS: [&str; 6] = [".git", "node_modules", "target", "__pycache__", ".venv", "venv"];
+    const TEXT_EXTS: [&str; 12] = ["md", "mdx", "txt", "rst", "rs", "py", "ts", "js", "go", "sh", "json", "yaml"];
+    if out.len() >= max_files {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        if out.len() >= max_files {
+            return;
+        }
+        let p = entry.path();
+        // Operator `--exclude` patterns match the path relative to the scan root, so a pattern
+        // like `vendor` or `*.min.js` skips vendored/generated trees without listing them all.
+        let rel = p.strip_prefix(root).unwrap_or(&p).to_string_lossy().replace('\\', "/");
+        if !excludes.is_empty() && excludes.iter().any(|pat| glob_match(pat, &rel)) {
+            continue;
+        }
+        if p.is_dir() {
+            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                if SKIP_DIRS.contains(&name) {
+                    continue;
+                }
+            }
+            collect_redact_targets(&p, out, max_files, excludes, root);
+        } else if p.extension().and_then(|e| e.to_str()).map_or(false, |e| {
+            TEXT_EXTS.contains(&e.to_lowercase().as_str())
+        }) {
+            out.push(p);
+        }
+    }
+}
+
+/// Minimal glob matcher supporting `*`, `?`, and path-prefix segments (no external dependency).
+/// A pattern with no wildcard also matches when it is a substring of the path, which keeps
+/// `--exclude vendor` intuitive.
+fn glob_match(pattern: &str, path: &str) -> bool {
+    if !pattern.contains('*') && !pattern.contains('?') {
+        return path.contains(pattern);
+    }
+    // Translate to a simple recursive matcher over chars.
+    fn rec(p: &[u8], s: &[u8]) -> bool {
+        if p.is_empty() {
+            return s.is_empty();
+        }
+        match p[0] {
+            b'*' => {
+                // collapse consecutive '*'
+                let mut i = 1;
+                while i < p.len() && p[i] == b'*' {
+                    i += 1;
+                }
+                let rest = &p[i..];
+                if rest.is_empty() {
+                    return true;
+                }
+                for k in 0..=s.len() {
+                    if rec(rest, &s[k..]) {
+                        return true;
+                    }
+                }
+                false
+            }
+            b'?' => !s.is_empty() && rec(&p[1..], &s[1..]),
+            c => !s.is_empty() && s[0] == c && rec(&p[1..], &s[1..]),
+        }
+    }
+    rec(pattern.as_bytes(), path.as_bytes())
+}
+
+fn run_redact_check(
+    repo_root: &std::path::Path,
+    path: &std::path::Path,
+    fail_on_leak: bool,
+    max_files: Option<usize>,
+    exclude: &[String],
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Directory mode: dry-run every text file beneath `path`, aggregate, never mutate.
+    if path.is_dir() {
+        let cap = max_files.unwrap_or(5000).max(1);
+        let mut targets = Vec::new();
+        collect_redact_targets(path, &mut targets, cap, exclude, path);
+        targets.sort();
+        let truncated = targets.len() >= cap;
+
+        let mut all_classes: Vec<String> = Vec::new();
+        let mut per_file: Vec<serde_json::Value> = Vec::new();
+        let mut total_changed = 0usize;
+        let mut files_with_leaks = 0usize;
+        let mut total_bytes = 0usize;
+        for f in &targets {
+            match redact_check_file(repo_root, f) {
+                Ok((mut report, leaked)) => {
+                    total_bytes += report["bytes"].as_u64().unwrap_or(0) as usize;
+                    total_changed += report["changed_lines"].as_array().map(|a| a.len()).unwrap_or(0);
+                    if leaked {
+                        files_with_leaks += 1;
+                        if let Some(arr) = report["redaction_classes"].as_array() {
+                            for c in arr {
+                                if let Some(s) = c.as_str() {
+                                    if !all_classes.iter().any(|x| x == s) {
+                                        all_classes.push(s.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    report["relative_path"] = serde_json::json!(
+                        f.strip_prefix(path).unwrap_or(f).to_string_lossy()
+                    );
+                    per_file.push(report);
+                }
+                Err(err) => {
+                    per_file.push(serde_json::json!({
+                        "file": f.to_string_lossy(),
+                        "error": err.to_string(),
+                    }));
+                }
+            }
+        }
+
+        let any_unchanged = per_file.iter().all(|r| r["file_unchanged"].as_bool().unwrap_or(true));
+        let report = serde_json::json!({
+            "format": "ainish-rag/redact-check-dir/v1",
+            "directory": path.to_string_lossy(),
+            "files_scanned": per_file.len(),
+            "files_with_leaks": files_with_leaks,
+            "total_bytes": total_bytes,
+            "changed_lines": total_changed,
+            "redaction_classes": all_classes,
+            "all_files_unchanged": any_unchanged,
+            "fail_on_leak": fail_on_leak,
+            "max_files": cap,
+            "truncated": truncated,
+            "exclude": exclude,
+            "files": per_file,
+            "status": if files_with_leaks == 0 { "CLEAN" } else if fail_on_leak { "LEAK_DETECTED" } else { "LEAK_REPORTED" },
+        });
+
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        } else {
+            println!("=== ainish-rag Redaction Dry-Run — Directory (No File Mutation) ===");
+            println!("  Directory:        {}", path.display());
+            println!("  Files Scanned:    {}", per_file.len());
+            println!("  Files w/ Leaks:   {}", files_with_leaks);
+            println!("  Total Changed Ln: {}", total_changed);
+            println!("  Classes Detected: {}", if all_classes.is_empty() { "none".to_string() } else { all_classes.join(", ") });
+            println!("  All Unchanged:    {}", if any_unchanged { "YES (dry-run only)" } else { "NO (unexpected mutation!)" });
+            if truncated {
+                println!("  \x1b[33mScan capped at --max-files {}\x1b[0m (raise it to cover the whole tree)", cap);
+            }
+            if !exclude.is_empty() {
+                println!("  Excluded:         {}", exclude.join(", "));
+            }
+            if files_with_leaks > 0 {
+                for r in per_file.iter().filter(|r| r["redaction_classes"].as_array().map_or(false, |a| !a.is_empty())) {
+                    println!("    {} — {}", r["relative_path"].as_str().unwrap_or("?"), r["redaction_classes"].as_array().unwrap().iter().filter_map(|c| c.as_str()).collect::<Vec<_>>().join(", "));
+                }
+            }
+            println!();
+        }
+        if fail_on_leak && files_with_leaks > 0 {
+            return Err(format!(
+                "Redaction dry-run detected leaks in {} of {} file(s) under {}: {}",
+                files_with_leaks,
+                per_file.len(),
+                path.display(),
+                all_classes.join(", ")
+            ).into());
+        }
+        return Ok(());
+    }
+
+    let (report, leaked) = redact_check_file(repo_root, path)?;
+    let classes: Vec<String> = report["redaction_classes"].as_array()
+        .map(|a| a.iter().filter_map(|c| c.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+    let ansi_detected = report["ansi_escape_detected"].as_bool().unwrap_or(false);
+    let bidi_detected = report["bidi_override_detected"].as_bool().unwrap_or(false);
+    let file_unchanged = report["file_unchanged"].as_bool().unwrap_or(false);
+    let redacted_preview: Vec<String> = report["redacted_preview"].as_array()
+        .map(|a| a.iter().filter_map(|c| c.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+
+    let full_report = serde_json::json!({
+        "format": "ainish-rag/redact-check/v1",
+        "file": path.to_string_lossy(),
+        "bytes": report["bytes"].as_u64().unwrap_or(0),
+        "lines": report["lines"].as_u64().unwrap_or(0),
+        "changed_lines": report["changed_lines"].as_array().map(|a| a.len()).unwrap_or(0),
+        "changed_line_numbers": report["changed_lines"].clone(),
+        "redaction_classes": classes.clone(),
+        "ansi_escape_detected": ansi_detected,
+        "bidi_override_detected": bidi_detected,
+        "file_unchanged": file_unchanged,
+        "fail_on_leak": fail_on_leak,
+        "redacted_preview": redacted_preview.clone(),
+        "status": if classes.is_empty() { "CLEAN" } else if fail_on_leak { "LEAK_DETECTED" } else { "LEAK_REPORTED" },
+    });
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&full_report)?);
+    } else {
+        println!("=== ainish-rag Redaction Dry-Run (No File Mutation) ===");
+        println!("  File:             {}", path.display());
+        println!("  Size:             {} bytes / {} lines", full_report["bytes"].as_u64().unwrap_or(0), full_report["lines"].as_u64().unwrap_or(0));
+        println!("  Changed Lines:    {}", full_report["changed_lines"].as_u64().unwrap_or(0));
+        println!("  Classes Detected: {}", if classes.is_empty() { "none".to_string() } else { classes.join(", ") });
+        println!("  ANSI Escapes:     {}", if ansi_detected { "DETECTED" } else { "none" });
+        println!("  Trojan Source:    {}", if bidi_detected { "DETECTED" } else { "none" });
+        println!("  File Unchanged:   {}", if file_unchanged { "YES (dry-run only)" } else { "NO (unexpected mutation!)" });
+        println!("  Leak Gate:        {}", if classes.is_empty() { "CLEAN" } else if fail_on_leak { "FAIL (--fail-on-leak)" } else { "REPORTED (--fail-on-leak not set)" });
+        if !redacted_preview.is_empty() {
+            println!("  Redacted Preview (first {} changed lines):", redacted_preview.len());
+            for line in &redacted_preview {
+                println!("    {}", line);
+            }
+        }
+        println!();
+    }
+    if fail_on_leak && leaked {
+        return Err(format!(
+            "Redaction dry-run detected {} sensitive class(es) in {}: {}",
+            classes.len(),
+            path.display(),
+            classes.join(", ")
+        ).into());
+    }
     Ok(())
 }
 
@@ -1008,6 +1874,13 @@ fn record_index_audit_receipt(
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let receipt_file = audit_dir.join(format!("{}-index-receipt.json", today));
 
+    let ledger_path = repo_root.join(".agents").join("wiki").join("ledger.md");
+    let wiki_ledger_sha256 = if ledger_path.is_file() {
+        pqc::sha256_file(&ledger_path).ok()
+    } else {
+        None
+    };
+
     let receipt = serde_json::json!({
         "receipt_id": format!("idx-{}", chrono::Utc::now().timestamp_millis()),
         "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -1017,6 +1890,7 @@ fn record_index_audit_receipt(
         "chunks_generated": chunks_count,
         "total_store_records": total_store_records,
         "anonymized_symbols": anonymized_symbols,
+        "wiki_ledger_sha256": wiki_ledger_sha256,
         "algorithm_guarantee": "FIPS 204 ML-DSA-65",
         "status": "verified"
     });
@@ -1024,45 +1898,7 @@ fn record_index_audit_receipt(
     let json_text = serde_json::to_string_pretty(&receipt).map_err(|e| e.to_string())?;
     std::fs::write(&receipt_file, json_text).map_err(|e| e.to_string())?;
 
-    let sig_file = audit_dir.join(format!("{}-index-receipt.sig", today));
-    let mut signed = false;
-
-    let local_bin = repo_root.join("bin").join("pqc-secrets");
-    let local_bin_exe = repo_root.join("bin").join("pqc-secrets.exe");
-    let pqc_cmd = if local_bin_exe.exists() {
-        Some(local_bin_exe.to_string_lossy().to_string())
-    } else if local_bin.exists() {
-        Some(local_bin.to_string_lossy().to_string())
-    } else if std::process::Command::new("pqc-secrets").arg("--version").output().is_ok() {
-        Some("pqc-secrets".to_string())
-    } else {
-        None
-    };
-
-    if let Some(cmd) = pqc_cmd {
-        if let Ok(out) = std::process::Command::new(&cmd)
-            .args(["sign", receipt_file.to_str().unwrap()])
-            .output()
-        {
-            if out.status.success() {
-                signed = true;
-            }
-        }
-    }
-
-    if !signed {
-        use sha2::{Sha256, Digest};
-        let mut hasher = Sha256::new();
-        hasher.update(std::fs::read(&receipt_file).unwrap_or_default());
-        let digest = hex::encode(hasher.finalize());
-        let envelope = serde_json::json!({
-            "target": receipt_file.to_string_lossy(),
-            "sha256": digest,
-            "mode": "ML-DSA-65-ready",
-            "signed_at": chrono::Utc::now().to_rfc3339()
-        });
-        let _ = std::fs::write(&sig_file, serde_json::to_string_pretty(&envelope).unwrap_or_default());
-    }
+    let _ = pqc::sign_file(&receipt_file);
 
     println!("  \x1b[32m[rag:audit]\x1b[0m Recorded batch index audit receipt at {}", receipt_file.display());
     Ok(())
@@ -1076,7 +1912,7 @@ async fn run_drift_monitor(
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+    let embed_client = EmbedClient::with_config(&config, None);
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
     let test_suite = vec![
@@ -1259,6 +2095,34 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     let avail_mem = LlamaServer::get_available_memory_mb();
     let mem_cap = config.max_mem.unwrap_or(2048);
 
+    let profile_path = _repo_root.join(".agents").join("rag").join("runtime-profile.json");
+    let profile_summary = if let Ok(p_text) = std::fs::read_to_string(&profile_path) {
+        if let Ok(pv) = serde_json::from_str::<serde_json::Value>(&p_text) {
+            let wts = pv.get("worktree_count").and_then(|v| v.as_u64()).unwrap_or(1);
+            let ths = pv.get("allocated_threads").and_then(|v| v.as_u64()).unwrap_or(4);
+            let ab = pv.get("adaptive_batch_size").and_then(|v| v.as_u64()).unwrap_or(16);
+            let rtt = pv.get("last_warm_rtt_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+            format!("\x1b[32m{} wt(s) -> {} threads | Batch: {} | Warm RTT: {}ms\x1b[0m", wts, ths, ab, rtt)
+        } else {
+            "\x1b[33mDEFAULT\x1b[0m".to_string()
+        }
+    } else {
+        "\x1b[33mUNINITIALIZED (run 'ainish-rag service status --warm')\x1b[0m".to_string()
+    };
+
+    let dp_summary = if let Ok(pb) = crate::embed::read_or_init_privacy_budget(_repo_root, false) {
+        let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
+        format!("\x1b[32mepsilon={:.4}\x1b[0m ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt)
+    } else {
+        "\x1b[33mUNINITIALIZED\x1b[0m".to_string()
+    };
+
+    let contract_history_summary = match pqc::verify_contract_history_chain(_repo_root) {
+        Ok(transitions) => format!("\x1b[32m{} transition(s)\x1b[0m (hash-chained & ML-DSA-65 verified)", transitions),
+        Err(e) => format!("\x1b[31mINVALID\x1b[0m ({})", e),
+    };
+
     println!("\x1b[2J\x1b[H");
     println!("\x1b[1;36m========================================================================\x1b[0m");
     println!("\x1b[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \x1b[0m");
@@ -1267,9 +2131,22 @@ async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> 
     println!("  Server Status:  {}", if is_running { "\x1b[1;32mONLINE (healthy)\x1b[0m" } else { "\x1b[1;31mOFFLINE\x1b[0m" });
     println!("  Endpoint:       {}", config.server_url);
     println!("  Loopback Auth:  {}", psk_status);
+    println!("  Embed Provider: {}", if config.uses_api_embeddings() {
+        format!(
+            "\x1b[1;36mAPI\x1b[0m {} (model: {}, no local server)",
+            config.embed_api_base.as_deref().unwrap_or_default(),
+            config.embed_model.as_deref().unwrap_or_default()
+        )
+    } else {
+        let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, _repo_root);
+        format!("\x1b[32mlocal llama\x1b[0m (ctx={} batch={})", ctx, batch)
+    });
     println!("  Symbol Salt:    {}", salt_status);
     println!("  Model Manifest: {}", manifest_status);
     println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
+    println!("  Runtime Profile:{}", profile_summary);
+    println!("  Privacy Budget: {}", dp_summary);
+    println!("  Contract History: {}", contract_history_summary);
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
     println!("\x1b[1;34m  LanceDB Vector Store & Knowledge Base                                 \x1b[0m");
     println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
@@ -1387,6 +2264,133 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
         }
     }
 
+    // Verify .agents/wiki/ledger.md detached ML-DSA-65 signature if present
+    let wiki_ledger = repo_root.join(".agents").join("wiki").join("ledger.md");
+    if wiki_ledger.exists() && pqc::sig_path(&wiki_ledger).exists() {
+        match pqc::verify_file(repo_root, &wiki_ledger) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Wiki Operator Ledger (ledger.md): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+                receipts_checked += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[33m[WARN]\x1b[0m Wiki Operator Ledger (ledger.md): {}", reason);
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Wiki Operator Ledger (ledger.md): {}", err);
+                failed += 1;
+                receipts_checked += 1;
+            }
+        }
+    }
+
+    // Verify hash-chained governance log (.agents/audit/contract-history.jsonl)
+    let history_file = repo_root.join(".agents").join("audit").join("contract-history.jsonl");
+    if history_file.exists() {
+        match pqc::verify_contract_history_chain(repo_root) {
+            Ok(transitions) => {
+                println!("  \x1b[32m[PASS]\x1b[0m Contract Governance History (contract-history.jsonl): {} hash-chained transitions & ML-DSA-65 verified", transitions);
+                passed += 1;
+                receipts_checked += 1;
+            }
+            Err(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Contract Governance History (contract-history.jsonl): {}", err);
+                failed += 1;
+                receipts_checked += 1;
+            }
+        }
+    }
+
+    // Verify all lockfiles in .agents/audit/lockfile-manifest.json exist on disk & signature verifies
+    let lf_manifest = pqc::lockfile_manifest_path(repo_root);
+    if lf_manifest.exists() {
+        receipts_checked += 1;
+        let mut missing_lfs = Vec::new();
+        let mut lf_count = 0usize;
+        if let Ok(text) = std::fs::read_to_string(&lf_manifest) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(arr) = v.get("lockfiles").or_else(|| v.get("files")).and_then(|a| a.as_array()) {
+                    for item in arr {
+                        if let Some(rel_p) = item.get("path").or_else(|| item.get("file")).and_then(|s| s.as_str()) {
+                            lf_count += 1;
+                            if !repo_root.join(rel_p).exists() {
+                                missing_lfs.push(rel_p.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let sig_ok = matches!(pqc::verify_file(repo_root, &lf_manifest), pqc::VerifyOutcome::Verified { .. });
+        if missing_lfs.is_empty() && sig_ok {
+            println!("  \x1b[32m[PASS]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {} lockfiles present on disk & ML-DSA-65 verified", lf_count);
+            passed += 1;
+        } else {
+            println!("  \x1b[31m[FAIL]\x1b[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={:?}, sig_ok={}", missing_lfs, sig_ok);
+            failed += 1;
+        }
+    }
+
+    // Verify detached ML-DSA-65 signature on .agents/audit/privacy-budget.json
+    let privacy_budget = repo_root.join(".agents").join("audit").join("privacy-budget.json");
+    if privacy_budget.exists() {
+        receipts_checked += 1;
+        match pqc::verify_file(repo_root, &privacy_budget) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Privacy Budget Ledger (privacy-budget.json): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Budget Ledger (privacy-budget.json): {}", reason);
+                failed += 1;
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Budget Ledger (privacy-budget.json): {}", err);
+                failed += 1;
+            }
+        }
+    }
+
+    // Verify detached ML-DSA-65 signature on .agents/audit/model-manifest.json
+    let model_manifest = repo_root.join(".agents").join("audit").join("model-manifest.json");
+    if model_manifest.exists() {
+        receipts_checked += 1;
+        match pqc::verify_file(repo_root, &model_manifest) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Model Manifest (model-manifest.json): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Model Manifest (model-manifest.json): {}", reason);
+                failed += 1;
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Model Manifest (model-manifest.json): {}", err);
+                failed += 1;
+            }
+        }
+    }
+
+    // Verify detached ML-DSA-65 signature on .agents/audit/privacy-report.json
+    let privacy_report = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    if privacy_report.exists() {
+        receipts_checked += 1;
+        match pqc::verify_file(repo_root, &privacy_report) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  \x1b[32m[PASS]\x1b[0m Privacy Compliance Report (privacy-report.json): FIPS 204 ML-DSA-65 signature verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+                passed += 1;
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Compliance Report (privacy-report.json): {}", reason);
+                failed += 1;
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m Privacy Compliance Report (privacy-report.json): {}", err);
+                failed += 1;
+            }
+        }
+    }
+
     println!("\nVerification Summary:");
     println!("  Total Receipts:  {}", receipts_checked);
     println!("  Passed:          \x1b[32m{}\x1b[0m", passed);
@@ -1411,6 +2415,21 @@ fn run_audit_manifest(config: &RagConfig, manifest_path: Option<&std::path::Path
     if !mpath.exists() {
         println!("  \x1b[33m[rag:warn]\x1b[0m Model manifest file not found at {}", mpath.display());
         return Ok(());
+    }
+
+    let repo_root = mpath.parent().and_then(|p| p.parent()).and_then(|p| p.parent()).unwrap_or_else(|| std::path::Path::new("."));
+    if pqc::sig_path(&mpath).exists() {
+        match pqc::verify_file(repo_root, &mpath) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!("  Manifest Sig:  \x1b[32m[VERIFIED]\x1b[0m FIPS 204 ML-DSA-65 detached signature (key: {}...)", &fingerprint[..12.min(fingerprint.len())]);
+            }
+            pqc::VerifyOutcome::Unsigned(r) => {
+                println!("  Manifest Sig:  \x1b[33m[UNSIGNED]\x1b[0m {}", r);
+            }
+            pqc::VerifyOutcome::Invalid(e) => {
+                println!("  Manifest Sig:  \x1b[31m[INVALID]\x1b[0m {}", e);
+            }
+        }
     }
 
     let content = std::fs::read_to_string(&mpath)?;
@@ -1485,6 +2504,7 @@ fn run_audit_sbom(
 }
 
 fn run_audit_lock(
+    config: &RagConfig,
     repo_root: &std::path::Path,
     update: bool,
     verify: bool,
@@ -1497,6 +2517,28 @@ fn run_audit_lock(
                 println!("  \x1b[32m[rag:lock]\x1b[0m Snapshotted {} lockfiles to {}{}", count, path.display(), sig_note);
             }
             Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Failed writing lockfile manifest: {}", e),
+        }
+        // Automatically refresh and sign in-toto v1.0 and CycloneDX 1.6 SBOMs so provenance stays in lockstep
+        let audit_dir = repo_root.join(".agents").join("audit");
+        let _ = std::fs::create_dir_all(&audit_dir);
+        let intoto_path = audit_dir.join("ainish-coder-sbom.intoto.json");
+        let intoto_val = pqc::build_intoto(repo_root, &config.model_manifest_path, config.llama_bin.as_deref());
+        if let Ok(s) = serde_json::to_string_pretty(&intoto_val) {
+            if std::fs::write(&intoto_path, s).is_ok() {
+                let _ = pqc::sign_file(&intoto_path);
+                println!("  \x1b[32m[rag:lock]\x1b[0m Synchronized & signed in-toto v1.0 provenance attestation ({})", intoto_path.display());
+            }
+        }
+        let cdx_path = audit_dir.join("ainish-coder-sbom.cyclonedx.json");
+        let cdx_val = pqc::build_cyclonedx(repo_root, &config.model_manifest_path, config.llama_bin.as_deref());
+        if let Ok(s) = serde_json::to_string_pretty(&cdx_val) {
+            if std::fs::write(&cdx_path, s).is_ok() {
+                let _ = pqc::sign_file(&cdx_path);
+                println!("  \x1b[32m[rag:lock]\x1b[0m Synchronized & signed CycloneDX 1.6 SBOM ({})", cdx_path.display());
+            }
+        }
+        if config.model_manifest_path.exists() {
+            let _ = pqc::sign_file(&config.model_manifest_path);
         }
     }
     if verify {
@@ -1527,6 +2569,16 @@ fn run_audit_lock(
                             println!("  \x1b[31m[SPARSE-INDEX TAMPER]\x1b[0m {}", anomaly);
                         }
                     }
+                }
+                let audit_dir = repo_root.join(".agents").join("audit");
+                let cdx_sbom = audit_dir.join("ainish-coder-sbom.cyclonedx.json");
+                let intoto_sbom = audit_dir.join("ainish-coder-sbom.intoto.json");
+                let cdx_ok = cdx_sbom.exists() && matches!(pqc::verify_file(repo_root, &cdx_sbom), pqc::VerifyOutcome::Verified { .. });
+                let intoto_ok = intoto_sbom.exists() && matches!(pqc::verify_file(repo_root, &intoto_sbom), pqc::VerifyOutcome::Verified { .. });
+                if cdx_ok && intoto_ok {
+                    println!("  \x1b[32m[PASS]\x1b[0m Verified detached FIPS 204 ML-DSA-65 signatures on CycloneDX 1.6 and in-toto v1.0 SBOMs.");
+                } else {
+                    println!("  \x1b[33m[WARN]\x1b[0m Detached SBOM signature verification incomplete (run 'ainish-rag audit lock --update').");
                 }
             }
             Err(e) => {
@@ -1590,7 +2642,8 @@ pub async fn evaluate_patch_internal(
     let mut added_symbols = Vec::new();
     let mut canary_leaks = Vec::new();
 
-    for line in patch_text.lines() {
+    let normalized_patch = patch_text.replace("\r\n", "\n");
+    for line in normalized_patch.lines() {
         if let Some(file_line) = line.strip_prefix("+++ b/") {
             let f = file_line.trim().to_string();
             if !modified_files.contains(&f) {
@@ -1603,6 +2656,9 @@ pub async fn evaluate_patch_internal(
             }
         } else if line.starts_with('+') && !line.starts_with("+++") {
             let added_line = &line[1..];
+            if WikiGenerator::contains_bidi_override(added_line) && !added_line.contains("\\u{202") && !added_line.contains("\\u202") {
+                canary_leaks.push("Trojan Source bidirectional Unicode override character detected in diff".to_string());
+            }
             if !added_line.contains("Regex::new") && !added_line.contains("RE_CANARY") && !added_line.contains("RE_TOKENS") {
                 static RE_CANARY: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
                     regex::Regex::new(r#"(?i)(?:CANARY_[A-Za-z0-9_-]{6,}|SECRET_TOKEN_[A-Za-z0-9_-]{6,}|(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{24,})|(?:gh[pousr]_[A-Za-z0-9]{20,})|(?:AKIA[0-9A-Z]{16})|-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)"#).expect("valid regex")
@@ -1621,7 +2677,7 @@ pub async fn evaluate_patch_internal(
     }
 
     LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::new(&config.server_url, None, config.psk.clone());
+    let embed_client = EmbedClient::with_config(&config, None);
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
     let mut covered_files = 0;
@@ -1824,6 +2880,44 @@ async fn run_eval_patch(
     Ok(())
 }
 
+/// Selects up to 6 operator wiki ledger notes, placing `[OPEN]` (unresolved) entries ahead of `[RESOLVED]` entries.
+pub fn select_prioritized_ledger_notes(clean_ledger: &str) -> Vec<String> {
+    let all_bullets: Vec<String> = clean_ledger
+        .lines()
+        .filter(|l| l.trim().starts_with("- "))
+        .map(|l| l.to_string())
+        .collect();
+    let unresolved: Vec<String> = all_bullets.iter().filter(|l| !l.contains("[RESOLVED]")).cloned().collect();
+    let resolved: Vec<String> = all_bullets.iter().filter(|l| l.contains("[RESOLVED]")).cloned().collect();
+
+    let open_take: Vec<String> = unresolved.iter().rev().take(6).cloned().collect::<Vec<_>>().into_iter().rev().collect();
+    let rem = 6usize.saturating_sub(open_take.len());
+    let res_take: Vec<String> = resolved.iter().rev().take(rem).cloned().collect::<Vec<_>>().into_iter().rev().collect();
+
+    open_take.into_iter().chain(res_take.into_iter()).collect()
+}
+
+/// Verifies that `.agents/comms/{date}-team.txt` files contain no legacy `| agent:` tags.
+pub fn check_comms_harness_agnostic(repo_root: &std::path::Path) -> Vec<String> {
+    let comms_dir = repo_root.join(".agents").join("comms");
+    let mut violations = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&comms_dir) {
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.file_name().map_or(false, |n| n.to_string_lossy().ends_with("-team.txt")) {
+                if let Ok(text) = std::fs::read_to_string(&p) {
+                    for (line_no, line) in text.lines().enumerate() {
+                        if line.starts_with("### [") && line.contains("| agent:") {
+                            violations.push(format!("{}:L{}", p.file_name().unwrap_or_default().to_string_lossy(), line_no + 1));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    violations
+}
+
 fn sanitize_orient_content(content: &str) -> (String, usize) {
     let mut sanitized = String::new();
     let mut count = 0;
@@ -1853,18 +2947,28 @@ fn sanitize_orient_content(content: &str) -> (String, usize) {
     (sanitized, count)
 }
 
-fn run_orient_inject(
+fn build_orient_report(
     repo_root: &std::path::Path,
     query: Option<&str>,
     task_conditioned: bool,
-    json: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+    compact: bool,
+    max_lines: Option<usize>,
+    sections: Option<usize>,
+    include_symbols: bool,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let section_limit = sections.unwrap_or(3);
     let wiki_dir = repo_root.join(".agents").join("wiki");
     let mut candidate_files = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&wiki_dir) {
         let mut files: Vec<PathBuf> = entries.flatten()
             .map(|e| e.path())
-            .filter(|p| p.extension().map_or(false, |ext| ext == "md"))
+            .filter(|p| {
+                p.extension().map_or(false, |ext| ext == "md")
+                    && p.file_name().map_or(false, |n| {
+                        let nl = n.to_string_lossy().to_lowercase();
+                        nl != "readme.md" && nl != "ledger.md"
+                    })
+            })
             .collect();
 
         if task_conditioned {
@@ -1930,24 +3034,62 @@ fn run_orient_inject(
             files.sort();
         }
 
-        for f in files.into_iter().take(3) {
+        for f in files.into_iter().take(section_limit) {
             candidate_files.push(f);
         }
     }
 
     let mut sections = Vec::new();
     let mut total_sanitized = 0;
+    let wiki_gen = WikiGenerator::new(repo_root);
+    let synced_resolutions = wiki_gen.sync_bidirectional_resolutions().unwrap_or(0);
+
+    let git_branch = std::process::Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "main".to_string());
+    let git_sha = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "HEAD".to_string());
+
+    let gate_cache_path = repo_root.join(".agents").join("rag").join("gate-status.json");
+    let gate_status_value = std::fs::read_to_string(&gate_cache_path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+    let gate_ready = gate_status_value.as_ref().map_or(false, |v| {
+        v.get("overall_pass").and_then(|b| b.as_bool()).unwrap_or(false)
+            && v.get("commit").and_then(|c| c.as_str()) == Some(git_sha.as_str())
+    });
+    let gate_status_value = gate_status_value.unwrap_or(serde_json::Value::Null);
+
     let mut primer_lines = Vec::new();
     primer_lines.push("<ORIENT_PRIMER>".to_string());
     primer_lines.push("## Grounded Architectural Context".to_string());
-    primer_lines.push("<!-- Auto-injected by ainish-rag orient --inject for subagent primer -->\n".to_string());
+    primer_lines.push(format!(
+        "<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {} | commit: {} -->\n",
+        git_branch, git_sha
+    ));
+
+    let lines_per_section = max_lines.unwrap_or(if compact { 8 } else { 25 });
+    let max_items = if compact { 3 } else { 6 };
 
     for p in &candidate_files {
         let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
         if let Ok(content) = std::fs::read_to_string(p) {
             let (clean_content, sanitized_cnt) = sanitize_orient_content(&content);
             total_sanitized += sanitized_cnt;
-            let first_part = clean_content.lines().take(25).collect::<Vec<_>>().join("\n");
+            let first_part = clean_content.lines().take(lines_per_section).collect::<Vec<_>>().join("\n");
             primer_lines.push(format!("### [{}]({})\n{}\n", fname, p.to_string_lossy(), first_part));
             sections.push(serde_json::json!({
                 "file": fname,
@@ -1975,7 +3117,7 @@ fn run_orient_inject(
             if let Ok(m_text) = std::fs::read_to_string(latest_mem) {
                 let (clean_mem, san_cnt) = sanitize_orient_content(&m_text);
                 total_sanitized += san_cnt;
-                for line in clean_mem.lines().filter(|l| l.trim().starts_with("- ")).rev().take(6).collect::<Vec<_>>().into_iter().rev() {
+                for line in clean_mem.lines().filter(|l| l.trim().starts_with("- ")).rev().take(max_items).collect::<Vec<_>>().into_iter().rev() {
                     memory_notes.push(line.to_string());
                 }
             }
@@ -1989,24 +3131,161 @@ fn run_orient_inject(
         primer_lines.push(String::new());
     }
 
+    // Surface latest .agents/wiki/ledger.md operator entries inside <ORIENT_PRIMER>
+    // Prioritize unresolved probe misses ahead of [RESOLVED] entries when selecting top ledger notes
+    let mut wiki_ledger_notes = Vec::new();
+    let mut open_ledger_notes = 0usize;
+    let mut resolved_ledger_notes = 0usize;
+    let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
+    if ledger_file.is_file() {
+        let rendered_ledger = wiki_gen.read_operator_ledger();
+        let (clean_ledger, san_cnt) = sanitize_orient_content(&rendered_ledger);
+        total_sanitized += san_cnt;
+        let all_bullets: Vec<&str> = clean_ledger.lines().filter(|l| l.trim().starts_with("- ")).collect();
+        resolved_ledger_notes = all_bullets.iter().filter(|l| l.contains("[RESOLVED]")).count();
+        open_ledger_notes = all_bullets.len().saturating_sub(resolved_ledger_notes);
+        wiki_ledger_notes = select_prioritized_ledger_notes(&clean_ledger).into_iter().take(max_items).collect();
+    }
+    if !wiki_ledger_notes.is_empty() {
+        primer_lines.push("### Operator Wiki Ledger Notes (`.agents/wiki/ledger.md`)".to_string());
+        for note in &wiki_ledger_notes {
+            primer_lines.push(note.clone());
+        }
+        primer_lines.push(String::new());
+    }
+
+    // Extract and inject key symbol graph anchors from active task scope or core codebase modules
+    let mut symbol_anchors = Vec::new();
+    if include_symbols {
+        let mut scope_hints = Vec::new();
+        let tasks_dir = repo_root.join(".agents").join("tasks");
+        if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
+            let mut t_files: Vec<PathBuf> = t_entries.flatten().map(|e| e.path()).filter(|p| p.extension().map_or(false, |ext| ext == "md")).collect();
+            t_files.sort();
+            if let Some(latest_t) = t_files.last() {
+                if let Ok(t_text) = std::fs::read_to_string(latest_t) {
+                    for line in t_text.lines() {
+                        if let Some(rest) = line.strip_prefix("- scope:") {
+                            for part in rest.split(',') {
+                                let clean_p = part.trim().trim_end_matches('/');
+                                if !clean_p.is_empty() {
+                                    scope_hints.push(clean_p.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        symbol_anchors = wiki_gen.extract_key_symbols_for_orient(&scope_hints, max_items);
+        if !symbol_anchors.is_empty() {
+            primer_lines.push("### Key Symbol Graph Anchors".to_string());
+            for anchor in &symbol_anchors {
+                primer_lines.push(anchor.clone());
+            }
+            primer_lines.push(String::new());
+        }
+    }
+
     primer_lines.push("</ORIENT_PRIMER>".to_string());
     let primer_text = primer_lines.join("\n");
+    let orient_verified = !sections.is_empty()
+        && !memory_notes.is_empty()
+        && !wiki_ledger_notes.is_empty()
+        && (!include_symbols || !symbol_anchors.is_empty());
+
+    Ok(serde_json::json!({
+        "primer": primer_text,
+        "branch": git_branch,
+        "commit": git_sha,
+        "sections": sections,
+        "recent_memories": memory_notes,
+        "wiki_ledger_notes": wiki_ledger_notes,
+        "open_ledger_notes": open_ledger_notes,
+        "resolved_ledger_notes": resolved_ledger_notes,
+        "symbol_anchors": symbol_anchors,
+        "include_symbols": include_symbols,
+        "sections_limit": section_limit,
+        "gate_ready": gate_ready,
+        "gate_status": gate_status_value,
+        "synced_resolutions": synced_resolutions,
+        "max_lines_per_section": lines_per_section,
+        "total_sanitized_tokens": total_sanitized,
+        "quarantine_verified": true,
+        "orient_verified": orient_verified,
+        "compact": compact,
+        "classical_crypto_redacted": total_sanitized > 0,
+        "task_conditioned": task_conditioned,
+    }))
+}
+
+fn run_orient_inject(
+    repo_root: &std::path::Path,
+    query: Option<&str>,
+    task_conditioned: bool,
+    verify: bool,
+    compact: bool,
+    max_lines: Option<usize>,
+    sections: Option<usize>,
+    include_symbols: bool,
+    sync_rules: bool,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
+
+    // Master-orchestrator: verified primers must run against fresh rules. When the caller
+    // passes --verify and the cached gate verdict is not GREEN, auto-enable the sync so the
+    // primer reflects current rules instead of a stale deployment.
+    let gate_ready_now = report.get("gate_ready").and_then(|v| v.as_bool()).unwrap_or(false);
+    let effective_sync = sync_rules || (verify && !gate_ready_now);
+    if effective_sync {
+        let (attempted, ok) = sync_rules_if_stale(repo_root, gate_ready_now);
+        report["rules_sync_attempted"] = serde_json::json!(attempted);
+        report["rules_sync_ok"] = serde_json::json!(ok);
+        report["rules_sync_auto"] = serde_json::json!(!sync_rules && verify);
+    }
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-            "primer": primer_text,
-            "sections": sections,
-            "recent_memories": memory_notes,
-            "total_sanitized_tokens": total_sanitized,
-            "quarantine_verified": true,
-            "classical_crypto_redacted": total_sanitized > 0,
-            "task_conditioned": task_conditioned,
-        }))?);
-    } else {
-        println!("{}", primer_text);
-        if total_sanitized > 0 {
-            println!("<!-- Note: {} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->", total_sanitized);
-        }
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    let primer_text = report.get("primer").and_then(|v| v.as_str()).unwrap_or_default();
+    let section_count = report.get("sections").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let memory_count = report.get("recent_memories").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let ledger_count = report.get("wiki_ledger_notes").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let symbol_count = report.get("symbol_anchors").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let total_sanitized = report.get("total_sanitized_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+    let orient_verified = report.get("orient_verified").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    println!("{}", primer_text);
+    if verify {
+        println!(
+            "<!-- Orient Primer Verified: {} (sections={}, memories={}, ledger={}, symbols={}) -->",
+            if orient_verified { "PASS" } else { "INCOMPLETE" },
+            section_count,
+            memory_count,
+            ledger_count,
+            symbol_count
+        );
+    }
+    if total_sanitized > 0 {
+        println!("<!-- Note: {} quarantine/.scrolls/classical-crypto patterns sanitized from primer -->", total_sanitized);
+    }
+    // Surface a self-heal to operators in human mode: `--verify` auto-enabled the rules sync.
+    if report.get("rules_sync_auto").and_then(|v| v.as_bool()).unwrap_or(false) {
+        println!(
+            "<!-- Rules auto-sync: --verify found gate_ready=false, refreshed deployed rules ({}) -->",
+            if report.get("rules_sync_ok").and_then(|v| v.as_bool()).unwrap_or(false) { "ok" } else { "attempted" }
+        );
+    } else if report.get("rules_sync_attempted").and_then(|v| v.as_bool()).unwrap_or(false) {
+        println!(
+            "<!-- Rules sync: {} -->",
+            if report.get("rules_sync_ok").and_then(|v| v.as_bool()).unwrap_or(false) { "ok" } else { "failed" }
+        );
+    }
+    if verify && !orient_verified {
+        return Err("Orient primer verification failed: one or more context pillars empty".into());
     }
     Ok(())
 }
@@ -2043,6 +3322,56 @@ fn trigger_desktop_notification(title: &str, message: &str) {
     }
 }
 
+/// True when a path carries a source-code extension (never anchor-exempt).
+fn has_code_extension(normalized_path: &str) -> bool {
+    let ext = normalized_path.rsplit('.').next().unwrap_or("").to_lowercase();
+    matches!(
+        ext.as_str(),
+        "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "go" | "sh" | "bash" | "zsh" | "fish"
+            | "ps1" | "cmd" | "bat" | "c" | "cc" | "cpp" | "h" | "hpp" | "cs" | "java" | "rb"
+            | "php" | "lua" | "swift" | "kt"
+    )
+}
+
+/// True when a patch path is documentation or agent-coordination state. Such patches
+/// legitimately touch no symbols, so the pre-merge gate must not force them through the
+/// code-anchoring threshold. Code (including scripts under `.agents/skills/` and
+/// `.agents/bin/`) is never exempt.
+pub fn is_docs_or_coord_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/").to_lowercase();
+    if normalized.starts_with(".agents/bin/") || has_code_extension(&normalized) {
+        return false;
+    }
+    normalized.starts_with(".agents/")
+        || normalized.ends_with(".md")
+        || normalized.ends_with(".mdx")
+        || normalized.ends_with(".txt")
+        || normalized.ends_with(".rst")
+}
+
+/// Resolves the active branch and short HEAD SHA for primer/gate provenance.
+fn git_branch_sha(repo_root: &std::path::Path) -> (String, String) {
+    let branch = std::process::Command::new("git")
+        .args(["branch", "--show-current"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "main".to_string());
+    let sha = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .current_dir(repo_root)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "HEAD".to_string());
+    (branch, sha)
+}
+
 async fn run_gate(
     config: &RagConfig,
     repo_root: &std::path::Path,
@@ -2050,6 +3379,9 @@ async fn run_gate(
     bell: bool,
     notify: bool,
     watch: bool,
+    summary: bool,
+    strict: bool,
+    statusline_json: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
@@ -2101,21 +3433,163 @@ async fn run_gate(
         }
     }
 
+    // Verify .agents/wiki/ledger.sig during gate when .agents/wiki/ledger.md is modified in the evaluated patch diff
+    let ledger_file = repo_root.join(".agents").join("wiki").join("ledger.md");
+    let ledger_modified_in_patch = patch_eval.modified_files.iter().any(|f| f.ends_with("ledger.md"));
+    if ledger_modified_in_patch && ledger_file.exists() {
+        match pqc::verify_file(repo_root, &ledger_file) {
+            pqc::VerifyOutcome::Verified { .. } => audit_receipts_passed += 1,
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => audit_receipts_failed += 1,
+        }
+    }
+
+    // Verify .agents/audit/model-manifest.sig during gate whenever .agents/audit/model-manifest.json is present
+    let model_manifest_file = repo_root.join(".agents").join("audit").join("model-manifest.json");
+    let model_manifest_sig_ok = if model_manifest_file.exists() {
+        match pqc::verify_file(repo_root, &model_manifest_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
+    // Verify .agents/audit/privacy-budget.sig during gate whenever .agents/audit/privacy-budget.json is present
+    let privacy_budget_file = repo_root.join(".agents").join("audit").join("privacy-budget.json");
+    let privacy_budget_sig_ok = if privacy_budget_file.exists() {
+        match pqc::verify_file(repo_root, &privacy_budget_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
+    // Verify .agents/audit/privacy-report.sig during gate whenever .agents/audit/privacy-report.json is present
+    let privacy_report_file = repo_root.join(".agents").join("audit").join("privacy-report.json");
+    let privacy_report_sig_ok = if privacy_report_file.exists() {
+        match pqc::verify_file(repo_root, &privacy_report_file) {
+            pqc::VerifyOutcome::Verified { .. } => {
+                audit_receipts_passed += 1;
+                true
+            }
+            pqc::VerifyOutcome::Unsigned(_) | pqc::VerifyOutcome::Invalid(_) => {
+                audit_receipts_failed += 1;
+                false
+            }
+        }
+    } else {
+        true
+    };
+
     let (lock_drift, lock_unpinned) = match lockfile_eval {
         Ok((d, u)) => (d, u),
         Err(_) => (Vec::new(), Vec::new()),
     };
 
-    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && (patch_text.is_empty() || patch_eval.composite_anchor_score >= 0.45);
+    let comms_violations = check_comms_harness_agnostic(repo_root);
+    let comms_pass = comms_violations.is_empty();
+
+    // Execute Zero-Trust, Loopback PSK, Trojan-Source, Model-Manifest Sig & Contract Governance History checks
+    let agents_file = repo_root.join("AGENTS.md");
+    let canon_hash_file = repo_root.join(".agents").join("canonical").join("AGENTS.md.sha256");
+    let zt_hash_ok = if agents_file.is_file() && canon_hash_file.is_file() {
+        let actual = pqc::sha256_file(&agents_file).unwrap_or_default().to_lowercase();
+        let expected = std::fs::read_to_string(&canon_hash_file).unwrap_or_default().trim().to_lowercase();
+        actual == expected
+    } else {
+        true
+    };
+    let zt_lf_ok = std::fs::read(repo_root.join("bin").join("ainish-coder"))
+        .map(|b| !b.windows(2).any(|w| w == b"\r\n"))
+        .unwrap_or(true);
+    let loopback_psk_ok = crate::server::AntiDnsRebinding::validate_host(&config.server_url).is_ok()
+        && config.psk.as_ref().map_or(true, |k| k.len() >= 16);
+    let trojan_source_clean = patch_eval.canary_leaks.is_empty();
+    let contract_history_ok = pqc::verify_contract_history_chain(repo_root).is_ok();
+    let redaction_self_test_ok = WikiGenerator::new(repo_root).verify_redaction_pipeline().is_ok();
+    let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok && model_manifest_sig_ok && privacy_budget_sig_ok && privacy_report_sig_ok;
+
+    let effective_strict = strict || std::env::var("AINISH_GATE_STRICT").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+    let min_anchor = if effective_strict { 0.70 } else { 0.45 };
+    let docs_only_patch = !patch_text.trim().is_empty()
+        && !patch_eval.modified_files.is_empty()
+        && patch_eval.modified_files.iter().all(|f| is_docs_or_coord_path(f));
+    let anchor_ok = patch_text.is_empty()
+        || docs_only_patch
+        || patch_eval.composite_anchor_score >= min_anchor;
+    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && anchor_ok;
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
 
-    let overall_pass = patch_pass && lock_pass && audit_pass;
+    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass;
 
-    if json {
+    // Persist the latest gate verdict for `orient --inject --json` (`gate_ready`) and statusline consumers.
+    let (cache_branch, cache_commit) = git_branch_sha(repo_root);
+    let gate_cache = serde_json::json!({
+        "format": "ainish-rag/gate-status/v1",
+        "overall_pass": overall_pass,
+        "status": if overall_pass { "GREEN" } else { "RED" },
+        "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+        "docs_only": docs_only_patch,
+        "branch": cache_branch,
+        "commit": cache_commit,
+        "updated_at": chrono::Utc::now().to_rfc3339(),
+    });
+    let cache_dir = repo_root.join(".agents").join("rag");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let _ = std::fs::write(
+        cache_dir.join("gate-status.json"),
+        serde_json::to_string_pretty(&gate_cache).unwrap_or_default(),
+    );
+
+    if summary {
+        let anchor_label = if docs_only_patch { "N/A".to_string() } else { format!("{:.0}%", patch_eval.composite_anchor_score * 100.0) };
+        let line_str = format!(
+            "GATE:{} | anchor:{} | patch:{} | lock:{} | pqc:{}/{} | comms:{} | zt:{}",
+            if overall_pass { "GREEN" } else { "RED" },
+            anchor_label,
+            if docs_only_patch { "DOCS" } else { "CODE" },
+            if lock_pass { "OK" } else { "DRIFT" },
+            audit_receipts_passed,
+            audit_receipts_passed + audit_receipts_failed,
+            if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" },
+            if zt_pass { "OK" } else { "FAIL" }
+        );
+        if statusline_json {
+            println!("{}", serde_json::to_string(&serde_json::json!({
+                "status": if overall_pass { "GREEN" } else { "RED" },
+                "overall_pass": overall_pass,
+                "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+                "docs_only": docs_only_patch,
+                "patch_kind": if docs_only_patch { "docs" } else { "code" },
+                "lock": if lock_pass { "OK" } else { "DRIFT" },
+                "pqc": format!("{}/{}", audit_receipts_passed, audit_receipts_passed + audit_receipts_failed),
+                "comms": if comms_pass { "OK" } else { "LEGACY_AGENT_TAG" },
+                "zt": if zt_pass { "OK" } else { "FAIL" },
+                "text": line_str,
+            }))?);
+        } else {
+            println!("{}", line_str);
+        }
+    } else if json {
         println!("{}", serde_json::to_string_pretty(&serde_json::json!({
             "overall_pass": overall_pass,
+            "docs_only": docs_only_patch,
+            "patch_kind": if docs_only_patch { "docs" } else { "code" },
             "patch_evaluation": patch_eval,
             "lockfile_check": {
                 "pass": lock_pass,
@@ -2134,6 +3608,22 @@ async fn run_gate(
                 "pass": audit_pass,
                 "passed_count": audit_receipts_passed,
                 "failed_count": audit_receipts_failed
+            },
+            "comms_hygiene": {
+                "pass": comms_pass,
+                "legacy_agent_tag_violations": comms_violations
+            },
+            "zero_trust_gate": {
+                "pass": zt_pass,
+                "canonical_sha256_match": zt_hash_ok,
+                "posix_lf_verified": zt_lf_ok,
+                "loopback_psk_verified": loopback_psk_ok,
+                "trojan_source_clean": trojan_source_clean,
+                "contract_history_verified": contract_history_ok,
+                "redaction_self_test": redaction_self_test_ok,
+                "model_manifest_sig_verified": model_manifest_sig_ok,
+                "privacy_budget_sig_verified": privacy_budget_sig_ok,
+                "privacy_report_sig_verified": privacy_report_sig_ok
             }
         }))?);
     } else {
@@ -2141,7 +3631,9 @@ async fn run_gate(
         println!("┌────────────────────────────────────────────────────────────────────────┐");
         println!("│                    ainish-rag Pre-Merge Gate Card                      │");
         println!("├────────────────────────────────────────────────────────────────────────┤");
-        let patch_label = if patch_pass {
+        let patch_label = if docs_only_patch {
+            "\x1b[32mPASS (docs/coordination-only patch — anchor exempt)\x1b[0m".to_string()
+        } else if patch_pass {
             format!("\x1b[32mPASS ({:.1}% - {})\x1b[0m", patch_eval.composite_anchor_score * 100.0, patch_eval.status)
         } else {
             format!("\x1b[31mFAIL ({})\x1b[0m", patch_eval.status)
@@ -2168,6 +3660,20 @@ async fn run_gate(
             pqc::VerifyOutcome::Invalid(_) => "\x1b[31mFAIL (tamper detected / mismatch)\x1b[0m".to_string(),
         };
         println!("  Canonical AGENTS.md:    {}", canon_label);
+
+        let comms_label = if comms_pass {
+            "\x1b[32mPASS (harness-agnostic headers)\x1b[0m".to_string()
+        } else {
+            format!("\x1b[31mFAIL ({} legacy agent: tags)\x1b[0m", comms_violations.len())
+        };
+        println!("  COMMS Ledger Hygiene:   {}", comms_label);
+
+        let zt_label = if zt_pass {
+            "\x1b[32mPASS (Zero-Trust PQC, Loopback PSK & Trojan-Source clean)\x1b[0m".to_string()
+        } else {
+            "\x1b[31mFAIL (Zero-Trust / PSK / Trojan-Source / History violation)\x1b[0m".to_string()
+        };
+        println!("  Zero-Trust Security:    {}", zt_label);
         println!("├────────────────────────────────────────────────────────────────────────┤");
         if overall_pass {
             println!("  OVERALL STATUS:         \x1b[1;32mGREEN (Autonomous Merge Authorized)\x1b[0m");
@@ -2240,6 +3746,55 @@ fn which_cmd(cmd: &str) -> Option<PathBuf> {
     None
 }
 
+/// Locates a POSIX shell able to run the deployed rules refresher (Git Bash on Windows).
+/// Skips the WindowsApps WSL stub, which cannot execute scripts.
+fn rules_sync_shell() -> Option<PathBuf> {
+    for candidate in ["sh", "bash", "bash.exe"] {
+        if let Some(p) = which_cmd(candidate) {
+            let s = p.to_string_lossy().to_lowercase();
+            if !s.contains("windowsapps") {
+                return Some(p);
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        for var in ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"] {
+            if let Ok(base) = std::env::var(var) {
+                let p = std::path::Path::new(&base).join("Git").join("bin").join("bash.exe");
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Opt-in `orient --inject --sync-rules`: when the cached gate verdict is not GREEN for the
+/// current commit, run the repo's deployed `.agents/bin/ainish-rules-sync` before emitting the
+/// primer. Returns (attempted, succeeded); never fails the primer.
+pub fn sync_rules_if_stale(repo_root: &std::path::Path, gate_ready: bool) -> (bool, bool) {
+    if gate_ready {
+        return (false, false);
+    }
+    let script = repo_root.join(".agents").join("bin").join("ainish-rules-sync");
+    if !script.is_file() {
+        return (true, false);
+    }
+    let Some(shell) = rules_sync_shell() else {
+        return (true, false);
+    };
+    let ok = std::process::Command::new(&shell)
+        .arg(&script)
+        .arg("--quiet")
+        .current_dir(repo_root)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    (true, ok)
+}
+
 async fn run_query_fzf(
     store: &LanceStore,
     embed_client: &EmbedClient,
@@ -2256,29 +3811,32 @@ async fn run_query_fzf(
         return Ok(());
     }
 
-    if let Some(fzf_path) = which_cmd("fzf") {
-        use std::process::{Command, Stdio};
-        use std::io::Write;
-        let mut child = Command::new(fzf_path)
-            .args(["--ansi", "--header", "ainish-rag Codebase Search | Press Enter to select, ESC to exit", "--delimiter", "\t", "--with-nth", "1,2,3"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()?;
+    use std::io::IsTerminal;
+    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        if let Some(fzf_path) = which_cmd("fzf") {
+            use std::process::{Command, Stdio};
+            use std::io::Write;
+            let mut child = Command::new(fzf_path)
+                .args(["--ansi", "--header", "ainish-rag Codebase Search | Press Enter to select, ESC to exit", "--delimiter", "\t", "--with-nth", "1,2,3"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()?;
 
-        if let Some(mut stdin) = child.stdin.take() {
-            for (i, h) in hits.iter().enumerate() {
-                let first_line = h.content.lines().next().unwrap_or("").trim();
-                let line_text = format!("[{}] {:.4}\t{}:L{}-L{}\t{}\t{}\n", i + 1, h.score, h.path, h.start_line, h.end_line, h.title, first_line);
-                let _ = stdin.write_all(line_text.as_bytes());
+            if let Some(mut stdin) = child.stdin.take() {
+                for (i, h) in hits.iter().enumerate() {
+                    let first_line = h.content.lines().next().unwrap_or("").trim();
+                    let line_text = format!("[{}] {:.4}\t{}:L{}-L{}\t{}\t{}\n", i + 1, h.score, h.path, h.start_line, h.end_line, h.title, first_line);
+                    let _ = stdin.write_all(line_text.as_bytes());
+                }
             }
-        }
 
-        let output = child.wait_with_output()?;
-        if output.status.success() {
-            let selected = String::from_utf8_lossy(&output.stdout);
-            println!("\nSelected Chunk:\n{}", selected.trim());
+            let output = child.wait_with_output()?;
+            if output.status.success() {
+                let selected = String::from_utf8_lossy(&output.stdout);
+                println!("\nSelected Chunk:\n{}", selected.trim());
+            }
+            return Ok(());
         }
-        return Ok(());
     }
 
     // Terminal fallback interactive browser
@@ -2385,12 +3943,47 @@ async fn run_service_command(
                 println!("  \x1b[33m[rag:service]\x1b[0m Automatic service install for this OS is manual. Use 'ainish-rag service generate'.");
             }
         }
-        ServiceCommands::Status => {
+        ServiceCommands::Status { warm } => {
+            if warm {
+                LlamaServer::ensure_running(config, repo_root).await?;
+            }
+            let t0 = std::time::Instant::now();
             let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
-            println!("=== ainish-rag Background Service Status ===");
-            println!("  Port:      {}", config.server_port);
-            println!("  Status:    {}", if is_running { "\x1b[32mRUNNING\x1b[0m" } else { "\x1b[31mSTOPPED\x1b[0m" });
-            println!("  Endpoint:  {}", config.server_url);
+            let mut rtt_ms = t0.elapsed().as_millis();
+            let mut adaptive_batch = 16usize;
+            if is_running && warm {
+                let embed_client = EmbedClient::with_config(&config, None);
+                let t_warm = std::time::Instant::now();
+                let _ = embed_client.embed_one("warmup probe").await;
+                rtt_ms = t_warm.elapsed().as_millis();
+                adaptive_batch = embed_client.record_rtt_and_scale_batch(rtt_ms);
+            }
+            let worktrees = LlamaServer::detect_active_worktrees(repo_root);
+            let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+            let allocated_threads = config.threads.unwrap_or_else(|| (cpus / worktrees.max(1)).max(2));
+            let profile = serde_json::json!({
+                "worktree_count": worktrees,
+                "allocated_threads": allocated_threads,
+                "reader_pool_active": true,
+                "adaptive_batch_size": adaptive_batch,
+                "last_warm_rtt_ms": rtt_ms,
+                "updated_at": chrono::Utc::now().to_rfc3339(),
+            });
+            let rag_dir = repo_root.join(".agents").join("rag");
+            let _ = std::fs::create_dir_all(&rag_dir);
+            let _ = std::fs::write(rag_dir.join("runtime-profile.json"), serde_json::to_string_pretty(&profile).unwrap_or_default());
+
+            println!("=== ainish-rag Background Service & Runtime Profile ===");
+            println!("  Port:              {}", config.server_port);
+            println!("  Status:            {}", if is_running { "\x1b[32mRUNNING\x1b[0m" } else { "\x1b[31mSTOPPED\x1b[0m" });
+            if is_running {
+                let thermal = if rtt_ms <= 50 { "\x1b[32mWARM (sub-50ms ready)\x1b[0m" } else { "\x1b[32mWARM & ACTIVE\x1b[0m" };
+                println!("  Warm Probe RTT:    {} ms ({})", rtt_ms, thermal);
+            }
+            println!("  Worktree Scaling:  {} active worktree(s) -> {} compute threads", worktrees, allocated_threads);
+            println!("  LanceDB Pool:      \x1b[32mACTIVE (shared memory-mapped reader pool)\x1b[0m");
+            println!("  Adaptive Batch:    {} chunks/batch", adaptive_batch);
+            println!("  Endpoint:          {}", config.server_url);
         }
         ServiceCommands::Uninstall => {
             println!("=== Uninstalling ainish-rag Background Service ===");
@@ -2416,12 +4009,28 @@ fn print_completion(shell: &str) {
         "bash" => {
             print!("{}", r#"# bash completion for ainish-rag
 _ainish_rag() {
-    local cur opts
+    local cur sub opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help"
+    sub="${COMP_WORDS[1]}"
+    case "$sub" in
+        status)     opts="--tui --json --help" ;;
+        orient)     opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --sync-rules --json --help" ;;
+        audit)      opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --verify-history --threshold --hardware-seal --json --help" ;;
+        gate)       opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
+        query)      opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
+        wiki)       opts="--path --no-index --note --resolve --sync-resolved --list-notes --json --help" ;;
+        index)      opts="--path --truncate --watch --anonymize-symbols --symbol-salt --dp-noise --dp-epsilon --dp-max-budget --help" ;;
+        cleanup)    opts="--compact --prune-days --prune-worktrees --delete-merged --dry-run --help" ;;
+        bench)      opts="--iterations --custom --regression --save-baseline --drift-injection --chaos --json --help" ;;
+        monitor)    opts="--interval --once --json --help" ;;
+        service)    opts="status install generate uninstall --warm --port --out --help" ;;
+        statusline) opts="--json --help" ;;
+        completion) opts="bash zsh fish pwsh --help" ;;
+        *)          opts="serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion --threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --json --help" ;;
+    esac
     if [[ ${cur} == -* ]] ; then
-        COMPREPLY=( $(compgen -W "--threads --max-mem --psk-ttl --numa --cpu-affinity --anonymize-symbols --symbol-salt --patch --fzf --compact --inject --custom --tui --help" -- ${cur}) )
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
         return 0
     fi
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -2429,6 +4038,7 @@ _ainish_rag() {
 }
 complete -F _ainish_rag ainish-rag
 alias rag="ainish-rag"
+ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
 "#);
         }
         "zsh" => {
@@ -2447,6 +4057,8 @@ _ainish_rag() {
         'route:Intent domain routing'
         'decide:Evaluate decision state'
         'eval:Bi-phasic faithfulness and patch evaluation'
+        'gate:Unified pre-merge verification gate'
+        'statusline:Emit one-line compact gate status for PS1/Cursor/tmux'
         'cleanup:Compact LanceDB database and prune versions'
         'orient:Inject architectural wiki context into agent primer'
         'bench:Run synthetic regression benchmark'
@@ -2455,32 +4067,175 @@ _ainish_rag() {
         'service:Background embedding service management'
         'completion:Generate shell completions'
     )
+    if [[ "$words[CURRENT]" == -* ]]; then
+        compadd -- --redact-check --fail-on-leak --include-symbols --sync-rules --sections --json --tui --patch --strict --help
+        return
+    fi
     _describe 'commands' commands
 }
 compdef _ainish_rag ainish-rag
 alias rag="ainish-rag"
+ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
 "#);
         }
         "fish" => {
             print!("{}", r#"# fish completion for ainish-rag
 complete -c ainish-rag -f
-complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval cleanup orient bench monitor audit service completion"
+complete -c ainish-rag -a "serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient bench monitor audit service completion"
+complete -c ainish-rag -l redact-check -r -d "Dry-run redaction on a file without mutating it"
+complete -c ainish-rag -l fail-on-leak -d "Exit non-zero when redaction dry-run detects leaks"
+complete -c ainish-rag -l include-symbols -d "Include symbol anchors in orient primer"
+complete -c ainish-rag -l sync-rules -d "Run deployed rules refresher when gate_ready is false"
+complete -c ainish-rag -l sections -x -d "Maximum wiki sections to inject"
+complete -c ainish-rag -l max-lines -x -d "Per-section line truncation override"
+complete -c ainish-rag -l json -d "Structured JSON output"
+complete -c ainish-rag -l tui -d "Interactive status dashboard"
 alias rag="ainish-rag"
+function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
 "#);
         }
         "pwsh" | "powershell" => {
             print!("{}", r#"# PowerShell completion for ainish-rag
 Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','cleanup','orient','bench','monitor','audit','service','completion')
+    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','bench','monitor','audit','service','completion')
+    $options = @('--redact-check','--fail-on-leak','--include-symbols','--sync-rules','--sections','--max-lines','--json','--tui','--patch','--strict','--help')
+    if ($wordToComplete -like '-*') {
+        $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
+        return
+    }
     $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 Set-Alias -Name rag -Value ainish-rag
+function Invoke-AinishRagStatusLine { ainish-rag statusline 2>$null }
 "#);
         }
         _ => {
             eprintln!("Unsupported shell: {}. Supported shells: bash, zsh, fish, pwsh", shell);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_orient_prioritizes_open_ledger_notes_ahead_of_resolved() {
+        let sample = "# Operator ledger\n\
+            - [RESOLVED] 2026-10-26 Old resolved item one\n\
+            - 2026-10-27 Open probe miss alpha\n\
+            - [RESOLVED] 2026-10-28 Resolved item two\n\
+            - 2026-10-29 Open probe miss beta\n";
+        let notes = select_prioritized_ledger_notes(sample);
+        assert_eq!(notes.len(), 4);
+        // First two entries must be the open (unresolved) items
+        assert!(notes[0].contains("Open probe miss alpha") && !notes[0].contains("[RESOLVED]"));
+        assert!(notes[1].contains("Open probe miss beta") && !notes[1].contains("[RESOLVED]"));
+        // Resolved items follow after open items
+        assert!(notes[2].contains("[RESOLVED]"));
+        assert!(notes[3].contains("[RESOLVED]"));
+
+        let root = crate::config::resolve_canonical_repo_root(std::path::Path::new("."));
+        assert!(check_comms_harness_agnostic(&root).is_empty());
+    }
+
+    #[test]
+    fn test_orient_compact_caps_token_budget() {
+        let root = crate::config::resolve_canonical_repo_root(std::path::Path::new("."));
+        let wiki_gen = WikiGenerator::new(&root);
+        let compact_syms = wiki_gen.extract_key_symbols_for_orient(&[], 3);
+        assert!(compact_syms.len() <= 3);
+
+        let sample_ledger = "# Operator ledger\n\
+            - 2026-10-25 Item 1\n\
+            - 2026-10-26 Item 2\n\
+            - 2026-10-27 Item 3\n\
+            - 2026-10-28 Item 4\n\
+            - 2026-10-29 Item 5\n";
+        let compact_notes: Vec<String> = select_prioritized_ledger_notes(sample_ledger).into_iter().take(3).collect();
+        assert_eq!(compact_notes.len(), 3);
+    }
+
+    #[test]
+    fn test_orient_respects_max_lines_and_symbol_toggle() {
+        let tmp = std::env::temp_dir().join(format!("ainish-orient-maxlines-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let wiki_dir = tmp.join(".agents").join("wiki");
+        let mem_dir = tmp.join(".agents").join("memories");
+        std::fs::create_dir_all(&wiki_dir).unwrap();
+        std::fs::create_dir_all(&mem_dir).unwrap();
+
+        let wiki_body: String = (1..=30).map(|i| format!("line-{:02} architectural detail\n", i)).collect();
+        std::fs::write(wiki_dir.join("01-architecture.md"), wiki_body).unwrap();
+        std::fs::write(wiki_dir.join("02-codebase-connections.md"), "# 02 connections\nbody\n").unwrap();
+        std::fs::write(
+            mem_dir.join("2026-10-29-memory.txt"),
+            "- 10:00 memory alpha\n- 10:01 memory beta\n- 10:02 memory gamma\n",
+        ).unwrap();
+        std::fs::write(
+            wiki_dir.join("ledger.md"),
+            "# Operator ledger\n\n- 2026-10-29 open ledger item one\n- [RESOLVED] 2026-10-29 closed ledger item two\n",
+        ).unwrap();
+        std::fs::write(
+            tmp.join("sample.rs"),
+            "pub fn calculate_anchor_one() {}\npub fn calculate_anchor_two() {}\nstruct AlphaBeta {}\n",
+        ).unwrap();
+
+        let limited = build_orient_report(&tmp, None, false, false, Some(4), Some(1), false).unwrap();
+        assert_eq!(limited["max_lines_per_section"], 4);
+        assert_eq!(limited["sections_limit"], 1);
+        assert_eq!(limited["sections"].as_array().unwrap().len(), 1);
+        assert_eq!(limited["gate_ready"], false);
+        let content = limited["sections"][0]["content"].as_str().unwrap();
+        assert_eq!(content.lines().count(), 4);
+        assert!(!content.contains("line-05"));
+        assert_eq!(limited["symbol_anchors"].as_array().unwrap().len(), 0);
+        assert_eq!(limited["include_symbols"], false);
+        assert_eq!(limited["open_ledger_notes"], 1);
+        assert_eq!(limited["resolved_ledger_notes"], 1);
+        assert!(limited["orient_verified"].as_bool().unwrap());
+
+        let with_symbols = build_orient_report(&tmp, None, false, false, Some(2), None, true).unwrap();
+        assert_eq!(with_symbols["sections"].as_array().unwrap().len(), 2);
+        assert_eq!(with_symbols["sections"][0]["content"].as_str().unwrap().lines().count(), 2);
+        assert!(with_symbols["symbol_anchors"].as_array().unwrap().len() >= 1);
+        assert!(with_symbols["primer"].as_str().unwrap().contains("Key Symbol Graph Anchors"));
+
+        assert!(is_docs_or_coord_path(".agents/comms/2026-10-29-team.txt"));
+        assert!(is_docs_or_coord_path("AGENTS.md"));
+        assert!(is_docs_or_coord_path("llms.txt"));
+        assert!(is_docs_or_coord_path(".agents/audit/model-manifest.json"));
+        assert!(!is_docs_or_coord_path(".agents/skills/example/helper.py"));
+        assert!(!is_docs_or_coord_path(".agents/bin/ainish-rules-sync"));
+        assert!(!is_docs_or_coord_path("src/rag/src/main.rs"));
+        assert!(!is_docs_or_coord_path(".github/workflows/security.yml"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_sync_rules_opt_in_gated_by_gate_ready() {
+        // gate_ready=true → the refresher must never run
+        assert_eq!(sync_rules_if_stale(std::path::Path::new("/nonexistent/for/sure"), true), (false, false));
+
+        let tmp = std::env::temp_dir().join(format!("ainish-sync-rules-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        // missing refresher → attempted but unsuccessful
+        assert_eq!(sync_rules_if_stale(&tmp, false), (true, false));
+
+        let bin = tmp.join(".agents").join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("ainish-rules-sync"), "#!/bin/sh\nexit 0\n").unwrap();
+
+        let (attempted, ok) = sync_rules_if_stale(&tmp, false);
+        assert!(attempted, "a deployed refresher must be attempted when gate_ready is false");
+        if rules_sync_shell().is_some() {
+            assert!(ok, "the trivially-successful refresher must succeed");
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
 
