@@ -7,14 +7,29 @@
 #
 #   ainish-coder --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]
 #   ainish-coder --embed-config --provider local [DIR]     # revert to the local llama server
-#   ainish-coder --embed-config --status                   # show active provider
+#   ainish-coder --embed-config --status                   # show active + detected provider
+#   ainish-coder --embed-config --detect [--json] [--write]  # env/PQC auto-detection
+#   ainish-coder --embed-config --clear                    # remove persisted provider config
 #
-# When a remote provider is active, ainish-rag skips spawning llama entirely, which
-# eliminates its multi-GB resident footprint.
+# Detection consults the environment and the PQC secrets store for OpenRouter/ZenMux embedding
+# credentials (AINISH_EMBED_API_KEY, LOCALROUTER_OPENROUTER_API_KEY, ZENMUX_API_KEY, …). When a
+# remote provider is active, ainish-rag skips spawning llama entirely — no multi-GB resident
+# model — and stops any model left resident by an earlier run.
 
 embed_config_file() {
     local target_dir="${1:-.}"
     printf '%s\n' "${target_dir}/.agents/rag/embed-provider.json"
+}
+
+embed_config_rag_bin() {
+    local candidate="${SCRIPT_DIR:-}/ainish-rag"
+    if [[ -n "${SCRIPT_DIR:-}" && -x "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+    local here
+    here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
+    printf '%s\n' "${here}/bin/ainish-rag"
 }
 
 _embed_config_set() {
@@ -29,6 +44,56 @@ _embed_config_set() {
             { print }
         ' "$f" > "$tmp" && mv "$tmp" "$f"
     fi
+}
+
+# Runs `ainish-rag embed-provider` inside the target repo so the engine resolves the canonical
+# root (and therefore the target's .agents/rag/embed-provider.json) rather than the caller's.
+embed_config_delegate() {
+    local target_dir="$1"; shift
+    local rag_bin
+    rag_bin="$(embed_config_rag_bin)"
+    if [[ ! -x "$rag_bin" ]]; then
+        print_warning "ainish-rag engine not found at ${rag_bin} — cannot inspect the embedding provider"
+        return 1
+    fi
+    ( cd "$target_dir" && "$rag_bin" embed-provider "$@" )
+}
+
+# Extracts a top-level string field from the engine's pretty JSON report.
+_embed_config_json_field() {
+    local json="$1" field="$2"
+    printf '%s\n' "$json" | sed -n "s/.*\"${field}\": *\"\\([^\"]*\\)\".*/\\1/p" | head -1
+}
+
+# `ainish-coder --rules` step: detect PQC/environment embedding credentials for OpenRouter or
+# ZenMux and pin the non-secret provider config. Auto-detection that finds nothing writes
+# nothing, so a key added later is still picked up.
+deploy_embed_provider_detect() {
+    local target_dir="${1:-.}"
+    mkdir -p "${target_dir}/.agents/rag" 2>/dev/null || true
+
+    local out
+    if ! out="$(embed_config_delegate "$target_dir" --write --json 2>/dev/null)"; then
+        print_warning "Embedding provider detection unavailable (RAG engine missing) — local embeddings remain in use"
+        return 0
+    fi
+
+    local provider provider_id model source
+    provider="$(_embed_config_json_field "$out" provider)"
+    provider_id="$(_embed_config_json_field "$out" provider_id)"
+    model="$(_embed_config_json_field "$out" model)"
+    source="$(_embed_config_json_field "$out" source)"
+
+    if [[ "$provider" == "api" ]]; then
+        echo -e "${GREEN}✓ Remote embeddings detected: ${provider_id:-custom} (${model:-model unset}), source: ${source}${RESET}"
+        echo -e "  ${YELLOW}↻ Local llama is never spawned in API mode; run 'ainish-rag index --rebuild' to rebuild vectors with this model${RESET}"
+        echo -e "  ${GREEN}✓ Memory: no resident embedding model is left behind after commands${RESET}"
+    elif [[ "$provider" == "invalid" ]]; then
+        print_warning "Embedding API intent is incomplete — run: ainish-coder --embed-config --detect"
+    else
+        echo -e "  ${YELLOW}No OpenRouter/ZenMux embedding key found in env or PQC store; local llama embeddings remain active${RESET}"
+    fi
+    return 0
 }
 
 embed_config_status() {
@@ -50,22 +115,32 @@ embed_config_status() {
     if [[ "$provider" == "api" ]]; then
         echo -e "  API Base:  ${api_base:-<unset>}"
         echo -e "  Model:     ${model:-<unset>}"
-        echo -e "  Dim:       ${dim:-<from model>}"
-        echo -e "  Key:       ${GREEN}resolved at runtime${RESET} (AINISH_EMBED_API_KEY — never stored on disk)"
+        echo -e "  Dim:       ${dim:-768 (store width; the model's native width is wider)}"
+        echo -e "  Key:       ${GREEN}resolved at runtime${RESET} (environment or PQC store — never stored on disk)"
         if [[ -z "$api_base" || -z "$model" ]]; then
             echo -e "  ${RED}⚠ Incomplete: api-base and model are required for API mode${RESET}"
             return 1
         fi
         echo -e "  ${GREEN}Local llama server: SKIPPED (no resident embedding server)${RESET}"
     else
-        echo -e "  Local llama server: used (sized by --max-mem / AINISH_RAG_CTX)"
+        echo -e "  Local llama server: used on demand, then stopped (override with --keep-server)"
+    fi
+
+    local det dep dip dm dsrc
+    det="$(embed_config_delegate "$target_dir" --json 2>/dev/null || true)"
+    if [[ -n "$det" ]]; then
+        dep="$(_embed_config_json_field "$det" provider)"
+        dip="$(_embed_config_json_field "$det" provider_id)"
+        dm="$(_embed_config_json_field "$det" model)"
+        dsrc="$(_embed_config_json_field "$det" source)"
+        echo -e "  Detected:  ${dep:-unknown}${dip:+ (${dip})}${dm:+ model=${dm}}${dsrc:+ source=${dsrc}}  ${GREEN}[env + PQC auto-detection]${RESET}"
     fi
     return 0
 }
 
 embed_config() {
     local provider="local" api_base="" model="" dim="" target_dir="."
-    local show_status=false
+    local show_status=false detect=false json_out=false write=false clear=false
     local a
     # Two passes: collect every option/positional first so `--status DIR` works in any order.
     while [[ $# -gt 0 ]]; do
@@ -76,6 +151,10 @@ embed_config() {
             --model)    model="${1:-}"; shift || true ;;
             --dim)      dim="${1:-}"; shift || true ;;
             --status)   show_status=true ;;
+            --detect)   detect=true ;;
+            --json)     json_out=true ;;
+            --write)    write=true ;;
+            --clear)    clear=true ;;
             -*)         echo -e "${YELLOW}Unknown option: $a${RESET}" >&2 ;;
             *)          target_dir="$a" ;;
         esac
@@ -89,9 +168,48 @@ embed_config() {
     validate_target_dir "$target_dir" || return 1
     local manifest
     manifest="$(embed_config_file "$target_dir")"
+
+    if [[ "$clear" == "true" ]]; then
+        local removed=false
+        if [[ -f "$manifest" ]]; then
+            rm -f "$manifest"
+            removed=true
+        fi
+        if [[ "$removed" == "true" ]]; then
+            echo -e "${GREEN}✓ Removed ${manifest} — embeddings fall back to env/PQC auto-detection${RESET}"
+        else
+            echo -e "  No persisted embedding provider config at ${manifest}"
+        fi
+        return 0
+    fi
+
+    local normalized
+    normalized="$(echo "$provider" | tr '[:upper:]' '[:lower:]')"
+
+    # Explicit provider ids, `auto`, and API mode without a base/model are resolved by the
+    # engine (which owns the PQC key resolution and catalog defaults).
+    if [[ "$detect" == "true" ]]; then
+        local args=()
+        [[ "$write" == "true" ]] && args+=(--write)
+        [[ "$json_out" == "true" ]] && args+=(--json)
+        embed_config_delegate "$target_dir" ${args[@]+"${args[@]}"}
+        return $?
+    fi
+
+    if [[ "$normalized" == "auto" || "$normalized" == "openrouter" || "$normalized" == "zenmux" ]]; then
+        embed_config_delegate "$target_dir" --provider "$normalized" --write
+        return $?
+    fi
+
+    if [[ "$normalized" == "api" && ( -z "$api_base" || -z "$model" ) ]]; then
+        echo -e "${YELLOW}ℹ Resolving API base/model from environment + PQC detection...${RESET}"
+        embed_config_delegate "$target_dir" --provider api --write
+        return $?
+    fi
+
     mkdir -p "$(dirname "$manifest")" 2>/dev/null || return 1
 
-    case "$(echo "$provider" | tr '[:upper:]' '[:lower:]')" in
+    case "$normalized" in
         api|openai|remote)
             if [[ -z "$api_base" || -z "$model" ]]; then
                 print_error "--embed-config --provider api requires --api-base <url> and --model <name>"
@@ -128,10 +246,10 @@ CFG_EOF
 }
 CFG_EOF
             echo -e "${GREEN}✓ Local llama embedding provider restored → ${manifest}${RESET}"
-            echo -e "${BRIGHT_GREEN}🖥  ainish-rag will spawn the local server (context sized by --max-mem)${RESET}"
+            echo -e "${BRIGHT_GREEN}🖥  ainish-rag will spawn the local server on demand and stop it after the command${RESET}"
             ;;
         *)
-            print_error "Unknown provider '${provider}'. Use: api | local"
+            print_error "Unknown provider '${provider}'. Use: api | local | auto | openrouter | zenmux"
             return 1
             ;;
     esac
