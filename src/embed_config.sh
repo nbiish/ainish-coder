@@ -115,7 +115,7 @@ embed_config_status() {
     if [[ "$provider" == "api" ]]; then
         echo -e "  API Base:  ${api_base:-<unset>}"
         echo -e "  Model:     ${model:-<unset>}"
-        echo -e "  Dim:       ${dim:-768 (store width; the model's native width is wider)}"
+        echo -e "  Dim:       ${dim:-768 (store width; the native model width is wider)}"
         echo -e "  Key:       ${GREEN}resolved at runtime${RESET} (environment or PQC store — never stored on disk)"
         if [[ -z "$api_base" || -z "$model" ]]; then
             echo -e "  ${RED}⚠ Incomplete: api-base and model are required for API mode${RESET}"
