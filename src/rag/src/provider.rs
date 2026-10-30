@@ -313,7 +313,9 @@ fn resolve_intent(
         Some("local") | Some("off") | Some("none") | Some("llama") => (Intent::Local, None, true, false),
         Some("api") => (Intent::Api, None, true, false),
         Some("openrouter") | Some("zenmux") => (Intent::Api, env_intent.clone(), true, false),
-        Some("auto") => (Intent::Auto, None, true, false),
+        // `auto` is explicitly non-pinning: detection stays free to pick a provider (or fall
+        // back to local) each run, and `--write` must never persist a `local` verdict for it.
+        Some("auto") => (Intent::Auto, None, false, false),
         Some(_) => (Intent::Auto, None, true, true),
         None => match persisted.map(|p| p.provider.as_str()) {
             Some("local") => (Intent::Local, None, true, false),
@@ -729,6 +731,27 @@ mod tests {
             std::env::remove_var("AINISH_EMBED_PROVIDER");
             std::env::remove_var("AINISH_EMBED_API_KEY");
         }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_auto_override_is_non_pinning_when_nothing_is_detected() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("ainish-provider-auto-none-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        unsafe {
+            std::env::remove_var("AINISH_EMBED_PROVIDER");
+            std::env::remove_var("AINISH_EMBED_API_KEY");
+            std::env::remove_var("OPENROUTER_API_KEY");
+            std::env::remove_var("ZENMUX_API_KEY");
+            std::env::set_var("AINISH_RAG_NO_PQC", "1");
+        }
+        // `--provider auto` with no credentials must not count as an operator pin, otherwise
+        // `--write` would persist `local` and a later-added key would be ignored.
+        let r = resolve_with(&dir, Some("auto"));
+        assert_eq!(r.provider, "local");
+        assert!(!r.explicit);
+        unsafe { std::env::remove_var("AINISH_RAG_NO_PQC") };
         let _ = std::fs::remove_dir_all(&dir);
     }
 
