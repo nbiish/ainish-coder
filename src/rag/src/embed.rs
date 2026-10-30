@@ -65,6 +65,10 @@ impl EmbedClient {
         self.api_base = Some(base.trim_end_matches('/').to_string());
         self.api_model = Some(model);
         self.api_key = key;
+        // Remote endpoints tolerate far larger batches than a shared loopback llama server, and
+        // per-request latency dominates indexing time. Start wide and adapt.
+        self.adaptive_batch_size
+            .store(32, std::sync::atomic::Ordering::Relaxed);
         self
     }
 
@@ -76,8 +80,18 @@ impl EmbedClient {
     /// Builds a client from `RagConfig`, automatically applying the remote API provider when
     /// the operator configured one. Every call site should use this so API mode cannot be
     /// silently bypassed by forgetting `.with_api_provider(..)`.
+    ///
+    /// Remote models usually expose a wider vector than the local EmbeddingGemma store
+    /// (e.g. 1536 vs 768), so API vectors are truncated to the store width and renormalized
+    /// unless the caller requested an explicit `--truncate` width.
     pub fn with_config(config: &crate::config::RagConfig, truncate_dim: Option<usize>) -> Self {
-        let mut c = Self::new(&config.server_url, truncate_dim, config.psk.clone())
+        let effective_truncate = if config.uses_api_embeddings() {
+            truncate_dim.or(config.embed_dim)
+        } else {
+            truncate_dim
+        };
+
+        let mut c = Self::new(&config.server_url, effective_truncate, config.psk.clone())
             .with_dp_epsilon(config.dp_epsilon)
             .with_dp_max_budget(config.dp_max_budget);
 
@@ -111,14 +125,21 @@ impl EmbedClient {
         self.adaptive_batch_size.load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    /// Updates adaptive batch size based on observed round-trip latency in milliseconds
+    /// Updates adaptive batch size based on observed round-trip latency in milliseconds.
+    /// Remote APIs have higher absolute latency than loopback but much higher throughput, so
+    /// they scale against looser thresholds and a wider ceiling.
     pub fn record_rtt_and_scale_batch(&self, rtt_ms: u128) -> usize {
         use std::sync::atomic::Ordering;
         let current = self.adaptive_batch_size.load(Ordering::Relaxed);
-        let next = if rtt_ms < 120 {
-            (current * 2).min(64)
-        } else if rtt_ms > 600 {
-            (current / 2).max(4)
+        let (fast_ms, slow_ms, max_batch, min_batch) = if self.uses_api_provider() {
+            (1_500u128, 6_000u128, 128usize, 8usize)
+        } else {
+            (120u128, 600u128, 64usize, 4usize)
+        };
+        let next = if rtt_ms < fast_ms {
+            (current * 2).min(max_batch)
+        } else if rtt_ms > slow_ms {
+            (current / 2).max(min_batch)
         } else {
             current
         };
@@ -445,5 +466,19 @@ mod tests {
         // Heavy load (>600ms) scales batch size down
         assert_eq!(client.record_rtt_and_scale_batch(750), 32);
         assert_eq!(client.record_rtt_and_scale_batch(900), 16);
+    }
+
+    #[test]
+    fn test_api_provider_uses_wider_batch_bounds() {
+        let client = EmbedClient::new("http://127.0.0.1:8080", None, None)
+            .with_api_provider("https://openrouter.ai/api/v1".into(), "openai/text-embedding-3-small".into(), None);
+        // Remote endpoints start wide, keep scaling well above loopback's 64 ceiling, and only
+        // back off on multi-second latency.
+        assert_eq!(client.recommended_batch_size(), 32);
+        assert_eq!(client.record_rtt_and_scale_batch(900), 64);
+        assert_eq!(client.record_rtt_and_scale_batch(900), 128);
+        assert_eq!(client.record_rtt_and_scale_batch(900), 128);
+        assert_eq!(client.record_rtt_and_scale_batch(9_000), 64);
+        assert_eq!(client.record_rtt_and_scale_batch(9_000), 32);
     }
 }

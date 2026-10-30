@@ -132,7 +132,8 @@ Every task record and `checkin` carries a lane: `now` (claimed) · `next` · `qu
 | `ainish-rag bench [--chaos]` | Retrieval & chaos benchmark | Asserts 100% Recall@3 stability (`--regression`, `--drift-injection`, `--chaos` fault-injection recovery) |
 | `ainish-rag status [--tui] [--json]` | RAG health & telemetry | Inspect server state, memory, active port, latency histogram, chunk count, contract-history transitions, artifact `signature_status`, and privacy/ledger stats (`--json` for programmatic health checks) |
 | `ainish-rag service <cmd>` | Background embedding server | `status [--warm]` (sub-50ms warm check) · `install` · `generate` · `uninstall`; context/batch sized from `--max-mem` (`AINISH_RAG_CTX`/`AINISH_RAG_BATCH` override) |
-| `ainish-coder --embed-config` | Embedding provider switch | `--provider api --api-base <url> --model <name> [--dim <N>]` uses a remote OpenAI-compatible model and skips the local server; `--provider local` reverts; `--status` reports. Writes non-secret `.agents/rag/embed-provider.json`; key from `AINISH_EMBED_API_KEY` only |
+| `ainish-coder --embed-config` | Embedding provider switch | `--provider api --api-base <url> --model <name> [--dim <N>]` uses a remote OpenAI-compatible model and skips the local server; `--provider local` reverts; `--detect [--write]` auto-detects PQC/env OpenRouter/ZenMux credentials; `--status`/`--clear`. Writes non-secret `.agents/rag/embed-provider.json`; keys resolved in memory from env/PQC only |
+| `ainish-rag embed-provider` | Provider posture + memory hygiene | `[--json] [--write] [--clear] [--provider local\|api\|auto\|openrouter\|zenmux]`; `AINISH_RAG_KEEP_SERVER=1`/`--keep-server` opts out of per-command teardown (local llama is stopped when its command exits); `stop [--purge]` clears PSK material |
 
 </REFERENCE>
 

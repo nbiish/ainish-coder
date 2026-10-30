@@ -6,6 +6,7 @@ mod ingest;
 mod wiki;
 mod decision;
 mod pqc;
+mod provider;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -42,6 +43,11 @@ struct Cli {
     #[arg(long, global = true)]
     cpu_affinity: Option<String>,
 
+    /// Keep the local embedding server resident after the command finishes.
+    /// By default any server this process spawns is stopped again, releasing the model's memory.
+    #[arg(long, global = true)]
+    keep_server: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -55,7 +61,26 @@ enum Commands {
         port: Option<u16>,
     },
     /// Stop running embedding server
-    Stop,
+    Stop {
+        /// Also remove loopback PSK material (.agents/rag/session.psk*) so no credentials remain
+        #[arg(long)]
+        purge: bool,
+    },
+    /// Inspect, persist, or clear the embedding provider (PQC auto-detection for OpenRouter/ZenMux)
+    EmbedProvider {
+        /// Output machine-readable JSON
+        #[arg(long)]
+        json: bool,
+        /// Persist the resolved non-secret provider config to .agents/rag/embed-provider.json
+        #[arg(long)]
+        write: bool,
+        /// Remove the persisted provider config (reverts to auto-detection)
+        #[arg(long)]
+        clear: bool,
+        /// Pin the intent: local | api | auto | openrouter | zenmux
+        #[arg(long)]
+        provider: Option<String>,
+    },
     /// Inspect status of model cache, server, LanceDB vector store, and wiki
     Status {
         /// Launch interactive TUI telemetry dashboard
@@ -76,6 +101,10 @@ enum Commands {
         /// Watch target path for file modifications and incrementally re-index
         #[arg(short, long)]
         watch: bool,
+        /// Drop the existing vector store before indexing. Required after switching embedding
+        /// models, because vectors from different models are not comparable.
+        #[arg(long)]
+        rebuild: bool,
         /// Anonymize and hash proprietary code identifiers before embedding
         #[arg(long)]
         anonymize_symbols: bool,
@@ -540,6 +569,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.cpu_affinity = Some(a);
     }
 
+    // Memory hygiene: a local embedding server spawned by this command is torn down on every
+    // exit path (including `?` errors) unless the operator explicitly keeps it resident.
+    let keep_server = cli.keep_server
+        || matches!(
+            std::env::var("AINISH_RAG_KEEP_SERVER").ok().as_deref().map(str::trim),
+            Some("1") | Some("true") | Some("yes") | Some("on")
+        )
+        || matches!(&cli.command, Commands::Serve { .. })
+        || matches!(&cli.command, Commands::Service { command: ServiceCommands::Status { warm: true } });
+    LlamaServer::set_keep_server(keep_server);
+    let _ephemeral_guard = LlamaServer::ephemeral_guard(keep_server);
+
     match cli.command {
         Commands::Serve { port } => {
             if let Some(p) = port {
@@ -548,8 +589,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             LlamaServer::ensure_running(&config, &current_dir).await?;
         }
-        Commands::Stop => {
-            LlamaServer::stop(&current_dir)?;
+        Commands::Stop { purge } => {
+            LlamaServer::stop_with_purge(&current_dir, purge)?;
+        }
+        Commands::EmbedProvider { json, write, clear, provider: pinned } => {
+            run_embed_provider(&current_dir, json, write, clear, pinned)?;
         }
         Commands::Status { tui, json } => {
             if tui {
@@ -626,10 +670,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let provider_line = if config.uses_api_embeddings() {
                 format!(
-                    "API {} (model: {}, no local server)",
+                    "API {} (model: {}, no local server) [{}]",
                     config.embed_api_base.as_deref().unwrap_or_default(),
-                    config.embed_model.as_deref().unwrap_or_default()
+                    config.embed_model.as_deref().unwrap_or_default(),
+                    config.embed_source
                 )
+            } else if config.embed_provider == "invalid" {
+                "INVALID (explicit API intent cannot be satisfied)".to_string()
             } else {
                 let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, &current_dir);
                 format!("local llama (ctx={} batch={})", ctx, batch)
@@ -637,9 +684,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             reporter.line(
                 "embed_provider",
                 serde_json::json!({
-                    "provider": if config.uses_api_embeddings() { "api" } else { "local" },
+                    "provider": if config.uses_api_embeddings() { "api" } else { config.embed_provider.as_str() },
+                    "provider_id": config.embed_provider_id,
                     "api_base": config.embed_api_base,
                     "model": config.embed_model,
+                    "dim": config.embed_dim,
+                    "key_present": config.embed_api_key.is_some(),
+                    "source": config.embed_source,
+                    "warnings": config.embed_warnings,
                 }),
                 format!("Embed Provider:     {}", provider_line),
             );
@@ -761,7 +813,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             reporter.finish();
         }
-        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
+        Commands::Index { path, truncate, watch, rebuild, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -782,6 +834,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             LlamaServer::ensure_running(&config, &current_dir).await?;
+
+            if rebuild && config.lancedb_dir.exists() {
+                std::fs::remove_dir_all(&config.lancedb_dir)
+                    .map_err(|e| format!("failed to remove {}: {}", config.lancedb_dir.display(), e))?;
+                println!(
+                    "  \x1b[36m[rag:index]\x1b[0m Rebuilt vector store (removed {})",
+                    config.lancedb_dir.display()
+                );
+            }
 
             let dim = truncate.unwrap_or(config.embedding_dim);
             let embed_client = EmbedClient::with_config(&config, truncate)
@@ -835,6 +896,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("  [rag:index] Persisting {} vectors into LanceDB...", rag_chunks.len());
             store.upsert(&rag_chunks).await?;
+            let _ = crate::provider::write_index_fingerprint(
+                &current_dir,
+                &crate::provider::identity_for(
+                    &config.embed_provider,
+                    config.embed_provider_id.as_deref(),
+                    config.embed_model.as_deref(),
+                ),
+                dim,
+            );
             let total = store.count().await.unwrap_or(0);
             println!("  [rag:index] Indexing complete! Total records in store: {}", total);
 
@@ -989,6 +1059,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 store.upsert(&rag_chunks).await?;
+                let _ = crate::provider::write_index_fingerprint(
+                    &current_dir,
+                    &crate::provider::identity_for(
+                        &config.embed_provider,
+                        config.embed_provider_id.as_deref(),
+                        config.embed_model.as_deref(),
+                    ),
+                    config.embedding_dim,
+                );
                 let total = store.count().await.unwrap_or(0);
                 let _ = record_index_audit_receipt(&current_dir, &target, generated_pages.len(), rag_chunks.len(), total, false);
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
@@ -1901,6 +1980,166 @@ fn record_index_audit_receipt(
     let _ = pqc::sign_file(&receipt_file);
 
     println!("  \x1b[32m[rag:audit]\x1b[0m Recorded batch index audit receipt at {}", receipt_file.display());
+    Ok(())
+}
+
+/// `ainish-rag embed-provider` — inspects, persists, or clears the embedding provider posture.
+/// Key material is never printed: only provenance such as `env:NAME` or `pqc:NAME`.
+fn run_embed_provider(
+    current_dir: &std::path::Path,
+    json: bool,
+    write: bool,
+    clear: bool,
+    pinned: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let repo_root = crate::config::resolve_canonical_repo_root(current_dir);
+    let config_path = repo_root.join(crate::provider::CONFIG_REL);
+
+    if clear {
+        let removed = crate::provider::clear_config(&repo_root)?;
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "cleared": removed,
+                    "config_path": config_path.display().to_string(),
+                    "config_persisted": false,
+                }))?
+            );
+        } else if removed {
+            println!("✓ Removed {} — embeddings fall back to auto-detection", config_path.display());
+        } else {
+            println!("  No persisted embedding provider config at {}", config_path.display());
+        }
+        return Ok(());
+    }
+
+    if let Some(ref pin) = pinned {
+        let normalized = pin.trim().to_ascii_lowercase();
+        if !matches!(
+            normalized.as_str(),
+            "local" | "api" | "auto" | "openrouter" | "zenmux" | "off" | "none"
+        ) {
+            return Err(format!(
+                "Unknown provider '{}': expected local|api|auto|openrouter|zenmux",
+                pin
+            )
+            .into());
+        }
+    }
+
+    let resolution = crate::provider::resolve_with(&repo_root, pinned.as_deref());
+    if resolution.is_invalid() && (write || pinned.is_some()) {
+        return Err(format!(
+            "Cannot persist an unusable API embedding intent: {}",
+            resolution.warnings.join("; ")
+        )
+        .into());
+    }
+
+    // Persist only a usable remote posture (or an explicit operator pin). Auto-detection that
+    // found nothing must not write `local`, otherwise a key added later would be ignored.
+    let should_write = write && (resolution.provider == "api" || resolution.explicit);
+    let persisted_path = if should_write {
+        Some(crate::provider::write_config(&repo_root, &resolution)?)
+    } else {
+        None
+    };
+    if write && !should_write && !json {
+        println!("  No remote embedding credentials detected — nothing persisted (auto-detection stays active)");
+    }
+
+    let local_running = LlamaServer::local_server_running(&repo_root);
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "provider": resolution.provider,
+                "provider_id": resolution.provider_id,
+                "api_base": resolution.api_base,
+                "model": resolution.model,
+                "dim": resolution.dim,
+                "key_present": resolution.key.is_some(),
+                "key_source": resolution.key_source,
+                "source": resolution.source,
+                "explicit": resolution.explicit,
+                "warnings": resolution.warnings,
+                "config_path": config_path.display().to_string(),
+                "config_persisted": config_path.exists(),
+                "local_server_running": local_running,
+            }))?
+        );
+    } else {
+        println!("\x1b[94mainish-rag Embedding Provider\x1b[0m");
+        println!("  Config:        {}", config_path.display());
+        println!(
+            "  Intent:        {}",
+            if resolution.explicit { "operator-pinned" } else { "auto-detect" }
+        );
+        match resolution.provider.as_str() {
+            "api" => {
+                let provider_label = resolution
+                    .provider_id
+                    .as_deref()
+                    .and_then(crate::provider::find_provider)
+                    .map(|spec| spec.label)
+                    .unwrap_or("custom");
+                println!(
+                    "  Provider:      api ({} / {})  [source: {}]",
+                    provider_label,
+                    resolution.provider_id.as_deref().unwrap_or("custom"),
+                    resolution.source
+                );
+                println!("  API Base:      {}", resolution.api_base.as_deref().unwrap_or("<unset>"));
+                println!("  Model:         {}", resolution.model.as_deref().unwrap_or("<unset>"));
+                println!(
+                    "  Vector Width:  {}",
+                    match resolution.dim {
+                        Some(d) => format!("{} (explicit)", d),
+                        None => format!(
+                            "{} (store width; the model's native width is wider)",
+                            crate::provider::DEFAULT_STORE_DIM
+                        ),
+                    }
+                );
+                println!(
+                    "  Key:           {}",
+                    resolution
+                        .key_source
+                        .as_deref()
+                        .map(|s| format!("present via {} (never printed)", s))
+                        .unwrap_or_else(|| "absent (unauthenticated endpoint)".to_string())
+                );
+                println!("  Local Server:  not used while API embeddings are active (no resident model)");
+            }
+            "invalid" => {
+                println!("  Provider:      \x1b[31minvalid\x1b[0m (explicit API intent cannot be satisfied)");
+                for w in &resolution.warnings {
+                    println!("  \x1b[33m!\x1b[0m {}", w);
+                }
+            }
+            _ => {
+                println!("  Provider:      local llama{}", if resolution.explicit { " [operator-pinned]" } else { " [auto-detect: no remote credentials]" });
+                println!(
+                    "  Local Server:  {}",
+                    if local_running { "resident" } else { "not resident (spawned only for the command that needs it)" }
+                );
+                println!("  Hint:          point at OpenRouter/ZenMux with `ainish-rag embed-provider --provider openrouter`");
+            }
+        }
+        if resolution.provider != "invalid" && !resolution.explicit && resolution.provider != "api" {
+            for w in &resolution.warnings {
+                println!("  \x1b[33m!\x1b[0m {}", w);
+            }
+        }
+    }
+
+    if let Some(path) = persisted_path {
+        if !json {
+            println!("✓ Persisted non-secret provider config → {}", path.display());
+        }
+    }
     Ok(())
 }
 
