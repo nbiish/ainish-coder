@@ -27,7 +27,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 \*\*Entry block:\*\*
 
 ~~~
-### [<ISO-8601 timestamp>] <EVENT> | agent:<name> | branch:<branch> | wt:<worktree-path>
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
 - start:<ISO-8601>               # input received / work began
 - end:<ISO-8601>                 # output produced / work ended
 - parent:<orchestrator>          # subagents only
@@ -43,7 +43,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 
 ---
 
-### [2026-10-24T17:05:00Z] checkin | agent:antigravity | branch:feat/rag-round6-masters | wt:d:\Code\ainish-coder
+### [2026-10-24T17:05:00Z] checkin | branch:feat/rag-round6-masters | wt:d:\Code\ainish-coder
 - start:2026-10-24T17:05:00Z
 - end:2026-10-24T17:05:30Z
 - scope:src/rag/, bin/ainish-rag, AGENTS.md, .agents/
@@ -54,7 +54,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in-progress
 - blockers:none
 
-### [2026-10-24T21:09:00Z] intent-merge | agent:antigravity | branch:feat/rag-round6-masters | wt:d:\Code\ainish-coder
+### [2026-10-24T21:09:00Z] intent-merge | branch:feat/rag-round6-masters | wt:d:\Code\ainish-coder
 - start:2026-10-24T17:05:00Z
 - end:2026-10-24T21:09:00Z
 - scope:src/rag/, bin/ainish-rag, AGENTS.md, llms.txt, .agents/
@@ -65,7 +65,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
-### [2026-10-24T21:10:00Z] checkout | agent:antigravity | branch:feat/rag-round6-masters | wt:d:\Code\ainish-coder
+### [2026-10-24T21:10:00Z] checkout | branch:feat/rag-round6-masters | wt:d:\Code\ainish-coder
 - start:2026-10-24T17:05:00Z
 - end:2026-10-24T21:10:00Z
 - scope:src/rag/, bin/ainish-rag, AGENTS.md, llms.txt, .agents/
