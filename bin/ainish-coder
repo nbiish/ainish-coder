@@ -206,6 +206,14 @@ main() {
         # Ensure workspace customizations root (.agents/tasks, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
         mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
 
+        # Detect PQC/environment embedding credentials (OpenRouter/ZenMux) and route the RAG
+        # engine's embeddings through them; nothing is persisted when no credentials exist.
+        if confirm_action "Detect remote embedding credentials (OpenRouter/ZenMux via PQC) and configure RAG?" "y"; then
+            deploy_embed_provider_detect "$target_dir" || \
+                print_warning "Embedding provider detection reported errors — local embeddings remain active"
+            _TRACK_DETAIL="${_TRACK_DETAIL}+embed-provider"
+        fi
+
         # Arm continuous auto-sync (manifest + refresher + git hooks + fleet registry)
         deploy_rules_sync "$target_dir" || \
             print_warning "Auto-sync deployment reported errors — rules are deployed but may need a manual refresh"

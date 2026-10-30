@@ -77,9 +77,20 @@ CORE COMMANDS:
                               skip the local llama server entirely (saves GBs of
                               RAM). Writes .agents/rag/embed-provider.json with
                               non-secret fields only; the key is read from
-                              AINISH_EMBED_API_KEY at runtime.
+                              AINISH_EMBED_API_KEY / the PQC store at runtime.
+    --embed-config --detect [--json] [--write] [DIR]
+                              Auto-detect embedding credentials for OpenRouter or
+                              ZenMux (AINISH_EMBED_*, *_API_KEY, and PQC-stored
+                              LOCALROUTER_* keys). --write persists the non-secret
+                              provider config; nothing is written when no key is
+                              detected, so a key added later is still picked up.
+    --embed-config --provider openrouter|zenmux|auto [DIR]
+                              Pin a detected provider without naming base/model.
     --embed-config --provider local [DIR]   Revert to the local llama server.
-    --embed-config --status [DIR]           Show the active embedding provider.
+    --embed-config --clear [DIR]            Remove the persisted provider config.
+    --embed-config --status [DIR]           Show the active + detected provider.
+    --rules also runs this detection, and every ainish-rag command stops the
+    local embedding server it spawned (releasing its memory) unless --keep-server.
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
                               agnostic standard, copied into the target as a
                               plain tracked file (refresh with --agents).
