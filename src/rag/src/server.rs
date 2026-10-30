@@ -1,13 +1,67 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::fs;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::sleep;
 use crate::config::RagConfig;
 
+/// Repository whose embedding server this process spawned. Only the spawning process tears the
+/// model down, so concurrent readers never kill a server another command is still using.
+static EPHEMERAL_SERVER_ROOT: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// Set from `--keep-server` / `AINISH_RAG_KEEP_SERVER` (and implicitly by `serve` and by
+/// `service status --warm`, whose whole purpose is a warm resident server).
+static KEEP_SERVER: AtomicBool = AtomicBool::new(false);
+
 pub struct LlamaServer;
 
 impl LlamaServer {
+    /// Records the operator's residency choice for this process.
+    pub fn set_keep_server(keep: bool) {
+        KEEP_SERVER.store(keep, Ordering::Relaxed);
+    }
+
+    pub fn keep_server_requested() -> bool {
+        KEEP_SERVER.load(Ordering::Relaxed)
+    }
+
+    /// Guard that tears down any locally spawned embedding server when the process exits,
+    /// including on error paths. Dropping it is always safe.
+    pub fn ephemeral_guard(keep_server: bool) -> EphemeralServerGuard {
+        EphemeralServerGuard { keep_server }
+    }
+
+    /// Records that this process spawned the local embedding server for `repo_root`.
+    /// `cleanup_ephemeral` (called when the guard drops) tears it down again, releasing the
+    /// model's multi-gigabyte resident footprint once the command has finished.
+    pub fn mark_ephemeral(repo_root: &Path) {
+        if let Ok(mut slot) = EPHEMERAL_SERVER_ROOT.lock() {
+            *slot = Some(repo_root.to_path_buf());
+        }
+    }
+
+    /// True when this process spawned the server and still owns its teardown.
+    #[cfg(test)]
+    pub fn owns_ephemeral() -> bool {
+        EPHEMERAL_SERVER_ROOT
+            .lock()
+            .map(|slot| slot.is_some())
+            .unwrap_or(false)
+    }
+
+    /// Stops the server only when this process spawned it. Safe to call unconditionally at exit.
+    pub fn cleanup_ephemeral() {
+        let root = EPHEMERAL_SERVER_ROOT
+            .lock()
+            .ok()
+            .and_then(|mut slot| slot.take());
+        if let Some(root) = root {
+            let _ = Self::stop_quiet(&root);
+        }
+    }
+
     /// Verifies model file size and GGUF header magic prior to server spawn
     pub fn verify_model_integrity(model_path: &Path) -> Result<String, String> {
         if !model_path.exists() {
@@ -344,15 +398,85 @@ impl LlamaServer {
         false
     }
 
+    /// Prepares the embedding backend for one command.
+    ///
+    /// * Remote API provider: no llama process is spawned (zero resident model footprint). Any
+    ///   leftover local server from an earlier run is reclaimed, and the endpoint is probed once
+    ///   so a bad key/model fails here instead of halfway through an index.
+    /// * Local provider: reuses a healthy server, or spawns one. Unless the operator asked to
+    ///   keep it (`--keep-server` / `serve`), the spawned process is registered for teardown at
+    ///   exit so the model is never left resident after its usage.
     pub async fn ensure_running(config: &RagConfig, repo_root: &Path) -> Result<(), String> {
+        // Worktrees share the canonical repository's RAG state (PID, PSK, LanceDB, config).
+        let canonical = crate::config::resolve_canonical_repo_root(repo_root);
+        let repo_root: &Path = canonical.as_path();
+        let ephemeral = !Self::keep_server_requested();
+
+        // Vectors from different embedding models are not comparable: warn when the store was
+        // built with a different provider than the one now in use.
+        let identity = crate::provider::identity_for(
+            &config.embed_provider,
+            config.embed_provider_id.as_deref(),
+            config.embed_model.as_deref(),
+        );
+        if let Some(warning) = crate::provider::index_mismatch_warning(repo_root, &identity) {
+            eprintln!("  \x1b[33m[rag:index]\x1b[0m WARNING: {}", warning);
+        }
+        if config.embed_provider == "invalid" {
+            let detail = if config.embed_warnings.is_empty() {
+                "set AINISH_EMBED_API_BASE and AINISH_EMBED_MODEL, or run `ainish-rag embed-provider --provider local`".to_string()
+            } else {
+                config.embed_warnings.join("; ")
+            };
+            return Err(format!("Explicit API embedding intent is unusable: {}", detail));
+        }
+
         // Remote API embedding provider: no local llama process is spawned at all, so a
-        // 9+ GB resident server never materializes. The endpoint is health-checked by callers.
+        // multi-GB resident server never materializes.
         if config.uses_api_embeddings() {
+            let provider = config.embed_provider_id.as_deref().unwrap_or("custom");
             println!(
-                "  \x1b[36m[rag:embed-provider]\x1b[0m Using remote API embeddings at {} (model {}) — local llama server skipped",
+                "  \x1b[36m[rag:embed-provider]\x1b[0m Using remote API embeddings via {} at {} (model {}, source: {}) — local llama server skipped",
+                provider,
                 config.embed_api_base.as_deref().unwrap_or_default(),
-                config.embed_model.as_deref().unwrap_or_default()
+                config.embed_model.as_deref().unwrap_or_default(),
+                config.embed_source
             );
+            for warning in &config.embed_warnings {
+                eprintln!("  \x1b[33m[rag:embed-provider]\x1b[0m {}", warning);
+            }
+
+            // Reclaim memory held by a local model spawned before the provider switched.
+            if Self::reclaim_local_server(repo_root) {
+                println!("  \x1b[36m[rag:memory]\x1b[0m Released the previously resident local embedding model");
+            }
+
+            if probe_enabled() {
+                let timeout = probe_timeout();
+                match crate::provider::probe(
+                    config.embed_api_base.as_deref().unwrap_or_default(),
+                    config.embed_model.as_deref().unwrap_or_default(),
+                    config.embed_api_key.as_deref(),
+                    timeout,
+                )
+                .await
+                {
+                    Ok(dim) => println!(
+                        "  \x1b[32m[rag:embed-provider]\x1b[0m Remote embeddings verified ({} dims{})",
+                        dim,
+                        config
+                            .embed_dim
+                            .map(|d| format!(", stored at {}", d))
+                            .unwrap_or_default()
+                    ),
+                    Err(err) => {
+                        return Err(format!(
+                            "{} — revert with `ainish-rag embed-provider --provider local` or set AINISH_EMBED_PROBE=0 to skip the probe",
+                            err
+                        ));
+                    }
+                }
+            }
             return Ok(());
         }
         let pid_dir = repo_root.join(".agents").join("rag");
@@ -513,6 +637,9 @@ impl LlamaServer {
                     }
 
                     if ready {
+                        if ephemeral {
+                            Self::mark_ephemeral(repo_root);
+                        }
                         return Ok(());
                     } else {
                         eprintln!("  [rag:warn] Healthcheck timed out on attempt {}/{}", attempt, max_retries);
@@ -527,22 +654,15 @@ impl LlamaServer {
         Err(format!("Embedding server failed to become ready at {} after {} attempts", config.server_url, max_retries))
     }
 
-    pub fn stop(repo_root: &Path) -> Result<(), String> {
-        let pid_file = repo_root.join(".agents").join("rag").join("llama-server.pid");
-        if !pid_file.exists() {
-            println!("  [rag] No running server PID file found.");
-            return Ok(());
-        }
-
-        let pid_str = fs::read_to_string(&pid_file)
-            .map_err(|e| format!("Failed to read PID file: {}", e))?;
-        let pid: u32 = pid_str.trim().parse()
-            .map_err(|e| format!("Invalid PID in {}: {}", pid_file.display(), e))?;
-
+    /// Terminates a process tree. Best-effort: a recycled PID is still only signalled when the
+    /// recorded process is alive at the time of the call.
+    fn terminate(pid: u32) {
         #[cfg(target_os = "windows")]
         {
             let _ = Command::new("taskkill")
                 .args(["/F", "/T", "/PID", &pid.to_string()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .output();
         }
 
@@ -550,12 +670,131 @@ impl LlamaServer {
         {
             let _ = Command::new("kill")
                 .args(["-9", &pid.to_string()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .output();
         }
+    }
 
+    fn pid_alive(pid: u32) -> bool {
+        #[cfg(target_os = "windows")]
+        {
+            let filter = format!("PID eq {}", pid);
+            if let Ok(out) = Command::new("tasklist")
+                .args(["/FI", &filter, "/NH"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()
+            {
+                let text = String::from_utf8_lossy(&out.stdout);
+                return text.contains(&pid.to_string());
+            }
+            false
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        }
+    }
+
+    /// True when a local embedding server recorded in the PID file is still alive.
+    pub fn local_server_running(repo_root: &Path) -> bool {
+        let canonical = crate::config::resolve_canonical_repo_root(repo_root);
+        let pid_file = canonical.join(".agents").join("rag").join("llama-server.pid");
+        let Ok(pid_str) = fs::read_to_string(&pid_file) else {
+            return false;
+        };
+        pid_str.trim().parse::<u32>().map(Self::pid_alive).unwrap_or(false)
+    }
+
+    /// Stops a recorded server without human output. Returns true when a live process was torn
+    /// down. Used for ephemeral teardown and for reclaiming a model after switching providers.
+    pub fn stop_quiet(repo_root: &Path) -> bool {
+        let canonical = crate::config::resolve_canonical_repo_root(repo_root);
+        let pid_file = canonical.join(".agents").join("rag").join("llama-server.pid");
+        let Ok(pid_str) = fs::read_to_string(&pid_file) else {
+            return false;
+        };
+        let Ok(pid) = pid_str.trim().parse::<u32>() else {
+            let _ = fs::remove_file(&pid_file);
+            return false;
+        };
+        let alive = Self::pid_alive(pid);
+        if alive {
+            Self::terminate(pid);
+        }
         let _ = fs::remove_file(&pid_file);
-        println!("  [rag] Stopped embedding server process PID {}.", pid);
+        alive
+    }
+
+    /// Reclaims a local embedding model left resident by an earlier run (e.g. before the
+    /// operator switched to a remote API provider). Returns true when memory was released.
+    pub fn reclaim_local_server(repo_root: &Path) -> bool {
+        Self::stop_quiet(repo_root)
+    }
+
+    pub fn stop(repo_root: &Path) -> Result<(), String> {
+        Self::stop_with_purge(repo_root, false)
+    }
+
+    /// Stops the local embedding server. `purge` also removes the loopback PSK material so no
+    /// credential-bearing files are left behind.
+    pub fn stop_with_purge(repo_root: &Path, purge: bool) -> Result<(), String> {
+        let canonical = crate::config::resolve_canonical_repo_root(repo_root);
+        let repo_root: &Path = canonical.as_path();
+        let rag_dir = repo_root.join(".agents").join("rag");
+        let pid_file = rag_dir.join("llama-server.pid");
+
+        if !pid_file.exists() {
+            println!("  [rag] No running server PID file found.");
+        } else {
+            let pid_str = fs::read_to_string(&pid_file)
+                .map_err(|e| format!("Failed to read PID file: {}", e))?;
+            let pid: u32 = pid_str.trim().parse()
+                .map_err(|e| format!("Invalid PID in {}: {}", pid_file.display(), e))?;
+            Self::terminate(pid);
+            let _ = fs::remove_file(&pid_file);
+            println!("  [rag] Stopped embedding server process PID {}.", pid);
+        }
+
+        // This process no longer owns a teardown for the server it may have spawned.
+        if let Ok(mut slot) = EPHEMERAL_SERVER_ROOT.lock() {
+            if slot.as_deref() == Some(repo_root) {
+                *slot = None;
+            }
+        }
+
+        if purge {
+            for name in ["session.psk", "session.psk.meta"] {
+                let path = rag_dir.join(name);
+                if path.exists() {
+                    fs::remove_file(&path)
+                        .map_err(|e| format!("Failed to remove {}: {}", path.display(), e))?;
+                }
+            }
+            println!("  [rag] Purged loopback PSK material from {}.", rag_dir.display());
+        }
         Ok(())
+    }
+}
+
+/// Tears down a locally spawned embedding server when the process exits. Dropping it on an
+/// error path is what guarantees the model never outlives the command that loaded it.
+pub struct EphemeralServerGuard {
+    keep_server: bool,
+}
+
+impl Drop for EphemeralServerGuard {
+    fn drop(&mut self) {
+        if !self.keep_server {
+            LlamaServer::cleanup_ephemeral();
+        }
     }
 }
 
@@ -661,6 +900,23 @@ impl PskAuthGuard {
     }
 }
 
+/// Remote embedding probe is on by default so a bad key/model fails at startup, not mid-index.
+fn probe_enabled() -> bool {
+    match std::env::var("AINISH_EMBED_PROBE").ok().as_deref().map(str::trim) {
+        Some("0") | Some("false") | Some("off") | Some("no") => false,
+        _ => true,
+    }
+}
+
+fn probe_timeout() -> Duration {
+    let ms = std::env::var("AINISH_EMBED_PROBE_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(8_000)
+        .clamp(500, 60_000);
+    Duration::from_millis(ms)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -725,5 +981,41 @@ mod tests {
         assert_eq!(ov_ctx, 4096);
         assert!(ov_batch <= 4096);
         unsafe { std::env::remove_var("AINISH_RAG_CTX") };
+    }
+
+    #[test]
+    fn test_ephemeral_ownership_is_process_scoped() {
+        let dir = std::env::temp_dir().join(format!("ainish-ephemeral-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".agents").join("rag")).unwrap();
+
+        // Nothing spawned yet: no teardown ownership and cleanup is a no-op.
+        assert!(!LlamaServer::owns_ephemeral());
+        LlamaServer::cleanup_ephemeral();
+
+        LlamaServer::mark_ephemeral(&dir);
+        assert!(LlamaServer::owns_ephemeral());
+
+        // Cleanup clears ownership even when no PID file exists (server already exited).
+        LlamaServer::cleanup_ephemeral();
+        assert!(!LlamaServer::owns_ephemeral());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_stop_with_purge_removes_psk_material() {
+        let dir = std::env::temp_dir().join(format!("ainish-purge-{}", std::process::id()));
+        let rag_dir = dir.join(".agents").join("rag");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&rag_dir).unwrap();
+        std::fs::write(rag_dir.join("session.psk"), "deadbeef").unwrap();
+        std::fs::write(rag_dir.join("session.psk.meta"), "{}").unwrap();
+
+        LlamaServer::stop_with_purge(&dir, true).unwrap();
+
+        assert!(!rag_dir.join("session.psk").exists());
+        assert!(!rag_dir.join("session.psk.meta").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

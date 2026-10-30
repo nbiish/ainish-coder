@@ -22,16 +22,23 @@ pub struct RagConfig {
     pub cpu_affinity: Option<String>,
     pub dp_epsilon: Option<f32>,
     pub dp_max_budget: Option<f32>,
-    /// "local" (llama server, default) or "api" (remote OpenAI-compatible embeddings endpoint).
+    /// "local" (llama server, default), "api" (remote OpenAI-compatible embeddings endpoint), or
+    /// "invalid" (explicit API intent that cannot be satisfied — callers must fail closed).
     pub embed_provider: String,
+    /// Provider identity when known: `openrouter`, `zenmux`, or a custom endpoint (None).
+    pub embed_provider_id: Option<String>,
     /// Base URL of the API embeddings endpoint, e.g. `https://api.openai.com/v1`.
     pub embed_api_base: Option<String>,
     /// API key resolved in-memory from env/PQC vault; NEVER persisted to disk.
     pub embed_api_key: Option<String>,
     /// Remote model name, e.g. `text-embedding-3-small`.
     pub embed_model: Option<String>,
-    /// Vector dimension of the remote model (must match the LanceDB store).
+    /// Vector width requested from the remote model (truncated to this width before storage).
     pub embed_dim: Option<usize>,
+    /// How the provider was chosen: operator, config, pqc-auto, env-auto, default-local.
+    pub embed_source: String,
+    /// Non-fatal notes emitted by provider resolution (e.g. a missing key).
+    pub embed_warnings: Vec<String>,
 }
 
 pub fn resolve_canonical_repo_root(start: &Path) -> PathBuf {
@@ -121,29 +128,17 @@ impl RagConfig {
 
         let model_manifest_path = canonical_root.join(".agents").join("audit").join("model-manifest.json");
 
-        // API-based embedding provider (operator opt-in). Non-secret fields may come from
-        // ainish-coder's persisted provider config; the API key is resolved in-memory only.
-        let embed_provider = env::var("AINISH_EMBED_PROVIDER")
-            .ok()
-            .map(|s| s.trim().to_lowercase())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "local".to_string());
-        let embed_api_base = env::var("AINISH_EMBED_API_BASE")
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .or_else(|| Self::read_provider_cfg(&canonical_root, "api_base"));
-        let embed_model = env::var("AINISH_EMBED_MODEL")
-            .ok()
-            .filter(|s| !s.trim().is_empty())
-            .or_else(|| Self::read_provider_cfg(&canonical_root, "model"));
-        let embed_dim = env::var("AINISH_EMBED_DIM")
-            .ok()
-            .and_then(|v| v.trim().parse::<usize>().ok())
-            .or_else(|| Self::read_provider_cfg(&canonical_root, "dim").and_then(|v| v.parse::<usize>().ok()));
-        // Key: env first, then the PQC vault via the standard AINISH key name. Never on disk.
-        let embed_api_key = env::var("AINISH_EMBED_API_KEY")
-            .ok()
-            .filter(|s| !s.trim().is_empty());
+        // Embedding provider: operator intent (env or persisted non-secret config) wins,
+        // otherwise a remote provider is auto-detected from env/PQC embedding credentials for
+        // OpenRouter or ZenMux. API key material stays in memory and is never persisted.
+        let resolved = crate::provider::resolve(&canonical_root);
+        let embed_provider = resolved.provider.clone();
+        let embed_api_base = resolved.api_base.clone();
+        let embed_model = resolved.model.clone();
+        let embed_api_key = resolved.key.clone();
+        // Truncate remote vectors to the store's width (Matryoshka models expose a native width
+        // wider than the local EmbeddingGemma store, e.g. 1536 → 768).
+        let embed_dim = resolved.dim.or_else(|| if resolved.uses_api() { Some(embedding_dim) } else { None });
 
         Self {
             hf_hub_cache: hf_cache,
@@ -166,27 +161,14 @@ impl RagConfig {
             dp_epsilon: env::var("AINISH_RAG_DP_EPSILON").ok().and_then(|v| v.trim().parse().ok()),
             dp_max_budget: env::var("AINISH_RAG_DP_MAX_BUDGET").ok().and_then(|v| v.trim().parse().ok()),
             embed_provider,
+            embed_provider_id: resolved.provider_id.clone(),
             embed_api_base,
             embed_api_key,
             embed_model,
             embed_dim,
+            embed_source: resolved.source.clone(),
+            embed_warnings: resolved.warnings.clone(),
         }
-    }
-
-    /// Reads a non-secret field from `.agents/rag/embed-provider.json` (written by
-    /// `ainish-coder --embed-config`). Secrets are never stored there.
-    fn read_provider_cfg(canonical_root: &Path, key: &str) -> Option<String> {
-        let p = canonical_root.join(".agents").join("rag").join("embed-provider.json");
-        let text = std::fs::read_to_string(p).ok()?;
-        let v: serde_json::Value = serde_json::from_str(&text).ok()?;
-        let raw = v.get(key)?;
-        // Fields may be strings (`api_base`, `model`) or numbers (`dim`).
-        let s = match raw {
-            serde_json::Value::String(s) => s.trim().to_string(),
-            serde_json::Value::Number(n) => n.to_string(),
-            _ => return None,
-        };
-        if s.is_empty() { None } else { Some(s) }
     }
 
     /// True when a remote API embedding provider is fully configured.
@@ -593,17 +575,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            RagConfig::read_provider_cfg(&dir, "api_base").as_deref(),
-            Some("https://api.example.com/v1")
-        );
-        assert_eq!(
-            RagConfig::read_provider_cfg(&dir, "model").as_deref(),
-            Some("text-embedding-3-small")
-        );
-        assert_eq!(RagConfig::read_provider_cfg(&dir, "dim").as_deref(), Some("1536"));
-        // Unknown keys resolve to None rather than panicking.
-        assert!(RagConfig::read_provider_cfg(&dir, "nope").is_none());
+        let cfg = crate::provider::read_config(&dir).expect("persisted config must parse");
+        assert_eq!(cfg.provider, "api");
+        assert_eq!(cfg.api_base.as_deref(), Some("https://api.example.com/v1"));
+        assert_eq!(cfg.model.as_deref(), Some("text-embedding-3-small"));
+        assert_eq!(cfg.dim, Some(1536));
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -612,7 +588,7 @@ mod tests {
     fn test_read_provider_cfg_missing_file_is_none() {
         let dir = std::env::temp_dir().join(format!("ainish-cfg-missing-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        assert!(RagConfig::read_provider_cfg(&dir, "api_base").is_none());
+        assert!(crate::provider::read_config(&dir).is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
