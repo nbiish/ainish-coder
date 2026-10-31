@@ -7,37 +7,66 @@ Implementation anchors:
 
 - Rust client, builders, parser: `src/rag/src/decision.rs`
 - Python parity: `src/rag/rag.py` (`DecisionEngine`)
-- Command surfaces: `src/rag/src/main.rs` (`route`, `rerank`, `decide`, `eval`, `secrets`)
+- Command surfaces: `src/rag/src/main.rs` (`route`, `rerank`, `decide`, `eval`, `orient`, `secrets`)
 - Retrieval blend: `store.rs` (`search_vector`) → `decision.rs` (`rerank`)
 
 Shared policy: noul bands **≥ 0.70 yes / ≤ 0.30 no / between unsettled**; decisions in code, never
 in the question.
 
+## Transport priority
+
+Both upstream transports are attempted before any local heuristic:
+
+1. **OpenRouter Decisions API** (`https://openrouter.ai/api/alpha/decisions`, latest
+   `typesafe/jev-1.14`).
+2. **Local Router** (`http://127.0.0.1:11434`, override `JEV_LOCAL_ROUTER_URL`), discovered via
+   `GET /api/decisions/status` (zero-token fast path: `ready`, `routes`, `advertised_models`) and
+   then `/v1/models` + a minimal typed probe of `/api/alpha/decisions`, `/v1/decisions`,
+   `/decisions`. A chat-only entry is reported, never substituted.
+3. Calibrated local heuristic only when both transports fail.
+
+`JEV_TRANSPORT_PRIORITY=local-router,openrouter` flips 1 and 2 (the local router then receives the
+keyed request first; the OpenRouter key is still never sent to loopback). `source` always names the
+transport that answered: `openrouter:<dated-model>`, `local-router:<url>:<model>`, or
+`local-calibrated`.
+
 ## route — `ainish-rag route "<request>"`
 
-Asked together in one request; state is the request text.
+Five judgments in one request; state is the request text.
 
 | id | type | question | criteria |
 | :--- | :--- | :--- | :--- |
 | `needs_retrieval` | noul | Does answering this request require retrieving this repository's code, architecture wiki, or coordination context instead of relying on general knowledge? | true — the answer depends on files, symbols, documentation, or task history in this repository; false — the request is self-contained or answerable from general knowledge |
 | `domain_target` | choice | Which part of this repository's context would best answer the request? | `codebase_symbols` source/symbols/APIs · `architectural_wiki` architecture/data flow/design · `security_governance` policy/PQC/secrets/audit · `technical_debt` gaps/TODOs/drift · `general_knowledge` language/tooling |
 | `context_freshness` | noul | Does the request concern recent changes, the current branch, or today's work rather than long-lived architecture? | true — recent edits, uncommitted work, current branch, today's activity; false — stable architecture or long-lived behaviour |
+| `query_specificity` | choice | How specific is the lookup required by this request? | `exact_symbol` names a function/struct/file/flag/error · `conceptual_flow` asks how a subsystem works · `broad_audit` multi-file audit or repo-wide scan |
+| `modality_preference` | choice | Which artefact modality should retrieval prioritize first? | `code_first` · `docs_first` · `balanced` |
 
-Code decision:
+Code decision (`derive_retrieval_strategy`):
 
-- `needs_retrieval = retrieval_probability >= 0.5`.
+| Calibrated signal | Strategy | Pool |
+| :--- | :--- | :--- |
+| `needs_retrieval = no` or `general_knowledge` | `skip_retrieval` | 0 |
+| `context_freshness ≥ 0.70` | `fresh_orient_first` | 12 |
+| `query_specificity = exact_symbol` | `symbol_anchored` | 10 |
+| `query_specificity = broad_audit` | `multi_hop_expand` | 16 |
+| `conceptual_flow` + `code_first` | `symbol_anchored` | 12 |
+| otherwise | `hybrid_rerank` | 12 |
+
 - `target_domain` and `route_confidence` are reported, not acted on blindly.
 - `context_freshness` drives source choice: high → `ainish-rag orient --inject` + index; low → wiki
   and stable docs first.
+- `orient --inject` injects the routing hint and domain-weights wiki sections from `target_domain`.
 - Fallback: `route_local` keyword/calibration; `source: local-calibrated`.
 
 Output (JSON): `needs_retrieval`, `retrieval_probability`, `target_domain`, `route_confidence`,
-`context_freshness`, `source`.
+`context_freshness`, `query_specificity`, `modality_preference`, `retrieval_strategy`,
+`candidate_pool_size`, `source`.
 
 ## rerank — `ainish-rag query` / `rerank`
 
-One request, up to 12 candidates. State carries the query and the task; each question carries that
-candidate's own excerpt (questions cannot see each other).
+One request, up to 12 candidates (or the route's pool size). State carries the query and the task;
+each question carries that candidate's own excerpt (questions cannot see each other).
 
 | id pattern | type | question | criteria |
 | :--- | :--- | :--- | :--- |
@@ -46,25 +75,35 @@ candidate's own excerpt (questions cannot see each other).
 | `utility_{i}` | score 5 | How useful is this excerpt for answering the query? | unrelated → tangential background → related but incomplete → directly useful evidence → canonical implementation/reference |
 | `chunk_role_{i}` | choice | What kind of artefact is this excerpt from? | `implementation`, `documentation`, `test`, `generated` |
 
-Code decision:
+Code decision (CRAG-aware blend):
 
 ```
 decision = 0.45*direct + 0.25*symbol_support + 0.30*(utility/4)
+bonus    = +0.04 when role == implementation and direct >= 0.70 and symbol_support >= 0.50
 penalty  = 0.08 if role == "generated" else 0.03 if role == "test" else 0
-combined = max(0, decision - penalty)*0.70 + vector_score*0.30
+adjusted = clamp(decision + bonus - penalty - distractor_penalty, 0, 1)
+
+distractor_penalty = 0.12 when direct <= 0.30 and utility < 2   # CRAG hard negative
+combined = (adjusted*0.80 + min(vector,0.45)*0.20) when hard negative
+         = (adjusted*0.65 + vector*0.35) when direct is unsettled
+         = (adjusted*0.70 + vector*0.30) otherwise
 keep     = combined >= --min-relevance
 ```
 
-- `direct >= 0.5` sets `decision_relevance`.
+- `direct >= 0.5` sets `decision_relevance`; `noul_band` records the calibrated band.
 - Sorting is by `combined`; `decision_score` is the pre-vector decision value.
 - `rationale` records direct band, symbol support, utility, role, and vector score so an agent can
   explain why a chunk was chosen.
-- `generated` and `test` are discounted so vendored/generated material cannot crowd out primary
-  sources on high vector similarity.
+- `context_sufficiency` is computed across the top results:
+  `sufficient` (settled primary `yes` with utility ≥ 2.4 or top ≥ 0.62),
+  `insufficient` (empty, all `no`, or top < 0.42),
+  `partial_unsettled` otherwise. `partial_unsettled`/`insufficient` triggers **one** CRAG corrective
+  pass: high-signal symbols/file stems from the top candidates expand the query, new candidates are
+  merged, and the batch is reranked once more.
 - Fallback: RRF hybrid fusion in `rerank_local` (`source: local-calibrated-rrf`).
 
-Output fields added per hit: `decision_score`, `decision_relevance`, `decision_probability`
-(direct noul), `decision_utility`, `decision_role`, `rerank_source`, `rationale`.
+Output fields added per hit: `decision_score`, `decision_relevance`, `decision_probability`,
+`decision_utility`, `decision_role`, `symbol_support`, `noul_band`, `rerank_source`, `rationale`.
 
 ## eval — `ainish-rag eval --context … --output …`
 
@@ -72,16 +111,24 @@ Output fields added per hit: `decision_score`, `decision_relevance`, `decision_p
 | :--- | :--- | :--- | :--- |
 | `is_faithful` | noul | Is the output grounded in the provided context, without claims the context does not support? | true — every claim is supported; false — adds claims or specifics the context does not contain |
 | `faithfulness_score` | score 5 | How completely does the output stay within the provided context? | contradicts → mostly unsupported → partly grounded → grounded with minor gaps → fully grounded |
+| `contradicts_context` | noul | Does the output state any claim, rule, or detail that directly contradicts or inverts the provided context? | true — at least one claim conflicts/inverts the context; false — no contradiction |
+| `completeness_score` | score 5 | How completely does the output cover the key facts, symbols, and constraints in the provided context? | omits almost all → minor part → main point with omissions → nearly all → comprehensive |
 
 Code decision:
 
 ```
 faithfulness = 0.6*noul + 0.4*(score/4)
-is_faithful  = noul >= 0.5 and score/4 >= 0.4
-risk         = 1 - faithfulness
+if contradicts >= 0.70: faithfulness = min(faithfulness, 1 - contradicts)
+is_faithful  = not contradiction and noul >= 0.5 and score_norm >= 0.4
+
+verdict_band = contradiction_detected  when contradicts >= 0.70
+             = grounded                when noul >= 0.70 and score_norm >= 0.60
+             = unsupported             when noul <= 0.30 or score_norm < 0.40
+             = unsettled_grounding     otherwise
 ```
 
-Fallback: lexical grounding heuristic (`evaluation_source: local-heuristic`).
+`completeness_score` is normalized to `[0,1]` and reported alongside `contradiction_probability` and
+`hallucination_risk`. Fallback: lexical grounding heuristic (`evaluation_source: local-heuristic`).
 
 ## decide — arbitrary typed batches
 
@@ -107,10 +154,14 @@ with explicit criteria when precision matters.
 | Constant | Value | Where |
 | :--- | :--- | :--- |
 | noul yes / no bands | 0.70 / 0.30 | `JEV_NOUL_YES` / `JEV_NOUL_NO` |
-| rerank blend | decision 70% / vector 30% | `rerank_via_jev` |
+| rerank blend | decision 70% / vector 30% (65/35 unsettled, 80/20 hard negative) | `rerank_via_jev` |
 | decision mix | 45% direct / 25% symbols / 30% utility | `rerank_via_jev` |
 | role penalty | generated 0.08, test 0.03 | `rerank_via_jev` |
-| faithfulness mix | 60% noul / 40% score | `evaluate_faithfulness` |
+| primary bonus | +0.04 (implementation, direct ≥ 0.70, symbols ≥ 0.50) | `rerank_via_jev` |
+| CRAG hard-negative penalty | 0.12 (direct ≤ 0.30, utility < 2) | `rerank_via_jev` |
+| sufficiency | sufficient ≥ 0.62 or settled primary; insufficient < 0.42 or all `no` | `evaluate_context_sufficiency` |
+| corrective pass | one expansion round, max 6 anchors | `extract_corrective_expansion_terms` |
+| faithfulness mix | 60% noul / 40% score, contradiction veto | `evaluate_faithfulness` |
 | candidate cap | 12 per request | `rerank_via_jev` |
 | request timeout | 8 s (`AINISH_RAG_TIMEOUT`) | `DecisionEngine::new` |
 
@@ -119,10 +170,10 @@ catalog, and keep the fallback intact.
 
 ## Degradation policy
 
-- Transport order: OpenRouter Decisions (latest `typesafe/jev-1.14`) → a local-router decisions
-  route when one is discovered (`source: local-router:<url>:<model>`) → the calibrated local
-  router (`source: local-calibrated`). There is no downgrade to older Jev models.
-- No key or unreachable API → `source` names the local fallback; the command still answers.
+- Transport order: OpenRouter Decisions (latest `typesafe/jev-1.14`) ↔ Local Router decisions route
+  (order from `JEV_TRANSPORT_PRIORITY`, default OpenRouter first) → the calibrated local heuristic
+  (`source: local-calibrated`). There is no downgrade to older Jev models.
+- No key or unreachable APIs → `source` names the local fallback; the command still answers.
 - API error (400/401/5xx) during rerank → that rerank falls back locally; the command continues.
 - API error during `decide --questions` → the command exits with an error (no invented answer).
 - A local-router that only serves Jev over chat completions is reported by `ainish-rag secrets`

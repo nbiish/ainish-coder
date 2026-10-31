@@ -58,6 +58,8 @@ pub const PROVIDERS: &[ProviderSpec] = &[
             "LOCALROUTER_OPENROUTER_API_KEY",
             "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
             "AINISHCODER_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_EMBED_API_KEY",
         ],
         base_vars: &["OPENROUTER_EMBED_API_BASE", "OPENROUTER_API_BASE", "OPENROUTER_BASE_URL"],
         model_vars: &["OPENROUTER_EMBED_MODEL", "OPENROUTER_EMBEDDING_MODEL"],
@@ -74,6 +76,8 @@ pub const PROVIDERS: &[ProviderSpec] = &[
             "LOCALROUTER_ZENMUX_API_KEY",
             "LOCALROUTER_ZENMUX_EMBED_API_KEY",
             "AINISHCODER_ZENMUX_API_KEY",
+            "PSIONICS_ZENMUX_API_KEY",
+            "PSIONICS_ZENMUX_EMBED_API_KEY",
         ],
         base_vars: &["ZENMUX_EMBED_API_BASE", "ZENMUX_API_BASE", "ZENMUX_BASE_URL"],
         model_vars: &["ZENMUX_EMBED_MODEL", "ZENMUX_EMBEDDING_MODEL"],
@@ -93,6 +97,8 @@ pub fn infer_provider_id(api_base: &str) -> Option<&'static str> {
         Some("openrouter")
     } else if base.contains("zenmux.ai") {
         Some("zenmux")
+    } else if base.contains(":11434") || base.contains("local-router") {
+        Some("local-router")
     } else {
         None
     }
@@ -255,6 +261,8 @@ pub fn resolve_secret(spec: Option<&ProviderSpec>) -> Option<(String, String)> {
 /// Resolves an explicit secret-name list from the environment, then the PQC store.
 /// Used by consumers that need one provider's key without the generic `AINISH_EMBED_API_KEY`
 /// fallback (e.g. the Jev decision engine needs an OpenRouter key specifically).
+/// Also accepts any `<CONSUMER>_<PROVIDER>_[EMBED_]API_KEY` suffix in the PQC vault so stores
+/// keyed by sibling consumers (`PSIONICS_`, `LOCALROUTER_`, `AINISHCODER_`, …) resolve cleanly.
 pub fn resolve_named_secret(names: &[&str]) -> Option<(String, String)> {
     if let Some(found) = first_env(names) {
         return Some(found);
@@ -263,9 +271,29 @@ pub fn resolve_named_secret(names: &[&str]) -> Option<(String, String)> {
         return None;
     }
     let vault = vault_map();
-    names
+    if let Some(exact) = names
         .iter()
         .find_map(|name| vault.get(*name).map(|value| (value.clone(), format!("pqc:{}", name))))
+    {
+        return Some(exact);
+    }
+    // Consumer-prefix suffix scan: if the caller asked for `OPENROUTER_API_KEY` or `ZENMUX_API_KEY`,
+    // accept `<CONSUMER>_OPENROUTER_EMBED_API_KEY` / `<CONSUMER>_OPENROUTER_API_KEY` deterministically.
+    for canonical in names {
+        if *canonical == "AINISH_EMBED_API_KEY" {
+            continue;
+        }
+        let suffix = format!("_{}", canonical);
+        let mut matched: Vec<(&String, &String)> = vault
+            .iter()
+            .filter(|(k, v)| !v.trim().is_empty() && k.to_ascii_uppercase().ends_with(&suffix))
+            .collect();
+        matched.sort_by(|a, b| a.0.cmp(b.0));
+        if let Some((k, v)) = matched.first() {
+            return Some(((*v).clone(), format!("pqc:{}", k)));
+        }
+    }
+    None
 }
 
 fn first_env_var(names: &[&str]) -> Option<String> {
@@ -273,8 +301,15 @@ fn first_env_var(names: &[&str]) -> Option<String> {
 }
 
 /// Reads the persisted, non-secret provider configuration. Malformed files are ignored.
+/// Worktrees without a local override inherit the canonical repository's configuration.
 pub fn read_config(repo_root: &Path) -> Option<PersistedConfig> {
-    let path = repo_root.join(CONFIG_REL);
+    let local_path = repo_root.join(CONFIG_REL);
+    let path = if local_path.is_file() {
+        local_path
+    } else {
+        let canonical = crate::config::resolve_canonical_repo_root(repo_root).join(CONFIG_REL);
+        if canonical.is_file() { canonical } else { return None; }
+    };
     let text = std::fs::read_to_string(path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&text).ok()?;
     let string_field = |key: &str| -> Option<String> {
@@ -616,7 +651,13 @@ pub fn write_index_fingerprint(repo_root: &Path, identity: &str, dim: usize) -> 
 /// Returns a warning when the store was built with a different embedding model than the one in
 /// use. Vectors from different models are not comparable, so retrieval would silently degrade.
 pub fn index_mismatch_warning(repo_root: &Path, identity: &str) -> Option<String> {
-    let path = repo_root.join(INDEX_FINGERPRINT_REL);
+    let local_path = repo_root.join(INDEX_FINGERPRINT_REL);
+    let path = if local_path.is_file() {
+        local_path
+    } else {
+        let canonical = crate::config::resolve_canonical_repo_root(repo_root).join(INDEX_FINGERPRINT_REL);
+        if canonical.is_file() { canonical } else { return None; }
+    };
     let text = std::fs::read_to_string(path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&text).ok()?;
     let recorded = value.get("identity").and_then(|v| v.as_str())?.trim();
