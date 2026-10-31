@@ -2,12 +2,12 @@
   "action": "batch_index",
   "algorithm_guarantee": "FIPS 204 ML-DSA-65",
   "anonymized_symbols": false,
-  "chunks_generated": 3522,
-  "files_indexed": 333,
-  "receipt_id": "idx-1793411629301",
+  "chunks_generated": 3474,
+  "files_indexed": 321,
+  "receipt_id": "idx-1793462096511",
   "status": "verified",
-  "target": ".",
-  "timestamp": "2026-10-31T01:53:49.301924500+00:00",
-  "total_store_records": 3522,
+  "target": "D:\\Code\\gate-spawn-hardening",
+  "timestamp": "2026-10-31T15:54:56.511062400+00:00",
+  "total_store_records": 3542,
   "wiki_ledger_sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891"
 }
