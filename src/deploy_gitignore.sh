@@ -43,7 +43,11 @@ deploy_gitignore() {
     # Existing .gitignore found - merge unique patterns
     echo -e "${YELLOW}⚠️  Existing .gitignore found - merging unique patterns${RESET}"
 
-    local temp_file=$(mktemp)
+    local temp_file
+    temp_file="$(ainish_temp_beside "$gitignore_file")" || {
+        echo -e "${BRIGHT_RED}Error: could not create a scratch file next to ${gitignore_file}${RESET}"
+        return 1
+    }
     local existing_patterns_file=$(mktemp)
 
     # Start with our source template
@@ -86,8 +90,11 @@ deploy_gitignore() {
         echo -e "${GREEN}No additional unique patterns found in existing .gitignore${RESET}"
     fi
 
-    # Move merged file to target
-    if mv "$temp_file" "$gitignore_file" 2>/dev/null; then
+    # Move merged file to target. The scratch file already lives beside it, so a
+    # rename is normally same-device; fall back to an in-place copy for
+    # filesystems that reject rename outright.
+    if mv "$temp_file" "$gitignore_file" 2>/dev/null \
+        || { cat "$temp_file" > "$gitignore_file" 2>/dev/null && rm -f "$temp_file"; }; then
         echo -e "${GREEN}✓ Deployed merged .gitignore to $target_dir${RESET}"
         echo -e "${BRIGHT_GREEN}✅ Gitignore configured (merged)${RESET}"
     else

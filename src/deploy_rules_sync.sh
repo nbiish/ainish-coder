@@ -236,12 +236,15 @@ mkdir "$LOCK" 2>/dev/null || exit 0
 trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT INT TERM HUP
 
 [ "$QUIET" = "1" ] || printf '[ainish-rules-sync] refreshing rules from %s\n' "$SRC"
+# Exit non-zero on failure so `--rules-sync --all` can report a truthful fleet
+# state; the git hooks that call this refresher already append `|| true`, so a
+# failed refresh never blocks a commit or merge.
 if AINISH_RULES_SYNC_ACTIVE=1 "$CLI" --rules "$ROOT" --headless -y >>"$LOG" 2>&1; then
     [ "$QUIET" = "1" ] || printf '[ainish-rules-sync] rules refreshed\n'
-else
-    printf '[ainish-rules-sync] refresh failed; see %s\n' "$LOG" >&2
+    exit 0
 fi
-exit 0
+printf '[ainish-rules-sync] refresh failed; see %s\n' "$LOG" >&2
+exit 1
 AINISH_RULES_SYNC_EOF
 
     chmod 755 "$script" 2>/dev/null || chmod +x "$script" 2>/dev/null || true
@@ -416,8 +419,9 @@ rules_sync_target() {
         return 0
     fi
     if [[ -x "${target_abs}/.agents/bin/ainish-rules-sync" ]]; then
-        AINISH_RULES_SYNC_ACTIVE=1 "${target_abs}/.agents/bin/ainish-rules-sync"
-        return $?
+        local rc=0
+        AINISH_RULES_SYNC_ACTIVE=1 "${target_abs}/.agents/bin/ainish-rules-sync" || rc=$?
+        return "$rc"
     fi
     echo -e "${YELLOW}No sync script in ${target_abs}; deploying rules once...${RESET}"
     local cli
@@ -492,13 +496,14 @@ rules_sync_all() {
                 [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${RED}✗ ainish-coder CLI not found; cannot enroll ${target}${RESET}"
                 failed=$((failed + 1)); state="failed"
             else
+                # `|| rc=$?` keeps errexit from aborting the whole fleet when one
+                # target fails — the remaining repos must still be refreshed.
+                rc=0
                 if [[ "$quiet" == "true" || "$json" == "true" ]]; then
-                    AINISH_RULES_SYNC_ACTIVE=1 "$cli" --rules "$target" --headless -y >/dev/null 2>&1
-                    rc=$?
+                    AINISH_RULES_SYNC_ACTIVE=1 "$cli" --rules "$target" --headless -y >/dev/null 2>&1 || rc=$?
                 else
                     echo -e "${BRIGHT_BLUE}→ ${target} (enrolling auto-sync)${RESET}"
-                    AINISH_RULES_SYNC_ACTIVE=1 "$cli" --rules "$target" --headless -y
-                    rc=$?
+                    AINISH_RULES_SYNC_ACTIVE=1 "$cli" --rules "$target" --headless -y || rc=$?
                 fi
                 if [[ $rc -eq 0 ]]; then
                     bootstrapped=$((bootstrapped + 1)); synced=$((synced + 1)); state="bootstrapped"
@@ -507,16 +512,18 @@ rules_sync_all() {
                 fi
             fi
         else
+            rc=0
             if [[ "$quiet" == "true" || "$json" == "true" ]]; then
-                AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" --quiet >/dev/null 2>&1
-                rc=$?
+                AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" --quiet >/dev/null 2>&1 || rc=$?
             else
                 echo -e "${BRIGHT_BLUE}→ ${target}${RESET}"
-                AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync"
-                rc=$?
+                AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" || rc=$?
             fi
-            [[ $rc -eq 0 ]] || { failed=$((failed + 1)); state="failed"; }
-            synced=$((synced + 1))
+            if [[ $rc -eq 0 ]]; then
+                synced=$((synced + 1))
+            else
+                failed=$((failed + 1)); state="failed"
+            fi
         fi
         entries+="{\"path\": \"$p_path\", \"state\": \"$state\"},"
     done < "$registry"
@@ -525,12 +532,16 @@ rules_sync_all() {
     if [[ "$json" == "true" ]]; then
         printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "pruned": %d, "targets": [%s], "summary": {"total": %d, "synced": %d, "bootstrapped": %d, "skipped": %d, "failed": %d}}\n' \
             "$(_ainish_rules_json_escape "$src_commit")" "$pruned" "$entries" "$total" "$synced" "$bootstrapped" "$skipped" "$failed"
+        [[ $failed -eq 0 ]] || return 1
         return 0
     fi
 
     [[ "$quiet" == "true" ]] || {
         echo -e "${BRIGHT_GREEN}✅ Rules fleet sync complete: ${synced} checked (${bootstrapped} newly enrolled), ${skipped} skipped, ${failed} failed, ${pruned} pruned (source ${src_commit:0:12})${RESET}"
     }
+    # Exit non-zero when a target failed so CI can gate on the fleet; the root
+    # git hooks call this with `|| true` and are unaffected.
+    [[ $failed -eq 0 ]] || return 1
     return 0
 }
 
