@@ -30,11 +30,34 @@ status without the value.
 | Model id | Status |
 | :--- | :--- |
 | `typesafe/jev-1.14` | latest decision model; responses report `typesafe/jev-1.14-20261014` |
-| `typesafe/jev-1.13` | previous decision model; automatic fallback |
+| `typesafe/jev-1.13` | previous decision model; only used when explicitly pinned |
 | `typesafe/jev-router` | chat router model, **not** accepted by the Decisions API |
 
-Override with `JEV_DECISION_MODEL`. When OpenRouter answers `Model ... does not exist`, the engine
-retries the next known decision model instead of failing the command.
+The engine always targets the latest decision model. It does **not** downgrade to an older Jev id:
+`JEV_DECISION_MODEL` is a diagnostic pin that `ainish-rag secrets` surfaces (`model_pinned`), and
+when OpenRouter answers `Model ... does not exist` the call fails with that reason, after which the
+command falls back to the calibrated local router rather than silently using older judgments.
+
+## Additional transport — local router
+
+The loopback local-router proxy (`http://127.0.0.1:11434`, or `JEV_LOCAL_ROUTER_URL`) is an
+*additional* transport, probed in this order:
+
+1. `GET {base}/v1/models` — any id containing `jev` (today: `openrouter-jev-router`) marks a Jev
+   candidate.
+2. `POST {base}/api/alpha/decisions`, then `/v1/decisions`, then `/decisions` — the first route that
+   answers a minimal typed probe is usable.
+
+OpenRouter stays primary; the local route is tried only after the OpenRouter attempt fails (or
+when no OpenRouter key resolves). The probe **never** sends the OpenRouter key to loopback. A
+router that only exposes Jev over chat completions is reported by `ainish-rag secrets` as
+`Decisions Route: none (chat-only entry)` and is never substituted for typed, calibrated decisions
+— chat Jev routes can resolve to general models and carry no calibrated semantics.
+
+Verified 2026-10-31: local-router `:11434` advertises `openrouter-jev-router`, has no decisions
+route (404), and a chat completion for that id was served by `anthropic/claude-opus-5.5` — so
+typed decisions correctly remain on OpenRouter, while discovery makes the router usable the moment
+it proxies the decisions API.
 
 ## Request body
 
