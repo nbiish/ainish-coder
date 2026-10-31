@@ -40,7 +40,7 @@ deploy_agents_comms() {
         echo -e "${BRIGHT_BLUE}Deploying Agent Communication System to: $dest${RESET}"
         mkdir -p "$comms_dir"
         local temp_file
-        temp_file="$(mktemp)"
+        temp_file="$(ainish_temp_beside "$dest")" || return 1
         # Render {DATE} placeholder in the template title line.
         sed "s/{DATE}/$today/" "$source" > "$temp_file"
         mv "$temp_file" "$dest"
@@ -70,7 +70,7 @@ deploy_agents_comms() {
             echo -e "${YELLOW}⚠ No <PROTOCOL> block in existing ledger ${dest##*/}${RESET}"
             if confirm_action "Overwrite $dest with the standard protocol (existing content lost)?" "n"; then
                 local temp_file
-                temp_file="$(mktemp)"
+                temp_file="$(ainish_temp_beside "$dest")" || return 1
                 sed "s/{DATE}/$today/" "$source" > "$temp_file"
                 mv "$temp_file" "$dest"
                 echo -e "${GREEN}✓ Replaced with standard protocol template${RESET}"
@@ -87,7 +87,7 @@ deploy_agents_comms() {
     # </PROTOCOL>. Agent entry blocks live after </PROTOCOL> and pass through
     # byte-for-byte.
     local temp_file
-    temp_file="$(mktemp)"
+    temp_file="$(ainish_temp_beside "$dest")" || return 1
     {
         sed -n "1,$((proto_start - 1))p" "$dest"
         sed -n "${tmpl_start},${tmpl_end}p" "$source"
