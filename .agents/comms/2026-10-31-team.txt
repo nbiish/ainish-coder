@@ -189,3 +189,33 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:OpenRouter + Local Router prioritized transports with `JEV_TRANSPORT_PRIORITY` and `/api/decisions/status` fast path; adaptive `retrieval_strategy`/`candidate_pool_size`; CRAG sufficiency + one corrective expansion; contradiction/completeness/verdict bands; decision-guided orient; consumer-prefixed PQC key suffixes (`PSIONICS_*`); worktree-only canonical config fallback
 - status:verified
 - blockers:none
+### [2026-10-31T23:31:00Z] checkin | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
+- start:2026-10-31T23:31:00Z
+- end:2026-10-31T23:31:00Z
+- scope:AGENTS.md, src/rag/src/main.rs, src/rag/rag.py, src/rag/tests/test_gate_ready.py
+- triage:now
+- objective:add the missing surface lenses to the universal contract and make compatibility, concurrency, and economics machine-checkable in the gate
+- input:operator analysis of the nine masters' coverage gaps; research anchors (Hyrum/semver migrations, append-only concurrency, cost-aware inference)
+- output:pending
+- status:in-progress
+- blockers:none
+
+### [2026-10-31T23:50:00Z] intent-merge | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
+- start:2026-10-31T23:31:00Z
+- end:2026-10-31T23:50:00Z
+- scope:same
+- objective:merge the six triggered lenses and their three gate checks, then prove the gate on main
+- input:branch gate GREEN 74.0% STRONG_ANCHOR with cargo+python suites PASS and Master Surfaces compat/concurrency/econ PASS; a synthetic non-append comms edit correctly turned the gate RED
+- output:merge --no-ff 00e3427; canonical re-signed `bef21fa7…`; Rust 54/54, Python 44/44
+- status:merged
+- blockers:none
+
+### [2026-10-31T23:55:00Z] checkout | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
+- start:2026-10-31T23:31:00Z
+- end:2026-10-31T23:55:00Z
+- scope:AGENTS.md, src/rag/src/main.rs, src/rag/rag.py, src/rag/tests/test_gate_ready.py, .agents/canonical/
+- objective:close the loop after merge, rebuild, reindex, and audit
+- input:merged 00e3427; engine rebuilt from main; main reindexed to 3,604 records; main gate GREEN 74.0% STRONG_ANCHOR with both suites PASS and Master Surfaces PASS; audit verify 15/15
+- output:nine core lenses + six triggered lenses (compatibility, concurrency, economics, accessibility, rights, interop); gate `Master Surfaces:` derives compat/concurrency/economics from the diff and reports them in gate-status.json; non-append shared-state edits are RED, missing compat declarations are RED, missing budgets are WARN (RED under --strict)
+- status:verified
+- blockers:none
