@@ -2482,84 +2482,33 @@ def find_pqc_vault_bundle() -> Optional[Path]:
     return None
 
 
+OPENROUTER_KEY_NAMES = (
+    "OPENROUTER_API_KEY",
+    "ROUTER_API_KEY",
+    "OPENROUTER_EMBED_API_KEY",
+    "LOCALROUTER_OPENROUTER_API_KEY",
+    "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
+    "AINISHCODER_OPENROUTER_API_KEY",
+)
+
+
 def resolve_api_key() -> Optional[str]:
-    """Dynamically resolves OpenRouter API key from environment or PQC secrets vault in memory.
-    Never persists plaintext secrets to disk across Windows, WSL, Linux, and macOS.
+    """Resolves an OpenRouter key from the environment or the PQC store, in memory only.
+
+    Accepts the consumer-prefixed names the store actually carries
+    (`LOCALROUTER_OPENROUTER_API_KEY`, `AINISHCODER_OPENROUTER_API_KEY`, …), not just the plain
+    legacy names, and never persists or logs the value.
     """
-    # 1. Environment variables
-    for var in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+    for var in OPENROUTER_KEY_NAMES:
         val = os.environ.get(var)
         if val and val.strip():
             return val.strip()
 
-    # 2. Check PQC secrets vault directly via in-memory export
-    home_dir = Path.home()
-
-    # Try running pqc-secrets / pqc_secrets.py export in-memory without saving anything to disk
-    pqc_bin_candidates = [
-        which("pqc-secrets"),
-        which("pqc-secrets.exe"),
-        Path.cwd() / "bin" / "pqc-secrets",
-        home_dir / ".local" / "bin" / "pqc-secrets",
-        Path("/usr/local/bin/pqc-secrets"),
-    ]
-
-    for pqc_bin in pqc_bin_candidates:
-        if pqc_bin and Path(pqc_bin).is_file():
-            try:
-                res = subprocess.run([str(pqc_bin), "export"], capture_output=True, text=True, timeout=5)
-                if res.returncode == 0:
-                    for line in res.stdout.splitlines():
-                        if "=" in line:
-                            k, v = line.strip().split("=", 1)
-                            k = k.removeprefix("export ").strip()
-                            v = v.strip().strip("'\"")
-                            if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
-                                return v
-            except Exception:
-                pass
-
-    # Try script discovery with uv or python
-    uv_candidates = [
-        which("uv"),
-        which("uv.exe"),
-        home_dir / ".local" / "bin" / "uv",
-        home_dir / ".cargo" / "bin" / "uv",
-        home_dir / "AppData" / "Local" / "hermes" / "bin" / "uv.exe",
-    ]
-    uv_bin = next((p for p in uv_candidates if p and Path(p).is_file()), None)
-
-    script_candidates = [
-        Path.cwd() / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
-        Path.cwd().parent / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
-        home_dir / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
-        Path("D:/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
-        Path("/mnt/c/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
-    ]
-    pqc_script = next((p for p in script_candidates if p.exists()), None)
-
-    if pqc_script:
-        runner_cmds = []
-        if uv_bin:
-            runner_cmds.append([str(uv_bin), "run", str(pqc_script), "export"])
-        for py_cmd in ("python3", "python", "py"):
-            p_found = which(py_cmd)
-            if p_found:
-                runner_cmds.append([str(p_found), str(pqc_script), "export"])
-
-        for cmd in runner_cmds:
-            try:
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
-                if res.returncode == 0:
-                    for line in res.stdout.splitlines():
-                        if "=" in line:
-                            k, v = line.strip().split("=", 1)
-                            k = k.removeprefix("export ").strip()
-                            v = v.strip().strip("'\"")
-                            if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
-                                return v
-            except Exception:
-                pass
+    vault = _pqc_export()
+    for name in OPENROUTER_KEY_NAMES:
+        val = vault.get(name)
+        if val and val.strip():
+            return val.strip()
 
     return None
 
@@ -2570,71 +2519,195 @@ def inspect_secrets() -> Dict[str, Any]:
     detected_vault = find_pqc_vault_bundle()
     bundle_path = detected_vault if detected_vault else (Path.home() / ".config" / "pqc-secrets" / "secrets.bundle.json")
 
-    env_source = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("ROUTER_API_KEY"))
+    env_source = any(os.environ.get(name) for name in OPENROUTER_KEY_NAMES)
     return {
         "pqc_vault_exists": detected_vault is not None,
         "pqc_bundle_path": str(bundle_path),
         "api_key_resolved": key is not None,
         "key_source": "environment" if env_source else ("pqc-vault" if key else "unresolved"),
         "key_hint": f"{key[:8]}...{key[-4:]}" if key and len(key) > 12 else ("present" if key else "none"),
+        "decision_model": os.environ.get("JEV_DECISION_MODEL", globals().get("DEFAULT_JEV_MODEL", "typesafe/jev-1.14")),
     }
 
 
+DEFAULT_JEV_MODEL = "typesafe/jev-1.14"
+JEV_MODEL_FALLBACKS = ("typesafe/jev-1.14", "typesafe/jev-1.13")
+OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
+JEV_NOUL_YES = 0.70
+JEV_NOUL_NO = 0.30
+
+
+def noul_band(probability: float) -> str:
+    """Calibrated noul bands: above YES reads as yes, below NO as no, between is unsettled."""
+    if probability >= JEV_NOUL_YES:
+        return "yes"
+    if probability <= JEV_NOUL_NO:
+        return "no"
+    return "unsettled"
+
+
 class DecisionEngine:
-    def __init__(self, model: str = "typesafe/jev-1.13"):
+    """TypeSafe Jev (System One) decision client with a calibrated local fallback.
+
+    Questions, criteria, and thresholds are the audited surface of the integration: keep them in
+    one place, send every typed question for a state in one request (Jev answers in parallel), and
+    let code map the judgments to actions.
+    """
+
+    def __init__(self, model: str = DEFAULT_JEV_MODEL):
         self.api_key = resolve_api_key()
         self.model = os.environ.get("JEV_DECISION_MODEL", model)
-        self.decisions_url = "https://openrouter.ai/api/alpha/decisions"
+        self.decisions_url = OPENROUTER_DECISIONS_URL
 
     def is_pqc_or_openrouter_ready(self) -> bool:
         return self.api_key is not None
 
-    def route(self, prompt: str) -> dict:
+    @staticmethod
+    def noul_question(instructions: str, true_case: str, false_case: str) -> Dict[str, Any]:
+        return {
+            "type": "noul",
+            "instructions": instructions,
+            "criteria": {"true": true_case, "false": false_case},
+        }
+
+    @staticmethod
+    def choice_question(instructions: str, options: List[tuple]) -> Dict[str, Any]:
+        return {
+            "type": "choice",
+            "instructions": instructions,
+            "options": [name for name, _ in options],
+            "criteria": {name: description for name, description in options},
+        }
+
+    @staticmethod
+    def score_question(instructions: str, level_criteria: List[str]) -> Dict[str, Any]:
+        return {
+            "type": "score",
+            "instructions": instructions,
+            "levels": list(range(1, len(level_criteria) + 1)),
+            "criteria": list(level_criteria),
+        }
+
+    @staticmethod
+    def parse_answers(body: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        """Parses the Decisions API envelope (`answers`), accepting the legacy `decisions` shape."""
+        root = body.get("answers") or body.get("decisions") or body
+        answers: Dict[str, Dict[str, Any]] = {}
+        if not isinstance(root, dict):
+            return answers
+        for qid, fields in root.items():
+            if not isinstance(fields, dict):
+                continue
+            kind = str(fields.get("type") or "")
+            noul = fields.get("noul")
+            if noul is None:
+                noul = fields.get("probability")
+            if noul is None and isinstance(fields.get("value"), bool):
+                noul = 0.95 if fields["value"] else 0.05
+            choice = fields.get("choice")
+            if choice is None and isinstance(fields.get("value"), str):
+                choice = fields["value"]
+            score = fields.get("score")
+            if score is None and not kind and isinstance(fields.get("value"), (int, float)):
+                score = float(fields["value"])
+            answers[qid] = {
+                "id": qid,
+                "type": kind,
+                "noul": float(noul) if noul is not None else None,
+                "choice": choice,
+                "score": float(score) if score is not None else None,
+                "confidence": fields.get("confidence"),
+                "probabilities": fields.get("probabilities"),
+                "legend": fields.get("legend"),
+            }
+        return answers
+
+    def _ask(self, state: str, questions: Dict[str, Any]) -> tuple:
+        """Sends one typed question batch. Retries the next known model if an id was retired."""
+        if not self.api_key:
+            raise RuntimeError("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
+        models = [self.model] + [m for m in JEV_MODEL_FALLBACKS if m != self.model]
+        last_error = None
+        for model in models:
+            payload = {"model": model, "state": state, "questions": questions}
+            req = urllib.request.Request(
+                self.decisions_url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
+                    "X-Title": "ainish-rag-decisions",
+                },
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                last_error = f"Jev API {exc.code} for {model}: {detail[:300]}"
+                if "does not exist" in detail:
+                    continue
+                raise RuntimeError(last_error)
+            except Exception as exc:
+                raise RuntimeError(f"Jev request failed: {exc}")
+            parsed = self.parse_answers(body)
+            if not parsed:
+                raise RuntimeError("Jev response contained no answers")
+            return str(body.get("model") or model), parsed, body.get("usage") or {}
+        raise RuntimeError(last_error or "Jev request failed")
+
+    def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
+        """Typed decision primitive used by `ainish-rag decide --questions`."""
+        model, answers, usage = self._ask(state, questions)
+        return {
+            "model": model,
+            "source": f"openrouter:{model}",
+            "answers": [answers[qid] for qid in sorted(answers)],
+            "usage": usage,
+        }
+
+    def route(self, prompt: str) -> Dict[str, Any]:
         if self.api_key:
             try:
-                import urllib.request
-                import json
-                payload = {
-                    "model": self.model,
-                    "state": prompt,
-                    "questions": {
-                        "needs_retrieval": {
-                            "type": "noul",
-                            "instructions": "Does answering this coding or engineering prompt require retrieving codebase symbols, architecture, or documentation context?"
-                        },
-                        "domain_target": {
-                            "type": "choice",
-                            "options": ["codebase_symbols", "architectural_wiki", "security_governance", "technical_debt", "general_knowledge"],
-                            "instructions": "Which domain best categorizes the information needed for this request?"
-                        }
-                    }
+                questions = {
+                    "needs_retrieval": self.noul_question(
+                        "Does answering this request require retrieving this repository's code, architecture wiki, or coordination context instead of relying on general knowledge?",
+                        "the answer depends on files, symbols, documentation, or task history that live in this repository",
+                        "the request is self-contained or answerable from general knowledge",
+                    ),
+                    "domain_target": self.choice_question(
+                        "Which part of this repository's context would best answer the request?",
+                        [
+                            ("codebase_symbols", "source code, symbol definitions, call sites, or APIs in the repository"),
+                            ("architectural_wiki", "system architecture, component relationships, data flow, or design rationale"),
+                            ("security_governance", "security policy, PQC, secrets handling, audit, or compliance rules"),
+                            ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
+                            ("general_knowledge", "language or tooling knowledge that does not depend on this repository"),
+                        ],
+                    ),
+                    "context_freshness": self.noul_question(
+                        "Does the request concern recent changes, the current branch, or today's work rather than long-lived architecture?",
+                        "it asks about recent edits, uncommitted work, the current branch, or today's activity",
+                        "it asks about stable architecture or long-lived behaviour",
+                    ),
                 }
-                req = urllib.request.Request(
-                    self.decisions_url,
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-                        "X-Title": "ainish-rag"
-                    }
-                )
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    if resp.status == 200:
-                        data = json.loads(resp.read().decode("utf-8"))
-                        root = data.get("decisions", data)
-                        nr = root.get("needs_retrieval", {})
-                        dom = root.get("domain_target", {})
-                        return {
-                            "needs_retrieval": nr.get("value", True),
-                            "retrieval_probability": nr.get("probability", 0.85),
-                            "target_domain": dom.get("value", "codebase_symbols"),
-                            "route_confidence": dom.get("probability", 0.80),
-                            "source": f"openrouter:{self.model}"
-                        }
+                model, answers, _usage = self._ask(prompt, questions)
+                retrieval_probability = float(answers.get("needs_retrieval", {}).get("noul") or 0.85)
+                domain = answers.get("domain_target", {})
+                return {
+                    "needs_retrieval": retrieval_probability >= 0.5,
+                    "retrieval_probability": round(retrieval_probability, 3),
+                    "target_domain": domain.get("choice") or "codebase_symbols",
+                    "route_confidence": round(float(domain.get("confidence") or 0.80), 3),
+                    "context_freshness": round(float(answers.get("context_freshness", {}).get("noul") or 0.5), 3),
+                    "source": f"openrouter:{model}",
+                }
             except Exception:
                 pass
+        return self.route_local(prompt)
 
+    def route_local(self, prompt: str) -> Dict[str, Any]:
         p_lower = prompt.lower()
         if p_lower.startswith(("hello", "echo ", "format json")) or "2 + 2" in p_lower:
             return {
@@ -2642,7 +2715,8 @@ class DecisionEngine:
                 "retrieval_probability": 0.15,
                 "target_domain": "general_knowledge",
                 "route_confidence": 0.95,
-                "source": "local-calibrated"
+                "context_freshness": 0.10,
+                "source": "local-calibrated",
             }
 
         domain, conf = "codebase_symbols", 0.75
@@ -2660,87 +2734,89 @@ class DecisionEngine:
             "retrieval_probability": 0.88,
             "target_domain": domain,
             "route_confidence": conf,
-            "source": "local-calibrated"
+            "context_freshness": 0.50,
+            "source": "local-calibrated",
         }
 
     def rerank(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float = 0.35) -> List[Dict[str, Any]]:
-        """Two-stage retrieval reranking:
-        Dispatches to OpenRouter Jev decision model if PQC key resolved, else calibrated local mode.
-        """
+        """Two-stage retrieval reranking via one typed Jev batch, else calibrated local RRF."""
         if not candidates:
             return []
-
         if self.api_key:
             try:
                 return self.rerank_via_jev(query, candidates, min_relevance)
             except Exception:
                 pass
-
         return self.rerank_local(query, candidates, min_relevance)
 
     def rerank_via_jev(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
-        questions = {}
-        for i, c in enumerate(candidates):
-            title = c.get("title", "")
-            path = c.get("path", "")
-            snippet = c.get("content", "")[:350]
-            context = f"File: {path} | Title: {title}\nContent:\n{snippet}"
-            questions[f"rel_{i}"] = {
-                "type": "noul",
-                "instructions": f"Given the query '{query}', is this context chunk directly relevant and helpful?\nContext:\n{context}"
-            }
-            questions[f"score_{i}"] = {
-                "type": "score",
-                "min": 1,
-                "max": 5,
-                "instructions": f"Rate technical precision and utility of this context chunk for query '{query}' from 1 (irrelevant) to 5 (exact match/interface):\n{context}"
-            }
+        capped = candidates[:12]
+        questions: Dict[str, Any] = {}
+        for index, candidate in enumerate(capped):
+            context = (
+                f"Candidate {index + 1}: file {candidate.get('path', '')}, "
+                f"type {candidate.get('doc_type', '')}, title {candidate.get('title', '')}.\n"
+                f"Excerpt:\n{str(candidate.get('content', ''))[:900]}"
+            )
+            questions[f"answers_directly_{index}"] = self.noul_question(
+                f"{context}\n\nDoes this excerpt provide the specific fact, symbol, or implementation the query needs?",
+                "the excerpt states the definition, behaviour, or symbol the query asks for",
+                "the excerpt is only topically related or answers a different question",
+            )
+            questions[f"names_query_symbols_{index}"] = self.noul_question(
+                f"{context}\n\nDoes this excerpt contain any symbol, file, or API named in the query?",
+                "at least one symbol or API named by the query appears in the excerpt",
+                "none of the query's named symbols or APIs appear",
+            )
+            questions[f"utility_{index}"] = self.score_question(
+                f"{context}\n\nHow useful is this excerpt for answering the query?",
+                [
+                    "unrelated to the query",
+                    "tangential background",
+                    "related but incomplete",
+                    "directly useful evidence",
+                    "the canonical implementation or reference",
+                ],
+            )
+            questions[f"chunk_role_{index}"] = self.choice_question(
+                f"{context}\n\nWhat kind of artefact is this excerpt from?",
+                [
+                    ("implementation", "production source code or shipping configuration"),
+                    ("documentation", "prose, PRD, wiki, or comments that explain behaviour"),
+                    ("test", "test code, fixtures, or benchmarks"),
+                    ("generated", "vendored, generated, or minified content with no clear authorship"),
+                ],
+            )
 
-        payload = {
-            "model": self.model,
-            "state": f"Task: Rerank codebase RAG context chunks for query: '{query}'",
-            "questions": questions
-        }
+        state = f"Query: {query}\nTask: rank retrieved context for a coding agent. Prefer primary sources over generated or vendored material."
+        model, answers, _usage = self._ask(state, questions)
 
-        req = urllib.request.Request(
-            self.decisions_url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-                "X-Title": "ainish-rag-reranker"
-            }
-        )
+        reranked: List[Dict[str, Any]] = []
+        for index, candidate in enumerate(capped):
+            direct = float(answers.get(f"answers_directly_{index}", {}).get("noul") or 0.5)
+            support = float(answers.get(f"names_query_symbols_{index}", {}).get("noul") or 0.5)
+            utility_raw = float(answers.get(f"utility_{index}", {}).get("score") or 2.0)
+            utility = max(0.0, min(1.0, utility_raw / 4.0))
+            role = answers.get(f"chunk_role_{index}", {}).get("choice") or "unknown"
 
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            decision_score = (0.45 * direct) + (0.25 * support) + (0.30 * utility)
+            penalty = 0.08 if role == "generated" else (0.03 if role == "test" else 0.0)
+            combined = max(0.0, decision_score - penalty) * 0.70 + float(candidate.get("score", 0.5)) * 0.30
 
-        decisions = data.get("decisions", data)
-        reranked = []
-        for i, c in enumerate(candidates):
-            rel_dec = decisions.get(f"rel_{i}", {})
-            score_dec = decisions.get(f"score_{i}", {})
+            candidate["decision_score"] = round(combined, 4)
+            candidate["decision_relevance"] = direct >= 0.5
+            candidate["decision_probability"] = round(direct, 3)
+            candidate["decision_utility"] = round(utility_raw, 2)
+            candidate["decision_role"] = role
+            candidate["rerank_source"] = f"openrouter:{model}"
+            candidate["rationale"] = (
+                f"Jev {model}: direct {direct:.2f} ({noul_band(direct)}), symbols {support:.2f}, "
+                f"utility {utility_raw:.2f}/4 [{role}], vector {float(candidate.get('score', 0.5)):.2f}"
+            )
+            if combined >= min_relevance:
+                reranked.append(candidate)
 
-            is_rel = rel_dec.get("value", True)
-            rel_prob = rel_dec.get("probability", 0.7)
-            raw_score = score_dec.get("value", 3)
-            norm_score = max(0.0, min(1.0, (float(raw_score) - 1.0) / 4.0))
-
-            vec_score = c.get("score", 0.5)
-            # 70% decision utility + 30% vector cosine similarity
-            combined = (norm_score * 0.70) + (vec_score * 0.30)
-
-            c["decision_score"] = round(combined, 4)
-            c["decision_relevance"] = is_rel
-            c["decision_probability"] = round(rel_prob, 3)
-            c["decision_utility"] = raw_score
-            c["rerank_source"] = f"openrouter:{self.model}"
-
-            if is_rel and combined >= min_relevance:
-                reranked.append(c)
-
-        reranked.sort(key=lambda x: x["decision_score"], reverse=True)
+        reranked.sort(key=lambda item: item["decision_score"], reverse=True)
         return reranked
 
     def rerank_local(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
@@ -2803,38 +2879,35 @@ class DecisionEngine:
     def evaluate_faithfulness(self, context: str, output: str) -> dict:
         if self.api_key:
             try:
-                import urllib.request
-                import json
-                payload = {
-                    "model": self.model,
-                    "state": f"CONTEXT:\n{context[:2000]}\n\nOUTPUT TO EVALUATE:\n{output[:1000]}",
-                    "questions": {
-                        "is_faithful": {
-                            "type": "noul",
-                            "instructions": "Is the output completely faithful to the provided context, without unverified claims or hallucinations?"
-                        }
-                    }
+                questions = {
+                    "is_faithful": self.noul_question(
+                        "Is the output grounded in the provided context, without claims the context does not support?",
+                        "every claim in the output is supported by the context",
+                        "the output adds claims or specifics that the context does not contain",
+                    ),
+                    "faithfulness_score": self.score_question(
+                        "How completely does the output stay within the provided context?",
+                        [
+                            "the output contradicts the context",
+                            "mostly unsupported by the context",
+                            "partly grounded with unsupported gaps",
+                            "grounded with minor gaps",
+                            "fully grounded in the context",
+                        ],
+                    ),
                 }
-                req = urllib.request.Request(
-                    self.decisions_url,
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    }
-                )
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    if resp.status == 200:
-                        data = json.loads(resp.read().decode("utf-8"))
-                        root = data.get("decisions", data)
-                        f = root.get("is_faithful", {})
-                        prob = f.get("probability", 0.90)
-                        return {
-                            "is_faithful": f.get("value", True),
-                            "faithfulness_score": prob,
-                            "hallucination_risk": 1.0 - prob,
-                            "evaluation_source": f"openrouter:{self.model}"
-                        }
+                state = f"CONTEXT:\n{context[:4000]}\n\nOUTPUT TO EVALUATE:\n{output[:2000]}"
+                model, answers, _usage = self._ask(state, questions)
+                noul = float(answers.get("is_faithful", {}).get("noul") or 0.9)
+                score = float(answers.get("faithfulness_score", {}).get("score") or 3.6)
+                score_norm = max(0.0, min(1.0, score / 4.0))
+                faithfulness = (0.6 * noul) + (0.4 * score_norm)
+                return {
+                    "is_faithful": noul >= 0.5 and score_norm >= 0.4,
+                    "faithfulness_score": round(faithfulness, 4),
+                    "hallucination_risk": round(max(0.0, 1.0 - faithfulness), 4),
+                    "evaluation_source": f"openrouter:{model}",
+                }
             except Exception:
                 pass
 
@@ -4374,6 +4447,7 @@ def main():
     decide_p = sub.add_parser("decide")
     decide_p.add_argument("state")
     decide_p.add_argument("--question", default=None)
+    decide_p.add_argument("--questions", default=None, help="Typed question batch as inline JSON or @path (noul/choice/score with criteria)")
     decide_p.add_argument("--json", action="store_true")
 
     eval_p = sub.add_parser("eval")
@@ -4938,21 +5012,97 @@ def main():
             print(f"Source:                {dec['source']}")
             print(f"Needs Retrieval:       {dec['needs_retrieval']} (probability: {dec['retrieval_probability']:.3f})")
             print(f"Target Domain:         {dec['target_domain']} (confidence:  {dec['route_confidence']:.3f})")
+            print(f"Context Freshness:     {dec.get('context_freshness', 0.5):.3f}")
             print()
 
     elif args.subcommand == "decide":
         engine = DecisionEngine()
-        q = args.question or "Does this task require external retrieval or escalation?"
+        if getattr(args, "questions", None):
+            raw = args.questions
+            if raw.startswith("@"):
+                raw = Path(raw[1:]).read_text(encoding="utf-8")
+            elif Path(raw).is_file():
+                raw = Path(raw).read_text(encoding="utf-8")
+            try:
+                questions = json.loads(raw)
+            except ValueError as exc:
+                print(f"  [rag:error] --questions must be a JSON object of typed questions: {exc}", file=sys.stderr)
+                return
+            if not isinstance(questions, dict):
+                print("  [rag:error] --questions must be a JSON object keyed by question id", file=sys.stderr)
+                return
+            try:
+                result = engine.decide(args.state, questions)
+            except Exception as exc:
+                print(f"  [rag:error] Jev decision failed: {exc}", file=sys.stderr)
+                return
+            if args.json:
+                print(json.dumps({"state": args.state, **result}, indent=2))
+            else:
+                print("\n=== Jev Typed Decisions ===")
+                print(f"State:   {args.state.splitlines()[0] if args.state else ''}")
+                print(f"Model:   {result['model']} ({result['source']})")
+                for answer in result["answers"]:
+                    if answer.get("noul") is not None:
+                        value = f"{answer['noul']:.3f} ({noul_band(float(answer['noul']))})"
+                    elif answer.get("choice"):
+                        confidence = answer.get("confidence")
+                        value = f"{answer['choice']} (confidence {float(confidence):.2f})" if confidence is not None else str(answer["choice"])
+                    elif answer.get("score") is not None:
+                        value = f"{float(answer['score']):.2f}"
+                    else:
+                        value = "n/a"
+                    print(f"  {answer['id']:<28} {answer.get('type', ''):<8} {value}")
+                print()
+            return
+
+        if getattr(args, "question", None):
+            question = args.question
+            questions = {
+                "statement": engine.noul_question(
+                    question,
+                    "the state provides clear evidence that the answer is yes",
+                    "the state provides no evidence that the answer is yes",
+                )
+            }
+            try:
+                result = engine.decide(args.state, questions)
+            except Exception as exc:
+                print(f"  [rag:error] Jev decision failed: {exc}", file=sys.stderr)
+                return
+            answer = result["answers"][0] if result["answers"] else {}
+            payload = {
+                "state": args.state,
+                "question": question,
+                "model": result["model"],
+                "source": result["source"],
+                "answer": answer,
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print("\n=== Jev Decision Analysis ===")
+                print(f"State:                 {args.state.splitlines()[0] if args.state else ''}")
+                print(f"Question:              {question}")
+                print(f"Model:                 {result['model']} ({result['source']})")
+                if answer.get("noul") is not None:
+                    probability = float(answer["noul"])
+                    print(f"Answer:                {probability:.3f} ({noul_band(probability)})")
+                else:
+                    print("Answer:                unresolved")
+                print()
+            return
+
         dec = engine.route(args.state)
         if args.json:
             print(json.dumps(dec, indent=2))
         else:
-            print("\n=== Jev Decision Analysis ===")
-            print(f"State:                 {args.state}")
-            print(f"Question:              {q}")
+            print("\n=== Jev Decision Routing ===")
+            print(f"State:                 {args.state.splitlines()[0] if args.state else ''}")
             print(f"Source:                {dec['source']}")
-            print(f"Needs Retrieval:       {dec['needs_retrieval']}")
-            print(f"Target Domain:         {dec['target_domain']}")
+            print(f"Needs Retrieval:       {dec['needs_retrieval']} ({dec['retrieval_probability']:.3f})")
+            print(f"Target Domain:         {dec['target_domain']} (confidence:  {dec['route_confidence']:.3f})")
+            print(f"Context Freshness:     {dec.get('context_freshness', 0.5):.3f}")
             print()
 
     elif args.subcommand == "eval":

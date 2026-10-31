@@ -249,8 +249,14 @@ fn secret_names(spec: Option<&ProviderSpec>) -> Vec<&'static str> {
 
 /// Resolves a secret from the environment first, then from the PQC store (in memory only).
 pub fn resolve_secret(spec: Option<&ProviderSpec>) -> Option<(String, String)> {
-    let names = secret_names(spec);
-    if let Some(found) = first_env(&names) {
+    resolve_named_secret(&secret_names(spec))
+}
+
+/// Resolves an explicit secret-name list from the environment, then the PQC store.
+/// Used by consumers that need one provider's key without the generic `AINISH_EMBED_API_KEY`
+/// fallback (e.g. the Jev decision engine needs an OpenRouter key specifically).
+pub fn resolve_named_secret(names: &[&str]) -> Option<(String, String)> {
+    if let Some(found) = first_env(names) {
         return Some(found);
     }
     if pqc_disabled() {
