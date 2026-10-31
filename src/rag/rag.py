@@ -522,6 +522,25 @@ def derive_ctx_batch(max_mem_mb: Optional[int], repo_root: Optional[Path] = None
     return ctx, batch
 
 
+MIN_MULTIMODAL_BATCH = 512
+
+
+def effective_batch(batch: int, has_mmproj: bool) -> int:
+    """Multimodal llama asserts `ggml_can_mul_mat` when n_ubatch sits below 512 (the worktree
+    divided budget produced 170), so keep the batch at or above that floor when an mmproj loads.
+    Mirrors `LlamaServer::effective_batch` in the Rust engine."""
+    return max(batch, MIN_MULTIMODAL_BATCH) if has_mmproj else batch
+
+
+def gpu_flag_plan(ngl: Optional[str], flash_setting: Optional[str]) -> Tuple[str, bool]:
+    """Returns (layers, use_flash). `-ngl 0` must be passed explicitly (omitting it leaves
+    llama's GPU default in force), and CPU-only launches must not request `-fa on` because some
+    builds crash without a GPU backend. Mirrors `LlamaServer::gpu_flag_plan`."""
+    layers = (ngl or "").strip() or "99"
+    flash = layers != "0" and (flash_setting or "on").strip().lower() not in ("off", "0", "false", "no")
+    return layers, flash
+
+
 def anonymize_content_and_symbols(content: str, symbols: List[str], salt: Optional[str] = None) -> Tuple[str, List[str]]:
     replaced = content
     anon_symbols = []
@@ -1586,6 +1605,7 @@ def start_server(
             cmd.append("serve")
 
         tuned_ctx, tuned_batch = derive_ctx_batch(max_mem, repo_root)
+        tuned_batch = effective_batch(tuned_batch, bool(mmproj))
         print(
             f"  \033[36m[rag:memory]\033[0m Context/batch sized for "
             f"{max_mem if max_mem else DEFAULT_MEM_BUDGET_MB} MB budget: "
@@ -1593,10 +1613,13 @@ def start_server(
             f"(override with AINISH_RAG_CTX / AINISH_RAG_BATCH)"
         )
 
+        ngl_layers, use_flash = gpu_flag_plan(
+            os.environ.get("AINISH_RAG_NGL") or os.environ.get("LLAMA_GPU_LAYERS"),
+            os.environ.get("AINISH_RAG_FLASH_ATTN"),
+        )
         cmd.extend([
             "-m", str(model),
-            "-ngl", "99",
-            "-fa", "on",
+            "-ngl", ngl_layers,
             "--embeddings",
             "--pooling", "mean",
             "--ctx-size", str(tuned_ctx),
@@ -1607,6 +1630,8 @@ def start_server(
             "--no-webui",
             "--api-key", psk,
         ] + (["-t", str(threads)] if threads else []))
+        if use_flash:
+            cmd.extend(["-fa", "on"])
 
         if mmproj:
             cmd.extend(["--mmproj", str(mmproj)])
@@ -1619,13 +1644,23 @@ def start_server(
         if os.name == "nt":
             creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
 
+        # Keep llama's own stderr on disk: a load-time GGML assert is otherwise invisible behind
+        # the null handles and looks like an unexplained healthcheck timeout.
+        stderr_log = pid_dir / "llama-server.err.log"
+        try:
+            stderr_target = open(stderr_log, "wb")
+        except OSError:
+            stderr_target = subprocess.DEVNULL
+
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_target,
             creationflags=creationflags,
         )
+        if hasattr(stderr_target, "close"):
+            stderr_target.close()
 
         pid_file.write_text(str(proc.pid), encoding="utf-8")
         if os.name != "nt":
@@ -1658,7 +1693,14 @@ def start_server(
                 print(f"  [rag:retry] Backing off for {backoff}s before retry...", file=sys.stderr)
                 time.sleep(backoff)
 
-    print("  [rag:error] Server failed to respond after 3 healthcheck restart attempts.", file=sys.stderr)
+    log_path = repo_root / ".agents" / "rag" / "llama-server.err.log"
+    print(
+        "  [rag:error] Server failed to respond after 3 healthcheck restart attempts — hints: "
+        "GPU-less hosts need AINISH_RAG_NGL=0 (this also disables -fa); multimodal models need "
+        f"batch/ubatch >= {MIN_MULTIMODAL_BATCH}; raise --max-mem or set AINISH_RAG_CTX / "
+        f"AINISH_RAG_BATCH; llama stderr: {log_path}",
+        file=sys.stderr,
+    )
     return False
 
 
@@ -4217,7 +4259,58 @@ def check_comms_harness_agnostic(repo_root: Path) -> List[str]:
     return violations
 
 
-def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, strict: bool = False, statusline_json: bool = False, json_out: bool = False) -> bool:
+TEST_PATH_HINTS = ("/tests/", "/test/", "/spec/")
+
+
+def is_test_path(path: str) -> bool:
+    """Test files are noise for the implementation-over-test-theatre budget, so the gate counts
+    them separately from the implementation lines a patch adds."""
+    p = path.replace("\\", "/").lower()
+    name = p.rsplit("/", 1)[-1]
+    return (
+        any(hint in p for hint in TEST_PATH_HINTS)
+        or name.startswith("test_")
+        or "_test." in name
+        or ".test." in name
+        or ".spec." in name
+    )
+
+
+def diff_test_stats(diff_text: str) -> Tuple[int, int]:
+    """Returns (test_lines_added, impl_lines_added) for a unified diff."""
+    current = ""
+    test_lines = 0
+    impl_lines = 0
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            current = line[len("+++ b/"):]
+            continue
+        if line.startswith("+++") or line.startswith("---") or line.startswith("\\"):
+            continue
+        if line.startswith("+"):
+            if is_test_path(current):
+                test_lines += 1
+            else:
+                impl_lines += 1
+    return test_lines, impl_lines
+
+
+def run_test_command(repo_root: Path, cmd: str) -> Tuple[bool, Optional[int]]:
+    """Runs the operator-supplied existing-suite command so the gate card shows a real exit code
+    instead of a prose claim. The command comes from the operator's own gate invocation, never
+    from repository content."""
+    try:
+        proc = subprocess.run(cmd, cwd=str(repo_root), shell=True, timeout=1800)
+        return proc.returncode == 0, proc.returncode
+    except Exception:
+        return False, None
+
+
+def truncate_cmd(cmd: str, max_len: int = 34) -> str:
+    return cmd if len(cmd) <= max_len else cmd[: max_len - 1] + "…"
+
+
+def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, strict: bool = False, statusline_json: bool = False, json_out: bool = False, tests_cmd: Optional[str] = None) -> bool:
     while True:
         if patch_arg:
             p = Path(patch_arg)
@@ -4371,9 +4464,10 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
 
         agents_f = repo_root / "AGENTS.md"
         canon_hash_f = repo_root / ".agents" / "canonical" / "AGENTS.md.sha256"
+        agents_sha = hashlib.sha256(agents_f.read_bytes()).hexdigest().lower() if agents_f.is_file() else ""
         zt_hash_ok = True
         if agents_f.is_file() and canon_hash_f.is_file():
-            zt_hash_ok = hashlib.sha256(agents_f.read_bytes()).hexdigest().lower() == canon_hash_f.read_text(encoding="utf-8").strip().lower()
+            zt_hash_ok = agents_sha == canon_hash_f.read_text(encoding="utf-8").strip().lower()
         bin_ac = repo_root / "bin" / "ainish-coder"
         zt_lf_ok = (b"\r\n" not in bin_ac.read_bytes()) if bin_ac.is_file() else True
         history_ok, _ = verify_contract_history_chain_py(repo_root)
@@ -4386,7 +4480,10 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
         docs_only_patch = bool(diff_text.strip()) and bool(modified_files) and all(is_docs_or_coord_path(f) for f in modified_files)
         anchor_ok = (not diff_text) or docs_only_patch or patch_eval.get("composite_score", 0.0) >= min_anchor
         patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and anchor_ok
-        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass
+        test_lines_added, impl_lines_added = diff_test_stats(diff_text)
+        tests_result = (tests_cmd, run_test_command(repo_root, tests_cmd)) if tests_cmd else None
+        tests_pass = tests_result is None or tests_result[1][0]
+        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass and tests_pass
 
         try:
             cache_dir = repo_root / ".agents" / "rag"
@@ -4398,6 +4495,17 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 "status": "GREEN" if overall_pass else "RED",
                 "anchor_pct": round(patch_eval.get("composite_score", 0.0) * 100),
                 "docs_only": docs_only_patch,
+                "contract_sha256": agents_sha,
+                "diff_stats": {
+                    "test_lines_added": test_lines_added,
+                    "impl_lines_added": impl_lines_added,
+                },
+                "tests": {
+                    "provided": tests_result is not None,
+                    "command": tests_result[0] if tests_result else None,
+                    "exit_code": tests_result[1][1] if tests_result else None,
+                    "pass": tests_pass,
+                },
                 "branch": cache_branch,
                 "commit": cache_commit,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -4435,7 +4543,17 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 "patch_evaluation": patch_eval,
                 "lockfile_check": lock_res,
                 "audit_receipts": {"pass": audit_pass, "passed": audit_receipts_passed, "failed": audit_receipts_failed},
-                "canonical_contract": {"pass": canon_pass},
+                "diff_stats": {
+                    "test_lines_added": test_lines_added,
+                    "impl_lines_added": impl_lines_added,
+                },
+                "tests": {
+                    "provided": tests_result is not None,
+                    "command": tests_result[0] if tests_result else None,
+                    "exit_code": tests_result[1][1] if tests_result else None,
+                    "pass": tests_pass,
+                },
+                "canonical_contract": {"pass": canon_pass, "sha256": agents_sha},
                 "comms_hygiene": {"pass": comms_pass, "legacy_agent_tag_violations": comms_violations},
                 "zero_trust_gate": {
                     "pass": zt_pass,
@@ -4454,11 +4572,23 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             print("├────────────────────────────────────────────────────────────────────────┤")
             patch_status = "\033[32mPASS (docs/coordination-only patch — anchor exempt)\033[0m" if docs_only_patch else (f"\033[32mPASS ({patch_eval.get('composite_score', 0)*100:.1f}% - {patch_eval.get('status')})\033[0m" if patch_pass else f"\033[31mFAIL ({patch_eval.get('status')})\033[0m")
             print(f"  Patch Anchoring:        {patch_status}")
+            delta_status = "n/a (no patch)" if not diff_text.strip() else f"+{test_lines_added} test / +{impl_lines_added} impl"
+            print(f"  Test Delta:             {delta_status}")
+            if tests_result:
+                tests_ok = tests_result[1][0]
+                tests_status = (
+                    f"\033[32mPASS\033[0m ({truncate_cmd(tests_result[0])} → exit {tests_result[1][1]})"
+                    if tests_ok
+                    else f"\033[31mFAIL\033[0m ({truncate_cmd(tests_result[0])} → exit {tests_result[1][1]})"
+                )
+            else:
+                tests_status = '\033[33mSKIPPED (pass --tests "<cmd>")\033[0m'
+            print(f"  Existing Tests:         {tests_status}")
             lock_status = f"\033[32mPASS (0 drift, {len(lock_res.get('unpinned_files', []))} unpinned)\033[0m" if lock_pass else "\033[31mFAIL\033[0m"
             print(f"  Supply Chain Lockfiles: {lock_status}")
             audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
             print(f"  Post-Quantum Receipts:  {audit_status}")
-            print(f"  Canonical AGENTS.md:    {canon_label}")
+            print(f"  Canonical AGENTS.md:    {canon_label}" + (f" sha256:{agents_sha[:12]}" if canon_pass and agents_sha else ""))
             comms_status = "\033[32mPASS (harness-agnostic headers)\033[0m" if comms_pass else f"\033[31mFAIL ({len(comms_violations)} legacy agent: tags)\033[0m"
             print(f"  COMMS Ledger Hygiene:   {comms_status}")
             zt_status = "\033[32mPASS (Zero-Trust PQC, Loopback PSK & Trojan-Source clean)\033[0m" if zt_pass else "\033[31mFAIL (Zero-Trust / PSK / Trojan-Source / History violation)\033[0m"
@@ -4655,6 +4785,7 @@ def main():
     gate_p.add_argument("-w", "--watch", action="store_true", help="Continuously watch repository and re-evaluate gate")
     gate_p.add_argument("--summary", action="store_true", help="Output one-line compact status for PS1/tmux")
     gate_p.add_argument("--strict", action="store_true", help="Require STRONG_ANCHOR (>= 70.0% score) for security-critical modules")
+    gate_p.add_argument("--tests", default=None, metavar="CMD", help="Existing-suite command; its exit code is shown on the gate card and a non-zero exit blocks the merge")
     gate_p.add_argument("--json", action="store_true", help="Output gate report as JSON")
 
     statusline_p = sub.add_parser("statusline", help="Emit one-line compact gate status for PS1/Cursor/tmux")
@@ -5397,6 +5528,7 @@ def main():
             watch=getattr(args, "watch", False),
             summary=getattr(args, "summary", False),
             strict=getattr(args, "strict", False),
+            tests_cmd=getattr(args, "tests", None),
             json_out=args.json,
         )
         if not ok:
