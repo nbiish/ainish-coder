@@ -164,7 +164,8 @@ main() {
         deploy_agents_global
 
         if confirm_action "Deploy/merge .gitignore configuration to: $target_dir?" "y"; then
-            _with_link_choice deploy_gitignore "$target_dir"
+            _with_link_choice deploy_gitignore "$target_dir" || \
+                print_warning ".gitignore deployment reported errors — continuing with remaining rules steps"
         fi
 
         # Seed the PRD template only when the target has none: never overwrite a
@@ -198,7 +199,8 @@ main() {
         # Agent Communication System — .agents/comms/{date}-team.txt (one per UTC date)
         # Merge-safe: refreshes protocol template, preserves agent entries.
         if confirm_action "Deploy Agent Communication System (.agents/comms/{date}-team.txt)?" "y"; then
-            deploy_agents_comms "$target_dir"
+            deploy_agents_comms "$target_dir" || \
+                print_warning "Agent Communication System deployment reported errors — continuing with remaining rules steps"
             _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
         fi
 
