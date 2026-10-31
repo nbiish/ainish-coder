@@ -1,0 +1,50 @@
+# AGENT COMMS — 2026-10-31
+
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once. Solo? Still check in/out — the ledger is the audit trail.
+Durable ledger = this file (committed, append-only). Live board = `2026-10-31-team.live.txt` (gitignored, never committed).
+Full protocol: `src/templates/AGENTS.COMMS.md`.
+
+---
+
+### [2026-10-31T01:04:00Z] checkin | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:04:00Z
+- end:2026-10-31T01:05:00Z
+- scope:.agents/skills/typesafe-jev/, src/rag/src/{decision.rs,main.rs,provider.rs,config.rs}, src/rag/rag.py, src/rag/tests/test_jev_decisions.py, llms.txt, AGENTS.md
+- triage:now
+- objective: ship the TypeSafe skill as a repo skill pack and integrate the latest TypeSafe Jev decision model from OpenRouter so RAG automation and agent context coherence improve in every `ainish-coder --rules` target
+- input: upstream TypeSafe skill + docs; live OpenRouter model list (`typesafe/jev-router` is chat-only); PQC store holds `LOCALROUTER_OPENROUTER_API_KEY`
+- output: typed Decisions API integration on `typesafe/jev-1.14`, corrected criteria/response handling, bundled rerank, `decide --questions`, skill pack with references + probe
+- status:in-progress
+- blockers:none
+
+### [2026-10-31T01:20:00Z] update | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:05:00Z
+- end:2026-10-31T01:25:00Z
+- scope:same
+- objective: prove the integration against the live API and gate the branch
+- input: live probes returned `typesafe/jev-1.14-20261014`; 40/40 Rust tests; 35/35 Python tests; skill front matter passes `bin/security_gate.py`
+- output: route `context_freshness` 0.94 on a branch-change prompt; typed decide batch (choice 1.00 confidence, score 3.55, noul 0.92); faithfulness 0.738; rerank returned `src/rag/src/provider.rs` first with role `implementation` and utility 3.42; branch gate green except the pre-merge canonical hash; patch 68.6% ADEQUATE (13/14 files)
+- status:verifying
+- blockers:none
+
+### [2026-10-31T01:27:00Z] intent-merge | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:26:00Z
+- end:2026-10-31T01:27:00Z
+- scope:same
+- objective: merge to main, re-sign the canonical contract, rebuild the engine, and prove the gate
+- input: three atomic commits; receipts 10/10; lockfiles clean; COMMS hygiene clean
+- output: merge, canonical re-sign, rebuild, main reindex, gate on main
+- status:merged
+- blockers:none
+
+### [2026-10-31T01:35:00Z] checkout | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:04:00Z
+- end:2026-10-31T01:35:00Z
+- scope:same
+- objective: close the loop after merge, rebuild, reindex, and gate
+- input: merged fa2e5f8; canonical re-signed (bbf59042…); engine rebuilt; main reindexed to 3,497 chunks; gate GREEN (58.1% ADEQUATE, 11 receipts, Zero-Trust PASS); audit 15/15
+- output: smoke on main — route/decide via `openrouter:typesafe/jev-1.14-20261014`, query ranks the new catalog and `decision.rs` with correct roles; no resident language or embedding process; worktree and branch removed
+- status:verified
+- blockers:none
