@@ -5,10 +5,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 /// Latest TypeSafe Jev decision model exposed by OpenRouter's Decisions API.
-pub const DEFAULT_JEV_MODEL: &str = "typesafe/jev-1.14";
-/// Known decision models, newest first. Used when a model id is retired or unavailable.
-pub const JEV_MODEL_FALLBACKS: &[&str] = &["typesafe/jev-1.14", "typesafe/jev-1.13"];
+///
+/// The engine always targets the latest decision model automatically; it never downgrades to an
+/// older Jev version on its own. `JEV_DECISION_MODEL` remains for diagnostics and testing, and is
+/// reported as a pin when it names anything older.
+pub const LATEST_JEV_MODEL: &str = "typesafe/jev-1.14";
 pub const OPENROUTER_DECISIONS_URL: &str = "https://openrouter.ai/api/alpha/decisions";
+/// Loopback base of the local-router proxy (Ollama-compatible `/v1`, plus a Jev catalog entry).
+pub const DEFAULT_LOCAL_ROUTER_URL: &str = "http://127.0.0.1:11434";
+/// Paths a decisions-capable local router may expose. Probed in order, never assumed.
+pub const LOCAL_DECISIONS_PATHS: &[&str] = &["/api/alpha/decisions", "/v1/decisions", "/decisions"];
 
 /// Calibrated noul bands from the TypeSafe guidance: above YES reads as yes, below NO as no, and
 /// the band between means the state does not settle the question (code must handle that case).
@@ -75,6 +81,173 @@ pub struct DecisionSet {
     pub usage: serde_json::Value,
 }
 
+/// Outcome of one typed batch, including which transport produced it.
+#[derive(Debug, Clone)]
+pub struct AskOutcome {
+    pub model: String,
+    pub answers: HashMap<String, JevAnswer>,
+    pub usage: serde_json::Value,
+    pub transport: String,
+}
+
+/// A loopback local-router that advertises at least one Jev model.
+#[derive(Debug, Clone, Serialize)]
+pub struct LocalJevRouter {
+    pub base_url: String,
+    pub jev_models: Vec<String>,
+    /// `Some` when the router exposes a decisions-compatible route that answered a probe.
+    pub decisions_url: Option<String>,
+    /// True when the router only offers chat-completions for Jev (not usable for typed decisions).
+    pub chat_only: bool,
+}
+
+/// Decision-transport report surfaced by `ainish-rag secrets` and orchestration pre-flight.
+#[derive(Debug, Clone, Serialize)]
+pub struct JevStatus {
+    pub model: String,
+    pub latest_model: &'static str,
+    pub model_pinned: bool,
+    pub endpoint: String,
+    pub key_present: bool,
+    pub key_source: String,
+    pub local_router: Option<LocalJevRouter>,
+}
+
+/// Resolves the effective decision model. Always the latest Jev unless an operator pin is set.
+pub fn resolve_jev_model() -> String {
+    let requested = env::var("JEV_DECISION_MODEL")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    match requested.as_deref() {
+        None | Some("latest") | Some("typesafe/jev-latest") | Some("typesafe/jev") => {
+            LATEST_JEV_MODEL.to_string()
+        }
+        Some(pin) => pin.to_string(),
+    }
+}
+
+/// True when `JEV_DECISION_MODEL` pins something other than the latest model. Reported, never hidden.
+pub fn is_model_pinned() -> bool {
+    let requested = env::var("JEV_DECISION_MODEL")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    matches!(
+        requested.as_deref(),
+        Some(value)
+            if value != "latest"
+                && value != "typesafe/jev-latest"
+                && value != LATEST_JEV_MODEL
+    )
+}
+
+/// Filters a `/v1/models` id list down to Jev candidates (case-insensitive `jev`).
+pub fn jev_models_filter(models: &[String]) -> Vec<String> {
+    models
+        .iter()
+        .filter(|id| id.to_ascii_lowercase().contains("jev"))
+        .cloned()
+        .collect()
+}
+
+async fn probe_decisions(client: &reqwest::Client, url: &str) -> bool {
+    let payload = json!({
+        "model": LATEST_JEV_MODEL,
+        "state": "probe",
+        "questions": {
+            "q": DecisionEngine::noul_question(
+                "Does this probe reach a decisions endpoint?",
+                "the endpoint answered",
+                "the endpoint did not answer"
+            )
+        }
+    });
+    matches!(client.post(url).json(&payload).send().await, Ok(response) if response.status().is_success())
+}
+
+/// Probes loopback local-router bases for a Jev catalog entry and a decisions-compatible route.
+///
+/// The local router is an *additional* transport: OpenRouter's latest Jev remains primary. A
+/// chat-only Jev entry (the current local-router behavior) is reported but never substituted for
+/// typed, calibrated decisions.
+pub async fn discover_local_router() -> Option<LocalJevRouter> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(1200))
+        .build()
+        .ok()?;
+
+    let mut bases: Vec<String> = Vec::new();
+    if let Ok(configured) = env::var("JEV_LOCAL_ROUTER_URL") {
+        let trimmed = configured.trim().trim_end_matches('/').to_string();
+        if !trimmed.is_empty() {
+            bases.push(trimmed);
+        }
+    }
+    for base in [DEFAULT_LOCAL_ROUTER_URL, "http://localhost:11434"] {
+        if !bases.iter().any(|existing| existing == base) {
+            bases.push(base.to_string());
+        }
+    }
+
+    for base in bases {
+        let Ok(response) = client.get(format!("{base}/v1/models")).send().await else {
+            continue;
+        };
+        if !response.status().is_success() {
+            continue;
+        }
+        let Ok(body) = response.json::<serde_json::Value>().await else {
+            continue;
+        };
+        let models: Vec<String> = body
+            .get("data")
+            .and_then(|data| data.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.get("id").and_then(|id| id.as_str()).map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let jev_models = jev_models_filter(&models);
+        if jev_models.is_empty() {
+            continue;
+        }
+
+        let mut decisions_url = None;
+        for path in LOCAL_DECISIONS_PATHS {
+            let url = format!("{base}{path}");
+            if probe_decisions(&client, &url).await {
+                decisions_url = Some(url);
+                break;
+            }
+        }
+
+        return Some(LocalJevRouter {
+            base_url: base,
+            jev_models,
+            chat_only: decisions_url.is_none(),
+            decisions_url,
+        });
+    }
+    None
+}
+
+/// Full decision-transport report.
+pub async fn inspect_jev() -> JevStatus {
+    let (key, key_source) = DecisionEngine::resolve_api_key();
+    JevStatus {
+        model: resolve_jev_model(),
+        latest_model: LATEST_JEV_MODEL,
+        model_pinned: is_model_pinned(),
+        endpoint: OPENROUTER_DECISIONS_URL.to_string(),
+        key_present: key.is_some(),
+        key_source,
+        local_router: discover_local_router().await,
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -125,11 +298,7 @@ pub struct DecisionEngine {
 impl DecisionEngine {
     pub fn new() -> Self {
         let (api_key, key_source) = Self::resolve_api_key();
-        let model = env::var("JEV_DECISION_MODEL")
-            .ok()
-            .map(|m| m.trim().to_string())
-            .filter(|m| !m.is_empty())
-            .unwrap_or_else(|| DEFAULT_JEV_MODEL.to_string());
+        let model = resolve_jev_model();
 
         Self {
             api_key,
@@ -180,68 +349,109 @@ impl DecisionEngine {
         })
     }
 
-    /// Sends one typed question batch and returns the resolved model, answers, and usage.
+    /// Sends one typed question batch over the first usable transport.
     ///
-    /// Retries the next known decision model when OpenRouter reports the configured one as
-    /// retired ("does not exist"), so an operator pin cannot strand the engine on an old id.
+    /// Order: OpenRouter's Decisions API (latest Jev model), then a discovered local-router that
+    /// exposes a decisions-compatible route. There is no automatic downgrade to an older Jev
+    /// model: if the latest id is retired the call fails and the caller falls back to the
+    /// calibrated local heuristic, with the reason preserved.
     async fn ask(
         &self,
         state: &str,
         questions: &serde_json::Value,
-    ) -> Result<(String, HashMap<String, JevAnswer>, serde_json::Value), String> {
-        let key = self.api_key.as_ref().ok_or_else(|| {
-            "no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY in the PQC vault)".to_string()
-        })?;
+    ) -> Result<AskOutcome, String> {
+        let mut last_error: String;
 
-        let mut candidates = vec![self.model.clone()];
-        for model in JEV_MODEL_FALLBACKS {
-            if !candidates.iter().any(|candidate| candidate == model) {
-                candidates.push((*model).to_string());
+        if let Some(key) = self.api_key.as_ref() {
+            match self.post_decisions(OPENROUTER_DECISIONS_URL, Some(key), state, questions).await {
+                Ok(outcome) => return Ok(outcome),
+                Err(error) => last_error = error,
             }
+        } else {
+            last_error = "no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY in the PQC vault)".to_string();
         }
 
-        let mut last_error = String::new();
-        for model in candidates {
-            let payload = json!({ "model": model, "state": state, "questions": questions });
-            let response = self.client.post(OPENROUTER_DECISIONS_URL)
-                .header("Authorization", format!("Bearer {}", key))
-                .header("Content-Type", "application/json")
-                .header("HTTP-Referer", "https://github.com/nbiish/ainish-coder")
-                .header("X-Title", "ainish-rag-decisions")
-                .json(&payload)
-                .send()
-                .await
-                .map_err(|e| format!("Jev request failed: {}", e))?;
-
-            let status = response.status();
-            let body_text = response.text().await.unwrap_or_default();
-            if !status.is_success() {
-                last_error = format!("Jev API {} for {}: {}", status, model, truncate_chars(&body_text, 300));
-                if body_text.contains("does not exist") {
-                    continue;
+        // Additional transport: the local-router proxy on loopback, when it actually speaks the
+        // decisions protocol. A chat-only Jev entry is reported, never silently substituted.
+        if let Some(router) = discover_local_router().await {
+            match router.decisions_url.as_deref() {
+                Some(url) => match self.post_decisions(url, None, state, questions).await {
+                    Ok(outcome) => return Ok(outcome),
+                    Err(error) => {
+                        last_error = format!("{}; local-router {}: {}", last_error, router.base_url, error);
+                    }
+                },
+                None => {
+                    last_error = format!(
+                        "{}; local-router {} advertises Jev chat models ({}) but exposes no decisions route",
+                        last_error,
+                        router.base_url,
+                        router.jev_models.join(", ")
+                    );
                 }
-                return Err(last_error);
             }
-
-            let body: serde_json::Value = serde_json::from_str(&body_text)
-                .map_err(|e| format!("Jev response was not JSON: {}", e))?;
-            let resolved_model = body.get("model").and_then(|v| v.as_str()).unwrap_or(&model).to_string();
-            let answers = parse_jev_answers(&body);
-            if answers.is_empty() {
-                return Err("Jev response contained no answers".to_string());
-            }
-            let usage = body.get("usage").cloned().unwrap_or(serde_json::Value::Null);
-            return Ok((resolved_model, answers, usage));
         }
+
         Err(last_error)
+    }
+
+    /// POSTs one typed batch to a specific decisions endpoint. The key is only sent to OpenRouter.
+    async fn post_decisions(
+        &self,
+        endpoint: &str,
+        key: Option<&String>,
+        state: &str,
+        questions: &serde_json::Value,
+    ) -> Result<AskOutcome, String> {
+        let payload = json!({ "model": self.model, "state": state, "questions": questions });
+        let mut request = self.client.post(endpoint)
+            .header("Content-Type", "application/json")
+            .header("HTTP-Referer", "https://github.com/nbiish/ainish-coder")
+            .header("X-Title", "ainish-rag-decisions");
+        if let Some(key) = key {
+            request = request.header("Authorization", format!("Bearer {}", key));
+        }
+
+        let response = request
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| format!("Jev request to {} failed: {}", endpoint, e))?;
+        let status = response.status();
+        let body_text = response.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(format!(
+                "Jev API {} at {} for {}: {}",
+                status,
+                endpoint,
+                self.model,
+                truncate_chars(&body_text, 300)
+            ));
+        }
+
+        let body: serde_json::Value = serde_json::from_str(&body_text)
+            .map_err(|e| format!("Jev response was not JSON: {}", e))?;
+        let resolved_model = body.get("model").and_then(|v| v.as_str()).unwrap_or(&self.model).to_string();
+        let answers = parse_jev_answers(&body);
+        if answers.is_empty() {
+            return Err("Jev response contained no answers".to_string());
+        }
+        let usage = body.get("usage").cloned().unwrap_or(serde_json::Value::Null);
+        let transport = if endpoint.contains("openrouter.ai") { "openrouter".to_string() } else { format!("local-router:{}", endpoint) };
+        Ok(AskOutcome { model: resolved_model, answers, usage, transport })
     }
 
     /// Public typed decision primitive used by `ainish-rag decide --questions`.
     pub async fn decide(&self, state: &str, questions: &serde_json::Value) -> Result<DecisionSet, String> {
-        let (model, answers, usage) = self.ask(state, questions).await?;
-        let mut ordered: Vec<JevAnswer> = answers.into_values().collect();
+        let outcome = self.ask(state, questions).await?;
+        let mut ordered: Vec<JevAnswer> = outcome.answers.into_values().collect();
         ordered.sort_by(|a, b| a.id.cmp(&b.id));
-        Ok(DecisionSet { source: format!("openrouter:{}", model), model, answers: ordered, usage })
+        Ok(DecisionSet {
+            source: format!("{}:{}", outcome.transport, outcome.model),
+            model: outcome.model,
+            answers: ordered,
+            usage: outcome.usage,
+        })
     }
 
     /// Resolves the OpenRouter API key, accepting the consumer-prefixed names that the PQC store
@@ -346,8 +556,7 @@ impl DecisionEngine {
     /// Inspects PQC secrets vault configuration without exposing secret values
     pub fn inspect_secrets() -> SecretsStatus {
         let (api_key, key_source) = Self::resolve_api_key();
-        let model = env::var("JEV_DECISION_MODEL")
-            .unwrap_or_else(|_| DEFAULT_JEV_MODEL.to_string());
+        let model = resolve_jev_model();
 
         let detected_vault = Self::find_pqc_vault_bundle();
         let vault_exists = detected_vault.is_some();
@@ -503,7 +712,8 @@ impl DecisionEngine {
             )
         });
 
-        let (model, answers, _usage) = self.ask(prompt, &questions).await?;
+        let outcome = self.ask(prompt, &questions).await?;
+        let answers = outcome.answers;
         let retrieval_probability = answers.get("needs_retrieval").and_then(|a| a.noul).unwrap_or(0.85);
         let target_domain = answers
             .get("domain_target")
@@ -521,7 +731,7 @@ impl DecisionEngine {
             target_domain,
             route_confidence,
             context_freshness,
-            source: format!("openrouter:{}", model),
+            source: format!("{}:{}", outcome.transport, outcome.model),
         })
     }
 
@@ -655,7 +865,10 @@ impl DecisionEngine {
             "Query: {}\nTask: rank retrieved context for a coding agent. Prefer primary sources over generated or vendored material.",
             query
         );
-        let (model, answers, _usage) = self.ask(&state, &serde_json::Value::Object(questions)).await?;
+        let outcome = self.ask(&state, &serde_json::Value::Object(questions)).await?;
+        let answers = outcome.answers;
+        let model = outcome.model;
+        let transport = outcome.transport;
 
         let mut reranked = Vec::new();
         for (index, chunk) in capped.iter().enumerate() {
@@ -688,7 +901,8 @@ impl DecisionEngine {
             let combined = ((decision_score - role_penalty).max(0.0) * 0.70) + (chunk.score * 0.30);
             let is_relevant = direct >= 0.5;
             let rationale = format!(
-                "Jev {}: direct {:.2} ({}), symbols {:.2}, utility {:.2}/4 [{}], vector {:.2}",
+                "Jev {}:{}: direct {:.2} ({}), symbols {:.2}, utility {:.2}/4 [{}], vector {:.2}",
+                transport,
                 model,
                 direct,
                 noul_band(direct),
@@ -856,7 +1070,8 @@ impl DecisionEngine {
                 truncate_chars(output, 2000)
             );
 
-            if let Ok((model, answers, _usage)) = self.ask(&state, &questions).await {
+            if let Ok(outcome) = self.ask(&state, &questions).await {
+                let answers = outcome.answers;
                 let noul = answers.get("is_faithful").and_then(|answer| answer.noul).unwrap_or(0.9);
                 let score = answers
                     .get("faithfulness_score")
@@ -869,7 +1084,7 @@ impl DecisionEngine {
                     is_faithful: noul >= 0.5 && score_norm >= 0.4,
                     faithfulness_score: faithfulness,
                     halluncination_risk: (1.0 - faithfulness).max(0.0),
-                    evaluation_source: format!("openrouter:{}", model),
+                    evaluation_source: format!("{}:{}", outcome.transport, outcome.model),
                 };
             }
         }
@@ -962,6 +1177,52 @@ pub fn truncate_chars(text: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Environment mutation is process-global; serialize the tests that touch it.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn test_model_defaults_to_latest() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe { std::env::remove_var("JEV_DECISION_MODEL") };
+        assert_eq!(resolve_jev_model(), LATEST_JEV_MODEL);
+        assert!(!is_model_pinned());
+
+        for alias in ["latest", "typesafe/jev-latest"] {
+            unsafe { std::env::set_var("JEV_DECISION_MODEL", alias) };
+            assert_eq!(resolve_jev_model(), LATEST_JEV_MODEL);
+            assert!(!is_model_pinned());
+        }
+        unsafe { std::env::remove_var("JEV_DECISION_MODEL") };
+    }
+
+    #[test]
+    fn test_explicit_older_pin_is_reported_but_honored() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe { std::env::set_var("JEV_DECISION_MODEL", "typesafe/jev-1.13") };
+        assert_eq!(resolve_jev_model(), "typesafe/jev-1.13");
+        assert!(is_model_pinned(), "an older pin must be reported, not hidden");
+        unsafe { std::env::remove_var("JEV_DECISION_MODEL") };
+    }
+
+    #[test]
+    fn test_local_router_model_filter() {
+        let models = vec![
+            "openrouter-jev-router".to_string(),
+            "zenmux-deepseek-v4.1-flash".to_string(),
+            "typesafe-jev".to_string(),
+        ];
+        let jev = jev_models_filter(&models);
+        assert_eq!(jev, vec!["openrouter-jev-router", "typesafe-jev"]);
+        assert!(jev_models_filter(&["chat-model".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn test_local_decisions_paths_are_probed_in_order() {
+        assert_eq!(LOCAL_DECISIONS_PATHS[0], "/api/alpha/decisions");
+        assert!(DEFAULT_LOCAL_ROUTER_URL.ends_with(":11434"));
+    }
 
     #[test]
     fn test_parse_current_typed_answers() {
