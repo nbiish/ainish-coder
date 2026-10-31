@@ -97,3 +97,25 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:done
 - blockers:none
 - rebuild:no-rebuild-needed
+
+### [2026-10-31T06:18:00Z] update | branch:fix/rules-sync-lock-reclaim | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:56:00Z
+- end:2026-10-31T06:18:00Z
+- scope:src/deploy_rules_sync.sh (deployed refresher heredoc)
+- objective:stop one crashed refresh from disabling a repository permanently
+- input:all eight targets held a stale .agents/.rules-sync.lock; rmdir failed with EPERM (com.apple.provenance xattr), so the EXIT trap never cleaned up and every later run exited at the lock while --rules-status still said CURRENT
+- output:15-minute stale-lock reclaim, rm -rf instead of rmdir, and git -C based source-commit detection (a worktree .git is a file, so the digest fallback was masking stale deployments)
+- status:verifying
+- blockers:none
+
+### [2026-10-31T06:22:00Z] checkout | branch:fix/rules-sync-lock-reclaim | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:56:00Z
+- end:2026-10-31T06:22:00Z
+- scope:eight enrolled repositories, deployed refreshers, fleet registry
+- objective:leave every target on the fixed refresher with no stale locks
+- input:merged 631853d; cleared the eight legacy locks once (an old refresher cannot reclaim its own lock because it exits before the reclaim code runs)
+- output:8/8 manifests re-stamped at 631853d, 0 locks remaining, fleet sync exit 0
+- provenance:source_commit=631853d6ab54
+- status:done
+- blockers:none
+- rebuild:no-rebuild-needed
