@@ -1,0 +1,99 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — 2026-10-31
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
+
+</PROTOCOL>
+
+---
+### [2026-10-31T05:13:37Z] checkin | branch:feat/rules-fleet-migration | wt:/Users/nbiish/code/ainish-rules-fleet
+- start:2026-10-31T05:13:37Z
+- end:2026-10-31T05:15:00Z
+- scope:src/deploy_rules_sync.sh, src/deploy_agents.sh, llms.txt, ~/.config/ainish-coder/targets.txt
+- objective:migrate the enrolled fleet onto the official rules registry and make distribution automatic
+- input:rules-targets.json held 8 live repos; targets.txt absent, so --rules-status reported none registered
+- output:legacy registry importer, in-place enrollment of refresher-less targets, AGENTS.md snapshot before overwrite
+- triage:now
+- status:in_progress
+- blockers:none
+
+### [2026-10-31T05:32:00Z] update | branch:feat/rules-fleet-migration | wt:/Users/nbiish/code/ainish-rules-fleet
+- start:2026-10-31T05:15:00Z
+- end:2026-10-31T05:32:00Z
+- scope:src/deploy_rules_sync.sh, src/deploy_agents.sh, bin/ainish-coder
+- objective:prove migration and enrollment on a throwaway fleet before touching live repos
+- input:two sandbox repos (one standalone, one nested under a parent repo) plus legacy JSON fixtures
+- output:migration imported 2 real targets and dropped dead + /tmp paths; --rules-sync --all bootstrapped both; nested target kept hooks off the parent; second sync a no-op; manifests ML-DSA-65 verified
+- status:verifying
+- blockers:none
+
+### [2026-10-31T05:41:00Z] update | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:33:00Z
+- end:2026-10-31T05:41:00Z
+- scope:src/file_operations.sh, src/deploy_gitignore.sh, src/deploy_agents_comms.sh, src/deploy_rules_sync.sh, bin/ainish-coder
+- objective:fix the two failures the first live fleet run exposed
+- input:betterbrowsermcp .gitignore merge died with EXDEV (mktemp in $TMPDIR, target on /Volumes); errexit aborted the fleet at that target
+- output:ainish_temp_beside keeps scratch files on the destination filesystem, bundle survives gitignore/comms errors, per-target rc capture continues the fleet, refresher exits non-zero on failed refresh
+- status:verifying
+- blockers:none
+
+### [2026-10-31T05:50:00Z] intent-merge | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:50:00Z
+- end:2026-10-31T05:50:30Z
+- scope:canonical main, eight enrolled target repositories
+- objective:land the registry migration and the cross-device fix
+- input:security gate PASS, ainish-rag gate GREEN, sandbox fleet green on both volumes
+- output:merged 2ba7fac (migration) and 1bb0a7f (cross-device); fleet sync enrolled 8/8
+- status:merged
+- blockers:none
+
+### [2026-10-31T05:52:00Z] checkout | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:13:37Z
+- end:2026-10-31T05:52:00Z
+- scope:rules registry, eight target repos, deployed refreshers, provenance
+- objective:leave every enrolled repo current and self-refreshing
+- input:final verification sweep
+- output:8/8 CURRENT, 8/8 HEALTHY, 8/8 manifest signatures VERIFIED, AGENTS.md identical everywhere, all refreshers carry the fail-visible version
+- provenance:source_commit=1bb0a7f62a44 manifest_sha256=3ae0e04de735
+- status:done
+- blockers:none
+- rebuild:no-rebuild-needed
