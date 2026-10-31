@@ -9,8 +9,11 @@ Run with:  py -m unittest discover -s src/rag/tests -p "test_*.py"
 """
 
 import importlib.util
+import json
 import os
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 RAG_PATH = Path(__file__).resolve().parents[1] / "rag.py"
@@ -100,7 +103,7 @@ class JevDecisionFlowTest(unittest.TestCase):
                     "domain_target": {"type": "choice", "choice": "codebase_symbols", "confidence": 0.88},
                     "context_freshness": {"type": "noul", "noul": 0.21},
                 }
-            }), {}
+            }), {}, "openrouter"
 
         self.engine._ask = fake_ask
         route = self.engine.route("where is the embedding provider resolved")
@@ -124,7 +127,7 @@ class JevDecisionFlowTest(unittest.TestCase):
                     "utility_1": {"type": "score", "score": 1.0},
                     "chunk_role_1": {"type": "choice", "choice": "generated"},
                 }
-            }), {}
+            }), {}, "openrouter"
 
         self.engine._ask = fake_ask
         candidates = [
@@ -144,7 +147,7 @@ class JevDecisionFlowTest(unittest.TestCase):
                     "is_faithful": {"type": "noul", "noul": 0.8},
                     "faithfulness_score": {"type": "score", "score": 4.0},
                 }
-            }), {}
+            }), {}, "openrouter"
 
         self.engine._ask = fake_ask
         eval_result = self.engine.evaluate_faithfulness("ctx", "out")
@@ -174,6 +177,112 @@ class OpenRouterKeyNamesTest(unittest.TestCase):
     def test_pqc_store_consumer_prefixed_name_is_accepted(self):
         rag._PQC_SECRETS_CACHE = {"LOCALROUTER_OPENROUTER_API_KEY": "sk-or-vault"}
         self.assertEqual(rag.resolve_api_key(), "sk-or-vault")
+
+
+class JevModelPolicyTest(unittest.TestCase):
+    def setUp(self):
+        self._saved = os.environ.get("JEV_DECISION_MODEL")
+        os.environ.pop("JEV_DECISION_MODEL", None)
+
+    def tearDown(self):
+        if self._saved is None:
+            os.environ.pop("JEV_DECISION_MODEL", None)
+        else:
+            os.environ["JEV_DECISION_MODEL"] = self._saved
+
+    def test_default_is_latest(self):
+        self.assertEqual(rag.resolve_jev_model(), rag.LATEST_JEV_MODEL)
+        self.assertFalse(rag.is_model_pinned())
+
+    def test_latest_aliases(self):
+        for alias in ("latest", "typesafe/jev-latest"):
+            os.environ["JEV_DECISION_MODEL"] = alias
+            self.assertEqual(rag.resolve_jev_model(), rag.LATEST_JEV_MODEL)
+            self.assertFalse(rag.is_model_pinned())
+
+    def test_explicit_older_pin_is_reported(self):
+        os.environ["JEV_DECISION_MODEL"] = "typesafe/jev-1.13"
+        self.assertEqual(rag.resolve_jev_model(), "typesafe/jev-1.13")
+        self.assertTrue(rag.is_model_pinned())
+
+
+class LocalRouterDiscoveryTest(unittest.TestCase):
+    """The local-router is an additional transport only when it speaks the decisions protocol."""
+
+    class _RouterHandler(BaseHTTPRequestHandler):
+        decisions = True
+
+        def do_GET(self):  # noqa: N802
+            if self.path == "/v1/models":
+                self._send({"data": [{"id": "openrouter-jev-router"}, {"id": "zenmux-deepseek-v4.1-flash"}]})
+            else:
+                self._send({"error": "not found"}, status=404)
+
+        def do_POST(self):  # noqa: N802
+            if self.decisions and self.path == "/api/alpha/decisions":
+                length = int(self.headers.get("Content-Length", 0))
+                self.rfile.read(length)
+                self._send({"model": "typesafe/jev-1.14-20261014", "answers": {"q": {"type": "noul", "noul": 0.9}}})
+            else:
+                self._send({"error": "not found"}, status=404)
+
+        def _send(self, payload, status=200):
+            body = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    def setUp(self):
+        self._saved = {k: os.environ.get(k) for k in ("JEV_LOCAL_ROUTER_URL", *rag.OPENROUTER_KEY_NAMES)}
+        for key in rag.OPENROUTER_KEY_NAMES:
+            os.environ.pop(key, None)
+        rag._PQC_SECRETS_CACHE = {}
+        self.server = HTTPServer(("127.0.0.1", 0), self._RouterHandler)
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        os.environ["JEV_LOCAL_ROUTER_URL"] = f"http://127.0.0.1:{self.port}"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        rag._PQC_SECRETS_CACHE = None
+
+    def test_decisions_capable_router_is_a_fallback_transport(self):
+        engine = rag.DecisionEngine()
+        model, answers, _usage, transport = engine._ask(
+            "state", {"q": rag.DecisionEngine.noul_question("q", "yes", "no")}
+        )
+        self.assertEqual(model, "typesafe/jev-1.14-20261014")
+        self.assertAlmostEqual(answers["q"]["noul"], 0.9)
+        self.assertTrue(transport.startswith("local-router:"))
+        self.assertTrue(transport.endswith("/api/alpha/decisions"))
+
+    def test_chat_only_router_is_reported_not_used(self):
+        self._RouterHandler.decisions = False
+        try:
+            engine = rag.DecisionEngine()
+            with self.assertRaises(RuntimeError) as ctx:
+                engine._ask("state", {"q": rag.DecisionEngine.noul_question("q", "yes", "no")})
+            self.assertIn("no decisions route", str(ctx.exception))
+        finally:
+            self._RouterHandler.decisions = True
+
+    def test_inspect_jev_reports_local_router(self):
+        status = rag.inspect_jev()
+        self.assertEqual(status["model"], rag.LATEST_JEV_MODEL)
+        self.assertIsNotNone(status["local_router"])
+        self.assertIn("openrouter-jev-router", status["local_router"]["jev_models"])
 
 
 if __name__ == "__main__":

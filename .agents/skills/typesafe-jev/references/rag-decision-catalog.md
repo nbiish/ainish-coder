@@ -119,7 +119,12 @@ catalog, and keep the fallback intact.
 
 ## Degradation policy
 
+- Transport order: OpenRouter Decisions (latest `typesafe/jev-1.14`) → a local-router decisions
+  route when one is discovered (`source: local-router:<url>:<model>`) → the calibrated local
+  router (`source: local-calibrated`). There is no downgrade to older Jev models.
 - No key or unreachable API → `source` names the local fallback; the command still answers.
 - API error (400/401/5xx) during rerank → that rerank falls back locally; the command continues.
 - API error during `decide --questions` → the command exits with an error (no invented answer).
+- A local-router that only serves Jev over chat completions is reported by `ainish-rag secrets`
+  and is never used for typed decisions.
 - Never treat a transport failure as a negative judgment.

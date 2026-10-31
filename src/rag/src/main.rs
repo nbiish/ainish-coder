@@ -1531,15 +1531,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
+            let jev = crate::decision::inspect_jev().await;
             if json {
-                println!("{}", serde_json::to_string_pretty(&status)?);
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                    "has_key": status.has_key,
+                    "key_source": status.key_source,
+                    "vault_bundle_exists": status.vault_bundle_exists,
+                    "vault_path": status.vault_path,
+                    "model": status.model,
+                    "decision": jev,
+                }))?);
             } else {
                 println!("\n=== PQC Secrets & Decision Model Status ===");
                 println!("OpenRouter Key Present: {}", if status.has_key { "YES" } else { "NO (offline calibrated fallback active)" });
                 println!("Key Resolution Source:  {}", status.key_source);
                 println!("PQC Vault Bundle:       {}", if status.vault_bundle_exists { "FOUND" } else { "NOT FOUND" });
                 println!("Vault Path:             {}", status.vault_path);
-                println!("Decision Model Target:  {}", status.model);
+                println!("Decision Model:         {} (latest: {})", jev.model, jev.latest_model);
+                if jev.model_pinned {
+                    println!("  \x1b[33m!\x1b[0m JEV_DECISION_MODEL pins a model other than the latest");
+                }
+                println!("OpenRouter Endpoint:    {}", jev.endpoint);
+                match jev.local_router.as_ref() {
+                    Some(router) => {
+                        println!("Local Router:           {} (jev models: {})", router.base_url, router.jev_models.join(", "));
+                        match router.decisions_url.as_deref() {
+                            Some(url) => println!("  Decisions Route:      {} (fallback transport)", url),
+                            None => println!("  Decisions Route:      none (chat-only entry; typed decisions stay on OpenRouter)"),
+                        }
+                    }
+                    None => println!("Local Router:           not detected on loopback"),
+                }
                 println!();
             }
         }
