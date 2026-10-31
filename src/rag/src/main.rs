@@ -241,6 +241,10 @@ enum Commands {
         /// Decision question to ask (noul yes/no)
         #[arg(short, long)]
         question: Option<String>,
+        /// Typed question batch as inline JSON or @path (noul/choice/score with criteria).
+        /// Overrides --question and returns every typed answer.
+        #[arg(long)]
+        questions: Option<String>,
         /// Output decision as JSON
         #[arg(long)]
         json: bool,
@@ -1336,22 +1340,100 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Source:                {}", decision.source);
                 println!("Needs Retrieval:       {} (probability: {:.3})", decision.needs_retrieval, decision.retrieval_probability);
                 println!("Target Domain:         {} (confidence:  {:.3})", decision.target_domain, decision.route_confidence);
+                println!("Context Freshness:     {:.3}", decision.context_freshness);
                 println!();
             }
         }
-        Commands::Decide { state, question, json } => {
+        Commands::Decide { state, question, questions, json } => {
             let engine = DecisionEngine::new();
-            let q = question.unwrap_or_else(|| "Does this task require external retrieval or escalation?".to_string());
+
+            // `--questions` is the agent-facing primitive: typed noul/choice/score questions with
+            // explicit criteria, answered together in one calibrated request.
+            if let Some(raw) = questions {
+                let text = if let Some(path) = raw.strip_prefix('@') {
+                    std::fs::read_to_string(path)?
+                } else if std::path::Path::new(&raw).is_file() {
+                    std::fs::read_to_string(&raw)?
+                } else {
+                    raw
+                };
+                let parsed: serde_json::Value = serde_json::from_str(&text)
+                    .map_err(|e| format!("--questions must be a JSON object of typed questions: {}", e))?;
+                if !parsed.is_object() {
+                    return Err("--questions must be a JSON object keyed by question id".into());
+                }
+                let set = engine.decide(&state, &parsed).await?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "state": state,
+                        "model": set.model,
+                        "source": set.source,
+                        "answers": set.answers,
+                        "usage": set.usage,
+                    }))?);
+                } else {
+                    println!("\n=== Jev Typed Decisions ===");
+                    println!("State:   {}", state.lines().next().unwrap_or(""));
+                    println!("Model:   {} ({})", set.model, set.source);
+                    for answer in &set.answers {
+                        let value = if let Some(p) = answer.noul {
+                            format!("{:.3} ({})", p, answer.band())
+                        } else if let Some(choice) = &answer.choice {
+                            format!("{}{}", choice, answer.confidence.map(|c| format!(" (confidence {:.2})", c)).unwrap_or_default())
+                        } else if let Some(score) = answer.score {
+                            format!("{:.2}", score)
+                        } else {
+                            "n/a".to_string()
+                        };
+                        println!("  {:<28} {:<8} {}", answer.id, answer.kind, value);
+                    }
+                    println!();
+                }
+                return Ok(());
+            }
+
+            if let Some(q) = question {
+                let questions = serde_json::json!({
+                    "statement": DecisionEngine::noul_question(
+                        &q,
+                        "the state provides clear evidence that the answer is yes",
+                        "the state provides no evidence that the answer is yes"
+                    )
+                });
+                let set = engine.decide(&state, &questions).await?;
+                let answer = set.answers.first();
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "state": state,
+                        "question": q,
+                        "model": set.model,
+                        "source": set.source,
+                        "answer": answer,
+                    }))?);
+                } else {
+                    println!("\n=== Jev Decision Analysis ===");
+                    println!("State:                 {}", state.lines().next().unwrap_or(""));
+                    println!("Question:              {}", q);
+                    println!("Model:                 {} ({})", set.model, set.source);
+                    match answer.and_then(|a| a.noul) {
+                        Some(p) => println!("Answer:                {:.3} ({})", p, crate::decision::noul_band(p)),
+                        None => println!("Answer:                unresolved"),
+                    }
+                    println!();
+                }
+                return Ok(());
+            }
+
             let decision = engine.route(&state).await;
             if json {
                 println!("{}", serde_json::to_string_pretty(&decision)?);
             } else {
-                println!("\n=== Jev Decision Analysis ===");
-                println!("State:                 {}", state);
-                println!("Question:              {}", q);
+                println!("\n=== Jev Decision Routing ===");
+                println!("State:                 {}", state.lines().next().unwrap_or(""));
                 println!("Source:                {}", decision.source);
-                println!("Needs Retrieval:       {}", decision.needs_retrieval);
-                println!("Target Domain:         {}", decision.target_domain);
+                println!("Needs Retrieval:       {} ({:.3})", decision.needs_retrieval, decision.retrieval_probability);
+                println!("Target Domain:         {} (confidence {:.3})", decision.target_domain, decision.route_confidence);
+                println!("Context Freshness:     {:.3}", decision.context_freshness);
                 println!();
             }
         }
