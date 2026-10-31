@@ -38,13 +38,14 @@ The engine always targets the latest decision model. It does **not** downgrade t
 when OpenRouter answers `Model ... does not exist` the call fails with that reason, after which the
 command falls back to the calibrated local router rather than silently using older judgments.
 
-## Additional transport — local router
+## Additional transport — Local Router
 
-The loopback local-router proxy (`http://127.0.0.1:11434`, or `JEV_LOCAL_ROUTER_URL`) is an
-*additional* transport, probed in this order:
+The loopback Local Router (`http://127.0.0.1:11434`, or `JEV_LOCAL_ROUTER_URL`) is an additional
+*typed* transport, probed in this order:
 
-1. `GET {base}/v1/models` — any id containing `jev` (today: `openrouter-jev-router`) marks a Jev
-   candidate.
+1. `GET {base}/v1/models` — any id containing `jev` marks a Jev candidate. A decisions-capable
+   router advertises pinned ids (`openrouter/jev-1.14`, `zenmux/jev-1.14`) with
+   `capabilities.decisions: true`, alongside the chat-only `openrouter-jev-router` alias.
 2. `POST {base}/api/alpha/decisions`, then `/v1/decisions`, then `/decisions` — the first route that
    answers a minimal typed probe is usable.
 
@@ -54,10 +55,26 @@ router that only exposes Jev over chat completions is reported by `ainish-rag se
 `Decisions Route: none (chat-only entry)` and is never substituted for typed, calibrated decisions
 — chat Jev routes can resolve to general models and carry no calibrated semantics.
 
-Verified 2026-10-31: local-router `:11434` advertises `openrouter-jev-router`, has no decisions
-route (404), and a chat completion for that id was served by `anthropic/claude-opus-5.5` — so
-typed decisions correctly remain on OpenRouter, while discovery makes the router usable the moment
-it proxies the decisions API.
+Verified 2026-10-31 against Local Router 1.1.0 (`main` @ `471d3f6`, production `:11434`):
+
+- All three routes answer the canonical body; responses add `provider`, `dialect`, and a
+  `local_router` provenance block (`attempts`, `translations`, `elapsed_ms`).
+- `/v1/models` exposes `openrouter/jev-1.14` and `zenmux/jev-1.14` with
+  `capabilities.decisions: true`. Both are pinned: served while the provider key is configured,
+  regardless of catalog curation (decision ids are also reserved, so a chat model cannot shadow
+  them).
+- Failover is availability-only: `401/403/404/429/5xx`, a timeout, or a malformed/partial answer is
+  recorded and the next keyed provider answers. If every provider rejects the contract
+  (`400/422`), the caller gets that error — never a silent default.
+- ZenMux speaks the `zenmux` dialect (strict array body: `{model, input, questions:[{name, type,
+  choices|levels}]}`) and has **no noul primitive**; the router carries a noul as a calibrated
+  two-way choice and converts back, marking the answer `translated_from: "choice"`. On 2026-10-31
+  its route still answered `404 model_not_supported` for `typesafe/jev-1.14`, so a
+  `zenmux/jev-1.14` request was served by OpenRouter with both attempts in provenance.
+- Forcing the fallback transport is reproducible: export a deliberately invalid
+  `OPENROUTER_API_KEY`, then `ainish-rag decide` reports
+  `source: local-router:http://127.0.0.1:11434/api/alpha/decisions:typesafe/jev-1.14-20261014`.
+  The router's own diagnostics are `GET /api/decisions/status[?probe=true]`.
 
 ## Request body
 
