@@ -188,7 +188,7 @@ Durable knowledge lives in `.agents/memories/{date}-memory.txt` — one file per
 
 ## Before you yield
 
-☐ worktree, never `main` · ☐ task record + ledger closed + suggestions appended · ☐ no secrets in tree and writes proven (`pqc-secrets list --json`), no banned crypto · ☐ gates green (`ainish-rag gate --tests "<existing suite>"`) · ☐ patch evaluated (`ainish-rag eval --patch`) · ☐ real-usage proof named before any new test file · ☐ smoke test on the changed surface · ☐ scope + tree/diff proof per change · ☐ server rebuilt or `no-rebuild-needed` · ☐ memory updated · ☐ every task lanned · ☐ context grounded in wiki/RAG + drift clean + decision-validated · ☐ audit receipts verified (`ainish-rag audit verify`) · ☐ deliverable complete end-to-end — else the exact blocker is stated.
+☐ worktree, never `main` · ☐ task record + ledger closed + suggestions appended · ☐ no secrets in tree and writes proven (`pqc-secrets list --json`), no banned crypto · ☐ gates green (`ainish-rag gate --tests "<existing suite>"`) · ☐ patch evaluated (`ainish-rag eval --patch`) · ☐ triggered master lenses fired (compat/concurrency/economics/accessibility/rights/interop where touched) · ☐ real-usage proof named before any new test file · ☐ smoke test on the changed surface · ☐ scope + tree/diff proof per change · ☐ server rebuilt or `no-rebuild-needed` · ☐ memory updated · ☐ every task lanned · ☐ context grounded in wiki/RAG + drift clean + decision-validated · ☐ audit receipts verified (`ainish-rag audit verify`) · ☐ deliverable complete end-to-end — else the exact blocker is stated.
 
 </AUDIT>
 
@@ -196,7 +196,20 @@ Durable knowledge lives in `.agents/memories/{date}-memory.txt` — one file per
 
 ## End of turn — masters' suggestions
 
-Review `.agents/suggestions/{date}-suggestions.txt` before acting on anything. Before yielding, append one entry block (`### [<ISO-8601>] <branch>`, no `agent:` tag): what changed + exactly one `Next step:` + one sentence per master, in order: adversarial/security · privacy/data-protection · supply-chain/third-party-risk · systems-architecture/devops · reliability/verification · governance/sovereignty · terminal-orchestration/swe-bench · master-orchestrator/self-prompting · developer-experience/ergonomics.
+Review `.agents/suggestions/{date}-suggestions.txt` before acting on anything. Before yielding, append one entry block (`### [<ISO-8601>] <branch>`, no `agent:` tag): what changed + exactly one `Next step:` + one sentence per master that fired.
+
+**Core lenses (every turn, in order):** adversarial/security · privacy/data-protection · supply-chain/third-party-risk · systems-architecture/devops · reliability/verification · governance/sovereignty · terminal-orchestration/swe-bench · master-orchestrator/self-prompting · developer-experience/ergonomics.
+
+**Triggered lenses (only when this turn's diff touches the surface):**
+
+- **compatibility** — an interface, schema, flag, file format, or shared contract changed. Name the compatibility window and the expand→migrate→contract path in a `compat:` task-record line; never break a deployed target silently.
+- **concurrency** — shared mutable state (comms, memories, suggestions, config, index) or a second writer appears. Writes stay append-only or lock-guarded; name the recovery/merge rule.
+- **economics** — retrieval, model, cache, test, or CI spend is decided. Declare a `budget:` line and the cheapest sufficient path; batch or cache before spending.
+- **accessibility** — user-facing text, color, symbols, or TTY output changed. It must survive no-color, no-mouse, plain-language reading (WCAG 2.2 AA, text alternatives, RTL/CJK).
+- **rights** — a dependency, model, dataset, or asset enters. Record license + provenance; community/Indigenous data follows CARE/OCAP and stays inside its governance boundary.
+- **interop** — a cross-harness or cross-OS contract changed. Update the parity matrix row or mark it N/A; a capability is "supported" only when every registered harness proves it.
+
+The gate reports these as a `Master Surfaces:` line: a touched contract surface without a `compat:` line, or a non-append edit to shared state, turns the gate RED; a touched spend surface without a `budget:` line is a WARN (RED under `--strict`). Accessibility, rights, and interop are reviewed in the suggestion block until they gain machine checks.
 
 </OUTPUT>
 
