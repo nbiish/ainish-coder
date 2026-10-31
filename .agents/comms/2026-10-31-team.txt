@@ -150,3 +150,42 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:spawn floor (512 with mmproj), real -ngl 0 CPU pinning, no -fa on CPU, llama stderr log + hints, gate --tests evidence, test/impl delta, contract sha256 on the card and in gate-status.json; contract and skill clauses for security repros/no test deps/real-usage proof/subagent inheritance
 - status:verified
 - blockers:none
+### [2026-10-31T17:35:16Z] checkin | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:16Z
+- end:2026-10-31T17:35:16Z
+- scope:src/rag/src/{provider.rs,decision.rs,config.rs,main.rs}, src/rag/rag.py, .agents/skills/typesafe-jev/, AGENTS.md, llms.txt
+- triage:now
+- objective:prioritize OpenRouter and Local Router tooling for embeddings and decision models, and implement cutting-edge decision-model RAG enhancements (Adaptive RAG routing, CRAG corrective retrieval & hard-negative gating, Self-RAG contradiction/completeness evaluation, decision-guided orient primer, and code-scoped patch anchoring)
+- input:operator request; live OpenRouter + Local Router (:11434) endpoints; TypeSafe Jev 1.14 decision catalog
+- output:pending
+- status:in-progress
+- blockers:none
+### [2026-10-31T18:15:00Z] update | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:00Z
+- end:2026-10-31T18:15:00Z
+- scope:same
+- objective:prove the prioritized decision transports and the CRAG/adaptive retrieval on the real surface
+- input:OpenRouter `typesafe/jev-1.14`; Local Router 1.1.0 on :11434 with `/api/decisions/status`; main index
+- output:default route -> `openrouter:typesafe/jev-1.14-20261014` (5 signals, `hybrid_rerank` pool 12); `JEV_TRANSPORT_PRIORITY=local-router,openrouter` -> `local-router:.../api/alpha/decisions` (`security_governance`, `multi_hop_expand` pool 16); query -> `context_sufficiency: partial_unsettled (CRAG corrective expansion pass applied)`; eval -> contradiction 0.45 / verdict `unsupported`; orient -> route hint + `route_decision` in JSON
+- status:verifying
+- blockers:none
+
+### [2026-10-31T18:25:00Z] intent-merge | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:00Z
+- end:2026-10-31T18:25:00Z
+- scope:same
+- objective:merge the decision-priority feature, fix the provider-config regression it exposed, and prove the gate on main
+- input:branch gate GREEN 71.8% STRONG_ANCHOR with cargo+python suites PASS; canonical `f71d5368…`; main gate then caught 4 embed-provider failures
+- output:merge --no-ff 23c18b2; fix d2c0fbd (`_linked_worktree_root`, worktree-only canonical fallback) merged cb7d584; task record db63b0d merged 244366f
+- status:merged
+- blockers:none
+
+### [2026-10-31T18:33:00Z] checkout | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:00Z
+- end:2026-10-31T18:33:00Z
+- scope:src/rag/src/{decision.rs,provider.rs,config.rs,main.rs}, src/rag/rag.py, src/rag/tests/test_embed_provider.py, .agents/skills/typesafe-jev/, AGENTS.md, llms.txt
+- objective:close the loop after merge, rebuild, reindex, and audit
+- input:merged 23c18b2 + cb7d584 + 244366f; engine rebuilt from main; main reindexed to 3,583 records; main gate GREEN 73.3% STRONG_ANCHOR with `cargo test` + Python suite PASS; audit verify 15/15
+- output:OpenRouter + Local Router prioritized transports with `JEV_TRANSPORT_PRIORITY` and `/api/decisions/status` fast path; adaptive `retrieval_strategy`/`candidate_pool_size`; CRAG sufficiency + one corrective expansion; contradiction/completeness/verdict bands; decision-guided orient; consumer-prefixed PQC key suffixes (`PSIONICS_*`); worktree-only canonical config fallback
+- status:verified
+- blockers:none
