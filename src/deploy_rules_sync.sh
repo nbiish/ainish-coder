@@ -214,7 +214,8 @@ sha_of() {
 }
 
 CURRENT_COMMIT=""
-if command -v git >/dev/null 2>&1 && [ -d "$SRC/.git" ]; then
+if command -v git >/dev/null 2>&1; then
+    # git -C resolves both a normal checkout and a worktree (where .git is a file).
     CURRENT_COMMIT=$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)
 fi
 
@@ -232,8 +233,20 @@ CLI="$SRC/bin/ainish-coder"
 [ -n "$CLI" ] || exit 0
 
 LOCK="$ROOT/.agents/.rules-sync.lock"
-mkdir "$LOCK" 2>/dev/null || exit 0
-trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT INT TERM HUP
+# Directory lock: mkdir is atomic. A run killed before its EXIT trap leaves the
+# lock behind, so a lock older than 15 minutes is reclaimed once — otherwise one
+# crash would disable auto-sync for this repository forever.
+if ! mkdir "$LOCK" 2>/dev/null; then
+    if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +15 2>/dev/null)" ]; then
+        rm -rf "$LOCK" 2>/dev/null || true
+        mkdir "$LOCK" 2>/dev/null || exit 0
+    else
+        exit 0
+    fi
+fi
+# rm -rf, not rmdir: macOS refuses rmdir on directories carrying the
+# com.apple.provenance xattr (EPERM) even for the owner.
+trap 'rm -rf "$LOCK" 2>/dev/null || true' EXIT INT TERM HUP
 
 [ "$QUIET" = "1" ] || printf '[ainish-rules-sync] refreshing rules from %s\n' "$SRC"
 # Exit non-zero on failure so `--rules-sync --all` can report a truthful fleet
