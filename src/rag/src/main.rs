@@ -3936,6 +3936,193 @@ fn truncate_cmd(cmd: &str, max: usize) -> String {
     }
 }
 
+/// One triggered-master surface: whether this patch touches it and whether the turn declared
+/// what the lens requires (`compat:` / `budget:` lines, append-only state, parity row).
+#[derive(Debug, Clone, serde::Serialize, Default)]
+pub struct MasterCheck {
+    pub touched: bool,
+    pub declared: bool,
+    pub detail: String,
+}
+
+/// The three machine-checkable triggered lenses from `AGENTS.md` `<OUTPUT>`.
+#[derive(Debug, Clone, serde::Serialize, Default)]
+pub struct MasterSurfaceReport {
+    pub compatibility: MasterCheck,
+    pub concurrency: MasterCheck,
+    pub economics: MasterCheck,
+}
+
+impl MasterSurfaceReport {
+    pub fn compat_ok(&self) -> bool {
+        !self.compatibility.touched || self.compatibility.declared
+    }
+
+    pub fn concurrency_ok(&self) -> bool {
+        self.concurrency.detail.is_empty()
+    }
+
+    pub fn economics_ok(&self) -> bool {
+        !self.economics.touched || self.economics.declared
+    }
+}
+
+fn today_utc() -> String {
+    chrono::Utc::now().format("%Y-%m-%d").to_string()
+}
+
+fn read_today_task_record(repo_root: &std::path::Path) -> String {
+    let path = repo_root
+        .join(".agents")
+        .join("tasks")
+        .join(format!("{}-task.md", today_utc()));
+    std::fs::read_to_string(path).unwrap_or_default()
+}
+
+/// True when `text` carries a `key:` declaration line (a leading bullet or list dash is allowed).
+pub fn has_declaration(text: &str, key: &str) -> bool {
+    let prefix = format!("{}:", key.to_ascii_lowercase());
+    text.lines().any(|line| {
+        let trimmed = line
+            .trim()
+            .trim_start_matches(['-', '+'])
+            .trim()
+            .to_ascii_lowercase();
+        trimmed.starts_with(&prefix)
+    })
+}
+
+fn push_label(labels: &mut Vec<String>, label: &str) {
+    if !labels.iter().any(|existing| existing == label) {
+        labels.push(label.to_string());
+    }
+}
+
+/// Detects contract surfaces whose change needs a `compat:` declaration: shared contract docs and
+/// skill packs, CLI flags, schema `format:` fields, config-file shapes, and env-var interfaces.
+pub fn contract_surfaces_touched(patch: &str) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::new();
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            let path = rest.trim().to_ascii_lowercase();
+            if path == "agents.md"
+                || path == "llms.txt"
+                || path.starts_with(".agents/canonical/")
+                || path.starts_with(".agents/skills/")
+                || path.starts_with("src/templates/")
+            {
+                push_label(&mut labels, "contract");
+            }
+            if ["embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json"]
+                .iter()
+                .any(|name| path.ends_with(name))
+            {
+                push_label(&mut labels, "schema");
+            }
+            continue;
+        }
+        if line.starts_with("+++") || line.starts_with("---") || !(line.starts_with('+') || line.starts_with('-')) {
+            continue;
+        }
+        let content = &line[1..];
+        if content.contains("#[arg(")
+            || content.contains("add_argument(")
+            || content.contains("long = \"")
+            || content.contains("env::var(\"")
+            || content.contains("os.environ.get(\"")
+            || content.contains("os.environ[\"")
+        {
+            push_label(&mut labels, "cli");
+        }
+        if content.contains("\"format\":") || content.contains("format=") {
+            push_label(&mut labels, "schema");
+        }
+    }
+    labels
+}
+
+/// Shared state must be append-only: a non-header removed line in comms/memories/suggestions is a
+/// lost-update risk under multiple writers.
+pub fn shared_state_removals(patch: &str) -> Vec<String> {
+    let mut violations: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut removed = 0usize;
+    let flush = |path: &str, removed: usize, violations: &mut Vec<String>| {
+        if removed == 0 {
+            return;
+        }
+        let lower = path.to_ascii_lowercase();
+        if lower.starts_with(".agents/comms/")
+            || lower.starts_with(".agents/memories/")
+            || lower.starts_with(".agents/suggestions/")
+        {
+            violations.push(format!("{} ({} removed line(s))", path, removed));
+        }
+    };
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            flush(&current, removed, &mut violations);
+            current = rest.trim().to_string();
+            removed = 0;
+            continue;
+        }
+        if line.starts_with('-') && !line.starts_with("---") {
+            removed += 1;
+        }
+    }
+    flush(&current, removed, &mut violations);
+    violations
+}
+
+pub fn spends_resources(path: &str) -> bool {
+    let lower = path.replace('\\', "/").to_ascii_lowercase();
+    lower.starts_with("src/rag/")
+        || lower.starts_with(".github/")
+        || lower.starts_with("benchmarks/")
+        || lower.starts_with("scripts/")
+}
+
+pub fn assess_master_surfaces(repo_root: &std::path::Path, patch: &str) -> MasterSurfaceReport {
+    let task_record = read_today_task_record(repo_root);
+
+    let labels = contract_surfaces_touched(patch);
+    let compatibility = MasterCheck {
+        touched: !labels.is_empty(),
+        declared: has_declaration(&task_record, "compat") || has_declaration(patch, "compat"),
+        detail: labels.join(", "),
+    };
+
+    let removals = shared_state_removals(patch);
+    let mut touched_shared = false;
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            let p = rest.trim().to_ascii_lowercase();
+            if p.starts_with(".agents/comms/") || p.starts_with(".agents/memories/") || p.starts_with(".agents/suggestions/") {
+                touched_shared = true;
+            }
+        }
+    }
+    let concurrency = MasterCheck {
+        touched: touched_shared,
+        declared: removals.is_empty(),
+        detail: removals.join("; "),
+    };
+
+    let touched_spend = patch
+        .lines()
+        .filter_map(|line| line.strip_prefix("+++ b/"))
+        .any(|path| spends_resources(path.trim()));
+    let economics = MasterCheck {
+        touched: touched_spend,
+        declared: has_declaration(&task_record, "budget")
+            || has_declaration(patch, "budget")
+            || std::env::var("AINISH_GATE_BUDGET").map(|v| !v.trim().is_empty()).unwrap_or(false),
+        detail: if touched_spend { "spend surface touched".to_string() } else { String::new() },
+    };
+
+    MasterSurfaceReport { compatibility, concurrency, economics }
+}
+
 async fn run_gate(
     config: &RagConfig,
     repo_root: &std::path::Path,
@@ -4104,7 +4291,19 @@ async fn run_gate(
     let tests_run = tests.map(|cmd| (cmd.to_string(), run_test_command(repo_root, cmd)));
     let tests_pass = tests_run.as_ref().map_or(true, |(_, (ok, _))| *ok);
 
-    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass && tests_pass;
+    // Triggered master lenses (compatibility / concurrency / economics): cheap, diff-derived.
+    let master_surfaces = assess_master_surfaces(repo_root, &patch_text);
+    let masters_pass = master_surfaces.compat_ok()
+        && master_surfaces.concurrency_ok()
+        && (!effective_strict || master_surfaces.economics_ok());
+
+    let overall_pass = patch_pass
+        && lock_pass
+        && audit_pass
+        && comms_pass
+        && zt_pass
+        && tests_pass
+        && masters_pass;
 
     // Persist the latest gate verdict for `orient --inject --json` (`gate_ready`) and statusline consumers.
     let (cache_branch, cache_commit) = git_branch_sha(repo_root);
@@ -4115,6 +4314,7 @@ async fn run_gate(
         "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
         "docs_only": docs_only_patch,
         "contract_sha256": agents_sha,
+        "master_surfaces": master_surfaces,
         "diff_stats": {
             "test_lines_added": test_lines_added,
             "impl_lines_added": impl_lines_added
@@ -4200,6 +4400,7 @@ async fn run_gate(
                 "exit_code": tests_run.as_ref().and_then(|(_, (_, code))| *code),
                 "pass": tests_pass
             },
+            "master_surfaces": master_surfaces,
             "comms_hygiene": {
                 "pass": comms_pass,
                 "legacy_agent_tag_violations": comms_violations
@@ -4248,6 +4449,27 @@ async fn run_gate(
             None => "\x1b[33mSKIPPED (pass --tests \"<cmd>\")\x1b[0m".to_string(),
         };
         println!("  Existing Tests:         {}", tests_label);
+
+        let master_label = format!(
+            "{} · {} · {}",
+            if master_surfaces.compat_ok() {
+                "\x1b[32mcompat PASS\x1b[0m".to_string()
+            } else {
+                format!("\x1b[31mcompat FAIL (no compat: for {})\x1b[0m", master_surfaces.compatibility.detail)
+            },
+            if master_surfaces.concurrency_ok() {
+                "\x1b[32mconcurrency PASS\x1b[0m".to_string()
+            } else {
+                format!("\x1b[31mconcurrency FAIL ({})\x1b[0m", master_surfaces.concurrency.detail)
+            },
+            match (master_surfaces.economics.touched, master_surfaces.economics.declared) {
+                (false, _) => "\x1b[90mecon n/a\x1b[0m".to_string(),
+                (true, true) => "\x1b[32mecon PASS\x1b[0m".to_string(),
+                (true, false) if effective_strict => "\x1b[31mecon FAIL (no budget:)\x1b[0m".to_string(),
+                (true, false) => "\x1b[33mecon WARN (no budget:)\x1b[0m".to_string(),
+            }
+        );
+        println!("  Master Surfaces:        {}", master_label);
 
         let lock_label = if lock_pass {
             format!("\x1b[32mPASS (0 drift, {} unpinned)\x1b[0m", lock_unpinned.len())
@@ -4864,6 +5086,46 @@ mod tests {
         assert!(is_test_path("src/rag/tests/test_x.py"));
         assert!(is_test_path("pkg/x.spec.ts"));
         assert!(!is_test_path("src/rag/main.rs"));
+    }
+
+    #[test]
+    fn test_contract_surfaces_detected_for_contract_and_cli_changes() {
+        let diff = "--- a/AGENTS.md\n+++ b/AGENTS.md\n+new rule\n--- a/src/rag/src/main.rs\n+++ b/src/rag/src/main.rs\n+        #[arg(long)]\n+        flag: bool,\n";
+        let labels = contract_surfaces_touched(diff);
+        assert!(labels.contains(&"contract".to_string()));
+        assert!(labels.contains(&"cli".to_string()));
+        assert!(!labels.contains(&"schema".to_string()));
+    }
+
+    #[test]
+    fn test_shared_state_is_append_only() {
+        let append_only = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n+new line\n";
+        assert!(shared_state_removals(append_only).is_empty());
+        let rewritten = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n-old line\n+new line\n";
+        assert_eq!(shared_state_removals(rewritten).len(), 1);
+        let task_rewrite = "--- a/.agents/tasks/2026-10-31-task.md\n+++ b/.agents/tasks/2026-10-31-task.md\n-old\n+new\n";
+        assert!(shared_state_removals(task_rewrite).is_empty());
+    }
+
+    #[test]
+    fn test_master_surface_report_requires_declarations() {
+        let tmp = std::env::temp_dir().join(format!("ainish-master-surfaces-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let tasks = tmp.join(".agents").join("tasks");
+        std::fs::create_dir_all(&tasks).unwrap();
+        std::fs::write(
+            tasks.join(format!("{}-task.md", today_utc())),
+            "- compat: v1 target window, --rules-sync refreshes deployed copies\n- budget: 120k tokens, cached index\n",
+        )
+        .unwrap();
+        let patch = "--- a/src/rag/src/decision.rs\n+++ b/src/rag/src/decision.rs\n+let x = 1;\n--- a/AGENTS.md\n+++ b/AGENTS.md\n+rule\n";
+        let report = assess_master_surfaces(&tmp, patch);
+        assert!(report.compatibility.touched && report.compatibility.declared);
+        assert!(report.economics.touched && report.economics.declared);
+        assert!(report.concurrency_ok());
+        assert!(report.compat_ok() && report.economics_ok());
+        assert!(has_declaration("+compat: added in diff", "compat"));
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
 
