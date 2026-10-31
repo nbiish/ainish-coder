@@ -559,8 +559,6 @@ fn which(cmd: &str) -> Result<PathBuf, ()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     /// `ainish-coder --embed-config` writes non-secret provider settings here; the RAG engine
     /// must pick them up so a remote API model can replace the local llama server.
     #[test]
