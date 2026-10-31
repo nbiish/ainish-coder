@@ -12,6 +12,27 @@
 SRC_DIR="${SRC_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)}"
 source "${SRC_DIR}/agents_protection.sh"
 
+# Snapshot a target's existing copy before a deploy overwrites it. Fleet syncs
+# rewrite tracked copies wholesale, so an uncommitted local edit must always
+# leave a recoverable file behind. Disable with AINISH_AGENTS_BACKUP=false.
+_backup_agents_copy() {
+    local dest="$1"
+    [[ "${AINISH_AGENTS_BACKUP:-true}" == "true" ]] || return 0
+    local config_dir="${AINISH_CONFIG_DIR:-${HOME}/.config/ainish-coder}"
+    local dir="${config_dir}/backups/agents-copies"
+    mkdir -p "$dir" 2>/dev/null || return 0
+
+    local stamp slug backup
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    slug="$(printf '%s' "$dest" | cksum 2>/dev/null | awk '{print $1}')"
+    slug="${slug:-unknown}"
+    backup="${dir}/${stamp}-${slug}-AGENTS.md"
+    if cp -p "$dest" "$backup" 2>/dev/null; then
+        echo -e "${YELLOW}⚠ Snapshot of previous copy: ${backup}${RESET}"
+    fi
+    return 0
+}
+
 # Deploy AGENTS.md as a plain tracked copy of the canonical root file
 _deploy_agents_copy() {
     local src="$1"
@@ -30,6 +51,11 @@ _deploy_agents_copy() {
     # rm on a symlink removes the LINK itself, never the target — this is
     # the mechanism that keeps the root contract safe from downstream writes.
     if [[ -e "$dest" || -L "$dest" ]]; then
+        # Keep a snapshot of the copy being replaced (regular files only —
+        # removing a legacy symlink never destroys the source it points at).
+        if [[ -f "$dest" && ! -L "$dest" ]]; then
+            _backup_agents_copy "$dest"
+        fi
         unlock_agents_contract "$dest" 2>/dev/null || true
         rm -f "$dest" || return 1
     fi
