@@ -4616,6 +4616,140 @@ def truncate_cmd(cmd: str, max_len: int = 34) -> str:
     return cmd if len(cmd) <= max_len else cmd[: max_len - 1] + "…"
 
 
+# --- Triggered master lenses (compatibility / concurrency / economics) -------------------------
+# Mirrors `assess_master_surfaces` in the Rust engine. Cheap, diff-derived checks so the new
+# lenses fire on evidence instead of habit.
+
+CONTRACT_PATH_PREFIXES = (".agents/canonical/", ".agents/skills/", "src/templates/")
+SCHEMA_FILE_SUFFIXES = ("embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json")
+
+
+def _today_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _read_today_task_record(repo_root: Path) -> str:
+    path = repo_root / ".agents" / "tasks" / f"{_today_utc()}-task.md"
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def has_declaration(text: str, key: str) -> bool:
+    """True when `text` carries a `key:` declaration line (bullets and diff `+` rows allowed)."""
+    prefix = f"{key.lower()}:"
+    for line in text.splitlines():
+        if line.strip().lstrip("-+").strip().lower().startswith(prefix):
+            return True
+    return False
+
+
+def contract_surfaces_touched(diff_text: str) -> List[str]:
+    """Detects contract surfaces whose change needs a `compat:` declaration."""
+    labels: List[str] = []
+
+    def push(label: str) -> None:
+        if label not in labels:
+            labels.append(label)
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            path = line[len("+++ b/"):].strip().lower()
+            if path in ("agents.md", "llms.txt") or path.startswith(CONTRACT_PATH_PREFIXES):
+                push("contract")
+            if any(path.endswith(suffix) for suffix in SCHEMA_FILE_SUFFIXES):
+                push("schema")
+            continue
+        if line.startswith(("+++", "---")) or not line.startswith(("+", "-")):
+            continue
+        content = line[1:]
+        if any(token in content for token in ("#[arg(", "add_argument(", 'long = "', 'env::var("', 'os.environ.get("', 'os.environ["')):
+            push("cli")
+        if '"format":' in content or "format=" in content:
+            push("schema")
+    return labels
+
+
+def shared_state_removals(diff_text: str) -> List[str]:
+    """Shared state is append-only: non-header removed lines in comms/memories/suggestions are a
+    lost-update risk under multiple writers. Task records are updated in place and exempt."""
+    violations: List[str] = []
+    current = ""
+    removed = 0
+
+    def flush() -> None:
+        nonlocal removed
+        lower = current.lower()
+        if removed and (
+            lower.startswith(".agents/comms/")
+            or lower.startswith(".agents/memories/")
+            or lower.startswith(".agents/suggestions/")
+        ):
+            violations.append(f"{current} ({removed} removed line(s))")
+        removed = 0
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            flush()
+            current = line[len("+++ b/"):].strip()
+            continue
+        if line.startswith("-") and not line.startswith("---"):
+            removed += 1
+    flush()
+    return violations
+
+
+def spends_resources(path: str) -> bool:
+    lower = path.replace("\\", "/").lower()
+    return lower.startswith(("src/rag/", ".github/", "benchmarks/", "scripts/"))
+
+
+def assess_master_surfaces(repo_root: Path, diff_text: str) -> Dict[str, Any]:
+    task_record = _read_today_task_record(repo_root)
+    labels = contract_surfaces_touched(diff_text)
+    compatibility = {
+        "touched": bool(labels),
+        "declared": has_declaration(task_record, "compat") or has_declaration(diff_text, "compat"),
+        "detail": ", ".join(labels),
+    }
+
+    removals = shared_state_removals(diff_text)
+    touched_shared = any(
+        line.startswith("+++ b/.agents/comms/")
+        or line.startswith("+++ b/.agents/memories/")
+        or line.startswith("+++ b/.agents/suggestions/")
+        for line in diff_text.splitlines()
+    )
+    concurrency = {"touched": touched_shared, "declared": not removals, "detail": "; ".join(removals)}
+
+    touched_spend = any(
+        spends_resources(line[len("+++ b/"):].strip())
+        for line in diff_text.splitlines()
+        if line.startswith("+++ b/")
+    )
+    economics = {
+        "touched": touched_spend,
+        "declared": has_declaration(task_record, "budget")
+        or has_declaration(diff_text, "budget")
+        or bool((os.environ.get("AINISH_GATE_BUDGET") or "").strip()),
+        "detail": "spend surface touched" if touched_spend else "",
+    }
+
+    return {"compatibility": compatibility, "concurrency": concurrency, "economics": economics}
+
+
+def master_surfaces_pass(report: Dict[str, Any], strict: bool) -> bool:
+    compat = report["compatibility"]
+    conc = report["concurrency"]
+    econ = report["economics"]
+    return (
+        (not compat["touched"] or compat["declared"])
+        and bool(conc["declared"])
+        and (not strict or not econ["touched"] or econ["declared"])
+    )
+
+
 def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, strict: bool = False, statusline_json: bool = False, json_out: bool = False, tests_cmd: Optional[str] = None) -> bool:
     while True:
         if patch_arg:
@@ -4789,7 +4923,9 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
         test_lines_added, impl_lines_added = diff_test_stats(diff_text)
         tests_result = (tests_cmd, run_test_command(repo_root, tests_cmd)) if tests_cmd else None
         tests_pass = tests_result is None or tests_result[1][0]
-        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass and tests_pass
+        master_report = assess_master_surfaces(repo_root, diff_text)
+        masters_pass = master_surfaces_pass(master_report, strict)
+        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass and tests_pass and masters_pass
 
         try:
             cache_dir = repo_root / ".agents" / "rag"
@@ -4802,6 +4938,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 "anchor_pct": round(patch_eval.get("composite_score", 0.0) * 100),
                 "docs_only": docs_only_patch,
                 "contract_sha256": agents_sha,
+                "master_surfaces": master_report,
                 "diff_stats": {
                     "test_lines_added": test_lines_added,
                     "impl_lines_added": impl_lines_added,
@@ -4859,6 +4996,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                     "exit_code": tests_result[1][1] if tests_result else None,
                     "pass": tests_pass,
                 },
+                "master_surfaces": master_report,
                 "canonical_contract": {"pass": canon_pass, "sha256": agents_sha},
                 "comms_hygiene": {"pass": comms_pass, "legacy_agent_tag_violations": comms_violations},
                 "zero_trust_gate": {
@@ -4890,6 +5028,28 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             else:
                 tests_status = '\033[33mSKIPPED (pass --tests "<cmd>")\033[0m'
             print(f"  Existing Tests:         {tests_status}")
+            compat = master_report["compatibility"]
+            conc = master_report["concurrency"]
+            econ = master_report["economics"]
+            compat_status = (
+                "\033[32mPASS\033[0m"
+                if (not compat["touched"] or compat["declared"])
+                else f"\033[31mFAIL (no compat: for {compat['detail']})\033[0m"
+            )
+            conc_status = (
+                "\033[32mPASS\033[0m"
+                if conc["declared"]
+                else f"\033[31mFAIL ({conc['detail']})\033[0m"
+            )
+            if not econ["touched"]:
+                econ_status = "\033[90mn/a\033[0m"
+            elif econ["declared"]:
+                econ_status = "\033[32mPASS\033[0m"
+            elif strict:
+                econ_status = "\033[31mFAIL (no budget:)\033[0m"
+            else:
+                econ_status = "\033[33mWARN (no budget:)\033[0m"
+            print(f"  Master Surfaces:        compat {compat_status} · concurrency {conc_status} · econ {econ_status}")
             lock_status = f"\033[32mPASS (0 drift, {len(lock_res.get('unpinned_files', []))} unpinned)\033[0m" if lock_pass else "\033[31mFAIL\033[0m"
             print(f"  Supply Chain Lockfiles: {lock_status}")
             audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
