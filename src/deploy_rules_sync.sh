@@ -25,12 +25,92 @@ _ainish_rules_registry_file() {
     printf '%s\n' "${dir}/targets.txt"
 }
 
+# Imports a fleet enrolled by the pre-Round-17 tooling (rules-targets.json plus
+# the repos map in skills-selection.json) into the official targets.txt registry.
+# Only runs while targets.txt is missing or empty, so it is idempotent; paths
+# that no longer exist and throwaway temp/test dirs are dropped.
+_ainish_rules_migrate_legacy_registry() {
+    local registry dir
+    registry="$(_ainish_rules_registry_file)" || { printf '0\n'; return 0; }
+    if [[ -s "$registry" ]] && grep -q '[^[:space:]]' "$registry" 2>/dev/null; then
+        printf '0\n'
+        return 0
+    fi
+    dir="$(_ainish_rules_config_dir)" || { printf '0\n'; return 0; }
+
+    local tmp="${registry}.migrate.$$"
+    : > "$tmp" || { printf '0\n'; return 0; }
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$dir" "$REPO_DIR" >"$tmp" 2>/dev/null <<'PY' || true
+import json
+import os
+import sys
+import tempfile
+
+config_dir, source = sys.argv[1], os.path.realpath(sys.argv[2])
+skip_roots = [tempfile.gettempdir(), "/tmp", "/private/tmp", "/var/tmp",
+              "/private/var/folders", "/var/folders"]
+skip_roots = [os.path.realpath(root) for root in skip_roots]
+
+
+def entries(filename, key):
+    try:
+        with open(filename, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return []
+    values = data.get(key, []) if isinstance(data, dict) else []
+    if isinstance(values, dict):
+        values = list(values)
+    return values if isinstance(values, list) else []
+
+
+candidates = entries(os.path.join(config_dir, "rules-targets.json"), "targets")
+candidates += entries(os.path.join(config_dir, "skills-selection.json"), "repos")
+
+seen = set()
+for raw in candidates:
+    if not isinstance(raw, str) or not raw.strip():
+        continue
+    real = os.path.realpath(os.path.expanduser(raw.strip()))
+    if real == source or real in seen or not os.path.isdir(real):
+        continue
+    if any(real == root or real.startswith(root + os.sep) for root in skip_roots):
+        continue
+    seen.add(real)
+    sys.stdout.write(real + "\n")
+PY
+    fi
+
+    local imported
+    imported="$(grep -c '[^[:space:]]' "$tmp" 2>/dev/null || true)"
+    imported="${imported:-0}"
+    if [[ "$imported" -gt 0 ]]; then
+        mv "$tmp" "$registry" 2>/dev/null || { rm -f "$tmp"; printf '0\n'; return 0; }
+        echo -e "${YELLOW}↺ Imported ${imported} legacy rules target(s) into ${registry}${RESET}" >&2
+    else
+        rm -f "$tmp"
+    fi
+    printf '%s\n' "$imported"
+}
+
 _ainish_rules_source_commit() {
     git -C "${REPO_DIR}" rev-parse HEAD 2>/dev/null || printf 'unknown\n'
 }
 
 _ainish_rules_source_agents_sha() {
     _calc_sha256 "${REPO_DIR}/AGENTS.md" 2>/dev/null | tr -d '[:space:]'
+}
+
+# Resolves this installation's CLI. SCRIPT_DIR is re-pointed at src/ by the
+# sibling modules, so the launcher is always addressed through REPO_DIR/bin.
+_ainish_rules_cli() {
+    if [[ -x "${REPO_DIR}/bin/ainish-coder" ]]; then
+        printf '%s\n' "${REPO_DIR}/bin/ainish-coder"
+    else
+        command -v ainish-coder 2>/dev/null || return 1
+    fi
 }
 
 # Resolves the ainish-rag binary (native exe preferred) for ML-DSA-65 signing/verification.
@@ -208,16 +288,42 @@ register_rules_target() {
 
 list_rules_targets() {
     local registry
+    _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     registry="$(_ainish_rules_registry_file)" || return 0
     [[ -f "$registry" ]] && cat "$registry"
     return 0
 }
 
+# Echoes the hooks directory that owns this target. Empty when the target is not
+# a git checkout, or is nested inside a larger repo — arming that enclosing repo
+# would refresh every sibling project, so hooks stay there and fleet sync covers
+# the nested target instead.
+_ainish_rules_target_hooks_dir() {
+    local target_dir="$1"
+    local top target_real top_real
+    top="$(git -C "$target_dir" rev-parse --show-toplevel 2>/dev/null || true)"
+    [[ -n "$top" ]] || return 0
+    target_real="$(cd -P "$target_dir" 2>/dev/null && pwd)" || target_real="$target_dir"
+    top_real="$(cd -P "$top" 2>/dev/null && pwd)" || top_real="$top"
+    [[ "$top_real" == "$target_real" ]] || return 0
+    printf '%s\n' "${target_real}/.git/hooks"
+}
+
 # Installs the target-side hooks (post-merge + post-checkout) that invoke the refresher.
 install_rules_sync_hooks() {
     local target_dir="$1"
-    [[ -d "${target_dir}/.git" ]] || return 0
-    local hooks_dir="${target_dir}/.git/hooks"
+    local hooks_dir
+    hooks_dir="$(_ainish_rules_target_hooks_dir "$target_dir")"
+    if [[ -z "$hooks_dir" ]]; then
+        local top
+        top="$(git -C "$target_dir" rev-parse --show-toplevel 2>/dev/null || true)"
+        if [[ -n "$top" ]]; then
+            echo -e "${YELLOW}⚠ ${target_dir} is nested in ${top}; hooks stay at that repo root — fleet sync covers it${RESET}"
+        else
+            echo -e "${YELLOW}⚠ ${target_dir} is not a git checkout — auto-sync hooks not installed${RESET}"
+        fi
+        return 0
+    fi
     local block
     block="$(cat <<'HOOK_BLOCK'
 # --- AINISH-CODER RULES SYNC START ---
@@ -314,7 +420,9 @@ rules_sync_target() {
         return $?
     fi
     echo -e "${YELLOW}No sync script in ${target_abs}; deploying rules once...${RESET}"
-    AINISH_HEADLESS=true "${SCRIPT_DIR}/ainish-coder" --rules "$target_abs" --headless -y
+    local cli
+    cli="$(_ainish_rules_cli)" || return 1
+    AINISH_HEADLESS=true "$cli" --rules "$target_abs" --headless -y
 }
 
 # Prunes registry entries whose target directories no longer exist. Echoes the number
@@ -346,6 +454,10 @@ rules_sync_all() {
     local registry
     registry="$(_ainish_rules_registry_file)" || return 1
 
+    # A fleet enrolled before the official registry existed still lives in the
+    # legacy JSON files; import it once so the first sync reaches those repos.
+    _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
+
     local pruned=0
     if [[ "$gc" == "true" ]]; then
         pruned="$(_ainish_rules_prune_registry)"
@@ -353,7 +465,7 @@ rules_sync_all() {
 
     if [[ ! -f "$registry" ]]; then
         if [[ "$json" == "true" ]]; then
-            printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "targets": [], "pruned": %d, "summary": {"total": 0, "synced": 0, "skipped": 0, "failed": 0}}\n' \
+            printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "targets": [], "pruned": %d, "summary": {"total": 0, "synced": 0, "bootstrapped": 0, "skipped": 0, "failed": 0}}\n' \
                 "$(_ainish_rules_json_escape "$(_ainish_rules_source_commit)")" "$pruned"
             return 0
         fi
@@ -363,7 +475,7 @@ rules_sync_all() {
 
     local src_commit
     src_commit="$(_ainish_rules_source_commit)"
-    local total=0 synced=0 skipped=0 failed=0 target rc
+    local total=0 synced=0 bootstrapped=0 skipped=0 failed=0 target rc
     local entries=""
     while IFS= read -r target; do
         [[ -z "$target" ]] && continue
@@ -373,8 +485,27 @@ rules_sync_all() {
             [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${YELLOW}⊘ Missing target: ${target}${RESET}"
             failed=$((failed + 1)); state="missing"
         elif [[ ! -x "${target}/.agents/bin/ainish-rules-sync" ]]; then
-            [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${YELLOW}⊘ No sync script (legacy target): ${target}${RESET}"
-            skipped=$((skipped + 1)); state="skipped"
+            # Legacy enrollment: no refresher yet, so deploy the full bundle once.
+            # That writes the manifest + refresher and arms this repo permanently.
+            local cli
+            if ! cli="$(_ainish_rules_cli)"; then
+                [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${RED}✗ ainish-coder CLI not found; cannot enroll ${target}${RESET}"
+                failed=$((failed + 1)); state="failed"
+            else
+                if [[ "$quiet" == "true" || "$json" == "true" ]]; then
+                    AINISH_RULES_SYNC_ACTIVE=1 "$cli" --rules "$target" --headless -y >/dev/null 2>&1
+                    rc=$?
+                else
+                    echo -e "${BRIGHT_BLUE}→ ${target} (enrolling auto-sync)${RESET}"
+                    AINISH_RULES_SYNC_ACTIVE=1 "$cli" --rules "$target" --headless -y
+                    rc=$?
+                fi
+                if [[ $rc -eq 0 ]]; then
+                    bootstrapped=$((bootstrapped + 1)); synced=$((synced + 1)); state="bootstrapped"
+                else
+                    failed=$((failed + 1)); state="failed"
+                fi
+            fi
         else
             if [[ "$quiet" == "true" || "$json" == "true" ]]; then
                 AINISH_RULES_SYNC_ACTIVE=1 "${target}/.agents/bin/ainish-rules-sync" --quiet >/dev/null 2>&1
@@ -392,13 +523,13 @@ rules_sync_all() {
     entries="${entries%,}"
 
     if [[ "$json" == "true" ]]; then
-        printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "pruned": %d, "targets": [%s], "summary": {"total": %d, "synced": %d, "skipped": %d, "failed": %d}}\n' \
-            "$(_ainish_rules_json_escape "$src_commit")" "$pruned" "$entries" "$total" "$synced" "$skipped" "$failed"
+        printf '{"format": "ainish-coder/rules-sync/v1", "source_commit": "%s", "pruned": %d, "targets": [%s], "summary": {"total": %d, "synced": %d, "bootstrapped": %d, "skipped": %d, "failed": %d}}\n' \
+            "$(_ainish_rules_json_escape "$src_commit")" "$pruned" "$entries" "$total" "$synced" "$bootstrapped" "$skipped" "$failed"
         return 0
     fi
 
     [[ "$quiet" == "true" ]] || {
-        echo -e "${BRIGHT_GREEN}✅ Rules fleet sync complete: ${synced} checked, ${skipped} skipped, ${failed} failed, ${pruned} pruned (source ${src_commit:0:12})${RESET}"
+        echo -e "${BRIGHT_GREEN}✅ Rules fleet sync complete: ${synced} checked (${bootstrapped} newly enrolled), ${skipped} skipped, ${failed} failed, ${pruned} pruned (source ${src_commit:0:12})${RESET}"
     }
     return 0
 }
@@ -412,6 +543,7 @@ _ainish_rules_json_escape() {
 rules_status() {
     local json="${1:-false}"
     local registry src_commit
+    _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     registry="$(_ainish_rules_registry_file)" || return 1
     src_commit="$(_ainish_rules_source_commit)"
 
@@ -475,6 +607,7 @@ rules_status() {
 rules_doctor() {
     local json=false target_filter=""
     local a
+    _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     for a in "$@"; do
         case "$a" in
             --json) json=true ;;
@@ -522,9 +655,11 @@ rules_doctor() {
             status="MISSING_DIR"; t_issues=1; issues=$((issues + 1))
         else
             local need_repair=false
+            local target_hooks
+            target_hooks="$(_ainish_rules_target_hooks_dir "$target")"
             [[ -f "$manifest" ]] || need_repair=true
             [[ -f "$script" ]] || need_repair=true
-            if [[ ! -f "${target}/.git/hooks/post-merge" ]] || ! grep -qF "$_AINISH_RULES_HOOK_START" "${target}/.git/hooks/post-merge" 2>/dev/null; then
+            if [[ -n "$target_hooks" ]] && { [[ ! -f "${target_hooks}/post-merge" ]] || ! grep -qF "$_AINISH_RULES_HOOK_START" "${target_hooks}/post-merge" 2>/dev/null; }; then
                 need_repair=true
             fi
             if [[ -f "$manifest" ]]; then
@@ -540,8 +675,13 @@ rules_doctor() {
                 fi
             fi
             # Re-evaluate after the (idempotent) repair pass
-            if [[ -f "$manifest" && -f "$script" && -f "${target}/.git/hooks/post-merge" ]] \
-                && grep -qF "$_AINISH_RULES_HOOK_START" "${target}/.git/hooks/post-merge" 2>/dev/null; then
+            local target_healthy=true
+            [[ -f "$manifest" && -f "$script" ]] || target_healthy=false
+            if [[ "$target_healthy" == "true" && -n "$target_hooks" ]] \
+                && { [[ ! -f "${target_hooks}/post-merge" ]] || ! grep -qF "$_AINISH_RULES_HOOK_START" "${target_hooks}/post-merge" 2>/dev/null; }; then
+                target_healthy=false
+            fi
+            if [[ "$target_healthy" == "true" ]]; then
                 if [[ "$status" != "UNHEALTHY" ]]; then status="HEALTHY"; healthy=$((healthy + 1)); fi
             else
                 status="UNHEALTHY"; t_issues=1; issues=$((issues + 1))
@@ -825,6 +965,7 @@ rules_rotate() {
     for a in "$@"; do [[ "$a" == "--json" ]] && want_json=true; done
 
     local src_commit src_sha registry
+    _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     src_commit="$(_ainish_rules_source_commit)"
     src_sha="$(_ainish_rules_source_agents_sha)"
     registry="$(_ainish_rules_registry_file)" || return 1
