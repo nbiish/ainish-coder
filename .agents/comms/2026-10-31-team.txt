@@ -79,3 +79,13 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: smoke on main — secrets reports latest model + chat-only local router; route/decide via `openrouter:typesafe/jev-1.14-20261014`; pin warning verified; worktree and branch removed; no resident processes
 - status:verified
 - blockers:none
+
+### [2026-10-31T01:50:54.3907412-04:00] update | branch:main | wt:D:/Code/ainish-coder
+- start:2026-10-31T01:50:54.3907412-04:00
+- end:2026-10-31T01:50:54.3907412-04:00
+- scope:.agents/skills/typesafe-jev/{SKILL.md,references/api-contract.md}, llms.txt, src/rag/{rag.py,src/decision.rs,src/main.rs}
+- objective:align the engine + skill with the now-verified Local Router decisions transport.
+- input:Local Router 1.1.0 merged the decisions proxy (all three routes, pinned models, availability-only failover, provenance); operator keyed OpenRouter and ZenMux.
+- output:merge 61467cf (--no-ff). Skill transports + failure-mode guidance now describe the typed transport and pinned ids; api-contract.md records the 2026-10-31 verification (three routes, pinned openrouter/jev-1.14 + zenmux/jev-1.14, availability-only failover, zenmux dialect + 404 status, forced-fallback source string); PRD decision-layer line updated; engine comments/secrets message no longer claim local-router is chat-only. Checks: cargo check --all-targets clean, 41 Python decision tests OK. No behavior change.
+- status:merged
+- blockers:ZenMux decisions route still answers 404 model_not_supported for typesafe/jev-1.14; requests fall back to OpenRouter with provenance.
