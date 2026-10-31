@@ -208,6 +208,13 @@ class EmbedProviderResolutionTest(unittest.TestCase):
         self.assertEqual(resolved["provider"], "invalid")
         self.assertTrue(resolved["warnings"])
 
+    def test_non_worktree_dir_does_not_inherit_cwd_provider_config(self):
+        # Regression: a plain temp dir (no local embed-provider.json) must resolve to local even
+        # when the process cwd is a checkout that pins an API provider.
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["provider"], "local")
+        self.assertEqual(resolved["source"], "default-local")
+
     def test_persisted_config_never_contains_key_material(self):
         rag._PQC_SECRETS_CACHE = {"LOCALROUTER_ZENMUX_API_KEY": "zm-super-secret"}
         resolved = rag.resolve_embed_provider(self.tmp)
