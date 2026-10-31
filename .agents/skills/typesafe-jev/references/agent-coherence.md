@@ -8,16 +8,33 @@ while code keeps the decisions identical across agents and sessions.
 ## Context triage before retrieval
 
 1. Run `ainish-rag orient --inject` for the wiki primer, recent memories, and unresolved ledger
-   notes. This is the cheap, bounded context every agent should share.
-2. Run `ainish-rag route "<request>" --json` and read three signals:
+   notes. This is the cheap, bounded context every agent should share, and it now carries the
+   decision-model routing hint (domain, freshness, specificity, modality, strategy).
+2. Run `ainish-rag route "<request>" --json` and read five signals:
    - `needs_retrieval`: if false, do not burn context on retrieval.
    - `target_domain`: pick the first source deliberately. `codebase_symbols` → `query --code`;
      `architectural_wiki` → wiki pages and `query` without `--code`; `security_governance` →
      `AGENTS.md`, `.agents/skills/`, audit artifacts; `technical_debt` → ledger notes and TODOs.
    - `context_freshness`: high means the answer depends on the current branch or today's work, so
      run `orient` again and check `git status`/`git log` before trusting stable docs.
+   - `query_specificity` + `modality_preference`: code maps them to `retrieval_strategy`
+     (`symbol_anchored` → `query --code`; `hybrid_rerank` → mixed; `fresh_orient_first` → orient +
+     index; `multi_hop_expand` → broader pool). Follow the strategy instead of re-deriving it.
+   - `candidate_pool_size`: the coarse pool the engine recommends before reranking.
 3. Only then retrieve. The reranker's `decision_role` tells you whether you are reading primary
-   implementation, explanatory documentation, tests, or generated material.
+   implementation, explanatory documentation, tests, or generated material, and
+   `context_sufficiency` tells you whether the retrieved set is enough.
+
+## Corrective retrieval (CRAG) and warnings
+
+- `context_sufficiency = sufficient`: the evidence settles the question; proceed.
+- `partial_unsettled`: the engine already ran one symbol-anchored corrective expansion pass. If the
+  result is still partial, ask a narrower question or retrieve a different domain — do not declare
+  success on an unsettled band.
+- `insufficient`: the index does not cover the question; run `ainish-rag index` / `ainish-rag wiki`
+  before answering, or say the evidence is missing.
+- A `Test Delta`/`verdict_band` of `unsettled_grounding` or `unsupported` is a retrieve-more signal,
+  not a pass.
 
 ## Compose judgments, not decisions
 
@@ -26,8 +43,9 @@ For any non-trivial claim, ask the parts and put the logic in your plan:
 | You want to know | Ask (one per item) | Decision you own |
 | :--- | :--- | :--- |
 | Is this chunk enough? | answers_directly, names_query_symbols, utility | include only when direct is yes and utility ≥ 3 |
+| Is the whole set enough? | `query` reports `context_sufficiency` | on `partial_unsettled`/`insufficient`, retrieve more or narrow the question |
 | Is my plan grounded? | one noul per assumption, state = the assumption + evidence | if any assumption is `no`, retrieve; if `unsettled`, retrieve before acting |
-| Is this summary trustworthy? | `eval --context --output` | claim only if faithful; otherwise cite the gap |
+| Is this summary trustworthy? | `eval --context --output` | claim only when `verdict_band` is `grounded`; a contradiction veto means rewrite, not cite |
 | Is this a security-sensitive change? | noul "does this change touch secrets, keys, audit, or crypto policy?" | escalate to the security skill and the gate |
 
 The band matters: a noul at 0.5 is not a "no", it is "the state did not settle it". The right

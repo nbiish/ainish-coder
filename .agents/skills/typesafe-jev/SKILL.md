@@ -23,17 +23,19 @@ four competing ones.
 
 | Need | Command |
 | :--- | :--- |
-| Route a request (retrieval? domain? freshness?) | `ainish-rag route "<request>" --json` |
+| Route a request (retrieval? domain? freshness? specificity? strategy?) | `ainish-rag route "<request>" --json` |
 | Ask one calibrated yes/no | `ainish-rag decide "<state>" --question "<question>" --json` |
 | Ask a typed batch (noul + choice + score) | `ainish-rag decide "<state>" --questions '<json>' --json` |
 | Rerank retrieved chunks with judgments | `ainish-rag query "<request>"` (rerank is on by default) or `ainish-rag rerank "<request>"` |
 | Check an answer against evidence | `ainish-rag eval --context "<evidence>" --output "<answer>" --json` |
 | Probe the live model | `python .agents/skills/typesafe-jev/scripts/jev_probe.py --questions '<json>' --state "<state>"` |
 
-Every command degrades to a calibrated local heuristic when no OpenRouter key is resolvable or
-the API is unreachable, and says so in `source` (`openrouter:typesafe/jev-1.14-20261014` versus
-`local-calibrated`). **A failed Jev call is an error, not a "no"** — read `source` before trusting
-an answer.
+Both prioritized transports are attempted before any heuristic: **OpenRouter** (latest Jev) and the
+loopback **Local Router** (`/api/decisions/status` fast path, then `/api/alpha/decisions`);
+`JEV_TRANSPORT_PRIORITY=local-router,openrouter` flips the order. Every command degrades to a
+calibrated local heuristic only when both fail, and says so in `source`
+(`openrouter:typesafe/jev-1.14-20261014`, `local-router:<url>:<model>`, or `local-calibrated`).
+**A failed Jev call is an error, not a "no"** — read `source` before trusting an answer.
 
 ## The judgment/decision split
 
@@ -87,9 +89,9 @@ The exact question text, criteria, weights, and fallbacks are catalogued in
 
 | Surface | Judgments requested | Code decision |
 | :--- | :--- | :--- |
-| `route` | needs_retrieval (noul), domain_target (choice over 5 domains), context_freshness (noul) | `needs_retrieval = p >= 0.5`; domain and freshness reported for the agent to act on |
-| `rerank` | per candidate: answers_directly (noul), names_query_symbols (noul), utility (score 5), chunk_role (choice) | `0.45*direct + 0.25*symbols + 0.30*utility`, discounted for generated/test, blended `70% decision + 30% vector`, kept when above `--min-relevance` |
-| `eval` | is_faithful (noul), faithfulness_score (score 5) | `0.6*noul + 0.4*score_norm`; faithful when `noul >= 0.5` and `score_norm >= 0.4` |
+| `route` | needs_retrieval (noul), domain_target (choice over 5 domains), context_freshness (noul), query_specificity (choice), modality_preference (choice) | `needs_retrieval = p >= 0.5`; code derives `retrieval_strategy` (`skip_retrieval`/`symbol_anchored`/`hybrid_rerank`/`fresh_orient_first`/`multi_hop_expand`) and `candidate_pool_size`; `orient --inject` injects the hint |
+| `rerank` | per candidate: answers_directly (noul), names_query_symbols (noul), utility (score 5), chunk_role (choice) | `0.45*direct + 0.25*symbols + 0.30*utility`, generated/test discounted, settled primaries +0.04, CRAG hard negatives suppressed (0.12, 80/20 cap), blended 70/30 (65/35 unsettled), kept above `--min-relevance`; `context_sufficiency` reports whether the set is enough and triggers one corrective pass |
+| `eval` | is_faithful (noul), faithfulness_score (score 5), contradicts_context (noul), completeness_score (score 5) | `0.6*noul + 0.4*score_norm`, contradiction veto at ≥ 0.70; `verdict_band` = `grounded`/`contradiction_detected`/`unsettled_grounding`/`unsupported` |
 
 Calibrated bands: **≥ 0.70 reads as yes, ≤ 0.30 as no, and the band between is unsettled** —
 code must handle the unsettled case explicitly (usually with the vector score or by asking a
@@ -122,15 +124,17 @@ Use the decision layer to sequence work, not to replace reading:
    architecture wiki vs security policy vs technical debt) and `context_freshness` to choose
    between the wiki (stable) and a fresh orient/index pass (recent changes).
 3. **Retrieve** — `ainish-rag query "<request>" --code` or without `--code`; reranking is on by
-   default. Read `decision_score`, `decision_probability`, `decision_role`, and `rationale`.
-   Prefer `implementation` over `documentation` for how-it-works answers, and distrust
-   `generated` chunks even when their vector score is high.
+   default. Read `decision_score`, `decision_probability`, `decision_role`, `noul_band`,
+   `context_sufficiency`, and `rationale`. Prefer `implementation` over `documentation` for
+   how-it-works answers, and distrust `generated` chunks even when their vector score is high. When
+   sufficiency is `partial_unsettled` or `insufficient`, the engine has already run one corrective
+   expansion pass — if it is still partial, retrieve more or narrow the question.
 4. **Check the plan** — for multi-step work, ask `decide --questions` whether the plan depends on
    facts you have not retrieved (one noul per assumption). An unsettled band is a signal to go
    read, not to guess.
 5. **Verify** — before claiming completion, run `eval --context "<retrieved evidence>" --output
-   "<your summary>"`. A faithful verdict is evidence-bound; an unfaithful one tells you exactly
-   which claim left the evidence.
+   "<your summary>"`. A `grounded` verdict is evidence-bound; a `contradiction_detected` verdict
+   means rewrite, not cite; `unsettled_grounding`/`unsupported` means retrieve more.
 6. **Record** — write durable facts to `.agents/memories/{date}-memory.txt` and coordination
    events to the COMMS ledger, so the next session's orient primer inherits them.
 
@@ -152,8 +156,9 @@ reasoning model, see [references/agent-coherence.md](references/agent-coherence.
 | :--- | :--- | :--- |
 | `Jev API 400 ... expected record ... criteria` | question sent without `criteria` | use the builders in `src/rag/src/decision.rs` / `DecisionEngine.*_question` |
 | `Model ... does not exist` | pinned model retired | unset `JEV_DECISION_MODEL` (the latest is `typesafe/jev-1.14`); the engine never downgrades on its own |
-| `source: local-calibrated` when a key exists | key name mismatch | store `LOCALROUTER_OPENROUTER_API_KEY` (consumer prefix) or `OPENROUTER_API_KEY`; check `ainish-rag secrets` |
-| `secrets` shows a local-router with `Decisions Route: none` | the router advertises Jev but exposes no decisions route | check the router build with `GET /api/decisions/status` (routes, providers, `?probe=true`); a chat-only `openrouter-jev-router` entry is general chat and stays unusable for typed decisions |
+| `source: local-calibrated` when a key exists | key name mismatch | store `LOCALROUTER_OPENROUTER_API_KEY` (consumer prefix), `PSIONICS_OPENROUTER_API_KEY`, or `OPENROUTER_API_KEY`; any `<CONSUMER>_OPENROUTER_[EMBED_]API_KEY` suffix now resolves; check `ainish-rag secrets` |
+| `source: openrouter` but the local router should be used | transport order is OpenRouter-first by default | set `JEV_TRANSPORT_PRIORITY=local-router,openrouter` |
+| `secrets` shows a local-router with `Decisions Route: none` | the router advertises Jev but exposes no decisions route | check `GET /api/decisions/status` (routes, providers, `?probe=true`); the engine prefers that zero-token fast path before `/v1/models`; a chat-only `openrouter-jev-router` entry is general chat and stays unusable for typed decisions |
 | answers all defaults | response parsed from the wrong shape | read `answers`, then `noul`/`choice`/`score` |
 | slow rerank | one request per candidate | send the batch once; the engine already bundles up to 12 candidates |
 
