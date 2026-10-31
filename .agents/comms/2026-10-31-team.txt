@@ -120,3 +120,33 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:no-rebuild-needed (docs-only); AGENTS.md EXECUTION gains the implementation-over-test-theatre rule and real-surface proof; worktree and branch removed
 - status:verified
 - blockers:local embedding server cannot auto-spawn on this GPU-less host (see memory 14:20)
+### [2026-10-31T15:45:00Z] checkin | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
+- start:2026-10-31T15:45:00Z
+- end:2026-10-31T15:45:00Z
+- scope:src/rag/src/{server.rs,main.rs}, src/rag/rag.py, AGENTS.md, .agents/canonical/, .agents/skills/orchestrate-subagent-masters/SKILL.md
+- triage:now
+- objective:implement the latest masters block for docs/agents-test-discipline - spawn floor, CPU pinning, gate test evidence, contract digest, test delta, contract and skill clauses
+- input:latest block in .agents/suggestions/2026-10-31-suggestions.txt; gate blocker recorded at 14:20 (ubatch 170 and NGL=0 not forcing CPU)
+- output:pending
+- status:in-progress
+- blockers:none
+
+### [2026-10-31T15:58:00Z] intent-merge | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
+- start:2026-10-31T15:45:00Z
+- end:2026-10-31T15:58:00Z
+- scope:same
+- objective:merge and prove the gate on main with the real suite
+- input:Rust 47/47 release tests; branch gate GREEN 46.0% ADEQUATE with `echo suite-ok` PASS and canonical 7baf0b5e; failing-suite probe (`cmd /c exit 7`) turned the card RED as designed
+- output:merge --no-ff 09be626 (code) + 7be88ed (task record)
+- status:merged
+- blockers:none
+
+### [2026-10-31T16:08:00Z] checkout | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
+- start:2026-10-31T15:45:00Z
+- end:2026-10-31T16:08:00Z
+- scope:same
+- objective:close the loop after merge, rebuild, reindex, and gate
+- input:merged 09be626/7be88ed; engine rebuilt from main; main reindexed to 3,550 chunks; gate GREEN 53.3% ADEQUATE with `cargo test --release` PASS (47 passed); audit 15/15
+- output:spawn floor (512 with mmproj), real -ngl 0 CPU pinning, no -fa on CPU, llama stderr log + hints, gate --tests evidence, test/impl delta, contract sha256 on the card and in gate-status.json; contract and skill clauses for security repros/no test deps/real-usage proof/subagent inheritance
+- status:verified
+- blockers:none
