@@ -48,3 +48,34 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: smoke on main — route/decide via `openrouter:typesafe/jev-1.14-20261014`, query ranks the new catalog and `decision.rs` with correct roles; no resident language or embedding process; worktree and branch removed
 - status:verified
 - blockers:none
+
+### [2026-10-31T01:44:00Z] checkin | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
+- start:2026-10-31T01:38:00Z
+- end:2026-10-31T01:45:00Z
+- scope:src/rag/src/{decision.rs,main.rs}, src/rag/rag.py, src/rag/tests/test_jev_decisions.py, .agents/skills/typesafe-jev/, llms.txt, AGENTS.md
+- triage:now
+- objective: always use OpenRouter's latest TypeSafe Jev decision model (no older downgrade) and additionally discover the local-router Jev endpoint at localhost:11434/v1
+- input: OpenRouter decisions endpoint accepts jev-1.14 only among current ids; local-router :11434 advertises `openrouter-jev-router` but returns 404 for /api/alpha/decisions, /v1/decisions and /decisions, and a chat completion for that id resolved to anthropic/claude-opus-5.5
+- output: latest-only model policy with a reported diagnostic pin, local-router discovery (models + decisions-route probe), local-router fallback transport that never receives the OpenRouter key, chat-only routers reported not used, `secrets` transport report; 44/44 Rust, 41/41 Python tests
+- status:verifying
+- blockers:none
+
+### [2026-10-31T01:47:00Z] intent-merge | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
+- start:2026-10-31T01:46:00Z
+- end:2026-10-31T01:47:00Z
+- scope:same
+- objective: merge, re-sign the canonical contract, rebuild, reindex, and prove the gate on main
+- input: branch gate green except the pre-merge canonical hash; patch 70.3% STRONG_ANCHOR (9/9 files); receipts 10/10
+- output: merge fa2e5f8+
+- status:merged
+- blockers:none
+
+### [2026-10-31T01:53:00Z] checkout | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
+- start:2026-10-31T01:38:00Z
+- end:2026-10-31T01:53:00Z
+- scope:same
+- objective: close the loop after merge, rebuild, reindex, and gate
+- input: merged b71c4a5; canonical re-signed (793b04cb…); engine rebuilt; main reindexed to 3,522 chunks; gate GREEN (11 receipts, Zero-Trust PASS); audit 15/15
+- output: smoke on main — secrets reports latest model + chat-only local router; route/decide via `openrouter:typesafe/jev-1.14-20261014`; pin warning verified; worktree and branch removed; no resident processes
+- status:verified
+- blockers:none
