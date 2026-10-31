@@ -1557,7 +1557,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Local Router:           {} (jev models: {})", router.base_url, router.jev_models.join(", "));
                         match router.decisions_url.as_deref() {
                             Some(url) => println!("  Decisions Route:      {} (fallback transport)", url),
-                            None => println!("  Decisions Route:      none (chat-only entry; typed decisions stay on OpenRouter)"),
+                            None => println!("  Decisions Route:      none (router exposes Jev chat only — check GET /api/decisions/status; typed decisions stay on OpenRouter)"),
                         }
                     }
                     None => println!("Local Router:           not detected on loopback"),

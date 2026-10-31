@@ -90,7 +90,8 @@ pub struct AskOutcome {
     pub transport: String,
 }
 
-/// A loopback local-router that advertises at least one Jev model.
+/// A loopback local-router that advertises at least one Jev model and may expose a typed
+/// decisions route (`/api/alpha/decisions`, `/v1/decisions`, or `/decisions`).
 #[derive(Debug, Clone, Serialize)]
 pub struct LocalJevRouter {
     pub base_url: String,
@@ -168,9 +169,10 @@ async fn probe_decisions(client: &reqwest::Client, url: &str) -> bool {
 
 /// Probes loopback local-router bases for a Jev catalog entry and a decisions-compatible route.
 ///
-/// The local router is an *additional* transport: OpenRouter's latest Jev remains primary. A
-/// chat-only Jev entry (the current local-router behavior) is reported but never substituted for
-/// typed, calibrated decisions.
+/// The local router is an *additional typed transport*: OpenRouter's latest Jev remains primary.
+/// A router that exposes `/api/alpha/decisions` (verified 2026-10-31) is used after the OpenRouter
+/// attempt fails or when no key resolves; a chat-only Jev alias (`openrouter-jev-router`) is
+/// reported but never substituted for typed, calibrated decisions.
 pub async fn discover_local_router() -> Option<LocalJevRouter> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(1200))
@@ -371,8 +373,9 @@ impl DecisionEngine {
             last_error = "no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY in the PQC vault)".to_string();
         }
 
-        // Additional transport: the local-router proxy on loopback, when it actually speaks the
-        // decisions protocol. A chat-only Jev entry is reported, never silently substituted.
+        // Additional transport: the local-router proxy on loopback when it speaks the decisions
+        // protocol (`/api/alpha/decisions`). A chat-only Jev alias is reported, never substituted,
+        // because it can resolve to a general model with no calibrated semantics.
         if let Some(router) = discover_local_router().await {
             match router.decisions_url.as_deref() {
                 Some(url) => match self.post_decisions(url, None, state, questions).await {

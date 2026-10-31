@@ -2559,8 +2559,9 @@ def jev_models_filter(models: List[str]) -> List[str]:
 def _discover_local_router() -> Optional[Dict[str, Any]]:
     """Probes loopback local-router bases for Jev models and a decisions-compatible route.
 
-    The local router is an additional transport: OpenRouter's latest Jev stays primary. A
-    chat-only Jev entry is reported, never silently substituted for typed decisions.
+    The local router is an additional typed transport: OpenRouter's latest Jev stays primary. A
+    router that exposes a decisions route is used after the OpenRouter attempt fails; a chat-only
+    Jev entry is reported, never silently substituted for typed decisions.
     """
     bases: List[str] = []
     configured = (os.environ.get("JEV_LOCAL_ROUTER_URL") or "").strip().rstrip("/")
