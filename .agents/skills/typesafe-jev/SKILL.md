@@ -59,11 +59,15 @@ response schema, including the failure modes that silently produce defaults, is 
   build, e.g. `typesafe/jev-1.14-20261014`). There is **no automatic downgrade** to older Jev ids:
   `JEV_DECISION_MODEL` is a diagnostic pin that `ainish-rag secrets` reports, and a retired id
   fails the call with its reason instead of silently using an older model.
-- **Transports** — OpenRouter's Decisions API is primary. The loopback local-router
-  (`http://127.0.0.1:11434`, override with `JEV_LOCAL_ROUTER_URL`) is probed for Jev models and
-  used only when it exposes a decisions-compatible route; a chat-only entry
-  (`openrouter-jev-router`) is reported by `ainish-rag secrets` but never substituted for typed,
-  calibrated decisions.
+- **Transports** — OpenRouter's Decisions API is primary. Local Router
+  (`http://127.0.0.1:11434`, override with `JEV_LOCAL_ROUTER_URL`) is an *additional typed
+  transport*: `/api/alpha/decisions`, `/v1/decisions`, and `/decisions` accept this contract,
+  advertise pinned `openrouter/jev-1.14` (and `zenmux/jev-1.14` when that key is configured) on
+  `/v1/models`, and fail over between keyed providers while reporting `provider`/`dialect`/
+  `attempts`. A chat-only alias (`openrouter-jev-router`) is general chat — it can be served by any
+  model — and is never substituted for typed, calibrated decisions. `ainish-rag secrets` names the
+  usable route; the local route is tried after the OpenRouter attempt fails or when no key
+  resolves.
 - **Questions** — a JSON object keyed by question id. Every `noul`, `choice`, and `score`
   question **must** carry `criteria`; the API rejects the request without it.
   - `noul`: `criteria: { "true": "...", "false": "..." }` → answer `noul` (0–1).
@@ -149,7 +153,7 @@ reasoning model, see [references/agent-coherence.md](references/agent-coherence.
 | `Jev API 400 ... expected record ... criteria` | question sent without `criteria` | use the builders in `src/rag/src/decision.rs` / `DecisionEngine.*_question` |
 | `Model ... does not exist` | pinned model retired | unset `JEV_DECISION_MODEL` (the latest is `typesafe/jev-1.14`); the engine never downgrades on its own |
 | `source: local-calibrated` when a key exists | key name mismatch | store `LOCALROUTER_OPENROUTER_API_KEY` (consumer prefix) or `OPENROUTER_API_KEY`; check `ainish-rag secrets` |
-| `secrets` shows a local-router with `Decisions Route: none` | the router exposes Jev only over chat completions | expected with today's local-router; typed decisions stay on OpenRouter until the router proxies `/api/alpha/decisions` |
+| `secrets` shows a local-router with `Decisions Route: none` | the router advertises Jev but exposes no decisions route | check the router build with `GET /api/decisions/status` (routes, providers, `?probe=true`); a chat-only `openrouter-jev-router` entry is general chat and stays unusable for typed decisions |
 | answers all defaults | response parsed from the wrong shape | read `answers`, then `noul`/`choice`/`score` |
 | slow rerank | one request per candidate | send the batch once; the engine already bundles up to 12 candidates |
 
