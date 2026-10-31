@@ -2526,15 +2526,113 @@ def inspect_secrets() -> Dict[str, Any]:
         "api_key_resolved": key is not None,
         "key_source": "environment" if env_source else ("pqc-vault" if key else "unresolved"),
         "key_hint": f"{key[:8]}...{key[-4:]}" if key and len(key) > 12 else ("present" if key else "none"),
-        "decision_model": os.environ.get("JEV_DECISION_MODEL", globals().get("DEFAULT_JEV_MODEL", "typesafe/jev-1.14")),
+        "decision_model": resolve_jev_model(),
     }
 
 
-DEFAULT_JEV_MODEL = "typesafe/jev-1.14"
-JEV_MODEL_FALLBACKS = ("typesafe/jev-1.14", "typesafe/jev-1.13")
+LATEST_JEV_MODEL = "typesafe/jev-1.14"
 OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
+DEFAULT_LOCAL_ROUTER_URL = "http://127.0.0.1:11434"
+LOCAL_DECISIONS_PATHS = ("/api/alpha/decisions", "/v1/decisions", "/decisions")
 JEV_NOUL_YES = 0.70
 JEV_NOUL_NO = 0.30
+
+
+def resolve_jev_model() -> str:
+    """Always target the latest Jev model unless an operator explicitly pins another id."""
+    requested = (os.environ.get("JEV_DECISION_MODEL") or "").strip()
+    if not requested or requested in ("latest", "typesafe/jev-latest", "typesafe/jev"):
+        return LATEST_JEV_MODEL
+    return requested
+
+
+def is_model_pinned() -> bool:
+    """True when JEV_DECISION_MODEL pins something other than the latest model."""
+    requested = (os.environ.get("JEV_DECISION_MODEL") or "").strip()
+    return bool(requested) and requested not in ("latest", "typesafe/jev-latest", LATEST_JEV_MODEL)
+
+
+def jev_models_filter(models: List[str]) -> List[str]:
+    return [model for model in models if "jev" in model.lower()]
+
+
+def _discover_local_router() -> Optional[Dict[str, Any]]:
+    """Probes loopback local-router bases for Jev models and a decisions-compatible route.
+
+    The local router is an additional transport: OpenRouter's latest Jev stays primary. A
+    chat-only Jev entry is reported, never silently substituted for typed decisions.
+    """
+    bases: List[str] = []
+    configured = (os.environ.get("JEV_LOCAL_ROUTER_URL") or "").strip().rstrip("/")
+    if configured:
+        bases.append(configured)
+    for base in (DEFAULT_LOCAL_ROUTER_URL, "http://localhost:11434"):
+        if base not in bases:
+            bases.append(base)
+
+    for base in bases:
+        try:
+            req = urllib.request.Request(f"{base}/v1/models", method="GET")
+            with urllib.request.urlopen(req, timeout=1.2) as resp:
+                if resp.status != 200:
+                    continue
+                body = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            continue
+
+        models = [str(item.get("id")) for item in body.get("data") or [] if isinstance(item, dict) and item.get("id")]
+        jev_models = jev_models_filter(models)
+        if not jev_models:
+            continue
+
+        decisions_url = None
+        for path in LOCAL_DECISIONS_PATHS:
+            url = f"{base}{path}"
+            probe = {
+                "model": LATEST_JEV_MODEL,
+                "state": "probe",
+                "questions": {
+                    "q": DecisionEngine.noul_question(
+                        "Does this probe reach a decisions endpoint?",
+                        "the endpoint answered",
+                        "the endpoint did not answer",
+                    )
+                },
+            }
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(probe).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=1.2) as resp:
+                    if resp.status == 200:
+                        decisions_url = url
+                        break
+            except Exception:
+                continue
+
+        return {
+            "base_url": base,
+            "jev_models": jev_models,
+            "decisions_url": decisions_url,
+            "chat_only": decisions_url is None,
+        }
+    return None
+
+
+def inspect_jev() -> Dict[str, Any]:
+    """Decision-transport report for `ainish-rag secrets`."""
+    key = resolve_api_key()
+    return {
+        "model": resolve_jev_model(),
+        "latest_model": LATEST_JEV_MODEL,
+        "model_pinned": is_model_pinned(),
+        "endpoint": OPENROUTER_DECISIONS_URL,
+        "key_present": key is not None,
+        "local_router": _discover_local_router(),
+    }
 
 
 def noul_band(probability: float) -> str:
@@ -2554,9 +2652,9 @@ class DecisionEngine:
     let code map the judgments to actions.
     """
 
-    def __init__(self, model: str = DEFAULT_JEV_MODEL):
+    def __init__(self, model: Optional[str] = None):
         self.api_key = resolve_api_key()
-        self.model = os.environ.get("JEV_DECISION_MODEL", model)
+        self.model = model or resolve_jev_model()
         self.decisions_url = OPENROUTER_DECISIONS_URL
 
     def is_pqc_or_openrouter_ready(self) -> bool:
@@ -2622,53 +2720,81 @@ class DecisionEngine:
             }
         return answers
 
+    def _post_decisions(
+        self,
+        endpoint: str,
+        key: Optional[str],
+        state: str,
+        questions: Dict[str, Any],
+    ) -> tuple:
+        """POSTs one typed batch to a specific decisions endpoint (auth only where provided)."""
+        payload = {"model": self.model, "state": state, "questions": questions}
+        headers = {
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
+            "X-Title": "ainish-rag-decisions",
+        }
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Jev API {exc.code} at {endpoint} for {self.model}: {detail[:300]}")
+        except Exception as exc:
+            raise RuntimeError(f"Jev request to {endpoint} failed: {exc}")
+
+        answers = self.parse_answers(body)
+        if not answers:
+            raise RuntimeError("Jev response contained no answers")
+        transport = "openrouter" if "openrouter.ai" in endpoint else f"local-router:{endpoint}"
+        return str(body.get("model") or self.model), answers, body.get("usage") or {}, transport
+
     def _ask(self, state: str, questions: Dict[str, Any]) -> tuple:
-        """Sends one typed question batch. Retries the next known model if an id was retired."""
-        if not self.api_key:
-            raise RuntimeError("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
-        models = [self.model] + [m for m in JEV_MODEL_FALLBACKS if m != self.model]
+        """Sends one typed batch over the first usable transport (no silent model downgrade)."""
         last_error = None
-        for model in models:
-            payload = {"model": model, "state": state, "questions": questions}
-            req = urllib.request.Request(
-                self.decisions_url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-                    "X-Title": "ainish-rag-decisions",
-                },
-            )
+        if self.api_key:
             try:
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    body = json.loads(resp.read().decode("utf-8"))
-            except urllib.error.HTTPError as exc:
-                detail = exc.read().decode("utf-8", errors="replace")
-                last_error = f"Jev API {exc.code} for {model}: {detail[:300]}"
-                if "does not exist" in detail:
-                    continue
-                raise RuntimeError(last_error)
-            except Exception as exc:
-                raise RuntimeError(f"Jev request failed: {exc}")
-            parsed = self.parse_answers(body)
-            if not parsed:
-                raise RuntimeError("Jev response contained no answers")
-            return str(body.get("model") or model), parsed, body.get("usage") or {}
+                return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
+            except RuntimeError as exc:
+                last_error = str(exc)
+        else:
+            last_error = "no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)"
+
+        router = _discover_local_router()
+        if router:
+            if router.get("decisions_url"):
+                try:
+                    return self._post_decisions(router["decisions_url"], None, state, questions)
+                except RuntimeError as exc:
+                    last_error = f"{last_error}; local-router {router['base_url']}: {exc}"
+            else:
+                last_error = (
+                    f"{last_error}; local-router {router['base_url']} advertises Jev chat models "
+                    f"({', '.join(router['jev_models'])}) but exposes no decisions route"
+                )
         raise RuntimeError(last_error or "Jev request failed")
 
     def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
         """Typed decision primitive used by `ainish-rag decide --questions`."""
-        model, answers, usage = self._ask(state, questions)
+        model, answers, usage, transport = self._ask(state, questions)
         return {
             "model": model,
-            "source": f"openrouter:{model}",
+            "source": f"{transport}:{model}",
             "answers": [answers[qid] for qid in sorted(answers)],
             "usage": usage,
         }
 
     def route(self, prompt: str) -> Dict[str, Any]:
-        if self.api_key:
+        if self.api_key or _discover_local_router() is not None:
             try:
                 questions = {
                     "needs_retrieval": self.noul_question(
@@ -2692,7 +2818,7 @@ class DecisionEngine:
                         "it asks about stable architecture or long-lived behaviour",
                     ),
                 }
-                model, answers, _usage = self._ask(prompt, questions)
+                model, answers, _usage, transport = self._ask(prompt, questions)
                 retrieval_probability = float(answers.get("needs_retrieval", {}).get("noul") or 0.85)
                 domain = answers.get("domain_target", {})
                 return {
@@ -2701,7 +2827,7 @@ class DecisionEngine:
                     "target_domain": domain.get("choice") or "codebase_symbols",
                     "route_confidence": round(float(domain.get("confidence") or 0.80), 3),
                     "context_freshness": round(float(answers.get("context_freshness", {}).get("noul") or 0.5), 3),
-                    "source": f"openrouter:{model}",
+                    "source": f"{transport}:{model}",
                 }
             except Exception:
                 pass
@@ -2742,7 +2868,7 @@ class DecisionEngine:
         """Two-stage retrieval reranking via one typed Jev batch, else calibrated local RRF."""
         if not candidates:
             return []
-        if self.api_key:
+        if self.api_key or _discover_local_router() is not None:
             try:
                 return self.rerank_via_jev(query, candidates, min_relevance)
             except Exception:
@@ -2789,7 +2915,7 @@ class DecisionEngine:
             )
 
         state = f"Query: {query}\nTask: rank retrieved context for a coding agent. Prefer primary sources over generated or vendored material."
-        model, answers, _usage = self._ask(state, questions)
+        model, answers, _usage, transport = self._ask(state, questions)
 
         reranked: List[Dict[str, Any]] = []
         for index, candidate in enumerate(capped):
@@ -2808,9 +2934,9 @@ class DecisionEngine:
             candidate["decision_probability"] = round(direct, 3)
             candidate["decision_utility"] = round(utility_raw, 2)
             candidate["decision_role"] = role
-            candidate["rerank_source"] = f"openrouter:{model}"
+            candidate["rerank_source"] = f"{transport}:{model}"
             candidate["rationale"] = (
-                f"Jev {model}: direct {direct:.2f} ({noul_band(direct)}), symbols {support:.2f}, "
+                f"Jev {transport}:{model}: direct {direct:.2f} ({noul_band(direct)}), symbols {support:.2f}, "
                 f"utility {utility_raw:.2f}/4 [{role}], vector {float(candidate.get('score', 0.5)):.2f}"
             )
             if combined >= min_relevance:
@@ -2877,7 +3003,7 @@ class DecisionEngine:
         return self.rerank(query, chunks, min_relevance)
 
     def evaluate_faithfulness(self, context: str, output: str) -> dict:
-        if self.api_key:
+        if self.api_key or _discover_local_router() is not None:
             try:
                 questions = {
                     "is_faithful": self.noul_question(
@@ -2897,7 +3023,7 @@ class DecisionEngine:
                     ),
                 }
                 state = f"CONTEXT:\n{context[:4000]}\n\nOUTPUT TO EVALUATE:\n{output[:2000]}"
-                model, answers, _usage = self._ask(state, questions)
+                model, answers, _usage, transport = self._ask(state, questions)
                 noul = float(answers.get("is_faithful", {}).get("noul") or 0.9)
                 score = float(answers.get("faithfulness_score", {}).get("score") or 3.6)
                 score_norm = max(0.0, min(1.0, score / 4.0))
@@ -2906,7 +3032,7 @@ class DecisionEngine:
                     "is_faithful": noul >= 0.5 and score_norm >= 0.4,
                     "faithfulness_score": round(faithfulness, 4),
                     "hallucination_risk": round(max(0.0, 1.0 - faithfulness), 4),
-                    "evaluation_source": f"openrouter:{model}",
+                    "evaluation_source": f"{transport}:{model}",
                 }
             except Exception:
                 pass
@@ -4723,13 +4849,27 @@ def main():
 
     elif args.subcommand == "secrets":
         sec = inspect_secrets()
+        jev = inspect_jev()
         print("=== ainish-rag PQC Secrets & Decision Engine Status ===")
         print(f"PQC Vault Path:     {sec['pqc_bundle_path']}")
         print(f"PQC Vault Exists:   {sec['pqc_vault_exists']}")
         print(f"Key Resolved:       {sec['api_key_resolved']}")
         print(f"Key Source:         {sec['key_source']}")
         print(f"Key Preview:        {sec['key_hint']}")
-        if sec['api_key_resolved']:
+        print(f"Decision Model:     {jev['model']} (latest: {jev['latest_model']})")
+        if jev["model_pinned"]:
+            print("  ! JEV_DECISION_MODEL pins a model other than the latest")
+        print(f"OpenRouter Endpoint:{jev['endpoint']}")
+        router = jev.get("local_router")
+        if router:
+            print(f"Local Router:       {router['base_url']} (jev models: {', '.join(router['jev_models'])})")
+            if router.get("decisions_url"):
+                print(f"  Decisions Route:  {router['decisions_url']} (fallback transport)")
+            else:
+                print("  Decisions Route:  none (chat-only entry; typed decisions stay on OpenRouter)")
+        else:
+            print("Local Router:       not detected on loopback")
+        if sec['api_key_resolved'] or (router and router.get("decisions_url")):
             print("Status:             READY (TypeSafe Jev decisions online)")
         else:
             print("Status:             FALLBACK (Calibrated local heuristics active)")
