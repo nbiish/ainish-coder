@@ -4002,11 +4002,9 @@ fn push_label(labels: &mut Vec<String>, label: &str) {
 /// skill packs, CLI flags, schema `format:` fields, config-file shapes, and env-var interfaces.
 pub fn contract_surfaces_touched(patch: &str) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
-    let mut current = String::new();
     for line in patch.lines() {
         if let Some(rest) = line.strip_prefix("+++ b/") {
-            current = rest.trim().to_ascii_lowercase();
-            let path = current.as_str();
+            let path = rest.trim().to_ascii_lowercase();
             if path == "agents.md"
                 || path == "llms.txt"
                 || path.starts_with(".agents/canonical/")
