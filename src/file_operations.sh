@@ -1,6 +1,20 @@
 #!/bin/bash
 # File operation utilities
 
+# Creates a scratch file beside $1 so the later rename stays on one filesystem.
+# mktemp defaults to $TMPDIR, and macOS `mv` refuses a cross-device rename with
+# EXDEV — the normal case whenever a target repository lives on an external
+# volume. Falls back to $TMPDIR only when the destination directory rejects the
+# template (read-only, missing dir).
+ainish_temp_beside() {
+    local dest="$1" tmp
+    if tmp="$(mktemp "${dest}.XXXXXX" 2>/dev/null)"; then
+        printf '%s\n' "$tmp"
+        return 0
+    fi
+    mktemp 2>/dev/null || return 1
+}
+
 # Copy file with backup
 copy_with_backup() {
     local src="$1"
