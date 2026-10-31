@@ -41,24 +41,22 @@ pub struct RagConfig {
     pub embed_warnings: Vec<String>,
 }
 
-pub fn resolve_canonical_repo_root(start: &Path) -> PathBuf {
-    if start.join(".agents").exists() {
-        return start.to_path_buf();
+fn resolve_worktree_gitfile(dir: &Path) -> Option<PathBuf> {
+    let git_entry = dir.join(".git");
+    if !git_entry.is_file() {
+        return None;
     }
-    let git_file = start.join(".git");
-    if git_file.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&git_file) {
-            for line in content.lines() {
-                if let Some(gitdir) = line.trim().strip_prefix("gitdir:") {
-                    let gitdir_path = PathBuf::from(gitdir.trim());
-                    if let Some(parent) = gitdir_path.parent() {
-                        if parent.ends_with("worktrees") {
-                            if let Some(dot_git) = parent.parent() {
-                                if let Some(main_repo) = dot_git.parent() {
-                                    if main_repo.join(".agents").exists() {
-                                        return main_repo.to_path_buf();
-                                    }
-                                }
+    let content = std::fs::read_to_string(&git_entry).ok()?;
+    for line in content.lines() {
+        if let Some(gitdir) = line.trim().strip_prefix("gitdir:") {
+            let raw = PathBuf::from(gitdir.trim());
+            let gitdir_path = if raw.is_absolute() { raw } else { dir.join(raw) };
+            if let Some(parent) = gitdir_path.parent() {
+                if parent.file_name().and_then(|n| n.to_str()) == Some("worktrees") {
+                    if let Some(dot_git) = parent.parent() {
+                        if let Some(main_repo) = dot_git.parent() {
+                            if main_repo.exists() {
+                                return Some(main_repo.to_path_buf());
                             }
                         }
                     }
@@ -66,9 +64,22 @@ pub fn resolve_canonical_repo_root(start: &Path) -> PathBuf {
             }
         }
     }
+    None
+}
+
+pub fn resolve_canonical_repo_root(start: &Path) -> PathBuf {
+    if let Some(main_repo) = resolve_worktree_gitfile(start) {
+        return main_repo;
+    }
+    if start.join(".git").is_dir() || start.join(".agents").exists() {
+        return start.to_path_buf();
+    }
     let mut curr = start.parent();
     while let Some(p) = curr {
-        if p.join(".agents").exists() {
+        if let Some(main_repo) = resolve_worktree_gitfile(p) {
+            return main_repo;
+        }
+        if p.join(".git").is_dir() || p.join(".agents").exists() {
             return p.to_path_buf();
         }
         curr = p.parent();

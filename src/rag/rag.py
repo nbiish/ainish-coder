@@ -917,6 +917,8 @@ EMBED_PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
             "LOCALROUTER_OPENROUTER_API_KEY",
             "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
             "AINISHCODER_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_EMBED_API_KEY",
         ],
         "base_vars": ["OPENROUTER_EMBED_API_BASE", "OPENROUTER_API_BASE", "OPENROUTER_BASE_URL"],
         "model_vars": ["OPENROUTER_EMBED_MODEL", "OPENROUTER_EMBEDDING_MODEL"],
@@ -932,6 +934,8 @@ EMBED_PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
             "LOCALROUTER_ZENMUX_API_KEY",
             "LOCALROUTER_ZENMUX_EMBED_API_KEY",
             "AINISHCODER_ZENMUX_API_KEY",
+            "PSIONICS_ZENMUX_API_KEY",
+            "PSIONICS_ZENMUX_EMBED_API_KEY",
         ],
         "base_vars": ["ZENMUX_EMBED_API_BASE", "ZENMUX_API_BASE", "ZENMUX_BASE_URL"],
         "model_vars": ["ZENMUX_EMBED_MODEL", "ZENMUX_EMBEDDING_MODEL"],
@@ -973,6 +977,8 @@ def infer_provider_id(api_base: Optional[str]) -> Optional[str]:
         return "openrouter"
     if "zenmux.ai" in base:
         return "zenmux"
+    if ":11434" in base or "local-router" in base:
+        return "local-router"
     return None
 
 
@@ -1063,6 +1069,14 @@ def _spec_secret(spec: Optional[Dict[str, Any]]) -> Optional[Tuple[str, str]]:
         value = vault.get(name)
         if value:
             return value, f"pqc:{name}"
+    for canonical in names:
+        if canonical == "AINISH_EMBED_API_KEY":
+            continue
+        suffix = f"_{canonical}"
+        for k in sorted(vault):
+            v = vault.get(k)
+            if v and v.strip() and k.upper().endswith(suffix):
+                return v.strip(), f"pqc:{k}"
     return None
 
 
@@ -1077,7 +1091,11 @@ def _first_env_var(names: List[str]) -> Optional[str]:
 def _persisted_provider_cfg(repo_root: Path) -> Optional[Dict[str, Any]]:
     f = repo_root / ".agents" / "rag" / "embed-provider.json"
     if not f.is_file():
-        return None
+        canonical = resolve_canonical_repo_root(repo_root) / ".agents" / "rag" / "embed-provider.json"
+        if canonical.is_file():
+            f = canonical
+        else:
+            return None
     try:
         data = json.loads(f.read_text(encoding="utf-8"))
     except Exception:
@@ -1378,7 +1396,11 @@ def index_mismatch_warning(repo_root: Path, identity: str) -> Optional[str]:
     """Warns when the store was built with a different embedding model than the one in use."""
     path = repo_root / INDEX_FINGERPRINT_PATH
     if not path.is_file():
-        return None
+        canonical = resolve_canonical_repo_root(repo_root) / INDEX_FINGERPRINT_PATH
+        if canonical.is_file():
+            path = canonical
+        else:
+            return None
     try:
         recorded = str(json.loads(path.read_text(encoding="utf-8")).get("identity") or "").strip()
     except Exception:
@@ -2531,6 +2553,8 @@ OPENROUTER_KEY_NAMES = (
     "LOCALROUTER_OPENROUTER_API_KEY",
     "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
     "AINISHCODER_OPENROUTER_API_KEY",
+    "PSIONICS_OPENROUTER_API_KEY",
+    "PSIONICS_OPENROUTER_EMBED_API_KEY",
 )
 
 
@@ -2538,8 +2562,8 @@ def resolve_api_key() -> Optional[str]:
     """Resolves an OpenRouter key from the environment or the PQC store, in memory only.
 
     Accepts the consumer-prefixed names the store actually carries
-    (`LOCALROUTER_OPENROUTER_API_KEY`, `AINISHCODER_OPENROUTER_API_KEY`, …), not just the plain
-    legacy names, and never persists or logs the value.
+    (`LOCALROUTER_OPENROUTER_API_KEY`, `AINISHCODER_OPENROUTER_API_KEY`, `PSIONICS_OPENROUTER_API_KEY`, …),
+    plus any `<CONSUMER>_OPENROUTER_[EMBED_]API_KEY` suffix in the PQC vault, and never persists or logs the value.
     """
     for var in OPENROUTER_KEY_NAMES:
         val = os.environ.get(var)
@@ -2551,6 +2575,12 @@ def resolve_api_key() -> Optional[str]:
         val = vault.get(name)
         if val and val.strip():
             return val.strip()
+
+    for suffix in ("_OPENROUTER_EMBED_API_KEY", "_OPENROUTER_API_KEY"):
+        for k in sorted(vault):
+            v = vault.get(k)
+            if v and v.strip() and k.upper().endswith(suffix):
+                return v.strip()
 
     return None
 
@@ -2598,12 +2628,91 @@ def jev_models_filter(models: List[str]) -> List[str]:
     return [model for model in models if "jev" in model.lower()]
 
 
+def transport_priority_order() -> List[str]:
+    """Resolves transport priority (`['openrouter', 'local-router']` by default; override with
+    `JEV_TRANSPORT_PRIORITY=local-router,openrouter` when the local-router proxy is preferred first)."""
+    raw = (os.environ.get("JEV_TRANSPORT_PRIORITY") or os.environ.get("AINISH_RAG_DECISION_PRIORITY") or "").lower()
+    order: List[str] = []
+    for part in re.split(r"[,;\s]+", raw):
+        token = part.strip()
+        if token in ("openrouter", "or") and "openrouter" not in order:
+            order.append("openrouter")
+        elif token in ("local-router", "localrouter", "local_router", "router") and "local-router" not in order:
+            order.append("local-router")
+    for default_item in ("openrouter", "local-router"):
+        if default_item not in order:
+            order.append(default_item)
+    return order
+
+
+def derive_retrieval_strategy(
+    needs_retrieval: bool,
+    target_domain: str,
+    context_freshness: float,
+    query_specificity: str,
+    modality_preference: str,
+) -> Tuple[str, int]:
+    """Code-owned mapping from calibrated Jev routing judgments to an actionable retrieval strategy."""
+    if not needs_retrieval or target_domain == "general_knowledge":
+        return "skip_retrieval", 0
+    if context_freshness >= JEV_NOUL_YES:
+        return "fresh_orient_first", 12
+    if query_specificity == "exact_symbol":
+        return "symbol_anchored", 10
+    if query_specificity == "broad_audit":
+        return "multi_hop_expand", 16
+    if modality_preference == "code_first":
+        return "symbol_anchored", 12
+    return "hybrid_rerank", 12
+
+
+def evaluate_context_sufficiency(results: List[Dict[str, Any]]) -> str:
+    """Evaluates collective context sufficiency across reranked candidates (Corrective RAG / CRAG):
+    `sufficient`, `partial_unsettled`, or `insufficient`."""
+    if not results:
+        return "insufficient"
+    has_settled_yes = any(
+        (r.get("noul_band") == "yes" or float(r.get("decision_probability") or 0.0) >= JEV_NOUL_YES)
+        and float(r.get("decision_utility") or 0.0) >= 2.4
+        and r.get("decision_role") != "generated"
+        for r in results[:3]
+    )
+    top_score = float(results[0].get("decision_score") or 0.0)
+    if has_settled_yes or top_score >= 0.62:
+        return "sufficient"
+    all_no = all(
+        r.get("noul_band") == "no" or float(r.get("decision_probability") or 0.5) <= JEV_NOUL_NO
+        for r in results
+    )
+    if all_no or top_score < 0.42:
+        return "insufficient"
+    return "partial_unsettled"
+
+
+def extract_corrective_expansion_terms(query: str, candidates: List[Dict[str, Any]]) -> List[str]:
+    """Extracts high-signal symbol/file anchors from top partial candidates for a CRAG second-stage pass."""
+    q_lower = query.lower()
+    terms: List[str] = []
+    for hit in candidates[:4]:
+        for raw in re.findall(r"[A-Za-z0-9_]+", str(hit.get("symbols") or "")):
+            if len(raw) >= 4 and raw.lower() not in q_lower and not any(t.lower() == raw.lower() for t in terms):
+                terms.append(raw)
+                if len(terms) >= 6:
+                    return terms
+        stem = Path(str(hit.get("path") or "")).stem
+        if len(stem) >= 4 and stem.lower() not in q_lower and not any(t.lower() == stem.lower() for t in terms):
+            terms.append(stem)
+            if len(terms) >= 6:
+                return terms
+    return terms
+
+
 def _discover_local_router() -> Optional[Dict[str, Any]]:
     """Probes loopback local-router bases for Jev models and a decisions-compatible route.
 
-    The local router is an additional typed transport: OpenRouter's latest Jev stays primary. A
-    router that exposes a decisions route is used after the OpenRouter attempt fails; a chat-only
-    Jev entry is reported, never silently substituted for typed decisions.
+    Fast-path: checks `GET {base}/api/decisions/status` first (Local Router 1.1.0+, ~2ms, zero
+    upstream token spend). Falls back to `GET {base}/v1/models` + a minimal typed POST probe when
+    `/api/decisions/status` is absent. A chat-only Jev entry is reported, never silently substituted.
     """
     bases: List[str] = []
     configured = (os.environ.get("JEV_LOCAL_ROUTER_URL") or "").strip().rstrip("/")
@@ -2614,6 +2723,24 @@ def _discover_local_router() -> Optional[Dict[str, Any]]:
             bases.append(base)
 
     for base in bases:
+        status_ready = False
+        status_route: Optional[str] = None
+        status_models: List[str] = []
+        try:
+            req_status = urllib.request.Request(f"{base}/api/decisions/status", method="GET")
+            with urllib.request.urlopen(req_status, timeout=0.8) as s_resp:
+                if s_resp.status == 200:
+                    s_body = json.loads(s_resp.read().decode("utf-8"))
+                    status_ready = bool(s_body.get("ready"))
+                    routes = s_body.get("routes") or []
+                    if routes and isinstance(routes, list) and isinstance(routes[0], str):
+                        status_route = f"{base}{routes[0]}"
+                    for item in s_body.get("advertised_models") or []:
+                        if isinstance(item, dict) and item.get("id"):
+                            status_models.append(str(item["id"]))
+        except Exception:
+            pass
+
         try:
             req = urllib.request.Request(f"{base}/v1/models", method="GET")
             with urllib.request.urlopen(req, timeout=1.2) as resp:
@@ -2621,40 +2748,51 @@ def _discover_local_router() -> Optional[Dict[str, Any]]:
                     continue
                 body = json.loads(resp.read().decode("utf-8"))
         except Exception:
+            if status_ready and status_route:
+                return {
+                    "base_url": base,
+                    "jev_models": status_models or [LATEST_JEV_MODEL],
+                    "decisions_url": status_route,
+                    "chat_only": False,
+                }
             continue
 
         models = [str(item.get("id")) for item in body.get("data") or [] if isinstance(item, dict) and item.get("id")]
         jev_models = jev_models_filter(models)
+        for sm in status_models:
+            if sm not in jev_models:
+                jev_models.append(sm)
         if not jev_models:
             continue
 
-        decisions_url = None
-        for path in LOCAL_DECISIONS_PATHS:
-            url = f"{base}{path}"
-            probe = {
-                "model": LATEST_JEV_MODEL,
-                "state": "probe",
-                "questions": {
-                    "q": DecisionEngine.noul_question(
-                        "Does this probe reach a decisions endpoint?",
-                        "the endpoint answered",
-                        "the endpoint did not answer",
+        decisions_url = status_route if status_ready else None
+        if decisions_url is None:
+            for path in LOCAL_DECISIONS_PATHS:
+                url = f"{base}{path}"
+                probe = {
+                    "model": LATEST_JEV_MODEL,
+                    "state": "probe",
+                    "questions": {
+                        "q": DecisionEngine.noul_question(
+                            "Does this probe reach a decisions endpoint?",
+                            "the endpoint answered",
+                            "the endpoint did not answer",
+                        )
+                    },
+                }
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(probe).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
                     )
-                },
-            }
-            try:
-                req = urllib.request.Request(
-                    url,
-                    data=json.dumps(probe).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=1.2) as resp:
-                    if resp.status == 200:
-                        decisions_url = url
-                        break
-            except Exception:
-                continue
+                    with urllib.request.urlopen(req, timeout=1.2) as resp:
+                        if resp.status == 200:
+                            decisions_url = url
+                            break
+                except Exception:
+                    continue
 
         return {
             "base_url": base,
@@ -2802,29 +2940,32 @@ class DecisionEngine:
         return str(body.get("model") or self.model), answers, body.get("usage") or {}, transport
 
     def _ask(self, state: str, questions: Dict[str, Any]) -> tuple:
-        """Sends one typed batch over the first usable transport (no silent model downgrade)."""
-        last_error = None
-        if self.api_key:
-            try:
-                return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
-            except RuntimeError as exc:
-                last_error = str(exc)
-        else:
-            last_error = "no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)"
-
-        router = _discover_local_router()
-        if router:
-            if router.get("decisions_url"):
-                try:
-                    return self._post_decisions(router["decisions_url"], None, state, questions)
-                except RuntimeError as exc:
-                    last_error = f"{last_error}; local-router {router['base_url']}: {exc}"
-            else:
-                last_error = (
-                    f"{last_error}; local-router {router['base_url']} advertises Jev chat models "
-                    f"({', '.join(router['jev_models'])}) but exposes no decisions route"
-                )
-        raise RuntimeError(last_error or "Jev request failed")
+        """Sends one typed batch over the first usable transport according to `transport_priority_order()`
+        (OpenRouter then Local Router by default, or Local Router first when configured)."""
+        errors: List[str] = []
+        for transport in transport_priority_order():
+            if transport == "openrouter":
+                if self.api_key:
+                    try:
+                        return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
+                    except RuntimeError as exc:
+                        errors.append(str(exc))
+                else:
+                    errors.append("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
+            elif transport == "local-router":
+                router = _discover_local_router()
+                if router:
+                    if router.get("decisions_url"):
+                        try:
+                            return self._post_decisions(router["decisions_url"], None, state, questions)
+                        except RuntimeError as exc:
+                            errors.append(f"local-router {router['base_url']}: {exc}")
+                    else:
+                        errors.append(
+                            f"local-router {router['base_url']} advertises Jev chat models "
+                            f"({', '.join(router['jev_models'])}) but exposes no decisions route"
+                        )
+        raise RuntimeError("; ".join(errors) if errors else "Jev request failed")
 
     def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
         """Typed decision primitive used by `ainish-rag decide --questions`."""
@@ -2837,43 +2978,76 @@ class DecisionEngine:
         }
 
     def route(self, prompt: str) -> Dict[str, Any]:
-        if self.api_key or _discover_local_router() is not None:
-            try:
-                questions = {
-                    "needs_retrieval": self.noul_question(
-                        "Does answering this request require retrieving this repository's code, architecture wiki, or coordination context instead of relying on general knowledge?",
-                        "the answer depends on files, symbols, documentation, or task history that live in this repository",
-                        "the request is self-contained or answerable from general knowledge",
-                    ),
-                    "domain_target": self.choice_question(
-                        "Which part of this repository's context would best answer the request?",
-                        [
-                            ("codebase_symbols", "source code, symbol definitions, call sites, or APIs in the repository"),
-                            ("architectural_wiki", "system architecture, component relationships, data flow, or design rationale"),
-                            ("security_governance", "security policy, PQC, secrets handling, audit, or compliance rules"),
-                            ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
-                            ("general_knowledge", "language or tooling knowledge that does not depend on this repository"),
-                        ],
-                    ),
-                    "context_freshness": self.noul_question(
-                        "Does the request concern recent changes, the current branch, or today's work rather than long-lived architecture?",
-                        "it asks about recent edits, uncommitted work, the current branch, or today's activity",
-                        "it asks about stable architecture or long-lived behaviour",
-                    ),
-                }
-                model, answers, _usage, transport = self._ask(prompt, questions)
-                retrieval_probability = float(answers.get("needs_retrieval", {}).get("noul") or 0.85)
-                domain = answers.get("domain_target", {})
-                return {
-                    "needs_retrieval": retrieval_probability >= 0.5,
-                    "retrieval_probability": round(retrieval_probability, 3),
-                    "target_domain": domain.get("choice") or "codebase_symbols",
-                    "route_confidence": round(float(domain.get("confidence") or 0.80), 3),
-                    "context_freshness": round(float(answers.get("context_freshness", {}).get("noul") or 0.5), 3),
-                    "source": f"{transport}:{model}",
-                }
-            except Exception:
-                pass
+        try:
+            questions = {
+                "needs_retrieval": self.noul_question(
+                    "Does answering this request require retrieving this repository's code, architecture wiki, or coordination context instead of relying on general knowledge?",
+                    "the answer depends on files, symbols, documentation, or task history that live in this repository",
+                    "the request is self-contained or answerable from general knowledge",
+                ),
+                "domain_target": self.choice_question(
+                    "Which part of this repository's context would best answer the request?",
+                    [
+                        ("codebase_symbols", "source code, symbol definitions, call sites, or APIs in the repository"),
+                        ("architectural_wiki", "system architecture, component relationships, data flow, or design rationale"),
+                        ("security_governance", "security policy, PQC, secrets handling, audit, or compliance rules"),
+                        ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
+                        ("general_knowledge", "language or tooling knowledge that does not depend on this repository"),
+                    ],
+                ),
+                "context_freshness": self.noul_question(
+                    "Does the request concern recent changes, the current branch, or today's work rather than long-lived architecture?",
+                    "it asks about recent edits, uncommitted work, the current branch, or today's activity",
+                    "it asks about stable architecture or long-lived behaviour",
+                ),
+                "query_specificity": self.choice_question(
+                    "How specific is the lookup required by this request?",
+                    [
+                        ("exact_symbol", "names a specific function, struct, file path, CLI flag, or error string"),
+                        ("conceptual_flow", "asks how a subsystem, protocol, or component interaction works"),
+                        ("broad_audit", "asks for a multi-file audit, repo-wide review, or broad architectural scan"),
+                    ],
+                ),
+                "modality_preference": self.choice_question(
+                    "Which artefact modality should retrieval prioritize first?",
+                    [
+                        ("code_first", "shipping source code and symbol definitions"),
+                        ("docs_first", "architectural wiki pages, PRD (llms.txt), or governing contracts (AGENTS.md)"),
+                        ("balanced", "a mix of implementation code and architectural documentation"),
+                    ],
+                ),
+            }
+            model, answers, _usage, transport = self._ask(prompt, questions)
+            retrieval_probability = float(answers.get("needs_retrieval", {}).get("noul") or 0.85)
+            needs_retrieval = retrieval_probability >= 0.5
+            domain = answers.get("domain_target", {})
+            target_domain = domain.get("choice") or "codebase_symbols"
+            freshness = float(answers.get("context_freshness", {}).get("noul") or 0.5)
+            specificity = answers.get("query_specificity", {}).get("choice") or (
+                "exact_symbol" if target_domain == "codebase_symbols" else "conceptual_flow"
+            )
+            modality = answers.get("modality_preference", {}).get("choice") or (
+                "code_first"
+                if target_domain == "codebase_symbols"
+                else ("docs_first" if target_domain in ("architectural_wiki", "security_governance") else "balanced")
+            )
+            strategy, pool_size = derive_retrieval_strategy(
+                needs_retrieval, target_domain, freshness, specificity, modality
+            )
+            return {
+                "needs_retrieval": needs_retrieval,
+                "retrieval_probability": round(retrieval_probability, 3),
+                "target_domain": target_domain,
+                "route_confidence": round(float(domain.get("confidence") or 0.80), 3),
+                "context_freshness": round(freshness, 3),
+                "query_specificity": specificity,
+                "modality_preference": modality,
+                "retrieval_strategy": strategy,
+                "candidate_pool_size": pool_size,
+                "source": f"{transport}:{model}",
+            }
+        except Exception:
+            pass
         return self.route_local(prompt)
 
     def route_local(self, prompt: str) -> Dict[str, Any]:
@@ -2885,6 +3059,10 @@ class DecisionEngine:
                 "target_domain": "general_knowledge",
                 "route_confidence": 0.95,
                 "context_freshness": 0.10,
+                "query_specificity": "exact_symbol",
+                "modality_preference": "balanced",
+                "retrieval_strategy": "skip_retrieval",
+                "candidate_pool_size": 0,
                 "source": "local-calibrated",
             }
 
@@ -2898,24 +3076,40 @@ class DecisionEngine:
         elif any(w in p_lower for w in ["fn ", "struct ", "class ", "method", "symbol"]):
             domain, conf = "codebase_symbols", 0.90
 
+        freshness = 0.80 if any(w in p_lower for w in ["today", "recent", "branch", "latest", "diff"]) else 0.50
+        specificity = (
+            "broad_audit"
+            if any(w in p_lower for w in ["audit", "every ", "all ", "across "])
+            else ("exact_symbol" if any(w in p_lower for w in ["::", ".rs", ".py", "fn ", "--"]) else "conceptual_flow")
+        )
+        modality = (
+            "code_first"
+            if domain == "codebase_symbols"
+            else ("docs_first" if domain in ("architectural_wiki", "security_governance") else "balanced")
+        )
+        strategy, pool_size = derive_retrieval_strategy(True, domain, freshness, specificity, modality)
+
         return {
             "needs_retrieval": True,
             "retrieval_probability": 0.88,
             "target_domain": domain,
             "route_confidence": conf,
-            "context_freshness": 0.50,
+            "context_freshness": freshness,
+            "query_specificity": specificity,
+            "modality_preference": modality,
+            "retrieval_strategy": strategy,
+            "candidate_pool_size": pool_size,
             "source": "local-calibrated",
         }
 
     def rerank(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float = 0.35) -> List[Dict[str, Any]]:
-        """Two-stage retrieval reranking via one typed Jev batch, else calibrated local RRF."""
+        """Two-stage retrieval reranking via one typed Jev batch (OpenRouter + Local Router), else calibrated local RRF."""
         if not candidates:
             return []
-        if self.api_key or _discover_local_router() is not None:
-            try:
-                return self.rerank_via_jev(query, candidates, min_relevance)
-            except Exception:
-                pass
+        try:
+            return self.rerank_via_jev(query, candidates, min_relevance)
+        except Exception:
+            pass
         return self.rerank_local(query, candidates, min_relevance)
 
     def rerank_via_jev(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
@@ -2970,17 +3164,29 @@ class DecisionEngine:
 
             decision_score = (0.45 * direct) + (0.25 * support) + (0.30 * utility)
             penalty = 0.08 if role == "generated" else (0.03 if role == "test" else 0.0)
-            combined = max(0.0, decision_score - penalty) * 0.70 + float(candidate.get("score", 0.5)) * 0.30
+            primary_bonus = 0.04 if (role == "implementation" and direct >= JEV_NOUL_YES and support >= 0.50) else 0.0
+            distractor_penalty = 0.12 if (direct <= JEV_NOUL_NO and utility_raw < 2.0) else 0.0
+            adjusted_decision = max(0.0, min(1.0, decision_score + primary_bonus - penalty - distractor_penalty))
+            band = noul_band(direct)
+            vec_score = float(candidate.get("score", 0.5))
+            if direct <= JEV_NOUL_NO and utility_raw < 2.0:
+                combined = (adjusted_decision * 0.80) + (min(vec_score, 0.45) * 0.20)
+            elif band == "unsettled":
+                combined = (adjusted_decision * 0.65) + (vec_score * 0.35)
+            else:
+                combined = (adjusted_decision * 0.70) + (vec_score * 0.30)
 
             candidate["decision_score"] = round(combined, 4)
             candidate["decision_relevance"] = direct >= 0.5
             candidate["decision_probability"] = round(direct, 3)
+            candidate["symbol_support"] = round(support, 3)
             candidate["decision_utility"] = round(utility_raw, 2)
+            candidate["noul_band"] = band
             candidate["decision_role"] = role
             candidate["rerank_source"] = f"{transport}:{model}"
             candidate["rationale"] = (
-                f"Jev {transport}:{model}: direct {direct:.2f} ({noul_band(direct)}), symbols {support:.2f}, "
-                f"utility {utility_raw:.2f}/4 [{role}], vector {float(candidate.get('score', 0.5)):.2f}"
+                f"Jev {transport}:{model}: direct {direct:.2f} ({band}), symbols {support:.2f}, "
+                f"utility {utility_raw:.2f}/4 [{role}], vector {vec_score:.2f}"
             )
             if combined >= min_relevance:
                 reranked.append(candidate)
@@ -3046,39 +3252,72 @@ class DecisionEngine:
         return self.rerank(query, chunks, min_relevance)
 
     def evaluate_faithfulness(self, context: str, output: str) -> dict:
-        if self.api_key or _discover_local_router() is not None:
-            try:
-                questions = {
-                    "is_faithful": self.noul_question(
-                        "Is the output grounded in the provided context, without claims the context does not support?",
-                        "every claim in the output is supported by the context",
-                        "the output adds claims or specifics that the context does not contain",
-                    ),
-                    "faithfulness_score": self.score_question(
-                        "How completely does the output stay within the provided context?",
-                        [
-                            "the output contradicts the context",
-                            "mostly unsupported by the context",
-                            "partly grounded with unsupported gaps",
-                            "grounded with minor gaps",
-                            "fully grounded in the context",
-                        ],
-                    ),
-                }
-                state = f"CONTEXT:\n{context[:4000]}\n\nOUTPUT TO EVALUATE:\n{output[:2000]}"
-                model, answers, _usage, transport = self._ask(state, questions)
-                noul = float(answers.get("is_faithful", {}).get("noul") or 0.9)
-                score = float(answers.get("faithfulness_score", {}).get("score") or 3.6)
-                score_norm = max(0.0, min(1.0, score / 4.0))
-                faithfulness = (0.6 * noul) + (0.4 * score_norm)
-                return {
-                    "is_faithful": noul >= 0.5 and score_norm >= 0.4,
-                    "faithfulness_score": round(faithfulness, 4),
-                    "hallucination_risk": round(max(0.0, 1.0 - faithfulness), 4),
-                    "evaluation_source": f"{transport}:{model}",
-                }
-            except Exception:
-                pass
+        try:
+            questions = {
+                "is_faithful": self.noul_question(
+                    "Is the output grounded in the provided context, without claims the context does not support?",
+                    "every claim in the output is supported by the context",
+                    "the output adds claims or specifics that the context does not contain",
+                ),
+                "faithfulness_score": self.score_question(
+                    "How completely does the output stay within the provided context?",
+                    [
+                        "the output contradicts the context",
+                        "mostly unsupported by the context",
+                        "partly grounded with unsupported gaps",
+                        "grounded with minor gaps",
+                        "fully grounded in the context",
+                    ],
+                ),
+                "contradicts_context": self.noul_question(
+                    "Does the output state any claim, rule, or detail that directly contradicts or inverts the provided context?",
+                    "the output states at least one claim that directly conflicts with or inverts the context",
+                    "the output does not contradict the provided context",
+                ),
+                "completeness_score": self.score_question(
+                    "How completely does the output cover the key facts, symbols, and constraints in the provided context?",
+                    [
+                        "omits almost all relevant facts from the context",
+                        "covers only a minor part of the relevant context",
+                        "covers the main point with notable omissions",
+                        "covers nearly all key facts and symbols",
+                        "comprehensive coverage of the relevant context",
+                    ],
+                ),
+            }
+            state = f"CONTEXT:\n{context[:4000]}\n\nOUTPUT TO EVALUATE:\n{output[:2000]}"
+            model, answers, _usage, transport = self._ask(state, questions)
+            noul = float(answers.get("is_faithful", {}).get("noul") or 0.9)
+            score = float(answers.get("faithfulness_score", {}).get("score") or 3.6)
+            score_norm = max(0.0, min(1.0, score / 4.0))
+            contradiction = float(answers.get("contradicts_context", {}).get("noul") or 0.05)
+            completeness_raw = float(answers.get("completeness_score", {}).get("score") or 3.2)
+            completeness_norm = max(0.0, min(1.0, completeness_raw / 4.0))
+
+            base_faithfulness = (0.6 * noul) + (0.4 * score_norm)
+            has_contradiction = contradiction >= JEV_NOUL_YES
+            faithfulness = min(base_faithfulness, 1.0 - contradiction) if has_contradiction else base_faithfulness
+            is_faithful = (not has_contradiction) and noul >= 0.5 and score_norm >= 0.4
+            verdict_band = (
+                "contradiction_detected"
+                if has_contradiction
+                else (
+                    "grounded"
+                    if (noul >= JEV_NOUL_YES and score_norm >= 0.6)
+                    else ("unsupported" if (noul <= JEV_NOUL_NO or score_norm < 0.4) else "unsettled_grounding")
+                )
+            )
+            return {
+                "is_faithful": is_faithful,
+                "faithfulness_score": round(faithfulness, 4),
+                "hallucination_risk": round(max(0.0, 1.0 - faithfulness), 4),
+                "contradiction_probability": round(contradiction, 4),
+                "completeness_score": round(completeness_norm, 4),
+                "verdict_band": verdict_band,
+                "evaluation_source": f"{transport}:{model}",
+            }
+        except Exception:
+            pass
 
         out_words = [w for w in output.lower().split() if len(w) > 4]
         ctx_lower = context.lower()
@@ -3088,7 +3327,10 @@ class DecisionEngine:
             "is_faithful": ratio >= 0.40,
             "faithfulness_score": ratio,
             "hallucination_risk": max(0.0, 1.0 - ratio),
-            "evaluation_source": "local-heuristic"
+            "contradiction_probability": 0.0,
+            "completeness_score": round(ratio, 4),
+            "verdict_band": "grounded" if ratio >= 0.70 else ("unsettled_grounding" if ratio >= 0.40 else "unsupported"),
+            "evaluation_source": "local-heuristic",
         }
 
 
@@ -3341,7 +3583,33 @@ def sync_rules_if_stale(repo_root: Path, gate_ready: bool) -> Tuple[bool, bool]:
         return True, False
 
 
+def _extract_orient_task_summary_py(repo_root: Path, query: Optional[str]) -> str:
+    if query and query.strip():
+        return query.strip()
+    tasks_dir = repo_root / ".agents" / "tasks"
+    if tasks_dir.exists():
+        t_files = sorted(tasks_dir.glob("*.md"))
+        if t_files:
+            try:
+                t_text = t_files[-1].read_text(encoding="utf-8", errors="replace")
+                picked = []
+                for line in reversed(t_text.splitlines()):
+                    if line.startswith(("- objective:", "- scope:", "## ")):
+                        picked.append(line.strip())
+                        if len(picked) >= 3:
+                            break
+                if picked:
+                    picked.reverse()
+                    return " | ".join(picked)
+            except Exception:
+                pass
+    return "orient repository architecture, symbols, security governance, and active worktree state"
+
+
 def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, sections: Optional[int] = None, include_symbols: bool = True, sync_rules: bool = False, json_out: bool = False) -> None:
+    orient_prompt = _extract_orient_task_summary_py(repo_root, query)
+    dec_engine = DecisionEngine()
+    route_decision = dec_engine.route(orient_prompt) if task_conditioned else dec_engine.route_local(orient_prompt)
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_files = []
     if wiki_dir.exists():
@@ -3366,9 +3634,19 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
                     if len(w) >= 3:
                         task_keywords.append(w.lower())
 
+            target_domain = str(route_decision.get("target_domain") or "")
+
             def _score_wiki(p: Path) -> Tuple[int, str]:
                 s = 0
                 name_l = p.name.lower()
+                if target_domain == "security_governance" and ("security" in name_l or "03" in name_l):
+                    s += 12
+                elif target_domain == "codebase_symbols" and ("call" in name_l or "02" in name_l or "symbol" in name_l):
+                    s += 12
+                elif target_domain == "technical_debt" and ("debt" in name_l or "04" in name_l or "risk" in name_l):
+                    s += 12
+                elif target_domain == "architectural_wiki" and ("arch" in name_l or "01" in name_l):
+                    s += 12
                 for kw in task_keywords:
                     if kw in name_l:
                         s += 5
@@ -3416,6 +3694,15 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         "<ORIENT_PRIMER>",
         "## Grounded Architectural Context",
         f"<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {git_branch} | commit: {git_sha} -->",
+        "",
+        f"### Decision-Model Routing Hint (`{route_decision.get('source', 'local-calibrated')}`)",
+        (
+            f"- domain: `{route_decision.get('target_domain')}` (confidence {float(route_decision.get('route_confidence') or 0.8):.2f}) "
+            f"| freshness: `{float(route_decision.get('context_freshness') or 0.5):.2f}` "
+            f"| specificity: `{route_decision.get('query_specificity', 'conceptual_flow')}` "
+            f"| modality: `{route_decision.get('modality_preference', 'balanced')}` "
+            f"| strategy: `{route_decision.get('retrieval_strategy', 'hybrid_rerank')}` (pool {route_decision.get('candidate_pool_size', 12)})"
+        ),
         "",
     ]
     lines_per_sec = max_lines if max_lines is not None else (8 if compact else 40)
@@ -3544,6 +3831,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "compact": compact,
             "classical_crypto_redacted": total_sanitized > 0,
             "task_conditioned": task_conditioned,
+            "route_decision": route_decision,
         }, indent=2))
     else:
         print(primer_text)
@@ -3588,8 +3876,10 @@ def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store:
                 if m:
                     canary_leaks.append(f"Canary/credential leak pattern detected: {m.group(0)}")
 
-    covered_files = [f for f in modified_files if (repo_root / f).exists()]
-    file_coverage = (len(covered_files) / max(1, len(modified_files))) if modified_files else 1.0
+    code_files = [f for f in modified_files if not is_docs_or_coord_path(f)]
+    eval_files = code_files if code_files else modified_files
+    covered_files = [f for f in eval_files if (repo_root / f).exists()]
+    file_coverage = (len(covered_files) / max(1, len(eval_files))) if eval_files else 1.0
 
     anchored_symbols = 0
     matched_syms = set()

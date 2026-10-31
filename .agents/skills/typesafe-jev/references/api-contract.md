@@ -41,19 +41,23 @@ command falls back to the calibrated local router rather than silently using old
 ## Additional transport — Local Router
 
 The loopback Local Router (`http://127.0.0.1:11434`, or `JEV_LOCAL_ROUTER_URL`) is an additional
-*typed* transport, probed in this order:
+*typed* transport, discovered in this order:
 
-1. `GET {base}/v1/models` — any id containing `jev` marks a Jev candidate. A decisions-capable
-   router advertises pinned ids (`openrouter/jev-1.14`, `zenmux/jev-1.14`) with
-   `capabilities.decisions: true`, alongside the chat-only `openrouter-jev-router` alias.
-2. `POST {base}/api/alpha/decisions`, then `/v1/decisions`, then `/decisions` — the first route that
+1. `GET {base}/api/decisions/status` — zero-token fast path (Local Router 1.1.0+). A `ready: true`
+   response supplies `routes` (first route becomes the decisions URL) and `advertised_models`
+   (`openrouter/jev-1.14`, `zenmux/jev-1.14`).
+2. `GET {base}/v1/models` — any id containing `jev` marks a Jev candidate. A decisions-capable
+   router advertises pinned ids with `capabilities.decisions: true`, alongside the chat-only
+   `openrouter-jev-router` alias.
+3. `POST {base}/api/alpha/decisions`, then `/v1/decisions`, then `/decisions` — the first route that
    answers a minimal typed probe is usable.
 
-OpenRouter stays primary; the local route is tried only after the OpenRouter attempt fails (or
-when no OpenRouter key resolves). The probe **never** sends the OpenRouter key to loopback. A
-router that only exposes Jev over chat completions is reported by `ainish-rag secrets` as
-`Decisions Route: none (chat-only entry)` and is never substituted for typed, calibrated decisions
-— chat Jev routes can resolve to general models and carry no calibrated semantics.
+Both transports are attempted before any heuristic. Default order is OpenRouter then Local Router;
+`JEV_TRANSPORT_PRIORITY=local-router,openrouter` flips it. The probe **never** sends the OpenRouter
+key to loopback. A router that only exposes Jev over chat completions is reported by
+`ainish-rag secrets` as `Decisions Route: none (chat-only entry)` and is never substituted for
+typed, calibrated decisions — chat Jev routes can resolve to general models and carry no
+calibrated semantics.
 
 Verified 2026-10-31 against Local Router 1.1.0 (`main` @ `471d3f6`, production `:11434`):
 

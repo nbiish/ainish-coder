@@ -1119,22 +1119,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             } else {
-                let coarse_limit = (limit * 3).max(12);
-                let candidates = store.search_vector(&query_vec, coarse_limit, doc_type.as_deref()).await?;
                 let decision_engine = DecisionEngine::new();
-                let reranked = decision_engine.rerank(&query, candidates, min_relevance).await;
+                let coarse_limit = (limit * 3).max(12);
+                let mut candidates = store.search_vector(&query_vec, coarse_limit, doc_type.as_deref()).await?;
+                let mut reranked = decision_engine.rerank(&query, candidates.clone(), min_relevance).await;
+                let mut sufficiency = crate::decision::evaluate_context_sufficiency(&reranked);
+                let mut corrective_pass_triggered = false;
+
+                // Corrective RAG (CRAG): when the first retrieval pass lands in `partial_unsettled`
+                // or `insufficient`, extract symbol/file anchors from the partial candidates and
+                // run a second-stage symbol-anchored expansion pass before yielding.
+                if sufficiency != "sufficient" && !candidates.is_empty() {
+                    let expansion_terms = crate::decision::extract_corrective_expansion_terms(&query, &candidates);
+                    if !expansion_terms.is_empty() {
+                        corrective_pass_triggered = true;
+                        let expanded_query = format!("{} {}", query, expansion_terms.join(" "));
+                        let expanded_formatted = EmbedClient::format_query(&expanded_query, true);
+                        if let Ok(expanded_vec) = embed_client.embed_one(&expanded_formatted).await {
+                            if let Ok(extra_hits) = store.search_vector(&expanded_vec, coarse_limit, doc_type.as_deref()).await {
+                                for h in extra_hits {
+                                    if !candidates.iter().any(|c| c.path == h.path && c.start_line == h.start_line) {
+                                        candidates.push(h);
+                                    }
+                                }
+                                reranked = decision_engine.rerank(&query, candidates, min_relevance).await;
+                                sufficiency = crate::decision::evaluate_context_sufficiency(&reranked);
+                            }
+                        }
+                    }
+                }
+
                 let top_hits: Vec<_> = reranked.into_iter().take(limit).collect();
 
                 if json {
                     println!("{}", serde_json::to_string_pretty(&top_hits)?);
                 } else {
-                    let source_label = if decision_engine.api_key.is_some() {
-                        format!("OpenRouter Jev ({})", decision_engine.key_source)
-                    } else {
-                        "Local Calibrated Reranker".to_string()
-                    };
+                    let source_label = top_hits
+                        .first()
+                        .map(|h| h.rerank_source.clone())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| {
+                            if decision_engine.api_key.is_some() {
+                                format!("OpenRouter Jev ({})", decision_engine.key_source)
+                            } else {
+                                "Local Calibrated Reranker".to_string()
+                            }
+                        });
                     println!("\n=== Search Results (Decision Reranked: {}) ===", top_hits.len());
                     println!("Decision Engine:       {}", source_label);
+                    println!(
+                        "Context Sufficiency:   {}{}",
+                        sufficiency,
+                        if corrective_pass_triggered { " (CRAG corrective expansion pass applied)" } else { "" }
+                    );
                     if top_hits.is_empty() {
                         println!("No candidate chunks met the minimum relevance threshold ({:.2}).", min_relevance);
                     } else {
@@ -1345,6 +1382,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Needs Retrieval:       {} (probability: {:.3})", decision.needs_retrieval, decision.retrieval_probability);
                 println!("Target Domain:         {} (confidence:  {:.3})", decision.target_domain, decision.route_confidence);
                 println!("Context Freshness:     {:.3}", decision.context_freshness);
+                println!("Query Specificity:     {}", decision.query_specificity);
+                println!("Modality Preference:   {}", decision.modality_preference);
+                println!("Retrieval Strategy:    {} (pool: {})", decision.retrieval_strategy, decision.candidate_pool_size);
                 println!();
             }
         }
@@ -1454,8 +1494,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("\n=== Bi-Phasic Faithfulness Evaluation ===");
                     println!("Evaluation Source:     {}", eval.evaluation_source);
+                    println!("Verdict Band:          {}", eval.verdict_band);
                     println!("Faithful to Context:   {}", eval.is_faithful);
                     println!("Faithfulness Score:    {:.3}", eval.faithfulness_score);
+                    println!("Completeness Score:    {:.3}", eval.completeness_score);
+                    println!("Contradiction Prob:    {:.3}", eval.contradiction_probability);
                     println!("Hallucination Risk:    {:.3}", eval.halluncination_risk);
                     println!();
                 }
@@ -1524,7 +1567,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json).await?;
             }
         }
         Commands::Gate { patch, bell, notify, watch, summary, strict, tests, json } => {
@@ -2988,11 +3031,13 @@ pub async fn evaluate_patch_internal(
     let mut modified_files = Vec::new();
     let mut added_symbols = Vec::new();
     let mut canary_leaks = Vec::new();
+    let mut current_file = String::new();
 
     let normalized_patch = patch_text.replace("\r\n", "\n");
     for line in normalized_patch.lines() {
         if let Some(file_line) = line.strip_prefix("+++ b/") {
             let f = file_line.trim().to_string();
+            current_file = f.clone();
             if !modified_files.contains(&f) {
                 modified_files.push(f);
             }
@@ -3015,9 +3060,13 @@ pub async fn evaluate_patch_internal(
                 }
             }
 
-            for word in added_line.split(|c: char| !c.is_alphanumeric() && c != '_') {
-                if word.len() >= 4 && !added_symbols.contains(&word.to_string()) {
-                    added_symbols.push(word.to_string());
+            // Only extract code symbols from non-coordination/non-docs paths so SHA-256 digests and
+            // signature envelopes in `.agents/canonical/` or `.agents/audit/` do not dilute symbol anchoring.
+            if !is_docs_or_coord_path(&current_file) {
+                for word in added_line.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                    if word.len() >= 4 && !added_symbols.contains(&word.to_string()) {
+                        added_symbols.push(word.to_string());
+                    }
                 }
             }
         }
@@ -3027,29 +3076,40 @@ pub async fn evaluate_patch_internal(
     let embed_client = EmbedClient::with_config(&config, None);
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
+    // Exclude non-indexed coordination/documentation files from file-coverage denominator when the
+    // patch modifies code files, so mixed code + canonical-contract commits are scored on code.
+    let code_files: Vec<String> = modified_files
+        .iter()
+        .filter(|f| !is_docs_or_coord_path(f))
+        .cloned()
+        .collect();
+    let eval_files: &[String] = if code_files.is_empty() { &modified_files } else { &code_files };
+
     let mut covered_files = 0;
     let mut total_score = 0.0f32;
     let mut matched_sym_set = std::collections::HashSet::new();
 
-    for file_name in &modified_files {
+    for file_name in eval_files {
         let q_vec = embed_client.embed_one(&EmbedClient::format_query(file_name, true)).await?;
-        let hits = store.search_vector(&q_vec, 3, None).await?;
+        let hits = store.search_vector(&q_vec, 5, None).await?;
         if hits.iter().any(|h| h.path.contains(file_name)) {
             covered_files += 1;
         }
-        if let Some(top) = hits.first() {
-            total_score += top.score;
+        for hit in hits.iter().take(2) {
             for sym in &added_symbols {
-                if top.content.contains(sym) {
+                if hit.content.contains(sym) || hit.symbols.contains(sym) {
                     matched_sym_set.insert(sym.clone());
                 }
             }
         }
+        if let Some(top) = hits.first() {
+            total_score += top.score;
+        }
     }
 
     let matched_symbols = matched_sym_set.len();
-    let file_coverage = if modified_files.is_empty() { 1.0 } else { covered_files as f32 / modified_files.len() as f32 };
-    let avg_score = if modified_files.is_empty() { 0.0 } else { total_score / modified_files.len() as f32 };
+    let file_coverage = if eval_files.is_empty() { 1.0 } else { covered_files as f32 / eval_files.len() as f32 };
+    let avg_score = if eval_files.is_empty() { 0.0 } else { total_score / eval_files.len() as f32 };
     let symbol_anchoring = if added_symbols.is_empty() { 1.0 } else { (matched_symbols as f32 / added_symbols.len() as f32).min(1.0) };
     let composite_score = (file_coverage * 0.4) + (avg_score * 0.4) + (symbol_anchoring * 0.2);
 
@@ -3294,6 +3354,43 @@ fn sanitize_orient_content(content: &str) -> (String, usize) {
     (sanitized, count)
 }
 
+fn extract_orient_task_summary(repo_root: &std::path::Path, query: Option<&str>) -> String {
+    if let Some(q) = query {
+        let trimmed = q.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    let tasks_dir = repo_root.join(".agents").join("tasks");
+    if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
+        let mut task_files: Vec<PathBuf> = t_entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().map_or(false, |ext| ext == "md"))
+            .collect();
+        task_files.sort();
+        if let Some(latest_task) = task_files.last() {
+            if let Ok(text) = std::fs::read_to_string(latest_task) {
+                let mut lines: Vec<&str> = Vec::new();
+                for line in text.lines().rev() {
+                    if line.starts_with("- objective:") || line.starts_with("- scope:") || line.starts_with("## ") {
+                        lines.push(line.trim());
+                        if lines.len() >= 3 {
+                            break;
+                        }
+                    }
+                }
+                if !lines.is_empty() {
+                    lines.reverse();
+                    return lines.join(" | ");
+                }
+            }
+        }
+    }
+    "orient repository architecture, symbols, security governance, and active worktree state".to_string()
+}
+
+#[allow(dead_code)]
 fn build_orient_report(
     repo_root: &std::path::Path,
     query: Option<&str>,
@@ -3303,6 +3400,21 @@ fn build_orient_report(
     sections: Option<usize>,
     include_symbols: bool,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    build_orient_report_with_route(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols, None)
+}
+
+fn build_orient_report_with_route(
+    repo_root: &std::path::Path,
+    query: Option<&str>,
+    task_conditioned: bool,
+    compact: bool,
+    max_lines: Option<usize>,
+    sections: Option<usize>,
+    include_symbols: bool,
+    route_override: Option<crate::decision::RouteDecision>,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let orient_prompt = extract_orient_task_summary(repo_root, query);
+    let route_decision = route_override.unwrap_or_else(|| DecisionEngine::new().route_local(&orient_prompt));
     let section_limit = sections.unwrap_or(3);
     let wiki_dir = repo_root.join(".agents").join("wiki");
     let mut candidate_files = Vec::new();
@@ -3351,12 +3463,21 @@ fn build_orient_report(
                 }
             }
 
+            let target_domain = route_decision.target_domain.as_str();
             files.sort_by(|a, b| {
                 let a_name = a.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
                 let b_name = b.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
 
                 let score_file = |name: &str, p: &std::path::Path| -> i32 {
                     let mut score = 0;
+                    // Domain-guided wiki section weighting from the Jev route decision
+                    match target_domain {
+                        "security_governance" if name.contains("security") || name.contains("03") => score += 12,
+                        "codebase_symbols" if name.contains("call") || name.contains("02") || name.contains("symbol") => score += 12,
+                        "technical_debt" if name.contains("debt") || name.contains("04") || name.contains("risk") => score += 12,
+                        "architectural_wiki" if name.contains("arch") || name.contains("01") => score += 12,
+                        _ => {}
+                    }
                     for kw in &task_keywords {
                         if name.contains(kw) {
                             score += 5;
@@ -3426,6 +3547,17 @@ fn build_orient_report(
     primer_lines.push(format!(
         "<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {} | commit: {} -->\n",
         git_branch, git_sha
+    ));
+    primer_lines.push(format!(
+        "### Decision-Model Routing Hint (`{}`)\n- domain: `{}` (confidence {:.2}) | freshness: `{:.2}` | specificity: `{}` | modality: `{}` | strategy: `{}` (pool {})\n",
+        route_decision.source,
+        route_decision.target_domain,
+        route_decision.route_confidence,
+        route_decision.context_freshness,
+        route_decision.query_specificity,
+        route_decision.modality_preference,
+        route_decision.retrieval_strategy,
+        route_decision.candidate_pool_size,
     ));
 
     let lines_per_section = max_lines.unwrap_or(if compact { 8 } else { 25 });
@@ -3563,10 +3695,11 @@ fn build_orient_report(
         "compact": compact,
         "classical_crypto_redacted": total_sanitized > 0,
         "task_conditioned": task_conditioned,
+        "route_decision": route_decision,
     }))
 }
 
-fn run_orient_inject(
+async fn run_orient_inject(
     repo_root: &std::path::Path,
     query: Option<&str>,
     task_conditioned: bool,
@@ -3578,7 +3711,18 @@ fn run_orient_inject(
     sync_rules: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
+    let orient_prompt = extract_orient_task_summary(repo_root, query);
+    let route_decision = DecisionEngine::new().route(&orient_prompt).await;
+    let mut report = build_orient_report_with_route(
+        repo_root,
+        query,
+        task_conditioned,
+        compact,
+        max_lines,
+        sections,
+        include_symbols,
+        Some(route_decision),
+    )?;
 
     // Master-orchestrator: verified primers must run against fresh rules. When the caller
     // passes --verify and the cached gate verdict is not GREEN, auto-enable the sync so the
