@@ -1088,13 +1088,28 @@ def _first_env_var(names: List[str]) -> Optional[str]:
     return None
 
 
+def _linked_worktree_root(repo_root: Path) -> Optional[Path]:
+    """Returns the main checkout root when `repo_root` is a linked git worktree, else None.
+
+    Worktrees have a `.git` *file* pointing at `<main>/.git/worktrees/<name>`; a normal checkout
+    has a `.git` directory. Only linked worktrees may borrow the canonical repository's shared
+    embedding config and index fingerprint — arbitrary directories (and test temp dirs) must
+    resolve to themselves so the cwd repository's settings never leak in.
+    """
+    if not (repo_root / ".git").is_file():
+        return None
+    canonical = resolve_canonical_repo_root(repo_root)
+    return canonical if canonical != repo_root else None
+
+
 def _persisted_provider_cfg(repo_root: Path) -> Optional[Dict[str, Any]]:
     f = repo_root / ".agents" / "rag" / "embed-provider.json"
     if not f.is_file():
-        canonical = resolve_canonical_repo_root(repo_root) / ".agents" / "rag" / "embed-provider.json"
-        if canonical.is_file():
-            f = canonical
-        else:
+        canonical_root = _linked_worktree_root(repo_root)
+        if canonical_root is None:
+            return None
+        f = canonical_root / ".agents" / "rag" / "embed-provider.json"
+        if not f.is_file():
             return None
     try:
         data = json.loads(f.read_text(encoding="utf-8"))
@@ -1396,10 +1411,11 @@ def index_mismatch_warning(repo_root: Path, identity: str) -> Optional[str]:
     """Warns when the store was built with a different embedding model than the one in use."""
     path = repo_root / INDEX_FINGERPRINT_PATH
     if not path.is_file():
-        canonical = resolve_canonical_repo_root(repo_root) / INDEX_FINGERPRINT_PATH
-        if canonical.is_file():
-            path = canonical
-        else:
+        canonical_root = _linked_worktree_root(repo_root)
+        if canonical_root is None:
+            return None
+        path = canonical_root / INDEX_FINGERPRINT_PATH
+        if not path.is_file():
             return None
     try:
         recorded = str(json.loads(path.read_text(encoding="utf-8")).get("identity") or "").strip()
