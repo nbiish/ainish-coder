@@ -1,0 +1,14 @@
+# Suggestions — 2026-10-31 (UTC)
+# Format law: AGENTS.md <OUTPUT>.
+
+### [2026-10-31T05:52:00Z] fix/rules-sync-cross-device
+Enrolled the eight live repositories in the official rules registry and made the fleet sync survive one bad target and cross-volume targets.
+What would this adversarial / security master suggest? Re-run `--rules-verify` inside the root post-commit hook so a manifest that fails signature check is reported, not silently rewritten on the next commit.
+What would this privacy / data-protection regulatory master suggest? Keep the machine-local target list in `~/.config` only and never let a fleet path reach a committed ledger or manifest template.
+What would this supply-chain / third-party-risk master suggest? Pin the refresher's expected CLI contract (exit codes, `--rules --headless`) with a version marker so an old deployed refresher cannot report a false "current".
+What would this systems-architecture / devops master suggest? Retire `sync-rules-targets.sh` and `rules-targets.json` once the fleet has run a full cycle on the official registry, so one code path owns propagation.
+What would this reliability / verification master suggest? Add a regression test that runs `--rules` against a repo on a second filesystem, since the EXDEV path only reproduces across volumes.
+What would this governance / sovereignty master suggest? Record the enrolled fleet size and source commit in the post-commit hook's log so propagation is auditable without reading each manifest.
+What would this terminal-orchestration / swe-bench master suggest? Run `--rules-sync --all --json` in CI on a schedule to catch drift between contract advances and deployed copies.
+What would this master-orchestrator / self-prompting master suggest? Fold "migrate registry, enroll targets, verify signatures, report fleet state" into a single `--rules-adopt` command.
+What would this developer-experience / ergonomics master suggest? Have `--rules-status` print the registry path it read and the number of legacy entries it imported, so a stale registry is obvious at a glance.
