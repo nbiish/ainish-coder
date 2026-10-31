@@ -338,6 +338,10 @@ enum Commands {
         /// Require STRONG_ANCHOR (>= 70.0% composite score) for security-critical modules
         #[arg(long)]
         strict: bool,
+        /// Command that proves the existing test suite is green. Its exit code is shown on the
+        /// gate card and a non-zero exit blocks the merge. Omit for docs-only patches.
+        #[arg(long)]
+        tests: Option<String>,
         /// Output gate results as JSON
         #[arg(long)]
         json: bool,
@@ -1523,11 +1527,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json)?;
             }
         }
-        Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
-            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, strict, false, json).await?;
+        Commands::Gate { patch, bell, notify, watch, summary, strict, tests, json } => {
+            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, strict, tests.as_deref(), false, json).await?;
         }
         Commands::Statusline { json } => {
-            run_gate(&config, &current_dir, None, false, false, false, true, false, json, false).await?;
+            run_gate(&config, &current_dir, None, false, false, false, true, false, None, json, false).await?;
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
@@ -3715,6 +3719,79 @@ fn git_branch_sha(repo_root: &std::path::Path) -> (String, String) {
     (branch, sha)
 }
 
+/// Test files are noise for the "implementation over test theatre" budget, so the gate counts
+/// them separately from implementation lines added by a patch.
+fn is_test_path(path: &str) -> bool {
+    let p = path.replace('\\', "/").to_lowercase();
+    let name = p.rsplit('/').next().unwrap_or(p.as_str());
+    p.contains("/tests/")
+        || p.contains("/test/")
+        || p.contains("/spec/")
+        || name.starts_with("test_")
+        || name.contains("_test.")
+        || name.contains(".test.")
+        || name.contains(".spec.")
+}
+
+/// Returns `(test_lines_added, impl_lines_added)` for a unified diff.
+fn diff_test_stats(patch: &str) -> (usize, usize) {
+    let mut current = String::new();
+    let mut test_lines = 0usize;
+    let mut impl_lines = 0usize;
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            current = rest.to_string();
+            continue;
+        }
+        if line.starts_with("+++") || line.starts_with("---") || line.starts_with('\\') {
+            continue;
+        }
+        if line.starts_with('+') && !line.starts_with("+++") {
+            if is_test_path(&current) {
+                test_lines += 1;
+            } else {
+                impl_lines += 1;
+            }
+        }
+    }
+    (test_lines, impl_lines)
+}
+
+/// Runs the operator's existing-suite command so the gate card can show its exit code instead of
+/// trusting a prose claim. Output is inherited so a failure is visible in the gate log.
+fn run_test_command(repo_root: &std::path::Path, cmd: &str) -> (bool, Option<i32>) {
+    #[cfg(windows)]
+    let mut command = {
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/C").arg(cmd);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut command = {
+        let mut c = std::process::Command::new("sh");
+        c.arg("-c").arg(cmd);
+        c
+    };
+    let result = command
+        .current_dir(repo_root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status();
+    match result {
+        Ok(status) => (status.success(), status.code()),
+        Err(_) => (false, None),
+    }
+}
+
+fn truncate_cmd(cmd: &str, max: usize) -> String {
+    if cmd.chars().count() <= max {
+        cmd.to_string()
+    } else {
+        format!("{}…", cmd.chars().take(max.saturating_sub(1)).collect::<String>())
+    }
+}
+
 async fn run_gate(
     config: &RagConfig,
     repo_root: &std::path::Path,
@@ -3724,6 +3801,7 @@ async fn run_gate(
     watch: bool,
     summary: bool,
     strict: bool,
+    tests: Option<&str>,
     statusline_json: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -3848,10 +3926,10 @@ async fn run_gate(
     // Execute Zero-Trust, Loopback PSK, Trojan-Source, Model-Manifest Sig & Contract Governance History checks
     let agents_file = repo_root.join("AGENTS.md");
     let canon_hash_file = repo_root.join(".agents").join("canonical").join("AGENTS.md.sha256");
+    let agents_sha = pqc::sha256_file(&agents_file).unwrap_or_default().to_lowercase();
     let zt_hash_ok = if agents_file.is_file() && canon_hash_file.is_file() {
-        let actual = pqc::sha256_file(&agents_file).unwrap_or_default().to_lowercase();
         let expected = std::fs::read_to_string(&canon_hash_file).unwrap_or_default().trim().to_lowercase();
-        actual == expected
+        agents_sha == expected
     } else {
         true
     };
@@ -3878,7 +3956,11 @@ async fn run_gate(
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
 
-    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass;
+    let (test_lines_added, impl_lines_added) = diff_test_stats(&patch_text);
+    let tests_run = tests.map(|cmd| (cmd.to_string(), run_test_command(repo_root, cmd)));
+    let tests_pass = tests_run.as_ref().map_or(true, |(_, (ok, _))| *ok);
+
+    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass && tests_pass;
 
     // Persist the latest gate verdict for `orient --inject --json` (`gate_ready`) and statusline consumers.
     let (cache_branch, cache_commit) = git_branch_sha(repo_root);
@@ -3888,6 +3970,17 @@ async fn run_gate(
         "status": if overall_pass { "GREEN" } else { "RED" },
         "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
         "docs_only": docs_only_patch,
+        "contract_sha256": agents_sha,
+        "diff_stats": {
+            "test_lines_added": test_lines_added,
+            "impl_lines_added": impl_lines_added
+        },
+        "tests": {
+            "provided": tests_run.is_some(),
+            "command": tests_run.as_ref().map(|(cmd, _)| cmd.clone()),
+            "exit_code": tests_run.as_ref().and_then(|(_, (_, code))| *code),
+            "pass": tests_pass
+        },
         "branch": cache_branch,
         "commit": cache_commit,
         "updated_at": chrono::Utc::now().to_rfc3339(),
@@ -3941,6 +4034,7 @@ async fn run_gate(
             },
             "canonical_contract": {
                 "pass": canonical_pass,
+                "sha256": agents_sha,
                 "status": match canonical_eval {
                     pqc::VerifyOutcome::Verified { ref fingerprint } => format!("ML-DSA-65 Verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]),
                     pqc::VerifyOutcome::Unsigned(ref r) => format!("Unsigned: {}", r),
@@ -3951,6 +4045,16 @@ async fn run_gate(
                 "pass": audit_pass,
                 "passed_count": audit_receipts_passed,
                 "failed_count": audit_receipts_failed
+            },
+            "diff_stats": {
+                "test_lines_added": test_lines_added,
+                "impl_lines_added": impl_lines_added
+            },
+            "tests": {
+                "provided": tests_run.is_some(),
+                "command": tests_run.as_ref().map(|(cmd, _)| cmd.clone()),
+                "exit_code": tests_run.as_ref().and_then(|(_, (_, code))| *code),
+                "pass": tests_pass
             },
             "comms_hygiene": {
                 "pass": comms_pass,
@@ -3983,6 +4087,24 @@ async fn run_gate(
         };
         println!("  Patch Anchoring:        {}", patch_label);
 
+        let delta_label = if patch_text.trim().is_empty() {
+            "n/a (no patch)".to_string()
+        } else {
+            format!("+{} test / +{} impl", test_lines_added, impl_lines_added)
+        };
+        println!("  Test Delta:             {}", delta_label);
+
+        let tests_label = match &tests_run {
+            Some((cmd, (ok, code))) => format!(
+                "{} ({} → exit {})",
+                if *ok { "\x1b[32mPASS\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" },
+                truncate_cmd(cmd, 34),
+                code.map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+            ),
+            None => "\x1b[33mSKIPPED (pass --tests \"<cmd>\")\x1b[0m".to_string(),
+        };
+        println!("  Existing Tests:         {}", tests_label);
+
         let lock_label = if lock_pass {
             format!("\x1b[32mPASS (0 drift, {} unpinned)\x1b[0m", lock_unpinned.len())
         } else {
@@ -3998,7 +4120,10 @@ async fn run_gate(
         println!("  Post-Quantum Receipts:  {}", audit_label);
 
         let canon_label = match canonical_eval {
-            pqc::VerifyOutcome::Verified { .. } => "\x1b[32mPASS (FIPS 204 ML-DSA-65 signed)\x1b[0m".to_string(),
+            pqc::VerifyOutcome::Verified { .. } => format!(
+                "\x1b[32mPASS (FIPS 204 ML-DSA-65, sha256 {})\x1b[0m",
+                &agents_sha[..12.min(agents_sha.len())]
+            ),
             pqc::VerifyOutcome::Unsigned(_) => "\x1b[33mWARN (envelope missing or unsigned)\x1b[0m".to_string(),
             pqc::VerifyOutcome::Invalid(_) => "\x1b[31mFAIL (tamper detected / mismatch)\x1b[0m".to_string(),
         };
@@ -4579,6 +4704,22 @@ mod tests {
         }
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_diff_test_stats_splits_test_and_impl_lines() {
+        let diff = "\
+--- a/src/x.rs\n\
++++ b/src/x.rs\n\
++let a = 1;\n\
+--- /dev/null\n\
++++ b/src/rag/tests/test_x.py\n\
++def test_x(): pass\n\
++assert True\n";
+        assert_eq!(diff_test_stats(diff), (2, 1));
+        assert!(is_test_path("src/rag/tests/test_x.py"));
+        assert!(is_test_path("pkg/x.spec.ts"));
+        assert!(!is_test_path("src/rag/main.rs"));
     }
 }
 

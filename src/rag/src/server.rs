@@ -220,6 +220,32 @@ impl LlamaServer {
         2048
     }
 
+    /// Multimodal llama asserts `ggml_can_mul_mat` when `n_ubatch` sits below 512, which is
+    /// exactly what the worktree-divided budget produces (512 / 3 worktrees = 170). Keep the
+    /// batch at or above this floor whenever an mmproj is loaded.
+    pub const MIN_MULTIMODAL_BATCH: usize = 512;
+
+    /// Raises the derived batch to the multimodal floor. Non-multimodal models keep the
+    /// memory-budgeted value untouched.
+    pub fn effective_batch(batch: usize, has_mmproj: bool) -> usize {
+        if has_mmproj {
+            batch.max(Self::MIN_MULTIMODAL_BATCH)
+        } else {
+            batch
+        }
+    }
+
+    /// Resolves the GPU flag plan. `-ngl 0` must always be passed explicitly (omitting it leaves
+    /// llama's GPU default in force), and CPU-only launches must not request `-fa on`: flash
+    /// attention crashes some builds without a GPU backend.
+    pub fn gpu_flag_plan(ngl: &str, flash_setting: &str) -> (String, bool) {
+        let layers = ngl.trim().to_string();
+        let flash = layers != "0"
+            && !flash_setting.eq_ignore_ascii_case("off")
+            && flash_setting.trim() != "0";
+        (layers, flash)
+    }
+
     /// Derives a KV-cache-safe `(ctx_size, batch_size)` for llama's `serve` from the operator's
     /// memory budget. The previous behaviour hardcoded 8192/8192, which drove resident memory to
     /// ~9.6GB regardless of `--max-mem`; sizing now tracks the budget so the cap is real.
@@ -558,6 +584,7 @@ impl LlamaServer {
                 let (ctx, batch) = Self::derive_ctx_batch(config.max_mem, repo_root);
                 (ctx, batch, config.threads.unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4)))
             };
+            let tuned_batch = Self::effective_batch(tuned_batch, config.mmproj_path.is_some());
             println!(
                 "  \x1b[36m[rag:memory]\x1b[0m Context/batch sized for {} MB budget: ctx={} batch={} (override with AINISH_RAG_CTX / AINISH_RAG_BATCH)",
                 config.max_mem.unwrap_or_else(Self::default_mem_budget_mb),
@@ -578,22 +605,28 @@ impl LlamaServer {
             let ngl = std::env::var("AINISH_RAG_NGL")
                 .or_else(|_| std::env::var("LLAMA_GPU_LAYERS"))
                 .unwrap_or_else(|_| "99".to_string());
-            if ngl != "0" {
-                cmd.arg("-ngl").arg(&ngl);
-            }
-
             let flash_attn = std::env::var("AINISH_RAG_FLASH_ATTN")
                 .unwrap_or_else(|_| "on".to_string());
-            if flash_attn != "off" && flash_attn != "0" {
+            // Always pass the layer count, including 0: omitting the flag leaves llama's GPU
+            // default in force, so `AINISH_RAG_NGL=0` never actually forced CPU.
+            let (ngl_value, use_flash) = Self::gpu_flag_plan(&ngl, &flash_attn);
+            cmd.arg("-ngl").arg(&ngl_value);
+            if use_flash {
                 cmd.arg("-fa").arg("on");
             }
 
             cmd.arg("--threads").arg(tuned_threads.to_string());
             cmd.args(&affinity_args);
 
-            cmd.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
+            // Keep the child's stderr on disk: a load-time GGML assert is otherwise invisible
+            // behind the null stdio handles and looks like an unexplained healthcheck timeout.
+            let stderr_log = pid_dir.join("llama-server.err.log");
+            let stderr_target = fs::File::create(&stderr_log).ok();
+            cmd.stdin(Stdio::null()).stdout(Stdio::null());
+            match stderr_target {
+                Some(f) => { cmd.stderr(Stdio::from(f)); }
+                None => { cmd.stderr(Stdio::null()); }
+            }
 
             #[cfg(windows)]
             {
@@ -651,7 +684,14 @@ impl LlamaServer {
             }
         }
 
-        Err(format!("Embedding server failed to become ready at {} after {} attempts", config.server_url, max_retries))
+        let log_hint = pid_dir.join("llama-server.err.log");
+        Err(format!(
+            "Embedding server failed to become ready at {} after {} attempts — hints: GPU-less hosts need AINISH_RAG_NGL=0 (this also disables -fa); multimodal models need batch/ubatch >= {} (the budget is floored automatically when an mmproj is loaded); raise --max-mem or set AINISH_RAG_CTX / AINISH_RAG_BATCH; llama's own stderr is in {}",
+            config.server_url,
+            max_retries,
+            Self::MIN_MULTIMODAL_BATCH,
+            log_hint.display()
+        ))
     }
 
     /// Terminates a process tree. Best-effort: a recycled PID is still only signalled when the
@@ -1017,5 +1057,21 @@ mod tests {
         assert!(!rag_dir.join("session.psk").exists());
         assert!(!rag_dir.join("session.psk.meta").exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_multimodal_batch_floor() {
+        // 512 / 3 worktrees = 170 was the exact value that crashed the mmproj load.
+        assert_eq!(LlamaServer::effective_batch(170, true), 512);
+        assert_eq!(LlamaServer::effective_batch(170, false), 170);
+        assert_eq!(LlamaServer::effective_batch(1024, true), 1024);
+    }
+
+    #[test]
+    fn test_gpu_flag_plan_pins_cpu_and_drops_flash_attention() {
+        assert_eq!(LlamaServer::gpu_flag_plan("0", "on"), ("0".to_string(), false));
+        assert_eq!(LlamaServer::gpu_flag_plan(" 0 ", "on"), ("0".to_string(), false));
+        assert_eq!(LlamaServer::gpu_flag_plan("99", "on"), ("99".to_string(), true));
+        assert_eq!(LlamaServer::gpu_flag_plan("99", "off"), ("99".to_string(), false));
     }
 }
