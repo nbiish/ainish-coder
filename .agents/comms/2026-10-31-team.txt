@@ -89,3 +89,34 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:merge 61467cf (--no-ff). Skill transports + failure-mode guidance now describe the typed transport and pinned ids; api-contract.md records the 2026-10-31 verification (three routes, pinned openrouter/jev-1.14 + zenmux/jev-1.14, availability-only failover, zenmux dialect + 404 status, forced-fallback source string); PRD decision-layer line updated; engine comments/secrets message no longer claim local-router is chat-only. Checks: cargo check --all-targets clean, 41 Python decision tests OK. No behavior change.
 - status:merged
 - blockers:ZenMux decisions route still answers 404 model_not_supported for typesafe/jev-1.14; requests fall back to OpenRouter with provenance.
+
+### [2026-10-31T13:50:00Z] checkin | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
+- start:2026-10-31T13:50:00Z
+- end:2026-10-31T13:50:00Z
+- scope:AGENTS.md, .agents/canonical/, .agents/audit/contract-history.*, .agents/tasks/2026-10-31-task.md
+- triage:now
+- objective:teach every target that implementation comes before test theatre - tests only for a real reproduction or a subtle contract, no per-function sweeps or coverage mocks
+- input:operator request to cut useless/excessive tests and token bloat; current contract EXECUTION/WORKFLOW wording
+- output:pending
+- status:in-progress
+- blockers:none
+
+### [2026-10-31T14:12:00Z] intent-merge | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
+- start:2026-10-31T13:50:00Z
+- end:2026-10-31T14:12:00Z
+- scope:same
+- objective:merge the contract change to main and prove the gate on both sides
+- input:atomic commit 4e25534; canonical re-signed in-branch (5baa44ab, k=1, 16/16 history); docs-only patch anchor-exempt
+- output:merge --no-ff c26ecae
+- status:merged
+- blockers:none
+
+### [2026-10-31T14:22:00Z] checkout | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
+- start:2026-10-31T13:50:00Z
+- end:2026-10-31T14:22:00Z
+- scope:same
+- objective:close the loop after merge and gate
+- input:merged c26ecae; gate GREEN on branch and on main (docs-only exempt, lockfiles, 11 receipts, canonical signed, COMMS, zero-trust); audit verify 15/15
+- output:no-rebuild-needed (docs-only); AGENTS.md EXECUTION gains the implementation-over-test-theatre rule and real-surface proof; worktree and branch removed
+- status:verified
+- blockers:local embedding server cannot auto-spawn on this GPU-less host (see memory 14:20)
