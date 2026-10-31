@@ -31,7 +31,63 @@ pub struct RouteDecision {
     /// long-lived architecture. Lets agents choose between the wiki and a fresh orient scan.
     #[serde(default)]
     pub context_freshness: f32,
-    pub source: String, // "openrouter:<resolved-model>" or "local-calibrated"
+    /// Query specificity classified by Jev (`exact_symbol`, `conceptual_flow`, or `broad_audit`).
+    #[serde(default = "default_query_specificity")]
+    pub query_specificity: String,
+    /// Source modality preference (`code_first`, `docs_first`, or `balanced`).
+    #[serde(default = "default_modality_preference")]
+    pub modality_preference: String,
+    /// Deterministic code-owned retrieval strategy derived from calibrated routing judgments
+    /// (`skip_retrieval`, `symbol_anchored`, `hybrid_rerank`, `fresh_orient_first`, `multi_hop_expand`).
+    #[serde(default = "default_retrieval_strategy")]
+    pub retrieval_strategy: String,
+    /// Recommended coarse candidate pool size before two-stage Jev reranking.
+    #[serde(default = "default_candidate_pool_size")]
+    pub candidate_pool_size: usize,
+    pub source: String, // "openrouter:<resolved-model>", "local-router:<url>:<model>", or "local-calibrated"
+}
+
+fn default_query_specificity() -> String {
+    "conceptual_flow".to_string()
+}
+
+fn default_modality_preference() -> String {
+    "balanced".to_string()
+}
+
+fn default_retrieval_strategy() -> String {
+    "hybrid_rerank".to_string()
+}
+
+fn default_candidate_pool_size() -> usize {
+    12
+}
+
+/// Code-owned mapping from calibrated Jev routing judgments to an actionable retrieval strategy.
+pub fn derive_retrieval_strategy(
+    needs_retrieval: bool,
+    target_domain: &str,
+    context_freshness: f32,
+    query_specificity: &str,
+    modality_preference: &str,
+) -> (String, usize) {
+    if !needs_retrieval || target_domain == "general_knowledge" {
+        return ("skip_retrieval".to_string(), 0);
+    }
+    if context_freshness >= JEV_NOUL_YES {
+        return ("fresh_orient_first".to_string(), 12);
+    }
+    match query_specificity {
+        "exact_symbol" => ("symbol_anchored".to_string(), 10),
+        "broad_audit" => ("multi_hop_expand".to_string(), 16),
+        _ => {
+            if modality_preference == "code_first" {
+                ("symbol_anchored".to_string(), 12)
+            } else {
+                ("hybrid_rerank".to_string(), 12)
+            }
+        }
+    }
 }
 
 /// One typed answer from the Jev Decisions API. `kind` mirrors the question type (`noul`,
@@ -167,12 +223,45 @@ async fn probe_decisions(client: &reqwest::Client, url: &str) -> bool {
     matches!(client.post(url).json(&payload).send().await, Ok(response) if response.status().is_success())
 }
 
+/// Resolves transport priority order (`["openrouter", "local-router"]` by default; override with
+/// `JEV_TRANSPORT_PRIORITY=local-router,openrouter` when the local-router proxy should be tried first).
+pub fn transport_priority_order() -> Vec<&'static str> {
+    let raw = env::var("JEV_TRANSPORT_PRIORITY")
+        .or_else(|_| env::var("AINISH_RAG_DECISION_PRIORITY"))
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let mut order = Vec::new();
+    for part in raw.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
+        let token = part.trim();
+        match token {
+            "openrouter" | "or" => {
+                if !order.contains(&"openrouter") {
+                    order.push("openrouter");
+                }
+            }
+            "local-router" | "localrouter" | "local_router" | "router" => {
+                if !order.contains(&"local-router") {
+                    order.push("local-router");
+                }
+            }
+            _ => {}
+        }
+    }
+    for default_item in ["openrouter", "local-router"] {
+        if !order.contains(&default_item) {
+            order.push(default_item);
+        }
+    }
+    order
+}
+
 /// Probes loopback local-router bases for a Jev catalog entry and a decisions-compatible route.
 ///
-/// The local router is an *additional typed transport*: OpenRouter's latest Jev remains primary.
-/// A router that exposes `/api/alpha/decisions` (verified 2026-10-31) is used after the OpenRouter
-/// attempt fails or when no key resolves; a chat-only Jev alias (`openrouter-jev-router`) is
-/// reported but never substituted for typed, calibrated decisions.
+/// Fast-path: checks `GET {base}/api/decisions/status` first (Local Router 1.1.0+, ~2ms, zero
+/// upstream cost). When that endpoint is absent, falls back to `GET {base}/v1/models` + a minimal
+/// typed POST probe against `/api/alpha/decisions`, `/v1/decisions`, and `/decisions`.
+/// A chat-only Jev alias (`openrouter-jev-router`) is reported but never substituted for typed,
+/// calibrated decisions.
 pub async fn discover_local_router() -> Option<LocalJevRouter> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(1200))
@@ -193,7 +282,39 @@ pub async fn discover_local_router() -> Option<LocalJevRouter> {
     }
 
     for base in bases {
+        // 1. Fast zero-token check via Local Router's native `/api/decisions/status` endpoint.
+        let mut status_ready = false;
+        let mut status_route: Option<String> = None;
+        let mut status_models: Vec<String> = Vec::new();
+        if let Ok(status_resp) = client.get(format!("{base}/api/decisions/status")).send().await {
+            if status_resp.status().is_success() {
+                if let Ok(status_json) = status_resp.json::<serde_json::Value>().await {
+                    status_ready = status_json.get("ready").and_then(|v| v.as_bool()).unwrap_or(false);
+                    if let Some(routes) = status_json.get("routes").and_then(|r| r.as_array()) {
+                        if let Some(first_route) = routes.first().and_then(|r| r.as_str()) {
+                            status_route = Some(format!("{base}{first_route}"));
+                        }
+                    }
+                    if let Some(adv) = status_json.get("advertised_models").and_then(|m| m.as_array()) {
+                        for item in adv {
+                            if let Some(id) = item.get("id").and_then(|v| v.as_str()) {
+                                status_models.push(id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let Ok(response) = client.get(format!("{base}/v1/models")).send().await else {
+            if status_ready && status_route.is_some() {
+                return Some(LocalJevRouter {
+                    base_url: base,
+                    jev_models: if status_models.is_empty() { vec![LATEST_JEV_MODEL.to_string()] } else { status_models },
+                    chat_only: false,
+                    decisions_url: status_route,
+                });
+            }
             continue;
         };
         if !response.status().is_success() {
@@ -212,17 +333,24 @@ pub async fn discover_local_router() -> Option<LocalJevRouter> {
                     .collect()
             })
             .unwrap_or_default();
-        let jev_models = jev_models_filter(&models);
+        let mut jev_models = jev_models_filter(&models);
+        for sm in status_models {
+            if !jev_models.contains(&sm) {
+                jev_models.push(sm);
+            }
+        }
         if jev_models.is_empty() {
             continue;
         }
 
-        let mut decisions_url = None;
-        for path in LOCAL_DECISIONS_PATHS {
-            let url = format!("{base}{path}");
-            if probe_decisions(&client, &url).await {
-                decisions_url = Some(url);
-                break;
+        let mut decisions_url = if status_ready { status_route } else { None };
+        if decisions_url.is_none() {
+            for path in LOCAL_DECISIONS_PATHS {
+                let url = format!("{base}{path}");
+                if probe_decisions(&client, &url).await {
+                    decisions_url = Some(url);
+                    break;
+                }
             }
         }
 
@@ -267,10 +395,85 @@ pub struct RerankResult {
     pub decision_score: f32,
     pub rerank_score: f32,
     pub is_relevant: bool,
+    /// Calibrated `answers_directly` noul probability in `[0, 1]`.
+    #[serde(default, rename = "decision_probability")]
+    pub direct_probability: f32,
+    /// Calibrated `names_query_symbols` noul probability in `[0, 1]`.
+    #[serde(default)]
+    pub symbol_support: f32,
+    /// Continuous 0..4 utility score from Jev (`utility_i`).
+    #[serde(default, rename = "decision_utility")]
+    pub utility_score: f32,
+    /// Calibrated band (`yes`, `no`, or `unsettled`) for `direct_probability`.
+    #[serde(default)]
+    pub noul_band: String,
     /// Jev's classification of the artefact: implementation, documentation, test, or generated.
     #[serde(default, rename = "decision_role")]
     pub role: String,
+    /// Transport and model that produced this rerank (`openrouter:...`, `local-router:...`, `local-calibrated-rrf`).
+    #[serde(default)]
+    pub rerank_source: String,
     pub rationale: String,
+}
+
+/// Evaluates collective context sufficiency across reranked candidates (Corrective RAG / CRAG):
+/// * `"sufficient"` — at least one primary candidate is in the settled `yes` band (`>= 0.70`) with solid utility, or top combined score `>= 0.62`.
+/// * `"insufficient"` — no candidates, all candidates in the `no` band (`<= 0.30`), or top combined score `< 0.42`.
+/// * `"partial_unsettled"` — top candidates sit in the unsettled band (`0.30 < p < 0.70`), triggering a CRAG corrective retrieval pass.
+pub fn evaluate_context_sufficiency(results: &[RerankResult]) -> &'static str {
+    if results.is_empty() {
+        return "insufficient";
+    }
+    let has_settled_yes = results.iter().take(3).any(|r| {
+        (r.noul_band == "yes" || r.direct_probability >= JEV_NOUL_YES)
+            && r.utility_score >= 2.4
+            && r.role != "generated"
+    });
+    let top_score = results.first().map(|r| r.rerank_score).unwrap_or(0.0);
+    if has_settled_yes || top_score >= 0.62 {
+        return "sufficient";
+    }
+    let all_no = results.iter().all(|r| r.noul_band == "no" || r.direct_probability <= JEV_NOUL_NO);
+    if all_no || top_score < 0.42 {
+        return "insufficient";
+    }
+    "partial_unsettled"
+}
+
+/// Extracts high-signal identifier/symbol tokens from top partial candidates + query to drive a
+/// second-stage CRAG corrective retrieval query when the initial pass is `partial_unsettled` or `insufficient`.
+pub fn extract_corrective_expansion_terms(
+    query: &str,
+    candidates: &[crate::store::SearchHit],
+) -> Vec<String> {
+    let q_lower = query.to_lowercase();
+    let mut terms: Vec<String> = Vec::new();
+    for hit in candidates.iter().take(4) {
+        for raw in hit.symbols.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            let sym = raw.trim();
+            if sym.len() >= 4
+                && !q_lower.contains(&sym.to_lowercase())
+                && !terms.iter().any(|t| t.eq_ignore_ascii_case(sym))
+            {
+                terms.push(sym.to_string());
+                if terms.len() >= 6 {
+                    return terms;
+                }
+            }
+        }
+        if let Some(stem) = Path::new(&hit.path).file_stem().and_then(|s| s.to_str()) {
+            if stem.len() >= 4
+                && !q_lower.contains(&stem.to_lowercase())
+                && !terms.iter().any(|t| t.eq_ignore_ascii_case(stem))
+            {
+                terms.push(stem.to_string());
+                if terms.len() >= 6 {
+                    return terms;
+                }
+            }
+        }
+    }
+    terms
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,7 +481,24 @@ pub struct EvaluationDecision {
     pub is_faithful: bool,
     pub faithfulness_score: f32,
     pub halluncination_risk: f32,
+    /// Calibrated probability (`contradicts_context` noul) that the output directly contradicts the context.
+    #[serde(default)]
+    pub contradiction_probability: f32,
+    /// Normalized completeness score (`[0, 1]`) measuring coverage of key facts in the context.
+    #[serde(default = "default_completeness")]
+    pub completeness_score: f32,
+    /// Code-owned verdict band (`grounded`, `contradiction_detected`, `unsettled_grounding`, `unsupported`).
+    #[serde(default = "default_verdict_band")]
+    pub verdict_band: String,
     pub evaluation_source: String,
+}
+
+fn default_completeness() -> f32 {
+    0.80
+}
+
+fn default_verdict_band() -> String {
+    "grounded".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -351,51 +571,58 @@ impl DecisionEngine {
         })
     }
 
-    /// Sends one typed question batch over the first usable transport.
+    /// Sends one typed question batch over the first usable transport according to
+    /// `transport_priority_order()` (`openrouter` then `local-router` by default, or
+    /// `local-router` first when `JEV_TRANSPORT_PRIORITY=local-router,openrouter`).
     ///
-    /// Order: OpenRouter's Decisions API (latest Jev model), then a discovered local-router that
-    /// exposes a decisions-compatible route. There is no automatic downgrade to an older Jev
-    /// model: if the latest id is retired the call fails and the caller falls back to the
-    /// calibrated local heuristic, with the reason preserved.
+    /// Both OpenRouter's Decisions API and the loopback `local-router` decisions proxy target the
+    /// latest Jev model (`typesafe/jev-1.14`) with no silent older-model downgrade.
     async fn ask(
         &self,
         state: &str,
         questions: &serde_json::Value,
     ) -> Result<AskOutcome, String> {
-        let mut last_error: String;
-
-        if let Some(key) = self.api_key.as_ref() {
-            match self.post_decisions(OPENROUTER_DECISIONS_URL, Some(key), state, questions).await {
-                Ok(outcome) => return Ok(outcome),
-                Err(error) => last_error = error,
-            }
-        } else {
-            last_error = "no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY in the PQC vault)".to_string();
-        }
-
-        // Additional transport: the local-router proxy on loopback when it speaks the decisions
-        // protocol (`/api/alpha/decisions`). A chat-only Jev alias is reported, never substituted,
-        // because it can resolve to a general model with no calibrated semantics.
-        if let Some(router) = discover_local_router().await {
-            match router.decisions_url.as_deref() {
-                Some(url) => match self.post_decisions(url, None, state, questions).await {
-                    Ok(outcome) => return Ok(outcome),
-                    Err(error) => {
-                        last_error = format!("{}; local-router {}: {}", last_error, router.base_url, error);
+        let mut errors: Vec<String> = Vec::new();
+        for transport in transport_priority_order() {
+            match transport {
+                "openrouter" => {
+                    if let Some(key) = self.api_key.as_ref() {
+                        match self.post_decisions(OPENROUTER_DECISIONS_URL, Some(key), state, questions).await {
+                            Ok(outcome) => return Ok(outcome),
+                            Err(error) => errors.push(error),
+                        }
+                    } else {
+                        errors.push("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY in the PQC vault)".to_string());
                     }
-                },
-                None => {
-                    last_error = format!(
-                        "{}; local-router {} advertises Jev chat models ({}) but exposes no decisions route",
-                        last_error,
-                        router.base_url,
-                        router.jev_models.join(", ")
-                    );
                 }
+                "local-router" => {
+                    if let Some(router) = discover_local_router().await {
+                        match router.decisions_url.as_deref() {
+                            Some(url) => match self.post_decisions(url, None, state, questions).await {
+                                Ok(outcome) => return Ok(outcome),
+                                Err(error) => {
+                                    errors.push(format!("local-router {}: {}", router.base_url, error));
+                                }
+                            },
+                            None => {
+                                errors.push(format!(
+                                    "local-router {} advertises Jev chat models ({}) but exposes no decisions route",
+                                    router.base_url,
+                                    router.jev_models.join(", ")
+                                ));
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
-        Err(last_error)
+        Err(if errors.is_empty() {
+            "no Jev decision transport available".to_string()
+        } else {
+            errors.join("; ")
+        })
     }
 
     /// POSTs one typed batch to a specific decisions endpoint. The key is only sent to OpenRouter.
@@ -470,6 +697,8 @@ impl DecisionEngine {
             "LOCALROUTER_OPENROUTER_API_KEY",
             "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
             "AINISHCODER_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_EMBED_API_KEY",
         ];
         if let Some((key, source)) = crate::provider::resolve_named_secret(OPENROUTER_KEY_NAMES) {
             return (Some(key), source);
@@ -679,18 +908,18 @@ impl DecisionEngine {
         None
     }
 
-    /// Evaluates if a query requires retrieval, which domain it targets, and how much it depends
-    /// on fresh branch state. Falls back to calibrated heuristics only when the API is unusable.
+    /// Evaluates if a query requires retrieval, which domain it targets, its specificity and
+    /// modality preference, and how much it depends on fresh branch state. Always attempts the
+    /// prioritized Jev transports (OpenRouter + Local Router) before falling back to local calibration.
     pub async fn route(&self, prompt: &str) -> RouteDecision {
-        if self.api_key.is_some() {
-            if let Ok(decision) = self.route_via_jev(prompt).await {
-                return decision;
-            }
+        if let Ok(decision) = self.route_via_jev(prompt).await {
+            return decision;
         }
         self.route_local(prompt)
     }
 
-    /// Routes with three typed judgments sent in one request (Jev answers them in parallel).
+    /// Adaptive RAG routing: sends five typed judgments in one parallel Jev batch, then derives a
+    /// deterministic `retrieval_strategy` and `candidate_pool_size` in code.
     async fn route_via_jev(&self, prompt: &str) -> Result<RouteDecision, Box<dyn std::error::Error + Send + Sync>> {
         let questions = json!({
             "needs_retrieval": Self::noul_question(
@@ -712,12 +941,29 @@ impl DecisionEngine {
                 "Does the request concern recent changes, the current branch, or today's work rather than long-lived architecture?",
                 "it asks about recent edits, uncommitted work, the current branch, or today's activity",
                 "it asks about stable architecture or long-lived behaviour"
+            ),
+            "query_specificity": Self::choice_question(
+                "How specific is the lookup required by this request?",
+                &[
+                    ("exact_symbol", "names a specific function, struct, file path, CLI flag, or error string"),
+                    ("conceptual_flow", "asks how a subsystem, protocol, or component interaction works"),
+                    ("broad_audit", "asks for a multi-file audit, repo-wide review, or broad architectural scan"),
+                ]
+            ),
+            "modality_preference": Self::choice_question(
+                "Which artefact modality should retrieval prioritize first?",
+                &[
+                    ("code_first", "shipping source code and symbol definitions"),
+                    ("docs_first", "architectural wiki pages, PRD (llms.txt), or governing contracts (AGENTS.md)"),
+                    ("balanced", "a mix of implementation code and architectural documentation"),
+                ]
             )
         });
 
         let outcome = self.ask(prompt, &questions).await?;
         let answers = outcome.answers;
         let retrieval_probability = answers.get("needs_retrieval").and_then(|a| a.noul).unwrap_or(0.85);
+        let needs_retrieval = retrieval_probability >= 0.5;
         let target_domain = answers
             .get("domain_target")
             .and_then(|a| a.choice.clone())
@@ -727,18 +973,47 @@ impl DecisionEngine {
             .and_then(|a| a.confidence)
             .unwrap_or(0.80);
         let context_freshness = answers.get("context_freshness").and_then(|a| a.noul).unwrap_or(0.5);
+        let query_specificity = answers
+            .get("query_specificity")
+            .and_then(|a| a.choice.clone())
+            .unwrap_or_else(|| {
+                if target_domain == "codebase_symbols" {
+                    "exact_symbol".to_string()
+                } else {
+                    "conceptual_flow".to_string()
+                }
+            });
+        let modality_preference = answers
+            .get("modality_preference")
+            .and_then(|a| a.choice.clone())
+            .unwrap_or_else(|| match target_domain.as_str() {
+                "codebase_symbols" => "code_first".to_string(),
+                "architectural_wiki" | "security_governance" => "docs_first".to_string(),
+                _ => "balanced".to_string(),
+            });
+        let (retrieval_strategy, candidate_pool_size) = derive_retrieval_strategy(
+            needs_retrieval,
+            &target_domain,
+            context_freshness,
+            &query_specificity,
+            &modality_preference,
+        );
 
         Ok(RouteDecision {
-            needs_retrieval: retrieval_probability >= 0.5,
+            needs_retrieval,
             retrieval_probability,
             target_domain,
             route_confidence,
             context_freshness,
+            query_specificity,
+            modality_preference,
+            retrieval_strategy,
+            candidate_pool_size,
             source: format!("{}:{}", outcome.transport, outcome.model),
         })
     }
 
-    /// Calibrated fallback decision logic when offline or without OpenRouter key
+    /// Calibrated fallback decision logic when offline or when both OpenRouter and Local Router are unreachable
     pub fn route_local(&self, prompt: &str) -> RouteDecision {
         let p_lower = prompt.to_lowercase();
 
@@ -754,6 +1029,10 @@ impl DecisionEngine {
                 target_domain: "general_knowledge".to_string(),
                 route_confidence: 0.95,
                 context_freshness: 0.10,
+                query_specificity: "exact_symbol".to_string(),
+                modality_preference: "balanced".to_string(),
+                retrieval_strategy: "skip_retrieval".to_string(),
+                candidate_pool_size: 0,
                 source: "local-calibrated".to_string(),
             };
         }
@@ -770,17 +1049,40 @@ impl DecisionEngine {
             ("codebase_symbols".to_string(), 0.75)
         };
 
+        let freshness = if p_lower.contains("today") || p_lower.contains("recent") || p_lower.contains("branch") || p_lower.contains("latest") || p_lower.contains("diff") {
+            0.80
+        } else {
+            0.50
+        };
+        let specificity = if p_lower.contains("audit") || p_lower.contains("every ") || p_lower.contains("all ") || p_lower.contains("across ") {
+            "broad_audit".to_string()
+        } else if p_lower.contains("::") || p_lower.contains(".rs") || p_lower.contains(".py") || p_lower.contains("fn ") || p_lower.contains("--") {
+            "exact_symbol".to_string()
+        } else {
+            "conceptual_flow".to_string()
+        };
+        let modality = match domain.as_str() {
+            "codebase_symbols" => "code_first".to_string(),
+            "architectural_wiki" | "security_governance" => "docs_first".to_string(),
+            _ => "balanced".to_string(),
+        };
+        let (strategy, pool_size) = derive_retrieval_strategy(true, &domain, freshness, &specificity, &modality);
+
         RouteDecision {
             needs_retrieval: true,
             retrieval_probability: 0.88,
             target_domain: domain,
             route_confidence: conf,
-            context_freshness: 0.50,
+            context_freshness: freshness,
+            query_specificity: specificity,
+            modality_preference: modality,
+            retrieval_strategy: strategy,
+            candidate_pool_size: pool_size,
             source: "local-calibrated".to_string(),
         }
     }
 
-    /// Two-Stage RAG: Rerank candidate chunks using the decision model
+    /// Two-Stage RAG: Rerank candidate chunks using the prioritized Jev transports (OpenRouter + Local Router)
     pub async fn rerank(
         &self,
         query: &str,
@@ -791,10 +1093,8 @@ impl DecisionEngine {
             return Vec::new();
         }
 
-        if self.api_key.is_some() {
-            if let Ok(results) = self.rerank_via_jev(query, &candidates, min_relevance).await {
-                return results;
-            }
+        if let Ok(results) = self.rerank_via_jev(query, &candidates, min_relevance).await {
+            return results;
         }
 
         self.rerank_local(query, candidates, min_relevance)
@@ -894,21 +1194,41 @@ impl DecisionEngine {
                 .unwrap_or_else(|| "unknown".to_string());
 
             // 45% direct answer, 25% symbol grounding, 30% continuous utility; generated/vendored
-            // material is discounted so it cannot crowd out primary sources.
+            // material is discounted, settled primary implementations receive a grounding bonus,
+            // and CRAG hard negatives (direct in the `no` band with low utility) are suppressed so
+            // high-vector-similarity distractors cannot masquerade as relevant.
             let decision_score = (0.45 * direct) + (0.25 * symbol_support) + (0.30 * utility);
             let role_penalty = match role.as_str() {
                 "generated" => 0.08,
                 "test" => 0.03,
                 _ => 0.0,
             };
-            let combined = ((decision_score - role_penalty).max(0.0) * 0.70) + (chunk.score * 0.30);
+            let primary_bonus = if role == "implementation" && direct >= JEV_NOUL_YES && symbol_support >= 0.50 {
+                0.04
+            } else {
+                0.0
+            };
+            let distractor_penalty = if direct <= JEV_NOUL_NO && utility_raw < 2.0 {
+                0.12
+            } else {
+                0.0
+            };
+            let adjusted_decision = (decision_score + primary_bonus - role_penalty - distractor_penalty).clamp(0.0, 1.0);
+            let band = noul_band(direct);
+            let combined = if direct <= JEV_NOUL_NO && utility_raw < 2.0 {
+                (adjusted_decision * 0.80) + (chunk.score.min(0.45) * 0.20)
+            } else if band == "unsettled" {
+                (adjusted_decision * 0.65) + (chunk.score * 0.35)
+            } else {
+                (adjusted_decision * 0.70) + (chunk.score * 0.30)
+            };
             let is_relevant = direct >= 0.5;
+            let rerank_source = format!("{}:{}", transport, model);
             let rationale = format!(
-                "Jev {}:{}: direct {:.2} ({}), symbols {:.2}, utility {:.2}/4 [{}], vector {:.2}",
-                transport,
-                model,
+                "Jev {}: direct {:.2} ({}), symbols {:.2}, utility {:.2}/4 [{}], vector {:.2}",
+                rerank_source,
                 direct,
-                noul_band(direct),
+                band,
                 symbol_support,
                 utility_raw,
                 role,
@@ -924,7 +1244,12 @@ impl DecisionEngine {
                     decision_score,
                     rerank_score: combined,
                     is_relevant,
+                    direct_probability: direct,
+                    symbol_support,
+                    utility_score: utility_raw,
+                    noul_band: band.to_string(),
                     role,
+                    rerank_source,
                     rationale,
                 });
             }
@@ -997,7 +1322,12 @@ impl DecisionEngine {
                     decision_score,
                     rerank_score: decision_score,
                     is_relevant: true,
+                    direct_probability: decision_score,
+                    symbol_support: if symbol_match { 0.85 } else { term_ratio },
+                    utility_score: (decision_score * 4.0).clamp(0.0, 4.0),
+                    noul_band: noul_band(decision_score).to_string(),
                     role: "unknown".to_string(),
+                    rerank_source: "local-calibrated-rrf".to_string(),
                     rationale: format!("RRF hybrid fusion (rrf: {:.3}, terms: {}/{}, title: {}, symbols: {})", rrf_norm, term_matches, q_terms.len(), title_match, symbol_match),
                 });
             }
@@ -1046,50 +1376,93 @@ impl DecisionEngine {
         results
     }
 
-    /// Bi-phasic evaluation: checks output faithfulness against retrieved context
+    /// Bi-phasic evaluation: checks output faithfulness, contradiction risk, and completeness
+    /// against retrieved context using one parallel Jev batch (OpenRouter + Local Router).
     pub async fn evaluate_faithfulness(&self, context: &str, output: &str) -> EvaluationDecision {
-        if self.api_key.is_some() {
-            let questions = json!({
-                "is_faithful": Self::noul_question(
-                    "Is the output grounded in the provided context, without claims the context does not support?",
-                    "every claim in the output is supported by the context",
-                    "the output adds claims or specifics that the context does not contain"
-                ),
-                "faithfulness_score": Self::score_question(
-                    "How completely does the output stay within the provided context?",
-                    &[
-                        "the output contradicts the context",
-                        "mostly unsupported by the context",
-                        "partly grounded with unsupported gaps",
-                        "grounded with minor gaps",
-                        "fully grounded in the context",
-                    ]
-                )
-            });
+        let questions = json!({
+            "is_faithful": Self::noul_question(
+                "Is the output grounded in the provided context, without claims the context does not support?",
+                "every claim in the output is supported by the context",
+                "the output adds claims or specifics that the context does not contain"
+            ),
+            "faithfulness_score": Self::score_question(
+                "How completely does the output stay within the provided context?",
+                &[
+                    "the output contradicts the context",
+                    "mostly unsupported by the context",
+                    "partly grounded with unsupported gaps",
+                    "grounded with minor gaps",
+                    "fully grounded in the context",
+                ]
+            ),
+            "contradicts_context": Self::noul_question(
+                "Does the output state any claim, rule, or detail that directly contradicts or inverts the provided context?",
+                "the output states at least one claim that directly conflicts with or inverts the context",
+                "the output does not contradict the provided context"
+            ),
+            "completeness_score": Self::score_question(
+                "How completely does the output cover the key facts, symbols, and constraints in the provided context?",
+                &[
+                    "omits almost all relevant facts from the context",
+                    "covers only a minor part of the relevant context",
+                    "covers the main point with notable omissions",
+                    "covers nearly all key facts and symbols",
+                    "comprehensive coverage of the relevant context",
+                ]
+            )
+        });
 
-            let state = format!(
-                "CONTEXT:\n{}\n\nOUTPUT TO EVALUATE:\n{}",
-                truncate_chars(context, 4000),
-                truncate_chars(output, 2000)
-            );
+        let state = format!(
+            "CONTEXT:\n{}\n\nOUTPUT TO EVALUATE:\n{}",
+            truncate_chars(context, 4000),
+            truncate_chars(output, 2000)
+        );
 
-            if let Ok(outcome) = self.ask(&state, &questions).await {
-                let answers = outcome.answers;
-                let noul = answers.get("is_faithful").and_then(|answer| answer.noul).unwrap_or(0.9);
-                let score = answers
-                    .get("faithfulness_score")
-                    .and_then(|answer| answer.score)
-                    .unwrap_or(3.6);
-                let score_norm = (score / 4.0).clamp(0.0, 1.0);
-                let faithfulness = (0.6 * noul) + (0.4 * score_norm);
+        if let Ok(outcome) = self.ask(&state, &questions).await {
+            let answers = outcome.answers;
+            let noul = answers.get("is_faithful").and_then(|answer| answer.noul).unwrap_or(0.9);
+            let score = answers
+                .get("faithfulness_score")
+                .and_then(|answer| answer.score)
+                .unwrap_or(3.6);
+            let score_norm = (score / 4.0).clamp(0.0, 1.0);
+            let contradiction = answers
+                .get("contradicts_context")
+                .and_then(|answer| answer.noul)
+                .unwrap_or(0.05);
+            let completeness_raw = answers
+                .get("completeness_score")
+                .and_then(|answer| answer.score)
+                .unwrap_or(3.2);
+            let completeness_norm = (completeness_raw / 4.0).clamp(0.0, 1.0);
 
-                return EvaluationDecision {
-                    is_faithful: noul >= 0.5 && score_norm >= 0.4,
-                    faithfulness_score: faithfulness,
-                    halluncination_risk: (1.0 - faithfulness).max(0.0),
-                    evaluation_source: format!("{}:{}", outcome.transport, outcome.model),
-                };
-            }
+            let base_faithfulness = (0.6 * noul) + (0.4 * score_norm);
+            let has_contradiction = contradiction >= JEV_NOUL_YES;
+            let faithfulness = if has_contradiction {
+                base_faithfulness.min(1.0 - contradiction)
+            } else {
+                base_faithfulness
+            };
+            let is_faithful = !has_contradiction && noul >= 0.5 && score_norm >= 0.4;
+            let verdict_band = if has_contradiction {
+                "contradiction_detected"
+            } else if noul >= JEV_NOUL_YES && score_norm >= 0.6 {
+                "grounded"
+            } else if noul <= JEV_NOUL_NO || score_norm < 0.4 {
+                "unsupported"
+            } else {
+                "unsettled_grounding"
+            };
+
+            return EvaluationDecision {
+                is_faithful,
+                faithfulness_score: faithfulness,
+                halluncination_risk: (1.0 - faithfulness).max(0.0),
+                contradiction_probability: contradiction,
+                completeness_score: completeness_norm,
+                verdict_band: verdict_band.to_string(),
+                evaluation_source: format!("{}:{}", outcome.transport, outcome.model),
+            };
         }
 
         let out_lower = output.to_lowercase();
@@ -1102,6 +1475,9 @@ impl DecisionEngine {
             is_faithful: ratio >= 0.40,
             faithfulness_score: ratio,
             halluncination_risk: (1.0 - ratio).max(0.0),
+            contradiction_probability: 0.0,
+            completeness_score: ratio,
+            verdict_band: if ratio >= 0.70 { "grounded" } else if ratio >= 0.40 { "unsettled_grounding" } else { "unsupported" }.to_string(),
             evaluation_source: "local-heuristic".to_string(),
         }
     }
@@ -1282,6 +1658,84 @@ mod tests {
         assert_eq!(noul_band(0.50), "unsettled");
         assert_eq!(noul_band(0.30), "no");
         assert_eq!(noul_band(0.02), "no");
+    }
+
+    #[test]
+    fn test_derive_retrieval_strategy_maps_calibrated_signals() {
+        assert_eq!(derive_retrieval_strategy(false, "codebase_symbols", 0.2, "exact_symbol", "code_first").0, "skip_retrieval");
+        assert_eq!(derive_retrieval_strategy(true, "general_knowledge", 0.2, "conceptual_flow", "balanced").0, "skip_retrieval");
+        assert_eq!(derive_retrieval_strategy(true, "codebase_symbols", 0.85, "exact_symbol", "code_first").0, "fresh_orient_first");
+        assert_eq!(derive_retrieval_strategy(true, "codebase_symbols", 0.2, "exact_symbol", "code_first"), ("symbol_anchored".to_string(), 10));
+        assert_eq!(derive_retrieval_strategy(true, "architectural_wiki", 0.2, "broad_audit", "docs_first"), ("multi_hop_expand".to_string(), 16));
+        assert_eq!(derive_retrieval_strategy(true, "architectural_wiki", 0.2, "conceptual_flow", "docs_first"), ("hybrid_rerank".to_string(), 12));
+    }
+
+    #[test]
+    fn test_context_sufficiency_classifies_crag_bands() {
+        let make = |prob: f32, utility: f32, score: f32, role: &str| RerankResult {
+            chunk: crate::store::SearchHit {
+                id: "test".into(),
+                repo: "ainish-coder".into(),
+                path: "src/lib.rs".into(),
+                doc_type: "code".into(),
+                modality: "code".into(),
+                title: "lib".into(),
+                content: "content".into(),
+                symbols: "[]".into(),
+                start_line: 1,
+                end_line: 1,
+                score,
+            },
+            original_score: score,
+            decision_score: score,
+            rerank_score: score,
+            is_relevant: true,
+            direct_probability: prob,
+            symbol_support: 0.6,
+            utility_score: utility,
+            noul_band: noul_band(prob).to_string(),
+            role: role.to_string(),
+            rerank_source: "test".into(),
+            rationale: String::new(),
+        };
+        assert_eq!(evaluate_context_sufficiency(&[]), "insufficient");
+        assert_eq!(evaluate_context_sufficiency(&[make(0.05, 1.0, 0.3, "implementation")]), "insufficient");
+        assert_eq!(evaluate_context_sufficiency(&[make(0.90, 3.5, 0.7, "implementation")]), "sufficient");
+        assert_eq!(evaluate_context_sufficiency(&[make(0.50, 2.5, 0.5, "documentation")]), "partial_unsettled");
+    }
+
+    #[test]
+    fn test_transport_priority_default_and_override() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            std::env::remove_var("JEV_TRANSPORT_PRIORITY");
+            std::env::remove_var("AINISH_RAG_DECISION_PRIORITY");
+        }
+        assert_eq!(transport_priority_order(), vec!["openrouter", "local-router"]);
+
+        unsafe { std::env::set_var("JEV_TRANSPORT_PRIORITY", "local-router,openrouter") };
+        assert_eq!(transport_priority_order(), vec!["local-router", "openrouter"]);
+        unsafe { std::env::remove_var("JEV_TRANSPORT_PRIORITY") };
+    }
+
+    #[test]
+    fn test_corrective_expansion_terms_prefer_new_symbols() {
+        let hits = vec![crate::store::SearchHit {
+            id: "test".into(),
+            repo: "ainish-coder".into(),
+            path: "src/rag/src/provider.rs".into(),
+            doc_type: "code".into(),
+            modality: "code".into(),
+            title: "provider".into(),
+            content: "fn resolve_named_secret()".into(),
+            symbols: "[\"resolve_named_secret\",\"provider\"]".into(),
+            start_line: 1,
+            end_line: 10,
+            score: 0.4,
+        }];
+        let terms = extract_corrective_expansion_terms("how does provider resolve embedding keys", &hits);
+        assert!(terms.contains(&"resolve_named_secret".to_string()));
+        assert!(!terms.contains(&"provider".to_string()), "query terms and file stems already present must not be re-added");
     }
 
     #[test]
