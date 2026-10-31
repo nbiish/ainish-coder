@@ -69,5 +69,36 @@ class GateReadyParityTest(unittest.TestCase):
             self.assertEqual(rag.sync_rules_if_stale(Path(tmp), False), (True, False))
 
 
+class MasterSurfaceLensesTest(unittest.TestCase):
+    """Parity with the Rust `assess_master_surfaces` checks."""
+
+    def test_contract_surfaces_need_a_declaration(self):
+        diff = "--- a/AGENTS.md\n+++ b/AGENTS.md\n+rule\n--- a/src/rag/src/main.rs\n+++ b/src/rag/src/main.rs\n+        #[arg(long)]\n"
+        labels = rag.contract_surfaces_touched(diff)
+        self.assertIn("contract", labels)
+        self.assertIn("cli", labels)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = rag.assess_master_surfaces(Path(tmp), diff)
+            self.assertTrue(report["compatibility"]["touched"])
+            self.assertFalse(report["compatibility"]["declared"])
+            self.assertFalse(rag.master_surfaces_pass(report, strict=False))
+            tasks = Path(tmp) / ".agents" / "tasks"
+            tasks.mkdir(parents=True)
+            (tasks / f"{rag._today_utc()}-task.md").write_text(
+                "- compat: v1 deploy window\n- budget: 120k tokens\n", encoding="utf-8"
+            )
+            declared = rag.assess_master_surfaces(Path(tmp), diff)
+            self.assertTrue(declared["compatibility"]["declared"])
+            self.assertTrue(rag.master_surfaces_pass(declared, strict=True))
+
+    def test_shared_state_is_append_only(self):
+        append_only = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n+new\n"
+        self.assertEqual(rag.shared_state_removals(append_only), [])
+        rewritten = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n-old\n+new\n"
+        self.assertEqual(len(rag.shared_state_removals(rewritten)), 1)
+        task_rewrite = "--- a/.agents/tasks/2026-10-31-task.md\n+++ b/.agents/tasks/2026-10-31-task.md\n-old\n+new\n"
+        self.assertEqual(rag.shared_state_removals(task_rewrite), [])
+
+
 if __name__ == "__main__":
     unittest.main()
