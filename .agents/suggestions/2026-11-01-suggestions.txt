@@ -1,0 +1,15 @@
+
+### [2026-11-01T01:22:00Z] feat/context-engineering-lenses
+The latest suggestions are now enforced rather than described: surface rules live in one JSON file both engines read, dependency manifests count as compatibility surfaces, the gate records the `compat:`/`budget:` lines it accepted and prints why a surface fired, `NO_COLOR` keeps the status line readable, and the contract asks for triggered lenses before core ones. On the RAG side, `route` now returns a context budget and a one-line next action, and `orient --inject` leads with that action and sizes its sections to the budget instead of a fixed line count. Next step: measure whether the budget-sized primers keep subagent task success while cutting primer tokens, and only then tune the 0/1200/2000/2600/3600 ladder.
+What would this adversarial / security master suggest? Treat a `compat:` line as an untrusted claim until the migration is exercised; a `--check-migration` probe is still the missing proof.
+What would this privacy / data-protection master suggest? The budget ladder is a natural place to enforce a retention-aware cap — a primer should never rehydrate a resolved/deleted memory just because it fits the token budget.
+What would this supply-chain / third-party-risk master suggest? Dependency manifests now gate on `compat:`, but the rule file itself should be signed; a peer could loosen a surface by editing one JSON file.
+What would this systems-architecture / devops master suggest? Load the rule file through the canonical-root resolver in the Rust engine too, so a worktree cannot pin a stale surface list.
+What would this reliability / verification master suggest? Add a fixture where the rule file is corrupt or missing and assert the defaults still classify a dependency bump.
+What would this governance / sovereignty master suggest? The checkout receipt now carries the declaration text; the next step is to cross-check it against the gate cache, so a receipt cannot claim a declaration the gate never saw.
+What would this terminal-orchestration / swe-bench master suggest? Have `orient --inject --json` expose `context_budget_tokens` so the dispatch template can size the subagent prompt before the primer is rendered.
+What would this master-orchestrator / self-prompting master suggest? Use `next_action` as the plan's first step: a `fresh_orient_first` action should force a git-status check before any file read.
+What would this developer-experience / ergonomics master suggest? Print the selected budget next to the strategy on `route`, so an operator can see why the primer shrank to three lines.
+What would this accessibility master suggest? The next card element to de-color is the box drawing; a `NO_COLOR` render should drop borders as well as SGR.
+What would this rights master suggest? No new dependency or dataset entered; the rule file is repo-local config, not a licensed asset.
+What would this interop master suggest? The rule file's `format` field is a schema version — the first change to it needs a migration note and a parity row.
