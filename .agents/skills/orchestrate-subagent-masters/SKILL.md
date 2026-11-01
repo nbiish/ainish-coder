@@ -154,12 +154,14 @@ Round law:
 
 Four templates, invoked with the §2 command forms. TPL ids keep their V3 names for cross-reference stability; the contract below is the v4 upgrade applied to every block. Invariants (non-negotiable): scoped `SCOPE & TARGET FILES` allowlist from graph recon; one-shot engines only inside dispatches (never boot `web`/`tui`/`acp` profiles in a dispatch — headless answers and exits); task prompts via task file fed with `"$(cat <file>)"`; dispatch only inside dedicated sibling worktrees (invoking directory = workspace root); every task prompt carries the OUTPUT FORMAT and STOP CONDITIONS fields plus the implementation-over-test-theatre rule (a test only for a real reproduction or a subtle contract, never a per-function sweep).
 
-**v4 Task Prompt Contract — two required fields on every template:**
+**v4 Task Prompt Contract — three required fields on every template:**
 ```
 ## OUTPUT FORMAT
 Return a structured artifact: findings; files-touched; gate results (command → pass/fail); confidence; open-questions.
 ## STOP CONDITIONS
 Stop and report when evidence is sufficient, or after 3 failed attempts on the same step — never scour past that. You cannot judge appropriate effort; these bounds are your effort budget.
+## SURFACE DECLARATIONS
+Prefill `compat:` when the dispatch changes an interface/schema/flag/format/dependency, and `budget:` when it spends retrieval/model/CI cycles — copy them from the orchestrator's plan so the child cannot merge a surface change undeclared.
 ```
 
 - **TPL_AST_REFACTOR_V3** — AST Refactoring Master (dsh headless): role = surgical structural refactor preserving AST/type contracts; scope = blast-radius allowlist; gates = compile + tests + scope-clean `git status`.

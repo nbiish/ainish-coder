@@ -1,0 +1,44 @@
+{
+  "format": "ainish-rag/master-surfaces/v1",
+  "contract_paths": [
+    "agents.md",
+    "llms.txt",
+    ".agents/canonical/",
+    ".agents/skills/",
+    "src/templates/"
+  ],
+  "schema_suffixes": [
+    "embed-provider.json",
+    "index-fingerprint.json",
+    "gate-status.json",
+    "ainish-deploy.json"
+  ],
+  "dependency_manifests": [
+    "cargo.toml",
+    "cargo.lock",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "cli_tokens": [
+    "#[arg(",
+    "add_argument(",
+    "long = \"",
+    "env::var(\"",
+    "os.environ.get(\"",
+    "os.environ[\""
+  ],
+  "append_only_prefixes": [
+    ".agents/comms/",
+    ".agents/memories/",
+    ".agents/suggestions/"
+  ],
+  "spend_prefixes": [
+    "src/rag/",
+    ".github/",
+    "benchmarks/",
+    "scripts/"
+  ]
+}

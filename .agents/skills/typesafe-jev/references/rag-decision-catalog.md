@@ -44,24 +44,27 @@ Five judgments in one request; state is the request text.
 
 Code decision (`derive_retrieval_strategy`):
 
-| Calibrated signal | Strategy | Pool |
-| :--- | :--- | :--- |
-| `needs_retrieval = no` or `general_knowledge` | `skip_retrieval` | 0 |
-| `context_freshness ≥ 0.70` | `fresh_orient_first` | 12 |
-| `query_specificity = exact_symbol` | `symbol_anchored` | 10 |
-| `query_specificity = broad_audit` | `multi_hop_expand` | 16 |
-| `conceptual_flow` + `code_first` | `symbol_anchored` | 12 |
-| otherwise | `hybrid_rerank` | 12 |
+| Calibrated signal | Strategy | Pool | Context budget |
+| :--- | :--- | :--- | :--- |
+| `needs_retrieval = no` or `general_knowledge` | `skip_retrieval` | 0 | 0 |
+| `context_freshness ≥ 0.70` | `fresh_orient_first` | 12 | 2600 |
+| `query_specificity = exact_symbol` | `symbol_anchored` | 10 | 1200 |
+| `query_specificity = broad_audit` | `multi_hop_expand` | 16 | 3600 |
+| `conceptual_flow` + `code_first` | `symbol_anchored` | 12 | 1200 |
+| otherwise | `hybrid_rerank` | 12 | 2000 |
 
 - `target_domain` and `route_confidence` are reported, not acted on blindly.
 - `context_freshness` drives source choice: high → `ainish-rag orient --inject` + index; low → wiki
   and stable docs first.
+- `context_budget_tokens` is the context-engineering ceiling for the turn: `orient --inject` sizes
+  its sections to it (`default_lines.min(budget / 12 / sections)`, floor 3), and `next_action` is the
+  one-line harness action that leads the primer.
 - `orient --inject` injects the routing hint and domain-weights wiki sections from `target_domain`.
 - Fallback: `route_local` keyword/calibration; `source: local-calibrated`.
 
 Output (JSON): `needs_retrieval`, `retrieval_probability`, `target_domain`, `route_confidence`,
 `context_freshness`, `query_specificity`, `modality_preference`, `retrieval_strategy`,
-`candidate_pool_size`, `source`.
+`candidate_pool_size`, `context_budget_tokens`, `next_action`, `source`.
 
 ## rerank — `ainish-rag query` / `rerank`
 
