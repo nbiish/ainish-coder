@@ -2,12 +2,12 @@
   "action": "batch_index",
   "algorithm_guarantee": "FIPS 204 ML-DSA-65",
   "anonymized_symbols": false,
-  "chunks_generated": 3543,
-  "files_indexed": 323,
-  "receipt_id": "idx-1793495266351",
+  "chunks_generated": 3627,
+  "files_indexed": 336,
+  "receipt_id": "idx-1793496036068",
   "status": "verified",
-  "target": "D:\\Code\\context-engineering-lenses",
-  "timestamp": "2026-11-01T01:07:46.351586300+00:00",
-  "total_store_records": 3623,
+  "target": "D:\\Code\\ainish-coder",
+  "timestamp": "2026-11-01T01:20:36.068380200+00:00",
+  "total_store_records": 3627,
   "wiki_ledger_sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891"
 }
