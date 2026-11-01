@@ -30,3 +30,12 @@
 - master_surfaces: compat PASS (contract, schema, cli) — `compat: additive; no CLI/schema key removed; --rules-sync refreshes targets; no stored format or erasure path changed`; concurrency PASS (append-only); economics PASS — `budget: ~150k tokens; cached Rust target, incremental index, one combined suite`
 - status:verified
 - blockers:none
+### [2026-11-01T01:41:00Z] update | branch:fix/empty-surface-detail | wt:D:\Code\empty-surface-detail
+- start:2026-11-01T01:30:00Z
+- end:2026-11-01T01:41:00Z
+- scope:src/rag/src/main.rs, src/rag/rag.py
+- objective:polish the `Master Surfaces:` line — it printed empty parentheses (`compat PASS ()`) when no contract surface was touched
+- input:main gate output after the context-engineering merge
+- output:merged 4a0f1f6; main gate GREEN 76.9% STRONG_ANCHOR with both suites PASS; the line now reads `compat PASS · concurrency PASS · econ PASS` when untouched and keeps the labels when touched
+- status:verified
+- blockers:none
