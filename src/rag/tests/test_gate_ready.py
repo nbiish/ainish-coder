@@ -99,6 +99,38 @@ class MasterSurfaceLensesTest(unittest.TestCase):
         task_rewrite = "--- a/.agents/tasks/2026-10-31-task.md\n+++ b/.agents/tasks/2026-10-31-task.md\n-old\n+new\n"
         self.assertEqual(rag.shared_state_removals(task_rewrite), [])
 
+    def test_dependency_manifest_is_a_compatibility_surface(self):
+        diff = "--- a/Cargo.toml\n+++ b/Cargo.toml\n+serde = \"1\"\n"
+        self.assertIn("dependency", rag.contract_surfaces_touched(diff))
+        with tempfile.TemporaryDirectory() as tmp:
+            report = rag.assess_master_surfaces(Path(tmp), diff)
+            self.assertTrue(report["compatibility"]["touched"])
+            self.assertFalse(report["compatibility"]["declared"])
+
+    def test_shared_rules_file_is_loaded_and_strip_ansi(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rules_dir = Path(tmp) / "src" / "rag"
+            rules_dir.mkdir(parents=True)
+            (rules_dir / "master-surfaces.json").write_text(
+                json.dumps({"dependency_manifests": ["poetry.lock"]}), encoding="utf-8"
+            )
+            rules = rag.load_master_surface_rules(Path(tmp))
+            self.assertEqual(rules["dependency_manifests"], ["poetry.lock"])
+            # Unspecified keys keep their defaults.
+            self.assertIn("src/rag/", rules["spend_prefixes"])
+        self.assertEqual(rag.strip_ansi("\x1b[32mPASS\x1b[0m (contract)"), "PASS (contract)")
+
+    def test_missing_budget_only_blocks_under_strict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = rag.assess_master_surfaces(Path(tmp), "--- a/src/rag/rag.py\n+++ b/src/rag/rag.py\n+x = 1\n")
+            self.assertTrue(report["economics"]["touched"])
+            self.assertFalse(report["economics"]["declared"])
+            self.assertTrue(rag.master_surfaces_pass(report, strict=False))
+            self.assertFalse(rag.master_surfaces_pass(report, strict=True))
+            self.assertEqual(rag.context_budget_for("multi_hop_expand"), 3600)
+            self.assertEqual(rag.context_budget_for("skip_retrieval"), 0)
+            self.assertTrue(rag.next_action_for("symbol_anchored"))
+
 
 if __name__ == "__main__":
     unittest.main()

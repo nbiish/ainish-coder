@@ -44,6 +44,12 @@ pub struct RouteDecision {
     /// Recommended coarse candidate pool size before two-stage Jev reranking.
     #[serde(default = "default_candidate_pool_size")]
     pub candidate_pool_size: usize,
+    /// Context-engineering budget: how many tokens of retrieved context this strategy justifies.
+    #[serde(default = "default_context_budget_tokens")]
+    pub context_budget_tokens: usize,
+    /// One-line action the harness should take before reading retrieved context.
+    #[serde(default = "default_next_action")]
+    pub next_action: String,
     pub source: String, // "openrouter:<resolved-model>", "local-router:<url>:<model>", or "local-calibrated"
 }
 
@@ -61,6 +67,37 @@ fn default_retrieval_strategy() -> String {
 
 fn default_candidate_pool_size() -> usize {
     12
+}
+
+fn default_context_budget_tokens() -> usize {
+    2000
+}
+
+fn default_next_action() -> String {
+    next_action_for("hybrid_rerank").to_string()
+}
+
+/// Token budget for retrieved context per strategy. The harness should not spend more context
+/// than the strategy justifies; `skip_retrieval` spends none.
+pub fn context_budget_for(strategy: &str) -> usize {
+    match strategy {
+        "skip_retrieval" => 0,
+        "symbol_anchored" => 1200,
+        "fresh_orient_first" => 2600,
+        "multi_hop_expand" => 3600,
+        _ => 2000,
+    }
+}
+
+/// One-line next action for the harness, derived from the strategy (context-engineering priming).
+pub fn next_action_for(strategy: &str) -> &'static str {
+    match strategy {
+        "skip_retrieval" => "answer directly; do not retrieve",
+        "symbol_anchored" => "query --code with the named symbol or file",
+        "fresh_orient_first" => "check git status/log, then orient --inject before trusting stable docs",
+        "multi_hop_expand" => "query with the larger pool, then one corrective pass if sufficiency is partial",
+        _ => "query with rerank; read decision role and context sufficiency before answering",
+    }
 }
 
 /// Code-owned mapping from calibrated Jev routing judgments to an actionable retrieval strategy.
@@ -998,6 +1035,8 @@ impl DecisionEngine {
             &query_specificity,
             &modality_preference,
         );
+        let context_budget_tokens = context_budget_for(&retrieval_strategy);
+        let next_action = next_action_for(&retrieval_strategy).to_string();
 
         Ok(RouteDecision {
             needs_retrieval,
@@ -1009,6 +1048,8 @@ impl DecisionEngine {
             modality_preference,
             retrieval_strategy,
             candidate_pool_size,
+            context_budget_tokens,
+            next_action,
             source: format!("{}:{}", outcome.transport, outcome.model),
         })
     }
@@ -1033,6 +1074,8 @@ impl DecisionEngine {
                 modality_preference: "balanced".to_string(),
                 retrieval_strategy: "skip_retrieval".to_string(),
                 candidate_pool_size: 0,
+                context_budget_tokens: 0,
+                next_action: next_action_for("skip_retrieval").to_string(),
                 source: "local-calibrated".to_string(),
             };
         }
@@ -1076,8 +1119,10 @@ impl DecisionEngine {
             context_freshness: freshness,
             query_specificity: specificity,
             modality_preference: modality,
-            retrieval_strategy: strategy,
+            retrieval_strategy: strategy.clone(),
             candidate_pool_size: pool_size,
+            context_budget_tokens: context_budget_for(&strategy),
+            next_action: next_action_for(&strategy).to_string(),
             source: "local-calibrated".to_string(),
         }
     }

@@ -1385,6 +1385,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Query Specificity:     {}", decision.query_specificity);
                 println!("Modality Preference:   {}", decision.modality_preference);
                 println!("Retrieval Strategy:    {} (pool: {})", decision.retrieval_strategy, decision.candidate_pool_size);
+                println!("Context Budget:        {} tokens", decision.context_budget_tokens);
+                println!("Next Action:           {}", decision.next_action);
                 println!();
             }
         }
@@ -3549,7 +3551,7 @@ fn build_orient_report_with_route(
         git_branch, git_sha
     ));
     primer_lines.push(format!(
-        "### Decision-Model Routing Hint (`{}`)\n- domain: `{}` (confidence {:.2}) | freshness: `{:.2}` | specificity: `{}` | modality: `{}` | strategy: `{}` (pool {})\n",
+        "### Decision-Model Routing Hint (`{}`)\n- domain: `{}` (confidence {:.2}) | freshness: `{:.2}` | specificity: `{}` | modality: `{}` | strategy: `{}` (pool {}) | context budget: {} tokens\n- next: {}\n",
         route_decision.source,
         route_decision.target_domain,
         route_decision.route_confidence,
@@ -3558,9 +3560,13 @@ fn build_orient_report_with_route(
         route_decision.modality_preference,
         route_decision.retrieval_strategy,
         route_decision.candidate_pool_size,
+        route_decision.context_budget_tokens,
+        route_decision.next_action,
     ));
 
-    let lines_per_section = max_lines.unwrap_or(if compact { 8 } else { 25 });
+    let default_lines = if compact { 8 } else { 25 };
+    let budget_lines = (route_decision.context_budget_tokens / 12 / section_limit.max(1)).max(3);
+    let lines_per_section = max_lines.unwrap_or(default_lines.min(budget_lines));
     let max_items = if compact { 3 } else { 6 };
 
     for p in &candidate_files {
@@ -3936,6 +3942,116 @@ fn truncate_cmd(cmd: &str, max: usize) -> String {
     }
 }
 
+/// Surface rules shared by both engines (`src/rag/master-surfaces.json`), so a new surface is one
+/// edit rather than two. Adding a rule file entry is itself a compatibility surface.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MasterSurfaceRules {
+    #[serde(default = "default_contract_paths")]
+    pub contract_paths: Vec<String>,
+    #[serde(default = "default_schema_suffixes")]
+    pub schema_suffixes: Vec<String>,
+    #[serde(default = "default_dependency_manifests")]
+    pub dependency_manifests: Vec<String>,
+    #[serde(default = "default_cli_tokens")]
+    pub cli_tokens: Vec<String>,
+    #[serde(default = "default_append_only_prefixes")]
+    pub append_only_prefixes: Vec<String>,
+    #[serde(default = "default_spend_prefixes")]
+    pub spend_prefixes: Vec<String>,
+}
+
+fn default_contract_paths() -> Vec<String> {
+    vec![
+        "agents.md".to_string(),
+        "llms.txt".to_string(),
+        ".agents/canonical/".to_string(),
+        ".agents/skills/".to_string(),
+        "src/templates/".to_string(),
+    ]
+}
+
+fn default_schema_suffixes() -> Vec<String> {
+    vec![
+        "embed-provider.json".to_string(),
+        "index-fingerprint.json".to_string(),
+        "gate-status.json".to_string(),
+        "ainish-deploy.json".to_string(),
+    ]
+}
+
+fn default_dependency_manifests() -> Vec<String> {
+    vec![
+        "cargo.toml".to_string(),
+        "cargo.lock".to_string(),
+        "package.json".to_string(),
+        "package-lock.json".to_string(),
+        "pnpm-lock.yaml".to_string(),
+        "pyproject.toml".to_string(),
+        "uv.lock".to_string(),
+    ]
+}
+
+fn default_cli_tokens() -> Vec<String> {
+    vec![
+        "#[arg(".to_string(),
+        "add_argument(".to_string(),
+        "long = \"".to_string(),
+        "env::var(\"".to_string(),
+        "os.environ.get(\"".to_string(),
+        "os.environ[\"".to_string(),
+    ]
+}
+
+fn default_append_only_prefixes() -> Vec<String> {
+    vec![
+        ".agents/comms/".to_string(),
+        ".agents/memories/".to_string(),
+        ".agents/suggestions/".to_string(),
+    ]
+}
+
+fn default_spend_prefixes() -> Vec<String> {
+    vec![
+        "src/rag/".to_string(),
+        ".github/".to_string(),
+        "benchmarks/".to_string(),
+        "scripts/".to_string(),
+    ]
+}
+
+impl Default for MasterSurfaceRules {
+    fn default() -> Self {
+        Self {
+            contract_paths: default_contract_paths(),
+            schema_suffixes: default_schema_suffixes(),
+            dependency_manifests: default_dependency_manifests(),
+            cli_tokens: default_cli_tokens(),
+            append_only_prefixes: default_append_only_prefixes(),
+            spend_prefixes: default_spend_prefixes(),
+        }
+    }
+}
+
+/// Loads the shared surface rules from the repo (or its canonical root), falling back to defaults.
+pub fn load_master_surface_rules(repo_root: &std::path::Path) -> MasterSurfaceRules {
+    let mut candidates = vec![repo_root.join("src").join("rag").join("master-surfaces.json")];
+    let canonical = crate::config::resolve_canonical_repo_root(repo_root)
+        .join("src")
+        .join("rag")
+        .join("master-surfaces.json");
+    if canonical != candidates[0] {
+        candidates.push(canonical);
+    }
+    for path in candidates {
+        if let Ok(text) = std::fs::read_to_string(path) {
+            if let Ok(rules) = serde_json::from_str::<MasterSurfaceRules>(&text) {
+                return rules;
+            }
+        }
+    }
+    MasterSurfaceRules::default()
+}
+
 /// One triggered-master surface: whether this patch touches it and whether the turn declared
 /// what the lens requires (`compat:` / `budget:` lines, append-only state, parity row).
 #[derive(Debug, Clone, serde::Serialize, Default)]
@@ -3943,6 +4059,7 @@ pub struct MasterCheck {
     pub touched: bool,
     pub declared: bool,
     pub detail: String,
+    pub declaration: String,
 }
 
 /// The three machine-checkable triggered lenses from `AGENTS.md` `<OUTPUT>`.
@@ -3979,17 +4096,23 @@ fn read_today_task_record(repo_root: &std::path::Path) -> String {
     std::fs::read_to_string(path).unwrap_or_default()
 }
 
+/// Returns the declaration line (`compat:` / `budget:`) when present, trimmed and capped.
+pub fn find_declaration(text: &str, key: &str) -> Option<String> {
+    let prefix = format!("{}:", key.to_ascii_lowercase());
+    text.lines()
+        .map(|line| {
+            line.trim()
+                .trim_start_matches(['-', '+'])
+                .trim()
+                .to_string()
+        })
+        .find(|line| line.to_ascii_lowercase().starts_with(&prefix))
+        .map(|line| line.chars().take(180).collect())
+}
+
 /// True when `text` carries a `key:` declaration line (a leading bullet or list dash is allowed).
 pub fn has_declaration(text: &str, key: &str) -> bool {
-    let prefix = format!("{}:", key.to_ascii_lowercase());
-    text.lines().any(|line| {
-        let trimmed = line
-            .trim()
-            .trim_start_matches(['-', '+'])
-            .trim()
-            .to_ascii_lowercase();
-        trimmed.starts_with(&prefix)
-    })
+    find_declaration(text, key).is_some()
 }
 
 fn push_label(labels: &mut Vec<String>, label: &str) {
@@ -3999,25 +4122,21 @@ fn push_label(labels: &mut Vec<String>, label: &str) {
 }
 
 /// Detects contract surfaces whose change needs a `compat:` declaration: shared contract docs and
-/// skill packs, CLI flags, schema `format:` fields, config-file shapes, and env-var interfaces.
-pub fn contract_surfaces_touched(patch: &str) -> Vec<String> {
+/// skill packs, dependency manifests (semantics can shift under a lockfile bump), CLI flags, schema
+/// `format:` fields, config-file shapes, and env-var interfaces.
+pub fn contract_surfaces_touched(patch: &str, rules: &MasterSurfaceRules) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
     for line in patch.lines() {
         if let Some(rest) = line.strip_prefix("+++ b/") {
             let path = rest.trim().to_ascii_lowercase();
-            if path == "agents.md"
-                || path == "llms.txt"
-                || path.starts_with(".agents/canonical/")
-                || path.starts_with(".agents/skills/")
-                || path.starts_with("src/templates/")
-            {
+            if rules.contract_paths.iter().any(|p| path == *p || path.starts_with(p.as_str())) {
                 push_label(&mut labels, "contract");
             }
-            if ["embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json"]
-                .iter()
-                .any(|name| path.ends_with(name))
-            {
+            if rules.schema_suffixes.iter().any(|name| path.ends_with(name.as_str())) {
                 push_label(&mut labels, "schema");
+            }
+            if rules.dependency_manifests.iter().any(|name| path.ends_with(name.as_str())) {
+                push_label(&mut labels, "dependency");
             }
             continue;
         }
@@ -4025,13 +4144,7 @@ pub fn contract_surfaces_touched(patch: &str) -> Vec<String> {
             continue;
         }
         let content = &line[1..];
-        if content.contains("#[arg(")
-            || content.contains("add_argument(")
-            || content.contains("long = \"")
-            || content.contains("env::var(\"")
-            || content.contains("os.environ.get(\"")
-            || content.contains("os.environ[\"")
-        {
+        if rules.cli_tokens.iter().any(|token| content.contains(token.as_str())) {
             push_label(&mut labels, "cli");
         }
         if content.contains("\"format\":") || content.contains("format=") {
@@ -4043,7 +4156,7 @@ pub fn contract_surfaces_touched(patch: &str) -> Vec<String> {
 
 /// Shared state must be append-only: a non-header removed line in comms/memories/suggestions is a
 /// lost-update risk under multiple writers.
-pub fn shared_state_removals(patch: &str) -> Vec<String> {
+pub fn shared_state_removals(patch: &str, rules: &MasterSurfaceRules) -> Vec<String> {
     let mut violations: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut removed = 0usize;
@@ -4052,10 +4165,7 @@ pub fn shared_state_removals(patch: &str) -> Vec<String> {
             return;
         }
         let lower = path.to_ascii_lowercase();
-        if lower.starts_with(".agents/comms/")
-            || lower.starts_with(".agents/memories/")
-            || lower.starts_with(".agents/suggestions/")
-        {
+        if rules.append_only_prefixes.iter().any(|prefix| lower.starts_with(prefix.as_str())) {
             violations.push(format!("{} ({} removed line(s))", path, removed));
         }
     };
@@ -4074,50 +4184,81 @@ pub fn shared_state_removals(patch: &str) -> Vec<String> {
     violations
 }
 
-pub fn spends_resources(path: &str) -> bool {
+pub fn spends_resources(path: &str, rules: &MasterSurfaceRules) -> bool {
     let lower = path.replace('\\', "/").to_ascii_lowercase();
-    lower.starts_with("src/rag/")
-        || lower.starts_with(".github/")
-        || lower.starts_with("benchmarks/")
-        || lower.starts_with("scripts/")
+    rules.spend_prefixes.iter().any(|prefix| lower.starts_with(prefix.as_str()))
+}
+
+/// Removes ANSI SGR sequences so a `NO_COLOR` render carries the same meaning as a colored one.
+pub fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if next.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn no_color_enabled() -> bool {
+    std::env::var_os("NO_COLOR").is_some()
+        || std::env::var("TERM").map(|t| t.eq_ignore_ascii_case("dumb")).unwrap_or(false)
 }
 
 pub fn assess_master_surfaces(repo_root: &std::path::Path, patch: &str) -> MasterSurfaceReport {
+    let rules = load_master_surface_rules(repo_root);
     let task_record = read_today_task_record(repo_root);
+    let compat_decl = find_declaration(&task_record, "compat")
+        .or_else(|| find_declaration(patch, "compat"));
 
-    let labels = contract_surfaces_touched(patch);
+    let labels = contract_surfaces_touched(patch, &rules);
     let compatibility = MasterCheck {
         touched: !labels.is_empty(),
-        declared: has_declaration(&task_record, "compat") || has_declaration(patch, "compat"),
+        declared: compat_decl.is_some(),
         detail: labels.join(", "),
+        declaration: compat_decl.unwrap_or_default(),
     };
 
-    let removals = shared_state_removals(patch);
-    let mut touched_shared = false;
-    for line in patch.lines() {
-        if let Some(rest) = line.strip_prefix("+++ b/") {
-            let p = rest.trim().to_ascii_lowercase();
-            if p.starts_with(".agents/comms/") || p.starts_with(".agents/memories/") || p.starts_with(".agents/suggestions/") {
-                touched_shared = true;
-            }
-        }
-    }
+    let removals = shared_state_removals(patch, &rules);
+    let touched_shared = patch
+        .lines()
+        .filter_map(|line| line.strip_prefix("+++ b/"))
+        .any(|path| {
+            let p = path.trim().to_ascii_lowercase();
+            rules.append_only_prefixes.iter().any(|prefix| p.starts_with(prefix.as_str()))
+        });
     let concurrency = MasterCheck {
         touched: touched_shared,
         declared: removals.is_empty(),
         detail: removals.join("; "),
+        declaration: String::new(),
     };
 
     let touched_spend = patch
         .lines()
         .filter_map(|line| line.strip_prefix("+++ b/"))
-        .any(|path| spends_resources(path.trim()));
+        .any(|path| spends_resources(path.trim(), &rules));
+    let budget_decl = find_declaration(&task_record, "budget")
+        .or_else(|| find_declaration(patch, "budget"))
+        .or_else(|| {
+            std::env::var("AINISH_GATE_BUDGET")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        });
     let economics = MasterCheck {
         touched: touched_spend,
-        declared: has_declaration(&task_record, "budget")
-            || has_declaration(patch, "budget")
-            || std::env::var("AINISH_GATE_BUDGET").map(|v| !v.trim().is_empty()).unwrap_or(false),
+        declared: budget_decl.is_some(),
         detail: if touched_spend { "spend surface touched".to_string() } else { String::new() },
+        declaration: budget_decl.unwrap_or_default(),
     };
 
     MasterSurfaceReport { compatibility, concurrency, economics }
@@ -4453,7 +4594,7 @@ async fn run_gate(
         let master_label = format!(
             "{} · {} · {}",
             if master_surfaces.compat_ok() {
-                "\x1b[32mcompat PASS\x1b[0m".to_string()
+                format!("\x1b[32mcompat PASS\x1b[0m ({})", master_surfaces.compatibility.detail)
             } else {
                 format!("\x1b[31mcompat FAIL (no compat: for {})\x1b[0m", master_surfaces.compatibility.detail)
             },
@@ -4469,6 +4610,7 @@ async fn run_gate(
                 (true, false) => "\x1b[33mecon WARN (no budget:)\x1b[0m".to_string(),
             }
         );
+        let master_label = if no_color_enabled() { strip_ansi(&master_label) } else { master_label };
         println!("  Master Surfaces:        {}", master_label);
 
         let lock_label = if lock_pass {
@@ -5090,21 +5232,46 @@ mod tests {
 
     #[test]
     fn test_contract_surfaces_detected_for_contract_and_cli_changes() {
+        let rules = MasterSurfaceRules::default();
         let diff = "--- a/AGENTS.md\n+++ b/AGENTS.md\n+new rule\n--- a/src/rag/src/main.rs\n+++ b/src/rag/src/main.rs\n+        #[arg(long)]\n+        flag: bool,\n";
-        let labels = contract_surfaces_touched(diff);
+        let labels = contract_surfaces_touched(diff, &rules);
         assert!(labels.contains(&"contract".to_string()));
         assert!(labels.contains(&"cli".to_string()));
         assert!(!labels.contains(&"schema".to_string()));
+        assert!(!labels.contains(&"dependency".to_string()));
+    }
+
+    #[test]
+    fn test_dependency_manifest_is_a_compatibility_surface() {
+        let rules = MasterSurfaceRules::default();
+        let diff = "--- a/Cargo.toml\n+++ b/Cargo.toml\n+serde = \"1\"\n--- a/pyproject.toml\n+++ b/pyproject.toml\n+extra = 1\n";
+        let labels = contract_surfaces_touched(diff, &rules);
+        assert!(labels.contains(&"dependency".to_string()));
+        assert!(labels.contains(&"contract".to_string()) || labels.contains(&"dependency".to_string()));
+        let tmp = std::env::temp_dir().join(format!("ainish-dependency-surface-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".agents").join("tasks")).unwrap();
+        let report = assess_master_surfaces(&tmp, diff);
+        assert!(report.compatibility.touched && !report.compatibility.declared);
+        assert!(!report.compat_ok());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
     fn test_shared_state_is_append_only() {
+        let rules = MasterSurfaceRules::default();
         let append_only = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n+new line\n";
-        assert!(shared_state_removals(append_only).is_empty());
+        assert!(shared_state_removals(append_only, &rules).is_empty());
         let rewritten = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n-old line\n+new line\n";
-        assert_eq!(shared_state_removals(rewritten).len(), 1);
+        assert_eq!(shared_state_removals(rewritten, &rules).len(), 1);
         let task_rewrite = "--- a/.agents/tasks/2026-10-31-task.md\n+++ b/.agents/tasks/2026-10-31-task.md\n-old\n+new\n";
-        assert!(shared_state_removals(task_rewrite).is_empty());
+        assert!(shared_state_removals(task_rewrite, &rules).is_empty());
+    }
+
+    #[test]
+    fn test_strip_ansi_removes_color_only() {
+        assert_eq!(strip_ansi("\x1b[32mPASS\x1b[0m (contract)"), "PASS (contract)");
+        assert_eq!(strip_ansi("plain"), "plain");
     }
 
     #[test]
@@ -5121,10 +5288,27 @@ mod tests {
         let patch = "--- a/src/rag/src/decision.rs\n+++ b/src/rag/src/decision.rs\n+let x = 1;\n--- a/AGENTS.md\n+++ b/AGENTS.md\n+rule\n";
         let report = assess_master_surfaces(&tmp, patch);
         assert!(report.compatibility.touched && report.compatibility.declared);
+        assert!(report.compatibility.declaration.contains("compat:"));
         assert!(report.economics.touched && report.economics.declared);
         assert!(report.concurrency_ok());
         assert!(report.compat_ok() && report.economics_ok());
         assert!(has_declaration("+compat: added in diff", "compat"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_missing_budget_fails_only_under_strict() {
+        let tmp = std::env::temp_dir().join(format!("ainish-budget-surface-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".agents").join("tasks")).unwrap();
+        let patch = "--- a/src/rag/src/main.rs\n+++ b/src/rag/src/main.rs\n+let x = 1;\n";
+        let report = assess_master_surfaces(&tmp, patch);
+        assert!(report.economics.touched && !report.economics.declared);
+        // A missing budget is a WARN by default and only blocks under --strict.
+        assert!(!report.economics_ok());
+        let rules = MasterSurfaceRules::default();
+        assert!(spends_resources("src/rag/src/main.rs", &rules));
+        assert!(!spends_resources("docs/README.md", &rules));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

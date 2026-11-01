@@ -2682,6 +2682,26 @@ def derive_retrieval_strategy(
     return "hybrid_rerank", 12
 
 
+def context_budget_for(strategy: str) -> int:
+    """Token budget for retrieved context per strategy (0 = do not retrieve)."""
+    return {
+        "skip_retrieval": 0,
+        "symbol_anchored": 1200,
+        "fresh_orient_first": 2600,
+        "multi_hop_expand": 3600,
+    }.get(strategy, 2000)
+
+
+def next_action_for(strategy: str) -> str:
+    """One-line next action derived from the strategy (context-engineering priming)."""
+    return {
+        "skip_retrieval": "answer directly; do not retrieve",
+        "symbol_anchored": "query --code with the named symbol or file",
+        "fresh_orient_first": "check git status/log, then orient --inject before trusting stable docs",
+        "multi_hop_expand": "query with the larger pool, then one corrective pass if sufficiency is partial",
+    }.get(strategy, "query with rerank; read decision role and context sufficiency before answering")
+
+
 def evaluate_context_sufficiency(results: List[Dict[str, Any]]) -> str:
     """Evaluates collective context sufficiency across reranked candidates (Corrective RAG / CRAG):
     `sufficient`, `partial_unsettled`, or `insufficient`."""
@@ -3060,6 +3080,8 @@ class DecisionEngine:
                 "modality_preference": modality,
                 "retrieval_strategy": strategy,
                 "candidate_pool_size": pool_size,
+                "context_budget_tokens": context_budget_for(strategy),
+                "next_action": next_action_for(strategy),
                 "source": f"{transport}:{model}",
             }
         except Exception:
@@ -3079,6 +3101,8 @@ class DecisionEngine:
                 "modality_preference": "balanced",
                 "retrieval_strategy": "skip_retrieval",
                 "candidate_pool_size": 0,
+                "context_budget_tokens": 0,
+                "next_action": next_action_for("skip_retrieval"),
                 "source": "local-calibrated",
             }
 
@@ -3115,6 +3139,8 @@ class DecisionEngine:
             "modality_preference": modality,
             "retrieval_strategy": strategy,
             "candidate_pool_size": pool_size,
+            "context_budget_tokens": context_budget_for(strategy),
+            "next_action": next_action_for(strategy),
             "source": "local-calibrated",
         }
 
@@ -3717,12 +3743,16 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             f"| freshness: `{float(route_decision.get('context_freshness') or 0.5):.2f}` "
             f"| specificity: `{route_decision.get('query_specificity', 'conceptual_flow')}` "
             f"| modality: `{route_decision.get('modality_preference', 'balanced')}` "
-            f"| strategy: `{route_decision.get('retrieval_strategy', 'hybrid_rerank')}` (pool {route_decision.get('candidate_pool_size', 12)})"
+            f"| strategy: `{route_decision.get('retrieval_strategy', 'hybrid_rerank')}` (pool {route_decision.get('candidate_pool_size', 12)}) "
+            f"| context budget: {route_decision.get('context_budget_tokens', 2000)} tokens"
         ),
+        f"- next: {route_decision.get('next_action', next_action_for('hybrid_rerank'))}",
         "",
     ]
-    lines_per_sec = max_lines if max_lines is not None else (8 if compact else 40)
+    default_lines = 8 if compact else 40
     section_limit = sections if sections is not None else 3
+    budget_lines = max(3, int(route_decision.get("context_budget_tokens", 2000)) // 12 // max(1, section_limit))
+    lines_per_sec = max_lines if max_lines is not None else min(default_lines, budget_lines)
     max_items = 3 if compact else 6
 
     sections = []
@@ -4617,11 +4647,46 @@ def truncate_cmd(cmd: str, max_len: int = 34) -> str:
 
 
 # --- Triggered master lenses (compatibility / concurrency / economics) -------------------------
-# Mirrors `assess_master_surfaces` in the Rust engine. Cheap, diff-derived checks so the new
-# lenses fire on evidence instead of habit.
+# Mirrors `assess_master_surfaces` in the Rust engine. The surface rules live in
+# `src/rag/master-surfaces.json` so both engines read one file.
 
-CONTRACT_PATH_PREFIXES = (".agents/canonical/", ".agents/skills/", "src/templates/")
-SCHEMA_FILE_SUFFIXES = ("embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json")
+MASTER_SURFACE_RULES_DEFAULTS: Dict[str, Any] = {
+    "contract_paths": ["agents.md", "llms.txt", ".agents/canonical/", ".agents/skills/", "src/templates/"],
+    "schema_suffixes": ["embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json"],
+    "dependency_manifests": [
+        "cargo.toml",
+        "cargo.lock",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "pyproject.toml",
+        "uv.lock",
+    ],
+    "cli_tokens": ["#[arg(", "add_argument(", 'long = "', 'env::var("', 'os.environ.get("', 'os.environ["'],
+    "append_only_prefixes": [".agents/comms/", ".agents/memories/", ".agents/suggestions/"],
+    "spend_prefixes": ["src/rag/", ".github/", "benchmarks/", "scripts/"],
+}
+
+
+def load_master_surface_rules(repo_root: Path) -> Dict[str, Any]:
+    """Loads the shared rule file, falling back to defaults for any missing key."""
+    rules = {key: list(value) for key, value in MASTER_SURFACE_RULES_DEFAULTS.items()}
+    candidates = [repo_root / "src" / "rag" / "master-surfaces.json"]
+    canonical = resolve_canonical_repo_root(repo_root) / "src" / "rag" / "master-surfaces.json"
+    if canonical != candidates[0]:
+        candidates.append(canonical)
+    for path in candidates:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            for key in rules:
+                value = data.get(key)
+                if isinstance(value, list) and all(isinstance(item, str) for item in value):
+                    rules[key] = [item.lower() for item in value]
+            return rules
+    return rules
 
 
 def _today_utc() -> str:
@@ -4636,17 +4701,24 @@ def _read_today_task_record(repo_root: Path) -> str:
         return ""
 
 
-def has_declaration(text: str, key: str) -> bool:
-    """True when `text` carries a `key:` declaration line (bullets and diff `+` rows allowed)."""
+def find_declaration(text: str, key: str) -> Optional[str]:
+    """Returns the declaration line (`compat:` / `budget:`) when present, trimmed and capped."""
     prefix = f"{key.lower()}:"
     for line in text.splitlines():
-        if line.strip().lstrip("-+").strip().lower().startswith(prefix):
-            return True
-    return False
+        candidate = line.strip().lstrip("-+").strip()
+        if candidate.lower().startswith(prefix):
+            return candidate[:180]
+    return None
 
 
-def contract_surfaces_touched(diff_text: str) -> List[str]:
+def has_declaration(text: str, key: str) -> bool:
+    """True when `text` carries a `key:` declaration line (bullets and diff `+` rows allowed)."""
+    return find_declaration(text, key) is not None
+
+
+def contract_surfaces_touched(diff_text: str, rules: Optional[Dict[str, Any]] = None) -> List[str]:
     """Detects contract surfaces whose change needs a `compat:` declaration."""
+    rules = rules or MASTER_SURFACE_RULES_DEFAULTS
     labels: List[str] = []
 
     def push(label: str) -> None:
@@ -4656,24 +4728,27 @@ def contract_surfaces_touched(diff_text: str) -> List[str]:
     for line in diff_text.splitlines():
         if line.startswith("+++ b/"):
             path = line[len("+++ b/"):].strip().lower()
-            if path in ("agents.md", "llms.txt") or path.startswith(CONTRACT_PATH_PREFIXES):
+            if any(path == prefix or path.startswith(prefix) for prefix in rules["contract_paths"]):
                 push("contract")
-            if any(path.endswith(suffix) for suffix in SCHEMA_FILE_SUFFIXES):
+            if any(path.endswith(suffix) for suffix in rules["schema_suffixes"]):
                 push("schema")
+            if any(path.endswith(name) for name in rules["dependency_manifests"]):
+                push("dependency")
             continue
         if line.startswith(("+++", "---")) or not line.startswith(("+", "-")):
             continue
         content = line[1:]
-        if any(token in content for token in ("#[arg(", "add_argument(", 'long = "', 'env::var("', 'os.environ.get("', 'os.environ["')):
+        if any(token in content for token in rules["cli_tokens"]):
             push("cli")
         if '"format":' in content or "format=" in content:
             push("schema")
     return labels
 
 
-def shared_state_removals(diff_text: str) -> List[str]:
+def shared_state_removals(diff_text: str, rules: Optional[Dict[str, Any]] = None) -> List[str]:
     """Shared state is append-only: non-header removed lines in comms/memories/suggestions are a
     lost-update risk under multiple writers. Task records are updated in place and exempt."""
+    rules = rules or MASTER_SURFACE_RULES_DEFAULTS
     violations: List[str] = []
     current = ""
     removed = 0
@@ -4681,11 +4756,7 @@ def shared_state_removals(diff_text: str) -> List[str]:
     def flush() -> None:
         nonlocal removed
         lower = current.lower()
-        if removed and (
-            lower.startswith(".agents/comms/")
-            or lower.startswith(".agents/memories/")
-            or lower.startswith(".agents/suggestions/")
-        ):
+        if removed and any(lower.startswith(prefix) for prefix in rules["append_only_prefixes"]):
             violations.append(f"{current} ({removed} removed line(s))")
         removed = 0
 
@@ -4700,40 +4771,57 @@ def shared_state_removals(diff_text: str) -> List[str]:
     return violations
 
 
-def spends_resources(path: str) -> bool:
+def spends_resources(path: str, rules: Optional[Dict[str, Any]] = None) -> bool:
+    rules = rules or MASTER_SURFACE_RULES_DEFAULTS
     lower = path.replace("\\", "/").lower()
-    return lower.startswith(("src/rag/", ".github/", "benchmarks/", "scripts/"))
+    return any(lower.startswith(prefix) for prefix in rules["spend_prefixes"])
+
+
+def strip_ansi(text: str) -> str:
+    """Removes ANSI SGR sequences so a NO_COLOR render carries the same meaning."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def no_color_enabled() -> bool:
+    return bool(os.environ.get("NO_COLOR")) or os.environ.get("TERM", "").lower() == "dumb"
 
 
 def assess_master_surfaces(repo_root: Path, diff_text: str) -> Dict[str, Any]:
+    rules = load_master_surface_rules(repo_root)
     task_record = _read_today_task_record(repo_root)
-    labels = contract_surfaces_touched(diff_text)
+    compat_decl = find_declaration(task_record, "compat") or find_declaration(diff_text, "compat")
+    labels = contract_surfaces_touched(diff_text, rules)
     compatibility = {
         "touched": bool(labels),
-        "declared": has_declaration(task_record, "compat") or has_declaration(diff_text, "compat"),
+        "declared": compat_decl is not None,
         "detail": ", ".join(labels),
+        "declaration": compat_decl or "",
     }
 
-    removals = shared_state_removals(diff_text)
+    removals = shared_state_removals(diff_text, rules)
     touched_shared = any(
-        line.startswith("+++ b/.agents/comms/")
-        or line.startswith("+++ b/.agents/memories/")
-        or line.startswith("+++ b/.agents/suggestions/")
+        line.startswith("+++ b/") and any(
+            line[len("+++ b/"):].strip().lower().startswith(prefix) for prefix in rules["append_only_prefixes"]
+        )
         for line in diff_text.splitlines()
     )
-    concurrency = {"touched": touched_shared, "declared": not removals, "detail": "; ".join(removals)}
+    concurrency = {"touched": touched_shared, "declared": not removals, "detail": "; ".join(removals), "declaration": ""}
 
     touched_spend = any(
-        spends_resources(line[len("+++ b/"):].strip())
+        spends_resources(line[len("+++ b/"):].strip(), rules)
         for line in diff_text.splitlines()
         if line.startswith("+++ b/")
     )
+    budget_decl = (
+        find_declaration(task_record, "budget")
+        or find_declaration(diff_text, "budget")
+        or ((os.environ.get("AINISH_GATE_BUDGET") or "").strip() or None)
+    )
     economics = {
         "touched": touched_spend,
-        "declared": has_declaration(task_record, "budget")
-        or has_declaration(diff_text, "budget")
-        or bool((os.environ.get("AINISH_GATE_BUDGET") or "").strip()),
+        "declared": budget_decl is not None,
         "detail": "spend surface touched" if touched_spend else "",
+        "declaration": budget_decl or "",
     }
 
     return {"compatibility": compatibility, "concurrency": concurrency, "economics": economics}
@@ -5032,7 +5120,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             conc = master_report["concurrency"]
             econ = master_report["economics"]
             compat_status = (
-                "\033[32mPASS\033[0m"
+                f"\033[32mPASS\033[0m ({compat['detail']})"
                 if (not compat["touched"] or compat["declared"])
                 else f"\033[31mFAIL (no compat: for {compat['detail']})\033[0m"
             )
@@ -5049,7 +5137,10 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 econ_status = "\033[31mFAIL (no budget:)\033[0m"
             else:
                 econ_status = "\033[33mWARN (no budget:)\033[0m"
-            print(f"  Master Surfaces:        compat {compat_status} · concurrency {conc_status} · econ {econ_status}")
+            master_line = f"  Master Surfaces:        compat {compat_status} · concurrency {conc_status} · econ {econ_status}"
+            if no_color_enabled():
+                master_line = strip_ansi(master_line)
+            print(master_line)
             lock_status = f"\033[32mPASS (0 drift, {len(lock_res.get('unpinned_files', []))} unpinned)\033[0m" if lock_pass else "\033[31mFAIL\033[0m"
             print(f"  Supply Chain Lockfiles: {lock_status}")
             audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
@@ -5751,6 +5842,9 @@ def main():
             print(f"Needs Retrieval:       {dec['needs_retrieval']} (probability: {dec['retrieval_probability']:.3f})")
             print(f"Target Domain:         {dec['target_domain']} (confidence:  {dec['route_confidence']:.3f})")
             print(f"Context Freshness:     {dec.get('context_freshness', 0.5):.3f}")
+            print(f"Retrieval Strategy:    {dec.get('retrieval_strategy', 'hybrid_rerank')} (pool {dec.get('candidate_pool_size', 12)})")
+            print(f"Context Budget:        {dec.get('context_budget_tokens', 2000)} tokens")
+            print(f"Next Action:           {dec.get('next_action', '')}")
             print()
 
     elif args.subcommand == "decide":
@@ -5841,6 +5935,9 @@ def main():
             print(f"Needs Retrieval:       {dec['needs_retrieval']} ({dec['retrieval_probability']:.3f})")
             print(f"Target Domain:         {dec['target_domain']} (confidence:  {dec['route_confidence']:.3f})")
             print(f"Context Freshness:     {dec.get('context_freshness', 0.5):.3f}")
+            print(f"Retrieval Strategy:    {dec.get('retrieval_strategy', 'hybrid_rerank')} (pool {dec.get('candidate_pool_size', 12)})")
+            print(f"Context Budget:        {dec.get('context_budget_tokens', 2000)} tokens")
+            print(f"Next Action:           {dec.get('next_action', '')}")
             print()
 
     elif args.subcommand == "eval":
