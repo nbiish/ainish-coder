@@ -4594,7 +4594,12 @@ async fn run_gate(
         let master_label = format!(
             "{} · {} · {}",
             if master_surfaces.compat_ok() {
-                format!("\x1b[32mcompat PASS\x1b[0m ({})", master_surfaces.compatibility.detail)
+                let detail = if master_surfaces.compatibility.touched {
+                    format!(" ({})", master_surfaces.compatibility.detail)
+                } else {
+                    String::new()
+                };
+                format!("\x1b[32mcompat PASS\x1b[0m{}", detail)
             } else {
                 format!("\x1b[31mcompat FAIL (no compat: for {})\x1b[0m", master_surfaces.compatibility.detail)
             },
