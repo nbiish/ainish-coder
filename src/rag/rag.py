@@ -5120,7 +5120,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             conc = master_report["concurrency"]
             econ = master_report["economics"]
             compat_status = (
-                f"\033[32mPASS\033[0m ({compat['detail']})"
+                "\033[32mPASS\033[0m" + (f" ({compat['detail']})" if compat["touched"] else "")
                 if (not compat["touched"] or compat["declared"])
                 else f"\033[31mFAIL (no compat: for {compat['detail']})\033[0m"
             )
