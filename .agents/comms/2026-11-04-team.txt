@@ -86,3 +86,23 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:56-line synchronized contract; EGM workflow, DOX indexes, packet modes, readiness checker, task/memory/suggestions records.
 - status:done
 - blockers:Python unavailable; ainish-rag gate produced no output for 180 seconds and was stopped. No code/runtime dependency changed.
+
+### [2026-11-04T20:30:00Z] checkin | branch:feat/typesafe-image-egm | wt:D:\Code\typesafe-image-egm
+- start:2026-11-04T20:25:00Z
+- end:2026-11-04T20:30:00Z
+- scope:AGENTS.md, .agents/skills/typesafe-jev/, .agents/tasks/, .agents/memories/, .agents/suggestions/
+- objective:Review latest suggestions and add TypeSafe Jev 1.14 image/Box capability guidance.
+- input:Operator request and upstream TypeSafe documentation/blog/skill references.
+- output:Production-first contract language, image/Box reference, explicit image probe flags, and project adoption map.
+- status:verifying
+- blockers:Python runtime unavailable on this Windows host; live image request not run without a TypeSafe key and asset.
+
+### [2026-11-04T20:42:00Z] checkout | branch:feat/typesafe-image-egm | wt:D:\Code\typesafe-image-egm
+- start:2026-11-04T20:30:00Z
+- end:2026-11-04T20:42:00Z
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/skills/typesafe-jev/, .agents/tasks/, .agents/comms/, .agents/memories/, .agents/suggestions/
+- objective:Finish the TypeSafe image/EGM enhancement with production-surface verification.
+- input:Focused shell/Python checks and a local HTTP probe with a non-secret demo key.
+- output:Byte-identical contracts, READY_FOR_GOLDFISH packet path, compiled probe, and verified image header plus selected Authorization behavior.
+- status:done
+- blockers:No live TypeSafe image call; no operator-provided key or representative asset was available.
