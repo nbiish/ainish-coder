@@ -3046,23 +3046,23 @@ class DecisionEngine:
                 key = resolve_jev_api_key()
                 if endpoint and key:
                     try:
-                    return self._post_decisions(endpoint, key, state, questions)
+                        return self._post_decisions(endpoint, key, state, questions)
                     except RuntimeError as exc:
-                    errors.append(f"jev {endpoint}: {exc}")
+                        errors.append(f"jev {endpoint}: {exc}")
                 elif endpoint:
                     errors.append("direct Jev endpoint configured but no TypeSafe/Jev API key resolved")
             elif transport == "local-model":
                 endpoint = (os.environ.get("JEV_LOCAL_MODEL_URL") or "").strip()
                 if endpoint:
                     try:
-                    return self._post_decisions(
-                        endpoint,
-                        (os.environ.get("JEV_LOCAL_MODEL_API_KEY") or "").strip() or None,
-                        state,
-                        questions,
-                    )
+                        return self._post_decisions(
+                            endpoint,
+                            (os.environ.get("JEV_LOCAL_MODEL_API_KEY") or "").strip() or None,
+                            state,
+                            questions,
+                        )
                     except RuntimeError as exc:
-                    errors.append(f"local-model {endpoint}: {exc}")
+                        errors.append(f"local-model {endpoint}: {exc}")
         raise RuntimeError("; ".join(errors) if errors else "Jev request failed")
 
     def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
