@@ -31,11 +31,11 @@ four competing ones.
 | Probe the live model | `python .agents/skills/typesafe-jev/scripts/jev_probe.py --questions '<json>' --state "<state>"` |
 | Probe TypeSafe image/Box support | `python .agents/skills/typesafe-jev/scripts/jev_probe.py --api-url https://api.typesafe.ai/v1/systemone --typesafe-key-name TYPESAFE_API_KEY --images --questions '@questions.json' --state-file state.json` |
 
-Both prioritized transports are attempted before any heuristic: **OpenRouter** (latest Jev) and the
-loopback **Local Router** (`/api/decisions/status` fast path, then `/api/alpha/decisions`);
-`JEV_TRANSPORT_PRIORITY=local-router,openrouter` flips the order. Every command degrades to a
-calibrated local heuristic only when both fail, and says so in `source`
-(`openrouter:typesafe/jev-1.14-20261014`, `local-router:<url>:<model>`, or `local-calibrated`).
+The default transport order is **Local Router**, **OpenRouter**, configured direct **Jev/TypeSafe**,
+then configured **local-model** (`JEV_LOCAL_MODEL_URL`). Set `JEV_TRANSPORT_PRIORITY` to reorder
+these four stages. Every command degrades to a calibrated local heuristic only when all configured
+stages fail, and says so in `source` (`local-router:<url>:<model>`, `openrouter:typesafe/jev-1.14-20261014`,
+`jev:typesafe/jev-1.14`, `local-model:<url>`, or `local-calibrated`).
 **A failed Jev call is an error, not a "no"** — read `source` before trusting an answer.
 
 ## Image and Box capabilities (danger zone)
@@ -83,15 +83,18 @@ response schema, including the failure modes that silently produce defaults, is 
   build, e.g. `typesafe/jev-1.14-20261014`). There is **no automatic downgrade** to older Jev ids:
   `JEV_DECISION_MODEL` is a diagnostic pin that `ainish-rag secrets` reports, and a retired id
   fails the call with its reason instead of silently using an older model.
-- **Transports** — OpenRouter's Decisions API is primary. Local Router
+- **Transports** — Local Router is primary, followed by OpenRouter, direct Jev/TypeSafe when
+  `JEV_API_URL` or `TYPESAFE_API_URL` and a `TYPESAFE_API_KEY`-family secret are configured, then
+  a decisions-compatible local model at `JEV_LOCAL_MODEL_URL` (optional
+  `JEV_LOCAL_MODEL_API_KEY`). Local Router
   (`http://127.0.0.1:11434`, override with `JEV_LOCAL_ROUTER_URL`) is an *additional typed
   transport*: `/api/alpha/decisions`, `/v1/decisions`, and `/decisions` accept this contract,
   advertise pinned `openrouter/jev-1.14` (and `zenmux/jev-1.14` when that key is configured) on
   `/v1/models`, and fail over between keyed providers while reporting `provider`/`dialect`/
   `attempts`. A chat-only alias (`openrouter-jev-router`) is general chat — it can be served by any
   model — and is never substituted for typed, calibrated decisions. `ainish-rag secrets` names the
-  usable route; the local route is tried after the OpenRouter attempt fails or when no key
-  resolves.
+  usable route. Direct Jev and local-model stages are opt-in and skipped when their endpoint is not
+  configured.
 - **Questions** — a JSON object keyed by question id. Every `noul`, `choice`, and `score`
   question **must** carry `criteria`; the API rejects the request without it.
   - `noul`: `criteria: { "true": "...", "false": "..." }` → answer `noul` (0–1).

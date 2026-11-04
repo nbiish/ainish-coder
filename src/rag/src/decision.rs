@@ -260,8 +260,8 @@ async fn probe_decisions(client: &reqwest::Client, url: &str) -> bool {
     matches!(client.post(url).json(&payload).send().await, Ok(response) if response.status().is_success())
 }
 
-/// Resolves transport priority order (`["openrouter", "local-router"]` by default; override with
-/// `JEV_TRANSPORT_PRIORITY=local-router,openrouter` when the local-router proxy should be tried first).
+/// Resolves transport priority order. The default is local-router, OpenRouter, direct configured
+/// Jev, then a configured local decisions-compatible model endpoint.
 pub fn transport_priority_order() -> Vec<&'static str> {
     let raw = env::var("JEV_TRANSPORT_PRIORITY")
         .or_else(|_| env::var("AINISH_RAG_DECISION_PRIORITY"))
@@ -281,10 +281,20 @@ pub fn transport_priority_order() -> Vec<&'static str> {
                     order.push("local-router");
                 }
             }
+            "jev" | "typesafe" | "direct-jev" => {
+                if !order.contains(&"jev") {
+                    order.push("jev");
+                }
+            }
+            "local-model" | "localmodel" | "local_model" | "model" => {
+                if !order.contains(&"local-model") {
+                    order.push("local-model");
+                }
+            }
             _ => {}
         }
     }
-    for default_item in ["openrouter", "local-router"] {
+    for default_item in ["local-router", "openrouter", "jev", "local-model"] {
         if !order.contains(&default_item) {
             order.push(default_item);
         }
@@ -608,9 +618,7 @@ impl DecisionEngine {
         })
     }
 
-    /// Sends one typed question batch over the first usable transport according to
-    /// `transport_priority_order()` (`openrouter` then `local-router` by default, or
-    /// `local-router` first when `JEV_TRANSPORT_PRIORITY=local-router,openrouter`).
+    /// Sends one typed question batch over the first usable configured transport.
     ///
     /// Both OpenRouter's Decisions API and the loopback `local-router` decisions proxy target the
     /// latest Jev model (`typesafe/jev-1.14`) with no silent older-model downgrade.
@@ -622,6 +630,21 @@ impl DecisionEngine {
         let mut errors: Vec<String> = Vec::new();
         for transport in transport_priority_order() {
             match transport {
+                "local-router" => {
+                    if let Some(router) = discover_local_router().await {
+                        match router.decisions_url.as_deref() {
+                            Some(url) => match self.post_decisions(url, None, state, questions).await {
+                                Ok(outcome) => return Ok(outcome),
+                                Err(error) => errors.push(format!("local-router {}: {}", router.base_url, error)),
+                            },
+                            None => errors.push(format!(
+                                "local-router {} advertises Jev chat models ({}) but exposes no decisions route",
+                                router.base_url,
+                                router.jev_models.join(", ")
+                            )),
+                        }
+                    }
+                }
                 "openrouter" => {
                     if let Some(key) = self.api_key.as_ref() {
                         match self.post_decisions(OPENROUTER_DECISIONS_URL, Some(key), state, questions).await {
@@ -632,21 +655,30 @@ impl DecisionEngine {
                         errors.push("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY in the PQC vault)".to_string());
                     }
                 }
-                "local-router" => {
-                    if let Some(router) = discover_local_router().await {
-                        match router.decisions_url.as_deref() {
-                            Some(url) => match self.post_decisions(url, None, state, questions).await {
+                "jev" => {
+                    let endpoint = env::var("JEV_API_URL")
+                        .or_else(|_| env::var("TYPESAFE_API_URL"))
+                        .ok()
+                        .filter(|value| !value.trim().is_empty());
+                    let key = Self::resolve_jev_api_key();
+                    if let (Some(endpoint), Some(key)) = (endpoint.as_ref(), key.as_ref()) {
+                        match self.post_decisions(endpoint, Some(key), state, questions).await {
+                            Ok(outcome) => return Ok(outcome),
+                            Err(error) => errors.push(format!("jev {}: {}", endpoint, error)),
+                        }
+                    } else if endpoint.is_some() {
+                        errors.push("direct Jev endpoint configured but no TypeSafe/Jev API key resolved".to_string());
+                    }
+                }
+                "local-model" => {
+                    if let Ok(endpoint) = env::var("JEV_LOCAL_MODEL_URL") {
+                        if !endpoint.trim().is_empty() {
+                            let key = env::var("JEV_LOCAL_MODEL_API_KEY")
+                                .ok()
+                                .filter(|value| !value.trim().is_empty());
+                            match self.post_decisions(&endpoint, key.as_ref(), state, questions).await {
                                 Ok(outcome) => return Ok(outcome),
-                                Err(error) => {
-                                    errors.push(format!("local-router {}: {}", router.base_url, error));
-                                }
-                            },
-                            None => {
-                                errors.push(format!(
-                                    "local-router {} advertises Jev chat models ({}) but exposes no decisions route",
-                                    router.base_url,
-                                    router.jev_models.join(", ")
-                                ));
+                                Err(error) => errors.push(format!("local-model {}: {}", endpoint, error)),
                             }
                         }
                     }
@@ -678,7 +710,6 @@ impl DecisionEngine {
         if let Some(key) = key {
             request = request.header("Authorization", format!("Bearer {}", key));
         }
-
         let response = request
             .json(&payload)
             .send()
@@ -704,7 +735,19 @@ impl DecisionEngine {
             return Err("Jev response contained no answers".to_string());
         }
         let usage = body.get("usage").cloned().unwrap_or(serde_json::Value::Null);
-        let transport = if endpoint.contains("openrouter.ai") { "openrouter".to_string() } else { format!("local-router:{}", endpoint) };
+        let transport = if endpoint.contains("openrouter.ai") {
+            "openrouter".to_string()
+        } else if env::var("JEV_API_URL").ok().as_deref() == Some(endpoint)
+            || env::var("TYPESAFE_API_URL").ok().as_deref() == Some(endpoint)
+        {
+            "jev".to_string()
+        } else if endpoint.starts_with("http://127.0.0.1")
+            || endpoint.starts_with("http://localhost")
+        {
+            format!("local-router:{}", endpoint)
+        } else {
+            format!("local-model:{}", endpoint)
+        };
         Ok(AskOutcome { model: resolved_model, answers, usage, transport })
     }
 
@@ -755,6 +798,24 @@ impl DecisionEngine {
         }
 
         (None, "local-calibrated-fallback".to_string())
+    }
+
+    fn resolve_jev_api_key() -> Option<String> {
+        const JEV_KEY_NAMES: &[&str] = &[
+            "TYPESAFE_API_KEY",
+            "TYPESAFEAI_API_KEY",
+            "TYPESAFE_JEV_API_KEY",
+            "JEV_API_KEY",
+        ];
+        crate::provider::resolve_named_secret(JEV_KEY_NAMES)
+            .map(|(key, _)| key)
+            .or_else(|| {
+                JEV_KEY_NAMES.iter().find_map(|name| {
+                    env::var(name)
+                        .ok()
+                        .filter(|value| !value.trim().is_empty())
+                })
+            })
     }
 
     /// Resolves the PQC secrets bundle path across Windows, WSL, Linux, and macOS
@@ -1756,10 +1817,16 @@ mod tests {
             std::env::remove_var("JEV_TRANSPORT_PRIORITY");
             std::env::remove_var("AINISH_RAG_DECISION_PRIORITY");
         }
-        assert_eq!(transport_priority_order(), vec!["openrouter", "local-router"]);
+        assert_eq!(
+            transport_priority_order(),
+            vec!["local-router", "openrouter", "jev", "local-model"]
+        );
 
-        unsafe { std::env::set_var("JEV_TRANSPORT_PRIORITY", "local-router,openrouter") };
-        assert_eq!(transport_priority_order(), vec!["local-router", "openrouter"]);
+        unsafe { std::env::set_var("JEV_TRANSPORT_PRIORITY", "jev,local-model") };
+        assert_eq!(
+            transport_priority_order(),
+            vec!["jev", "local-model", "local-router", "openrouter"]
+        );
         unsafe { std::env::remove_var("JEV_TRANSPORT_PRIORITY") };
     }
 
