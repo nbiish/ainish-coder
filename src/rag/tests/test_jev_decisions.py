@@ -23,6 +23,18 @@ _SPEC.loader.exec_module(rag)
 
 
 class JevQuestionContractTest(unittest.TestCase):
+    def test_transport_priority_defaults_to_local_router_then_external_stages(self):
+        saved = os.environ.pop("JEV_TRANSPORT_PRIORITY", None)
+        try:
+            os.environ.pop("AINISH_RAG_DECISION_PRIORITY", None)
+            self.assertEqual(
+                rag.transport_priority_order(),
+                ["local-router", "openrouter", "jev", "local-model"],
+            )
+        finally:
+            if saved is not None:
+                os.environ["JEV_TRANSPORT_PRIORITY"] = saved
+
     def test_noul_carries_true_and_false_criteria(self):
         q = rag.DecisionEngine.noul_question("Does the file use LanceDB?", "it connects to LanceDB", "it does not")
         self.assertEqual(q["type"], "noul")

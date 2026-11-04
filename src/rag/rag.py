@@ -2618,6 +2618,33 @@ def inspect_secrets() -> Dict[str, Any]:
     }
 
 
+JEV_KEY_NAMES = (
+    "TYPESAFE_API_KEY",
+    "TYPESAFEAI_API_KEY",
+    "TYPESAFE_JEV_API_KEY",
+    "JEV_API_KEY",
+)
+
+
+def resolve_jev_api_key() -> Optional[str]:
+    """Resolve a direct TypeSafe/Jev key without exposing its value."""
+    for name in JEV_KEY_NAMES:
+        value = os.environ.get(name)
+        if value and value.strip():
+            return value.strip()
+    vault = _pqc_export()
+    for name in JEV_KEY_NAMES:
+        value = vault.get(name)
+        if value and value.strip():
+            return value.strip()
+    for suffix in ("_TYPESAFE_API_KEY", "_TYPESAFE_JEV_API_KEY", "_JEV_API_KEY"):
+        for name in sorted(vault):
+            value = vault.get(name)
+            if value and value.strip() and name.upper().endswith(suffix):
+                return value.strip()
+    return None
+
+
 LATEST_JEV_MODEL = "typesafe/jev-1.14"
 OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
 DEFAULT_LOCAL_ROUTER_URL = "http://127.0.0.1:11434"
@@ -2645,8 +2672,11 @@ def jev_models_filter(models: List[str]) -> List[str]:
 
 
 def transport_priority_order() -> List[str]:
-    """Resolves transport priority (`['openrouter', 'local-router']` by default; override with
-    `JEV_TRANSPORT_PRIORITY=local-router,openrouter` when the local-router proxy is preferred first)."""
+    """Resolves the four-stage decision order.
+
+    The default is local-router, OpenRouter, direct configured Jev, then a configured local
+    decisions-compatible model endpoint. ``JEV_TRANSPORT_PRIORITY`` can still reorder stages.
+    """
     raw = (os.environ.get("JEV_TRANSPORT_PRIORITY") or os.environ.get("AINISH_RAG_DECISION_PRIORITY") or "").lower()
     order: List[str] = []
     for part in re.split(r"[,;\s]+", raw):
@@ -2655,7 +2685,11 @@ def transport_priority_order() -> List[str]:
             order.append("openrouter")
         elif token in ("local-router", "localrouter", "local_router", "router") and "local-router" not in order:
             order.append("local-router")
-    for default_item in ("openrouter", "local-router"):
+        elif token in ("jev", "typesafe", "direct-jev") and "jev" not in order:
+            order.append("jev")
+        elif token in ("local-model", "localmodel", "local_model", "model") and "local-model" not in order:
+            order.append("local-model")
+    for default_item in ("local-router", "openrouter", "jev", "local-model"):
         if default_item not in order:
             order.append(default_item)
     return order
@@ -2972,35 +3006,63 @@ class DecisionEngine:
         answers = self.parse_answers(body)
         if not answers:
             raise RuntimeError("Jev response contained no answers")
-        transport = "openrouter" if "openrouter.ai" in endpoint else f"local-router:{endpoint}"
+        if "openrouter.ai" in endpoint:
+            transport = "openrouter"
+        elif "local-router" in endpoint or endpoint.startswith(("http://127.0.0.1", "http://localhost")):
+            transport = f"local-router:{endpoint}"
+        elif endpoint == os.environ.get("JEV_API_URL") or endpoint == os.environ.get("TYPESAFE_API_URL"):
+            transport = "jev"
+        else:
+            transport = f"local-model:{endpoint}"
         return str(body.get("model") or self.model), answers, body.get("usage") or {}, transport
 
     def _ask(self, state: str, questions: Dict[str, Any]) -> tuple:
-        """Sends one typed batch over the first usable transport according to `transport_priority_order()`
-        (OpenRouter then Local Router by default, or Local Router first when configured)."""
+        """Sends one typed batch over the first usable configured transport."""
         errors: List[str] = []
         for transport in transport_priority_order():
-            if transport == "openrouter":
-                if self.api_key:
-                    try:
-                        return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
-                    except RuntimeError as exc:
-                        errors.append(str(exc))
-                else:
-                    errors.append("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
-            elif transport == "local-router":
+            if transport == "local-router":
                 router = _discover_local_router()
                 if router:
                     if router.get("decisions_url"):
-                        try:
-                            return self._post_decisions(router["decisions_url"], None, state, questions)
-                        except RuntimeError as exc:
-                            errors.append(f"local-router {router['base_url']}: {exc}")
+                    try:
+                        return self._post_decisions(router["decisions_url"], None, state, questions)
+                    except RuntimeError as exc:
+                        errors.append(f"local-router {router['base_url']}: {exc}")
                     else:
-                        errors.append(
-                            f"local-router {router['base_url']} advertises Jev chat models "
-                            f"({', '.join(router['jev_models'])}) but exposes no decisions route"
-                        )
+                    errors.append(
+                        f"local-router {router['base_url']} advertises Jev chat models "
+                        f"({', '.join(router['jev_models'])}) but exposes no decisions route"
+                    )
+            elif transport == "openrouter":
+                if self.api_key:
+                    try:
+                    return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
+                    except RuntimeError as exc:
+                    errors.append(str(exc))
+                else:
+                    errors.append("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
+            elif transport == "jev":
+                endpoint = (os.environ.get("JEV_API_URL") or os.environ.get("TYPESAFE_API_URL") or "").strip()
+                key = resolve_jev_api_key()
+                if endpoint and key:
+                    try:
+                    return self._post_decisions(endpoint, key, state, questions)
+                    except RuntimeError as exc:
+                    errors.append(f"jev {endpoint}: {exc}")
+                elif endpoint:
+                    errors.append("direct Jev endpoint configured but no TypeSafe/Jev API key resolved")
+            elif transport == "local-model":
+                endpoint = (os.environ.get("JEV_LOCAL_MODEL_URL") or "").strip()
+                if endpoint:
+                    try:
+                    return self._post_decisions(
+                        endpoint,
+                        (os.environ.get("JEV_LOCAL_MODEL_API_KEY") or "").strip() or None,
+                        state,
+                        questions,
+                    )
+                    except RuntimeError as exc:
+                    errors.append(f"local-model {endpoint}: {exc}")
         raise RuntimeError("; ".join(errors) if errors else "Jev request failed")
 
     def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
@@ -6811,5 +6873,3 @@ def run_service_command(repo_root: Path, port: int, cmd: str, args: Any) -> None
 
 if __name__ == "__main__":
     main()
-
-
