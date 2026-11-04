@@ -34,7 +34,7 @@
 ## 🔥 Key Features
 
 - **🎯 AGENTS.md Standard** — Universal agent instructions with OWASP-aligned security baselines
-- **🧠 Skills System** — 19 hardened procedural guideline skill packs (security, browser automation, video generation, 3D modeling, research)
+- **🧠 Skills System** — 24 hardened procedural guideline skill packs (security, browser automation, video generation, ComfyUI orchestration, 3D modeling, research)
 - **🏗️ Direct Components** — Discoverable shell utilities and deployment commands under `src/`
 - **📊 Usage Analytics** — CSV tracking of all CLI invocations (`~/.cache/ainish-coder/usage.csv`) for data-driven improvement
 - **🔄 OSA Framework** — Orchestrated System of Agents using standard CLI coding tools (Gemini, Claude, OpenCode, mini-swe-agent, kilo, crush) with fixed-order rotation, automatic fallback, and git worktree isolation
@@ -67,6 +67,7 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **Browser Harness** | `.agents/skills/browser-harness/` | Direct browser control via CDP. Automate, scrape, test, or interact with web pages via already-running Chrome. |
 | **CamoFox Stack** | `.agents/skills/camofox-stack/` | Anti-detection browser stack (camoufox, camofox-browser, camofox-mcp) for agentic web scraping and automation. |
 | **Code Security** | `.agents/skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQLi, XSS, CSRF, SSRF, path traversal, MCP hardening. |
+| **ComfyUI Orchestration** | `.agents/skills/comfyui-orchestration/` | Operate the local ComfyUI install agentically — comfy-cli JSON envelopes plus the 39-tool comfy-mcp server, host topology (Windows Comfy Desktop vs the WSL CPU stub), workspace/model-path resolution, lifecycle, VRAM gating, and the httpx/cffi/sniffio + `COMFY_BIN` environment repairs that keep the MCP server booting. |
 | **Ghost Layer Injector** | `.agents/skills/ghost-layer-injector/` | Inject covert AI/bot context into static HTML pages so LLMs and web crawlers auto-ingest instructions without altering human visual experience. |
 | **GStack Coder** | `.agents/skills/gstack-coder/` | Multi-tool coding orchestration integrating gstack (Claude Code skills), pi, opencode, and qwen for security audits, code reviews, QA, and feature builds. |
 | **LLM Security** | `.agents/skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, circuit breakers, kill switches. |
@@ -260,7 +261,7 @@ ainish-coder/
 │   ├── pqc-secrets/             # Rust: FIPS 203 secrets manager (ML-KEM-768)
 │   └── cmd-tracker/             # Rust: CSV CLI usage tracker (stdlib-only) (NEW)
 ├── .agents/
-│   ├── skills/                  # 21 portable AI skill packs
+│   ├── skills/                  # 24 portable AI skill packs
 │   │   ├── advisory-council/SKILL.md
 │   │   ├── anishinaabe-cyberpunk-style/SKILL.md
 │   │   ├── browser-harness/SKILL.md
