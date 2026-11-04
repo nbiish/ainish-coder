@@ -1,0 +1,13 @@
+# `.agents/templates/` — Design Artifacts
+
+## Purpose
+
+Templates for durable, reviewable planning artifacts. Templates are not always-on instructions and should be loaded only for the matching workflow.
+
+## Ownership
+
+- `egm-design.md` is the Elephant design artifact consumed by Goldfish review and implementation readiness checks.
+
+## Verification
+
+Validate a completed design with `bin/egm-check.sh --design <path>`.

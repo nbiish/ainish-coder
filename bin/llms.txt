@@ -1,0 +1,16 @@
+# `bin/` — Shell Entrypoints
+
+## Purpose
+
+Small, portable command surfaces for repository orientation and deployment. Keep output bounded and failures visible.
+
+## Ownership
+
+- `git-context.sh` provides broad situational awareness for `git context`.
+- `context-packet.sh` provides the preferred task-scoped packet: status, task state, memory tail, and RAG route.
+- `egm-check.sh` validates a design artifact before implementation.
+- `lib/` contains shared wrappers; callers must preserve exit codes and avoid secret arguments.
+
+## Verification
+
+Run `sh -n bin/context-packet.sh bin/egm-check.sh` and execute both from a non-main worktree with a short task/design.
