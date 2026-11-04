@@ -7,7 +7,7 @@
 //! recipient and an existing bundle is opened **in-memory**, merged, and
 //! re-sealed atomically (tmp+rename, 0600) — plaintext never touches disk.
 //! `wtf` is the first built-in template and emits a ready-to-eval env line
-//! plus the wtf-agent-hub enrollment JSON (skill §2 shape:
+//! plus the wtf-is-going-on-mcp enrollment JSON (skill §2 shape:
 //! `{"hub_url":…,"device":…,"key":…}`).
 //!
 //! `envelope export|import` moves secrets across machines as an ML-KEM-768-
@@ -97,7 +97,7 @@ struct Envelope {
     ct_b64: String,
 }
 
-/// wtf-agent-hub enrollment JSON (skill §2 shape, printed once).
+/// wtf-is-going-on-mcp enrollment JSON (skill §2 shape, printed once).
 /// serde_json quotes `key`; the value is never emitted unquoted anywhere.
 #[derive(serde::Serialize)]
 struct WtfEnrollment<'a> {
