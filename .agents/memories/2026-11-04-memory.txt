@@ -1,0 +1,3 @@
+- 18:20 `.agents/skills/context-orchestration/SKILL.md` separates durable Elephant design context from ephemeral task packets and Goldfish stateless review; promote findings only after verification.
+- 18:22 `bin/context-packet.sh` is the bounded task orientation path; `--mode goldfish` excludes memory, COMMS, and implementation context.
+- 18:24 `bin/egm-check.sh` fails closed on missing design sections or unresolved placeholders before implementation.

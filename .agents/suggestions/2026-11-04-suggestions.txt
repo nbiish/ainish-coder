@@ -1,0 +1,29 @@
+### [2026-11-04T18:05:00Z] docs/context-orchestration-consolidation pass-1
+What changed: mapped the agent system and identified duplicated always-on policy, fragmented context assembly, and missing DOX ownership for `.agents/` and `bin/`.
+Next step: implement a compact contract, explicit child indexes, and one bounded context packet.
+Adversarial/security: keep the packet metadata-only and reject unknown options; do not turn routing output into authorization.
+Privacy/data-protection: omit secrets, transcripts, and resolved memories; retain only scrubbed durable facts.
+Supply-chain/third-party-risk: add no dependency; keep existing signed audit artifacts authoritative.
+Systems-architecture/devops: compose existing git, RAG, task, and memory surfaces instead of adding a second state store.
+Reliability/verification: preserve exit codes, fail on missing task input, and add syntax plus smoke checks.
+Governance/sovereignty: keep shared ledgers append-only and make the orchestrator the sole writer for shared state.
+Terminal-orchestration/swe-bench: expose `next_action` through the route and keep the packet bounded.
+Master-orchestrator/self-prompting: use Orient → Plan → Act → Verify → Close with explicit stop conditions.
+Developer-experience/ergonomics: provide one discoverable command with plain text output.
+Accessibility: use labels and words rather than color, symbols, or border-dependent meaning.
+Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; the change is additive.
+
+### [2026-11-04T18:20:00Z] docs/context-orchestration-consolidation pass-2
+What changed: incorporated Google’s published Elephant-Goldfish separation: Elephant design context, Goldfish stateless comprehension/antagonistic/readiness review, then implementation.
+Next step: validate shell behavior, byte identity, EGM readiness checking, and both packet modes before closing the task.
+Adversarial/security: Goldfish receives only the design and explicit references; route output is advisory and never authorization.
+Privacy/data-protection: durable memory is promoted only after verification; ephemeral task context expires at close.
+Supply-chain/third-party-risk: no new packages, models, datasets, or copied plugin assets enter the repository; the official blog and repository are research references only.
+Systems-architecture/devops: EGM is an additive workflow over existing task, RAG, COMMS, and gate surfaces, not a second orchestration engine.
+Reliability/verification: `egm-check.sh` must fail closed on missing headings/placeholders; Goldfish readiness is separate from build/test gates.
+Governance/sovereignty: human intent and acceptance remain the authoritative artifact; agents cannot promote unverified findings into durable memory.
+Terminal-orchestration/swe-bench: use fresh reviewer context for design critique, then serialize implementation writes.
+Master-orchestrator/self-prompting: the Elephant/Goldfish boundary is a context firewall and the readiness check is the handoff gate.
+Developer-experience/ergonomics: expose `--mode elephant|goldfish|build` without changing the existing default packet command.
+Accessibility: review output remains plain text and meaningful under `NO_COLOR`.
+Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop remain covered; no migration is needed.
