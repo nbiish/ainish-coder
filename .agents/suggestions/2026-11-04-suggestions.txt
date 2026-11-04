@@ -42,3 +42,18 @@ Master-orchestrator/self-prompting: EGM remains the context firewall; Goldfish g
 Developer-experience/ergonomics: document one safe screenshot-triage learning path and keep image flags explicit and discoverable.
 Accessibility: image workflows must offer text alternatives, human review, and no color-only interpretation of boxes or status.
 Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were fired; image/API flags are additive and no migration is required.
+
+### [2026-11-04T21:05:00Z] docs/agents-rules-usage
+What changed: clarified the universal contract's entrypoint role, `.agents/` navigation, bounded context workflow, generated audit surfaces, and operator-provided PQC tooling.
+Next step: deploy the synchronized contract through the normal rules-sync path and verify target manifests.
+Adversarial/security: missing PQC tooling now blocks rather than inviting a plaintext or alternate-store workaround.
+Privacy/data-protection: `.agents/` records are explicitly scrubbed durable state, not transcript or secret storage.
+Supply-chain/third-party-risk: no dependencies or external assets were added.
+Systems-architecture/devops: root AGENTS.md remains the single contract and `.agents/llms.txt` is the navigation index.
+Reliability/verification: canonical byte identity and signed contract verification remain required before deployment.
+Governance/sovereignty: durable coordination and audit ownership remain with their existing `.agents/` subtrees.
+Terminal-orchestration/swe-bench: bounded packet and route tools are named as the standard orientation path.
+Master-orchestrator/self-prompting: Orient → Plan → Act → Verify → Close remains the lifecycle.
+Developer-experience/ergonomics: new contributors get a direct map of which file/tool to use without loading all `.agents/`.
+Accessibility: guidance is plain-language and does not rely on color or symbols.
+Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; the contract addition is additive.
