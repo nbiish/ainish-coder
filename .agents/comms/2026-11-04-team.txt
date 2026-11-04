@@ -1,0 +1,88 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — 2026-11-04
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
+
+</PROTOCOL>
+
+---
+
+### [2026-11-04T01:05:00Z] checkin | branch:fix/rules-rag-wrapper-dispatch | wt:/mnt/d/Code/fix-rag-wrapper-and-masters
+- start:2026-11-04T01:05:00Z
+- end:2026-11-04T01:05:00Z
+- scope:bin/ainish-rag, src/embed_config.sh, src/rag/rag.py, src/rag/src/main.rs
+- triage:now
+- objective:fix bin/ainish-rag self-exec infinite loop causing ainish-coder --rules hang; implement master suggestions (context_budget_tokens in orient --json, budget display on route, timeout guard in embed_config_delegate)
+- input:user bug report and master suggestions from 2026-11-01-suggestions.txt
+- output:pending
+- status:in-progress
+- blockers:none
+
+### [2026-11-04T18:24:00Z] checkin | branch:docs/context-orchestration-consolidation | wt:D:\Code\context-orchestration-consolidation
+- start:2026-11-04T18:05:00Z
+- end:2026-11-04T18:24:00Z
+- scope:AGENTS.md, .agents/, bin/context-packet.sh, bin/egm-check.sh, llms.txt
+- objective:Consolidate context engineering and add Elephant/Goldfish design-review gating.
+- input:Operator request to reduce token waste and automate project/task orchestration.
+- output:Compact contract, DOX indexes, bounded packet, design template, readiness checker, and two master-lens passes.
+- status:verifying
+- blockers:none
+
+### [2026-11-04T18:35:00Z] update | branch:docs/context-orchestration-consolidation | wt:D:\Code\context-orchestration-consolidation
+- start:2026-11-04T18:24:00Z
+- end:2026-11-04T18:35:00Z
+- scope:bin/context-packet.sh, .agents/skills/context-orchestration/, .agents/templates/
+- objective:Enforce the Elephant/Goldfish context firewall and verify readiness before implementation.
+- input:Second master-lens pass and official Google EGM research.
+- output:Goldfish packet now excludes repository state; design checker and template are additive and fail closed.
+- status:verifying
+- blockers:Python test runner unavailable on this Windows host.
+
+### [2026-11-04T18:42:00Z] checkout | branch:docs/context-orchestration-consolidation | wt:D:\Code\context-orchestration-consolidation
+- start:2026-11-04T18:35:00Z
+- end:2026-11-04T18:42:00Z
+- scope:AGENTS.md, .agents/, bin/, llms.txt
+- objective:Close the context-engineering consolidation after two master-lens passes.
+- input:Focused shell, contract, packet, and design-check validation.
+- output:56-line synchronized contract; EGM workflow, DOX indexes, packet modes, readiness checker, task/memory/suggestions records.
+- status:done
+- blockers:Python unavailable; ainish-rag gate produced no output for 180 seconds and was stopped. No code/runtime dependency changed.
