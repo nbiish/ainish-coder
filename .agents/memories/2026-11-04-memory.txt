@@ -3,3 +3,4 @@
 - 18:24 `bin/egm-check.sh` fails closed on missing design sections or unresolved placeholders before implementation.
 - 15:30 The TypeSafe skill remains repository-local and now documents Jev 1.14 image/Box danger-zone behavior, dreamer-ready limits, and project adoption paths.
 - 15:31 `jev_probe.py` keeps its OpenRouter default while adding explicit TypeSafe endpoint, JSON state, key-name, and `--images` header support; keys remain environment/PQC-resolved.
+- 21:05 Root AGENTS.md now explicitly maps the `.agents/` operating system and assumes operator-provided `pqc-secrets`; missing tooling is a surfaced blocker, never a reason to bypass the contract.

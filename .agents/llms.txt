@@ -1,5 +1,8 @@
 # `.agents/` — Agent System Contract
 
+Read the root [`AGENTS.md`](../AGENTS.md) first; this file and its child indexes explain how to
+apply the contract's repository tooling without loading the entire `.agents/` tree.
+
 ## Purpose
 
 This tree contains the durable agent operating system: retrieval context, skills, signed audit state, coordination ledgers, task records, memories, and the canonical deployed contract.
