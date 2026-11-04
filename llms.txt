@@ -287,11 +287,11 @@ Direct children of the root contract. Walk root -> child -> target path before e
 
 |---|---|---|
 
-| `bin/` | *(none yet — root rules apply)* | CLI entrypoints: `ainish-coder`, `bin/ainish-rag` (multimodal RAG wrapper), `pqc-secrets` (dispatch wrapper; see §Documentation Boundary for engine split), `cmd-tracker`, `security_gate.py`, `git-context.sh`, `auto-thinking-classify`, shared `lib/` |
+| `bin/` | [`bin/llms.txt`](./bin/llms.txt) | CLI entrypoints, broad `git context`, bounded `context-packet.sh`, design readiness `egm-check.sh`, and shared `lib/` |
 
 | `src/` | `src/README.md` | Flat shell deployment utilities (`deploy_*.sh`, `*.sh` helpers), `templates/` (distributed `llms.txt`, `AGENTS.COMMS.md`), `rag/` (LanceDB + EmbeddingGemma-2 crate and Python engine), `pqc-secrets/` (Rust engine), `cmd-tracker/` (Rust tracker) |
 
-| `.agents/` | *(none yet)* | `skills/` (curated, operator-selected packs via `--skills-sync`), `mcp-settings.json`, `tasks/` (per-task chain-of-draft history), `rag/` (local LanceDB vector index & PID), `wiki/` (living 6-part architectural wiki) |
+| `.agents/` | [`.agents/llms.txt`](./.agents/llms.txt) | Durable agent system: canonical contract, skills, context packets, wiki, audit, RAG, coordination, tasks, suggestions, and memory | (curated, operator-selected packs via `--skills-sync`), `mcp-settings.json`, `tasks/` (per-task chain-of-draft history), `rag/` (local LanceDB vector index & PID), `wiki/` (living 6-part architectural wiki) |
 
 | `.agents/comms/` | latest `{date}-team.txt` header protocol | Concurrent-agent coordination ledger (one file per UTC date — daily history in one read): checkin → update → intent-merge → checkout, start/end timestamp pairs. Distributed by `--rules` via `src/templates/AGENTS.COMMS.md` (merge-safe: protocol header refresh only; agent entry blocks preserved; legacy files without markers untouched) |
 

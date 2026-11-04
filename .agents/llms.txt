@@ -1,0 +1,35 @@
+# `.agents/` — Agent System Contract
+
+## Purpose
+
+This tree contains the durable agent operating system: retrieval context, skills, signed audit state, coordination ledgers, task records, memories, and the canonical deployed contract.
+
+## Ownership
+
+- `canonical/` owns the source contract deployed as root `AGENTS.md`.
+- `skills/` owns on-demand procedures; each skill is self-contained and progressive-loadable.
+- `wiki/` owns generated architecture and operator notes; `ledger.md` is append-only.
+- `comms/`, `tasks/`, `suggestions/`, and `memories/` own coordination and durable knowledge. Comms/tasks are system-of-record; memory is context only.
+- `audit/` owns receipts, signatures, manifests, and privacy evidence. Do not hand-edit signed artifacts.
+- `rag/` owns local retrieval/index state and drift telemetry.
+
+## Local workflow
+
+1. Start with `bin/context-packet.sh --task "<request>"`.
+2. Route with `ainish-rag route`; orient with `ainish-rag orient --inject` only when needed.
+3. Create or update one task record; declare `compat:` and `budget:` when applicable.
+4. Use one writer per shared boundary; append coordination entries rather than rewriting them.
+5. Verify the changed surface, then close COMMS, task, memory, and suggestions.
+
+## Context packet
+
+The canonical packet fields are `request`, `route`, `next_action`, `files`, `symbols`, `constraints`, `task_state`, `acceptance`, and `verification`. Keep packets bounded, provenance-aware, and retention-safe.
+
+## Child DOX index
+
+- [`skills/llms.txt`](./skills/llms.txt) — on-demand agent workflows.
+- [`templates/llms.txt`](./templates/llms.txt) — reviewable Elephant design artifacts.
+- [`memories/llms.txt`](./memories/llms.txt) — dated durable facts.
+- [`wiki/README.md`](./wiki/README.md) — generated architecture pages and ledger rules.
+- [`audit/`](./audit/) — signed evidence; generated artifacts only.
+- [`comms/`](./comms/), [`tasks/`](./tasks/), [`suggestions/`](./suggestions/) — coordination records.

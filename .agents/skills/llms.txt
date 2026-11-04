@@ -1,0 +1,25 @@
+# `.agents/skills/` — On-Demand Workflow Contract
+
+## Purpose
+
+Skills are progressive-loaded procedures. Discovery metadata stays short; detailed references and scripts load only when the skill is selected.
+
+## Selection
+
+- Use `context-orchestration` for context packets, project planning, task checkpoints, handoffs, and orchestration.
+- Use `orchestrate-subagent-masters` for bounded multi-agent dispatch and evaluator rounds.
+- Use `typesafe-jev` for calibrated routing, reranking, faithfulness, and retrieval decisions.
+- Use `code-security`, `llm-security`, `production-security`, and `pqc-secrets` for security-sensitive changes.
+- Use domain skills only when their trigger matches; do not load every skill for every task.
+
+## Shared invariants
+
+Every skill must define a bounded procedure, explicit stop conditions, verification, and references relative to its own directory. Skills never store secrets, silently downgrade errors, or mutate shared ledgers on behalf of a subagent.
+
+## Child DOX index
+
+- [`context-orchestration/`](./context-orchestration/) — compact context and task lifecycle.
+- [`orchestrate-subagent-masters/`](./orchestrate-subagent-masters/) — multi-agent topology and receipts.
+- [`typesafe-jev/`](./typesafe-jev/) — typed decision contract.
+- [`../templates/egm-design.md`](../templates/egm-design.md) — design artifact for Elephant/Goldfish review.
+- Security packs: [`code-security/`](./code-security/), [`llm-security/`](./llm-security/), [`production-security/`](./production-security/), [`pqc-secrets/`](./pqc-secrets/).
