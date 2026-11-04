@@ -106,3 +106,26 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:Byte-identical contracts, READY_FOR_GOLDFISH packet path, compiled probe, and verified image header plus selected Authorization behavior.
 - status:done
 - blockers:No live TypeSafe image call; no operator-provided key or representative asset was available.
+
+### [2026-11-04T21:05:00Z] checkin | branch:docs/agents-rules-usage | wt:D:\Code\agents-rules-usage
+- start:2026-11-04T21:05:00Z
+- end:2026-11-04T21:05:00Z
+- triage:now
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/llms.txt, .agents/tasks/
+- objective:Clarify how distributed repositories use the universal contract and `.agents/` tooling.
+- input:Operator request to assume PQC tooling is operator-provided and implement compatible master suggestions.
+- output:Usage map and fail-closed PQC wording added; canonical copy remains synchronized.
+- status:done
+- blockers:none
+
+### [2026-11-04T21:18:00Z] checkout | branch:docs/agents-rules-usage | wt:D:\Code\agents-rules-usage
+- start:2026-11-04T21:05:00Z
+- end:2026-11-04T21:18:00Z
+- triage:now
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/llms.txt, .agents/tasks/, .agents/comms/, .agents/memories/, .agents/suggestions/
+- objective:Close the distributed rules usage documentation update.
+- input:Operator request and compatible master-lens suggestions.
+- output:Explicit `.agents/` navigation, operator-provided PQC assumption, synchronized signed contract, and updated DOX/task records.
+- status:done
+- blockers:none
+- compat:AGENTS.md and canonical copy remain byte-identical; additive guidance deploys through normal rules sync.
