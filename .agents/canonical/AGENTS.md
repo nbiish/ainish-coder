@@ -32,6 +32,24 @@ operational system behind the contract:
 - Treat `.agents/audit/` and `.agents/canonical/` as generated integrity surfaces. Verify them with
   the repository commands; never hand-edit signed receipts, manifests, or contract copies.
 
+## Machine-agnostic execution
+
+The rules bundle must behave consistently from native Windows PowerShell, macOS, Linux, and WSL.
+Use tools discovered on `PATH` rather than checkout-specific absolute paths, and keep configuration
+under the platform's standard home/config locations resolved by the implementation. When invoking
+an external process, pass an argument array with `shell=False` where the host language supports it;
+do not assume Bash, `cmd.exe`, GNU utilities, drive-letter paths, or `/mnt/*` paths are available.
+
+- **PowerShell:** use `pwsh`/Windows PowerShell-native commands and Windows paths at the shell boundary.
+- **macOS/Linux:** use POSIX paths and the available `bash`/`sh` tooling; do not require GNU-only flags.
+- **WSL:** treat WSL and Windows as separate execution environments with explicit store/path resolution;
+  use the installed launcher and `pqc-secrets store --json` to prove which identity and config store
+  are active rather than guessing from `$HOME`, `%USERPROFILE%`, or `/mnt/c`.
+- **Cross-platform scripts:** resolve their own repository directory, normalize paths through the host
+  runtime, avoid parsing human-formatted command output, and emit stable JSON for automation. A
+  capability is supported only when its native Windows, WSL, macOS, and Linux path has been verified;
+  otherwise report the unsupported host explicitly instead of silently falling back.
+
 ## Non-negotiables
 
 1. **Never work on `main`.** Start from a clean status, then use one sibling worktree and branch per task: `<type>/<scope>-<slug>`.
