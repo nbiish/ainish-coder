@@ -3024,21 +3024,21 @@ class DecisionEngine:
                 router = _discover_local_router()
                 if router:
                     if router.get("decisions_url"):
-                    try:
-                        return self._post_decisions(router["decisions_url"], None, state, questions)
-                    except RuntimeError as exc:
-                        errors.append(f"local-router {router['base_url']}: {exc}")
+                        try:
+                            return self._post_decisions(router["decisions_url"], None, state, questions)
+                        except RuntimeError as exc:
+                            errors.append(f"local-router {router['base_url']}: {exc}")
                     else:
-                    errors.append(
-                        f"local-router {router['base_url']} advertises Jev chat models "
-                        f"({', '.join(router['jev_models'])}) but exposes no decisions route"
-                    )
+                        errors.append(
+                            f"local-router {router['base_url']} advertises Jev chat models "
+                            f"({', '.join(router['jev_models'])}) but exposes no decisions route"
+                        )
             elif transport == "openrouter":
                 if self.api_key:
                     try:
-                    return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
+                        return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
                     except RuntimeError as exc:
-                    errors.append(str(exc))
+                        errors.append(str(exc))
                 else:
                     errors.append("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
             elif transport == "jev":
