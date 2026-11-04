@@ -27,3 +27,18 @@ Master-orchestrator/self-prompting: the Elephant/Goldfish boundary is a context 
 Developer-experience/ergonomics: expose `--mode elephant|goldfish|build` without changing the existing default packet command.
 Accessibility: review output remains plain text and meaningful under `NO_COLOR`.
 Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop remain covered; no migration is needed.
+
+### [2026-11-04T20:30:00Z] feat/typesafe-image-egm
+What changed: added TypeSafe Jev 1.14 image/Box guidance, an explicit danger-zone probe path, and production-first coordination rules.
+Next step: run a real non-destructive image probe with an operator-provided TypeSafe key and representative asset, then measure false presence and crop quality before automation.
+Adversarial/security: keep image mode opt-in; pair Box with presence detection and never authorize destructive actions from an image answer alone.
+Privacy/data-protection: do not upload protected documents, personal images, or cultural material without authority; keep assets out of durable ledgers and memory.
+Supply-chain/third-party-risk: upstream skill is MIT; live docs/blog are the source for behavior; no dependency was added.
+Systems-architecture/devops: preserve OpenRouter/RAG defaults and add TypeSafe endpoint support only behind explicit flags.
+Reliability/verification: validate normalized boxes, presence thresholds, confidence review, and API errors; do not treat missing Python as a passing probe.
+Governance/sovereignty: keep image-derived claims ephemeral until human or deterministic verification; respect existing cultural governance boundaries.
+Terminal-orchestration/swe-bench: implementation-first means ship the smallest production path, then run one focused real-surface check rather than a broad test farm.
+Master-orchestrator/self-prompting: EGM remains the context firewall; Goldfish gets the design and explicit image references, not private assets or chat history.
+Developer-experience/ergonomics: document one safe screenshot-triage learning path and keep image flags explicit and discoverable.
+Accessibility: image workflows must offer text alternatives, human review, and no color-only interpretation of boxes or status.
+Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were fired; image/API flags are additive and no migration is required.

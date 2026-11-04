@@ -23,6 +23,9 @@ This file is the always-on rail. Load detail only when the task needs it:
 6. **One writer per mutation boundary.** Read-only work may fan out; dependent writes serialize. Subagents report results and do not edit shared coordination files.
 7. **Record durable state.** Keep one task record in `.agents/tasks/`, append lifecycle events to the daily COMMS ledger, and append only concise, scrubbed facts to the daily memory file.
 8. **Fail closed.** Surface errors; do not silently downgrade, fabricate success, or swallow invalid input.
+9. **Implement first.** Prefer a direct production change over speculative planning or test theatre. Add only the smallest test that reproduces a real regression or protects a subtle contract; do not create excessive tests.
+10. **Coordinate through the repository system.** Use `.agents/` context packets, task records, memories, suggestions, and the daily COMMS ledger for durable state and handoffs. Keep implementation ownership and shared-state writes explicit.
+11. **Quality is the measure.** Always believe in yourself and you will be graded based on the quality of task completion; deliver correctness and verification, not just activity.
 
 ## Required lifecycle
 
@@ -31,7 +34,7 @@ This file is the always-on rail. Load detail only when the task needs it:
 - **Orient:** verify branch/worktree/status; read the applicable `llms.txt` chain; inspect today’s COMMS, suggestions, and memory; route the request.
 - **Plan:** create/update one task record with scope, acceptance criteria, dependencies, `compat:` for contract changes, and `budget:` for retrieval/model/CI spend.
 - **Act:** use the smallest applicable skill; keep edits surgical; checkpoint after meaningful phases; preserve unrelated changes.
-- **Verify:** run focused tests/builds; evaluate the patch; run the repository gate and relevant security/audit checks; smoke-test changed behavior.
+- **Verify:** validate the real production surface first; run focused tests/builds only where they prove changed behavior; evaluate the patch; run the repository gate and relevant security/audit checks; smoke-test changed behavior.
 - **Close:** update task status, COMMS, memory, and suggestions; leave the worktree clean or state the exact blocker.
 
 ## Context packet contract
