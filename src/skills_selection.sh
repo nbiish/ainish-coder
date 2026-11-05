@@ -54,7 +54,7 @@ skills_selection_env_guard() {
 # — never listed or selectable.
 _skill_channel_excluded() {
     case "$1" in
-        .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
+        .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*|ainish-security|code-security|llm-security|production-security|orchestrate-subagent-masters) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -246,6 +246,7 @@ skills_selection_list() {
     while IFS= read -r d; do
         name="$(basename "$d")"
         _skill_channel_excluded "$name" && continue
+        [[ "$name" == "ainish-security" ]] && continue
         if [[ "$(skills_selection_state "$repo_root" "$name")" == "on" ]]; then
             printf 'ON  %s\n' "$name"
         else
@@ -314,6 +315,7 @@ _skills_toggle_ui_raw() {
     while IFS= read -r d; do
         name="$(basename "$d")"
         _skill_channel_excluded "$name" && continue
+        [[ "$name" == "ainish-security" ]] && continue
         names+=("$name")
         states+=("$(skills_selection_state "$repo_root" "$name")")
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
@@ -463,6 +465,7 @@ _skills_toggle_ui_numbered() {
     while IFS= read -r d; do
         name="$(basename "$d")"
         _skill_channel_excluded "$name" && continue
+        [[ "$name" == "ainish-security" ]] && continue
         names+=("$name")
         states+=("$(skills_selection_state "$repo_root" "$name")")
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)

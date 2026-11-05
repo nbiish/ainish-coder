@@ -9,9 +9,8 @@ This file is the always-on rail. Load detail only when the task needs it:
 - Repository purpose and DOX index: [`llms.txt`](./llms.txt)
 - Agent-system map and lifecycle: [`.agents/llms.txt`](./.agents/llms.txt)
 - On-demand workflows: [`.agents/skills/llms.txt`](./.agents/skills/llms.txt)
-- Security implementation: [`.agents/skills/code-security/SKILL.md`](./.agents/skills/code-security/SKILL.md), [`.agents/skills/pqc-secrets/SKILL.md`](./.agents/skills/pqc-secrets/SKILL.md)
+- Security and prompt-context contract: [`.agents/skills/ainish-security/SKILL.md`](./.agents/skills/ainish-security/SKILL.md)
 - Decision and retrieval policy: [`.agents/skills/typesafe-jev/SKILL.md`](./.agents/skills/typesafe-jev/SKILL.md)
-- Multi-agent execution: [`.agents/skills/orchestrate-subagent-masters/SKILL.md`](./.agents/skills/orchestrate-subagent-masters/SKILL.md)
 
 ## How to use this contract
 
@@ -31,6 +30,9 @@ operational system behind the contract:
   store or transcript archive.
 - Treat `.agents/audit/` and `.agents/canonical/` as generated integrity surfaces. Verify them with
   the repository commands; never hand-edit signed receipts, manifests, or contract copies.
+- Security, prompt-injection, tool, RAG, and production controls are compiled into the
+  `ainish-security` context and deployed automatically by `ainish-coder --rules`; target
+  repositories must not separately reference or deploy retired security or subagent packs.
 
 ## Machine-agnostic execution
 

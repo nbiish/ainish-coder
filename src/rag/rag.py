@@ -4232,32 +4232,45 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
     }
 
 
-def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> None:
+def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> bool:
     if not target_file.exists():
         print(f"  [rag:error] Target file not found: {target_file}", file=sys.stderr)
-        return
+        return False
 
-    sig_file = target_file.with_suffix(".sig")
-    file_bytes = target_file.read_bytes()
-    file_sha256 = hashlib.sha256(file_bytes).hexdigest()
-
-    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
-    if rust_bin.exists():
+    candidates = [
+        repo_root / "bin" / "ainish-rag.exe",
+        repo_root / "bin" / "ainish-rag-linux",
+        repo_root / "bin" / "ainish-rag-darwin",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
+    ]
+    for rust_bin in candidates:
+        if rust_bin.is_file() and os.access(rust_bin, os.X_OK):
+            try:
+                # Never recurse into the shell/Python launcher at bin/ainish-rag.
+                if rust_bin.read_bytes()[:2] == b"#!":
+                    continue
+            except OSError:
+                continue
+        else:
+            continue
         args = [str(rust_bin), "audit", "sign", str(target_file)]
         if priv_key_path:
             args.extend(["--priv-key", str(priv_key_path)])
-        res = subprocess.run(args, capture_output=True, text=True)
+        try:
+            res = subprocess.run(args, capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            print("  [rag:error] ML-DSA signer timed out after 20 seconds", file=sys.stderr)
+            return False
         if res.returncode == 0:
-            return
+            return True
+        print(f"  [rag:error] ML-DSA signer failed: {res.stderr.strip()}", file=sys.stderr)
+        return False
 
-    sig_data = {
-        "file": target_file.name,
-        "sha256": file_sha256,
-        "mode": "ML-DSA-65",
-        "signature": hashlib.sha256(f"mldsa65:{file_sha256}".encode()).hexdigest(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    sig_file.write_text(json.dumps(sig_data, indent=2), encoding="utf-8")
+    print("  [rag:error] No compiled ML-DSA-65 signer is available; refusing hash-only fallback", file=sys.stderr)
+    return False
 
 
 def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]]:
@@ -4568,56 +4581,37 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
         return
     if hardware_seal:
         print("  \033[36m[rag:audit]\033[0m Unwrapping hardware-backed FIDO2 / TPM 2.0 seal for council signing seed...")
-    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
-    if rust_bin.exists():
+    rust_candidates = [
+        repo_root / "bin" / "ainish-rag.exe",
+        repo_root / "bin" / "ainish-rag-linux",
+        repo_root / "bin" / "ainish-rag-darwin",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
+    ]
+    for rust_bin in rust_candidates:
+        if not (rust_bin.is_file() and os.access(rust_bin, os.X_OK)):
+            continue
+        try:
+            if rust_bin.read_bytes()[:2] == b"#!":
+                continue
+        except OSError:
+            continue
         cmd = [str(rust_bin), "audit", "contract", "--threshold", str(threshold)]
         if hardware_seal:
             cmd.append("--hardware-seal")
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            print("  [rag:error] ML-DSA contract signer timed out after 20 seconds", file=sys.stderr)
+            raise SystemExit(1)
         if res.returncode == 0:
             print(res.stdout, end="")
             return
 
-    canon_dir = repo_root / ".agents" / "canonical"
-    canon_dir.mkdir(parents=True, exist_ok=True)
-    src_agents = repo_root / "AGENTS.md"
-    dest_agents = canon_dir / "AGENTS.md"
-    if src_agents.exists() and src_agents != dest_agents:
-        shutil.copy2(src_agents, dest_agents)
-    h = hashlib.sha256(dest_agents.read_bytes()).hexdigest()
-    (canon_dir / "AGENTS.md.sha256").write_text(f"{h}\n", encoding="utf-8")
-    run_audit_sign(repo_root, dest_agents)
-
-    thresh_file = canon_dir / "AGENTS.threshold.sig"
-    sigs = []
-    k = max(1, threshold)
-    if thresh_file.exists():
-        try:
-            existing = json.loads(thresh_file.read_text(encoding="utf-8"))
-            k = int(existing.get("threshold_k", k))
-            sigs = existing.get("signatures", [])
-        except Exception:
-            pass
-    fpr = h[:32]
-    sigs = [s for s in sigs if s.get("signer_fingerprint") != fpr]
-    sigs.append({
-        "signer_fingerprint": fpr,
-        "public_key": "",
-        "signature": hashlib.sha256(f"mldsa65:{h}".encode()).hexdigest(),
-        "signed_at": datetime.now(timezone.utc).isoformat(),
-    })
-    bundle = {
-        "format": "ainish-rag/mldsa65-threshold-envelope/v1",
-        "target": "AGENTS.md",
-        "sha256": h,
-        "threshold_k": k,
-        "signers_count": len(sigs),
-        "signatures": sigs,
-    }
-    thresh_file.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
-    print(f"  \033[32m[rag:audit]\033[0m Signed canonical AGENTS.md contract with FIPS 204 ML-DSA-65 (threshold k={k}):")
-    print(f"    Digest:    {canon_dir / 'AGENTS.md.sha256'}")
-    print(f"    Envelope:  {thresh_file}\n")
+    print("  [rag:error] No compiled ML-DSA-65 contract signer is available; refusing synthetic signatures", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def trigger_desktop_notification(title: str, message: str) -> None:
@@ -6184,7 +6178,8 @@ def main():
         elif args.audit_command == "keygen":
             run_audit_keygen(repo_root, out_dir=getattr(args, "out_dir", None))
         elif args.audit_command == "sign":
-            run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None))
+            if not run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None)):
+                raise SystemExit(1)
         elif args.audit_command == "contract":
             run_audit_contract(
                 repo_root,
@@ -6583,16 +6578,7 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
             failed += 1
             continue
 
-        calc_hash = hashlib.sha256(r.read_bytes()).hexdigest()
         verified = False
-        try:
-            sig_data = json.loads(sig_file.read_text(encoding="utf-8"))
-            if sig_data.get("sha256", "").lower() == calc_hash.lower():
-                verified = True
-                print(f"  \033[32m[PASS]\033[0m {r.name}: Integrity verified ({sig_data.get('mode', 'ML-DSA-65')})")
-        except Exception:
-            pass
-
         if not verified:
             try:
                 res = subprocess.run([cmd_name, "verify", str(sig_file), str(r)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
