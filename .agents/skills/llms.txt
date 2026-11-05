@@ -7,9 +7,9 @@ Skills are progressive-loaded procedures. Discovery metadata stays short; detail
 ## Selection
 
 - Use `context-orchestration` for context packets, project planning, task checkpoints, handoffs, and orchestration.
-- Use `orchestrate-subagent-masters` for bounded multi-agent dispatch and evaluator rounds.
+- Use the built-in `ainish-security` context for security, prompt-injection, tool, RAG, and production controls.
 - Use `typesafe-jev` for calibrated routing, reranking, faithfulness, and retrieval decisions.
-- Use `code-security`, `llm-security`, `production-security`, and `pqc-secrets` for security-sensitive changes.
+- Use `pqc-secrets` for secret storage and signing operations; security policy is already compiled into `ainish-security`.
 - Use domain skills only when their trigger matches; do not load every skill for every task.
 
 ## Shared invariants
@@ -19,7 +19,7 @@ Every skill must define a bounded procedure, explicit stop conditions, verificat
 ## Child DOX index
 
 - [`context-orchestration/`](./context-orchestration/) — compact context and task lifecycle.
-- [`orchestrate-subagent-masters/`](./orchestrate-subagent-masters/) — multi-agent topology and receipts.
+- [`ainish-security/`](./ainish-security/) — integrated security, prompt-injection, and tool-containment contract.
 - [`typesafe-jev/`](./typesafe-jev/) — typed decision contract.
 - [`../templates/egm-design.md`](../templates/egm-design.md) — design artifact for Elephant/Goldfish review.
-- Security packs: [`code-security/`](./code-security/), [`llm-security/`](./llm-security/), [`production-security/`](./production-security/), [`pqc-secrets/`](./pqc-secrets/).
+- Core security context: [`ainish-security/`](./ainish-security/); secret operations: [`pqc-secrets/`](./pqc-secrets/).

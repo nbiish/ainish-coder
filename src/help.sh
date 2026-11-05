@@ -97,14 +97,16 @@ CORE COMMANDS:
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
-    --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
-                              (compiled from .agents/skills/code-security and llm-security)
+    --secure [DIR]            Deploy the legacy standalone security documents
+                              (new targets receive the built-in ainish-security context)
 
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + all skill packs,
-    and to arm continuous auto-sync for that repository. Use --rules-sync --all to refresh the fleet now.
+    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + the
+    built-in ainish-security context and saved optional packs, then arm continuous auto-sync.
+    --rules never opens the skill selector; use --skills-sync for explicit selection. Use
+    --rules-sync --all to refresh the fleet now.
     Use --llms-txt to deploy llms.txt.
     Use --skills-sync to synchronize and selectively ingest skills.
 
@@ -265,19 +267,16 @@ UTILITY COMMANDS:
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
-                              - code-security/             (Safety-critical code engineering)
+                              - ainish-security/           (Integrated security, prompt, and tool containment)
                               - gstack-coder/              (Multi-tool coding orchestration)
-                              - llm-security/              (LLM & agentic AI security)
                               - modern-prompting/          (OOReDAct advanced prompting)
                               - document-enhancer/         (Knowledge fusion & document hardening)
                               - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
                               - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing)
-                              - production-security/       (Core security policies & PQC mandates)
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
-                              - orchestrate-subagent-masters/ (Subagent master orchestration: dsh headless/ACP + native)
                               - question-me/               (Socratic design interview & tree resolution)
 
                               Example: ainish-coder --skills-sync ~/my-project
@@ -398,4 +397,3 @@ show_version() {
     echo "Configuration Manager for AI Coding Assistants"
     echo "Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ"
 }
-

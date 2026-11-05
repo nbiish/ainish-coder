@@ -13,6 +13,20 @@ Developer-experience/ergonomics: provide one discoverable command with plain tex
 Accessibility: use labels and words rather than color, symbols, or border-dependent meaning.
 Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; the change is additive.
 
+### [2026-11-04T22:18:00Z] feat/rules-skill-consolidation
+What changed: consolidated the distributed security context, removed retired pack deployment, bounded embedding/provider detection and signing, fixed WSL-to-Windows signer paths, and made manifest verification ML-DSA-only.
+Next step: merge the verified branch and rerun the fleet rules verification against registered targets.
+Adversarial/security: unsigned and legacy hash-only envelopes now fail closed; symlinked write surfaces are rejected.
+Privacy/data-protection: no secrets or smoke assets were persisted; only scrubbed task, memory, and ledger facts were recorded.
+Supply-chain/third-party-risk: no dependency was added; the optimized native signer remains the trust boundary.
+Systems-architecture/devops: the rules path now uses one bounded deployment flow and preserves the Local Router-first RAG contract.
+Reliability/verification: WSL bootstrap, 57 Rust tests, 16 source receipts, and 8 target receipts passed.
+Governance/sovereignty: the universal contract and `.agents/` ledgers remain the authoritative distributed surfaces.
+Terminal-orchestration/swe-bench: inherited EXIT traps and unbounded provider detection no longer stall `--rules`.
+Master-orchestrator/self-prompting: implementation preceded focused production-surface verification; no excessive test suite was added.
+Developer-experience/ergonomics: `--rules --headless -y` is deterministic and reports concrete signing failures.
+Accessibility: deployment status remains explicit in text and does not rely on color or symbols alone.
+
 ### [2026-11-04T18:20:00Z] docs/context-orchestration-consolidation pass-2
 What changed: incorporated Google’s published Elephant-Goldfish separation: Elephant design context, Goldfish stateless comprehension/antagonistic/readiness review, then implementation.
 Next step: validate shell behavior, byte identity, EGM readiness checking, and both packet modes before closing the task.

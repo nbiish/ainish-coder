@@ -129,3 +129,17 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:done
 - blockers:none
 - compat:AGENTS.md and canonical copy remain byte-identical; additive guidance deploys through normal rules sync.
+
+### [2026-11-04T22:18:00Z] checkout | branch:feat/rules-skill-consolidation | wt:D:\Code\ainish-coder-rules-skill-consolidation
+- start:2026-11-04T21:18:00Z
+- end:2026-11-04T22:18:00Z
+- triage:now
+- scope:AGENTS.md, README.md, .agents/skills/ainish-security, bin/ainish-coder, src/deploy_rules_sync.sh, src/deploy_skills.sh, src/embed_config.sh, src/runtime.sh, src/rag/
+- objective:Close deterministic rules deployment and security hardening.
+- input:Reported interactive deployment stall and security review findings.
+- output:Rules bootstrap is bounded and noninteractive; retired packs are excluded; ML-DSA manifest signing/verification is fail-closed; WSL/native path boundaries and symlinked write surfaces are guarded.
+- status:done
+- blockers:none
+- compat:Manifest v1 remains readable only when cryptographically verified; legacy hash-only envelopes are refused.
+- budget:No new dependencies; one optimized native RAG build and focused deployment smoke.
+- Master Surfaces: compatibility, concurrency, economics, accessibility, rights, and interop; declarations are recorded in the task and contract surfaces.

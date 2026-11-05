@@ -37,6 +37,14 @@ _ainish_rules_source_agents_sha() {
 _ainish_rag_bin() {
     if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
         printf '%s\n' "${REPO_DIR}/bin/ainish-rag.exe"
+    elif [[ -x "${REPO_DIR}/src/rag/target/release/ainish-rag.exe" ]]; then
+        printf '%s\n' "${REPO_DIR}/src/rag/target/release/ainish-rag.exe"
+    elif [[ -x "${REPO_DIR}/src/rag/target/release/ainish-rag" ]]; then
+        printf '%s\n' "${REPO_DIR}/src/rag/target/release/ainish-rag"
+    elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe" ]]; then
+        printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe"
+    elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag" ]]; then
+        printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag"
     elif [[ -x "${REPO_DIR}/bin/ainish-rag" ]]; then
         printf '%s\n' "${REPO_DIR}/bin/ainish-rag"
     else
@@ -44,37 +52,113 @@ _ainish_rag_bin() {
     fi
 }
 
-# Signs a deployed manifest with FIPS 204 ML-DSA-65 (no-op if rag unavailable).
+_ainish_rules_host_path() {
+    local path="$1"
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -w -- "$path" 2>/dev/null || printf '%s\n' "$path"
+    elif command -v cygpath >/dev/null 2>&1; then
+        cygpath -w -- "$path" 2>/dev/null || printf '%s\n' "$path"
+    else
+        printf '%s\n' "$path"
+    fi
+}
+
+_ainish_rules_sign_arg() {
+    local rag="$1" path="$2"
+    case "$rag" in
+        *.exe) _ainish_rules_host_path "$path" ;;
+        *) printf '%s\n' "$path" ;;
+    esac
+}
+
+# Signs a deployed manifest with FIPS 204 ML-DSA-65; deployment fails if signing
+# or the verifier is unavailable.
 # A signer that stalls must never hang a deploy or a fleet sync: bound it with
 # timeout where the platform provides one.
 _ainish_rules_sign_manifest() {
     local manifest="$1"
     local rag
-    rag="$(_ainish_rag_bin)" || return 0
+    rag="$(_ainish_rag_bin)" || {
+        printf 'ainish-rag is required to sign %s\n' "$manifest" >&2
+        return 1
+    }
+    local sign_target
+    sign_target="$(_ainish_rules_sign_arg "$rag" "$manifest")"
     if command -v timeout >/dev/null 2>&1; then
-        (cd "${REPO_DIR}" && timeout 20 "$rag" audit sign "$manifest" >/dev/null 2>&1) || true
+        (cd "${REPO_DIR}" && timeout 20 "$rag" audit sign "$sign_target" >/dev/null 2>&1)
     else
-        (cd "${REPO_DIR}" && "$rag" audit sign "$manifest" >/dev/null 2>&1) || true
+        local python
+        python="$(ainish_python 2>/dev/null || true)"
+        [[ -n "$python" ]] || {
+            printf 'A working Python 3 interpreter is required for portable signing timeouts\n' >&2
+            return 1
+        }
+        (
+            cd "${REPO_DIR}" || exit 1
+            "$python" -c '
+import subprocess
+import sys
+try:
+    completed = subprocess.run(sys.argv[1:], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=20)
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+raise SystemExit(completed.returncode)
+' "$rag" audit sign "$sign_target"
+        )
     fi
 }
 
-# Verifies a deployed manifest's detached signature envelope. Compares the manifest's
-# SHA-256 to the digest recorded in the ML-DSA-65 `.sig` envelope (proves the manifest
-# was not altered after signing). Echoes status; returns 0 only on a match.
+# Verifies a deployed manifest's detached signature envelope with the source trust
+# anchor. A matching digest alone is not a signature and is never accepted.
 _ainish_rules_verify_manifest_sig() {
     local manifest="$1"
     local sig="${manifest%.json}.sig"
     [[ -f "$manifest" ]] || { printf 'MISSING_MANIFEST\n'; return 1; }
     [[ -f "$sig" ]] || { printf 'MISSING_SIG\n'; return 1; }
-    local expected actual
-    expected="$(sed -n 's/^[[:space:]]*"sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$sig" 2>/dev/null | head -n 1 | tr 'A-F' 'a-f')"
-    actual="$(_calc_sha256 "$manifest" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')"
-    if [[ -n "$expected" && -n "$actual" && "$expected" == "$actual" ]]; then
-        printf 'VERIFIED\n'
-        return 0
+    local rag python
+    rag="$(_ainish_rag_bin)" || { printf 'NO_VERIFIER\n'; return 1; }
+    local verify_target
+    verify_target="$(_ainish_rules_sign_arg "$rag" "$(dirname "$manifest")")"
+    if command -v timeout >/dev/null 2>&1; then
+        if (cd "${REPO_DIR}" && timeout 20 "$rag" audit verify --path "$verify_target" >/dev/null 2>&1); then
+            printf 'VERIFIED\n'
+            return 0
+        fi
+    else
+        python="$(ainish_python 2>/dev/null || true)"
+        if [[ -n "$python" ]] && (
+            cd "${REPO_DIR}" || exit 1
+            "$python" -c '
+import subprocess
+import sys
+try:
+    completed = subprocess.run(sys.argv[1:], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=20)
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+raise SystemExit(completed.returncode)
+' "$rag" audit verify --path "$verify_target"
+        ); then
+            printf 'VERIFIED\n'
+            return 0
+        fi
     fi
-    printf 'MISMATCH\n'
+    printf 'INVALID_SIGNATURE\n'
     return 1
+}
+
+_ainish_rules_reject_symlinked_layout() {
+    local target_dir="$1"
+    [[ -L "${target_dir}/.agents" ]] && {
+        printf 'Refusing symlinked target path: %s/.agents\n' "$target_dir" >&2
+        return 1
+    }
+    [[ -L "${target_dir}/.agents/bin" ]] && {
+        printf 'Refusing symlinked target path: %s/.agents/bin\n' "$target_dir" >&2
+        return 1
+    }
+    return 0
 }
 
 _ainish_rules_install_hook_block() {
@@ -105,6 +189,7 @@ _ainish_rules_write_sync_script() {
     local target_dir="$1"
     local bin_dir="${target_dir}/.agents/bin"
     local script="${bin_dir}/ainish-rules-sync"
+    _ainish_rules_reject_symlinked_layout "$target_dir" || return 1
     mkdir -p "$bin_dir" 2>/dev/null || return 1
 
     cat > "$script" <<'AINISH_RULES_SYNC_EOF'
@@ -205,15 +290,20 @@ _ainish_rules_manifest_write() {
     local source_sha="$4"
     local source_pack_sha
     source_pack_sha="$(_ainish_rules_pack_digest 2>/dev/null || true)"
+    local source_repo_json source_commit_json source_sha_json source_pack_sha_json
+    source_repo_json="$(_ainish_rules_json_escape "$source_repo")"
+    source_commit_json="$(_ainish_rules_json_escape "$source_commit")"
+    source_sha_json="$(_ainish_rules_json_escape "$source_sha")"
+    source_pack_sha_json="$(_ainish_rules_json_escape "$source_pack_sha")"
     mkdir -p "$(dirname "$manifest")" 2>/dev/null || return 1
 
     cat > "$manifest" <<MANIFEST_EOF
 {
   "format": "ainish-coder/rules-deploy/v1",
-  "source_repo": "${source_repo}",
-  "source_commit": "${source_commit}",
-  "source_agents_sha256": "${source_sha}",
-  "source_pack_sha256": "${source_pack_sha}",
+  "source_repo": "${source_repo_json}",
+  "source_commit": "${source_commit_json}",
+  "source_agents_sha256": "${source_sha_json}",
+  "source_pack_sha256": "${source_pack_sha_json}",
   "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "auto_sync": true,
   "managed_paths": [
@@ -250,6 +340,10 @@ install_rules_sync_hooks() {
     local target_dir="$1"
     [[ -d "${target_dir}/.git" ]] || return 0
     local hooks_dir="${target_dir}/.git/hooks"
+    [[ -L "$hooks_dir" ]] && {
+        printf 'Refusing symlinked hooks directory: %s\n' "$hooks_dir" >&2
+        return 1
+    }
     local block
     block="$(cat <<'HOOK_BLOCK'
 # --- AINISH-CODER RULES SYNC START ---
@@ -269,16 +363,22 @@ HOOK_BLOCK
 install_root_rules_sync_hook() {
     [[ -d "${REPO_DIR}/.git" ]] || return 0
     local hooks_dir="${REPO_DIR}/.git/hooks"
+    [[ -L "$hooks_dir" ]] && {
+        printf 'Refusing symlinked hooks directory: %s\n' "$hooks_dir" >&2
+        return 1
+    }
     local block
     block="$(cat <<'ROOT_HOOK_BLOCK'
 # --- AINISH-CODER RULES SYNC START ---
-if [ "${AINISH_RULES_SYNC_ACTIVE:-0}" != "1" ] && [ -x "REPO_DIR_PLACEHOLDER/bin/ainish-coder" ]; then
-    AINISH_RULES_SYNC_ACTIVE=1 "REPO_DIR_PLACEHOLDER/bin/ainish-coder" --rules-sync --all --quiet >/dev/null 2>&1 || true
+if [ "${AINISH_RULES_SYNC_ACTIVE:-0}" != "1" ] && [ -x REPO_CLI_PLACEHOLDER ]; then
+    AINISH_RULES_SYNC_ACTIVE=1 REPO_CLI_PLACEHOLDER --rules-sync --all --quiet >/dev/null 2>&1 || true
 fi
 # --- AINISH-CODER RULES SYNC END ---
 ROOT_HOOK_BLOCK
 )"
-    block="${block//REPO_DIR_PLACEHOLDER/${REPO_DIR}}"
+    local quoted_cli
+    printf -v quoted_cli "'%s'" "$(printf '%s' "${REPO_DIR}/bin/ainish-coder" | sed "s/'/'\\\\''/g")"
+    block="${block//REPO_CLI_PLACEHOLDER/$quoted_cli}"
     local already_armed=false
     if [[ -f "${hooks_dir}/post-commit" ]] && grep -qF "$_AINISH_RULES_HOOK_START" "${hooks_dir}/post-commit" 2>/dev/null; then
         already_armed=true
@@ -296,6 +396,7 @@ deploy_rules_sync() {
 
     local target_abs
     target_abs="$(cd -P "$target_dir" 2>/dev/null && pwd)" || target_abs="$target_dir"
+    _ainish_rules_reject_symlinked_layout "$target_abs" || return 1
 
     # The source repo itself: install root-side fleet hooks, no manifest.
     if [[ "$target_abs" == "$REPO_DIR" ]]; then
@@ -317,8 +418,15 @@ deploy_rules_sync() {
         print_warning "Could not write .agents/ainish-deploy.json in ${target_abs}"
         return 1
     }
-    _ainish_rules_sign_manifest "$target_abs/.agents/ainish-deploy.json"
-    install_rules_sync_hooks "$target_abs"
+    _ainish_rules_sign_manifest "$target_abs/.agents/ainish-deploy.json" || {
+        print_warning "Could not sign deployment manifest in ${target_abs}"
+        return 1
+    }
+    [[ "$(_ainish_rules_verify_manifest_sig "$target_abs/.agents/ainish-deploy.json" 2>/dev/null || true)" == "VERIFIED" ]] || {
+        print_warning "Deployment manifest signature verification failed in ${target_abs}"
+        return 1
+    }
+    install_rules_sync_hooks "$target_abs" || return 1
     register_rules_target "$target_abs"
     mkdir -p "$target_abs/.agents/memories" 2>/dev/null || true
     # Arm the source repo's fleet hooks too, so a target-only run also enables

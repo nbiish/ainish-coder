@@ -2603,32 +2603,8 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
                     passed += 1;
                 }
                 pqc::VerifyOutcome::Unsigned(reason) => {
-                    // Check legacy SHA-256 envelope match
-                    let data = std::fs::read(&path)?;
-                    use sha2::{Sha256, Digest};
-                    let mut hasher = Sha256::new();
-                    hasher.update(&data);
-                    let calculated_hash = hex::encode(hasher.finalize());
-
-                    let sig_content = std::fs::read_to_string(&sig_file)?;
-                    if let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&sig_content) {
-                        if let Some(expected_hash) = envelope.get("sha256").and_then(|v| v.as_str()) {
-                            if expected_hash.eq_ignore_ascii_case(&calculated_hash) {
-                                let mode = envelope.get("mode").and_then(|v| v.as_str()).unwrap_or("ML-DSA-65-ready");
-                                println!("  \x1b[32m[PASS]\x1b[0m {}: Integrity verified ({})", file_name, mode);
-                                passed += 1;
-                            } else {
-                                println!("  \x1b[31m[FAIL]\x1b[0m {}: SHA-256 hash mismatch in envelope!", file_name);
-                                failed += 1;
-                            }
-                        } else {
-                            println!("  \x1b[31m[FAIL]\x1b[0m {}: Invalid signature envelope structure", file_name);
-                            failed += 1;
-                        }
-                    } else {
-                        println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, reason);
-                        failed += 1;
-                    }
+                    println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, reason);
+                    failed += 1;
                 }
                 pqc::VerifyOutcome::Invalid(err) => {
                     println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, err);
@@ -5317,5 +5293,4 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }
-
 
