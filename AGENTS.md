@@ -10,7 +10,7 @@ This file is the always-on rail. Load detail only when the task needs it:
 - Agent-system map and lifecycle: [`.agents/llms.txt`](./.agents/llms.txt)
 - On-demand workflows: [`.agents/skills/llms.txt`](./.agents/skills/llms.txt)
 - Security and prompt-context contract: [`.agents/skills/ainish-security/SKILL.md`](./.agents/skills/ainish-security/SKILL.md)
-- Decision and retrieval policy: [`.agents/skills/typesafe-jev/SKILL.md`](./.agents/skills/typesafe-jev/SKILL.md)
+- Context orchestration and EGM workflow: [`.agents/skills/context-orchestration/SKILL.md`](./.agents/skills/context-orchestration/SKILL.md)
 
 ## How to use this contract
 
@@ -23,6 +23,7 @@ operational system behind the contract:
   audit evidence, and retrieval context.
 - Use `.agents/skills/<name>/SKILL.md` only when its trigger matches; load its references and scripts
   progressively rather than copying all of `.agents/` into a prompt.
+- Optional decision, image, and domain skills are on-demand capabilities, not always-on dependencies.
 - Use `bin/context-packet.sh` or `ainish-rag route` for bounded orientation, then
   `ainish-rag orient --inject` when repository context is required.
 - Treat `.agents/tasks/`, `.agents/comms/`, `.agents/memories/`, and `.agents/suggestions/` as
@@ -80,7 +81,7 @@ do not assume Bash, `cmd.exe`, GNU utilities, drive-letter paths, or `/mnt/*` pa
 
 Every non-trivial task should be answerable from a bounded packet containing:
 
-`request → route → next_action → relevant files/symbols → constraints → task state → acceptance → verification`
+`request → route → next_action → relevant files/symbols → constraints → task state → master suggestions → acceptance → verification`
 
 Use the repository tools rather than recreating this packet in prose. Prefer JSON for machine steps and compact text for human review. Resolved or deleted memories must not be rehydrated merely because a token budget permits them.
 

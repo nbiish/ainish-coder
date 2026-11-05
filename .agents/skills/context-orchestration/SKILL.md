@@ -16,7 +16,10 @@ Produce the smallest trustworthy context packet, then move the work through expl
 
 1. **Elephant — orient and design**
    - Confirm branch, worktree, and status; never operate on `main`.
-   - Read the nearest `llms.txt` chain, today’s COMMS, suggestions, and memory.
+   - Read the nearest `llms.txt` chain, today’s COMMS, memory, and the newest
+     bounded master-suggestion tail from `bin/context-packet.sh`.
+   - Treat master suggestions as advisory lenses: apply compatible findings to
+     the design, but never let them authorize a change or replace acceptance criteria.
    - Run `bin/context-packet.sh --task "<request>"`.
    - Brainstorm and debate intent, alternatives, constraints, and micro-decisions; do not write production code.
    - Draft [`../templates/egm-design.md`](../templates/egm-design.md) with named files/symbols and measurable acceptance.
@@ -25,7 +28,7 @@ Produce the smallest trustworthy context packet, then move the work through expl
    - Follow `next_action`; use `ainish-rag orient --inject --task-conditioned --json` only when the route requires repository context.
    - Treat `source: local-calibrated` as a fallback signal, not proof.
 3. **Goldfish — stateless review**
-   - Start a fresh reviewer with only the design artifact and its explicit references; do not provide Elephant memory, chat history, or implementation diff.
+   - Start a fresh reviewer with only the design artifact and its explicit references; do not provide Elephant memory, master suggestions, COMMS, chat history, or implementation diff.
    - Run three checks: explain the design, antagonistically find gaps/edge cases, and decide implementation readiness.
    - Feed findings back to the Elephant; revise and repeat until the design is clear or the task is blocked.
 4. **Plan**
@@ -49,7 +52,7 @@ Produce the smallest trustworthy context packet, then move the work through expl
 
 Use these fields in JSON or compact text:
 
-`request`, `route`, `next_action`, `files`, `symbols`, `constraints`, `task_state`, `acceptance`, `verification`, `source`.
+`request`, `route`, `next_action`, `files`, `symbols`, `constraints`, `task_state`, `master_suggestions`, `acceptance`, `verification`, `source`.
 
 Do not include whole files, raw secrets, resolved memories, unbounded logs, or model transcripts. Keep evidence close to the claim and preserve source/commit identifiers.
 
@@ -57,7 +60,10 @@ Do not include whole files, raw secrets, resolved memories, unbounded logs, or m
 
 - **Durable:** architecture decisions, invariants, accepted trade-offs, and stable gotchas. Promote only after verification; store in the appropriate wiki or memory entry.
 - **Ephemeral:** current request, route, changed files, open blockers, and review findings. Keep in the task record or handoff; expire at close.
-- **Goldfish input:** design plus explicit references only. Never silently add project memory.
+- **Goldfish input:** design plus explicit references only. Never silently add project memory,
+  master suggestions, chat history, or implementation context.
+- **Route probe:** context packets bound the optional RAG route probe to 20 seconds; a timeout is
+  reported as unavailable rather than stalling orientation.
 
 ## Stop conditions
 
