@@ -86,3 +86,18 @@ Master-orchestrator/self-prompting: Elephant consumes suggestions; Goldfish revi
 Developer-experience/ergonomics: optional skills remain discoverable without loading them for every task.
 Accessibility: packet status remains plain text and does not rely on color or symbols.
 Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; the packet field addition is additive.
+
+### [2026-11-05T01:00:00Z] feat/rag-fallback-lifecycle
+What changed: made rules bootstrap distribute coordination/runtime surfaces without implicitly deploying optional skill packs, and removed shell-launcher fallback from signing/provider detection to prevent recursive stalls.
+Next step: run the final native RAG, Python provider, and bounded `--rules` smoke gates, then merge and prune this worktree.
+Adversarial/security: compiled native signing is required; optional packs cannot expand the target prompt surface without operator selection.
+Privacy/data-protection: local model processes are torn down after ephemeral commands unless residency is explicitly requested; no model assets enter ledgers.
+Supply-chain/third-party-risk: no dependency was added; native signer/model integrity checks remain authoritative.
+Systems-architecture/devops: rules own runtime/coordination distribution; skills remain a separate opt-in channel.
+Reliability/verification: lifecycle guard tests and bounded target smoke cover startup, teardown policy, and no-stall deployment.
+Governance/sovereignty: operator selection controls optional capability deployment; the runtime contract remains universal.
+Terminal-orchestration/swe-bench: no recursive shell launcher is used as a signing/provider probe.
+Master-orchestrator/self-prompting: implementation follows the master-suggestion next step and preserves the EGM boundary.
+Developer-experience/ergonomics: `--rules --headless` is deterministic and does not open a skill selector.
+Accessibility: deployment status explains optional-pack omission in plain text.
+Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; selection default changes only for unrecorded packs.
