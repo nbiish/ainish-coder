@@ -143,3 +143,17 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - compat:Manifest v1 remains readable only when cryptographically verified; legacy hash-only envelopes are refused.
 - budget:No new dependencies; one optimized native RAG build and focused deployment smoke.
 - Master Surfaces: compatibility, concurrency, economics, accessibility, rights, and interop; declarations are recorded in the task and contract surfaces.
+
+### [2026-11-05T00:00:00Z] checkout | branch:feat/egm-master-memory | wt:D:\Code\ainish-coder-egm-master-memory
+- start:2026-11-05T00:00:00Z
+- end:2026-11-05T00:00:00Z
+- triage:now
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/skills/context-orchestration/, bin/context-packet.sh
+- objective:Keep optional skills on demand and make Elephant/Goldfish use the master-suggestion boundary.
+- input:Operator clarification that optional skills must not be always-on.
+- output:Removed the always-on TypeSafe navigation entry; added bounded advisory master suggestions to Elephant/build packets; kept Goldfish memory, suggestions, COMMS, chat, and implementation excluded; bounded route probing.
+- status:done
+- blockers:none
+- compat:Additive packet field; root and canonical contracts remain byte-identical.
+- budget:One bounded local route probe; no new dependencies or external model calls.
+- verification:EGM readiness, shell syntax, byte identity/digest, packet smoke tests, and 20-second watchdog passed.

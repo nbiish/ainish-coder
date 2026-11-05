@@ -62,6 +62,18 @@ for file in $(ls -1 .agents/tasks/*-task.md .agents/tasks/TASK.*.md 2>/dev/null 
 done
 [ "$found" -eq 1 ] || echo 'none'
 
+echo '--- master_suggestions ---'
+suggestions=$(ls -1 .agents/suggestions/*-suggestions.txt 2>/dev/null | sort | tail -1 || true)
+if [ -n "$suggestions" ] && [ -f "$suggestions" ]; then
+  printf 'source: %s\n' "$suggestions"
+  echo 'advisory_only: true'
+  echo 'tail:'
+  tail -20 "$suggestions"
+else
+  echo 'source: none'
+  echo 'advisory_only: true'
+fi
+
 echo '--- recent_memory ---'
 memory=$(ls -1 .agents/memories/*-memory.txt 2>/dev/null | sort | tail -1 || true)
 if [ -n "$memory" ]; then
@@ -73,7 +85,11 @@ fi
 
 echo '--- route ---'
 if command -v ainish-rag >/dev/null 2>&1; then
-  route_output=$(ainish-rag route "$task" --json 2>/dev/null) || route_output='route_unavailable'
+  if command -v timeout >/dev/null 2>&1; then
+    route_output=$(timeout 20s ainish-rag route "$task" --json 2>/dev/null) || route_output='route_unavailable'
+  else
+    route_output='route_unavailable:no_timeout_command'
+  fi
   printf '%s\n' "$route_output" | sed -n '1,80p'
 else
   echo 'ainish-rag unavailable'

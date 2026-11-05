@@ -6,3 +6,4 @@
 - 21:05 Root AGENTS.md now explicitly maps the `.agents/` operating system and assumes operator-provided `pqc-secrets`; missing tooling is a surfaced blocker, never a reason to bypass the contract.
 - 22:15 `bin/ainish-coder` must suppress inherited EXIT tracking traps in command-substitution subshells; otherwise `--rules` can stall during embedding-provider detection.
 - 22:16 Rules deployment uses the optimized native RAG signer when available, converts WSL paths for Windows `.exe` binaries, and refuses unsigned or legacy hash-only deployment manifests.
+- 23:55 The always-on contract now routes context through `context-orchestration`; optional decision/image/domain skills remain on demand, while Elephant packets carry only a bounded advisory tail of the newest master-suggestion ledger and Goldfish excludes it.
