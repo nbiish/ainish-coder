@@ -181,19 +181,19 @@ main() {
             deploy_skills "$target_dir" || \
                 print_warning "Skills deployment reported errors — continuing with remaining rules steps"
             _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
-        elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
-            # Interactive: open the toggle UI first so this run's choices
-            # persist for every future --rules/--skills-sync.
-            _skills_toggle_ui "$target_dir" && {
-                if _confirm_symlink; then
-                    AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
-                        print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                else
-                    AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
-                        print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                fi
-            }
-            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
+        else
+            # Rules is a deterministic one-shot bootstrap: use persisted
+            # selection without opening a raw-key TUI. Skill selection remains
+            # explicit under --skills-sync, so --rules cannot stall waiting for
+            # terminal input or a broken tty.
+            if _confirm_symlink; then
+                AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
+                    print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+            else
+                AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
+                    print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+            fi
+            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-persisted"
         fi
 
         # Agent Communication System — .agents/comms/{date}-team.txt (one per UTC date)
@@ -215,8 +215,10 @@ main() {
         fi
 
         # Arm continuous auto-sync (manifest + refresher + git hooks + fleet registry)
-        deploy_rules_sync "$target_dir" || \
-            print_warning "Auto-sync deployment reported errors — rules are deployed but may need a manual refresh"
+        if ! deploy_rules_sync "$target_dir"; then
+            print_error "Auto-sync deployment failed; refusing to report an unsigned or unverifiable rules deployment"
+            return 1
+        fi
 
         echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
     }
@@ -700,6 +702,12 @@ if [[ "${AINISH_NO_TRACKING:-false}" != "true" ]]; then
   _TRACK_START=$(python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo 0)
   _track_on_exit() {
     local rc=$?
+    # EXIT traps are inherited by command-substitution subshells. Tracking
+    # from those subshells can re-enter external tooling and stall deployment.
+    if [[ "${BASH_SUBSHELL:-0}" -gt 0 ]]; then
+      trap - EXIT
+      exit $rc
+    fi
     local now
     now=$(python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo 0)
     local tracker_bin
@@ -737,4 +745,3 @@ fi
 
 # Run main function
 main "$@"
-

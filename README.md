@@ -66,20 +66,16 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **Anishinaabe Cyberpunk** | `.agents/skills/anishinaabe-cyberpunk-style/` | Anishinaabe-inspired cyberpunk styling guide combining Canadian Aboriginal Syllabics with ASCII circuit symbols. |
 | **Browser Harness** | `.agents/skills/browser-harness/` | Direct browser control via CDP. Automate, scrape, test, or interact with web pages via already-running Chrome. |
 | **CamoFox Stack** | `.agents/skills/camofox-stack/` | Anti-detection browser stack (camoufox, camofox-browser, camofox-mcp) for agentic web scraping and automation. |
-| **Code Security** | `.agents/skills/code-security/` | Safety-critical code engineering — input validation, auth, crypto, container security, supply chain integrity. Covers SQLi, XSS, CSRF, SSRF, path traversal, MCP hardening. |
+| **Ainish Security** | `.agents/skills/ainish-security/` | Integrated security, prompt-injection defense, PQC integrity, path/shell/network validation, RAG hygiene, and tool/MCP containment. |
 | **ComfyUI Orchestration** | `.agents/skills/comfyui-orchestration/` | Operate the local ComfyUI install agentically — comfy-cli JSON envelopes plus the 39-tool comfy-mcp server, host topology (Windows Comfy Desktop vs the WSL CPU stub), workspace/model-path resolution, lifecycle, VRAM gating, and the httpx/cffi/sniffio + `COMFY_BIN` environment repairs that keep the MCP server booting. |
 | **Ghost Layer Injector** | `.agents/skills/ghost-layer-injector/` | Inject covert AI/bot context into static HTML pages so LLMs and web crawlers auto-ingest instructions without altering human visual experience. |
 | **GStack Coder** | `.agents/skills/gstack-coder/` | Multi-tool coding orchestration integrating gstack (Claude Code skills), pi, opencode, and qwen for security audits, code reviews, QA, and feature builds. |
-| **LLM Security** | `.agents/skills/llm-security/` | Securing probabilistic AI components — prompt injection defense, RAG context hygiene, PII redaction, tool risk classification, MCP allowlisting, circuit breakers, kill switches. |
 | **Modern Prompting** | `.agents/skills/modern-prompting/` | Reasoning strategy selection toolkit — N L M rates 16 prompting frameworks (CoT, CoD, ReAct, ToT, PAL, Reflexion, etc.) on a 0–100% suitability scale per task, then applies the highest-rated strategy via OOReDAct. |
 | **Document Enhancer** | `.agents/skills/document-enhancer/` | Dual-pipeline system for improving documents: fuse external knowledge bases into target documents, or recursively harden documents for multi-model LLM effectiveness via split-optimize-review-merge architecture. |
 | **Video Knowledge Extractor** | `.agents/skills/video-knowledge-extractor/` | Extracts structured markdown knowledge bases from YouTube videos by combining spoken transcripts with sequential visual frames through a Vision-Language Model. |
 | **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Generates parameterized 3D models using Python templates and OpenSCAD, compiles to STL via Makefile. |
-| **Orchestrate Subagent Masters** | `.agents/skills/orchestrate-subagent-masters/` | Universal subagent orchestration — DeepSeek Harness engines (`dsh` headless/ACP) plus harness-native subagent modalities under master personas. |
 | **PQC Secrets** | `.agents/skills/pqc-secrets/` | Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. |
-| **PQC Signatures & Security** | `.agents/skills/pqc-signatures-security/` | Expert instructions to implement and verify ML-DSA-65 post-quantum cryptographic signatures and agentic workflow security. |
 | **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock` for AI transparency. |
-| **Production Security** | `.agents/skills/production-security/` | Core security policies, Zero Trust, PQC Mandates, and Threat Mitigations for compliance and secure infrastructure. |
 | **Question Me** | `.agents/skills/question-me/` | Socratic design interview and requirements resolution protocol — walks the design decision tree one question at a time with recommended answers, codebase recon first, and multi-harness parity. |
 | **Remotion Video** | `.agents/skills/remotion-video/` | Programmatic video creation with Remotion — all APIs, media components, 3D, captions, fonts, Lambda rendering, and video-layout design rules. |
 | **Skyvern** | `.agents/skills/skyvern/` | AI-powered browser automation (self-hosted only). Vision LLM + Playwright hybrid with Planner→Agent→Validator architecture. Full BYOM support. |
@@ -208,7 +204,8 @@ The OSA (Orchestrated System of Agents) framework coordinates multiple CLI codin
 ainish-coder --skills-sync               # Synchronize all skills
 ```
 
-See [`.agents/skills/orchestrate-subagent-masters/SKILL.md`](.agents/skills/orchestrate-subagent-masters/SKILL.md) for the orchestration framework specification.
+Security and tool-containment guidance is distributed through
+[`.agents/skills/ainish-security/SKILL.md`](.agents/skills/ainish-security/SKILL.md).
 
 ---
 
@@ -266,10 +263,9 @@ ainish-coder/
 │   │   ├── anishinaabe-cyberpunk-style/SKILL.md
 │   │   ├── browser-harness/SKILL.md
 │   │   ├── camofox-stack/SKILL.md
-│   │   ├── code-security/SKILL.md
+│   │   ├── ainish-security/SKILL.md
 │   │   ├── ghost-layer-injector/SKILL.md
 │   │   ├── gstack-coder/SKILL.md
-│   │   ├── llm-security/SKILL.md
 │   │   ├── modern-prompting/SKILL.md
 │   │   ├── document-enhancer/SKILL.md
 │   │   ├── video-knowledge-extractor/SKILL.md
@@ -277,7 +273,6 @@ ainish-coder/
 │   │   ├── osa/SKILL.md
 │   │   ├── pi/SKILL.md
 │   │   ├── pliny-research/SKILL.md
-│   │   ├── production-security/SKILL.md
 │   │   ├── remotion-video/SKILL.md
 │   │   └── skyvern/SKILL.md
 │   └── mcp-settings.json        # Global MCP server definitions
