@@ -71,3 +71,18 @@ Master-orchestrator/self-prompting: Orient → Plan → Act → Verify → Close
 Developer-experience/ergonomics: new contributors get a direct map of which file/tool to use without loading all `.agents/`.
 Accessibility: guidance is plain-language and does not rely on color or symbols.
 Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; the contract addition is additive.
+
+### [2026-11-05T00:00:00Z] feat/egm-master-memory
+What changed: removed the optional TypeSafe skill from the always-on contract, promoted the newest master-suggestion tail into Elephant/build packets, preserved Goldfish's no-memory/no-suggestions firewall, and bounded route probing.
+Next step: deploy the synchronized contract through the normal rules-sync path and verify a target packet on each supported host.
+Adversarial/security: suggestions remain advisory and Goldfish receives no retained context or implementation state.
+Privacy/data-protection: packets include only a bounded scrubbed suggestion tail; no secrets, transcripts, or resolved memory are emitted.
+Supply-chain/third-party-risk: no dependency or external asset was added.
+Systems-architecture/devops: EGM remains an additive boundary over existing `.agents/` and RAG tooling.
+Reliability/verification: EGM readiness, packet smoke tests, contract digest, and the 20-second route watchdog passed.
+Governance/sovereignty: human acceptance remains authoritative; suggestions cannot authorize changes.
+Terminal-orchestration/swe-bench: orientation now fails boundedly instead of stalling on an unavailable route.
+Master-orchestrator/self-prompting: Elephant consumes suggestions; Goldfish reviews only explicit design references.
+Developer-experience/ergonomics: optional skills remain discoverable without loading them for every task.
+Accessibility: packet status remains plain text and does not rely on color or symbols.
+Triggered lenses: compatibility, concurrency, economics, accessibility, rights, and interop were considered; the packet field addition is additive.
