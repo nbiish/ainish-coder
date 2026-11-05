@@ -1,7 +1,8 @@
 #!/bin/bash
 # MOLECULE: Skills deployment
-# Deploys all skills from .agents/skills/ directory to target project
-# In non-overwrite mode, skips skills that already exist at the target
+# Deploys explicitly selected skills from .agents/skills/ to a target project.
+# Coordination, memories, suggestions, and core RAG logic are distributed by
+# the rules path; optional skill packs are never implicitly enabled.
 
 deploy_skills() {
     local target_dir="${1:-.}"
@@ -78,17 +79,16 @@ deploy_skills() {
                     ;;
                 code-security|llm-security|production-security|orchestrate-subagent-masters)
                     # Retired packs remain in the source tree only for history;
-                    # ainish-security is their single distributed replacement.
+                    # The integrated security contract is part of the rules/runtime;
+                    # this historical pack is not independently deployed.
                     continue
                     ;;
             esac
 
             # Persisted per-repo selection governs distribution. Live intake:
-            # packs are enumerated from disk each run, so new/renamed packs
-            # resolve through the repo default policy automatically.
-            local core_skill=false
-            [[ "$skill_name" == "ainish-security" ]] && core_skill=true
-            if [[ "$core_skill" != "true" && "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
+            # packs are enumerated from disk each run, but new packs remain off
+            # until the operator explicitly selects them.
+            if [[ "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
                 # OFF = not distributed. Remove a previously-shipped copy so a
                 # toggle-off takes effect immediately (foreign packs at the
                 # target are never touched — this name exists in source, so it

@@ -33,7 +33,9 @@ _ainish_rules_source_agents_sha() {
     _calc_sha256 "${REPO_DIR}/AGENTS.md" 2>/dev/null | tr -d '[:space:]'
 }
 
-# Resolves the ainish-rag binary (native exe preferred) for ML-DSA-65 signing/verification.
+# Resolves a compiled ainish-rag binary for ML-DSA-65 signing/verification.
+# The shell/Python launcher is intentionally excluded: invoking it here can
+# recursively rebuild or re-enter deployment and stall rules bootstrap.
 _ainish_rag_bin() {
     if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
         printf '%s\n' "${REPO_DIR}/bin/ainish-rag.exe"
@@ -45,8 +47,6 @@ _ainish_rag_bin() {
         printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe"
     elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag" ]]; then
         printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag"
-    elif [[ -x "${REPO_DIR}/bin/ainish-rag" ]]; then
-        printf '%s\n' "${REPO_DIR}/bin/ainish-rag"
     else
         return 1
     fi

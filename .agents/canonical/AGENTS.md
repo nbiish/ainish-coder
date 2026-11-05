@@ -32,8 +32,9 @@ operational system behind the contract:
 - Treat `.agents/audit/` and `.agents/canonical/` as generated integrity surfaces. Verify them with
   the repository commands; never hand-edit signed receipts, manifests, or contract copies.
 - Security, prompt-injection, tool, RAG, and production controls are compiled into the
-  `ainish-security` context and deployed automatically by `ainish-coder --rules`; target
-  repositories must not separately reference or deploy retired security or subagent packs.
+  rules/runtime contract. Optional packs such as `ainish-security`, `typesafe-jev`, and domain
+  skills are selection-driven and deploy only when the operator explicitly enables them with
+  `--skills-sync`; target repositories must not separately reference or deploy retired packs.
 
 ## Machine-agnostic execution
 

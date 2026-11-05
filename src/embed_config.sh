@@ -22,14 +22,21 @@ embed_config_file() {
 }
 
 embed_config_rag_bin() {
-    local candidate="${SCRIPT_DIR:-}/ainish-rag"
-    if [[ -n "${SCRIPT_DIR:-}" && -x "$candidate" ]]; then
-        printf '%s\n' "$candidate"
-        return 0
-    fi
     local here
     here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
-    printf '%s\n' "${here}/bin/ainish-rag"
+    local candidate
+    for candidate in \
+        "${here}/bin/ainish-rag.exe" \
+        "${here}/src/rag/target/release/ainish-rag.exe" \
+        "${here}/src/rag/target/release/ainish-rag" \
+        "${here}/src/rag/target/debug/ainish-rag.exe" \
+        "${here}/src/rag/target/debug/ainish-rag"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
 }
 
 _embed_config_set() {
