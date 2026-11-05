@@ -51,6 +51,18 @@ deploy_skills() {
     local deselected_count=0
     local failed_skills=()
 
+    # Retired packs are no longer independently deployed. Remove only copies
+    # previously managed by this source, leaving foreign target packs intact.
+    local retired_skill
+    for retired_skill in code-security llm-security production-security orchestrate-subagent-masters; do
+        if [[ -d "$skills_target/$retired_skill" && "${AINISH_NO_OVERWRITE:-false}" != "true" ]] &&
+           skills_selection_has_entry "$target_dir" "$retired_skill"; then
+            rm -rf "$skills_target/$retired_skill"
+            echo -e "${YELLOW}⊘ Retired pack removed: $retired_skill${RESET}"
+            ((deselected_count++)) || true
+        fi
+    done
+
     for skill_dir in "$skills_source"/*/; do
         if [[ -d "$skill_dir" ]]; then
             local skill_name=$(basename "$skill_dir")
@@ -60,12 +72,23 @@ deploy_skills() {
             # raw .scrolls* payload never deploy with skills — the explicit
             # --scrolls channel is their only distribution surface. Transient
             # .ainish-ingest.* sync-staging dirs never deploy either.
-            case "$skill_name" in .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) continue ;; esac
+            case "$skill_name" in
+                .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*)
+                    continue
+                    ;;
+                code-security|llm-security|production-security|orchestrate-subagent-masters)
+                    # Retired packs remain in the source tree only for history;
+                    # ainish-security is their single distributed replacement.
+                    continue
+                    ;;
+            esac
 
             # Persisted per-repo selection governs distribution. Live intake:
             # packs are enumerated from disk each run, so new/renamed packs
             # resolve through the repo default policy automatically.
-            if [[ "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
+            local core_skill=false
+            [[ "$skill_name" == "ainish-security" ]] && core_skill=true
+            if [[ "$core_skill" != "true" && "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
                 # OFF = not distributed. Remove a previously-shipped copy so a
                 # toggle-off takes effect immediately (foreign packs at the
                 # target are never touched — this name exists in source, so it

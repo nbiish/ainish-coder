@@ -56,7 +56,29 @@ embed_config_delegate() {
         print_warning "ainish-rag engine not found at ${rag_bin} — cannot inspect the embedding provider"
         return 1
     fi
-    ( cd "$target_dir" && "$rag_bin" embed-provider "$@" )
+    if command -v timeout >/dev/null 2>&1; then
+        ( cd "$target_dir" && timeout 20 "$rag_bin" embed-provider "$@" )
+        return $?
+    fi
+
+    local python
+    python="$(ainish_python 2>/dev/null || true)"
+    [[ -n "$python" ]] || {
+        print_warning "A working Python 3 interpreter is required for bounded embedding-provider detection"
+        return 1
+    }
+    (
+        cd "$target_dir" || exit 1
+        "$python" -c '
+import subprocess
+import sys
+try:
+    completed = subprocess.run(sys.argv[1:], timeout=20)
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+raise SystemExit(completed.returncode)
+' "$rag_bin" embed-provider "$@"
+    )
 }
 
 # Extracts a top-level string field from the engine's pretty JSON report.

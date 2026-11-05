@@ -64,6 +64,10 @@ ainish_posix_path() {
             rest="${rest//\\//}"
             printf '/%s%s' "$drive" "$rest"
             ;;
+        [A-Za-z]:*)
+            printf 'Invalid drive-relative Windows path (use an absolute path): %s\n' "$path" >&2
+            return 1
+            ;;
         *\\*)
             # Windows relative path (`.\app`, `app\sub`): separators only.
             printf '%s' "${path//\\//}"
