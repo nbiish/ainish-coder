@@ -201,7 +201,7 @@ The OSA (Orchestrated System of Agents) framework coordinates multiple CLI codin
 **Agents**: Gemini, Claude, OpenCode, mini-swe-agent, kilo, crush
 
 ```bash
-ainish-coder --skills-sync               # Synchronize all skills
+ainish-coder --skills-sync               # Synchronize explicitly selected skills
 ```
 
 Security and tool-containment guidance is distributed through

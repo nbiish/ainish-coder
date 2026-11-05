@@ -98,13 +98,13 @@ CORE COMMANDS:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
     --secure [DIR]            Deploy the legacy standalone security documents
-                              (new targets receive the built-in ainish-security context)
+                              (new targets receive the rules/runtime security contract; optional packs stay off)
 
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
     Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + the
-    built-in ainish-security context and saved optional packs, then arm continuous auto-sync.
+    rules/runtime context and explicitly selected optional packs, then arm continuous auto-sync.
     --rules never opens the skill selector; use --skills-sync for explicit selection. Use
     --rules-sync --all to refresh the fleet now.
     Use --llms-txt to deploy llms.txt.

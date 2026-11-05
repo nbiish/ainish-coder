@@ -157,3 +157,17 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - compat:Additive packet field; root and canonical contracts remain byte-identical.
 - budget:One bounded local route probe; no new dependencies or external model calls.
 - verification:EGM readiness, shell syntax, byte identity/digest, packet smoke tests, and 20-second watchdog passed.
+
+### [2026-11-05T01:00:00Z] checkout | branch:feat/rag-fallback-lifecycle | wt:D:\Code\ainish-coder-rag-fallback
+- start:2026-11-05T01:00:00Z
+- end:2026-11-05T01:00:00Z
+- triage:now
+- scope:rules distribution, native RAG fallback lifecycle, deploy signing/provider detection
+- objective:Auto-distribute coordination/runtime logic while requiring explicit optional skill selection and keep local model memory ephemeral by default.
+- input:Operator request to complete the selected master-suggestion next step and avoid deploying unrequested skills.
+- output:Unrecorded skill selections default off; ainish-security is selectable rather than forced; native compiled RAG is the only signing/provider-detection path; local server lifecycle remains guarded by keep-server opt-in.
+- status:done
+- blockers:none
+- compat:Existing explicit per-repository selections remain honored; only new/unrecorded optional packs change from on to off.
+- budget:Focused native/Python tests and bounded rules smoke; no external model call or new dependency.
+- verification:57 native tests, 48 Python tests, target packet smoke, rules runtime smoke, and selection policy checks.
