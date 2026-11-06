@@ -14,6 +14,39 @@
 #                        selection governs which packs sync (deselected
 #                        packs never pulled).
 
+# _ainish_stamp_alternative <posix-path> — translate a provenance path into the
+# other host's form for the same NTFS location.
+#
+# `.ainish-source` stores whatever absolute POSIX path the WRITER saw: under WSL
+# that is /mnt/d/Code/x, under Windows Git Bash it is /d/Code/x. Both are correct
+# on their own host and unresolvable on the other, so a target deployed from
+# Windows cannot be synced from WSL (and vice versa) even though the bytes are
+# identical. Emit the counterpart form so the reader can try both.
+_ainish_stamp_alternative() {
+    local path="$1"
+    case "$path" in
+        /mnt/[a-z]/*)
+            # WSL form -> Windows Git Bash form: /mnt/d/Code -> /d/Code
+            local drive rest
+            drive="${path#/mnt/}"
+            drive="${drive%%/*}"
+            rest="${path#/mnt/$drive}"
+            printf '/%s%s\n' "$drive" "$rest"
+            ;;
+        /[a-z]/*)
+            # Windows Git Bash form -> WSL form: /d/Code -> /mnt/d/Code
+            local drive rest
+            drive="${path#/}"
+            drive="${drive%%/*}"
+            rest="${path#/$drive}"
+            printf '/mnt/%s%s\n' "$drive" "$rest"
+            ;;
+        *)
+            printf '%s\n' "$path"
+            ;;
+    esac
+}
+
 # Resolve the ainish-coder source repo (AINISH_SOURCE_REPO > stamp > REPO_DIR).
 _ainish_skills_source() {
     if [[ -n "${AINISH_SOURCE_REPO:-}" && -d "$AINISH_SOURCE_REPO/.agents/skills" ]]; then
@@ -23,10 +56,16 @@ _ainish_skills_source() {
     local target_dir="${1:-.}"
     local stamp="$target_dir/.agents/skills/.ainish-source"
     if [[ -f "$stamp" ]]; then
-        local stamped
+        local stamped alt
         stamped="$(head -n1 "$stamp" 2>/dev/null)"
         if [[ -d "$stamped/.agents/skills" ]]; then
             echo "$stamped"
+            return 0
+        fi
+        # The stamp may have been written by the other host; try its counterpart.
+        alt="$(_ainish_stamp_alternative "$stamped")"
+        if [[ -n "$alt" && "$alt" != "$stamped" && -d "$alt/.agents/skills" ]]; then
+            echo "$alt"
             return 0
         fi
     fi
