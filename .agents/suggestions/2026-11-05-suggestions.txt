@@ -25,3 +25,11 @@ Terminal-orchestration/swe-bench: verification used the production CLI surface, 
 Master-orchestrator/self-prompting: documentation updated after behavior was proven, not ahead of it.
 Developer-experience/ergonomics: every surfaced message names the command that changes state.
 Accessibility: plain-language status lines remain meaningful without color.
+
+### [2026-11-05T03:20:00Z] fix-wsl-sigttin-and-pqc-install
+What changed: detached stdin on every ainish-rag invocation (embed-provider, audit sign/verify, audit contract) and corrected --pqc-install's success condition to require a usable identity rather than a bundle.
+Next step: push rules to downstream repos; the deploy path no longer has a known hang or false-negative gate.
+Adversarial/security: unchanged trust boundary; detaching stdin removes a stop condition rather than relaxing any check, and signing still fails closed.
+Reliability/verification: a timeout that cannot fire is not a bound -- proven by probe and now by real-engine pty runs exiting 0 in seconds.
+Systems-architecture/devops: unattended hooks and fleet sync were verified against the installed refresher, not assumed.
+Developer-experience/ergonomics: install output now explains that a missing bundle is normal until the first secret is packed.

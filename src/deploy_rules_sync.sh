@@ -75,6 +75,12 @@ _ainish_rules_sign_arg() {
 # or the verifier is unavailable.
 # A signer that stalls must never hang a deploy or a fleet sync: bound it with
 # timeout where the platform provides one.
+#
+# stdin is detached on every path. Under WSL the Windows .exe is launched via
+# /init, which reads inherited stdin; when this runs in a non-foreground process
+# group (routinely — deployment, git hooks, command substitutions) that read
+# raises SIGTTIN and the child STOPS. A stopped child stops `timeout` with it,
+# so without this redirect the bound below is unenforceable and the deploy hangs.
 _ainish_rules_sign_manifest() {
     local manifest="$1"
     local rag
@@ -85,7 +91,7 @@ _ainish_rules_sign_manifest() {
     local sign_target
     sign_target="$(_ainish_rules_sign_arg "$rag" "$manifest")"
     if command -v timeout >/dev/null 2>&1; then
-        (cd "${REPO_DIR}" && timeout 20 "$rag" audit sign "$sign_target" >/dev/null 2>&1)
+        (cd "${REPO_DIR}" && timeout 20 "$rag" audit sign "$sign_target" </dev/null >/dev/null 2>&1)
     else
         local python
         python="$(ainish_python 2>/dev/null || true)"
@@ -99,7 +105,8 @@ _ainish_rules_sign_manifest() {
 import subprocess
 import sys
 try:
-    completed = subprocess.run(sys.argv[1:], stdout=subprocess.DEVNULL,
+    completed = subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL, timeout=20)
 except subprocess.TimeoutExpired:
     raise SystemExit(124)
@@ -121,7 +128,7 @@ _ainish_rules_verify_manifest_sig() {
     local verify_target
     verify_target="$(_ainish_rules_sign_arg "$rag" "$(dirname "$manifest")")"
     if command -v timeout >/dev/null 2>&1; then
-        if (cd "${REPO_DIR}" && timeout 20 "$rag" audit verify --path "$verify_target" >/dev/null 2>&1); then
+        if (cd "${REPO_DIR}" && timeout 20 "$rag" audit verify --path "$verify_target" </dev/null >/dev/null 2>&1); then
             printf 'VERIFIED\n'
             return 0
         fi
@@ -133,7 +140,8 @@ _ainish_rules_verify_manifest_sig() {
 import subprocess
 import sys
 try:
-    completed = subprocess.run(sys.argv[1:], stdout=subprocess.DEVNULL,
+    completed = subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL, timeout=20)
 except subprocess.TimeoutExpired:
     raise SystemExit(124)
