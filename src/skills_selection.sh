@@ -220,10 +220,17 @@ elif entry is None:
 name = os.environ['NAME']
 if name in entry:
     print('on' if entry[name] else 'off')
-elif str(entry.get('default','')).lower() in ('on','off'):
-    print('on' if str(entry['default']).lower()=='on' else 'off')
 else:
-    print(os.environ['GLOBAL_DEFAULT'])
+    # 'default' is written as a JSON boolean by batch_save and by
+    # skills_selection_set_default. Accept legacy quotes-on/off strings too, or
+    # a repo whose default is ON silently behaves as OFF.
+    d = entry.get('default', None)
+    if isinstance(d, bool):
+        print('on' if d else 'off')
+    elif isinstance(d, str) and d.strip().lower() in ('on', 'off'):
+        print(d.strip().lower())
+    else:
+        print(os.environ['GLOBAL_DEFAULT'])
 "
 }
 
@@ -425,8 +432,13 @@ if entry is None and os.environ.get('ALT_REPO'):
     entry = repos.get(os.environ['ALT_REPO'], {})
 elif entry is None:
     entry = {}
-d = str(entry.get('default', '')).lower()
-print(d if d in ('on', 'off') else os.environ['GLOBAL_DEFAULT'])
+d = entry.get('default', None)
+if isinstance(d, bool):
+    print('on' if d else 'off')
+elif isinstance(d, str) and d.strip().lower() in ('on', 'off'):
+    print(d.strip().lower())
+else:
+    print(os.environ['GLOBAL_DEFAULT'])
 "
 }
 

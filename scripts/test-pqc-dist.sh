@@ -85,6 +85,35 @@ echo "== skill-selection contract (regression: --rules lost its selector) =="
 UNRECORDED="${WORK}/target-unrecorded"
 mkdir -p "${UNRECORDED}/.agents/skills"
 check "unrecorded pack defaults off" "$(HOME="$HOME_DIR" skills_selection_default_on && echo on || echo off)" "off"
+
+# THE PER-REPO DEFAULT IS A JSON BOOLEAN, NOT A STRING. batch_save and
+# set_default both write `"default": true`; a reader that only accepts the
+# strings 'on'/'off' silently treats an ON default as OFF, so every pack the
+# operator had not individually toggled disappears from the deploy.
+DEFAULT_REPO="${WORK}/target-default-on"
+mkdir -p "${DEFAULT_REPO}/.agents/skills"
+HOME="$HOME_DIR" skills_selection_batch_save "$DEFAULT_REPO" on "pqc-secrets:on" >/dev/null 2>&1
+check "boolean default=true reads as on" \
+    "$(HOME="$HOME_DIR" _skills_selection_repo_default "$DEFAULT_REPO")" "on"
+check "unrecorded pack inherits boolean default=on" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$DEFAULT_REPO" advisory-council)" "on"
+HOME="$HOME_DIR" skills_selection_batch_save "$DEFAULT_REPO" off "pqc-secrets:on" >/dev/null 2>&1
+check "boolean default=false reads as off" \
+    "$(HOME="$HOME_DIR" _skills_selection_repo_default "$DEFAULT_REPO")" "off"
+check "unrecorded pack inherits boolean default=off" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$DEFAULT_REPO" advisory-council)" "off"
+# Legacy string form must keep working for configs written by older builds.
+DEFAULT_KEY="$(skills_selection_repo_key "$DEFAULT_REPO")"
+printf '{"repos": {"%s": {"default": "on"}}}\n' "$DEFAULT_KEY" > "${HOME_DIR}/.config/ainish-coder/skills-selection.json"
+check "legacy string default=on still reads as on" \
+    "$(HOME="$HOME_DIR" _skills_selection_repo_default "$DEFAULT_REPO")" "on"
+check "unrecorded pack inherits legacy string default=on" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$DEFAULT_REPO" advisory-council)" "on"
+# Restore the fixture config for the remaining assertions.
+cat > "${HOME_DIR}/.config/ainish-coder/skills-selection.json" <<JSON
+{"repos": {"${KEY_ON}": {"pqc-secrets": true}, "${KEY_OFF}": {"pqc-secrets": false}}}
+JSON
+
 if HOME="$HOME_DIR" skills_selection_repo_recorded "$UNRECORDED"; then
     not_ok "fresh repo is not yet recorded"
 else
