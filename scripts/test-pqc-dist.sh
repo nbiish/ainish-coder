@@ -17,8 +17,17 @@ FAIL=0
 SKIP=0
 
 if ! command -v uv >/dev/null 2>&1; then
-    echo "SKIP: uv is required to resolve the engine's dependencies"
-    exit 0
+    # A gate that silently exits 0 when its dependency is missing reads as PASSED in CI, which is
+    # the one failure mode a distribution gate must never have. Skip only when explicitly opted in
+    # (local convenience); otherwise fail closed and say how to fix it.
+    if [[ "${AINISH_ALLOW_GATE_SKIP:-}" == "1" ]]; then
+        echo "SKIP: uv is required to resolve the engine's dependencies (AINISH_ALLOW_GATE_SKIP=1)"
+        exit 0
+    fi
+    echo "FAIL: uv is required to resolve the engine's dependencies but was not found on PATH." >&2
+    echo "      Install it:  curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    echo "      Or skip deliberately with AINISH_ALLOW_GATE_SKIP=1 (never in CI)." >&2
+    exit 1
 fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/pqc-dist-test.XXXXXX")"
@@ -48,7 +57,15 @@ JSON
 run_cli() {
     # Signing is exercised by the real manifests; the hermetic test asserts the
     # attestation fields and must never touch the operator's signing key.
-    env HOME="$HOME_DIR" AINISH_NO_TRACKING=true AINISH_NON_INTERACTIVE=true \
+    #
+    # HOME= alone is NOT sufficient isolation. On Windows, Python reads USERPROFILE and
+    # pathlib.Path.home() ignores HOME entirely, so the pqc engine found the operator's real
+    # keypair and reported `keygen: present` where a clean install must report `generated` --
+    # which also means the test was reaching the live store rather than a sandbox. Pin the
+    # engine's own documented override (PQC_SECRETS_DIR), which is authoritative on every host,
+    # and set USERPROFILE too so anything reading the platform variable stays in the sandbox.
+    env HOME="$HOME_DIR" USERPROFILE="$HOME_DIR" PQC_SECRETS_DIR="$HOME_DIR/.config/pqc-secrets" \
+        AINISH_NO_TRACKING=true AINISH_NON_INTERACTIVE=true \
         PQC_SKIP_MANIFEST_SIGN=1 bash "$CLI" "$@" 2>&1
 }
 
@@ -94,9 +111,19 @@ check "a native POSIX path is left alone" \
     "$(_ainish_stamp_alternative /tmp/x)" "/tmp/x"
 STAMP_TARGET="${WORK}/stamp-target"
 mkdir -p "${STAMP_TARGET}/.agents/skills"
-printf '%s\n' "$(printf '/d%s' "${REPO#/mnt/d}")" > "${STAMP_TARGET}/.agents/skills/.ainish-source"
-check "an opposite-host stamp still resolves to this checkout" \
-    "$(_ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
+# Build the OPPOSITE host's form of this checkout, whichever host is running. The previous
+# construction hardcoded the WSL prefix (`${REPO#/mnt/d}`), so under Git Bash the strip was a
+# no-op, the fixture became '/d/d/Code/...', and the assertion failed on a correct translator.
+# Derive the counterpart from the translator itself so the fixture cannot drift from the code.
+REPO_OPPOSITE="$(_ainish_stamp_alternative "$REPO")"
+if [[ "$REPO_OPPOSITE" == "$REPO" ]]; then
+    # A native POSIX path (macOS/Linux) has no counterpart form; nothing to translate.
+    ok "an opposite-host stamp still resolves to this checkout (native POSIX host, N/A)"
+else
+    printf '%s\n' "$REPO_OPPOSITE" > "${STAMP_TARGET}/.agents/skills/.ainish-source"
+    check "an opposite-host stamp still resolves to this checkout" \
+        "$(_ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
+fi
 printf '/nowhere/at/all\n' > "${STAMP_TARGET}/.agents/skills/.ainish-source"
 check "an unresolvable stamp falls through to REPO_DIR" \
     "$(REPO_DIR="$REPO" _ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"

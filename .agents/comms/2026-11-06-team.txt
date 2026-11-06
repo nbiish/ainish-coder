@@ -33,3 +33,15 @@
 - blockers:none
 - compat:Additive CLI surface - bench keeps every existing flag and adds fields to --json output and the baseline file, which moves to format ainish-rag/bench-baseline/v2. v1 baselines still compare on recall alone. .gitignore narrows from a directory ignore to a contents glob, so .agents/rag/* is still ignored except the baseline. Roll back by reverting the merge.
 - verification:71 python tests pass (18 new); full-corpus baseline Recall@3 1.000, nDCG@3 1.000, 920 avg chunk tokens, 3627 records, api:openrouter:openai/text-embedding-3-small at fab34e1; --regression passes healthy, fails on a 0.40 nDCG, reports incomparable on identity change; ainish-rag --version returns under WSL and Git Bash (previously hung); test-pqc-dist 73/73 on WSL and the same 2 Windows-only failures reproduce at pristine HEAD.
+
+### [2026-11-06T18:45:00Z] fix | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-06T18:20:00Z
+- end:2026-11-06T18:45:00Z
+- scope:.agents/skills/pqc-secrets/scripts/pqc_secrets.py, scripts/test-pqc-dist.sh
+- objective:Make the PQC store resolve on every fleet host and make the distribution gate actually run everywhere.
+- input:Operator reported that the PQC system and local-router key setup likely needed attention across Windows/WSL/mac/Linux.
+- output:Four defects fixed. (1) Windows could not see the WSL PQC store: wsl.exe output was decoded unconditionally as UTF-16-LE but this build emits UTF-8, producing mojibake distro names so the interop probe always failed and Windows fell back to an empty local store. Encoding is now detected from byte shape and both wsl.localhost and legacy wsl\$ shares are tried. (2) The gate isolation used HOME= only, which Windows Python ignores, so the hermetic test reached the operator's real keypair and reported 'present' instead of 'generated'; PQC_SECRETS_DIR plus USERPROFILE now pin the sandbox. (3) A stamp assertion hardcoded the WSL path form so it failed on a correct translator under Git Bash and had no native-POSIX branch. (4) The whole gate exited 0 with SKIP when uv was absent, so CI would read it as passed; it now fails closed.
+- status:done
+- blockers:none
+- compat:No interface, schema, flag, or dependency change. AINISH_ALLOW_GATE_SKIP=1 is a new opt-in escape hatch; without it a missing uv now fails the gate instead of skipping. pqc_secrets.py keeps the same store precedence order and the same JSON output shape.
+- verification:Windows Git Bash 73/73 (was 71/73); WSL 73/73; Linux ubuntu:24.04 in Docker with real uv 73/73; Linux without uv exits 1 with guidance (was 0/SKIP); native-POSIX stamp translation verified in alpine (macOS-style path untouched, both Windows forms translate); Windows now reports 13 keys and resolve_embed_provider returns pqc:LOCALROUTER_OPENROUTER_API_KEY; 71 python tests pass. macOS not executed - no host available; its code paths are os.name!='nt' and covered by the POSIX container.
