@@ -1,0 +1,12 @@
+
+### [2026-11-06T14:30:00Z] fix | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-06T14:10:00Z
+- end:2026-11-06T14:30:00Z
+- scope:src/deploy_rules_sync.sh, scripts/test-pqc-dist.sh
+- objective:Close the signing-dependency and smoke-sandbox threads without weakening the provenance guarantee.
+- input:Operator asked to wrap up the remaining threads after the RAG refocus.
+- output:Signer preflight now runs before any deployment artifact is written, so a clone fails fast instead of leaving a manifest with no signature, armed hooks, and no enrollment. Clear the test/ sandbox and unenrolled its stale fleet entry.
+- status:done
+- blockers:none
+- compat:No CLI, schema, or manifest change; the valid deploy path is unchanged. Failures now occur earlier with actionable guidance. Revert the commit to roll back.
+- verification:real clone reproduced the half-deployed state before the fix and refuses cleanly after; test-pqc-dist 62/62; audit verify 16/16; fleet 2/2 CURRENT and 2/2 verified.
