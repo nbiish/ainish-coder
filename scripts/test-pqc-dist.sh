@@ -274,6 +274,44 @@ status_rc=$?
 check "status exits 1 for a required target without an engine" "$status_rc" "1"
 check "missingRequired counts it" "$(jget missingRequired "${WORK}/status-missing.json")" "1"
 
+echo "== rules deploy refuses cleanly with no signer =="
+# Deployment provenance is ML-DSA-65 signed and the compiled engine is a
+# gitignored build artifact, so a fresh clone has no signer. The preflight must
+# refuse BEFORE writing a manifest, or the target is left in a half-deployed
+# state: a signed-expectation manifest with no signature, hooks installed, and
+# no registry entry.
+NOSIGNER="${WORK}/signerless"
+rm -rf "$NOSIGNER"; mkdir -p "$NOSIGNER"
+# REPO_DIR is overridable, so build a minimal root that has the content the
+# deploy path reads but NO engine binary — exactly the fresh-clone shape.
+SIGNERLESS_REPO="${WORK}/signerless-repo"
+mkdir -p "${SIGNERLESS_REPO}/bin" "${SIGNERLESS_REPO}/src/rag"
+cp -a "${REPO}/AGENTS.md" "${SIGNERLESS_REPO}/AGENTS.md"
+cp -a "${REPO}/.gitignore" "${SIGNERLESS_REPO}/.gitignore"
+cp -a "${REPO}/src/templates" "${SIGNERLESS_REPO}/src/templates" 2>/dev/null || true
+env HOME="$HOME_DIR" AINISH_NO_TRACKING=true AINISH_NON_INTERACTIVE=true \
+    REPO_DIR="$SIGNERLESS_REPO" \
+    bash "$CLI" --rules "$NOSIGNER" --headless -y \
+    > "${WORK}/signerless.log" 2>&1
+signerless_rc=$?
+check "refused deployment exits 1" "$signerless_rc" "1"
+if [[ -e "${NOSIGNER}/.agents/ainish-deploy.json" ]]; then
+    not_ok "no manifest written when the signer is missing"
+else
+    ok "no manifest written when the signer is missing"
+fi
+if [[ -e "${NOSIGNER}/.agents/bin/ainish-rules-sync" ]]; then
+    not_ok "no refresher installed when refused"
+else
+    ok "no refresher installed when refused"
+fi
+if grep -qxF "$NOSIGNER" "${HOME_DIR}/.config/ainish-coder/targets.txt" 2>/dev/null; then
+    not_ok "refused target is not enrolled"
+else
+    ok "refused target is not enrolled"
+fi
+contains "refusal names the engine build step" "$(cat "${WORK}/signerless.log")" "cargo build --release"
+
 echo ""
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

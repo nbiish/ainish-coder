@@ -397,6 +397,31 @@ ROOT_HOOK_BLOCK
     return 0
 }
 
+# _ainish_rules_require_signer — preflight: prove a signer exists before any
+# deployment artifact is written.
+#
+# Deployment provenance is ML-DSA-65 signed, and that is enforced rather than
+# optional. The compiled engine is a gitignored build artifact, so a fresh
+# clone has no signer at all. Checking here — instead of discovering it after
+# the manifest is written — means a clone fails cleanly, with instructions, and
+# never leaves a signed-expectation manifest without its signature behind.
+_ainish_rules_require_signer() {
+    local rag
+    if rag="$(_ainish_rag_bin)"; then
+        printf '%s\n' "$rag"
+        return 0
+    fi
+    print_error "No compiled ainish-rag engine — deploy provenance cannot be signed."
+    echo "  Rules content deploys fine, but this run would leave an UNSIGNED manifest," >&2
+    echo "  so it is refused rather than half-applied. Build or install the engine:" >&2
+    echo "" >&2
+    echo "    cd ${REPO_DIR}/src/rag && cargo build --release" >&2
+    echo "    cp target/release/ainish-rag* ${REPO_DIR}/bin/" >&2
+    echo "" >&2
+    echo "  Then re-run 'ainish-coder --rules <dir>' and verify with: ainish-coder --rules-status" >&2
+    return 1
+}
+
 # Deploys the auto-sync layer for a repository. Idempotent.
 deploy_rules_sync() {
     local target_dir="${1:-.}"
@@ -411,6 +436,10 @@ deploy_rules_sync() {
         install_root_rules_sync_hook
         return 0
     fi
+
+    # Preflight BEFORE writing anything: with no signer there is no valid
+    # deployment, and an existing valid manifest must be left intact.
+    _ainish_rules_require_signer >/dev/null || return 1
 
     local source_repo
     source_repo="$(cd -P "${REPO_DIR}" 2>/dev/null && pwd)" || source_repo="${REPO_DIR}"
