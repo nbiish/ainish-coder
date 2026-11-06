@@ -163,7 +163,7 @@ deploy_skills() {
         echo -e "${YELLOW}⏭️  Skipped $skipped_count pre-existing skill(s)${RESET}"
     fi
     if [[ $deselected_count -gt 0 ]]; then
-        echo -e "${YELLOW}⊘ $deselected_count deselected pack(s) skipped (toggled off — run 'ainish-coder --skills-sync' to change)${RESET}"
+        echo -e "${YELLOW}⊘ $deselected_count pack(s) not selected for this repo (choose with 'ainish-coder --select-skills $target_dir')${RESET}"
     fi
 
     if [[ ${#failed_skills[@]} -gt 0 ]]; then
@@ -171,7 +171,8 @@ deploy_skills() {
     fi
 
     if [[ $skill_count -eq 0 && $skipped_count -eq 0 ]]; then
-        echo -e "${YELLOW}⚠ No skills found to deploy${RESET}"
+        echo -e "${YELLOW}⚠ No skill packs deployed — none are selected for this repo${RESET}"
+        echo -e "  Choose packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
     fi
 
     return 0

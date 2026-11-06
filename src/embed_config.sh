@@ -63,8 +63,15 @@ embed_config_delegate() {
         print_warning "ainish-rag engine not found at ${rag_bin} — cannot inspect the embedding provider"
         return 1
     fi
+    # stdin MUST be detached. Under WSL the Windows .exe runs through /init,
+    # which reads the inherited stdin; in a non-foreground process group (a
+    # command substitution inside `--rules`, a git hook, any background job)
+    # that read raises SIGTTIN and the process STOPS rather than failing. A
+    # stopped child also stops the `timeout` watchdog with it, so the deploy
+    # hangs instead of hitting its bound. Redirecting stdin to /dev/null is
+    # what makes the timeout below actually enforceable.
     if command -v timeout >/dev/null 2>&1; then
-        ( cd "$target_dir" && timeout 20 "$rag_bin" embed-provider "$@" )
+        ( cd "$target_dir" && timeout 20 "$rag_bin" embed-provider "$@" </dev/null )
         return $?
     fi
 
@@ -80,7 +87,7 @@ embed_config_delegate() {
 import subprocess
 import sys
 try:
-    completed = subprocess.run(sys.argv[1:], timeout=20)
+    completed = subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL, timeout=20)
 except subprocess.TimeoutExpired:
     raise SystemExit(124)
 raise SystemExit(completed.returncode)

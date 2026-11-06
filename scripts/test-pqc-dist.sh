@@ -79,12 +79,65 @@ source "${REPO}/src/skills_selection.sh"
 check "selected pack resolves on" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_ON" pqc-secrets)" "on"
 check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_OFF" pqc-secrets)" "off"
 
+echo "== skill-selection contract (regression: --rules lost its selector) =="
+# Unrecorded packs must default OFF, a repo must report whether it has been
+# asked, and a headless/CI run must never prompt.
+UNRECORDED="${WORK}/target-unrecorded"
+mkdir -p "${UNRECORDED}/.agents/skills"
+check "unrecorded pack defaults off" "$(HOME="$HOME_DIR" skills_selection_default_on && echo on || echo off)" "off"
+if HOME="$HOME_DIR" skills_selection_repo_recorded "$UNRECORDED"; then
+    not_ok "fresh repo is not yet recorded"
+else
+    ok "fresh repo is not yet recorded"
+fi
+if HOME="$HOME_DIR" skills_selection_repo_recorded "$TARGET_ON"; then
+    ok "repo with a saved pack is recorded"
+else
+    not_ok "repo with a saved pack is recorded"
+fi
+check "ui mode never prompts when headless" \
+    "$(HOME="$HOME_DIR" AINISH_HEADLESS=true skills_selection_ui_mode)" "never"
+check "ui mode honours an explicit request" \
+    "$(HOME="$HOME_DIR" AINISH_SKILLS_PROMPT=always skills_selection_ui_mode)" "always"
+check "ui mode honours an explicit opt-out" \
+    "$(HOME="$HOME_DIR" AINISH_SKILLS_PROMPT=off skills_selection_ui_mode)" "never"
+# A bounded idle read is what keeps an abandoned terminal from stalling a deploy.
+check "selector idle timeout is bounded and non-zero" \
+    "$(HOME="$HOME_DIR" AINISH_SKILLS_PROMPT_TIMEOUT=2 skills_selection_prompt_timeout)" "2"
+check "invalid timeout falls back to the default" \
+    "$(HOME="$HOME_DIR" AINISH_SKILLS_PROMPT_TIMEOUT=abc skills_selection_prompt_timeout)" "120"
+# The first-contact decision itself: never on CI, yes on an interactive TTY.
+if HOME="$HOME_DIR" AINISH_HEADLESS=true skills_selection_should_prompt "$UNRECORDED"; then
+    not_ok "headless never asks on first contact"
+else
+    ok "headless never asks on first contact"
+fi
+if HOME="$HOME_DIR" AINISH_SKILLS_PROMPT=always skills_selection_should_prompt "$TARGET_ON"; then
+    ok "explicit request asks even for a recorded repo"
+else
+    not_ok "explicit request asks even for a recorded repo"
+fi
+if HOME="$HOME_DIR" AINISH_SKILLS_PROMPT=always skills_selection_should_prompt "$UNRECORDED"; then
+    ok "explicit request asks on first contact"
+else
+    not_ok "explicit request asks on first contact"
+fi
+# The report is the read-only surface operators and CI use to see the choice.
+report_json="$(HOME="$HOME_DIR" AINISH_SKILLS_PROMPT=off bash "$CLI" --skills-list "$TARGET_ON" --json 2>/dev/null || true)"
+contains "skills-list reports the recorded pack" "$report_json" '"pqc-secrets"'
+contains "skills-list marks the repo recorded" "$report_json" '"recorded": true'
+report_fresh="$(HOME="$HOME_DIR" bash "$CLI" --skills-list "$UNRECORDED" --json 2>/dev/null || true)"
+contains "skills-list marks a fresh repo unrecorded" "$report_fresh" '"recorded": false'
+
 echo "== --pqc-install =="
 install_json="${WORK}/install.json"
 run_cli --pqc-install --json --no-wsl > "$install_json"
 check "install ok" "$(jget ok "$install_json")" "true"
 check "launcher installed" "$(jget state "$install_json")" "installed"
-check "bundle exists (keygen not required)" "$(jget bundleExists "$install_json")" "true"
+# A fresh install has an identity but no bundle: bundles appear when the first
+# secret is packed, so requiring one here would fail every clean install.
+check "keygen produced an identity or found one" "$(jget keygen "$install_json")" "generated"
+check "no secrets packed yet (bundle absent by design)" "$(jget bundleExists "$install_json")" "false"
 [[ -x "${HOME_DIR}/.local/bin/pqc-secrets" ]] && ok "launcher is executable" || not_ok "launcher is executable"
 [[ -s "${HOME_DIR}/.config/ainish-coder/pqc-root" ]] && ok "root marker written" || not_ok "root marker written"
 
