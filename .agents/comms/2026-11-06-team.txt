@@ -10,3 +10,14 @@
 - blockers:none
 - compat:No CLI, schema, or manifest change; the valid deploy path is unchanged. Failures now occur earlier with actionable guidance. Revert the commit to roll back.
 - verification:real clone reproduced the half-deployed state before the fix and refuses cleanly after; test-pqc-dist 62/62; audit verify 16/16; fleet 2/2 CURRENT and 2/2 verified.
+### [2026-11-06T16:20:00Z] docs | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-06T16:05:00Z
+- end:2026-11-06T16:20:00Z
+- scope:AGENTS.md, .agents/canonical/, .agents/templates/masters.md, bin/context-packet.sh, .agents/skills/context-orchestration/SKILL.md, scripts/test-pqc-dist.sh
+- objective:Re-iterate the master suggestions as nine dual-expertise niches that prompt an agent to constitute on-the-fly experts.
+- input:Operator request for nine "masters of ___/___" niches that constructively interfere, plus discovery that the prior nine lenses had been removed from the contract while a skill still cited them.
+- output:Nine dual-expertise masters in AGENTS.md with a distinct question each, canonical definitions in .agents/templates/masters.md covering constitution/omission/recording, packet emission, dangling citation fixed, six new assertions.
+- status:done
+- blockers:none
+- compat:The "nine core lenses" phrasing is retired, not aliased; deployed targets receive the masters table on their next rules refresh and any target quoting the old phrase is corrected by the same refresh. Additive for readers; the only removal is a name nothing enforced. Roll back by reverting the commit.
+- verification:scripts/test-pqc-dist.sh 73/73; packet emits all nine; contract byte-identical and re-signed; audit verify 16/16.

@@ -98,6 +98,31 @@ Use `bin/context-packet.sh` for this rather than recreating it in prose. Prefer 
 - For user-facing output, preserve plain-language meaning with `NO_COLOR`; never rely on color or symbols alone.
 - For new dependencies, record license/provenance and governance impact.
 
+## Advisory masters
+
+Nine dual-expertise niches exist to make you reason like the right two experts before you write
+anything. They are a reasoning device, not a checklist — **constitute the pair for this task**, let
+them disagree, and record only what survived. Definitions:
+[`.agents/templates/masters.md`](./.agents/templates/masters.md).
+
+| # | Master of ___ / ___ | Asks |
+|---|---|---|
+| 1 | breach / blast radius | Can this be abused, and how far does damage spread before anyone notices? |
+| 2 | privacy / data lifecycle | What did we retain that we cannot defend, and can we actually erase it? |
+| 3 | dependencies / provenance | What did we accept without being able to prove where it came from? |
+| 4 | structure / operations | Is this the right shape, and can it be run at 3am by someone who did not write it? |
+| 5 | failure / verification | What is the cheapest experiment that would falsify this claim? |
+| 6 | authority / accountability | Who is allowed to decide this, and who answers for it? |
+| 7 | automation / reproducibility | Can a machine run it unattended, and can anyone re-derive the result? |
+| 8 | orchestration / self-correction | Is the work shaped right, and what would make me abandon this approach? |
+| 9 | comprehension / operability | Can someone understand and safely change this without me? |
+
+When the diff touches a **triggered surface** — contract/schema/CLI/dependency manifest, shared
+mutable state, model/CI spend, user-facing text, a new dependency, or cross-OS behaviour — the
+corresponding master must speak, and three of those are enforced by `ainish-rag gate` (`compat:`,
+`budget:`, append-only). Silence elsewhere is a valid outcome; nine lines of boilerplate is the
+failure mode this section exists to prevent.
+
 ## Output discipline
 
 Be concise and direct. Link to existing detail instead of copying it. Do not create planning markdown outside the task record unless requested. Before claiming completion, report what changed, what was verified, and any remaining uncertainty.

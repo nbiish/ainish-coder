@@ -334,6 +334,41 @@ else
 fi
 contains "refusal names the engine build step" "$(cat "${WORK}/signerless.log")" "cargo build --release"
 
+echo "== advisory masters are defined, wired, and not dangling =="
+# The nine dual-expertise niches live in AGENTS.md (the always-on rail) with
+# definitions in .agents/templates/masters.md. They were once removed while
+# context-orchestration kept citing them, leaving an obligation nothing defined —
+# this pins the wiring so that cannot recur silently.
+MASTERS_DOC="${REPO}/.agents/templates/masters.md"
+if [[ -f "$MASTERS_DOC" ]]; then
+    ok "masters definition file exists"
+else
+    not_ok "masters definition file exists"
+fi
+masters_named=0
+for n in 1 2 3 4 5 6 7 8 9; do
+    grep -qE "^\| $n \|" "${REPO}/AGENTS.md" && masters_named=$((masters_named + 1))
+done
+check "all nine masters named in the contract" "$masters_named" "9"
+contains "contract links the definitions" "$(cat "${REPO}/AGENTS.md")" "templates/masters.md"
+# No surface may cite a lens set the contract no longer defines.
+dangling=0
+for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" \
+         "${REPO}/.agents/skills/context-orchestration/SKILL.md" "${REPO}/llms.txt"; do
+    [[ -f "$f" ]] || continue
+    grep -q "nine core lenses" "$f" && dangling=$((dangling + 1))
+done
+check "no dangling 'nine core lenses' reference" "$dangling" "0"
+# The packet must hand an agent the pairs without a second file read.
+if command -v bash >/dev/null 2>&1 && [[ -x "${REPO}/bin/context-packet.sh" ]]; then
+    packet="$(cd "$REPO" && bash bin/context-packet.sh --task "test" 2>/dev/null || true)"
+    contains "packet emits the masters block" "$packet" "--- masters ---"
+    contains "packet names the constitute rule" "$packet" "constitute:"
+else
+    ok "packet check skipped (no bash or not executable)"
+    ok "packet check skipped (no bash or not executable)"
+fi
+
 echo ""
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

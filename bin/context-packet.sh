@@ -62,6 +62,25 @@ for file in $(ls -1 .agents/tasks/*-task.md .agents/tasks/TASK.*.md 2>/dev/null 
 done
 [ "$found" -eq 1 ] || echo 'none'
 
+echo '--- masters ---'
+# The always-on contract names the nine dual-expertise niches; the packet echoes
+# them as one line each so an agent can constitute the relevant pair without a
+# second file read. Definitions stay in .agents/templates/masters.md.
+cat <<'MASTERS'
+advisory_only: true
+constitute: name both experts concretely for THIS task, let them disagree, keep only what survived
+omit: a master with nothing to add says nothing — nine boilerplate lines is the failure mode
+1 breach/blast-radius: Can this be abused, and how far does damage spread before anyone notices?
+2 privacy/data-lifecycle: What did we retain that we cannot defend, and can we actually erase it?
+3 dependencies/provenance: What did we accept without proving where it came from?
+4 structure/operations: Is this the right shape, and can it run at 3am by someone who did not write it?
+5 failure/verification: What is the cheapest experiment that would falsify this claim?
+6 authority/accountability: Who is allowed to decide this, and who answers for it?
+7 automation/reproducibility: Can a machine run it unattended, and can anyone re-derive the result?
+8 orchestration/self-correction: Is the work shaped right, and what would make me abandon this approach?
+9 comprehension/operability: Can someone understand and safely change this without me?
+MASTERS
+
 echo '--- master_suggestions ---'
 suggestions=$(ls -1 .agents/suggestions/*-suggestions.txt 2>/dev/null | sort | tail -1 || true)
 if [ -n "$suggestions" ] && [ -f "$suggestions" ]; then

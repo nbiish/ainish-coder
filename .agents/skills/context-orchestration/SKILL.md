@@ -45,7 +45,7 @@ Produce the smallest trustworthy context packet, then move the work through expl
    - Verify signatures, lockfiles, privacy/redaction, and compatibility for touched surfaces.
 7. **Close**
    - Mark the task done or blocked with evidence.
-   - Append COMMS and memory entries; append one suggestions block with the nine core lenses and any triggered lenses.
+   - Append COMMS and memory entries; append one suggestions block with the masters that actually fired (see `.agents/templates/masters.md`). Omit silent masters.
    - Leave a clean worktree or name the exact remaining file/command.
 
 ## Packet schema
