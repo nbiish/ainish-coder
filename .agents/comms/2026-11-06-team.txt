@@ -21,3 +21,15 @@
 - blockers:none
 - compat:The "nine core lenses" phrasing is retired, not aliased; deployed targets receive the masters table on their next rules refresh and any target quoting the old phrase is corrected by the same refresh. Additive for readers; the only removal is a name nothing enforced. Roll back by reverting the commit.
 - verification:scripts/test-pqc-dist.sh 73/73; packet emits all nine; contract byte-identical and re-signed; audit verify 16/16.
+
+### [2026-11-06T17:05:00Z] feat | branch:feat/rag-phase-0-bench-baseline -> main | wt:D:\Code\ainish-coder
+- start:2026-11-06T16:30:00Z
+- end:2026-11-06T17:05:00Z
+- scope:src/rag/rag.py, src/rag/tests/test_bench_metrics.py, .gitignore, .agents/rag/bench-baseline.json, bin/ainish-rag
+- objective:Execute Phase 0 of docs/rag-context-system-plan.md - produce a real measurement floor before any retrieval change.
+- input:Operator asked to review recent changes, locate the plan to iterate from, then approved Phase 0 and the un-ignore approach for the baseline path.
+- output:bench now records nDCG@3, per-query chunk tokens, embedding identity, store row count and engine commit; regression gate compares both metrics and reports a changed embedding identity as incomparable instead of a false regression; baseline committed under a targeted .gitignore exception; bin/ainish-rag no longer execs itself.
+- status:done
+- blockers:none
+- compat:Additive CLI surface - bench keeps every existing flag and adds fields to --json output and the baseline file, which moves to format ainish-rag/bench-baseline/v2. v1 baselines still compare on recall alone. .gitignore narrows from a directory ignore to a contents glob, so .agents/rag/* is still ignored except the baseline. Roll back by reverting the merge.
+- verification:71 python tests pass (18 new); full-corpus baseline Recall@3 1.000, nDCG@3 1.000, 920 avg chunk tokens, 3627 records, api:openrouter:openai/text-embedding-3-small at fab34e1; --regression passes healthy, fails on a 0.40 nDCG, reports incomparable on identity change; ainish-rag --version returns under WSL and Git Bash (previously hung); test-pqc-dist 73/73 on WSL and the same 2 Windows-only failures reproduce at pristine HEAD.

@@ -10,3 +10,12 @@ Next step: work the ainish-rag context-system plan in a new chat, using these ma
 7 automation/reproducibility: the packet now hands an agent the pairs inline, so expert constitution needs no second file read and is reproducible across harnesses.
 8 orchestration/self-correction: the useful signal was that documentation can degrade silently when the contract is refactored — the fix is a test, not a reminder.
 9 comprehension/operability: each master is phrased as the question it asks, so a reader can constitute the pair without interpreting an abstract label.
+
+### [2026-11-06T17:10:00Z] rag/phase0
+What changed: gave \ench\ an nDCG/token/embedding-identity harness, committed a real baseline under a targeted gitignore exception, and fixed \in/ainish-rag\ exec'ing itself when its preferred native binary was absent.
+Next step: expand the benchmark query set beyond three saturated queries before Phase 2, then mirror the harness into the Rust engine (or rebuild \inish-rag.exe\, stale since 2026-10-31) so launcher-driven runs report the new metrics.
+1 breach/blast-radius: a launcher that execs itself recurses silently with no output and no exit; it hit WSL, Git Bash, Linux and the unknown-OS branch, and the only reason it was found is that an unrelated bench run produced nothing.
+3 dependencies/provenance: the baseline now names the embedding identity and engine commit it was produced under, so a future number can be traced to a backend and a revision instead of being an anonymous measurement.
+5 failure/verification: the gate was exercised in all three states - healthy pass, degraded nDCG fail, and changed identity reported as incomparable - because a regression gate that has never been seen to fail is not yet a gate.
+7 automation/reproducibility: \ench --regression\ is the single reproducing command, and the 2 Windows-only gate failures were proven pre-existing by re-running at pristine HEAD rather than assumed.
+8 orchestration/self-correction: the first real run produced nDCG 2.131, which is out of range; the metric definition was wrong, not the corpus, so the fix was to normalize against retrieved reality and add a range assertion.
