@@ -11,7 +11,18 @@ while [ -L "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 SELF_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+SELF_PATH="$SELF_DIR/$(basename "$SOURCE")"
 PY_ENGINE="$SELF_DIR/../src/rag/rag.py"
+
+# The candidates below are named "ainish-rag" / "ainish-rag.exe" and sit next to this script, so a
+# bare existence test can select THIS launcher as the "native binary" and exec it recursively — an
+# unbounded self-exec that produces no output and never terminates. It bit every host whose
+# preferred binary was absent: Linux fell through to ./ainish-rag (itself), and the unknown-OS and
+# Git Bash branches did the same. Compare real paths, not names, before accepting a candidate.
+is_self() {
+    [ -n "${1:-}" ] || return 1
+    [ "$(cd -P "$(dirname "$1")" 2>/dev/null && pwd)/$(basename "$1")" = "$SELF_PATH" ]
+}
 
 OS_TYPE="$(uname -s 2>/dev/null || echo "Unknown")"
 NATIVE_BIN=""
@@ -19,12 +30,16 @@ NATIVE_BIN=""
 case "$OS_TYPE" in
   Darwin*)
     [ -f "$SELF_DIR/ainish-rag-darwin" ] && NATIVE_BIN="$SELF_DIR/ainish-rag-darwin"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    if [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && ! is_self "$SELF_DIR/ainish-rag"; then
+      NATIVE_BIN="$SELF_DIR/ainish-rag"
+    fi
     ;;
   Linux*)
     # Native Linux or WSL
     [ -f "$SELF_DIR/ainish-rag-linux" ] && NATIVE_BIN="$SELF_DIR/ainish-rag-linux"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    if [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && ! is_self "$SELF_DIR/ainish-rag"; then
+      NATIVE_BIN="$SELF_DIR/ainish-rag"
+    fi
     # In WSL, if no Linux ELF binary, check for Windows .exe via interop
     if [ -z "$NATIVE_BIN" ] && grep -qi microsoft /proc/version 2>/dev/null && [ -f "$SELF_DIR/ainish-rag.exe" ]; then
       NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
@@ -32,16 +47,20 @@ case "$OS_TYPE" in
     ;;
   MINGW*|MSYS*|CYGWIN*)
     [ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
-    [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    if [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag" ] && ! is_self "$SELF_DIR/ainish-rag"; then
+      NATIVE_BIN="$SELF_DIR/ainish-rag"
+    fi
     ;;
   *)
-    [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && NATIVE_BIN="$SELF_DIR/ainish-rag"
+    if [ -f "$SELF_DIR/ainish-rag" ] && [ -x "$SELF_DIR/ainish-rag" ] && ! is_self "$SELF_DIR/ainish-rag"; then
+      NATIVE_BIN="$SELF_DIR/ainish-rag"
+    fi
     [ -z "$NATIVE_BIN" ] && [ -f "$SELF_DIR/ainish-rag.exe" ] && NATIVE_BIN="$SELF_DIR/ainish-rag.exe"
     ;;
 esac
 
-# 1. Execute native binary if found and executable
-if [ -n "$NATIVE_BIN" ] && [ -x "$NATIVE_BIN" ]; then
+# 1. Execute native binary if found, executable, and not this launcher (see is_self above)
+if [ -n "$NATIVE_BIN" ] && [ -x "$NATIVE_BIN" ] && ! is_self "$NATIVE_BIN"; then
     exec "$NATIVE_BIN" "$@"
 fi
 
