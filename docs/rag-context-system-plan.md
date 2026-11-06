@@ -19,7 +19,7 @@ some of the request is already built. Concretely:
 | Typed decision API | **Exists** | `noul`/`choice`/`score` batches, `_post_decisions` (`:2974`), envelope `answers` (`:2942`) |
 | Adaptive routing | **Exists** | 5 calibrated questions → `derive_retrieval_strategy` (`:2698`) |
 | Corrective expansion (CRAG) | **Exists** | `evaluate_context_sufficiency` (`:2739`), `extract_corrective_expansion_terms` (`:2762`) |
-| Transport failover | **Partial** | order is `local-router → openrouter → jev → local-model` (`:2674-2694`). **No zenmux stage** |
+| Transport failover | **Partial** | order is `local-router → openrouter → jev → local-model` (`:2674-2694`). The router itself already reports `order: ["openrouter","zenmux"]` for decisions, but the engine's own stage list has **no zenmux stage** — so engine-level failover cannot reach ZenMux directly |
 | Living wiki + signed ledger | **Exists** | `generate_wiki` (`:2232`), `append_wiki_note_and_sign` (`:2136`), bidirectional resolutions (`:2212`) |
 | Context injection | **Partial** | `orient --inject` emits a primer; it is **not** a two-agent pipeline |
 | Elephant/Goldfish | **Docs only** | `.agents/skills/context-orchestration/SKILL.md` is a *human procedure*; `bin/egm-check.sh` only greps headings. No code, no model calls |
@@ -174,6 +174,30 @@ technique selection without a human-visible receipt.
 **4a. Driver model.** New `driver` transport layer mirroring the decision layer:
 `local-router → openrouter → zenmux → local-model`, with the same `source` discipline and hard
 timeouts. Reuses `_first_env` / PQC key resolution; **never** logs keys.
+
+Provider tier order and model ids are **verified live** (2026-11-06) and recorded in
+`local-router/docs/driver-models.md`:
+
+| Tier | Model id | Status |
+|---|---|---|
+| local-router → OpenRouter | `openrouter-deepseek-v4.1-flash-1017` | responds |
+| local-router → ZenMux | `zenmux-deepseek-v4.1-flash` | responds |
+| local-router fallback | `local-router/fallback-models` | responds |
+| local-model | MXFP4_MOE or Q8_K_XL Lightning | **offline today** (Unsloth Studio closed) |
+
+Two constraints that must shape the implementation, not just the docs:
+
+- **`deepseek-v4.1-flash` is a reasoning model.** With `max_tokens: 16` it returns `content: ""` and
+  spends all 16 tokens on reasoning; at 512 it answers normally. Every driver call must budget
+  reasoning *plus* answer, and must not treat empty content as a transport error — that would
+  mis-diagnose a budget problem as a provider outage.
+- **The requested local NVFP4 Lightning cannot run here.** `llama-quantize --help` on this build
+  (`0.8.0-dev, 7e2fea0`) has no NVFP4 type; only `MXFP4_MOE` exists. Use
+  `…-lightning-30b-a3b-gguf-mxfp4_moe` (or `-ud-q8_k_xl`) instead, or tier 4 will never resolve.
+
+Also: do **not** repurpose the shared `local-router/fallback-models` chain for the driver order. It
+is used by every client (VS Code, Claude Code, Cline, scripts); reordering it for one tool changes
+behaviour everywhere. The driver order lives in `ainish-rag` as explicit model ids.
 
 **4b. Elephant.** Session-aware synthesizer.
 - Input: current task text, the session's accumulated injection state (a small JSON sidecar in

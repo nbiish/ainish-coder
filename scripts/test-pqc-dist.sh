@@ -79,6 +79,28 @@ source "${REPO}/src/skills_selection.sh"
 check "selected pack resolves on" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_ON" pqc-secrets)" "on"
 check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_OFF" pqc-secrets)" "off"
 
+echo "== provenance stamp is readable across WSL and Windows Git Bash =="
+# `.ainish-source` stores whichever absolute POSIX path the WRITER saw:
+# /mnt/d/X under WSL, /d/X under Windows Git Bash. Both are valid on their own
+# host and unresolvable on the other, which silently broke --skills-sync for a
+# target deployed from the opposite host.
+# shellcheck disable=SC1090
+source "${REPO}/src/verify_skills.sh"
+check "WSL form translates to Git Bash form" \
+    "$(_ainish_stamp_alternative /mnt/d/Code/x)" "/d/Code/x"
+check "Git Bash form translates to WSL form" \
+    "$(_ainish_stamp_alternative /d/Code/x)" "/mnt/d/Code/x"
+check "a native POSIX path is left alone" \
+    "$(_ainish_stamp_alternative /tmp/x)" "/tmp/x"
+STAMP_TARGET="${WORK}/stamp-target"
+mkdir -p "${STAMP_TARGET}/.agents/skills"
+printf '%s\n' "$(printf '/d%s' "${REPO#/mnt/d}")" > "${STAMP_TARGET}/.agents/skills/.ainish-source"
+check "an opposite-host stamp still resolves to this checkout" \
+    "$(_ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
+printf '/nowhere/at/all\n' > "${STAMP_TARGET}/.agents/skills/.ainish-source"
+check "an unresolvable stamp falls through to REPO_DIR" \
+    "$(REPO_DIR="$REPO" _ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
+
 echo "== skill-selection contract (regression: --rules lost its selector) =="
 # Unrecorded packs must default OFF, a repo must report whether it has been
 # asked, and a headless/CI run must never prompt.
