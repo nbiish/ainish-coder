@@ -95,6 +95,27 @@ ones landed.
 **Exit criteria:** baseline JSON committed; a single command reproduces it.
 **Deliverable:** `.agents/rag/bench-baseline.json` + a short results table in the plan's appendix.
 
+**Status: DONE for this repo** (`138a7f3`, see `.agents/tasks/2026-11-06-rag-phase0-baseline-task.md`).
+Harness records nDCG@3, chunk tokens, embedding identity, store rows, and engine commit; the
+baseline is committed via a targeted `.gitignore` exception. Three preconditions had to be fixed
+first, and they were not visible from the audit:
+
+1. `.agents/rag/` was ignored in full, so "baseline committed" was unsatisfiable. A directory-level
+   ignore also blocks a child exception, hence `.agents/rag/*` plus one `!` rule.
+2. Recall@3 was saturated at 100% on the only three queries, which is a ceiling, not a floor.
+3. `bin/ainish-rag` could exec itself on any host missing its preferred binary — which is why a WSL
+   bench run silently produced nothing.
+
+**Still open before Phase 0 is closed across both repos:**
+
+- `local-router` is not baselined: it has 18 uncommitted paths, which blocks starting work there.
+- `bench` delegates to `bin/ainish-rag.exe` when Python `lancedb` is absent, and that binary is
+  stale (built 2026-10-31 vs source at 2026-11-04). A launcher-driven Windows benchmark therefore
+  still reports the **old** metrics. Mirror the harness into `src/rag/src/main.rs` or rebuild.
+- The embedding key resolves only under WSL (13 keys there, 0 in the Windows PQC store), so the
+  baseline was recorded on the WSL host. Resolve the host split before treating numbers as
+  comparable across machines.
+
 ---
 
 ### Phase 1 — Evidence dossier (decides Phase 2's content)
@@ -363,9 +384,9 @@ checks before trusting them if the engine has changed.
 | Claim | Verified value |
 |---|---|
 | `src/rag/rag.py` size | **6,861 lines** |
-| Top-level subcommands | **22** (`audit bench cleanup completion decide embed-provider eval gate index monitor orient query rerank route secrets serve service status statusline stop wiki`) |
-| Total `add_parser` calls | **33** (22 top-level + 11 nested) |
-| Generative model calls | **0** — no `chat/completions` anywhere |
+| Top-level subcommands | **21** (`audit bench cleanup completion decide embed-provider eval gate index monitor orient query rerank route secrets serve status statusline stop wiki`) |
+| Total `add_parser` calls | **33** (21 top-level + 12 nested: 8 `audit_sub`, 4 `service_sub`) |
+| Generative model calls | **0** — no `chat/completions` anywhere, in **either** engine |
 | zenmux in decision transport | **absent** (`:2674-2694` covers local-router, openrouter, jev, local-model only) |
 | Embedding width | 768 (`DEFAULT_EMBED_DIM`, `:29`) |
 | Index mode | full scan + optional `--watch`; **no** delta/incremental path |
@@ -377,6 +398,34 @@ Anchors cited in this plan, all confirmed present at the stated lines:
 `extract_corrective_expansion_terms` (:2762) · `generate_wiki` (:2232) ·
 `append_wiki_note_and_sign` (:2136) · `transport_priority_order` (:2674) · `LanceStore` (:1804) ·
 `index` parser (:5278) · `bench` parser (:5349)
+
+### Appendix A.1 — Phase 0 baseline, measured 2026-11-06
+
+Recorded by `ainish-rag bench --save-baseline` against this repo's full store (3,627 records) at
+commit `fab34e1`. Committed at `.agents/rag/bench-baseline.json` (`format:
+ainish-rag/bench-baseline/v2`). Reproduce with:
+
+    ainish-rag bench --regression
+
+| Metric | Value |
+|---|---|
+| Recall@3 | 1.000 (3/3) |
+| nDCG@3 | 1.000 |
+| Chunk tokens, avg per query | 920 |
+| Avg latency | 1,149 ms |
+| Store records | 3,627 |
+| Embedding identity | `api:openrouter:openai/text-embedding-3-small` |
+
+Two caveats that decide how these numbers may be used:
+
+- **Three queries is a smoke test, not a corpus.** Recall and nDCG are both saturated, exactly as
+  before; the harness can now *detect* a regression but cannot yet *discriminate* between
+  techniques. Phase 2 needs a larger fixed query set before it can claim an improvement, so
+  expanding the set is a prerequisite of the Phase 2 exit criteria, not a nicety.
+- **The identity is the API embedding provider, not EmbeddingGemma-2.** The row above contradicts
+  the "LanceDB + EmbeddingGemma-2 GGUF" claim in this document's own capability table, because the
+  store on this machine was built through OpenRouter. Whichever backend is canonical, the plan and
+  the code must name it consistently before cross-machine numbers mean anything.
 
 ## Appendix B — What Elephant/Goldfish is, precisely
 
