@@ -18,15 +18,15 @@ This tree contains the durable agent operating system: retrieval context, skills
 
 ## Local workflow
 
-1. Start with `bin/context-packet.sh --task "<request>"`.
-2. Route with `ainish-rag route`; orient with `ainish-rag orient --inject` only when needed.
+1. Read the files the request concerns, plus the applicable `llms.txt` chain.
+2. Use `bin/context-packet.sh --task "<request>"` when a bounded summary helps.
 3. Create or update one task record; declare `compat:` and `budget:` when applicable.
 4. Use one writer per shared boundary; append coordination entries rather than rewriting them.
 5. Verify the changed surface, then close COMMS, task, memory, and suggestions.
 
 ## Context packet
 
-The canonical packet fields are `request`, `route`, `next_action`, `files`, `symbols`, `constraints`, `task_state`, `acceptance`, and `verification`. Keep packets bounded, provenance-aware, and retention-safe.
+The packet fields are `request`, `next_action`, `files`, `symbols`, `constraints`, `task_state`, `acceptance`, and `verification`. Keep packets bounded, provenance-aware, and retention-safe. The `ainish-rag` engine and `.agents/rag/` state are the operator's project utility for their own retrieval, wiki, and audit work — not an agent intake requirement.
 
 ## Child DOX index
 

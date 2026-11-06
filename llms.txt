@@ -210,6 +210,8 @@ Universal memory law lives in `AGENTS.md` `<REPO_MEMORY>`; this section records 
 
 Universal architecture and knowledge retrieval for the codebase. Integrates Google DeepMind's EmbeddingGemma-2 GGUF model with LanceDB vector storage and a 6-part living architectural wiki.
 
+**Scope — an operator utility, not agent intake.** `ainish-rag` is the operator's own project tool for retrieval, wiki notes, audits, and pre-merge checks. Coding agents are *not* expected to ingest it automatically: the always-on contract no longer directs agents to run `route`/`orient`, and `.agents/rag/` state is not required reading for a task. Deploying rules (`ainish-coder --rules`) still uses the compiled engine for ML-DSA-65 manifest signing, which is a separate concern from retrieval.
+
 
 
 - **Model Specification & Cross-Platform Cache Hierarchy:**
