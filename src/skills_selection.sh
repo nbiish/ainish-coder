@@ -66,6 +66,97 @@ skills_selection_default_on() {
     [[ "${AINISH_SKILLS_DEFAULT:-off}" == "on" ]]
 }
 
+# skills_selection_repo_recorded <repo_root> — true when this repo already has
+# a recorded selection block (any pack entry or a `default`), i.e. the operator
+# has answered the "what do I want deployed here?" question at least once.
+skills_selection_repo_recorded() {
+    local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
+    local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
+    REPO="$repo_key" ALT_REPO="$raw_repo" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
+        python3 -c "
+import json, os
+try:
+    cfg = json.load(open(os.environ['SELECTION_PATH']))
+except Exception:
+    cfg = {}
+repos = cfg.get('repos', {})
+entry = repos.get(os.environ['REPO'])
+if entry is None and os.environ.get('ALT_REPO'):
+    entry = repos.get(os.environ['ALT_REPO'])
+print('yes' if isinstance(entry, dict) else 'no')
+" | grep -q yes
+}
+# skills_selection_enabled_count <repo_root> — number of source packs that
+# currently resolve to ON for this repo (drives the deployment summary).
+skills_selection_enabled_count() {
+    local repo_root="${1:-$(pwd)}"
+    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    [[ -d "$source_dir" ]] || { printf '0\n'; return 0; }
+    local count=0 d name
+    while IFS= read -r d; do
+        name="$(basename "$d")"
+        _skill_channel_excluded "$name" && continue
+        if [[ "$(skills_selection_state "$repo_root" "$name")" == "on" ]]; then
+            count=$((count + 1))
+        fi
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+    printf '%d\n' "$count"
+}
+
+# skills_selection_ui_mode — how this invocation may treat the selector.
+#   always : operator asked for it explicitly (--select-skills / env=always)
+#   never  : headless, non-interactive, no TTY, or env=off
+#   auto   : interactive TTY — the selector opens only for a repo that has no
+#            recorded selection yet, so repeat runs stay deterministic
+# Prints one token; callers branch on it.
+skills_selection_ui_mode() {
+    local requested="${AINISH_SKILLS_PROMPT:-auto}"
+    case "$requested" in
+        always|on|force|1) printf 'always\n'; return 0 ;;
+        off|none|never|0)  printf 'never\n';  return 0 ;;
+    esac
+    if [[ "${AINISH_HEADLESS:-false}" == "true" ]] || \
+       [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]]; then
+        printf 'never\n'
+        return 0
+    fi
+    skills_selection_tty_ok || { printf 'never\n'; return 0; }
+    printf 'auto\n'
+}
+
+# skills_selection_tty_ok — a selector needs a real terminal on both ends; a
+# redirected stdin or a captured stdout/stderr means no operator is watching.
+skills_selection_tty_ok() {
+    [[ -t 0 ]] || return 1
+    [[ -t 1 || -t 2 ]] || return 1
+    return 0
+}
+
+# skills_selection_prompt_timeout — idle seconds the selector tolerates before
+# it cancels itself. Bounded so an abandoned terminal can never stall a deploy
+# (the b268b75 regression removed the selector because it could hang).
+skills_selection_prompt_timeout() {
+    local t="${AINISH_SKILLS_PROMPT_TIMEOUT:-120}"
+    [[ "$t" =~ ^[0-9]+$ ]] || t=120
+    (( t > 0 )) || t=120
+    printf '%s\n' "$t"
+}
+
+# skills_selection_should_prompt <repo_root> — true when the interactive
+# selector must open for this run: explicit request, or first contact with a
+# repo that has never recorded a selection.
+skills_selection_should_prompt() {
+    local repo_root="${1:-$(pwd)}"
+    case "$(skills_selection_ui_mode)" in
+        always) return 0 ;;
+        never)  return 1 ;;
+    esac
+    skills_selection_repo_recorded "$repo_root" && return 1
+    return 0
+}
+
 # skills_selection_repo_key <repo_root> — normalized JSON key for a repo.
 # Same repo reached via symlink or relative path maps to one canonical key.
 skills_selection_repo_key() {
@@ -254,6 +345,63 @@ skills_selection_list() {
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
 }
 
+# skills_selection_report <repo_root> [json] — operator-facing view of the
+# selection that governs deployment for one repo. Human output names the exact
+# command that changes it; JSON is stable for CI/agent consumption
+# (format: ainish-coder/skills-selection/v1).
+skills_selection_report() {
+    local repo_root="${1:-$(pwd)}"
+    local json="${2:-false}"
+    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
+
+    local on_names=() off_names=() d name
+    while IFS= read -r d; do
+        name="$(basename "$d")"
+        _skill_channel_excluded "$name" && continue
+        if [[ "$(skills_selection_state "$repo_root" "$name")" == "on" ]]; then
+            on_names+=("$name")
+        else
+            off_names+=("$name")
+        fi
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+
+    local recorded="false"
+    skills_selection_repo_recorded "$repo_root" && recorded="true"
+
+    if [[ "$json" == "true" ]]; then
+        local on_json="" off_json="" n
+        for n in ${on_names[@]+"${on_names[@]}"}; do on_json+="\"$n\","; done
+        for n in ${off_names[@]+"${off_names[@]}"}; do off_json+="\"$n\","; done
+        printf '{"format": "ainish-coder/skills-selection/v1", "repo": "%s", "recorded": %s, "default": "%s", "on": [%s], "off": [%s], "counts": {"on": %d, "off": %d}}\n' \
+            "$repo_root" "$recorded" "$(_skills_selection_repo_default "$repo_root")" \
+            "${on_json%,}" "${off_json%,}" "${#on_names[@]}" "${#off_names[@]}"
+        return 0
+    fi
+
+    echo -e "${BRIGHT_BLUE}Skill packs for: $repo_root${RESET}"
+    if [[ "$recorded" == "true" ]]; then
+        echo -e "  Selection: ${GREEN}recorded${RESET} (new packs default $(_skills_selection_repo_default "$repo_root"))"
+    else
+        echo -e "  Selection: ${YELLOW}not recorded yet${RESET} — the next interactive 'ainish-coder --rules' asks"
+    fi
+    echo ""
+    if (( ${#on_names[@]} > 0 )); then
+        echo -e "  ${GREEN}Deployed on --rules${RESET}"
+        for name in "${on_names[@]}"; do echo -e "    ${GREEN}[x]${RESET} $name"; done
+    else
+        echo -e "  ${YELLOW}Nothing selected — --rules will deploy no optional packs.${RESET}"
+    fi
+    if (( ${#off_names[@]} > 0 )); then
+        echo ""
+        echo -e "  ${YELLOW}Not deployed${RESET}"
+        for name in "${off_names[@]}"; do echo -e "    ${YELLOW}[ ]${RESET} $name"; done
+    fi
+    echo ""
+    echo -e "  Change with: ${BRIGHT_WHITE}ainish-coder --select-skills $repo_root${RESET}"
+    return 0
+}
+
 # _skills_selection_repo_default <repo_root> — effective default for NEW
 # packs in this repo: the repo's recorded default, else the global default.
 # Used by the toggle UI footer ("default(new)=…"). Prints on|off.
@@ -294,7 +442,7 @@ print(d if d in ('on', 'off') else os.environ['GLOBAL_DEFAULT'])
 # write; a/n all-on/all-off; d flips the default-for-new-packs). Without a
 # TTY (pipe/CI), falls back to the legacy numbered prompt unchanged.
 _skills_toggle_ui() {
-    if [[ -t 0 && ( -t 1 || -t 2 ) ]]; then
+    if skills_selection_tty_ok; then
         _skills_toggle_ui_raw "$@"
     else
         _skills_toggle_ui_numbered "$@"
@@ -376,14 +524,19 @@ _skills_toggle_ui_raw() {
 
     _st_ui_frame
 
+    # Bounded idle read: an abandoned terminal cancels the selector instead of
+    # hanging the deploy. The persisted selection then applies as-is.
+    local idle_tmo
+    idle_tmo="$(skills_selection_prompt_timeout)"
+
     while true; do
-        IFS= read -r -n1 -s key || {
+        if ! IFS= read -r -n1 -s -t "$idle_tmo" key; then
             trap - INT TERM EXIT
             _st_ui_restore
             printf '\r\n' >&2
-            echo -e "${YELLOW}Cancelled — no changes saved.${RESET}" >&2
+            echo -e "${YELLOW}Selector timed out after ${idle_tmo}s — no changes saved; the saved selection applies.${RESET}" >&2
             return 130
-        }
+        fi
         if [[ "$key" == $'\x1b' ]]; then
             if IFS= read -r -n1 -s -t "$esc_tmo" k1; then
                 if [[ "$k1" == "[" || "$k1" == "O" ]]; then
