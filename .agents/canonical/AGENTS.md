@@ -126,3 +126,20 @@ failure mode this section exists to prevent.
 ## Output discipline
 
 Be concise and direct. Link to existing detail instead of copying it. Do not create planning markdown outside the task record unless requested. Before claiming completion, report what changed, what was verified, and any remaining uncertainty.
+
+**Write in English.** Every artifact this contract governs is English — code, comments, commit
+messages, and any prose in `AGENTS.md`, `llms.txt`, the `.agents/` records, and user-facing output.
+This is a hard requirement, not a style preference: the operator and the whole fleet read and diff
+these files in English, so a non-English passage is unreviewable to most readers and silently
+degrades every handoff that depends on it.
+
+Non-English text is permitted in exactly two places:
+
+- **Quoted operator or upstream input**, kept verbatim when translating would change its meaning —
+  mark it as a quotation and give the English meaning alongside it.
+- **Data**, such as a model's own generated content or a provider's error string passed through
+  unchanged; never mix such data into your own prose without an English gloss.
+
+Never answer, log, or commit in another language just because the request arrived in one. If a
+request is ambiguous across languages, resolve the meaning in English and state the assumption you
+made.
