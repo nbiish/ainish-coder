@@ -11,6 +11,7 @@ import argparse
 import atexit
 import hashlib
 import json
+import math
 import os
 import re
 import signal
@@ -1405,6 +1406,192 @@ def write_index_fingerprint(repo_root: Path, identity: str, dim: int) -> Path:
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def read_index_fingerprint_identity(repo_root: Path) -> Optional[str]:
+    """Identity recorded in the store fingerprint, or None when no store has been built."""
+    path = repo_root / INDEX_FINGERPRINT_PATH
+    if not path.is_file():
+        canonical_root = _linked_worktree_root(repo_root)
+        if canonical_root is None:
+            return None
+        path = canonical_root / INDEX_FINGERPRINT_PATH
+        if not path.is_file():
+            return None
+    try:
+        recorded = str(json.loads(path.read_text(encoding="utf-8")).get("identity") or "").strip()
+    except Exception:
+        return None
+    return recorded or None
+
+
+BENCH_BASELINE_FORMAT = "ainish-rag/bench-baseline/v2"
+
+
+def engine_commit(repo_root: Path) -> Optional[str]:
+    """Best-effort short commit of the working tree, recorded so a baseline names its engine.
+
+    Returns None rather than raising: a baseline taken outside git is still a valid measurement,
+    it just cannot cite the revision that produced it.
+    """
+    try:
+        res = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            stdin=subprocess.DEVNULL,
+        )
+        if res.returncode == 0:
+            commit = res.stdout.strip()
+            return commit or None
+    except Exception:
+        pass
+    return None
+
+
+def estimate_tokens(text: str) -> int:
+    """Conservative token estimate for budget accounting.
+
+    Deliberately character-based: a real tokenizer would add a model dependency to a measurement
+    harness and make historical baselines incomparable across tokenizer versions. Four characters
+    per token is the usual English/code approximation; it is used only to compare injections of
+    the same kind against each other, never to size a hard model context window.
+    """
+    if not text:
+        return 0
+    return max(1, (len(text) + 3) // 4)
+
+
+def chunk_retrieval_tokens(hits: List[Dict[str, Any]]) -> int:
+    """Estimated tokens of the chunk text a caller would receive for these hits."""
+    return sum(estimate_tokens(str(h.get("content") or "")) for h in hits)
+
+
+def graded_relevance(path: str, content: str, expected_domain: str) -> int:
+    """Relevance grade for one retrieved hit, used to compute nDCG.
+
+    2 = the hit is explicitly labelled with the expected domain, 1 = the domain word merely
+    appears somewhere in the chunk, 0 = unrelated. Binary recall cannot separate the first two,
+    which is why a saturated baseline (every query hitting) still hides ranking regressions.
+    """
+    want = expected_domain.lower()
+    if not want:
+        return 0
+    haystack = f"{str(path or '').lower()}\n{str(content or '').lower()}"
+    if not haystack.strip():
+        return 0
+    if f"path: {want}" in haystack or f"/{want}/" in haystack:
+        return 2
+    return 1 if want in haystack else 0
+
+
+def ndcg_at_k(grades: List[int], ideal_grades: List[int], k: int) -> float:
+    """Normalized discounted cumulative gain with exponential gain (2^grade - 1).
+
+    Returns 0.0 when the query has no relevant document at all, so an ungradeable query cannot
+    inflate the corpus average.
+    """
+    ideal = sorted(ideal_grades, reverse=True)[:k]
+    idcg = sum((2.0 ** g - 1.0) / math.log2(i + 2.0) for i, g in enumerate(ideal))
+    if idcg <= 0.0:
+        return 0.0
+    dcg = sum((2.0 ** g - 1.0) / math.log2(i + 2.0) for i, g in enumerate(grades[:k]))
+    return dcg / idcg
+
+
+def bench_metrics(
+    results: List[Dict[str, Any]],
+    hits_by_query: List[List[Dict[str, Any]]],
+    k: int = 3,
+) -> Dict[str, Any]:
+    """Aggregate recall@k, nDCG@k, injected chunk tokens, and latency over a query set."""
+    if not results:
+        return {"recall_at_k": 0.0, "ndcg_at_k": 0.0, "chunk_tokens_avg": 0.0, "total_queries": 0}
+    ndcgs = []
+    tokens = []
+    for result, hits in zip(results, hits_by_query):
+        expected = str(result.get("expected_domain") or "")
+        grades = [graded_relevance(h.get("path"), h.get("content"), expected) for h in hits]
+        # Normalize against the best ordering *of what was retrieved*, not against a single ideal
+        # hit. The corpus's full relevant set is unknown to the harness, and assuming one grade-2
+        # document made DCG sum several hits while IDCG summed one — producing nDCG values above
+        # 1.0 (observed: 2.131). Ordering quality is this metric's job; finding the document at all
+        # is recall's job, and a missed document scores 0 through the grades.
+        ideal = sorted(grades, reverse=True)
+        ndcgs.append(ndcg_at_k(grades, ideal, k))
+        tokens.append(chunk_retrieval_tokens(hits))
+    passed = sum(1 for r in results if r.get("recall_at_3"))
+    return {
+        "recall_at_k": passed / len(results),
+        "ndcg_at_k": sum(ndcgs) / len(ndcgs),
+        "chunk_tokens_avg": sum(tokens) / len(tokens),
+        "chunk_tokens_total": sum(tokens),
+        "total_queries": len(results),
+    }
+
+
+def bench_baseline_payload(
+    results: List[Dict[str, Any]],
+    hits_by_query: List[List[Dict[str, Any]]],
+    embedding_identity: Optional[str],
+    store_records: int,
+    commit: Optional[str] = None,
+) -> Dict[str, Any]:
+    """The committed baseline document. v2 pins embedding identity so cross-backend drift is visible."""
+    metrics = bench_metrics(results, hits_by_query)
+    total = metrics["total_queries"]
+    return {
+        "format": BENCH_BASELINE_FORMAT,
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "embedding_identity": embedding_identity,
+        "store_records": int(store_records),
+        "engine": commit,
+        "recall_at_3": metrics["recall_at_k"],
+        "ndcg_at_3": metrics["ndcg_at_k"],
+        "chunk_tokens_avg": metrics["chunk_tokens_avg"],
+        "total_queries": total,
+        "passed": sum(1 for r in results if r.get("recall_at_3")),
+        "avg_latency_ms": (
+            sum(float(r.get("latency_ms") or 0.0) for r in results) / total if total else 0.0
+        ),
+        "results": results,
+    }
+
+
+def compare_to_baseline(
+    current: Dict[str, Any], baseline: Dict[str, Any], threshold: float = 0.90
+) -> List[str]:
+    """Returns human-readable regression findings; empty means no metric dropped past threshold.
+
+    A baseline recorded under a different embedding identity is reported as incomparable rather
+    than as a regression: comparing vectors from two models measures the model change, not the code.
+    """
+    findings: List[str] = []
+    base_identity = baseline.get("embedding_identity")
+    cur_identity = current.get("embedding_identity")
+    if base_identity and cur_identity and base_identity != cur_identity:
+        findings.append(
+            f"incomparable: baseline built with '{base_identity}', current run uses '{cur_identity}'"
+        )
+        return findings
+    for key, label in (
+        ("recall_at_3", "Recall@3"),
+        ("ndcg_at_3", "nDCG@3"),
+    ):
+        base_val = baseline.get(key)
+        cur_val = current.get(key)
+        if base_val is None or cur_val is None:
+            continue
+        try:
+            base_f, cur_f = float(base_val), float(cur_val)
+        except (TypeError, ValueError):
+            continue
+        if base_f <= 0.0:
+            continue
+        if cur_f < base_f * threshold:
+            findings.append(f"{label} {cur_f:.3f} fell below {base_f:.3f} baseline (threshold {threshold:.0%})")
+    return findings
 
 
 def index_mismatch_warning(repo_root: Path, identity: str) -> Optional[str]:
@@ -6063,12 +6250,14 @@ def main():
         passed = 0
         total_lat = 0
         results = []
+        hits_by_query = []
         for q, expected in test_suite:
             t0 = time.time()
             vec = client.embed_one(f"task: search result | query: {q}")
             if getattr(args, "drift_injection", None) is not None:
                 vec = inject_synthetic_drift(vec, args.drift_injection)
             hits = store.search(vec, limit=3)
+            hits_by_query.append(hits)
             dur = int((time.time() - t0) * 1000)
             total_lat += dur
             matched = any(expected in h.get("path", "").lower() or expected in h.get("content", "").lower() for h in hits)
@@ -6081,44 +6270,57 @@ def main():
                 "latency_ms": dur,
                 "top_match": hits[0]["path"] if hits else "",
                 "top_score": hits[0]["score"] if hits else 0.0,
+                "chunk_tokens": chunk_retrieval_tokens(hits),
             })
         recall_rate = passed / len(test_suite) if test_suite else 1.0
         avg_lat = total_lat / len(test_suite) if test_suite else 0.0
 
+        store_identity = read_index_fingerprint_identity(repo_root)
+        current = bench_baseline_payload(
+            results, hits_by_query, store_identity, store.count(), engine_commit(repo_root)
+        )
+        current["iterations"] = args.iterations
+
         baseline_file = repo_root / ".agents" / "rag" / "bench-baseline.json"
         if getattr(args, "save_baseline", False) or (getattr(args, "regression", False) and not baseline_file.exists()):
             baseline_file.parent.mkdir(parents=True, exist_ok=True)
-            baseline_data = {
-                "saved_at": datetime.now(timezone.utc).isoformat(),
-                "recall_at_3": recall_rate,
-                "avg_latency_ms": avg_lat,
-                "total_queries": len(test_suite),
-                "passed": passed,
-                "results": results,
-            }
-            baseline_file.write_text(json.dumps(baseline_data, indent=2), encoding="utf-8")
+            baseline_file.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
             print(f"  \033[32m[rag:bench]\033[0m Saved baseline snapshot to {baseline_file}")
+            print(
+                f"  \033[36m[rag:bench]\033[0m embedding identity: {store_identity or 'unrecorded'}"
+                f" | store records: {current['store_records']}"
+            )
 
         if getattr(args, "regression", False) and baseline_file.exists():
             try:
                 b_val = json.loads(baseline_file.read_text(encoding="utf-8"))
                 prev_recall = float(b_val.get("recall_at_3", 1.0))
-                print(f"Regression Check: Current Recall@3: {recall_rate*100:.1f}% | Baseline: {prev_recall*100:.1f}%")
-                if recall_rate < prev_recall * 0.90:
-                    print("  \033[31m[REGRESSION DETECTED]\033[0m Ranking recall degraded below baseline threshold!", file=sys.stderr)
+                print(f"Regression Check: Current Recall@3: {current['recall_at_3']*100:.1f}% | Baseline: {prev_recall*100:.1f}%")
+                if "ndcg_at_3" in b_val:
+                    print(f"                  Current nDCG@3:   {current['ndcg_at_3']:.3f} | Baseline: {float(b_val['ndcg_at_3']):.3f}")
+                findings = compare_to_baseline(current, b_val)
+                if findings:
+                    for finding in findings:
+                        print(f"  \033[31m[REGRESSION DETECTED]\033[0m {finding}", file=sys.stderr)
                     sys.exit(1)
-                else:
-                    print("  \033[32m[PASS]\033[0m Ranking recall stable across index revisions.")
+                print("  \033[32m[PASS]\033[0m Ranking quality stable across index revisions.")
+            except SystemExit:
+                raise
             except Exception as e:
                 print(f"  [rag:bench] Error checking regression baseline: {e}")
 
         if args.json:
             print(json.dumps({
+                "format": current["format"],
                 "iterations": args.iterations,
                 "total_queries": len(test_suite),
                 "passed": passed,
                 "recall_at_3": recall_rate,
+                "ndcg_at_3": current["ndcg_at_3"],
+                "chunk_tokens_avg": current["chunk_tokens_avg"],
                 "avg_latency_ms": avg_lat,
+                "embedding_identity": store_identity,
+                "store_records": current["store_records"],
                 "results": results
             }, indent=2))
         else:
@@ -6130,7 +6332,10 @@ def main():
                 print(f"      Status:   {status_str}")
             print("\nBenchmark Summary:")
             print(f"  Recall@3:     {recall_rate * 100:.1f}% ({passed}/{len(test_suite)})")
+            print(f"  nDCG@3:       {current['ndcg_at_3']:.3f}")
+            print(f"  Chunk Tokens: {current['chunk_tokens_avg']:.0f} avg per query")
             print(f"  Avg Latency:  {avg_lat:.1f} ms")
+            print(f"  Embeddings:   {store_identity or 'unrecorded'}")
             print(f"  Overall:      {'STABLE' if recall_rate >= 0.66 else 'DEGRADED'}\n")
 
     elif args.subcommand == "gate":
