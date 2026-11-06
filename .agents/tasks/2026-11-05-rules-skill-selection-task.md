@@ -43,11 +43,16 @@ selection, no prompts). `AINISH_SKILLS_DEFAULT` / `AINISH_SKILLS_SELECTION` over
 
 ## Verification
 
-- `bash scripts/test-pqc-dist.sh` → all 14 new skill-selection assertions pass; only the two pre-existing
-  `--pqc-install` failures remain (identical on unmodified `main`, unrelated to this change).
-- End-to-end pty smoke, 17/17: first-contact selector appears and deploys exactly the chosen pack; second
-  run reuses the saved selection silently; `-y` and `--headless` never prompt; `--select-skills` persists;
-  cancel and idle timeout both fall back to the saved selection and still finish the deployment.
+- `bash scripts/test-pqc-dist.sh` → **51/51 PASS** (14 new skill-selection assertions, plus the two
+  formerly-failing `--pqc-install` assertions fixed below).
+- End-to-end pty smoke with the REAL engine and no stubs, **21/21**: first-contact selector appears and
+  deploys exactly the chosen pack; second run reuses the saved selection silently; `-y` and `--headless`
+  never prompt; `--select-skills` persists; cancel and idle timeout both fall back to the saved selection
+  and still finish the deployment; every run exits 0 within seconds.
+- Unattended paths, **4/4**: the installed `.agents/bin/ainish-rules-sync` refresher and
+  `--rules-sync --all --quiet` both complete in ~1s and never open the selector.
+- Fresh-install identity, **7/7**: `ok:true` with a keypair and no bundle; second install reports
+  `present`; a populated store still installs cleanly.
 - `set -euo pipefail` edge cases: zero-selection JSON report, human report, empty counts, nonexistent repo,
   missing config file, invalid timeout — all exit 0 with sane values.
 - `ainish-rag audit verify` → 16/16 receipts verified; `audit contract --verify-history` → 27 hash-chained
@@ -55,8 +60,16 @@ selection, no prompts). `AINISH_SKILLS_DEFAULT` / `AINISH_SKILLS_SELECTION` over
 
 ## Notes
 
-- Unrelated pre-existing issue found while testing: `--rules` under `script(1)` in WSL hangs in
-  embedding-provider detection when invoking the Windows `ainish-rag.exe`. It reproduces on unmodified
-  `main` with no changes applied, so it was left alone; the pty smoke stubs the engine only for that reason.
-- The selector never opens inside the auto-sync refresher (`--headless` by construction), so hooks stay
-  non-interactive.
+- **The WSL hang is fixed, not worked around.** The engine invocation was being stopped by SIGTTIN:
+  under WSL the Windows `.exe` launches through `/init`, which reads inherited stdin, and in a
+  non-foreground process group (command substitution, git hook, background job) that read stops the
+  process (`T`, `wchan: do_signal_stop`) instead of failing. A stopped child also stops the `timeout`
+  watchdog, so the 20s bound never fired. Every engine invocation now detaches stdin, which makes the
+  existing timeouts enforceable: real-engine `--rules` under a pty went from hanging indefinitely to
+  exiting 0 in 6–8s.
+- **`--pqc-install` no longer false-negatives on a fresh install.** It required `bundleExists`, but
+  `keygen` only creates the ML-KEM-768 keypair and bundles appear when a secret is first packed — so
+  every clean install reported `ok:false` while its launcher was ready. Existing stores masked this.
+  Success now means "launcher installed and a usable identity resolves".
+- The selector never opens inside the auto-sync refresher or the fleet sync (`--headless` by
+  construction), verified against the installed refresher and `--rules-sync --all --quiet`.

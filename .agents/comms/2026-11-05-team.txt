@@ -52,3 +52,15 @@
 - blockers:none
 - compat:No selection-file or manifest format change; existing per-repo choices keep working; `--headless`/`-y`/non-TTY behavior unchanged. New flags and env vars (`AINISH_SKILLS_PROMPT`, `AINISH_SKILLS_PROMPT_TIMEOUT`) are additive, so no migration is required; roll back by reverting this branch.
 - verification:scripts/test-pqc-dist.sh selection assertions 14/14; pty smoke 17/17; set -euo pipefail edge cases; ainish-rag audit verify 16/16; contract history 27 transitions; canonical byte identity.
+
+### [2026-11-05T03:20:00Z] update | branch:fix/rules-skill-selection | wt:D:\Code\ainish-coder-skills-select
+- start:2026-11-05T03:05:00Z
+- end:2026-11-05T03:20:00Z
+- scope:src/embed_config.sh, src/deploy_rules_sync.sh, src/agents_protection.sh, src/pqc_dist.sh, scripts/test-pqc-dist.sh, llms.txt
+- objective:Fix the two defects found while proving the skills-selection change, rather than shipping around them.
+- input:Operator asked for everything fixed and working as intended before rules are pushed to other repos.
+- output:Engine invocations detach stdin, which stops the WSL SIGTTIN hang (root-caused: inherited pty stdin + non-foreground process group stops the `.exe`, and the stopped child drags `timeout` down with it, so the watchdog never fired). `--pqc-install` no longer false-negatives on a fresh install: success means launcher installed plus a usable identity (`generated`/`present`/`failed`), not `bundleExists`, which `keygen` never writes.
+- status:done
+- blockers:none
+- compat:No CLI, manifest, or store-format change. `keygen` state gains `present` alongside `generated`/`failed`/`skipped` in `pqc-install/v1` JSON; `ok` can now be true without a bundle, which is the correct fresh-install state. Roll back by reverting this branch.
+- verification:scripts/test-pqc-dist.sh 51/51 PASS; real-engine pty smoke 21/21 (no stubs) with `--rules` now 6-8s exit 0 where it previously hung; unattended refresher and `--rules-sync --all --quiet` bounded, no selector; fresh-install identity 7/7; audit verify 16/16; contract history 27 transitions.

@@ -187,11 +187,14 @@ snapshot_canonical_contract() {
     cp "$source_file" "$dest_copy" || return 1
     echo "$hash_val" > "$dest_hash"
 
-    # Re-sign canonical contract with FIPS 204 ML-DSA-65 if ainish-rag is available
+    # Re-sign canonical contract with FIPS 204 ML-DSA-65 if ainish-rag is available.
+    # stdin is detached: under WSL the Windows .exe reads inherited stdin through
+    # /init, and a non-foreground process group gets SIGTTIN — the process stops
+    # instead of failing, which would stall the caller indefinitely.
     if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
-        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag.exe" audit contract --threshold 1 >/dev/null 2>&1) || true
+        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag.exe" audit contract --threshold 1 </dev/null >/dev/null 2>&1) || true
     elif [[ -x "${REPO_DIR}/bin/ainish-rag" ]]; then
-        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag" audit contract --threshold 1 >/dev/null 2>&1) || true
+        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag" audit contract --threshold 1 </dev/null >/dev/null 2>&1) || true
     fi
 
     lock_agents_contract "$dest_copy" 2>/dev/null || true

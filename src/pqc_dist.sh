@@ -119,6 +119,34 @@ _pqc_store_json() {
     _pqc_run_engine store --json 2>/dev/null || true
 }
 
+# _pqc_ensure_identity <store_path> — make sure this machine has usable key
+# material, and report what happened: generated | present | failed.
+#
+# A bundle is NOT the test. `keygen` only creates the ML-KEM-768 keypair;
+# secrets.bundle.json appears the first time the operator packs a secret. So a
+# correct fresh install ends with key material and no bundle, and `keygen`
+# exits non-zero on the next run precisely because the keypair already exists.
+_pqc_ensure_identity() {
+    local store_path="${1:-}" keyfile=""
+    if _pqc_run_engine keygen >/dev/null 2>&1; then
+        printf 'generated\n'
+        return 0
+    fi
+    # keygen refuses to overwrite; treat existing key material as success.
+    # Check the resolved store first, then the platform default location.
+    if [[ -n "$store_path" && -f "${store_path}/private.key.enc" ]]; then
+        printf 'present\n'
+        return 0
+    fi
+    keyfile="${PQC_CONFIG_DIR:-${HOME}/.config/pqc-secrets}/private.key.enc"
+    if [[ -f "$keyfile" ]]; then
+        printf 'present\n'
+        return 0
+    fi
+    printf 'failed\n'
+    return 1
+}
+
 # Read a string field from a JSON object on stdin (single-line values only).
 _pqc_json_field() {
     sed -n "s/^[[:space:]]*\"$1\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
@@ -291,6 +319,13 @@ pqc_install() {
 
     # Generate the machine identity only when no bundle resolves. `store --json`
     # reports bundleExists without decrypting anything.
+    #
+    # A fresh install legitimately ends with a keypair and NO bundle: bundles are
+    # created when the operator first packs a secret, so `keygen` never writes
+    # one. Success therefore means "a usable identity exists" — either an
+    # existing bundle, or key material this run generated or found — not
+    # "a bundle exists". Requiring `bundleExists` here made every fresh install
+    # report ok:false while its launcher was in fact ready.
     local store_json exists key_count store_path store_source keygen="skipped"
     store_json="$(_pqc_store_json)"
     exists="$(printf '%s' "$store_json" | _pqc_json_scalar bundleExists)"
@@ -298,17 +333,11 @@ pqc_install() {
         print_error "Cannot read the PQC store (engine probe failed)."
         return 1
     fi
+    store_path="$(printf '%s' "$store_json" | _pqc_json_field store)"
     if [[ "$exists" != "true" ]]; then
-        if _pqc_run_engine keygen >/dev/null 2>&1; then
-            keygen="generated"
-            store_json="$(_pqc_store_json)"
-            exists="$(printf '%s' "$store_json" | _pqc_json_scalar bundleExists)"
-        else
-            keygen="failed"
-        fi
+        keygen="$(_pqc_ensure_identity "$store_path")"
     fi
     key_count="$(printf '%s' "$store_json" | _pqc_json_scalar keyCount)"
-    store_path="$(printf '%s' "$store_json" | _pqc_json_field store)"
     store_source="$(printf '%s' "$store_json" | _pqc_json_field source)"
 
     local wsl_ok="false" wsl_detail="skipped"
@@ -322,7 +351,10 @@ pqc_install() {
     fi
 
     local ok="true"
-    [[ "$launcher_state" == "installed" && "$exists" == "true" && "$keygen" != "failed" ]] || ok="false"
+    # Success = launcher installed AND a usable identity (bundle or keypair).
+    # `keygen=failed` is the only identity failure; a keypair with no bundle yet
+    # is the normal fresh-install state.
+    [[ "$launcher_state" == "installed" && "$keygen" != "failed" ]] || ok="false"
 
     if [[ "$json" == "true" ]]; then
         printf '{\n'
@@ -342,6 +374,9 @@ pqc_install() {
         echo "  launcher:  ${launcher:-<failed>} (on PATH: ${on_path})"
         echo "  store:     ${store_path:-unknown} (${store_source:-?})"
         echo "  bundle:    ${exists} · ${key_count:-0} key(s) · keygen ${keygen}"
+        if [[ "$exists" != "true" && "$keygen" != "failed" ]]; then
+            echo "            identity ready; no secrets packed yet (store one with: pqc-secrets set NAME --stdin)"
+        fi
         if [[ "$wsl" == "true" ]]; then
             echo "  wsl:       ${wsl_detail}"
         fi

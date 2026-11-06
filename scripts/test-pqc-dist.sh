@@ -134,7 +134,10 @@ install_json="${WORK}/install.json"
 run_cli --pqc-install --json --no-wsl > "$install_json"
 check "install ok" "$(jget ok "$install_json")" "true"
 check "launcher installed" "$(jget state "$install_json")" "installed"
-check "bundle exists (keygen not required)" "$(jget bundleExists "$install_json")" "true"
+# A fresh install has an identity but no bundle: bundles appear when the first
+# secret is packed, so requiring one here would fail every clean install.
+check "keygen produced an identity or found one" "$(jget keygen "$install_json")" "generated"
+check "no secrets packed yet (bundle absent by design)" "$(jget bundleExists "$install_json")" "false"
 [[ -x "${HOME_DIR}/.local/bin/pqc-secrets" ]] && ok "launcher is executable" || not_ok "launcher is executable"
 [[ -s "${HOME_DIR}/.config/ainish-coder/pqc-root" ]] && ok "root marker written" || not_ok "root marker written"
 
