@@ -33,8 +33,9 @@ operational system behind the contract:
   the repository commands; never hand-edit signed receipts, manifests, or contract copies.
 - Security, prompt-injection, tool, RAG, and production controls are compiled into the
   rules/runtime contract. Optional packs such as `ainish-security`, `typesafe-jev`, and domain
-  skills are selection-driven and deploy only when the operator explicitly enables them with
-  `--skills-sync`; target repositories must not separately reference or deploy retired packs.
+  skills are selection-driven: `ainish-coder --rules` asks on first contact and then applies the
+  saved per-repo choice, `--select-skills` reopens the choice, `--skills-list` shows it, and
+  `--headless` never prompts. Target repositories must not separately reference or deploy retired packs.
 
 ## Machine-agnostic execution
 

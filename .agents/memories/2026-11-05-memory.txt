@@ -1,0 +1,5 @@
+### [2026-11-05T03:05:00Z] skills-selection-regression
+`--rules` silently deployed zero `.agents/skills/` packs because `b268b75` removed the interactive selector (to stop a WSL stall) and `fdd8537` then defaulted unrecorded packs to OFF — leaving no way to record a selection from the rules path. Fixed by asking once per repo on a real TTY, then applying the saved selection; `--select-skills` reopens the choice and `--skills-list [--json]` reports it. The selector's key read is now bounded by `AINISH_SKILLS_PROMPT_TIMEOUT` (default 120s) and a cancel/timeout falls back to the saved selection, so the stall that motivated the removal cannot recur through this path.
+
+### [2026-11-05T03:05:00Z] pre-existing-wsl-pty-hang
+`ainish-coder --rules` under `script(1)` in WSL hangs in embedding-provider detection when it invokes the Windows `ainish-rag.exe`. Reproduces on unmodified `main`; unrelated to the skills-selection change and left unfixed. Direct (non-pty) invocation of the same engine returns in ~1s, so this is a WSL→Windows interop/pty artifact rather than a deploy logic bug.

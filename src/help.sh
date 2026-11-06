@@ -104,9 +104,12 @@ CORE COMMANDS:
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
     Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + the
-    rules/runtime context and explicitly selected optional packs, then arm continuous auto-sync.
-    --rules never opens the skill selector; use --skills-sync for explicit selection. Use
-    --rules-sync --all to refresh the fleet now.
+    rules/runtime context and the optional skill packs you select, then arm continuous auto-sync.
+    Skill packs are optional: on a real terminal --rules offers the selector the first time a repo
+    has no saved selection, then applies that saved selection on every later run.
+    --select-skills [DIR] reopens the selector; --skills-list [DIR] [--json] shows the current
+    selection. --rules <dir> --headless (-y / no TTY) never prompts — it applies the saved
+    selection as-is. Use --rules-sync --all to refresh the fleet now.
     Use --llms-txt to deploy llms.txt.
     Use --skills-sync to synchronize and selectively ingest skills.
 
@@ -246,6 +249,16 @@ UTILITY COMMANDS:
 
     --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
                               repo (foreign skills reported, untouched)
+    --select-skills [DIR]     Interactive selector: choose which optional skill
+                              packs this repo receives from --rules. Saves the
+                              choice for every later run. Interactive terminal
+                              only; refused under --headless / -y.
+                              Example: ainish-coder --select-skills ~/my-project
+    --skills-list [DIR] [--json]
+                              Read-only: show the saved selection for a repo —
+                              which packs deploy, which do not, and whether the
+                              repo has been asked yet.
+                              Example: ainish-coder --skills-list ~/my-project --json
     --skills-sync [DIR]       THE one command: two-way NEWEST-WINS sync —
                               pulls the latest ainish-coder skills (missing
                               or drifted only) AND ingests newly detected /
@@ -334,7 +347,8 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.txt + skill packs per your persisted selection + global copies
+    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.txt + the skill packs you selected + global copies
+    - Skill packs are optional and chosen by you: --rules offers the selector the first time a repo has no saved selection, and --select-skills reopens it any time. --skills-list shows the current choice.
     - --headless second arg (e.g. 'ainish-coder --skills-sync <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md (project-agnostic rules, single governing tracked copy) + global copies
@@ -349,6 +363,8 @@ EXAMPLES:
     ainish-coder --rules ~/my-project       # Deploy to specific directory (copies)
     ainish-coder --llms-txt                 # Deploy llms.txt to cwd (copy)
     ainish-coder --skills-sync              # Synchronize & selectively ingest skills (copies)
+    ainish-coder --select-skills            # Choose which skill packs --rules deploys here
+    ainish-coder --skills-list              # Show the saved skill selection for this repo
 
     # Symlink mode: link to source files (AGENTS.md always copies — never links)
     ainish-coder --link --rules             # Symlink .gitignore; AGENTS.md copies
