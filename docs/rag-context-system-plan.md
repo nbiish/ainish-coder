@@ -180,10 +180,16 @@ Provider tier order and model ids are **verified live** (2026-11-06) and recorde
 
 | Tier | Model id | Status |
 |---|---|---|
-| local-router → OpenRouter | `openrouter-deepseek-v4.1-flash-1017` | responds |
-| local-router → ZenMux | `zenmux-deepseek-v4.1-flash` | responds |
-| local-router fallback | `local-router/fallback-models` | responds |
-| local-model | MXFP4_MOE or Q8_K_XL Lightning | **offline today** (Unsloth Studio closed) |
+| local-router → OpenRouter | `openrouter-deepseek-v4.1-flash-1017` | responds, routes to `deepseek/deepseek-v4.1-flash-1017` |
+| local-router → ZenMux | `zenmux-deepseek-v4.1-flash` | responds, routes to `deepseek/deepseek-v4-flash` family |
+| local-model | `…-lightning-30b-a3b-gguf-mxfp4_moe` | **offline today** (Unsloth Studio closed) |
+
+**Do not invent `latest` aliases.** Verified: `deepseek-v4.1-flash-latest`,
+`openrouter-deepseek-v4.1-flash-latest` and `zenmux-deepseek-v4.1-flash-latest` all return **HTTP
+200 with `routed=auto`** — the generic fallback chain, not the requested model. The `~`-prefixed
+`-latest` rows in the router registry are display aliases stripped by `normalizeModelAlias`, not
+callable ids. So the driver **must compare `response.model` to the requested id** and treat a
+mismatch as degraded; a 200 alone proves nothing.
 
 Two constraints that must shape the implementation, not just the docs:
 
@@ -191,13 +197,14 @@ Two constraints that must shape the implementation, not just the docs:
   spends all 16 tokens on reasoning; at 512 it answers normally. Every driver call must budget
   reasoning *plus* answer, and must not treat empty content as a transport error — that would
   mis-diagnose a budget problem as a provider outage.
-- **The requested local NVFP4 Lightning cannot run here.** `llama-quantize --help` on this build
-  (`0.8.0-dev, 7e2fea0`) has no NVFP4 type; only `MXFP4_MOE` exists. Use
-  `…-lightning-30b-a3b-gguf-mxfp4_moe` (or `-ud-q8_k_xl`) instead, or tier 4 will never resolve.
+- **NVFP4 Lightning cannot run here.** `llama-quantize --help` on this build (`0.8.0-dev, 7e2fea0`)
+  has no NVFP4 type; only `MXFP4_MOE` exists. The chosen local tier is therefore
+  `…-lightning-30b-a3b-gguf-mxfp4_moe`.
 
-Also: do **not** repurpose the shared `local-router/fallback-models` chain for the driver order. It
-is used by every client (VS Code, Claude Code, Cline, scripts); reordering it for one tool changes
-behaviour everywhere. The driver order lives in `ainish-rag` as explicit model ids.
+**The driver order is a separate order from `local-router/fallback-models`.** The shared 20-step
+chain serves VS Code, Claude Code, Cline and scripts; the driver order (tier 1–4) is `ainish-rag`'s
+own, carried as explicit model ids. Neither replaces the other, and reordering the shared chain for
+one tool would change routing for every consumer.
 
 **4b. Elephant.** Session-aware synthesizer.
 - Input: current task text, the session's accumulated injection state (a small JSON sidecar in
@@ -241,6 +248,33 @@ measured remote fallback.
 **Exit criteria:** a fresh agent given only `AGENTS.md` can run both commands correctly without
 reading engine internals; the contract test asserts the documented surface matches `--help`.
 **Deliverable:** shrunk `AGENTS.md` + the two verbs.
+
+---
+
+## 4.5. Working discipline for the new chat
+
+This plan is executed against a **single `main`** in each repo. State as of 2026-11-06:
+
+| Repo | Branch | Worktrees | Stashes |
+|---|---|---|---|
+| `ainish-coder` | `main` only | 1 | 0 |
+| `local-router` | `main` only | 1 | 0 |
+
+Rules for the execution chat, so history stays linear and backtrackable:
+
+1. **One short-lived branch per phase**, named `feat/rag-phase-N-<slug>`, cut from `main` and merged
+   back with `--no-ff` so the phase boundary is visible in history. Delete it on merge.
+2. **Never leave a branch unmerged at the end of a session.** If a phase is incomplete, commit to
+   its branch and say so explicitly — do not leave it undiscussed.
+3. **Never leave an orphaned worktree.** A worktree whose `.git` pointer targets a deleted
+   `gitdir` cannot be removed by `git worktree remove`; it is invisible to `git worktree list` but
+   still sits on disk, and any branch only it referenced becomes undeletable. Verify with
+   `git worktree list` **and** a directory listing before declaring cleanup done.
+4. **One order lives in one place.** The driver order is `ainish-rag`'s; the generic chain is
+   `local-router`'s. A change to either must not silently alter the other.
+
+Documentation and code move together: a phase that changes behaviour updates this plan and
+`local-router/docs/driver-models.md` in the same branch.
 
 ---
 
