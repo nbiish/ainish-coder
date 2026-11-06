@@ -23,10 +23,10 @@ Produce the smallest trustworthy context packet, then move the work through expl
    - Run `bin/context-packet.sh --task "<request>"`.
    - Brainstorm and debate intent, alternatives, constraints, and micro-decisions; do not write production code.
    - Draft [`../templates/egm-design.md`](../templates/egm-design.md) with named files/symbols and measurable acceptance.
-2. **Route**
-   - Run `ainish-rag route "<request>" --json`.
-   - Follow `next_action`; use `ainish-rag orient --inject --task-conditioned --json` only when the route requires repository context.
-   - Treat `source: local-calibrated` as a fallback signal, not proof.
+2. **Read**
+   - Read the files the request actually concerns, plus the nearest `llms.txt` chain.
+   - Use `bin/context-packet.sh --task "<request>"` when a bounded summary helps.
+   - `ainish-rag` (`route`, `orient`, `eval`, `gate`) is the operator's own project utility. Use it only when the operator asks for it; it is not required agent intake, and its output is advisory when used.
 3. **Goldfish — stateless review**
    - Start a fresh reviewer with only the design artifact and its explicit references; do not provide Elephant memory, master suggestions, COMMS, chat history, or implementation diff.
    - Run three checks: explain the design, antagonistically find gaps/edge cases, and decide implementation readiness.
@@ -41,7 +41,7 @@ Produce the smallest trustworthy context packet, then move the work through expl
    - Subagents return reports; the orchestrator owns shared-file mutations and receipts.
 6. **Verify**
    - Run focused tests/build/lint and a real changed-surface smoke test.
-   - Run `ainish-rag eval --patch` and `ainish-rag gate` when available.
+   - Run `ainish-rag eval --patch` and `ainish-rag gate` when the operator uses them for this project.
    - Verify signatures, lockfiles, privacy/redaction, and compatibility for touched surfaces.
 7. **Close**
    - Mark the task done or blocked with evidence.

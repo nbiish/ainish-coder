@@ -64,3 +64,14 @@
 - blockers:none
 - compat:No CLI, manifest, or store-format change. `keygen` state gains `present` alongside `generated`/`failed`/`skipped` in `pqc-install/v1` JSON; `ok` can now be true without a bundle, which is the correct fresh-install state. Roll back by reverting this branch.
 - verification:scripts/test-pqc-dist.sh 51/51 PASS; real-engine pty smoke 21/21 (no stubs) with `--rules` now 6-8s exit 0 where it previously hung; unattended refresher and `--rules-sync --all --quiet` bounded, no selector; fresh-install identity 7/7; audit verify 16/16; contract history 27 transitions.
+### [2026-11-05T03:38:00Z] docs | branch:docs/rag-operator-utility | wt:D:\Code\ainish-coder
+- start:2026-11-05T03:28:00Z
+- end:2026-11-05T03:38:00Z
+- scope:AGENTS.md, .agents/canonical/, .agents/llms.txt, .agents/skills/context-orchestration/SKILL.md, llms.txt
+- objective:Reposition ainish-rag as the operator's project utility rather than an agent intake requirement.
+- input:Operator observation that agents do not auto-intake RAG context-engineering, so the mandatory-sounding orientation step was overkill.
+- output:Contract, child index, and orchestration skill no longer direct agents to route/orient; RAG scope stated explicitly in the repo PRD. Every ainish-rag command unchanged. Merged branch and empty leftover worktree removed; smoke target kept enrolled.
+- status:done
+- blockers:none
+- compat:Prompt-contract and docs only; no CLI, schema, or manifest change. Targets receive the revised contract on their next rules refresh; revert the commit to roll back.
+- verification:no remaining route/orient directive in agent-facing docs; contract byte-identical and re-signed; audit verify 16/16; test-pqc-dist 57/57; fleet 3/3 CURRENT.
