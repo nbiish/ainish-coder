@@ -581,6 +581,16 @@ contains "bash launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag
 contains "cmd launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag.cmd")" 'PY_ONLY_SUBCOMMANDS= context secrets '
 # The native engine writes UTF-8; decoding with the platform default crashed every native search.
 contains "native query decode is explicit" "$(cat "${REPO}/src/rag/rag.py")" 'errors="replace"'
+# The pair is two calls with two model choices. Pin both halves: that the engine scopes a chain by
+# role, and that the contract tells the reader the roles can diverge.
+contains "engine scopes the chain by role" "$(cat "${REPO}/src/rag/rag.py")" "def chain_steps(self, role"
+contains "roles rotate to a distinct model" "$(cat "${REPO}/src/rag/rag.py")" "def _rotate_for_role"
+contains "both role pins resolve" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_ELEPHANT_MODEL'
+contains "goldfish pin resolves" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_GOLDFISH_MODEL'
+contains "provenance reports distinct models" "$(cat "${REPO}/src/rag/rag.py")" '"distinct_models"'
+contains "render names the pair" "$(cat "${REPO}/src/rag/rag.py")" "<!-- pair: elephant="
+contains "context exposes a per-role model flag" "$(cat "${REPO}/src/rag/rag.py")" '"--elephant-model"'
+contains "contract documents the per-role pins" "$(cat "${REPO}/AGENTS.md")" 'two separate model calls'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
