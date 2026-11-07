@@ -313,6 +313,65 @@ class DriverChatTest(unittest.TestCase):
             rag.urllib.request.urlopen = original
         self.assertIn("raise max_tokens", str(ctx.exception))
 
+    def test_truncated_response_is_an_error_not_a_short_answer(self):
+        # local-router began passing reasoning tokens through on 2026-11-07, so they now consume the
+        # same budget as the answer and `finish_reason: length` is far more likely. Half a sentence
+        # concatenated into an injection reads as a complete thought, which is worse than a failure.
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return json.dumps({
+                    "model": "mimo-v2.6-pro",
+                    "choices": [{"finish_reason": "length",
+                                 "message": {"content": "Thorough testing is essential"}}],
+                    "usage": {"completion_tokens": 16,
+                              "completion_tokens_details": {"reasoning_tokens": 8}},
+                }).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        original = rag.urllib.request.urlopen
+        rag.urllib.request.urlopen = lambda req, timeout=None: FakeResponse()
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                self.engine._post_chat("http://127.0.0.1:11434", "m", [{"role": "user", "content": "x"}])
+        finally:
+            rag.urllib.request.urlopen = original
+        self.assertIn("truncated", str(ctx.exception))
+        self.assertIn("finish_reason=length", str(ctx.exception))
+
+    def test_finish_reason_is_surfaced_on_success(self):
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return json.dumps({
+                    "model": "mimo-v2.6-pro",
+                    "choices": [{"finish_reason": "stop",
+                                 "message": {"content": "a complete sentence."}}],
+                    "usage": {"completion_tokens": 5},
+                }).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        original = rag.urllib.request.urlopen
+        rag.urllib.request.urlopen = lambda req, timeout=None: FakeResponse()
+        try:
+            r = self.engine._post_chat("http://127.0.0.1:11434", "m", [{"role": "user", "content": "x"}])
+        finally:
+            rag.urllib.request.urlopen = original
+        self.assertEqual(r["finish_reason"], "stop")
+        self.assertEqual(r["text"], "a complete sentence.")
+
 
 class ElephantSessionTest(unittest.TestCase):
     def setUp(self):

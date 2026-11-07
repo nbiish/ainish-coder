@@ -4475,6 +4475,7 @@ class DriverEngine:
         usage = body.get("usage") or {}
         reasoning = ((usage.get("completion_tokens_details") or {}).get("reasoning_tokens")) or usage.get("reasoning_tokens")
         returned_model = str(body.get("model") or model)
+        finish = str(choice.get("finish_reason") or "")
         if not text and reasoning:
             raise RuntimeError(
                 f"empty content with {reasoning} reasoning tokens — raise max_tokens "
@@ -4482,7 +4483,17 @@ class DriverEngine:
             )
         if not text:
             raise RuntimeError("empty content from provider")
-        return {"text": text, "model": returned_model, "usage": usage}
+        # A response cut off by the token budget is not a short answer, it is an incomplete one, and
+        # concatenating it into an injection presents half a sentence as a whole thought. Since
+        # local-router began passing reasoning through (2026-11-07), reasoning tokens now consume the
+        # same budget, so `length` is far more likely than it used to be. Callers decide whether a
+        # truncated draft is usable; the transport reports it rather than hiding it.
+        if finish == "length":
+            raise RuntimeError(
+                f"truncated by token budget (finish_reason=length, max_tokens={payload['max_tokens']}, "
+                f"{reasoning or 'no'} reasoning tokens) — the answer is incomplete; raise max_tokens"
+            )
+        return {"text": text, "model": returned_model, "usage": usage, "finish_reason": finish}
 
     # -- public surface ----------------------------------------------------
 

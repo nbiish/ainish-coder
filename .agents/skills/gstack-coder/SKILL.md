@@ -6,7 +6,6 @@ description: >
   sessions for coding work, running security audits, code reviews, QA testing URLs,
   building features end-to-end, or planning before building. Also configures and
   orchestrates sub-agents to maximize utilization of all AI subscriptions and APIs.
-  For headless terminal coding agent fleet orchestration under local-router Ollama fallback models, pair with orchestrate-subagent-masters skill.
 ---
 
 # GStack Coder — Multi-Tool Coding Orchestration
@@ -169,14 +168,17 @@ wait
 
 ## 6. MCP Sub-Agent Dispatch
 
-For headless terminal coding agent dispatch under the local-router Ollama fallback proxy, pair with the **orchestrate-subagent-masters** skill. It provides:
+For headless terminal agent dispatch under the local-router proxy, this skill's own `mini-live` path
+is the supported route. The `orchestrate-subagent-masters` skill that used to be recommended here is
+**retired** (2026-11-07); if you need DeepSeek Harness dispatch (`dsh --profile headless` one-shot or
+`dsh --profile acp` persistent), call it directly — it is a harness, not an ainish-coder skill, and
+does not need a pack to be installed.
 
-- Fleet dispatch via DeepSeek Harness (`dsh --profile headless` one-shot and `dsh --profile acp` persistent surface) plus harness-native subagent modalities
-- Single config proxy/shim via the Ollama endpoint (`http://localhost:11434/v1`) using `local-router/fallback-models` when profiles are wired to it
-- Zero client-side provider complexity (handled automatically by the booted profile)
+What that dispatch pattern needs when you wire it yourself:
+
+- One config proxy via the Ollama endpoint (`http://localhost:11434/v1`), with `local-router/fallback-models` as the model when profiles point at it
+- Zero client-side provider complexity — the booted profile resolves providers
 - Git worktree isolation per dispatch
-
-orchestrate-subagent-masters dispatches via `dsh --profile headless` (DeepSeek Harness); gstack's own `mini-live` remains available for Claude-style coding sessions.
 
 ---
 
@@ -205,5 +207,6 @@ For parallel work across subscriptions (in canonical order):
 - **claude**: `claude -p "task" --no-session --thinking off`
 - **mini-live**: `mini-live --task "task" --yolo`
 
-For terminal agent fleet dispatch via DeepSeek Harness (`dsh` headless/ACP), pair with orchestrate-subagent-masters skill.
+For terminal agent fleet dispatch via DeepSeek Harness (`dsh` headless/ACP), call `dsh` directly —
+the former `orchestrate-subagent-masters` skill is retired and no pack is required.
 ```
