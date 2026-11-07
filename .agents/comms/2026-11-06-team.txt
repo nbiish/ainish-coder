@@ -45,3 +45,15 @@
 - blockers:none
 - compat:No interface, schema, flag, or dependency change. AINISH_ALLOW_GATE_SKIP=1 is a new opt-in escape hatch; without it a missing uv now fails the gate instead of skipping. pqc_secrets.py keeps the same store precedence order and the same JSON output shape.
 - verification:Windows Git Bash 73/73 (was 71/73); WSL 73/73; Linux ubuntu:24.04 in Docker with real uv 73/73; Linux without uv exits 1 with guidance (was 0/SKIP); native-POSIX stamp translation verified in alpine (macOS-style path untouched, both Windows forms translate); Windows now reports 13 keys and resolve_embed_provider returns pqc:LOCALROUTER_OPENROUTER_API_KEY; 71 python tests pass. macOS not executed - no host available; its code paths are os.name!='nt' and covered by the POSIX container.
+
+### [2026-11-07T00:45:00Z] feat | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-06T19:20:00Z
+- end:2026-11-07T00:45:00Z
+- scope:src/rag/rag.py, src/rag/tests/test_embedding_identity.py
+- objective:Make the RAG embedding path work through local-router with one embedding space across every provider.
+- input:Operator confirmed local-router now has the purpose-scoped fallback-embedding route and asked that the same embedding model be used across all providers down to local.
+- output:Two defects fixed. (1) The store fingerprint identified the PROVIDER rather than the model, so a harmless failover between bit-identical providers looked like index corruption, and pointing retrieval at local-router/fallback-embedding looked like a third space. Identity is now model-derived with a declared route-alias table, and normalize_identity rewrites legacy v1 fingerprints so existing stores are not falsely flagged. (2) 'dimensions' was never sent, leaving the router's width-pinning guard inert; it is now sent for remote endpoints and a short vector raises rather than being padded.
+- status:done
+- blockers:none
+- compat:index-fingerprint.json keeps format v1 but the identity string changes from api:<provider>:<model> to model:<space>. Readers normalize the legacy form, so no target needs reindexing; a genuinely different model (text-embedding-3-large, local embeddinggemma-2) is still reported as a mismatch. Remote embedding requests gain a dimensions field; local llama requests are unchanged.
+- verification:89 python tests (18 new); real bench through local-router/fallback-embedding against the existing 3627-record index gives Recall@3 1.000 and nDCG@3 1.000 with scores matching the direct-OpenRouter run to four decimals; --regression passes with no rebuild warning; width guard fires on a 256-d response for a 768-d index; test-pqc-dist 73/73.
