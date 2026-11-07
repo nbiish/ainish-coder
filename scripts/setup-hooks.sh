@@ -33,9 +33,12 @@ PATTERNS=(
 FOUND=0
 
 for pattern in "${PATTERNS[@]}"; do
-  # Grep recursively in the staged files
-  # Suppress errors, ignore test/template/setup files, and the setup script itself
-  staged_files=$(git diff --cached --name-only 2>/dev/null | grep -vE "^scripts/setup-hooks\.sh$" || true)
+  # Grep recursively in the staged files.
+  # Suppress errors, ignore test/template/setup files, and the setup script itself.
+  # Signature artifacts (*.sig) are base64 ML-DSA-65 payloads: scanning them for
+  # key-shaped substrings only yields false positives (e.g. "BSA" + 27 alnum chars
+  # occurring by chance inside the signature), so they are excluded from the scan.
+  staged_files=$(git diff --cached --name-only 2>/dev/null | grep -vE "^(scripts/setup-hooks\.sh|.*\.sig)$" || true)
   if [ -n "$staged_files" ]; then
     if echo "$staged_files" | while IFS= read -r file; do
         [ -f "$file" ] && [ ! -L "$file" ] && grep -HnE "$pattern" "$file" 2>/dev/null
