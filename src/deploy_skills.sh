@@ -85,10 +85,20 @@ deploy_skills() {
                     ;;
             esac
 
-            # Persisted per-repo selection governs distribution. Live intake:
-            # packs are enumerated from disk each run, but new packs remain off
-            # until the operator explicitly selects them.
-            if [[ "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
+            # Mandatory packs ship on every run: no selection entry, no toggle,
+            # no selector row. They are a runtime dependency of the contract
+            # (every secret resolution goes through pqc-secrets), so treating
+            # them as optional is what allowed a repo to end up without one.
+            local is_mandatory="false"
+            if _skill_mandatory "$skill_name"; then
+                is_mandatory="true"
+            fi
+
+            # Persisted per-repo selection governs OPTIONAL distribution. Live
+            # intake: packs are enumerated from disk each run, but new packs
+            # remain off until the operator explicitly selects them.
+            if [[ "$is_mandatory" != "true" ]] && \
+               [[ "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
                 # OFF = not distributed. Remove a previously-shipped copy so a
                 # toggle-off takes effect immediately (foreign packs at the
                 # target are never touched — this name exists in source, so it
@@ -103,8 +113,10 @@ deploy_skills() {
                 continue
             fi
 
-            # In non-overwrite mode, skip entire skill directory if it already exists
-            if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
+            # In non-overwrite mode, skip entire skill directory if it already exists.
+            # Mandatory packs are exempt: "add missing only" must still refresh a
+            # pack whose whole point is to be present and current.
+            if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" && "$is_mandatory" != "true" ]]; then
                 if [[ -d "$target_skill_dir" ]]; then
                     echo -e "${YELLOW}⏭️  Skipping (already exists): .agents/skills/$skill_name${RESET}"
                     ((skipped_count++)) || true
@@ -112,23 +124,38 @@ deploy_skills() {
                 fi
             fi
 
+            # Mandatory packs are a mirror, not a merge: a file removed upstream
+            # must not survive at the target, or the deployed copy stops matching
+            # the signed source digest that --skills-verify checks.
+            if [[ "$is_mandatory" == "true" && -d "$target_skill_dir" ]]; then
+                rm -rf "$target_skill_dir"
+            fi
             if ! safe_mkdir "$target_skill_dir"; then
                 print_error "Cannot create .agents/skills/$skill_name — skipping pack"
                 failed_skills+=("$skill_name")
                 continue
             fi
-            if ! deploy_path_contents "$skill_dir" "$target_skill_dir"; then
+            if ! deploy_path_contents "$skill_dir" "$target_skill_dir" "$([[ "$is_mandatory" == "true" ]] && printf '1' || printf '0')"; then
                 print_error "Failed to deploy .agents/skills/$skill_name — continuing with remaining packs"
                 failed_skills+=("$skill_name")
                 continue
             fi
             # Pin the distribution: an explicit config entry per deployed pack
             # makes later renames/deletions at source detectable as stale.
-            skills_selection_set "$target_dir" "$skill_name" on || \
-                print_error "Could not pin selection entry for .agents/skills/$skill_name"
+            # Mandatory packs are not pinned — recording them would make them
+            # look selectable in the report and would let a stale `off` entry
+            # from an older release suppress them.
+            if [[ "$is_mandatory" != "true" ]]; then
+                skills_selection_set "$target_dir" "$skill_name" on || \
+                    print_error "Could not pin selection entry for .agents/skills/$skill_name"
+            fi
 
             ((skill_count++)) || true
-            echo -e "${GREEN}✓ Deployed: .agents/skills/$skill_name${RESET}"
+            if [[ "$is_mandatory" == "true" ]]; then
+                echo -e "${GREEN}✓ Deployed (mandatory): .agents/skills/$skill_name${RESET}"
+            else
+                echo -e "${GREEN}✓ Deployed: .agents/skills/$skill_name${RESET}"
+            fi
         fi
     done
 
@@ -143,6 +170,13 @@ deploy_skills() {
             [[ -d "$sweep_dir" ]] || continue
             sweep_name="$(basename "$sweep_dir")"
             [[ -d "$skills_source/$sweep_name" ]] && continue
+            # A mandatory pack is never swept: if it vanished from source that is
+            # a packaging error, and silently deleting the operator's only copy
+            # would turn it into a runtime failure in their repository.
+            if _skill_mandatory "$sweep_name"; then
+                print_warning "Mandatory pack $sweep_name is missing from source — kept the deployed copy"
+                continue
+            fi
             if skills_selection_has_entry "$target_dir" "$sweep_name"; then
                 rm -rf "$sweep_dir" || true
                 echo -e "${YELLOW}⊘ Stale (renamed/deleted at source) — removed: $sweep_name${RESET}"
