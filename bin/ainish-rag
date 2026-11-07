@@ -59,9 +59,35 @@ case "$OS_TYPE" in
     ;;
 esac
 
-# 1. Execute native binary if found, executable, and not this launcher (see is_self above)
+# 1. Execute native binary if found, executable, and not this launcher (see is_self above).
+#
+#    A compiled build can lag the Python engine by design (the exe is a gitignored artifact). When a
+#    subcommand exists only in Python, exec'ing the stale binary turns a supported verb into
+#    "unrecognized subcommand". Ask the binary's own --help once for the verbs it actually accepts and
+#    fall through to Python for anything it does not advertise. PY_ONLY_SUBCOMMANDS is the escape
+#    hatch for verbs added to Python ahead of a rebuild.
+PY_ONLY_SUBCOMMANDS=" context "
+FIRST_ARG=""
+for a in "$@"; do
+    case "$a" in
+        -*) continue ;;
+        *)  FIRST_ARG="$a"; break ;;
+    esac
+done
 if [ -n "$NATIVE_BIN" ] && [ -x "$NATIVE_BIN" ] && ! is_self "$NATIVE_BIN"; then
-    exec "$NATIVE_BIN" "$@"
+    native_ok=1
+    if [ -n "$FIRST_ARG" ]; then
+        native_help="$("$NATIVE_BIN" --help 2>/dev/null || true)"
+        if [ -n "$native_help" ] && ! printf '%s' "$native_help" | grep -qE "^[[:space:]]+$FIRST_ARG([[:space:]]|$)"; then
+            native_ok=0
+        fi
+        case "$PY_ONLY_SUBCOMMANDS" in
+            *" $FIRST_ARG "*) native_ok=0 ;;
+        esac
+    fi
+    if [ "$native_ok" = "1" ]; then
+        exec "$NATIVE_BIN" "$@"
+    fi
 fi
 
 # 2. Transparent fallback to Python engine with uv / python3 / python

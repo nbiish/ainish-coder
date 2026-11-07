@@ -1,0 +1,73 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — {2026-11-07}
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`). `ainish-coder --rules` asks on a real terminal the FIRST time a repo has no saved selection, then applies that saved choice on every later run; `ainish-coder --select-skills [DIR]` reopens the choice and `ainish-coder --skills-list [DIR] [--json]` shows it. Agents and CI MUST use the headless path — `ainish-coder --rules <dir> --headless` or `ainish-coder --skills-sync <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
+
+</PROTOCOL>
+
+---
+
+### [2026-11-07T02:10:00Z] feat | branch:feat/rag-context-injection | wt:D:\Code\ac-rag-context
+- start:2026-11-07T00:50:00Z
+- end:2026-11-07T02:10:00Z
+- scope:AGENTS.md, llms.txt, .agents/llms.txt, .agents/skills/context-orchestration/SKILL.md, .agents/skills/ainish-security/SKILL.md, src/rag/rag.py, src/rag/tests/test_context_injection.py, scripts/test-pqc-dist.sh, docs/rag-context-system-plan.md, .agents/canonical/, .agents/audit/contract-history.*
+- objective:Wire AGENTS.md to a real context-injection system: one agent call returns a budgeted, labelled injection combining Elephant and Goldfish additions, with model tiers local-router -> openrouter -> zenmux -> local-model and a genuine offline floor.
+- input:Operator asked that an agent read AGENTS.md, make a single ainish-rag call, and receive the engine's advanced processing (decision model, Elephant + Goldfish concatenated sections) before starting the task, preferring local-router then OpenRouter then ZenMux with a local-only absolute fallback.
+- output:Contract and engine moved together. AGENTS.md lost the "not an agent intake requirement" clause that made the pipeline unreachable and gained the <CONTEXT_INJECTION> section (one command, section semantics, advisory rule, never-block rule, tier/override surface, no keys or endpoints). New DriverEngine implements tiered generation with source/model_verified/attempts reporting; elephant_synthesize and goldfish_review produce the two additions, with Goldfish's isolation enforced by its signature; assemble_injection applies a fixed degradation ladder. context subcommand, completions, and a secrets driver table expose it. Plan Phase 4 marked done with measured numbers and its latency limit stated.
+- status:in-progress
+- blockers:none
+- compat:Additive surface with two behaviour changes. (1) AGENTS.md now directs every deployed agent to one ainish-rag context call at orient; targets receive this on their next rules refresh, and an agent on a host without the verb is told to continue with plain file reading, so no target is blocked. (2) The canonical contract was re-signed (ML-DSA-65, 33 hash-chained transitions), so a target whose AGENTS.md is compared to the root copy will report drift until refreshed. New CLI verb context plus --no-remote/--retrieval-only/--budget/--session/--unload; no existing flag changed meaning. New env vars AINISH_RAG_DRIVER_* (priority, offline, keep-alive, max-tokens, per-tier URLs and local model pin) all default to the documented behaviour. No new dependency. Roll back by reverting the merge and re-signing.
+- verification:116 python tests pass (89 before, 27 new covering tier order, model-identity mismatch as degraded, reasoning-budget error, session scrubbing, Goldfish signature isolation, budget ladder, file fallback); scripts/test-pqc-dist.sh 99/99 under Git Bash (86 before, 13 new asserting contract-to-engine wiring and that AGENTS.md embeds no key or provider endpoint); audit verify 16/16 after re-sign; live driver tiers probed directly (OpenRouter deepseek/deepseek-v4.1-flash-1017 839ms, ZenMux deepseek/deepseek-v4.1-flash 5206ms, local-router tier 1 cold 9659ms) all DRIVER_OK with reasoning tokens reported; live context --budget 1200 returned 917 tokens across retrieval+elephant+goldfish sections and correctly reported degraded when the vector driver was absent; AINISH_RAG_DRIVER_OFFLINE=1 degraded to the local tier without hanging; context --json stdout parses as pure JSON when invoked from a subprocess.
+- budget:Two generative calls per context invocation (measured ~21s wall clock end to end this run, of which two driver calls dominate); --retrieval-only and --no-remote exist to cap spend, and the local tier is free. No CI spend change beyond the existing gate.
+
+### [2026-11-07T02:55:00Z] feat | branch:feat/rag-context-injection | wt:D:\Code\ac-rag-context
+- start:2026-11-07T02:38:00Z
+- end:2026-11-07T02:55:00Z
+- scope:src/rag/rag.py, src/rag/tests/test_context_injection.py, AGENTS.md, llms.txt, docs/rag-context-system-plan.md, scripts/test-pqc-dist.sh, .agents/canonical/, .agents/audit/contract-history.*
+- objective:Pin the driver chain to the operator's exact order and prove it is ainish-rag's own order rather than local-router's fallback content.
+- input:Operator specified the chain local-router/fallback-models -> zai glm-5.3-flash -> xiaomi 2.6-pro -> openrouter deepseek-v4.1-flash-1017, to live inside ainish-rag instead of in local-router tooling's fallback content. Operator also confirmed the "Always believe in yourself." line in AGENTS.md was theirs.
+- output:Replaced the tier-based transport with DRIVER_CHAIN, an explicit ordered list of model ids: local-router/fallback-models, zai-glm-5.3-flash, xiaomi-mimo-mimo-v2.6-pro, openrouter-deepseek-v4.1-flash-1017, then a direct deepseek/deepseek-v4.1-flash-1017 only if the router is unreachable. First answering step wins and every rejection is recorded per step. Step 1 carries expect_any because its purpose is the shared generic chain, so whatever it selects is correct rather than a false mismatch; steps 2-4 are pinned and a mismatch there stays a real signal. driver_model_matches became suffix-based because router ids answer provider-stripped (xiaomi-mimo-mimo-v2.6-pro answers mimo-v2.6-pro) while a snapshot suffix still counts as a different model. Offline mode keeps a local-model floor step even when empty so it reports why the local backend failed instead of "no step configured". AINISH_RAG_DRIVER_MODEL pins one step. Contract, PRD, plan and gate assertion updated to the real chain. The operator's AGENTS.md line was restored after I mistakenly removed it as unexplained contamination.
+- status:done
+- blockers:none
+- compat:Raises the contract and CLI surface again, so targets drift until their next rules refresh. AINISH_RAG_DRIVER_PRIORITY no longer reorders the driver chain (the order is explicit in DRIVER_CHAIN); it is documented as retired for ordering rather than silently ignored. New AINISH_RAG_DRIVER_MODEL pin. local-router's shared fallback-models chain is untouched by design, so no other client on the machine is rerouted. Canonical contract re-signed (36 hash-chained transitions). Roll back by reverting the merge and re-signing.
+- verification:128 python tests pass (39 new); test-pqc-dist 99/99; audit verify 16/16 after re-sign; all four router steps probed live and each returned DRIVER_OK with model_verified true; forced step-1 rejection failed over to step 2 with exactly one recorded reason; live context through the launcher produced retrieval+elephant+goldfish with drivers local-router:mimo-v2.6-pro and degraded false; offline mode contacted no remote step and named the local failure precisely.
+- budget:Two generative calls per context invocation, unchanged; chain step 1 and 2 answer in ~1-4s, so --retrieval-only and --no-remote remain the spend caps.
