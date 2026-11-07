@@ -57,3 +57,15 @@
 - blockers:none
 - compat:index-fingerprint.json keeps format v1 but the identity string changes from api:<provider>:<model> to model:<space>. Readers normalize the legacy form, so no target needs reindexing; a genuinely different model (text-embedding-3-large, local embeddinggemma-2) is still reported as a mismatch. Remote embedding requests gain a dimensions field; local llama requests are unchanged.
 - verification:89 python tests (18 new); real bench through local-router/fallback-embedding against the existing 3627-record index gives Recall@3 1.000 and nDCG@3 1.000 with scores matching the direct-OpenRouter run to four decimals; --regression passes with no rebuild warning; width guard fires on a 256-d response for a 768-d index; test-pqc-dist 73/73.
+
+### [2026-11-07T01:05:00Z] feat | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-07T00:50:00Z
+- end:2026-11-07T01:05:00Z
+- scope:bin/ainish-coder, src/skills_selection.sh, src/help.sh, scripts/test-pqc-dist.sh
+- objective:Let the operator set a machine-wide skills default once, have --rules honour it, and reconfigure any repo persistently.
+- input:Operator asked for --skills-set-default plus a --skills surface so a per-repo reconfiguration persists across repos.
+- output:--skills-set-default on|off persists global_default and now also suppresses the first-contact prompt (without that a saved default still asked on every new repo). Precedence is repo default > persisted global > AINISH_SKILLS_DEFAULT > off; the env var deliberately no longer outranks a saved default so the setting stays durable across shells. --skills reconfigures one repo: interactive selector on a TTY, --on/--off for scripted use, --list/--json read-only; pack names are validated so a typo exits 1 instead of saving an empty selection.
+- status:done
+- blockers:none
+- compat:Additive CLI only; no existing flag changed meaning and --select-skills still works as an alias. One behaviour change: a persisted global_default of on now outranks AINISH_SKILLS_DEFAULT=off for repos with no recorded answer, and suppresses their prompt. No config schema change - global_default is a new top-level key beside repos, and older readers ignore unknown keys.
+- verification:scripts/test-pqc-dist.sh 86/86 on Windows Git Bash, WSL and Linux (ubuntu:24.04, Docker), with 13 new assertions covering default persistence, prompt suppression, repo-over-global precedence, env precedence, per-repo scoping, unknown-name rejection and TTY refusal; nine behaviours checked end-to-end with a sandboxed AINISH_SKILLS_SELECTION plus real exit codes; 89 python tests pass.
