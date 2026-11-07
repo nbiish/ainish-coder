@@ -92,10 +92,12 @@ _ainish_skill_excluded() {
 
 # True when a pack must be present at every target regardless of selection.
 # verify uses this to treat an absent mandatory pack as an error rather than as
-# an ordinary "missing (not deployed)" note.
+# an ordinary "missing (not deployed)" note. Keep in step with _skill_mandatory in
+# src/skills_selection.sh — deploy and verify disagreeing is how a pack ships but
+# reports as absent, or the reverse.
 _ainish_skill_mandatory() {
     case "$1" in
-        pqc-secrets) return 0 ;;
+        pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac
 }

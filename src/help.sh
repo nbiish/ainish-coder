@@ -97,7 +97,7 @@ CORE COMMANDS:
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
-    --secure [DIR]            Deploy the legacy standalone security documents
+    --secure [DIR]            Deploy the consolidated AGENTS_SECURITY.md standard
                               (new targets receive the rules/runtime security contract; optional packs stay off)
 
 
@@ -299,7 +299,7 @@ UTILITY COMMANDS:
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
-                              - ainish-security/           (Integrated security, prompt, and tool containment)
+                              - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - modern-prompting/          (OOReDAct advanced prompting)
                               - document-enhancer/         (Knowledge fusion & document hardening)
@@ -372,7 +372,7 @@ NOTES:
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md (project-agnostic rules, single governing tracked copy) + global copies
     - --llms-txt deploys llms.txt (separate from --rules)
-    - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md
+    - --secure deploys AGENTS_SECURITY.md (one consolidated standard; retires the CODE+LLM pair)
     - All tool-specific flags consolidated into .agents/skills/
     - Provider API keys stored in ~/.config/ainish-coder/providers.json
 

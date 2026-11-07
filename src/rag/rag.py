@@ -4702,7 +4702,7 @@ CONTEXT_BUDGET_DEFAULT = 4000
 # Below this an injection cannot carry three labelled sections at all; an explicit smaller --budget
 # is raised to it and the raise is reported rather than silent.
 CONTEXT_BUDGET_FLOOR = 300
-CONTEXT_SECTION_CAPS = {"retrieval": 0.60, "elephant": 0.22, "goldfish": 0.18}
+CONTEXT_SECTION_CAPS = {"orientation": 0.12, "retrieval": 0.54, "elephant": 0.20, "goldfish": 0.14}
 SESSION_FORMAT = "ainish-rag/elephant-session/v1"
 SESSION_SUMMARY_LIMIT = 1600
 SESSION_MAX_TURNS = 40
@@ -5192,8 +5192,10 @@ def assemble_injection(
         retrieval["text"] = "\n\n".join(lines[:-1])
         notes.append("trimmed retrieved tail")
 
-    # 2. Drop Goldfish, 3. then Elephant, 4. leaving raw snippets only.
-    for source in ("goldfish", "elephant"):
+    # 2. Drop Goldfish, 3. then Elephant, 4. Orientation is dropped last: it is the cheapest section
+    #    (no model call) and the only one that is still useful when everything else failed, so
+    #    sacrificing a driver's prose to keep "which branch, is the tree dirty" is the right trade.
+    for source in ("goldfish", "elephant", "orientation"):
         if total() <= budget:
             break
         for section in working:
@@ -5221,6 +5223,118 @@ def assemble_injection(
         "degraded": degraded or bool(notes),
         "degrade_notes": notes,
     }
+
+
+def render_orientation_section(repo_root: Path, token_cap: int) -> str:
+    """Gathers the mechanical orientation state a fresh agent would otherwise collect by hand.
+
+    This is the part of the old `context-orchestration` skill that was genuinely mechanical:
+    which branch and worktree am I in, is the tree dirty, what has today's COMMS ledger recorded,
+    what does the newest task record say. Doing it in code rather than in prose means it is always
+    current, costs no model call, and cannot be skipped because the agent was in a hurry.
+
+    Deliberately *not* included: the skill's design-review procedure (draft a document, have a
+    stateless reviewer approve it). That is a workflow an agent follows with judgement, not state a
+    tool can gather — and `ainish-rag context` already carries the reviewer half as the `goldfish`
+    section.
+    """
+    if token_cap <= 0:
+        return ""
+    parts: List[str] = []
+
+    # Git state must come from the CURRENT working directory, not the canonical checkout.
+    # `run_context_command` receives the canonical repo root (so shared state like the index and
+    # sessions resolves correctly), but the branch that matters is the one this agent is working on.
+    # Reporting `main` from a feature worktree is worse than reporting nothing: the contract's first
+    # non-negotiable is "never work on main", and an orientation block that says `main` while the
+    # agent sits in a worktree actively misleads about that.
+    git_cwd = Path.cwd()
+    if not (git_cwd / ".git").exists() and not (git_cwd / ".git").is_file():
+        # cwd is not a worktree root (e.g. a subdirectory); let git walk up from here.
+        git_cwd = git_cwd
+
+    def _git(*args: str) -> str:
+        try:
+            res = subprocess.run(
+                ["git", *args], cwd=str(git_cwd), capture_output=True, text=True,
+                stdin=subprocess.DEVNULL, timeout=10,
+            )
+            return res.stdout.strip() if res.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    branch = _git("branch", "--show-current") or "(detached)"
+    top = _git("rev-parse", "--show-toplevel")
+    dirty = _git("status", "--porcelain")
+    dirty_count = len([l for l in dirty.splitlines() if l.strip()])
+    parts.append(f"- branch: `{branch}`")
+    if top:
+        parts.append(f"- worktree: `{top}`")
+        # Flag the canonical-vs-current distinction only when they differ, so the normal case stays
+        # quiet and the surprising case is explicit.
+        try:
+            if Path(top).resolve() != repo_root.resolve():
+                parts.append(f"- shared state root: `{repo_root}` (index/sessions read from here)")
+        except Exception:
+            pass
+    if branch in ("main", "master"):
+        parts.append("- **warning: on a protected branch** — the contract requires a task worktree")
+    parts.append(f"- working tree: {'CLEAN' if dirty_count == 0 else f'{dirty_count} modified path(s)'}")
+    if dirty_count and dirty_count <= 8:
+        for line in dirty.splitlines()[:8]:
+            parts.append(f"  - `{line.strip()}`")
+    elif dirty_count:
+        parts.append("  - (list omitted: more than 8 paths)")
+
+    # Today's COMMS ledger: the last entry's objective is the cheapest "what was happening" signal.
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    comms = repo_root / ".agents" / "comms" / f"{today}-team.txt"
+    if comms.is_file():
+        try:
+            text = comms.read_text(encoding="utf-8", errors="replace")
+            blocks = [b for b in text.split("\n### ") if b.strip()]
+            if blocks:
+                last = blocks[-1]
+                objective = next(
+                    (l[len("- objective:"):].strip() for l in last.splitlines() if l.startswith("- objective:")),
+                    "",
+                )
+                status = next(
+                    (l[len("- status:"):].strip() for l in last.splitlines() if l.startswith("- status:")),
+                    "",
+                )
+                header = last.splitlines()[0][:120]
+                parts.append(f"- today's COMMS, last entry: {header}")
+                if objective:
+                    parts.append(f"  - objective: {objective[:200]}")
+                if status:
+                    parts.append(f"  - status: {status}")
+        except OSError:
+            pass
+
+    # Newest task record: scope and acceptance are what a fresh agent most needs.
+    tasks_dir = repo_root / ".agents" / "tasks"
+    if tasks_dir.is_dir():
+        records = sorted(tasks_dir.glob("*.md"))
+        if records:
+            try:
+                text = records[-1].read_text(encoding="utf-8", errors="replace")
+                parts.append(f"- newest task record: `{records[-1].name}`")
+                for line in text.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith(("- status:", "- scope:", "- objective:")):
+                        parts.append(f"  - {stripped.lstrip('- ')[:200]}")
+            except OSError:
+                pass
+
+    body = "\n".join(parts)
+    if estimate_tokens(body) > token_cap:
+        # Reserve room for the truncation marker *inside* the cap, or the marker itself pushes the
+        # section over the budget it was added to respect.
+        marker = "\n- (orientation truncated to budget)"
+        allowance = max(0, token_cap - estimate_tokens(marker)) * 4
+        body = body[:allowance].rstrip() + marker
+    return body
 
 
 def render_injection_text(injection: Dict[str, Any]) -> str:
@@ -5294,6 +5408,20 @@ def run_context_command(
             degraded = True
 
     sections: List[Dict[str, Any]] = []
+    # Orientation runs first and always: it is the mechanical half of "where am I", it costs no
+    # model call, and it is the one section that is useful even when retrieval and both drivers fail.
+    orientation_cap = max(120, int(effective_budget * CONTEXT_SECTION_CAPS["orientation"]))
+    orientation_text = render_orientation_section(repo_root, orientation_cap)
+    if orientation_text:
+        sections.append(
+            {
+                "source": "orientation",
+                "text": orientation_text,
+                "reason": "branch/worktree/status, today's COMMS, newest task record",
+                "driver": None,
+            }
+        )
+
     if retrieval_text:
         sections.append(
             {
@@ -5310,12 +5438,13 @@ def run_context_command(
     # `skip_retrieval` with nothing retrieved is a real, complete answer: the decision model judged
     # this task answerable without repository context. Emitting a placeholder section (and paying two
     # driver calls to disclaim it) costs budget to say nothing. Report it in provenance instead.
+    # Orientation is not skipped — branch, tree state, and the last ledger entry are true regardless
+    # of what the route decided about retrieval.
     route_skipped = strategy == "skip_retrieval" and not retrieval_text
     if route_skipped:
         degrade_notes.append(
             f"retrieval skipped by route: {route_decision.get('next_action') or 'answer from files directly'}"
         )
-
     drivers_info: Dict[str, Any] = {}
     session_state: Dict[str, Any] = {}
     sid = session_id or default_session_id(repo_root)
