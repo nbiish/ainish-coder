@@ -90,6 +90,20 @@ _pqc_platform() {
 
 # Run the engine through the same runtime the launchers use. `--quiet` keeps
 # uv's resolver chatter off stdout, which matters because callers parse JSON.
+# _pqc_find_uv — the uv binary, or empty when absent.
+#
+# PATH first, then the standard install location. Non-interactive shells
+# (CI, `bash -lc` from another process, a systemd unit) do not source the
+# profile that adds ~/.local/bin, so PATH alone is not sufficient.
+_pqc_find_uv() {
+    local bin
+    bin="$(command -v uv 2>/dev/null || true)"
+    if [[ -z "$bin" && -x "$HOME/.local/bin/uv" ]]; then
+        bin="$HOME/.local/bin/uv"
+    fi
+    printf '%s' "$bin"
+}
+
 _pqc_run_engine() {
     local engine
     engine="$(_pqc_engine)" || {
@@ -98,8 +112,14 @@ _pqc_run_engine() {
     }
     export PQC_USE_KEYCHAIN="${PQC_USE_KEYCHAIN:-false}"
 
-    if command -v uv >/dev/null 2>&1; then
-        uv run --quiet "$engine" "$@" 2>/dev/null
+    # Resolve uv explicitly (2026-11-07): `command -v uv` alone misses an install
+    # in ~/.local/bin whenever the caller's PATH is non-interactive, which then
+    # fell through to a system python3 whose cryptography may predate
+    # ML-KEM-768. The probe reported "engine probe failed" on a working install.
+    local uv_bin
+    uv_bin="$(_pqc_find_uv)"
+    if [ -n "$uv_bin" ]; then
+        "$uv_bin" run --quiet "$engine" "$@" 2>/dev/null
         return $?
     fi
 
@@ -182,9 +202,24 @@ if [ ! -f "$engine" ]; then
     exit 1
 fi
 export PQC_USE_KEYCHAIN="${PQC_USE_KEYCHAIN:-false}"
-if command -v uv >/dev/null 2>&1; then
-    exec uv run --quiet "$engine" "$@"
+
+# Resolve uv explicitly (2026-11-07): a non-interactive `bash -lc` on the caller's
+# side often has ~/.local/bin missing from PATH, so `command -v uv` failed even
+# though uv was installed. The launcher then fell back to the system python3,
+# whose cryptography may predate ML-KEM-768, and every command died on import.
+uv_bin="$(command -v uv 2>/dev/null || true)"
+if [ -z "$uv_bin" ] && [ -x "$HOME/.local/bin/uv" ]; then
+    uv_bin="$HOME/.local/bin/uv"
 fi
+
+if [ -n "$uv_bin" ]; then
+    exec "$uv_bin" run --quiet "$engine" "$@"
+fi
+
+# No uv: the engine's pinned dependencies cannot be resolved, so say what is
+# missing instead of silently using an interpreter that cannot run the engine.
+printf 'pqc-secrets: uv not found (looked on PATH and in ~/.local/bin).\n' >&2
+printf 'hint: ./bin/pqc-secrets setup   # pinned, sha256-verified uv install\n' >&2
 exec python3 "$engine" "$@"
 LAUNCHER
 }
@@ -445,7 +480,9 @@ pqc_status() {
     if [[ "$wsl" == "true" ]] && declare -F ainish_is_windows >/dev/null 2>&1 && ainish_is_windows; then
         local distro root
         if distro="$(_pqc_first_wsl_distro)" && root="$(_pqc_wsl_repo_root)"; then
-            wsl_store="$(wsl.exe -d "$distro" -e bash -lc "cd '${root}' && uv run --quiet '${root}/${_PQC_ENGINE_REL}' store --json" 2>/dev/null || true)"
+            # Resolve uv inside the login shell: -l sources the profile in most
+            # images, but not all, so fall back to ~/.local/bin explicitly.
+            wsl_store="$(wsl.exe -d "$distro" -e bash -lc "cd '${root}' && (command -v uv >/dev/null 2>&1 || PATH=\"\$HOME/.local/bin:\$PATH\") && uv run --quiet '${root}/${_PQC_ENGINE_REL}' store --json" 2>/dev/null || true)"
             if [[ "$wsl_store" == *'"bundle"'* ]]; then
                 wsl_detail="ok (${distro})"
             else
