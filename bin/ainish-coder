@@ -386,36 +386,38 @@ main() {
 
         # Security files deployment
         --secure)
-            _TRACK_DETAIL="AGENTS_CODE+LLM_SECURITY"
-            echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
+            _TRACK_DETAIL="AGENTS_SECURITY"
+            echo -e "${BRIGHT_BLUE}Deploying Agents Security Standard${RESET}"
 
-            if confirm_action "Deploy AGENTS_CODE_SECURITY.md (code security standards)?" "y"; then
-                local code_security_source="${REPO_DIR}/.agents/skills/code-security/references/production-standards.md"
-                if [[ ! -f "$code_security_source" ]]; then
-                     code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
-                fi
-                if [[ -f "$code_security_source" ]]; then
-                     _with_link_choice deploy_path "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md"
-                     echo -e "${GREEN}✓ AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
+            # One consolidated standard replaces the former AGENTS_CODE_SECURITY.md +
+            # AGENTS_LLM_SECURITY.md pair. Two separate files forced a reader to know
+            # in advance which domain a rule lived in, and the two drifted: the code
+            # file referenced sections of the LLM file by path. One file, one gate.
+            local security_source="${REPO_DIR}/.agents/skills/ainish-security/references/deployable-standards.md"
+            if [[ ! -f "$security_source" ]]; then
+                security_source="${REPO_DIR}/AGENTS_SECURITY.md"
+            fi
+            if confirm_action "Deploy AGENTS_SECURITY.md (consolidated code, AI, secrets, and production standards)?" "y"; then
+                if [[ -f "$security_source" ]]; then
+                    _with_link_choice deploy_path "$security_source" "$target_dir/AGENTS_SECURITY.md"
+                    echo -e "${GREEN}✓ AGENTS_SECURITY.md at $target_dir${RESET}"
+                    # Remove the superseded pair only when this tool previously managed
+                    # them, so a hand-authored file of the same name is never clobbered.
+                    local legacy
+                    for legacy in AGENTS_CODE_SECURITY.md AGENTS_LLM_SECURITY.md; do
+                        if [[ -f "$target_dir/$legacy" ]] && grep -q "ainish-coder --secure" "$target_dir/$legacy" 2>/dev/null; then
+                            rm -f "$target_dir/$legacy"
+                            echo -e "${YELLOW}⊘ Consolidated into AGENTS_SECURITY.md — removed: $legacy${RESET}"
+                        elif [[ -f "$target_dir/$legacy" ]]; then
+                            echo -e "${YELLOW}ℹ Left in place (not managed by ainish-coder): $legacy${RESET}"
+                        fi
+                    done
                 else
-                     echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
+                    echo -e "${BRIGHT_RED}Error: security standard not found at $security_source${RESET}"
                 fi
             fi
 
-            if confirm_action "Deploy AGENTS_LLM_SECURITY.md (LLM/agentic security standards)?" "y"; then
-                local llm_security_source="${REPO_DIR}/.agents/skills/llm-security/references/production-standards.md"
-                if [[ ! -f "$llm_security_source" ]]; then
-                     llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
-                fi
-                if [[ -f "$llm_security_source" ]]; then
-                     _with_link_choice deploy_path "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md"
-                     echo -e "${GREEN}✓ AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
-                else
-                     echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
-                fi
-            fi
-
-            echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
+            echo -e "${BRIGHT_GREEN}✅ Security deployment complete${RESET}"
             ;;
 
 
