@@ -51,16 +51,21 @@ class DriverOrderTest(unittest.TestCase):
                 os.environ[key] = value
 
     def test_default_chain_is_the_requested_order(self):
+        ids = [step["id"] for step in rag.DriverEngine().chain_steps()]
         self.assertEqual(
-            [step["id"] for step in rag.DriverEngine().chain_steps()],
+            ids[:4],
             [
                 "local-router/fallback-models",
                 "zai-glm-5.3-flash",
                 "xiaomi-mimo-mimo-v2.6-pro",
                 "openrouter-deepseek-v4.1-flash-1017",
-                "deepseek/deepseek-v4.1-flash-1017",
             ],
+            "the operator's four router steps must lead the chain",
         )
+        # Direct-provider steps exist so a dead router degrades to a real provider.
+        transports = [step["transport"] for step in rag.DriverEngine().chain_steps()]
+        for direct in ("nous-portal", "nebius", "openrouter", "zenmux", "zai", "xiaomi-mimo"):
+            self.assertIn(direct, transports)
 
     def test_chain_head_is_the_local_router_generic_chain(self):
         first = rag.DriverEngine().chain_steps()[0]
@@ -121,6 +126,65 @@ class DriverModelIdentityTest(unittest.TestCase):
     def test_empty_values_never_match(self):
         self.assertFalse(rag.driver_model_matches("", "deepseek/deepseek-v4.1-flash"))
         self.assertFalse(rag.driver_model_matches("openrouter-deepseek-v4.1-flash-1017", ""))
+
+
+class DriverChatUrlTest(unittest.TestCase):
+    """Provider bases end inconsistently; a wrong join 404s every direct provider at once."""
+
+    def test_base_ending_in_v1_is_not_doubled(self):
+        self.assertEqual(
+            rag._chat_url("https://openrouter.ai/api/v1"),
+            "https://openrouter.ai/api/v1/chat/completions",
+        )
+
+    def test_versioned_path_base_is_respected(self):
+        # Z.AI's coding plan base is already versioned and has no /v1 segment.
+        self.assertEqual(
+            rag._chat_url("https://api.z.ai/api/coding/paas/v4"),
+            "https://api.z.ai/api/coding/paas/v4/chat/completions",
+        )
+
+    def test_bare_host_gets_v1_appended(self):
+        self.assertEqual(
+            rag._chat_url("http://127.0.0.1:11434"), "http://127.0.0.1:11434/v1/chat/completions"
+        )
+
+    def test_already_complete_url_is_untouched(self):
+        self.assertEqual(
+            rag._chat_url("https://x/v1/chat/completions"), "https://x/v1/chat/completions"
+        )
+
+    def test_no_double_v1_anywhere_in_the_chain(self):
+        for name, (_var, base) in rag.DRIVER_REMOTE_BASES.items():
+            with self.subTest(transport=name):
+                self.assertNotIn("/v1/v1/", rag._chat_url(base))
+
+
+class DriverTierCoverageTest(unittest.TestCase):
+    """Every transport named in the chain must have a probe target and key resolution."""
+
+    def test_every_chain_transport_is_addressable(self):
+        for step in rag.DRIVER_CHAIN:
+            transport = step["transport"]
+            if transport == "local-model":
+                continue
+            with self.subTest(transport=transport):
+                self.assertIn(transport, rag.DRIVER_REMOTE_BASES, "no base URL configured")
+                if transport != "local-router":
+                    self.assertIn(transport, rag.DRIVER_KEY_NAMES, "no key names configured")
+
+    def test_every_remote_transport_has_a_model_id(self):
+        for step in rag.DRIVER_CHAIN:
+            if step["transport"] == "local-model":
+                continue
+            with self.subTest(step=step["label"]):
+                self.assertTrue(step.get("id"), "chain step needs an id")
+
+    def test_direct_steps_come_after_the_router_steps(self):
+        transports = [s["transport"] for s in rag.DRIVER_CHAIN]
+        last_router = max(i for i, t in enumerate(transports) if t == "local-router")
+        first_direct = min((i for i, t in enumerate(transports) if t not in ("local-router", "local-model")), default=len(transports))
+        self.assertLess(last_router, first_direct, "router order must be tried before direct providers")
 
 
 class DriverChatTest(unittest.TestCase):

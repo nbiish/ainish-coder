@@ -199,11 +199,20 @@ main() {
                 print_warning "Skills deployment reported errors — continuing with remaining rules steps"
         fi
 
-        # A zero-pack result is a legitimate choice, but it must never look like
-        # an accident: name the command that changes it.
-        if [[ "$(skills_selection_enabled_count "$target_dir")" == "0" ]]; then
+        # A zero-*optional* result is a legitimate choice, but it must never look
+        # like an accident: name the command that changes it. The count includes
+        # mandatory packs, so compare against those explicitly rather than
+        # reporting "no packs" when pqc-secrets did deploy.
+        local optional_on mandatory_total
+        optional_on="$(skills_selection_enabled_count "$target_dir")"
+        mandatory_total=0
+        for _m in $(_skills_mandatory_names); do
+            [[ -d "${REPO_DIR}/.agents/skills/${_m}" ]] && mandatory_total=$((mandatory_total + 1))
+        done
+        if (( optional_on <= mandatory_total )); then
             echo -e "${YELLOW}ℹ No optional skill packs selected for this repo.${RESET}"
-            echo -e "  Choose packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
+            echo -e "  Mandatory packs are still deployed (see .agents/skills/)."
+            echo -e "  Choose optional packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
         fi
 
         if [[ "$prompted" == "true" ]]; then
@@ -592,15 +601,24 @@ main() {
                 # Validate names against packs that actually exist, so a typo cannot be
                 # persisted as a setting that silently selects nothing.
                 local _sk_src="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
-                local _sk_bad=() _sk_pair
+                local _sk_bad=() _sk_mandatory=() _sk_pair
                 for _sk_pair in "${_sk_pairs[@]}"; do
                     _sk_name="${_sk_pair%:*}"
                     if [[ ! -d "$_sk_src/$_sk_name" ]]; then
                         _sk_bad+=("$_sk_name")
+                    elif _skill_mandatory "$_sk_name"; then
+                        # Mandatory packs are not a choice: saying "unknown" here would send the
+                        # operator hunting for a typo they did not make.
+                        _sk_mandatory+=("$_sk_name")
                     elif _skill_channel_excluded "$_sk_name"; then
                         _sk_bad+=("$_sk_name (channel-excluded)")
                     fi
                 done
+                if (( ${#_sk_mandatory[@]} > 0 )); then
+                    print_error "mandatory pack(s) cannot be toggled: ${_sk_mandatory[*]}"
+                    print_error "  they are deployed by --rules on every run and have no selection entry"
+                    exit 1
+                fi
                 if (( ${#_sk_bad[@]} > 0 )); then
                     print_error "unknown or undeployable pack(s): ${_sk_bad[*]}"
                     exit 1
