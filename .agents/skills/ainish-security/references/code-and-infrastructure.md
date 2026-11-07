@@ -184,7 +184,11 @@ Cookie attributes: `httponly=True, secure=True, samesite="strict"`.
 
 ```python
 import time
-from cryptography.hazmat.primitives.asymmetric import mldsa  # pyca >= 45
+# pyca/cryptography >= 47 is REQUIRED: `asymmetric.mldsa` / `asymmetric.mlkem` ship from 47.0.
+# Verified 2026-11-07 — 45.0.7 and 46.0.5 raise ImportError on this import while 47.0+ works, so a
+# floor of ">=45" resolves to a wheel that fails at module load. The pqc-secrets engine hit exactly
+# this and had to raise its own floor.
+from cryptography.hazmat.primitives.asymmetric import mldsa
 from pydantic import BaseModel, Field
 
 class TokenClaims(BaseModel):

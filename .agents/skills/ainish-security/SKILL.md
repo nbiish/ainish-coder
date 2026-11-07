@@ -134,6 +134,12 @@ private key in the OS keychain or a machine-encrypted file. Values are decrypted
 into process memory and never written back out. See the `pqc-secrets` skill for the
 store, the vault, and the signing surface.
 
+**Library floor (verified 2026-11-07):** `pyca/cryptography >= 47` for
+`asymmetric.mlkem` / `asymmetric.mldsa`. Versions 45.0.7 and 46.0.5 import-fail on those
+modules, so a `>=45` constraint resolves to a wheel that dies at module load — which is how the
+`pqc-secrets` engine was completely dead until its floor was raised. Pin the floor, and guard the
+import with actionable guidance rather than a bare traceback.
+
 **Deprecation clock** (NIST IR 8547, EO 14412, OMB M-26-15): classical 112-bit
 public-key crypto is risk-acceptance-only after 2030 and disallowed after 2035.
 Federal high-value assets must complete PQC key establishment by 2031-12-31; new
