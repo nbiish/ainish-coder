@@ -1,0 +1,173 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — 2026-11-04
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
+
+</PROTOCOL>
+
+---
+
+### [2026-11-04T01:05:00Z] checkin | branch:fix/rules-rag-wrapper-dispatch | wt:/mnt/d/Code/fix-rag-wrapper-and-masters
+- start:2026-11-04T01:05:00Z
+- end:2026-11-04T01:05:00Z
+- scope:bin/ainish-rag, src/embed_config.sh, src/rag/rag.py, src/rag/src/main.rs
+- triage:now
+- objective:fix bin/ainish-rag self-exec infinite loop causing ainish-coder --rules hang; implement master suggestions (context_budget_tokens in orient --json, budget display on route, timeout guard in embed_config_delegate)
+- input:user bug report and master suggestions from 2026-11-01-suggestions.txt
+- output:pending
+- status:in-progress
+- blockers:none
+
+### [2026-11-04T18:24:00Z] checkin | branch:docs/context-orchestration-consolidation | wt:D:\Code\context-orchestration-consolidation
+- start:2026-11-04T18:05:00Z
+- end:2026-11-04T18:24:00Z
+- scope:AGENTS.md, .agents/, bin/context-packet.sh, bin/egm-check.sh, llms.txt
+- objective:Consolidate context engineering and add Elephant/Goldfish design-review gating.
+- input:Operator request to reduce token waste and automate project/task orchestration.
+- output:Compact contract, DOX indexes, bounded packet, design template, readiness checker, and two master-lens passes.
+- status:verifying
+- blockers:none
+
+### [2026-11-04T18:35:00Z] update | branch:docs/context-orchestration-consolidation | wt:D:\Code\context-orchestration-consolidation
+- start:2026-11-04T18:24:00Z
+- end:2026-11-04T18:35:00Z
+- scope:bin/context-packet.sh, .agents/skills/context-orchestration/, .agents/templates/
+- objective:Enforce the Elephant/Goldfish context firewall and verify readiness before implementation.
+- input:Second master-lens pass and official Google EGM research.
+- output:Goldfish packet now excludes repository state; design checker and template are additive and fail closed.
+- status:verifying
+- blockers:Python test runner unavailable on this Windows host.
+
+### [2026-11-04T18:42:00Z] checkout | branch:docs/context-orchestration-consolidation | wt:D:\Code\context-orchestration-consolidation
+- start:2026-11-04T18:35:00Z
+- end:2026-11-04T18:42:00Z
+- scope:AGENTS.md, .agents/, bin/, llms.txt
+- objective:Close the context-engineering consolidation after two master-lens passes.
+- input:Focused shell, contract, packet, and design-check validation.
+- output:56-line synchronized contract; EGM workflow, DOX indexes, packet modes, readiness checker, task/memory/suggestions records.
+- status:done
+- blockers:Python unavailable; ainish-rag gate produced no output for 180 seconds and was stopped. No code/runtime dependency changed.
+
+### [2026-11-04T20:30:00Z] checkin | branch:feat/typesafe-image-egm | wt:D:\Code\typesafe-image-egm
+- start:2026-11-04T20:25:00Z
+- end:2026-11-04T20:30:00Z
+- scope:AGENTS.md, .agents/skills/typesafe-jev/, .agents/tasks/, .agents/memories/, .agents/suggestions/
+- objective:Review latest suggestions and add TypeSafe Jev 1.14 image/Box capability guidance.
+- input:Operator request and upstream TypeSafe documentation/blog/skill references.
+- output:Production-first contract language, image/Box reference, explicit image probe flags, and project adoption map.
+- status:verifying
+- blockers:Python runtime unavailable on this Windows host; live image request not run without a TypeSafe key and asset.
+
+### [2026-11-04T20:42:00Z] checkout | branch:feat/typesafe-image-egm | wt:D:\Code\typesafe-image-egm
+- start:2026-11-04T20:30:00Z
+- end:2026-11-04T20:42:00Z
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/skills/typesafe-jev/, .agents/tasks/, .agents/comms/, .agents/memories/, .agents/suggestions/
+- objective:Finish the TypeSafe image/EGM enhancement with production-surface verification.
+- input:Focused shell/Python checks and a local HTTP probe with a non-secret demo key.
+- output:Byte-identical contracts, READY_FOR_GOLDFISH packet path, compiled probe, and verified image header plus selected Authorization behavior.
+- status:done
+- blockers:No live TypeSafe image call; no operator-provided key or representative asset was available.
+
+### [2026-11-04T21:05:00Z] checkin | branch:docs/agents-rules-usage | wt:D:\Code\agents-rules-usage
+- start:2026-11-04T21:05:00Z
+- end:2026-11-04T21:05:00Z
+- triage:now
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/llms.txt, .agents/tasks/
+- objective:Clarify how distributed repositories use the universal contract and `.agents/` tooling.
+- input:Operator request to assume PQC tooling is operator-provided and implement compatible master suggestions.
+- output:Usage map and fail-closed PQC wording added; canonical copy remains synchronized.
+- status:done
+- blockers:none
+
+### [2026-11-04T21:18:00Z] checkout | branch:docs/agents-rules-usage | wt:D:\Code\agents-rules-usage
+- start:2026-11-04T21:05:00Z
+- end:2026-11-04T21:18:00Z
+- triage:now
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/llms.txt, .agents/tasks/, .agents/comms/, .agents/memories/, .agents/suggestions/
+- objective:Close the distributed rules usage documentation update.
+- input:Operator request and compatible master-lens suggestions.
+- output:Explicit `.agents/` navigation, operator-provided PQC assumption, synchronized signed contract, and updated DOX/task records.
+- status:done
+- blockers:none
+- compat:AGENTS.md and canonical copy remain byte-identical; additive guidance deploys through normal rules sync.
+
+### [2026-11-04T22:18:00Z] checkout | branch:feat/rules-skill-consolidation | wt:D:\Code\ainish-coder-rules-skill-consolidation
+- start:2026-11-04T21:18:00Z
+- end:2026-11-04T22:18:00Z
+- triage:now
+- scope:AGENTS.md, README.md, .agents/skills/ainish-security, bin/ainish-coder, src/deploy_rules_sync.sh, src/deploy_skills.sh, src/embed_config.sh, src/runtime.sh, src/rag/
+- objective:Close deterministic rules deployment and security hardening.
+- input:Reported interactive deployment stall and security review findings.
+- output:Rules bootstrap is bounded and noninteractive; retired packs are excluded; ML-DSA manifest signing/verification is fail-closed; WSL/native path boundaries and symlinked write surfaces are guarded.
+- status:done
+- blockers:none
+- compat:Manifest v1 remains readable only when cryptographically verified; legacy hash-only envelopes are refused.
+- budget:No new dependencies; one optimized native RAG build and focused deployment smoke.
+- Master Surfaces: compatibility, concurrency, economics, accessibility, rights, and interop; declarations are recorded in the task and contract surfaces.
+
+### [2026-11-05T00:00:00Z] checkout | branch:feat/egm-master-memory | wt:D:\Code\ainish-coder-egm-master-memory
+- start:2026-11-05T00:00:00Z
+- end:2026-11-05T00:00:00Z
+- triage:now
+- scope:AGENTS.md, .agents/canonical/AGENTS.md, .agents/skills/context-orchestration/, bin/context-packet.sh
+- objective:Keep optional skills on demand and make Elephant/Goldfish use the master-suggestion boundary.
+- input:Operator clarification that optional skills must not be always-on.
+- output:Removed the always-on TypeSafe navigation entry; added bounded advisory master suggestions to Elephant/build packets; kept Goldfish memory, suggestions, COMMS, chat, and implementation excluded; bounded route probing.
+- status:done
+- blockers:none
+- compat:Additive packet field; root and canonical contracts remain byte-identical.
+- budget:One bounded local route probe; no new dependencies or external model calls.
+- verification:EGM readiness, shell syntax, byte identity/digest, packet smoke tests, and 20-second watchdog passed.
+
+### [2026-11-05T01:00:00Z] checkout | branch:feat/rag-fallback-lifecycle | wt:D:\Code\ainish-coder-rag-fallback
+- start:2026-11-05T01:00:00Z
+- end:2026-11-05T01:00:00Z
+- triage:now
+- scope:rules distribution, native RAG fallback lifecycle, deploy signing/provider detection
+- objective:Auto-distribute coordination/runtime logic while requiring explicit optional skill selection and keep local model memory ephemeral by default.
+- input:Operator request to complete the selected master-suggestion next step and avoid deploying unrequested skills.
+- output:Unrecorded skill selections default off; ainish-security is selectable rather than forced; native compiled RAG is the only signing/provider-detection path; local server lifecycle remains guarded by keep-server opt-in.
+- status:done
+- blockers:none
+- compat:Existing explicit per-repository selections remain honored; only new/unrecorded optional packs change from on to off.
+- budget:Focused native/Python tests and bounded rules smoke; no external model call or new dependency.
+- verification:57 native tests, 48 Python tests, target packet smoke, rules runtime smoke, and selection policy checks.

@@ -11,6 +11,9 @@ Run with:  py -m unittest discover -s src/rag/tests -p "test_*.py"
 
 import importlib.util
 import json
+import os
+import shutil
+import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -122,6 +125,112 @@ class DeriveCtxBatchTest(unittest.TestCase):
                 os.environ.pop("AINISH_RAG_BATCH", None)
             else:
                 os.environ["AINISH_RAG_BATCH"] = old_batch
+
+
+class EmbedProviderResolutionTest(unittest.TestCase):
+    """Resolution order: operator intent > persisted config > env/PQC auto-detection > local."""
+
+    ENV_KEYS = [
+        "AINISH_EMBED_PROVIDER",
+        "AINISH_EMBED_API_KEY",
+        "AINISH_EMBED_API_BASE",
+        "AINISH_EMBED_MODEL",
+        "AINISH_EMBED_DIM",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_EMBED_API_KEY",
+        "OPENROUTER_EMBED_MODEL",
+        "ZENMUX_API_KEY",
+        "ZENMUX_EMBED_API_KEY",
+        "AINISH_RAG_NO_PQC",
+    ]
+
+    def setUp(self):
+        self._saved = {k: os.environ.get(k) for k in self.ENV_KEYS}
+        for key in self.ENV_KEYS:
+            os.environ.pop(key, None)
+        os.environ["AINISH_RAG_NO_PQC"] = "1"
+        rag._PQC_SECRETS_CACHE = {}
+        self.tmp = Path(tempfile.mkdtemp(prefix="ainish-embed-test-"))
+        (self.tmp / ".agents" / "rag").mkdir(parents=True)
+
+    def tearDown(self):
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        rag._PQC_SECRETS_CACHE = None
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_explicit_local_intent_beats_detected_credentials(self):
+        os.environ["AINISH_EMBED_PROVIDER"] = "local"
+        os.environ["AINISH_EMBED_API_KEY"] = "sk-test"
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["provider"], "local")
+        self.assertTrue(resolved["explicit"])
+
+    def test_auto_override_is_non_pinning_and_writes_nothing(self):
+        resolved = rag.resolve_embed_provider(self.tmp, override="auto")
+        self.assertEqual(resolved["provider"], "local")
+        self.assertFalse(resolved["explicit"])
+        # --write with auto and no credentials must not persist a `local` pin.
+        rag.run_embed_provider_cmd(self.tmp, write=True, pinned="auto")
+        self.assertFalse((self.tmp / ".agents" / "rag" / "embed-provider.json").exists())
+
+    def test_pqc_openrouter_key_auto_selects_api_provider(self):
+        rag._PQC_SECRETS_CACHE = {"LOCALROUTER_OPENROUTER_API_KEY": "sk-or-test"}
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["provider"], "api")
+        self.assertEqual(resolved["provider_id"], "openrouter")
+        self.assertEqual(resolved["api_base"], "https://openrouter.ai/api/v1")
+        self.assertEqual(resolved["model"], "openai/text-embedding-3-small")
+        self.assertEqual(resolved["key_source"], "pqc:LOCALROUTER_OPENROUTER_API_KEY")
+        self.assertEqual(resolved["source"], "pqc-auto")
+        self.assertFalse(resolved["explicit"])
+
+    def test_pqc_zenmux_key_is_used_when_openrouter_absent(self):
+        rag._PQC_SECRETS_CACHE = {"LOCALROUTER_ZENMUX_API_KEY": "zm-test"}
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["provider"], "api")
+        self.assertEqual(resolved["provider_id"], "zenmux")
+        self.assertEqual(resolved["api_base"], "https://zenmux.ai/api/v1")
+        self.assertEqual(resolved["key_source"], "pqc:LOCALROUTER_ZENMUX_API_KEY")
+
+    def test_provider_model_override_is_honored(self):
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        os.environ["OPENROUTER_EMBED_MODEL"] = "openai/text-embedding-3-large"
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["model"], "openai/text-embedding-3-large")
+
+    def test_explicit_api_without_base_or_model_is_invalid(self):
+        os.environ["AINISH_EMBED_PROVIDER"] = "api"
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["provider"], "invalid")
+        self.assertTrue(resolved["warnings"])
+
+    def test_non_worktree_dir_does_not_inherit_cwd_provider_config(self):
+        # Regression: a plain temp dir (no local embed-provider.json) must resolve to local even
+        # when the process cwd is a checkout that pins an API provider.
+        resolved = rag.resolve_embed_provider(self.tmp)
+        self.assertEqual(resolved["provider"], "local")
+        self.assertEqual(resolved["source"], "default-local")
+
+    def test_persisted_config_never_contains_key_material(self):
+        rag._PQC_SECRETS_CACHE = {"LOCALROUTER_ZENMUX_API_KEY": "zm-super-secret"}
+        resolved = rag.resolve_embed_provider(self.tmp)
+        path = rag.write_embed_provider_config(self.tmp, resolved)
+        text = path.read_text(encoding="utf-8")
+        self.assertNotIn("zm-super-secret", text)
+        self.assertIn("pqc:LOCALROUTER_ZENMUX_API_KEY", text)
+        payload = json.loads(text)
+        self.assertEqual(payload["provider"], "api")
+        self.assertEqual(payload["provider_id"], "zenmux")
+
+    def test_api_client_truncates_remote_vectors_to_store_width(self):
+        rag._PQC_SECRETS_CACHE = {"LOCALROUTER_OPENROUTER_API_KEY": "sk-or-test"}
+        client = rag.embed_client_from_config("http://127.0.0.1:1", self.tmp)
+        self.assertTrue(client.uses_api_provider())
+        self.assertEqual(client.truncate_dim, rag.DEFAULT_EMBED_DIM)
 
 
 if __name__ == "__main__":

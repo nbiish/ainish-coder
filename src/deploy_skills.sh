@@ -1,7 +1,8 @@
 #!/bin/bash
 # MOLECULE: Skills deployment
-# Deploys all skills from .agents/skills/ directory to target project
-# In non-overwrite mode, skips skills that already exist at the target
+# Deploys explicitly selected skills from .agents/skills/ to a target project.
+# Coordination, memories, suggestions, and core RAG logic are distributed by
+# the rules path; optional skill packs are never implicitly enabled.
 
 deploy_skills() {
     local target_dir="${1:-.}"
@@ -51,6 +52,18 @@ deploy_skills() {
     local deselected_count=0
     local failed_skills=()
 
+    # Retired packs are no longer independently deployed. Remove only copies
+    # previously managed by this source, leaving foreign target packs intact.
+    local retired_skill
+    for retired_skill in code-security llm-security production-security orchestrate-subagent-masters; do
+        if [[ -d "$skills_target/$retired_skill" && "${AINISH_NO_OVERWRITE:-false}" != "true" ]] &&
+           skills_selection_has_entry "$target_dir" "$retired_skill"; then
+            rm -rf "$skills_target/$retired_skill"
+            echo -e "${YELLOW}⊘ Retired pack removed: $retired_skill${RESET}"
+            ((deselected_count++)) || true
+        fi
+    done
+
     for skill_dir in "$skills_source"/*/; do
         if [[ -d "$skill_dir" ]]; then
             local skill_name=$(basename "$skill_dir")
@@ -60,11 +73,21 @@ deploy_skills() {
             # raw .scrolls* payload never deploy with skills — the explicit
             # --scrolls channel is their only distribution surface. Transient
             # .ainish-ingest.* sync-staging dirs never deploy either.
-            case "$skill_name" in .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) continue ;; esac
+            case "$skill_name" in
+                .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*)
+                    continue
+                    ;;
+                code-security|llm-security|production-security|orchestrate-subagent-masters)
+                    # Retired packs remain in the source tree only for history;
+                    # The integrated security contract is part of the rules/runtime;
+                    # this historical pack is not independently deployed.
+                    continue
+                    ;;
+            esac
 
             # Persisted per-repo selection governs distribution. Live intake:
-            # packs are enumerated from disk each run, so new/renamed packs
-            # resolve through the repo default policy automatically.
+            # packs are enumerated from disk each run, but new packs remain off
+            # until the operator explicitly selects them.
             if [[ "$(skills_selection_state "$target_dir" "$skill_name")" != "on" ]]; then
                 # OFF = not distributed. Remove a previously-shipped copy so a
                 # toggle-off takes effect immediately (foreign packs at the
@@ -140,7 +163,7 @@ deploy_skills() {
         echo -e "${YELLOW}⏭️  Skipped $skipped_count pre-existing skill(s)${RESET}"
     fi
     if [[ $deselected_count -gt 0 ]]; then
-        echo -e "${YELLOW}⊘ $deselected_count deselected pack(s) skipped (toggled off — run 'ainish-coder --skills-sync' to change)${RESET}"
+        echo -e "${YELLOW}⊘ $deselected_count pack(s) not selected for this repo (choose with 'ainish-coder --select-skills $target_dir')${RESET}"
     fi
 
     if [[ ${#failed_skills[@]} -gt 0 ]]; then
@@ -148,7 +171,8 @@ deploy_skills() {
     fi
 
     if [[ $skill_count -eq 0 && $skipped_count -eq 0 ]]; then
-        echo -e "${YELLOW}⚠ No skills found to deploy${RESET}"
+        echo -e "${YELLOW}⚠ No skill packs deployed — none are selected for this repo${RESET}"
+        echo -e "  Choose packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
     fi
 
     return 0

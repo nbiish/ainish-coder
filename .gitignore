@@ -169,3 +169,6 @@ audit.log.*
 
 # Compiled native binaries (built locally via cargo or distributed wrappers)
 *.exe
+
+# Deployment smoke sandbox (created by 'ainish-coder --rules test'); never tracked.
+/test/

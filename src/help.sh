@@ -77,25 +77,59 @@ CORE COMMANDS:
                               skip the local llama server entirely (saves GBs of
                               RAM). Writes .agents/rag/embed-provider.json with
                               non-secret fields only; the key is read from
-                              AINISH_EMBED_API_KEY at runtime.
+                              AINISH_EMBED_API_KEY / the PQC store at runtime.
+    --embed-config --detect [--json] [--write] [DIR]
+                              Auto-detect embedding credentials for OpenRouter or
+                              ZenMux (AINISH_EMBED_*, *_API_KEY, and PQC-stored
+                              LOCALROUTER_* keys). --write persists the non-secret
+                              provider config; nothing is written when no key is
+                              detected, so a key added later is still picked up.
+    --embed-config --provider openrouter|zenmux|auto [DIR]
+                              Pin a detected provider without naming base/model.
     --embed-config --provider local [DIR]   Revert to the local llama server.
-    --embed-config --status [DIR]           Show the active embedding provider.
+    --embed-config --clear [DIR]            Remove the persisted provider config.
+    --embed-config --status [DIR]           Show the active + detected provider.
+    --rules also runs this detection, and every ainish-rag command stops the
+    local embedding server it spawned (releasing its memory) unless --keep-server.
     --agents [TARGET_DIR]     Deploy AGENTS.md only — the singular, repository-
                               agnostic standard, copied into the target as a
                               plain tracked file (refresh with --agents).
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
-    --secure [DIR]            Deploy AGENTS_CODE_SECURITY.md and AGENTS_LLM_SECURITY.md
-                              (compiled from .agents/skills/code-security and llm-security)
+    --secure [DIR]            Deploy the legacy standalone security documents
+                              (new targets receive the rules/runtime security contract; optional packs stay off)
 
 
 TOOL-SPECIFIC CONFIGURATION:
     All tool-specific configs have been consolidated into .agents/skills/.
-    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + all skill packs,
-    and to arm continuous auto-sync for that repository. Use --rules-sync --all to refresh the fleet now.
+    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + the
+    rules/runtime context and the optional skill packs you select, then arm continuous auto-sync.
+    Skill packs are optional: on a real terminal --rules offers the selector the first time a repo
+    has no saved selection, then applies that saved selection on every later run.
+    --select-skills [DIR] reopens the selector; --skills-list [DIR] [--json] shows the current
+    selection. --rules <dir> --headless (-y / no TTY) never prompts — it applies the saved
+    selection as-is. Use --rules-sync --all to refresh the fleet now.
     Use --llms-txt to deploy llms.txt.
     Use --skills-sync to synchronize and selectively ingest skills.
+
+PQC SECRETS DISTRIBUTION (one engine, every tool):
+    --pqc-install [--json] [--no-wsl]
+                              Install ~/.local/bin/pqc-secrets (+ .cmd on Windows)
+                              resolving this checkout's canonical engine; generate the
+                              ML-KEM-768 identity when no bundle exists; on Windows
+                              also provision the WSL side. Any tool can then run
+                              `pqc-secrets list|export|set|store` from any directory.
+    --pqc-status [--json] [--no-wsl]
+                              Prove which store each environment resolves (native and
+                              WSL), whether the launcher is on PATH, and whether every
+                              enrolled target's vendored engine is current. Exit 1 when
+                              a target is stale so CI can fail closed.
+    --pqc-sync-targets [DIR|--all] [--dry-run] [--json]
+                              Refresh the vendored engine + launchers in every enrolled
+                              target, skip repos that deselected the pqc-secrets pack,
+                              and verify the digest after copy.
+                              JSON: ainish-coder/pqc-sync/v1.
 
 AGENT CUSTOMIZATION:
     --template-agent [DIR]    Deploy template-agent.md for crafting custom system prompts
@@ -215,6 +249,16 @@ UTILITY COMMANDS:
 
     --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
                               repo (foreign skills reported, untouched)
+    --select-skills [DIR]     Interactive selector: choose which optional skill
+                              packs this repo receives from --rules. Saves the
+                              choice for every later run. Interactive terminal
+                              only; refused under --headless / -y.
+                              Example: ainish-coder --select-skills ~/my-project
+    --skills-list [DIR] [--json]
+                              Read-only: show the saved selection for a repo —
+                              which packs deploy, which do not, and whether the
+                              repo has been asked yet.
+                              Example: ainish-coder --skills-list ~/my-project --json
     --skills-sync [DIR]       THE one command: two-way NEWEST-WINS sync —
                               pulls the latest ainish-coder skills (missing
                               or drifted only) AND ingests newly detected /
@@ -231,25 +275,21 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 21 skill packs:
+                              Deploys 20 skill packs:
                               - advisory-council/          (Multi-expert advisory council)
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-harness/           (CDP browser automation)
                               - camofox-stack/             (Anti-detection browser stack)
-                              - code-security/             (Safety-critical code engineering)
+                              - ainish-security/           (Integrated security, prompt, and tool containment)
                               - gstack-coder/              (Multi-tool coding orchestration)
-                              - llm-security/              (LLM & agentic AI security)
                               - modern-prompting/          (OOReDAct advanced prompting)
                               - document-enhancer/         (Knowledge fusion & document hardening)
                               - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
-                              - pqc-secrets/               (PQC secrets: API key encryption, ML-KEM-768)
-                              - pqc-signatures-security/   (PQC signatures: ML-DSA-65 code signing & integrity)
-                              - production-security/       (Core security policies & PQC mandates)
+                              - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing)
                               - remotion-video/            (Programmatic video creation)
                               - skyvern/                   (AI browser automation)
-                              - orchestrate-subagent-masters/ (Subagent master orchestration: dsh headless/ACP + native)
                               - question-me/               (Socratic design interview & tree resolution)
 
                               Example: ainish-coder --skills-sync ~/my-project
@@ -307,7 +347,8 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.txt + skill packs per your persisted selection + global copies
+    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.txt + the skill packs you selected + global copies
+    - Skill packs are optional and chosen by you: --rules offers the selector the first time a repo has no saved selection, and --select-skills reopens it any time. --skills-list shows the current choice.
     - --headless second arg (e.g. 'ainish-coder --skills-sync <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md (project-agnostic rules, single governing tracked copy) + global copies
@@ -322,6 +363,8 @@ EXAMPLES:
     ainish-coder --rules ~/my-project       # Deploy to specific directory (copies)
     ainish-coder --llms-txt                 # Deploy llms.txt to cwd (copy)
     ainish-coder --skills-sync              # Synchronize & selectively ingest skills (copies)
+    ainish-coder --select-skills            # Choose which skill packs --rules deploys here
+    ainish-coder --skills-list              # Show the saved skill selection for this repo
 
     # Symlink mode: link to source files (AGENTS.md always copies — never links)
     ainish-coder --link --rules             # Symlink .gitignore; AGENTS.md copies
@@ -370,4 +413,3 @@ show_version() {
     echo "Configuration Manager for AI Coding Assistants"
     echo "Copyright © 2025 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ"
 }
-

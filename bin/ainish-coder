@@ -56,6 +56,7 @@ source "${SRC_DIR}/deploy_license.sh"
 source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
 source "${SRC_DIR}/embed_config.sh"
+source "${SRC_DIR}/pqc_dist.sh"
 
 # Main function
 main() {
@@ -149,6 +150,69 @@ main() {
         fi
     }
 
+    # Deploy the optional skill packs for the rules bundle.
+    #
+    # `--rules` distributes coordination/runtime logic unconditionally, but the
+    # `.agents/skills/` packs are optional prompt surface and must be the
+    # operator's choice. The selector is therefore offered once per repo and
+    # then governed by the persisted selection, so:
+    #   * a first run can never silently deploy zero packs (the fdd8537
+    #     default-off flip made that the silent outcome), and
+    #   * repeat runs and CI stay deterministic with no prompt.
+    # Whatever happens, an interrupted selector cancels to the persisted
+    # selection instead of stalling or skipping skill deployment entirely.
+    _rules_deploy_skills() {
+        local target_dir="$1"
+
+        # The source repo already owns every pack; there is nothing to choose
+        # and nothing to distribute, so skip the selector entirely.
+        local target_canon source_canon
+        target_canon="$(cd -P "$target_dir" 2>/dev/null && pwd || printf '%s' "$target_dir")"
+        source_canon="$(cd -P "${REPO_DIR}" 2>/dev/null && pwd || printf '%s' "${REPO_DIR}")"
+        if [[ -n "$target_canon" && "$target_canon" == "$source_canon" ]]; then
+            deploy_skills "$target_dir"
+            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-source"
+            return 0
+        fi
+
+        local mode
+        mode="$(skills_selection_ui_mode)"
+
+        local prompted=false
+        if [[ "$mode" != "never" ]] && skills_selection_should_prompt "$target_dir"; then
+            echo -e "${BRIGHT_BLUE}Skill packs are optional — choose what this repo should receive${RESET}"
+            if _skills_toggle_ui "$target_dir"; then
+                prompted=true
+            else
+                echo -e "${YELLOW}Selection unchanged — deploying the saved selection instead.${RESET}"
+                echo -e "${YELLOW}Re-run 'ainish-coder --select-skills $target_dir' to choose again.${RESET}"
+            fi
+        elif [[ "$mode" == "auto" ]]; then
+            echo -e "${BRIGHT_CYAN}✓ Skill packs: using the saved selection for this repo (change with 'ainish-coder --select-skills $target_dir')${RESET}"
+        fi
+
+        if _confirm_symlink; then
+            AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
+                print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+        else
+            AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
+                print_warning "Skills deployment reported errors — continuing with remaining rules steps"
+        fi
+
+        # A zero-pack result is a legitimate choice, but it must never look like
+        # an accident: name the command that changes it.
+        if [[ "$(skills_selection_enabled_count "$target_dir")" == "0" ]]; then
+            echo -e "${YELLOW}ℹ No optional skill packs selected for this repo.${RESET}"
+            echo -e "  Choose packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
+        fi
+
+        if [[ "$prompted" == "true" ]]; then
+            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
+        else
+            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-persisted"
+        fi
+    }
+
     # Deploy the full rules bundle. Shared by --rules and the auto-sync refresher
     # so one code path keeps every target repository in sync.
     deploy_rules_bundle() {
@@ -176,25 +240,17 @@ main() {
             echo -e "${GREEN}✓ Seeded llms.txt PRD template (existing PRDs are never overwritten)${RESET}"
         fi
 
-        if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-            # Headless: persisted selection governs; no prompts.
-            deploy_skills "$target_dir" || \
-                print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-headless"
-        elif confirm_action "Deploy skill packs (.agents/skills/) per your saved selection?" "y"; then
-            # Interactive: open the toggle UI first so this run's choices
-            # persist for every future --rules/--skills-sync.
-            _skills_toggle_ui "$target_dir" && {
-                if _confirm_symlink; then
-                    AINISH_LINK_MODE="true" deploy_skills "$target_dir" || \
-                        print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                else
-                    AINISH_LINK_MODE="false" deploy_skills "$target_dir" || \
-                        print_warning "Skills deployment reported errors — continuing with remaining rules steps"
-                fi
-            }
-            _TRACK_DETAIL="${_TRACK_DETAIL}+skills-selected"
-        fi
+        # ── Skill packs ──────────────────────────────────────────────────
+        # Coordination/runtime logic already shipped above; this step only
+        # distributes the OPTIONAL .agents/skills/ packs, so it must ask.
+        # Three bounded paths, never a hang:
+        #   always -> operator asked for the selector (--select-skills, or a
+        #             first-contact repo on a real TTY): open the toggle UI,
+        #             persist, then deploy exactly what was chosen.
+        #   never  -> headless/CI/non-TTY: apply the persisted selection as-is.
+        #   auto   -> selector cancelled/timed out: deploy the persisted
+        #             selection so the run still completes deterministically.
+        _rules_deploy_skills "$target_dir"
 
         # Agent Communication System — .agents/comms/{date}-team.txt (one per UTC date)
         # Merge-safe: refreshes protocol template, preserves agent entries.
@@ -207,9 +263,19 @@ main() {
         # Ensure workspace customizations root (.agents/tasks, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
         mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
 
+        # Detect PQC/environment embedding credentials (OpenRouter/ZenMux) and route the RAG
+        # engine's embeddings through them; nothing is persisted when no credentials exist.
+        if confirm_action "Detect remote embedding credentials (OpenRouter/ZenMux via PQC) and configure RAG?" "y"; then
+            deploy_embed_provider_detect "$target_dir" || \
+                print_warning "Embedding provider detection reported errors — local embeddings remain active"
+            _TRACK_DETAIL="${_TRACK_DETAIL}+embed-provider"
+        fi
+
         # Arm continuous auto-sync (manifest + refresher + git hooks + fleet registry)
-        deploy_rules_sync "$target_dir" || \
-            print_warning "Auto-sync deployment reported errors — rules are deployed but may need a manual refresh"
+        if ! deploy_rules_sync "$target_dir"; then
+            print_error "Auto-sync deployment failed; refusing to report an unsigned or unverifiable rules deployment"
+            return 1
+        fi
 
         echo -e "${BRIGHT_GREEN}✅ Rules deployment complete${RESET}"
     }
@@ -399,12 +465,60 @@ main() {
             verify_ainish_skills "${target_dir}"
             ;;
 
+        # Explicit skill-selection surfaces. `--rules` offers the selector on
+        # first contact; these commands make the same choice available on
+        # demand, plus a read-only view of what is currently selected.
+        --select-skills)
+            _TRACK_DETAIL="select-skills"
+            local _sel_target _sel_used=""
+            for _sel_target in "$@"; do
+                case "$_sel_target" in
+                    -*) continue ;;
+                esac
+                _sel_used="$_sel_target"
+                break
+            done
+            _sel_target="${_sel_used:-$(pwd)}"
+            if [[ -d "$_sel_target" ]]; then
+                _sel_target="$(cd -P "$_sel_target" 2>/dev/null && pwd)"
+            fi
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]] || [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]]; then
+                print_error "--select-skills needs an interactive terminal; use '--rules <dir> --headless' with a saved selection instead"
+                exit 1
+            elif ! skills_selection_tty_ok; then
+                print_error "--select-skills needs an interactive terminal (no TTY detected)"
+                exit 1
+            elif _skills_toggle_ui "$_sel_target"; then
+                echo -e "${BRIGHT_GREEN}✅ Saved. Deploy the chosen packs with: ainish-coder --rules $_sel_target${RESET}"
+            else
+                echo -e "${YELLOW}Selection unchanged.${RESET}"
+            fi
+            ;;
+
+        --skills-list)
+            _TRACK_DETAIL="skills-list"
+            local _list_arg _list_target="" _list_json=false
+            for _list_arg in "$@"; do
+                case "$_list_arg" in
+                    --json) _list_json=true ;;
+                    -*) ;;
+                    *) [[ -z "$_list_target" ]] && _list_target="$_list_arg" ;;
+                esac
+            done
+            _list_target="${_list_target:-$(pwd)}"
+            if [[ -d "$_list_target" ]]; then
+                _list_target="$(cd -P "$_list_target" 2>/dev/null && pwd)"
+            fi
+            skills_selection_report "$_list_target" "$_list_json"
+            ;;
+
         --skills-sync)
-            if [[ "${AINISH_HEADLESS:-false}" == "true" ]]; then
-                # Headless: persisted selection governs; no prompts.
+            if [[ "${AINISH_HEADLESS:-false}" == "true" ]] || \
+               [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || ! skills_selection_tty_ok; then
+                # Headless/CI path: persisted selection governs; no prompts.
                 sync_ainish_skills "${target_dir}"
                 _TRACK_DETAIL="skills-sync-headless"
-            elif [[ "${AINISH_NON_INTERACTIVE:-false}" != "true" && -t 0 ]]; then
+            else
                 # A real terminal IS the interactive path: toggle UI first —
                 # add/remove packs to sync here; choices persist for every
                 # future --rules/--skills-sync.
@@ -416,13 +530,10 @@ main() {
                     fi
                     _TRACK_DETAIL="skills-sync-selected"
                 else
-                    echo -e "${YELLOW}Sync aborted (no selection saved).${RESET}"
-                    _TRACK_DETAIL="sync-aborted"
+                    echo -e "${YELLOW}No selection saved — syncing the saved selection instead.${RESET}"
+                    sync_ainish_skills "${target_dir}"
+                    _TRACK_DETAIL="skills-sync-persisted"
                 fi
-            else
-                # Non-interactive default: apply persisted config as-is.
-                sync_ainish_skills "${target_dir}"
-                _TRACK_DETAIL="skills-sync-persisted"
             fi
             ;;
 
@@ -633,8 +744,22 @@ main() {
             fi
             ;;
 
-        --rag)
-            _TRACK_DETAIL="rag"
+        --pqc-install)
+            _TRACK_DETAIL="pqc-install"
+            pqc_install "$@"
+            ;;
+
+        --pqc-status)
+            _TRACK_DETAIL="pqc-status"
+            pqc_status "$@"
+            ;;
+
+        --pqc-sync-targets)
+            _TRACK_DETAIL="pqc-sync"
+            pqc_sync_targets "$@"
+            ;;
+
+        --rag)            _TRACK_DETAIL="rag"
             "${SCRIPT_DIR}/ainish-rag" "$@"
             ;;
 
@@ -679,6 +804,12 @@ if [[ "${AINISH_NO_TRACKING:-false}" != "true" ]]; then
   _TRACK_START=$(python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo 0)
   _track_on_exit() {
     local rc=$?
+    # EXIT traps are inherited by command-substitution subshells. Tracking
+    # from those subshells can re-enter external tooling and stall deployment.
+    if [[ "${BASH_SUBSHELL:-0}" -gt 0 ]]; then
+      trap - EXIT
+      exit $rc
+    fi
     local now
     now=$(python3 -c "import time; print(int(time.time()*1000))" 2>/dev/null || echo 0)
     local tracker_bin
@@ -716,4 +847,3 @@ fi
 
 # Run main function
 main "$@"
-

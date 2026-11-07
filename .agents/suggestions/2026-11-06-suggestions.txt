@@ -1,0 +1,12 @@
+
+### [2026-11-06T16:20:00Z] docs/masters
+What changed: restored the nine advisory niches to `AGENTS.md` as dual-expertise masters with on-the-fly expert constitution, added `.agents/templates/masters.md` as the canonical definition, emitted the pairs in `context-packet.sh`, and fixed a dangling citation in `context-orchestration`.
+Next step: work the ainish-rag context-system plan in a new chat, using these masters to constitute task-specific expert pairs before each phase's design.
+1 breach/blast-radius: the previous nine lenses were removed from the contract while a skill kept citing them — a silent contract break that survived weeks because nothing tested the wiring; now pinned by six assertions.
+2 privacy/data-lifecycle: masters are recorded per task in the suggestions ledger, so name only the disciplines and findings, never the operator's data that informed them.
+3 dependencies/provenance: the "nine core lenses" phrasing is retired rather than aliased, so no downstream target can keep referring to a set that no longer exists.
+4 structure/operations: definitions live in one file (`templates/masters.md`) and the contract carries only the table plus a link, so on-call and newcomer masters stay reachable without bloating the always-on rail.
+5 failure/verification: the regression was an untested wiring, so the test asserts all nine are named, the link resolves, no dangling citation remains, and the packet emits the block.
+7 automation/reproducibility: the packet now hands an agent the pairs inline, so expert constitution needs no second file read and is reproducible across harnesses.
+8 orchestration/self-correction: the useful signal was that documentation can degrade silently when the contract is refactored — the fix is a test, not a reminder.
+9 comprehension/operability: each master is phrased as the question it asks, so a reader can constitute the pair without interpreting an abstract label.

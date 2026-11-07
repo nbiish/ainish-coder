@@ -6,6 +6,7 @@ mod ingest;
 mod wiki;
 mod decision;
 mod pqc;
+mod provider;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -42,6 +43,11 @@ struct Cli {
     #[arg(long, global = true)]
     cpu_affinity: Option<String>,
 
+    /// Keep the local embedding server resident after the command finishes.
+    /// By default any server this process spawns is stopped again, releasing the model's memory.
+    #[arg(long, global = true)]
+    keep_server: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -55,7 +61,26 @@ enum Commands {
         port: Option<u16>,
     },
     /// Stop running embedding server
-    Stop,
+    Stop {
+        /// Also remove loopback PSK material (.agents/rag/session.psk*) so no credentials remain
+        #[arg(long)]
+        purge: bool,
+    },
+    /// Inspect, persist, or clear the embedding provider (PQC auto-detection for OpenRouter/ZenMux)
+    EmbedProvider {
+        /// Output machine-readable JSON
+        #[arg(long)]
+        json: bool,
+        /// Persist the resolved non-secret provider config to .agents/rag/embed-provider.json
+        #[arg(long)]
+        write: bool,
+        /// Remove the persisted provider config (reverts to auto-detection)
+        #[arg(long)]
+        clear: bool,
+        /// Pin the intent: local | api | auto | openrouter | zenmux
+        #[arg(long)]
+        provider: Option<String>,
+    },
     /// Inspect status of model cache, server, LanceDB vector store, and wiki
     Status {
         /// Launch interactive TUI telemetry dashboard
@@ -76,6 +101,10 @@ enum Commands {
         /// Watch target path for file modifications and incrementally re-index
         #[arg(short, long)]
         watch: bool,
+        /// Drop the existing vector store before indexing. Required after switching embedding
+        /// models, because vectors from different models are not comparable.
+        #[arg(long)]
+        rebuild: bool,
         /// Anonymize and hash proprietary code identifiers before embedding
         #[arg(long)]
         anonymize_symbols: bool,
@@ -212,6 +241,10 @@ enum Commands {
         /// Decision question to ask (noul yes/no)
         #[arg(short, long)]
         question: Option<String>,
+        /// Typed question batch as inline JSON or @path (noul/choice/score with criteria).
+        /// Overrides --question and returns every typed answer.
+        #[arg(long)]
+        questions: Option<String>,
         /// Output decision as JSON
         #[arg(long)]
         json: bool,
@@ -305,6 +338,10 @@ enum Commands {
         /// Require STRONG_ANCHOR (>= 70.0% composite score) for security-critical modules
         #[arg(long)]
         strict: bool,
+        /// Command that proves the existing test suite is green. Its exit code is shown on the
+        /// gate card and a non-zero exit blocks the merge. Omit for docs-only patches.
+        #[arg(long)]
+        tests: Option<String>,
         /// Output gate results as JSON
         #[arg(long)]
         json: bool,
@@ -540,6 +577,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.cpu_affinity = Some(a);
     }
 
+    // Memory hygiene: a local embedding server spawned by this command is torn down on every
+    // exit path (including `?` errors) unless the operator explicitly keeps it resident.
+    let keep_server = cli.keep_server
+        || matches!(
+            std::env::var("AINISH_RAG_KEEP_SERVER").ok().as_deref().map(str::trim),
+            Some("1") | Some("true") | Some("yes") | Some("on")
+        )
+        || matches!(&cli.command, Commands::Serve { .. })
+        || matches!(&cli.command, Commands::Service { command: ServiceCommands::Status { warm: true } });
+    LlamaServer::set_keep_server(keep_server);
+    let _ephemeral_guard = LlamaServer::ephemeral_guard(keep_server);
+
     match cli.command {
         Commands::Serve { port } => {
             if let Some(p) = port {
@@ -548,8 +597,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             LlamaServer::ensure_running(&config, &current_dir).await?;
         }
-        Commands::Stop => {
-            LlamaServer::stop(&current_dir)?;
+        Commands::Stop { purge } => {
+            LlamaServer::stop_with_purge(&current_dir, purge)?;
+        }
+        Commands::EmbedProvider { json, write, clear, provider: pinned } => {
+            run_embed_provider(&current_dir, json, write, clear, pinned)?;
         }
         Commands::Status { tui, json } => {
             if tui {
@@ -626,10 +678,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let provider_line = if config.uses_api_embeddings() {
                 format!(
-                    "API {} (model: {}, no local server)",
+                    "API {} (model: {}, no local server) [{}]",
                     config.embed_api_base.as_deref().unwrap_or_default(),
-                    config.embed_model.as_deref().unwrap_or_default()
+                    config.embed_model.as_deref().unwrap_or_default(),
+                    config.embed_source
                 )
+            } else if config.embed_provider == "invalid" {
+                "INVALID (explicit API intent cannot be satisfied)".to_string()
             } else {
                 let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, &current_dir);
                 format!("local llama (ctx={} batch={})", ctx, batch)
@@ -637,9 +692,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             reporter.line(
                 "embed_provider",
                 serde_json::json!({
-                    "provider": if config.uses_api_embeddings() { "api" } else { "local" },
+                    "provider": if config.uses_api_embeddings() { "api" } else { config.embed_provider.as_str() },
+                    "provider_id": config.embed_provider_id,
                     "api_base": config.embed_api_base,
                     "model": config.embed_model,
+                    "dim": config.embed_dim,
+                    "key_present": config.embed_api_key.is_some(),
+                    "source": config.embed_source,
+                    "warnings": config.embed_warnings,
                 }),
                 format!("Embed Provider:     {}", provider_line),
             );
@@ -761,7 +821,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             reporter.finish();
         }
-        Commands::Index { path, truncate, watch, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
+        Commands::Index { path, truncate, watch, rebuild, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -782,6 +842,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             LlamaServer::ensure_running(&config, &current_dir).await?;
+
+            if rebuild && config.lancedb_dir.exists() {
+                std::fs::remove_dir_all(&config.lancedb_dir)
+                    .map_err(|e| format!("failed to remove {}: {}", config.lancedb_dir.display(), e))?;
+                println!(
+                    "  \x1b[36m[rag:index]\x1b[0m Rebuilt vector store (removed {})",
+                    config.lancedb_dir.display()
+                );
+            }
 
             let dim = truncate.unwrap_or(config.embedding_dim);
             let embed_client = EmbedClient::with_config(&config, truncate)
@@ -835,6 +904,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("  [rag:index] Persisting {} vectors into LanceDB...", rag_chunks.len());
             store.upsert(&rag_chunks).await?;
+            let _ = crate::provider::write_index_fingerprint(
+                &current_dir,
+                &crate::provider::identity_for(
+                    &config.embed_provider,
+                    config.embed_provider_id.as_deref(),
+                    config.embed_model.as_deref(),
+                ),
+                dim,
+            );
             let total = store.count().await.unwrap_or(0);
             println!("  [rag:index] Indexing complete! Total records in store: {}", total);
 
@@ -989,6 +1067,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 store.upsert(&rag_chunks).await?;
+                let _ = crate::provider::write_index_fingerprint(
+                    &current_dir,
+                    &crate::provider::identity_for(
+                        &config.embed_provider,
+                        config.embed_provider_id.as_deref(),
+                        config.embed_model.as_deref(),
+                    ),
+                    config.embedding_dim,
+                );
                 let total = store.count().await.unwrap_or(0);
                 let _ = record_index_audit_receipt(&current_dir, &target, generated_pages.len(), rag_chunks.len(), total, false);
                 println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
@@ -1032,22 +1119,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             } else {
-                let coarse_limit = (limit * 3).max(12);
-                let candidates = store.search_vector(&query_vec, coarse_limit, doc_type.as_deref()).await?;
                 let decision_engine = DecisionEngine::new();
-                let reranked = decision_engine.rerank(&query, candidates, min_relevance).await;
+                let coarse_limit = (limit * 3).max(12);
+                let mut candidates = store.search_vector(&query_vec, coarse_limit, doc_type.as_deref()).await?;
+                let mut reranked = decision_engine.rerank(&query, candidates.clone(), min_relevance).await;
+                let mut sufficiency = crate::decision::evaluate_context_sufficiency(&reranked);
+                let mut corrective_pass_triggered = false;
+
+                // Corrective RAG (CRAG): when the first retrieval pass lands in `partial_unsettled`
+                // or `insufficient`, extract symbol/file anchors from the partial candidates and
+                // run a second-stage symbol-anchored expansion pass before yielding.
+                if sufficiency != "sufficient" && !candidates.is_empty() {
+                    let expansion_terms = crate::decision::extract_corrective_expansion_terms(&query, &candidates);
+                    if !expansion_terms.is_empty() {
+                        corrective_pass_triggered = true;
+                        let expanded_query = format!("{} {}", query, expansion_terms.join(" "));
+                        let expanded_formatted = EmbedClient::format_query(&expanded_query, true);
+                        if let Ok(expanded_vec) = embed_client.embed_one(&expanded_formatted).await {
+                            if let Ok(extra_hits) = store.search_vector(&expanded_vec, coarse_limit, doc_type.as_deref()).await {
+                                for h in extra_hits {
+                                    if !candidates.iter().any(|c| c.path == h.path && c.start_line == h.start_line) {
+                                        candidates.push(h);
+                                    }
+                                }
+                                reranked = decision_engine.rerank(&query, candidates, min_relevance).await;
+                                sufficiency = crate::decision::evaluate_context_sufficiency(&reranked);
+                            }
+                        }
+                    }
+                }
+
                 let top_hits: Vec<_> = reranked.into_iter().take(limit).collect();
 
                 if json {
                     println!("{}", serde_json::to_string_pretty(&top_hits)?);
                 } else {
-                    let source_label = if decision_engine.api_key.is_some() {
-                        format!("OpenRouter Jev ({})", decision_engine.key_source)
-                    } else {
-                        "Local Calibrated Reranker".to_string()
-                    };
+                    let source_label = top_hits
+                        .first()
+                        .map(|h| h.rerank_source.clone())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| {
+                            if decision_engine.api_key.is_some() {
+                                format!("OpenRouter Jev ({})", decision_engine.key_source)
+                            } else {
+                                "Local Calibrated Reranker".to_string()
+                            }
+                        });
                     println!("\n=== Search Results (Decision Reranked: {}) ===", top_hits.len());
                     println!("Decision Engine:       {}", source_label);
+                    println!(
+                        "Context Sufficiency:   {}{}",
+                        sufficiency,
+                        if corrective_pass_triggered { " (CRAG corrective expansion pass applied)" } else { "" }
+                    );
                     if top_hits.is_empty() {
                         println!("No candidate chunks met the minimum relevance threshold ({:.2}).", min_relevance);
                     } else {
@@ -1257,22 +1381,105 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Source:                {}", decision.source);
                 println!("Needs Retrieval:       {} (probability: {:.3})", decision.needs_retrieval, decision.retrieval_probability);
                 println!("Target Domain:         {} (confidence:  {:.3})", decision.target_domain, decision.route_confidence);
+                println!("Context Freshness:     {:.3}", decision.context_freshness);
+                println!("Query Specificity:     {}", decision.query_specificity);
+                println!("Modality Preference:   {}", decision.modality_preference);
+                println!("Retrieval Strategy:    {} (pool: {})", decision.retrieval_strategy, decision.candidate_pool_size);
+                println!("Context Budget:        {} tokens", decision.context_budget_tokens);
+                println!("Next Action:           {}", decision.next_action);
                 println!();
             }
         }
-        Commands::Decide { state, question, json } => {
+        Commands::Decide { state, question, questions, json } => {
             let engine = DecisionEngine::new();
-            let q = question.unwrap_or_else(|| "Does this task require external retrieval or escalation?".to_string());
+
+            // `--questions` is the agent-facing primitive: typed noul/choice/score questions with
+            // explicit criteria, answered together in one calibrated request.
+            if let Some(raw) = questions {
+                let text = if let Some(path) = raw.strip_prefix('@') {
+                    std::fs::read_to_string(path)?
+                } else if std::path::Path::new(&raw).is_file() {
+                    std::fs::read_to_string(&raw)?
+                } else {
+                    raw
+                };
+                let parsed: serde_json::Value = serde_json::from_str(&text)
+                    .map_err(|e| format!("--questions must be a JSON object of typed questions: {}", e))?;
+                if !parsed.is_object() {
+                    return Err("--questions must be a JSON object keyed by question id".into());
+                }
+                let set = engine.decide(&state, &parsed).await?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "state": state,
+                        "model": set.model,
+                        "source": set.source,
+                        "answers": set.answers,
+                        "usage": set.usage,
+                    }))?);
+                } else {
+                    println!("\n=== Jev Typed Decisions ===");
+                    println!("State:   {}", state.lines().next().unwrap_or(""));
+                    println!("Model:   {} ({})", set.model, set.source);
+                    for answer in &set.answers {
+                        let value = if let Some(p) = answer.noul {
+                            format!("{:.3} ({})", p, answer.band())
+                        } else if let Some(choice) = &answer.choice {
+                            format!("{}{}", choice, answer.confidence.map(|c| format!(" (confidence {:.2})", c)).unwrap_or_default())
+                        } else if let Some(score) = answer.score {
+                            format!("{:.2}", score)
+                        } else {
+                            "n/a".to_string()
+                        };
+                        println!("  {:<28} {:<8} {}", answer.id, answer.kind, value);
+                    }
+                    println!();
+                }
+                return Ok(());
+            }
+
+            if let Some(q) = question {
+                let questions = serde_json::json!({
+                    "statement": DecisionEngine::noul_question(
+                        &q,
+                        "the state provides clear evidence that the answer is yes",
+                        "the state provides no evidence that the answer is yes"
+                    )
+                });
+                let set = engine.decide(&state, &questions).await?;
+                let answer = set.answers.first();
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "state": state,
+                        "question": q,
+                        "model": set.model,
+                        "source": set.source,
+                        "answer": answer,
+                    }))?);
+                } else {
+                    println!("\n=== Jev Decision Analysis ===");
+                    println!("State:                 {}", state.lines().next().unwrap_or(""));
+                    println!("Question:              {}", q);
+                    println!("Model:                 {} ({})", set.model, set.source);
+                    match answer.and_then(|a| a.noul) {
+                        Some(p) => println!("Answer:                {:.3} ({})", p, crate::decision::noul_band(p)),
+                        None => println!("Answer:                unresolved"),
+                    }
+                    println!();
+                }
+                return Ok(());
+            }
+
             let decision = engine.route(&state).await;
             if json {
                 println!("{}", serde_json::to_string_pretty(&decision)?);
             } else {
-                println!("\n=== Jev Decision Analysis ===");
-                println!("State:                 {}", state);
-                println!("Question:              {}", q);
+                println!("\n=== Jev Decision Routing ===");
+                println!("State:                 {}", state.lines().next().unwrap_or(""));
                 println!("Source:                {}", decision.source);
-                println!("Needs Retrieval:       {}", decision.needs_retrieval);
-                println!("Target Domain:         {}", decision.target_domain);
+                println!("Needs Retrieval:       {} ({:.3})", decision.needs_retrieval, decision.retrieval_probability);
+                println!("Target Domain:         {} (confidence {:.3})", decision.target_domain, decision.route_confidence);
+                println!("Context Freshness:     {:.3}", decision.context_freshness);
                 println!();
             }
         }
@@ -1289,8 +1496,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     println!("\n=== Bi-Phasic Faithfulness Evaluation ===");
                     println!("Evaluation Source:     {}", eval.evaluation_source);
+                    println!("Verdict Band:          {}", eval.verdict_band);
                     println!("Faithful to Context:   {}", eval.is_faithful);
                     println!("Faithfulness Score:    {:.3}", eval.faithfulness_score);
+                    println!("Completeness Score:    {:.3}", eval.completeness_score);
+                    println!("Contradiction Prob:    {:.3}", eval.contradiction_probability);
                     println!("Hallucination Risk:    {:.3}", eval.halluncination_risk);
                     println!();
                 }
@@ -1359,26 +1569,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Orient { inject, query, task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json } => {
             if inject {
-                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json)?;
+                run_orient_inject(&current_dir, query.as_deref(), task_conditioned, verify, compact, max_lines, sections, include_symbols, sync_rules, json).await?;
             }
         }
-        Commands::Gate { patch, bell, notify, watch, summary, strict, json } => {
-            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, strict, false, json).await?;
+        Commands::Gate { patch, bell, notify, watch, summary, strict, tests, json } => {
+            run_gate(&config, &current_dir, patch.as_deref(), bell, notify, watch, summary, strict, tests.as_deref(), false, json).await?;
         }
         Commands::Statusline { json } => {
-            run_gate(&config, &current_dir, None, false, false, false, true, false, json, false).await?;
+            run_gate(&config, &current_dir, None, false, false, false, true, false, None, json, false).await?;
         }
         Commands::Secrets { json } => {
             let status = DecisionEngine::inspect_secrets();
+            let jev = crate::decision::inspect_jev().await;
             if json {
-                println!("{}", serde_json::to_string_pretty(&status)?);
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                    "has_key": status.has_key,
+                    "key_source": status.key_source,
+                    "vault_bundle_exists": status.vault_bundle_exists,
+                    "vault_path": status.vault_path,
+                    "model": status.model,
+                    "decision": jev,
+                }))?);
             } else {
                 println!("\n=== PQC Secrets & Decision Model Status ===");
                 println!("OpenRouter Key Present: {}", if status.has_key { "YES" } else { "NO (offline calibrated fallback active)" });
                 println!("Key Resolution Source:  {}", status.key_source);
                 println!("PQC Vault Bundle:       {}", if status.vault_bundle_exists { "FOUND" } else { "NOT FOUND" });
                 println!("Vault Path:             {}", status.vault_path);
-                println!("Decision Model Target:  {}", status.model);
+                println!("Decision Model:         {} (latest: {})", jev.model, jev.latest_model);
+                if jev.model_pinned {
+                    println!("  \x1b[33m!\x1b[0m JEV_DECISION_MODEL pins a model other than the latest");
+                }
+                println!("OpenRouter Endpoint:    {}", jev.endpoint);
+                match jev.local_router.as_ref() {
+                    Some(router) => {
+                        println!("Local Router:           {} (jev models: {})", router.base_url, router.jev_models.join(", "));
+                        match router.decisions_url.as_deref() {
+                            Some(url) => println!("  Decisions Route:      {} (fallback transport)", url),
+                            None => println!("  Decisions Route:      none (router exposes Jev chat only — check GET /api/decisions/status; typed decisions stay on OpenRouter)"),
+                        }
+                    }
+                    None => println!("Local Router:           not detected on loopback"),
+                }
                 println!();
             }
         }
@@ -1904,6 +2136,166 @@ fn record_index_audit_receipt(
     Ok(())
 }
 
+/// `ainish-rag embed-provider` — inspects, persists, or clears the embedding provider posture.
+/// Key material is never printed: only provenance such as `env:NAME` or `pqc:NAME`.
+fn run_embed_provider(
+    current_dir: &std::path::Path,
+    json: bool,
+    write: bool,
+    clear: bool,
+    pinned: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let repo_root = crate::config::resolve_canonical_repo_root(current_dir);
+    let config_path = repo_root.join(crate::provider::CONFIG_REL);
+
+    if clear {
+        let removed = crate::provider::clear_config(&repo_root)?;
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "cleared": removed,
+                    "config_path": config_path.display().to_string(),
+                    "config_persisted": false,
+                }))?
+            );
+        } else if removed {
+            println!("✓ Removed {} — embeddings fall back to auto-detection", config_path.display());
+        } else {
+            println!("  No persisted embedding provider config at {}", config_path.display());
+        }
+        return Ok(());
+    }
+
+    if let Some(ref pin) = pinned {
+        let normalized = pin.trim().to_ascii_lowercase();
+        if !matches!(
+            normalized.as_str(),
+            "local" | "api" | "auto" | "openrouter" | "zenmux" | "off" | "none"
+        ) {
+            return Err(format!(
+                "Unknown provider '{}': expected local|api|auto|openrouter|zenmux",
+                pin
+            )
+            .into());
+        }
+    }
+
+    let resolution = crate::provider::resolve_with(&repo_root, pinned.as_deref());
+    if resolution.is_invalid() && (write || pinned.is_some()) {
+        return Err(format!(
+            "Cannot persist an unusable API embedding intent: {}",
+            resolution.warnings.join("; ")
+        )
+        .into());
+    }
+
+    // Persist only a usable remote posture (or an explicit operator pin). Auto-detection that
+    // found nothing must not write `local`, otherwise a key added later would be ignored.
+    let should_write = write && (resolution.provider == "api" || resolution.explicit);
+    let persisted_path = if should_write {
+        Some(crate::provider::write_config(&repo_root, &resolution)?)
+    } else {
+        None
+    };
+    if write && !should_write && !json {
+        println!("  No remote embedding credentials detected — nothing persisted (auto-detection stays active)");
+    }
+
+    let local_running = LlamaServer::local_server_running(&repo_root);
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "provider": resolution.provider,
+                "provider_id": resolution.provider_id,
+                "api_base": resolution.api_base,
+                "model": resolution.model,
+                "dim": resolution.dim,
+                "key_present": resolution.key.is_some(),
+                "key_source": resolution.key_source,
+                "source": resolution.source,
+                "explicit": resolution.explicit,
+                "warnings": resolution.warnings,
+                "config_path": config_path.display().to_string(),
+                "config_persisted": config_path.exists(),
+                "local_server_running": local_running,
+            }))?
+        );
+    } else {
+        println!("\x1b[94mainish-rag Embedding Provider\x1b[0m");
+        println!("  Config:        {}", config_path.display());
+        println!(
+            "  Intent:        {}",
+            if resolution.explicit { "operator-pinned" } else { "auto-detect" }
+        );
+        match resolution.provider.as_str() {
+            "api" => {
+                let provider_label = resolution
+                    .provider_id
+                    .as_deref()
+                    .and_then(crate::provider::find_provider)
+                    .map(|spec| spec.label)
+                    .unwrap_or("custom");
+                println!(
+                    "  Provider:      api ({} / {})  [source: {}]",
+                    provider_label,
+                    resolution.provider_id.as_deref().unwrap_or("custom"),
+                    resolution.source
+                );
+                println!("  API Base:      {}", resolution.api_base.as_deref().unwrap_or("<unset>"));
+                println!("  Model:         {}", resolution.model.as_deref().unwrap_or("<unset>"));
+                println!(
+                    "  Vector Width:  {}",
+                    match resolution.dim {
+                        Some(d) => format!("{} (explicit)", d),
+                        None => format!(
+                            "{} (store width; the model's native width is wider)",
+                            crate::provider::DEFAULT_STORE_DIM
+                        ),
+                    }
+                );
+                println!(
+                    "  Key:           {}",
+                    resolution
+                        .key_source
+                        .as_deref()
+                        .map(|s| format!("present via {} (never printed)", s))
+                        .unwrap_or_else(|| "absent (unauthenticated endpoint)".to_string())
+                );
+                println!("  Local Server:  not used while API embeddings are active (no resident model)");
+            }
+            "invalid" => {
+                println!("  Provider:      \x1b[31minvalid\x1b[0m (explicit API intent cannot be satisfied)");
+                for w in &resolution.warnings {
+                    println!("  \x1b[33m!\x1b[0m {}", w);
+                }
+            }
+            _ => {
+                println!("  Provider:      local llama{}", if resolution.explicit { " [operator-pinned]" } else { " [auto-detect: no remote credentials]" });
+                println!(
+                    "  Local Server:  {}",
+                    if local_running { "resident" } else { "not resident (spawned only for the command that needs it)" }
+                );
+                println!("  Hint:          point at OpenRouter/ZenMux with `ainish-rag embed-provider --provider openrouter`");
+            }
+        }
+        if resolution.provider != "invalid" && !resolution.explicit && resolution.provider != "api" {
+            for w in &resolution.warnings {
+                println!("  \x1b[33m!\x1b[0m {}", w);
+            }
+        }
+    }
+
+    if let Some(path) = persisted_path {
+        if !json {
+            println!("✓ Persisted non-secret provider config → {}", path.display());
+        }
+    }
+    Ok(())
+}
+
 async fn run_drift_monitor(
     config: &RagConfig,
     current_dir: &std::path::Path,
@@ -2211,32 +2603,8 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
                     passed += 1;
                 }
                 pqc::VerifyOutcome::Unsigned(reason) => {
-                    // Check legacy SHA-256 envelope match
-                    let data = std::fs::read(&path)?;
-                    use sha2::{Sha256, Digest};
-                    let mut hasher = Sha256::new();
-                    hasher.update(&data);
-                    let calculated_hash = hex::encode(hasher.finalize());
-
-                    let sig_content = std::fs::read_to_string(&sig_file)?;
-                    if let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&sig_content) {
-                        if let Some(expected_hash) = envelope.get("sha256").and_then(|v| v.as_str()) {
-                            if expected_hash.eq_ignore_ascii_case(&calculated_hash) {
-                                let mode = envelope.get("mode").and_then(|v| v.as_str()).unwrap_or("ML-DSA-65-ready");
-                                println!("  \x1b[32m[PASS]\x1b[0m {}: Integrity verified ({})", file_name, mode);
-                                passed += 1;
-                            } else {
-                                println!("  \x1b[31m[FAIL]\x1b[0m {}: SHA-256 hash mismatch in envelope!", file_name);
-                                failed += 1;
-                            }
-                        } else {
-                            println!("  \x1b[31m[FAIL]\x1b[0m {}: Invalid signature envelope structure", file_name);
-                            failed += 1;
-                        }
-                    } else {
-                        println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, reason);
-                        failed += 1;
-                    }
+                    println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, reason);
+                    failed += 1;
                 }
                 pqc::VerifyOutcome::Invalid(err) => {
                     println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, err);
@@ -2641,11 +3009,13 @@ pub async fn evaluate_patch_internal(
     let mut modified_files = Vec::new();
     let mut added_symbols = Vec::new();
     let mut canary_leaks = Vec::new();
+    let mut current_file = String::new();
 
     let normalized_patch = patch_text.replace("\r\n", "\n");
     for line in normalized_patch.lines() {
         if let Some(file_line) = line.strip_prefix("+++ b/") {
             let f = file_line.trim().to_string();
+            current_file = f.clone();
             if !modified_files.contains(&f) {
                 modified_files.push(f);
             }
@@ -2668,9 +3038,13 @@ pub async fn evaluate_patch_internal(
                 }
             }
 
-            for word in added_line.split(|c: char| !c.is_alphanumeric() && c != '_') {
-                if word.len() >= 4 && !added_symbols.contains(&word.to_string()) {
-                    added_symbols.push(word.to_string());
+            // Only extract code symbols from non-coordination/non-docs paths so SHA-256 digests and
+            // signature envelopes in `.agents/canonical/` or `.agents/audit/` do not dilute symbol anchoring.
+            if !is_docs_or_coord_path(&current_file) {
+                for word in added_line.split(|c: char| !c.is_alphanumeric() && c != '_') {
+                    if word.len() >= 4 && !added_symbols.contains(&word.to_string()) {
+                        added_symbols.push(word.to_string());
+                    }
                 }
             }
         }
@@ -2680,29 +3054,40 @@ pub async fn evaluate_patch_internal(
     let embed_client = EmbedClient::with_config(&config, None);
     let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
 
+    // Exclude non-indexed coordination/documentation files from file-coverage denominator when the
+    // patch modifies code files, so mixed code + canonical-contract commits are scored on code.
+    let code_files: Vec<String> = modified_files
+        .iter()
+        .filter(|f| !is_docs_or_coord_path(f))
+        .cloned()
+        .collect();
+    let eval_files: &[String] = if code_files.is_empty() { &modified_files } else { &code_files };
+
     let mut covered_files = 0;
     let mut total_score = 0.0f32;
     let mut matched_sym_set = std::collections::HashSet::new();
 
-    for file_name in &modified_files {
+    for file_name in eval_files {
         let q_vec = embed_client.embed_one(&EmbedClient::format_query(file_name, true)).await?;
-        let hits = store.search_vector(&q_vec, 3, None).await?;
+        let hits = store.search_vector(&q_vec, 5, None).await?;
         if hits.iter().any(|h| h.path.contains(file_name)) {
             covered_files += 1;
         }
-        if let Some(top) = hits.first() {
-            total_score += top.score;
+        for hit in hits.iter().take(2) {
             for sym in &added_symbols {
-                if top.content.contains(sym) {
+                if hit.content.contains(sym) || hit.symbols.contains(sym) {
                     matched_sym_set.insert(sym.clone());
                 }
             }
         }
+        if let Some(top) = hits.first() {
+            total_score += top.score;
+        }
     }
 
     let matched_symbols = matched_sym_set.len();
-    let file_coverage = if modified_files.is_empty() { 1.0 } else { covered_files as f32 / modified_files.len() as f32 };
-    let avg_score = if modified_files.is_empty() { 0.0 } else { total_score / modified_files.len() as f32 };
+    let file_coverage = if eval_files.is_empty() { 1.0 } else { covered_files as f32 / eval_files.len() as f32 };
+    let avg_score = if eval_files.is_empty() { 0.0 } else { total_score / eval_files.len() as f32 };
     let symbol_anchoring = if added_symbols.is_empty() { 1.0 } else { (matched_symbols as f32 / added_symbols.len() as f32).min(1.0) };
     let composite_score = (file_coverage * 0.4) + (avg_score * 0.4) + (symbol_anchoring * 0.2);
 
@@ -2947,6 +3332,43 @@ fn sanitize_orient_content(content: &str) -> (String, usize) {
     (sanitized, count)
 }
 
+fn extract_orient_task_summary(repo_root: &std::path::Path, query: Option<&str>) -> String {
+    if let Some(q) = query {
+        let trimmed = q.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    let tasks_dir = repo_root.join(".agents").join("tasks");
+    if let Ok(t_entries) = std::fs::read_dir(&tasks_dir) {
+        let mut task_files: Vec<PathBuf> = t_entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().map_or(false, |ext| ext == "md"))
+            .collect();
+        task_files.sort();
+        if let Some(latest_task) = task_files.last() {
+            if let Ok(text) = std::fs::read_to_string(latest_task) {
+                let mut lines: Vec<&str> = Vec::new();
+                for line in text.lines().rev() {
+                    if line.starts_with("- objective:") || line.starts_with("- scope:") || line.starts_with("## ") {
+                        lines.push(line.trim());
+                        if lines.len() >= 3 {
+                            break;
+                        }
+                    }
+                }
+                if !lines.is_empty() {
+                    lines.reverse();
+                    return lines.join(" | ");
+                }
+            }
+        }
+    }
+    "orient repository architecture, symbols, security governance, and active worktree state".to_string()
+}
+
+#[allow(dead_code)]
 fn build_orient_report(
     repo_root: &std::path::Path,
     query: Option<&str>,
@@ -2956,6 +3378,21 @@ fn build_orient_report(
     sections: Option<usize>,
     include_symbols: bool,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    build_orient_report_with_route(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols, None)
+}
+
+fn build_orient_report_with_route(
+    repo_root: &std::path::Path,
+    query: Option<&str>,
+    task_conditioned: bool,
+    compact: bool,
+    max_lines: Option<usize>,
+    sections: Option<usize>,
+    include_symbols: bool,
+    route_override: Option<crate::decision::RouteDecision>,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let orient_prompt = extract_orient_task_summary(repo_root, query);
+    let route_decision = route_override.unwrap_or_else(|| DecisionEngine::new().route_local(&orient_prompt));
     let section_limit = sections.unwrap_or(3);
     let wiki_dir = repo_root.join(".agents").join("wiki");
     let mut candidate_files = Vec::new();
@@ -3004,12 +3441,21 @@ fn build_orient_report(
                 }
             }
 
+            let target_domain = route_decision.target_domain.as_str();
             files.sort_by(|a, b| {
                 let a_name = a.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
                 let b_name = b.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
 
                 let score_file = |name: &str, p: &std::path::Path| -> i32 {
                     let mut score = 0;
+                    // Domain-guided wiki section weighting from the Jev route decision
+                    match target_domain {
+                        "security_governance" if name.contains("security") || name.contains("03") => score += 12,
+                        "codebase_symbols" if name.contains("call") || name.contains("02") || name.contains("symbol") => score += 12,
+                        "technical_debt" if name.contains("debt") || name.contains("04") || name.contains("risk") => score += 12,
+                        "architectural_wiki" if name.contains("arch") || name.contains("01") => score += 12,
+                        _ => {}
+                    }
                     for kw in &task_keywords {
                         if name.contains(kw) {
                             score += 5;
@@ -3080,8 +3526,23 @@ fn build_orient_report(
         "<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {} | commit: {} -->\n",
         git_branch, git_sha
     ));
+    primer_lines.push(format!(
+        "### Decision-Model Routing Hint (`{}`)\n- domain: `{}` (confidence {:.2}) | freshness: `{:.2}` | specificity: `{}` | modality: `{}` | strategy: `{}` (pool {}) | context budget: {} tokens\n- next: {}\n",
+        route_decision.source,
+        route_decision.target_domain,
+        route_decision.route_confidence,
+        route_decision.context_freshness,
+        route_decision.query_specificity,
+        route_decision.modality_preference,
+        route_decision.retrieval_strategy,
+        route_decision.candidate_pool_size,
+        route_decision.context_budget_tokens,
+        route_decision.next_action,
+    ));
 
-    let lines_per_section = max_lines.unwrap_or(if compact { 8 } else { 25 });
+    let default_lines = if compact { 8 } else { 25 };
+    let budget_lines = (route_decision.context_budget_tokens / 12 / section_limit.max(1)).max(3);
+    let lines_per_section = max_lines.unwrap_or(default_lines.min(budget_lines));
     let max_items = if compact { 3 } else { 6 };
 
     for p in &candidate_files {
@@ -3216,10 +3677,11 @@ fn build_orient_report(
         "compact": compact,
         "classical_crypto_redacted": total_sanitized > 0,
         "task_conditioned": task_conditioned,
+        "route_decision": route_decision,
     }))
 }
 
-fn run_orient_inject(
+async fn run_orient_inject(
     repo_root: &std::path::Path,
     query: Option<&str>,
     task_conditioned: bool,
@@ -3231,7 +3693,18 @@ fn run_orient_inject(
     sync_rules: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut report = build_orient_report(repo_root, query, task_conditioned, compact, max_lines, sections, include_symbols)?;
+    let orient_prompt = extract_orient_task_summary(repo_root, query);
+    let route_decision = DecisionEngine::new().route(&orient_prompt).await;
+    let mut report = build_orient_report_with_route(
+        repo_root,
+        query,
+        task_conditioned,
+        compact,
+        max_lines,
+        sections,
+        include_symbols,
+        Some(route_decision),
+    )?;
 
     // Master-orchestrator: verified primers must run against fresh rules. When the caller
     // passes --verify and the cached gate verdict is not GREEN, auto-enable the sync so the
@@ -3372,6 +3845,401 @@ fn git_branch_sha(repo_root: &std::path::Path) -> (String, String) {
     (branch, sha)
 }
 
+/// Test files are noise for the "implementation over test theatre" budget, so the gate counts
+/// them separately from implementation lines added by a patch.
+fn is_test_path(path: &str) -> bool {
+    let p = path.replace('\\', "/").to_lowercase();
+    let name = p.rsplit('/').next().unwrap_or(p.as_str());
+    p.contains("/tests/")
+        || p.contains("/test/")
+        || p.contains("/spec/")
+        || name.starts_with("test_")
+        || name.contains("_test.")
+        || name.contains(".test.")
+        || name.contains(".spec.")
+}
+
+/// Returns `(test_lines_added, impl_lines_added)` for a unified diff.
+fn diff_test_stats(patch: &str) -> (usize, usize) {
+    let mut current = String::new();
+    let mut test_lines = 0usize;
+    let mut impl_lines = 0usize;
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            current = rest.to_string();
+            continue;
+        }
+        if line.starts_with("+++") || line.starts_with("---") || line.starts_with('\\') {
+            continue;
+        }
+        if line.starts_with('+') && !line.starts_with("+++") {
+            if is_test_path(&current) {
+                test_lines += 1;
+            } else {
+                impl_lines += 1;
+            }
+        }
+    }
+    (test_lines, impl_lines)
+}
+
+/// Runs the operator's existing-suite command so the gate card can show its exit code instead of
+/// trusting a prose claim. Output is inherited so a failure is visible in the gate log.
+fn run_test_command(repo_root: &std::path::Path, cmd: &str) -> (bool, Option<i32>) {
+    #[cfg(windows)]
+    let mut command = {
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/C").arg(cmd);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut command = {
+        let mut c = std::process::Command::new("sh");
+        c.arg("-c").arg(cmd);
+        c
+    };
+    let result = command
+        .current_dir(repo_root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status();
+    match result {
+        Ok(status) => (status.success(), status.code()),
+        Err(_) => (false, None),
+    }
+}
+
+fn truncate_cmd(cmd: &str, max: usize) -> String {
+    if cmd.chars().count() <= max {
+        cmd.to_string()
+    } else {
+        format!("{}…", cmd.chars().take(max.saturating_sub(1)).collect::<String>())
+    }
+}
+
+/// Surface rules shared by both engines (`src/rag/master-surfaces.json`), so a new surface is one
+/// edit rather than two. Adding a rule file entry is itself a compatibility surface.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MasterSurfaceRules {
+    #[serde(default = "default_contract_paths")]
+    pub contract_paths: Vec<String>,
+    #[serde(default = "default_schema_suffixes")]
+    pub schema_suffixes: Vec<String>,
+    #[serde(default = "default_dependency_manifests")]
+    pub dependency_manifests: Vec<String>,
+    #[serde(default = "default_cli_tokens")]
+    pub cli_tokens: Vec<String>,
+    #[serde(default = "default_append_only_prefixes")]
+    pub append_only_prefixes: Vec<String>,
+    #[serde(default = "default_spend_prefixes")]
+    pub spend_prefixes: Vec<String>,
+}
+
+fn default_contract_paths() -> Vec<String> {
+    vec![
+        "agents.md".to_string(),
+        "llms.txt".to_string(),
+        ".agents/canonical/".to_string(),
+        ".agents/skills/".to_string(),
+        "src/templates/".to_string(),
+    ]
+}
+
+fn default_schema_suffixes() -> Vec<String> {
+    vec![
+        "embed-provider.json".to_string(),
+        "index-fingerprint.json".to_string(),
+        "gate-status.json".to_string(),
+        "ainish-deploy.json".to_string(),
+    ]
+}
+
+fn default_dependency_manifests() -> Vec<String> {
+    vec![
+        "cargo.toml".to_string(),
+        "cargo.lock".to_string(),
+        "package.json".to_string(),
+        "package-lock.json".to_string(),
+        "pnpm-lock.yaml".to_string(),
+        "pyproject.toml".to_string(),
+        "uv.lock".to_string(),
+    ]
+}
+
+fn default_cli_tokens() -> Vec<String> {
+    vec![
+        "#[arg(".to_string(),
+        "add_argument(".to_string(),
+        "long = \"".to_string(),
+        "env::var(\"".to_string(),
+        "os.environ.get(\"".to_string(),
+        "os.environ[\"".to_string(),
+    ]
+}
+
+fn default_append_only_prefixes() -> Vec<String> {
+    vec![
+        ".agents/comms/".to_string(),
+        ".agents/memories/".to_string(),
+        ".agents/suggestions/".to_string(),
+    ]
+}
+
+fn default_spend_prefixes() -> Vec<String> {
+    vec![
+        "src/rag/".to_string(),
+        ".github/".to_string(),
+        "benchmarks/".to_string(),
+        "scripts/".to_string(),
+    ]
+}
+
+impl Default for MasterSurfaceRules {
+    fn default() -> Self {
+        Self {
+            contract_paths: default_contract_paths(),
+            schema_suffixes: default_schema_suffixes(),
+            dependency_manifests: default_dependency_manifests(),
+            cli_tokens: default_cli_tokens(),
+            append_only_prefixes: default_append_only_prefixes(),
+            spend_prefixes: default_spend_prefixes(),
+        }
+    }
+}
+
+/// Loads the shared surface rules from the repo (or its canonical root), falling back to defaults.
+pub fn load_master_surface_rules(repo_root: &std::path::Path) -> MasterSurfaceRules {
+    let mut candidates = vec![repo_root.join("src").join("rag").join("master-surfaces.json")];
+    let canonical = crate::config::resolve_canonical_repo_root(repo_root)
+        .join("src")
+        .join("rag")
+        .join("master-surfaces.json");
+    if canonical != candidates[0] {
+        candidates.push(canonical);
+    }
+    for path in candidates {
+        if let Ok(text) = std::fs::read_to_string(path) {
+            if let Ok(rules) = serde_json::from_str::<MasterSurfaceRules>(&text) {
+                return rules;
+            }
+        }
+    }
+    MasterSurfaceRules::default()
+}
+
+/// One triggered-master surface: whether this patch touches it and whether the turn declared
+/// what the lens requires (`compat:` / `budget:` lines, append-only state, parity row).
+#[derive(Debug, Clone, serde::Serialize, Default)]
+pub struct MasterCheck {
+    pub touched: bool,
+    pub declared: bool,
+    pub detail: String,
+    pub declaration: String,
+}
+
+/// The three machine-checkable triggered lenses from `AGENTS.md` `<OUTPUT>`.
+#[derive(Debug, Clone, serde::Serialize, Default)]
+pub struct MasterSurfaceReport {
+    pub compatibility: MasterCheck,
+    pub concurrency: MasterCheck,
+    pub economics: MasterCheck,
+}
+
+impl MasterSurfaceReport {
+    pub fn compat_ok(&self) -> bool {
+        !self.compatibility.touched || self.compatibility.declared
+    }
+
+    pub fn concurrency_ok(&self) -> bool {
+        self.concurrency.detail.is_empty()
+    }
+
+    pub fn economics_ok(&self) -> bool {
+        !self.economics.touched || self.economics.declared
+    }
+}
+
+fn today_utc() -> String {
+    chrono::Utc::now().format("%Y-%m-%d").to_string()
+}
+
+fn read_today_task_record(repo_root: &std::path::Path) -> String {
+    let path = repo_root
+        .join(".agents")
+        .join("tasks")
+        .join(format!("{}-task.md", today_utc()));
+    std::fs::read_to_string(path).unwrap_or_default()
+}
+
+/// Returns the declaration line (`compat:` / `budget:`) when present, trimmed and capped.
+pub fn find_declaration(text: &str, key: &str) -> Option<String> {
+    let prefix = format!("{}:", key.to_ascii_lowercase());
+    text.lines()
+        .map(|line| {
+            line.trim()
+                .trim_start_matches(['-', '+'])
+                .trim()
+                .to_string()
+        })
+        .find(|line| line.to_ascii_lowercase().starts_with(&prefix))
+        .map(|line| line.chars().take(180).collect())
+}
+
+/// True when `text` carries a `key:` declaration line (a leading bullet or list dash is allowed).
+pub fn has_declaration(text: &str, key: &str) -> bool {
+    find_declaration(text, key).is_some()
+}
+
+fn push_label(labels: &mut Vec<String>, label: &str) {
+    if !labels.iter().any(|existing| existing == label) {
+        labels.push(label.to_string());
+    }
+}
+
+/// Detects contract surfaces whose change needs a `compat:` declaration: shared contract docs and
+/// skill packs, dependency manifests (semantics can shift under a lockfile bump), CLI flags, schema
+/// `format:` fields, config-file shapes, and env-var interfaces.
+pub fn contract_surfaces_touched(patch: &str, rules: &MasterSurfaceRules) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::new();
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            let path = rest.trim().to_ascii_lowercase();
+            if rules.contract_paths.iter().any(|p| path == *p || path.starts_with(p.as_str())) {
+                push_label(&mut labels, "contract");
+            }
+            if rules.schema_suffixes.iter().any(|name| path.ends_with(name.as_str())) {
+                push_label(&mut labels, "schema");
+            }
+            if rules.dependency_manifests.iter().any(|name| path.ends_with(name.as_str())) {
+                push_label(&mut labels, "dependency");
+            }
+            continue;
+        }
+        if line.starts_with("+++") || line.starts_with("---") || !(line.starts_with('+') || line.starts_with('-')) {
+            continue;
+        }
+        let content = &line[1..];
+        if rules.cli_tokens.iter().any(|token| content.contains(token.as_str())) {
+            push_label(&mut labels, "cli");
+        }
+        if content.contains("\"format\":") || content.contains("format=") {
+            push_label(&mut labels, "schema");
+        }
+    }
+    labels
+}
+
+/// Shared state must be append-only: a non-header removed line in comms/memories/suggestions is a
+/// lost-update risk under multiple writers.
+pub fn shared_state_removals(patch: &str, rules: &MasterSurfaceRules) -> Vec<String> {
+    let mut violations: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut removed = 0usize;
+    let flush = |path: &str, removed: usize, violations: &mut Vec<String>| {
+        if removed == 0 {
+            return;
+        }
+        let lower = path.to_ascii_lowercase();
+        if rules.append_only_prefixes.iter().any(|prefix| lower.starts_with(prefix.as_str())) {
+            violations.push(format!("{} ({} removed line(s))", path, removed));
+        }
+    };
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            flush(&current, removed, &mut violations);
+            current = rest.trim().to_string();
+            removed = 0;
+            continue;
+        }
+        if line.starts_with('-') && !line.starts_with("---") {
+            removed += 1;
+        }
+    }
+    flush(&current, removed, &mut violations);
+    violations
+}
+
+pub fn spends_resources(path: &str, rules: &MasterSurfaceRules) -> bool {
+    let lower = path.replace('\\', "/").to_ascii_lowercase();
+    rules.spend_prefixes.iter().any(|prefix| lower.starts_with(prefix.as_str()))
+}
+
+/// Removes ANSI SGR sequences so a `NO_COLOR` render carries the same meaning as a colored one.
+pub fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if next.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn no_color_enabled() -> bool {
+    std::env::var_os("NO_COLOR").is_some()
+        || std::env::var("TERM").map(|t| t.eq_ignore_ascii_case("dumb")).unwrap_or(false)
+}
+
+pub fn assess_master_surfaces(repo_root: &std::path::Path, patch: &str) -> MasterSurfaceReport {
+    let rules = load_master_surface_rules(repo_root);
+    let task_record = read_today_task_record(repo_root);
+    let compat_decl = find_declaration(&task_record, "compat")
+        .or_else(|| find_declaration(patch, "compat"));
+
+    let labels = contract_surfaces_touched(patch, &rules);
+    let compatibility = MasterCheck {
+        touched: !labels.is_empty(),
+        declared: compat_decl.is_some(),
+        detail: labels.join(", "),
+        declaration: compat_decl.unwrap_or_default(),
+    };
+
+    let removals = shared_state_removals(patch, &rules);
+    let touched_shared = patch
+        .lines()
+        .filter_map(|line| line.strip_prefix("+++ b/"))
+        .any(|path| {
+            let p = path.trim().to_ascii_lowercase();
+            rules.append_only_prefixes.iter().any(|prefix| p.starts_with(prefix.as_str()))
+        });
+    let concurrency = MasterCheck {
+        touched: touched_shared,
+        declared: removals.is_empty(),
+        detail: removals.join("; "),
+        declaration: String::new(),
+    };
+
+    let touched_spend = patch
+        .lines()
+        .filter_map(|line| line.strip_prefix("+++ b/"))
+        .any(|path| spends_resources(path.trim(), &rules));
+    let budget_decl = find_declaration(&task_record, "budget")
+        .or_else(|| find_declaration(patch, "budget"))
+        .or_else(|| {
+            std::env::var("AINISH_GATE_BUDGET")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        });
+    let economics = MasterCheck {
+        touched: touched_spend,
+        declared: budget_decl.is_some(),
+        detail: if touched_spend { "spend surface touched".to_string() } else { String::new() },
+        declaration: budget_decl.unwrap_or_default(),
+    };
+
+    MasterSurfaceReport { compatibility, concurrency, economics }
+}
+
 async fn run_gate(
     config: &RagConfig,
     repo_root: &std::path::Path,
@@ -3381,6 +4249,7 @@ async fn run_gate(
     watch: bool,
     summary: bool,
     strict: bool,
+    tests: Option<&str>,
     statusline_json: bool,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -3505,10 +4374,10 @@ async fn run_gate(
     // Execute Zero-Trust, Loopback PSK, Trojan-Source, Model-Manifest Sig & Contract Governance History checks
     let agents_file = repo_root.join("AGENTS.md");
     let canon_hash_file = repo_root.join(".agents").join("canonical").join("AGENTS.md.sha256");
+    let agents_sha = pqc::sha256_file(&agents_file).unwrap_or_default().to_lowercase();
     let zt_hash_ok = if agents_file.is_file() && canon_hash_file.is_file() {
-        let actual = pqc::sha256_file(&agents_file).unwrap_or_default().to_lowercase();
         let expected = std::fs::read_to_string(&canon_hash_file).unwrap_or_default().trim().to_lowercase();
-        actual == expected
+        agents_sha == expected
     } else {
         true
     };
@@ -3535,7 +4404,23 @@ async fn run_gate(
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
 
-    let overall_pass = patch_pass && lock_pass && audit_pass && comms_pass && zt_pass;
+    let (test_lines_added, impl_lines_added) = diff_test_stats(&patch_text);
+    let tests_run = tests.map(|cmd| (cmd.to_string(), run_test_command(repo_root, cmd)));
+    let tests_pass = tests_run.as_ref().map_or(true, |(_, (ok, _))| *ok);
+
+    // Triggered master lenses (compatibility / concurrency / economics): cheap, diff-derived.
+    let master_surfaces = assess_master_surfaces(repo_root, &patch_text);
+    let masters_pass = master_surfaces.compat_ok()
+        && master_surfaces.concurrency_ok()
+        && (!effective_strict || master_surfaces.economics_ok());
+
+    let overall_pass = patch_pass
+        && lock_pass
+        && audit_pass
+        && comms_pass
+        && zt_pass
+        && tests_pass
+        && masters_pass;
 
     // Persist the latest gate verdict for `orient --inject --json` (`gate_ready`) and statusline consumers.
     let (cache_branch, cache_commit) = git_branch_sha(repo_root);
@@ -3545,6 +4430,18 @@ async fn run_gate(
         "status": if overall_pass { "GREEN" } else { "RED" },
         "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
         "docs_only": docs_only_patch,
+        "contract_sha256": agents_sha,
+        "master_surfaces": master_surfaces,
+        "diff_stats": {
+            "test_lines_added": test_lines_added,
+            "impl_lines_added": impl_lines_added
+        },
+        "tests": {
+            "provided": tests_run.is_some(),
+            "command": tests_run.as_ref().map(|(cmd, _)| cmd.clone()),
+            "exit_code": tests_run.as_ref().and_then(|(_, (_, code))| *code),
+            "pass": tests_pass
+        },
         "branch": cache_branch,
         "commit": cache_commit,
         "updated_at": chrono::Utc::now().to_rfc3339(),
@@ -3598,6 +4495,7 @@ async fn run_gate(
             },
             "canonical_contract": {
                 "pass": canonical_pass,
+                "sha256": agents_sha,
                 "status": match canonical_eval {
                     pqc::VerifyOutcome::Verified { ref fingerprint } => format!("ML-DSA-65 Verified (key: {}...)", &fingerprint[..12.min(fingerprint.len())]),
                     pqc::VerifyOutcome::Unsigned(ref r) => format!("Unsigned: {}", r),
@@ -3609,6 +4507,17 @@ async fn run_gate(
                 "passed_count": audit_receipts_passed,
                 "failed_count": audit_receipts_failed
             },
+            "diff_stats": {
+                "test_lines_added": test_lines_added,
+                "impl_lines_added": impl_lines_added
+            },
+            "tests": {
+                "provided": tests_run.is_some(),
+                "command": tests_run.as_ref().map(|(cmd, _)| cmd.clone()),
+                "exit_code": tests_run.as_ref().and_then(|(_, (_, code))| *code),
+                "pass": tests_pass
+            },
+            "master_surfaces": master_surfaces,
             "comms_hygiene": {
                 "pass": comms_pass,
                 "legacy_agent_tag_violations": comms_violations
@@ -3640,6 +4549,51 @@ async fn run_gate(
         };
         println!("  Patch Anchoring:        {}", patch_label);
 
+        let delta_label = if patch_text.trim().is_empty() {
+            "n/a (no patch)".to_string()
+        } else {
+            format!("+{} test / +{} impl", test_lines_added, impl_lines_added)
+        };
+        println!("  Test Delta:             {}", delta_label);
+
+        let tests_label = match &tests_run {
+            Some((cmd, (ok, code))) => format!(
+                "{} ({} → exit {})",
+                if *ok { "\x1b[32mPASS\x1b[0m" } else { "\x1b[31mFAIL\x1b[0m" },
+                truncate_cmd(cmd, 34),
+                code.map(|c| c.to_string()).unwrap_or_else(|| "?".to_string())
+            ),
+            None => "\x1b[33mSKIPPED (pass --tests \"<cmd>\")\x1b[0m".to_string(),
+        };
+        println!("  Existing Tests:         {}", tests_label);
+
+        let master_label = format!(
+            "{} · {} · {}",
+            if master_surfaces.compat_ok() {
+                let detail = if master_surfaces.compatibility.touched {
+                    format!(" ({})", master_surfaces.compatibility.detail)
+                } else {
+                    String::new()
+                };
+                format!("\x1b[32mcompat PASS\x1b[0m{}", detail)
+            } else {
+                format!("\x1b[31mcompat FAIL (no compat: for {})\x1b[0m", master_surfaces.compatibility.detail)
+            },
+            if master_surfaces.concurrency_ok() {
+                "\x1b[32mconcurrency PASS\x1b[0m".to_string()
+            } else {
+                format!("\x1b[31mconcurrency FAIL ({})\x1b[0m", master_surfaces.concurrency.detail)
+            },
+            match (master_surfaces.economics.touched, master_surfaces.economics.declared) {
+                (false, _) => "\x1b[90mecon n/a\x1b[0m".to_string(),
+                (true, true) => "\x1b[32mecon PASS\x1b[0m".to_string(),
+                (true, false) if effective_strict => "\x1b[31mecon FAIL (no budget:)\x1b[0m".to_string(),
+                (true, false) => "\x1b[33mecon WARN (no budget:)\x1b[0m".to_string(),
+            }
+        );
+        let master_label = if no_color_enabled() { strip_ansi(&master_label) } else { master_label };
+        println!("  Master Surfaces:        {}", master_label);
+
         let lock_label = if lock_pass {
             format!("\x1b[32mPASS (0 drift, {} unpinned)\x1b[0m", lock_unpinned.len())
         } else {
@@ -3655,7 +4609,10 @@ async fn run_gate(
         println!("  Post-Quantum Receipts:  {}", audit_label);
 
         let canon_label = match canonical_eval {
-            pqc::VerifyOutcome::Verified { .. } => "\x1b[32mPASS (FIPS 204 ML-DSA-65 signed)\x1b[0m".to_string(),
+            pqc::VerifyOutcome::Verified { .. } => format!(
+                "\x1b[32mPASS (FIPS 204 ML-DSA-65, sha256 {})\x1b[0m",
+                &agents_sha[..12.min(agents_sha.len())]
+            ),
             pqc::VerifyOutcome::Unsigned(_) => "\x1b[33mWARN (envelope missing or unsigned)\x1b[0m".to_string(),
             pqc::VerifyOutcome::Invalid(_) => "\x1b[31mFAIL (tamper detected / mismatch)\x1b[0m".to_string(),
         };
@@ -4237,6 +5194,103 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
-}
 
+    #[test]
+    fn test_diff_test_stats_splits_test_and_impl_lines() {
+        let diff = "\
+--- a/src/x.rs\n\
++++ b/src/x.rs\n\
++let a = 1;\n\
+--- /dev/null\n\
++++ b/src/rag/tests/test_x.py\n\
++def test_x(): pass\n\
++assert True\n";
+        assert_eq!(diff_test_stats(diff), (2, 1));
+        assert!(is_test_path("src/rag/tests/test_x.py"));
+        assert!(is_test_path("pkg/x.spec.ts"));
+        assert!(!is_test_path("src/rag/main.rs"));
+    }
+
+    #[test]
+    fn test_contract_surfaces_detected_for_contract_and_cli_changes() {
+        let rules = MasterSurfaceRules::default();
+        let diff = "--- a/AGENTS.md\n+++ b/AGENTS.md\n+new rule\n--- a/src/rag/src/main.rs\n+++ b/src/rag/src/main.rs\n+        #[arg(long)]\n+        flag: bool,\n";
+        let labels = contract_surfaces_touched(diff, &rules);
+        assert!(labels.contains(&"contract".to_string()));
+        assert!(labels.contains(&"cli".to_string()));
+        assert!(!labels.contains(&"schema".to_string()));
+        assert!(!labels.contains(&"dependency".to_string()));
+    }
+
+    #[test]
+    fn test_dependency_manifest_is_a_compatibility_surface() {
+        let rules = MasterSurfaceRules::default();
+        let diff = "--- a/Cargo.toml\n+++ b/Cargo.toml\n+serde = \"1\"\n--- a/pyproject.toml\n+++ b/pyproject.toml\n+extra = 1\n";
+        let labels = contract_surfaces_touched(diff, &rules);
+        assert!(labels.contains(&"dependency".to_string()));
+        assert!(labels.contains(&"contract".to_string()) || labels.contains(&"dependency".to_string()));
+        let tmp = std::env::temp_dir().join(format!("ainish-dependency-surface-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".agents").join("tasks")).unwrap();
+        let report = assess_master_surfaces(&tmp, diff);
+        assert!(report.compatibility.touched && !report.compatibility.declared);
+        assert!(!report.compat_ok());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_shared_state_is_append_only() {
+        let rules = MasterSurfaceRules::default();
+        let append_only = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n+new line\n";
+        assert!(shared_state_removals(append_only, &rules).is_empty());
+        let rewritten = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n-old line\n+new line\n";
+        assert_eq!(shared_state_removals(rewritten, &rules).len(), 1);
+        let task_rewrite = "--- a/.agents/tasks/2026-10-31-task.md\n+++ b/.agents/tasks/2026-10-31-task.md\n-old\n+new\n";
+        assert!(shared_state_removals(task_rewrite, &rules).is_empty());
+    }
+
+    #[test]
+    fn test_strip_ansi_removes_color_only() {
+        assert_eq!(strip_ansi("\x1b[32mPASS\x1b[0m (contract)"), "PASS (contract)");
+        assert_eq!(strip_ansi("plain"), "plain");
+    }
+
+    #[test]
+    fn test_master_surface_report_requires_declarations() {
+        let tmp = std::env::temp_dir().join(format!("ainish-master-surfaces-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let tasks = tmp.join(".agents").join("tasks");
+        std::fs::create_dir_all(&tasks).unwrap();
+        std::fs::write(
+            tasks.join(format!("{}-task.md", today_utc())),
+            "- compat: v1 target window, --rules-sync refreshes deployed copies\n- budget: 120k tokens, cached index\n",
+        )
+        .unwrap();
+        let patch = "--- a/src/rag/src/decision.rs\n+++ b/src/rag/src/decision.rs\n+let x = 1;\n--- a/AGENTS.md\n+++ b/AGENTS.md\n+rule\n";
+        let report = assess_master_surfaces(&tmp, patch);
+        assert!(report.compatibility.touched && report.compatibility.declared);
+        assert!(report.compatibility.declaration.contains("compat:"));
+        assert!(report.economics.touched && report.economics.declared);
+        assert!(report.concurrency_ok());
+        assert!(report.compat_ok() && report.economics_ok());
+        assert!(has_declaration("+compat: added in diff", "compat"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_missing_budget_fails_only_under_strict() {
+        let tmp = std::env::temp_dir().join(format!("ainish-budget-surface-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".agents").join("tasks")).unwrap();
+        let patch = "--- a/src/rag/src/main.rs\n+++ b/src/rag/src/main.rs\n+let x = 1;\n";
+        let report = assess_master_surfaces(&tmp, patch);
+        assert!(report.economics.touched && !report.economics.declared);
+        // A missing budget is a WARN by default and only blocks under --strict.
+        assert!(!report.economics_ok());
+        let rules = MasterSurfaceRules::default();
+        assert!(spends_resources("src/rag/src/main.rs", &rules));
+        assert!(!spends_resources("docs/README.md", &rules));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+}
 
