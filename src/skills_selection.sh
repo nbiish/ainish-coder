@@ -62,8 +62,63 @@ _skill_channel_excluded() {
 # skills_selection_default_on — is a pack with no recorded preference
 # distributed? Default: NO; optional skills require an explicit operator
 # selection. Overridable globally via AINISH_SKILLS_DEFAULT=on.
+#
+# Precedence (highest first): this repo's recorded `default` > the persisted
+# machine-wide `global_default` (set by `--skills-set-default`) > the
+# AINISH_SKILLS_DEFAULT env var > off. The persisted value outranks the env var
+# because the flag exists to be durable across shells and repos, while the env
+# var is a per-invocation override for CI; if the env var won, a saved default
+# would appear to stop working in whichever shell happened to set it.
 skills_selection_default_on() {
-    [[ "${AINISH_SKILLS_DEFAULT:-off}" == "on" ]]
+    [[ "$(skills_selection_global_default)" == "on" ]]
+}
+
+# skills_selection_global_default — the machine-wide default for packs with no
+# per-repo answer: persisted `global_default`, else env, else off.
+skills_selection_global_default() {
+    local fallback="off"
+    [[ "${AINISH_SKILLS_DEFAULT:-off}" == "on" ]] && fallback="on"
+    GLOBAL_FALLBACK="$fallback" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        python3 -c "
+import json, os
+try:
+    cfg = json.load(open(os.environ['SELECTION_PATH']))
+except Exception:
+    cfg = {}
+d = cfg.get('global_default', None)
+if isinstance(d, bool):
+    print('on' if d else 'off')
+elif isinstance(d, str) and d.strip().lower() in ('on', 'off'):
+    print(d.strip().lower())
+else:
+    print(os.environ['GLOBAL_FALLBACK'])
+" 2>/dev/null || printf '%s\n' "$fallback"
+}
+
+# skills_selection_set_global_default <on|off> — persist the machine-wide
+# default applied to every repo that has not recorded its own answer. Touches
+# no per-repo entry, so repos that already answered keep their selection.
+skills_selection_set_global_default() {
+    local state="$1"
+    [[ "$state" == "on" || "$state" == "off" ]] || { print_error "state must be on|off"; return 1; }
+    STATE="$state" \
+        SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
+        python3 -c "
+import json, os
+path = os.environ['SELECTION_PATH']
+try:
+    cfg = json.load(open(path))
+except Exception:
+    cfg = {}
+cfg['global_default'] = (os.environ['STATE'] == 'on')
+os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+tmp = path + '.tmp'
+with open(tmp, 'w') as f:
+    json.dump(cfg, f, indent=2, sort_keys=True)
+    f.write('\n')
+os.replace(tmp, path)
+"
 }
 
 # skills_selection_repo_recorded <repo_root> — true when this repo already has
@@ -147,6 +202,12 @@ skills_selection_prompt_timeout() {
 # skills_selection_should_prompt <repo_root> — true when the interactive
 # selector must open for this run: explicit request, or first contact with a
 # repo that has never recorded a selection.
+#
+# A machine-wide default set with `--skills-set-default on` counts as the
+# operator having answered for a new repo. Without this, a default of "on"
+# still stopped and prompted on every first contact, which defeats the point of
+# a saved default. An explicit request still always prompts, and the selector
+# can still be reached on demand with `--skills`.
 skills_selection_should_prompt() {
     local repo_root="${1:-$(pwd)}"
     case "$(skills_selection_ui_mode)" in
@@ -154,6 +215,7 @@ skills_selection_should_prompt() {
         never)  return 1 ;;
     esac
     skills_selection_repo_recorded "$repo_root" && return 1
+    [[ "$(skills_selection_global_default)" == "on" ]] && return 1
     return 0
 }
 
@@ -200,8 +262,8 @@ skills_selection_state() {
     local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
     local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
     local name="$2"
-    local global_default="on"
-    skills_selection_default_on || global_default="off"
+    local global_default
+    global_default="$(skills_selection_global_default)"
     REPO="$repo_key" ALT_REPO="$raw_repo" NAME="$name" GLOBAL_DEFAULT="$global_default" \
         SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
         MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \
@@ -415,8 +477,8 @@ skills_selection_report() {
 _skills_selection_repo_default() {
     local repo_key; repo_key="$(skills_selection_repo_key "${1:-$(pwd)}")"
     local raw_repo; raw_repo="$(cd "${1:-$(pwd)}" 2>/dev/null && pwd)"
-    local global_default="on"
-    skills_selection_default_on || global_default="off"
+    local global_default
+    global_default="$(skills_selection_global_default)"
     REPO="$repo_key" ALT_REPO="$raw_repo" GLOBAL_DEFAULT="$global_default" \
         SELECTION_PATH="$(skills_selection_engine_path "$(skills_selection_config_path)")" \
         MSYS2_ENV_CONV_EXCL="$(skills_selection_env_guard)" \

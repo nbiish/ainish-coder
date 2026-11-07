@@ -158,6 +158,41 @@ check "legacy string default=on still reads as on" \
     "$(HOME="$HOME_DIR" _skills_selection_repo_default "$DEFAULT_REPO")" "on"
 check "unrecorded pack inherits legacy string default=on" \
     "$(HOME="$HOME_DIR" skills_selection_state "$DEFAULT_REPO" advisory-council)" "on"
+# A machine-wide default (--skills-set-default) is what lets a fresh repo deploy
+# the operator's usual packs without being asked. It must lose to a per-repo
+# answer, and it must suppress the first-contact prompt -- otherwise "set a
+# default" still stops and asks on every new repo, which is the bug this flag
+# exists to remove.
+GLOBAL_REPO="${WORK}/target-global-default"
+mkdir -p "${GLOBAL_REPO}/.agents/skills"
+HOME="$HOME_DIR" skills_selection_set_global_default on >/dev/null 2>&1
+check "saved global default reads as on" \
+    "$(HOME="$HOME_DIR" skills_selection_global_default)" "on"
+check "saved global default makes an unrecorded pack on" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$GLOBAL_REPO" advisory-council)" "on"
+if HOME="$HOME_DIR" skills_selection_should_prompt "$GLOBAL_REPO"; then
+    not_ok "a saved global default suppresses the first-contact prompt"
+else
+    ok "a saved global default suppresses the first-contact prompt"
+fi
+# A repo that recorded its own answer must keep it, whatever the global says.
+# Recorded explicitly here rather than leaning on an earlier fixture, because
+# the fixture config is rewritten between blocks and a stale key made this
+# assertion pass or fail for reasons unrelated to precedence.
+PRECEDENCE_REPO="${WORK}/target-precedence"
+mkdir -p "${PRECEDENCE_REPO}"
+HOME="$HOME_DIR" skills_selection_batch_save "$PRECEDENCE_REPO" off "pqc-secrets:off" >/dev/null 2>&1
+check "per-repo answer outranks the global default" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$PRECEDENCE_REPO" pqc-secrets)" "off"
+HOME="$HOME_DIR" skills_selection_set_global_default off >/dev/null 2>&1
+check "saved global default reads as off" \
+    "$(HOME="$HOME_DIR" skills_selection_global_default)" "off"
+check "off global default leaves an unrecorded pack off" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$GLOBAL_REPO" advisory-council)" "off"
+# The env var is a per-invocation override and must not outrank a saved default.
+check "env var does not outrank the saved global default" \
+    "$(HOME="$HOME_DIR" AINISH_SKILLS_DEFAULT=on skills_selection_global_default)" "off"
+
 # Restore the fixture config for the remaining assertions.
 cat > "${HOME_DIR}/.config/ainish-coder/skills-selection.json" <<JSON
 {"repos": {"${KEY_ON}": {"pqc-secrets": true}, "${KEY_OFF}": {"pqc-secrets": false}}}
@@ -206,6 +241,36 @@ contains "skills-list reports the recorded pack" "$report_json" '"pqc-secrets"'
 contains "skills-list marks the repo recorded" "$report_json" '"recorded": true'
 report_fresh="$(HOME="$HOME_DIR" bash "$CLI" --skills-list "$UNRECORDED" --json 2>/dev/null || true)"
 contains "skills-list marks a fresh repo unrecorded" "$report_fresh" '"recorded": false'
+
+echo "== --skills-set-default and --skills (persisted, per-repo) =="
+# The operator-facing surface: a machine-wide default, then a per-repo override
+# that must persist for that repo only.
+SD_TARGET="${WORK}/target-skills-flag"
+mkdir -p "${SD_TARGET}"
+sd_json="$(HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills-set-default on --json 2>/dev/null || true)"
+contains "skills-set-default reports the new default" "$sd_json" '"global_default": "on"'
+sd_file="$(HOME="$HOME_DIR" skills_selection_global_default)"
+check "skills-set-default persisted as on" "$sd_file" "on"
+
+# Scripted per-repo selection: no prompt, persisted, and scoped to this repo.
+HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" --off pqc-secrets >/dev/null 2>&1
+check "skills --off persists for this repo" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$SD_TARGET" pqc-secrets)" "off"
+check "skills --off does not touch another repo" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_ON" pqc-secrets)" "on"
+
+# A typo must fail loudly rather than be saved as a setting that selects nothing.
+if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" --on not-a-real-pack >/dev/null 2>&1; then
+    not_ok "skills rejects an unknown pack name"
+else
+    ok "skills rejects an unknown pack name"
+fi
+# Without on/off and with no TTY, it must refuse instead of hanging on a prompt.
+if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" >/dev/null 2>&1; then
+    not_ok "skills refuses without a TTY instead of prompting"
+else
+    ok "skills refuses without a TTY instead of prompting"
+fi
 
 echo "== --pqc-install =="
 install_json="${WORK}/install.json"
