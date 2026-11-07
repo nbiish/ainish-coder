@@ -442,7 +442,7 @@ class GoldfishIsolationTest(unittest.TestCase):
         captured = {}
 
         class StubDriver:
-            def chat(self, messages, max_tokens=None, tier=None):
+            def chat(self, messages, max_tokens=None, tier=None, role=None):
                 captured["text"] = "\n".join(m["content"] for m in messages)
                 return {"text": "review", "source": "stub:model", "model_verified": True}
 
@@ -759,6 +759,118 @@ class NativeQueryStoreEncodingTest(unittest.TestCase):
         parsed = json.loads(text[start:])
         self.assertEqual(parsed[0]["path"], "a.py")
         self.assertIn(unmapped, text)
+
+
+class RoleModelSeparationTest(unittest.TestCase):
+    """Elephant and Goldfish are two API calls with two model choices, not one choice made twice.
+
+    The pair is only worth having if the reviewer is a different model from the drafter. A reviewer
+    running the drafter's own model shares its blind spots and tends to agree with it, which turns a
+    second opinion into a confirmation. These pin that separation without requiring a live provider.
+    """
+
+    def setUp(self):
+        self._saved = {
+            k: os.environ.get(k)
+            for k in (
+                "AINISH_RAG_ELEPHANT_MODEL", "AINISH_RAG_GOLDFISH_MODEL",
+                "AINISH_RAG_ELEPHANT_DRIVER_MODEL", "AINISH_RAG_GOLDFISH_DRIVER_MODEL",
+                "AINISH_RAG_DRIVER_MODEL", "AINISH_RAG_DRIVER_OFFLINE",
+            )
+        }
+        for key in self._saved:
+            os.environ.pop(key, None)
+
+    def tearDown(self):
+        for key, value in self._saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_goldfish_prefers_a_different_transport(self):
+        # The head is a route whose answer is only known after the call, so a positional skip alone
+        # cannot guarantee a different model. Preferring another transport is the strongest signal
+        # available before the request is made.
+        engine = rag.DriverEngine(allow_remote=True)
+        elephant = engine.chain_steps("elephant")
+        goldfish = engine.chain_steps("goldfish")
+        self.assertNotEqual(elephant[0]["transport"], goldfish[0]["transport"])
+        self.assertNotEqual(elephant[0]["id"], goldfish[0]["id"])
+
+    def test_rotation_never_shortens_the_chain(self):
+        # A rotated chain must still reach every model: a failing first step cannot strand the role.
+        engine = rag.DriverEngine(allow_remote=True)
+        base = [s["id"] for s in engine.chain_steps(None)]
+        rotated = [s["id"] for s in engine.chain_steps("goldfish")]
+        self.assertEqual(sorted(base), sorted(rotated))
+        self.assertEqual(len(base), len(rotated))
+
+    def test_elephant_is_not_rotated(self):
+        engine = rag.DriverEngine(allow_remote=True)
+        self.assertEqual(
+            [s["id"] for s in engine.chain_steps("elephant")],
+            [s["id"] for s in engine.chain_steps(None)],
+        )
+
+    def test_per_role_pins_win_over_the_chain_start(self):
+        os.environ["AINISH_RAG_ELEPHANT_MODEL"] = "zai-glm-5.3-flash"
+        os.environ["AINISH_RAG_GOLDFISH_MODEL"] = "xiaomi-mimo-mimo-v2.6-pro"
+        engine = rag.DriverEngine(allow_remote=True)
+        self.assertEqual(engine.chain_steps("elephant")[0]["id"], "zai-glm-5.3-flash")
+        self.assertEqual(engine.chain_steps("goldfish")[0]["id"], "xiaomi-mimo-mimo-v2.6-pro")
+
+    def test_role_pin_keeps_the_chain_transports(self):
+        # Pinning a model must not discard the router: if the router serves that id, ask the router.
+        os.environ["AINISH_RAG_ELEPHANT_MODEL"] = "zai-glm-5.3-flash"
+        steps = rag.DriverEngine(allow_remote=True).chain_steps("elephant")
+        self.assertEqual(steps[0]["transport"], rag.DRIVER_CHAIN[0]["transport"])
+        self.assertGreater(len(steps), 1, "the rest of the chain must remain as fallback")
+
+    def test_role_pin_resolver_accepts_both_naming_forms(self):
+        os.environ["AINISH_RAG_ELEPHANT_DRIVER_MODEL"] = "glm-5.3-flash"
+        self.assertEqual(rag.role_pinned_model("elephant"), "glm-5.3-flash")
+        os.environ.pop("AINISH_RAG_ELEPHANT_DRIVER_MODEL")
+        self.assertIsNone(rag.role_pinned_model("elephant"))
+
+    def test_unknown_role_has_no_pin_and_no_rotation(self):
+        self.assertIsNone(rag.role_pinned_model("not-a-role"))
+        engine = rag.DriverEngine(allow_remote=True)
+        self.assertEqual(
+            [s["id"] for s in engine.chain_steps("not-a-role")],
+            [s["id"] for s in engine.chain_steps(None)],
+        )
+
+    def test_offline_mode_keeps_one_local_step_for_both_roles(self):
+        os.environ["AINISH_RAG_DRIVER_OFFLINE"] = "1"
+        for role in rag.DRIVER_ROLES:
+            steps = rag.DriverEngine().chain_steps(role)
+            self.assertEqual([s["transport"] for s in steps], ["local-model"], role)
+
+    def test_chat_reports_the_role_it_served(self):
+        engine = rag.DriverEngine(allow_remote=True)
+
+        def fake_post(base, model, messages, key=None, **kwargs):
+            return {"text": "answer", "model": model, "usage": {}, "finish_reason": "stop"}
+
+        engine._post_chat = fake_post
+        result = engine.chat([{"role": "user", "content": "x"}], role="goldfish")
+        self.assertEqual(result["role"], "goldfish")
+
+    def test_the_two_roles_ask_for_different_models(self):
+        # The end-to-end claim: two chat() calls with different roles request different ids.
+        requested = []
+
+        def fake_post(base, model, messages, key=None, **kwargs):
+            requested.append(model)
+            return {"text": "answer", "model": model, "usage": {}, "finish_reason": "stop"}
+
+        engine = rag.DriverEngine(allow_remote=True)
+        engine._post_chat = fake_post
+        engine.chat([{"role": "user", "content": "x"}], role="elephant")
+        engine.chat([{"role": "user", "content": "x"}], role="goldfish")
+        self.assertEqual(len(requested), 2)
+        self.assertNotEqual(requested[0], requested[1])
 
 
 class FileFallbackTest(unittest.TestCase):
