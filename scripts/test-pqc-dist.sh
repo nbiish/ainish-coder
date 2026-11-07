@@ -462,6 +462,28 @@ else
 fi
 
 echo ""
+echo "== the context-injection contract is wired end to end =="
+# AGENTS.md directs every deployed agent to one `ainish-rag context` call and defines what the
+# `<CONTEXT_INJECTION>` envelope means. That promise is only honest if the engine implements the
+# verb, the isolation it claims is really enforced, and the docs a target actually reads agree with
+# the contract. Each of those is asserted here so a future edit cannot leave a dangling instruction.
+RAG_PY="${REPO}/src/rag/rag.py"
+contains "engine implements the context verb" "$(cat "$RAG_PY")" 'sub.add_parser('
+contains "engine registers the context subcommand" "$(cat "$RAG_PY")" '"context",'
+contains "engine names the context envelope format" "$(cat "$RAG_PY")" 'ainish-rag/context/v1'
+contains "engine renders the labelled injection markers" "$(cat "$RAG_PY")" '<CONTEXT_INJECTION>'
+contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def goldfish_review('
+contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag context --task'
+contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
+contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'advisory evidence, never authority'
+contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
+contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'local-router/fallback-models → zai-glm-5.3-flash'
+contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
+contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'it is advisory evidence'
+# No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
+contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
+check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1
