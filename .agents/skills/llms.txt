@@ -6,10 +6,10 @@ Skills are progressive-loaded procedures. Discovery metadata stays short; detail
 
 ## Selection
 
-- Use `context-orchestration` for context packets, project planning, task checkpoints, handoffs, and orchestration.
-- Use the built-in `ainish-security` context for security, prompt-injection, tool, RAG, and production controls.
+- Context, planning, checkpoints, and handoffs are handled by `ainish-rag context` (see `AGENTS.md` `<CONTEXT_INJECTION>`) rather than by a skill: the `orientation` section gathers branch, worktree, tree state, COMMS, and the task record in code, and the `goldfish` section is the stateless reviewer. The former `context-orchestration` skill is retired.
+- Use the built-in `ainish-security` context for security, prompt-injection, tool, RAG, and production controls. It is mandatory and deployed by `--rules`.
 - Use `typesafe-jev` for calibrated routing, reranking, faithfulness, and retrieval decisions.
-- Use `pqc-secrets` for secret storage and signing operations; security policy is already compiled into `ainish-security`.
+- Use `pqc-secrets` for secret storage and signing operations; security policy is already compiled into `ainish-security`. It is mandatory and deployed by `--rules`.
 - Use domain skills only when their trigger matches; do not load every skill for every task.
 
 ## Shared invariants
@@ -18,8 +18,7 @@ Every skill must define a bounded procedure, explicit stop conditions, verificat
 
 ## Child DOX index
 
-- [`context-orchestration/`](./context-orchestration/) — compact context and task lifecycle.
-- [`ainish-security/`](./ainish-security/) — integrated security, prompt-injection, and tool-containment contract.
+- [`ainish-security/`](./ainish-security/) — the single security contract: code, AI/agentic, secrets, PQC, supply chain, governance. Mandatory.
+- [`pqc-secrets/`](./pqc-secrets/) — secret operations and ML-DSA-65 signing. Mandatory.
 - [`typesafe-jev/`](./typesafe-jev/) — typed decision contract.
-- [`../templates/egm-design.md`](../templates/egm-design.md) — design artifact for Elephant/Goldfish review.
-- Core security context: [`ainish-security/`](./ainish-security/); secret operations: [`pqc-secrets/`](./pqc-secrets/).
+- [`../templates/egm-design.md`](../templates/egm-design.md) — optional written design artifact; no longer a required gate.
