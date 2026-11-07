@@ -785,11 +785,23 @@ class EmbedClient:
         time.sleep(0.015)
 
         model = self.api_model if self.uses_api_provider() else "embeddinggemma2"
-        payload = json.dumps({
+        request_body: Dict[str, Any] = {
             "model": model,
             "input": inputs,
             "encoding_format": "float",
-        }).encode("utf-8")
+        }
+        # Ask for the width the index was built with instead of truncating afterwards. Provider
+        # defaults differ (1536 for text-embedding-3-small, 3072 for -large), and the router's
+        # documented contract is that it holds a whole fallback chain to the caller's pinned
+        # `dimensions` -- rejecting any step that returns a different width. Omitting the field left
+        # that guard inert: every step returned its native width and truncation happened locally,
+        # so a provider that ignored truncation would have silently mixed widths in one store.
+        #
+        # Only sent to remote OpenAI-compatible endpoints: a local llama.cpp build may reject an
+        # unknown field outright, and its GGUF width is fixed anyway.
+        if self.uses_api_provider() and self.truncate_dim:
+            request_body["dimensions"] = int(self.truncate_dim)
+        payload = json.dumps(request_body).encode("utf-8")
 
         if self.uses_api_provider():
             headers = {"Content-Type": "application/json"}
@@ -831,6 +843,14 @@ class EmbedClient:
         embeddings = []
         for it in items:
             vec = it.get("embedding", [])
+            if vec and self.truncate_dim and len(vec) < self.truncate_dim:
+                # A short vector means the endpoint ignored `dimensions` AND returned less than the
+                # index width. Truncation cannot fix that, and padding would invent a dimension, so
+                # fail loudly instead of writing an unusable row into the store.
+                raise RuntimeError(
+                    f"embedding endpoint returned {len(vec)} dimensions but the index requires "
+                    f"{self.truncate_dim}; the provider ignored the `dimensions` request"
+                )
             if self.truncate_dim and self.truncate_dim < len(vec):
                 vec = vec[: self.truncate_dim]
                 # L2 re-normalization
@@ -1388,11 +1408,68 @@ def write_embed_provider_config(repo_root: Path, resolved: Dict[str, Any]) -> Pa
 INDEX_FINGERPRINT_PATH = Path(".agents") / "rag" / "index-fingerprint.json"
 
 
+def normalize_identity(identity: Optional[str]) -> str:
+    """Compares identities across fingerprint formats.
+
+    v1 stored `api:<provider>:<model>`, which encoded the transport; the current form is
+    `model:<space>`. An existing store must not be flagged as a different space merely because the
+    recording scheme changed, so a legacy value is rewritten to its space before comparison. The
+    model component is what decides equivalence, which is the whole correction.
+    """
+    value = (identity or "").strip()
+    if not value:
+        return ""
+    if value.startswith("model:"):
+        return value
+    if value.startswith("api:"):
+        _, _, rest = value.partition(":")
+        provider, _, model = rest.partition(":")
+        if not model:
+            return f"model:{embedding_model_space(provider)}"
+        return f"model:{embedding_model_space(model, provider)}"
+    if value.startswith("local:"):
+        return value
+    return f"model:{embedding_model_space(value)}"
+
+
 def embedding_identity_from_cfg(cfg: Dict[str, Any]) -> str:
-    """Stable identity of the embedding model that produced the vectors in the store."""
+    """Stable identity of the vector space that produced the vectors in the store.
+
+    The *space* is determined by the MODEL, not by the provider serving it: the router's own
+    measurements show `openai/text-embedding-3-small` is bit-identical (cosine 1.000000) across
+    zenmux, openrouter and nous-portal, while a different model on the same provider is a different
+    space (cosine 0.0066-0.0369). Encoding the provider into the identity therefore made a
+    harmless failover look like index corruption, and would have made pointing retrieval at the
+    router's stable route id look like a rebuild.
+    """
     if cfg.get("provider") == "api":
-        return f"api:{cfg.get('provider_id') or 'custom'}:{cfg.get('model') or 'unknown-model'}"
+        return f"model:{embedding_model_space(cfg.get('model'), cfg.get('api_base'))}"
     return "local:embeddinggemma-2"
+
+
+# Route ids that stand for one model behind several providers. Declared rather than guessed: the
+# router documents each of these as "one model, many providers", so a caller can name the route and
+# still be told the space it is actually indexing into.
+EMBED_ROUTE_MODEL_ALIASES = {
+    "local-router/fallback-embedding": "openai/text-embedding-3-small",
+}
+
+
+def embedding_model_space(model: Optional[str], api_base: Optional[str] = None) -> str:
+    """Normalizes a model id (optionally provider-prefixed, or a router route) to its space name."""
+    name = (model or "").strip()
+    if not name:
+        return "unknown-model"
+    lowered = name.lower()
+    if lowered in EMBED_ROUTE_MODEL_ALIASES:
+        return EMBED_ROUTE_MODEL_ALIASES[lowered]
+    # Provider-prefixed ids such as `zenmux/openai/text-embedding-3-small` name a transport, not a
+    # space. Strip the prefix only when what remains still looks like a model path.
+    if "/" in lowered:
+        head, _, tail = lowered.partition("/")
+        if tail and (head in {"openrouter", "zenmux", "nous-portal", "unsloth", "ollama"} or head.startswith("local")):
+            return tail
+    return lowered
 
 
 def write_index_fingerprint(repo_root: Path, identity: str, dim: int) -> Path:
@@ -1608,7 +1685,11 @@ def index_mismatch_warning(repo_root: Path, identity: str) -> Optional[str]:
         recorded = str(json.loads(path.read_text(encoding="utf-8")).get("identity") or "").strip()
     except Exception:
         return None
-    if not recorded or recorded == identity:
+    if not recorded:
+        return None
+    # Compare spaces, not recording schemes: a v1 fingerprint (`api:<provider>:<model>`) and the
+    # current form (`model:<space>`) describe the same index when the model matches.
+    if normalize_identity(recorded) == normalize_identity(identity):
         return None
     return (
         f"Vector index was built with '{recorded}' but embeddings now come from '{identity}'; "
