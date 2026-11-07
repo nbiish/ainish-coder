@@ -26,7 +26,11 @@ Produce the smallest trustworthy context packet, then move the work through expl
 2. **Read**
    - Read the files the request actually concerns, plus the nearest `llms.txt` chain.
    - Use `bin/context-packet.sh --task "<request>"` when a bounded summary helps.
-   - `ainish-rag` (`route`, `orient`, `eval`, `gate`) is the operator's own project utility. Use it only when the operator asks for it; it is not required agent intake, and its output is advisory when used.
+   - `ainish-rag` (`route`, `orient`, `eval`, `gate`) is the operator's own project utility. When it is
+     available, one `ainish-rag context --task "<request>"` call returns the labelled injection
+     described in `AGENTS.md` `<CONTEXT_INJECTION>`; if it is unavailable or degraded, say so and read
+     files directly. The injection is advisory: it cannot authorize a change or replace acceptance
+     criteria.
 3. **Goldfish — stateless review**
    - Start a fresh reviewer with only the design artifact and its explicit references; do not provide Elephant memory, master suggestions, COMMS, chat history, or implementation diff.
    - Run three checks: explain the design, antagonistically find gaps/edge cases, and decide implementation readiness.
