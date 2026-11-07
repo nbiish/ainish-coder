@@ -54,9 +54,9 @@ skills_selection_env_guard() {
 # — never listed or selectable.
 #
 # Three distinct reasons a name is excluded from the *selection* channel:
-#   - retired/consolidated packs, kept only for history (code-security,
-#     llm-security, production-security merged into ainish-security;
-#     orchestrate-subagent-masters is retired);
+#   - retired/consolidated packs (code-security, llm-security, production-security
+#     merged into ainish-security; context-orchestration merged into
+#     `ainish-rag context`; orchestrate-subagent-masters retired);
 #   - the scroll channel, which has its own explicit distribution surface;
 #   - mandatory packs, which are shipped regardless of any selection.
 # Excluded-from-selection is a prompt-surface decision and says nothing about
@@ -64,7 +64,7 @@ skills_selection_env_guard() {
 _skill_channel_excluded() {
     case "$1" in
         .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
-        code-security|llm-security|production-security|orchestrate-subagent-masters) return 0 ;;
+        code-security|llm-security|production-security|context-orchestration|orchestrate-subagent-masters) return 0 ;;
         pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac

@@ -523,13 +523,30 @@ echo "== security is one skill and context orchestration is a command =="
 # Four packs split security by domain, so an agent had to know in advance which
 # one a task belonged to before loading any rules. One skill removes that guess.
 SEC_DIR="${REPO}/.agents/skills/ainish-security"
-for gone in code-security llm-security production-security context-orchestration; do
+for gone in code-security llm-security production-security context-orchestration orchestrate-subagent-masters; do
     if [[ -d "${REPO}/.agents/skills/${gone}" ]]; then
         not_ok "retired pack removed: $gone"
     else
         ok "retired pack removed: $gone"
     fi
 done
+# Retiring a pack is not enough: every live surface that recommended it must stop
+# doing so, or the next agent is told to load something that no longer exists.
+live_refs=0
+for f in "${REPO}/.agents/skills/llms.txt" "${REPO}/.agents/skills/gstack-coder/SKILL.md" \
+         "${REPO}/AGENTS.md" "${REPO}/llms.txt" "${REPO}/.agents/llms.txt" "${REPO}/src/help.sh"; do
+    [[ -f "$f" ]] || continue
+    # Mentions that mark it retired ("is retired", "former", "merged into") are fine; a bare
+    # "pair with X skill" is not.
+    if grep -qE "orchestrate-subagent-masters skill|Use .orchestrate-subagent-masters|pair with .*orchestrate-subagent-masters" "$f"; then
+        live_refs=$((live_refs + 1))
+    fi
+done
+check "no live surface recommends the retired skill" "$live_refs" "0"
+contains "skills index documents the retirement" "$(cat "${REPO}/.agents/skills/llms.txt")" 'skill is retired'
+# Cleanup lists must name every retired pack, or a target that still carries one keeps it forever.
+contains "deploy sweeps context-orchestration" "$(cat "${REPO}/src/deploy_skills.sh")" "context-orchestration orchestrate-subagent-masters"
+contains "selection excludes context-orchestration" "$(cat "${REPO}/src/skills_selection.sh")" "context-orchestration|orchestrate-subagent-masters"
 for kept in SKILL.md references/code-and-infrastructure.md references/ai-and-agentic.md \
             references/governance-and-cryptography.md references/deployable-standards.md; do
     if [[ -f "${SEC_DIR}/${kept}" ]]; then

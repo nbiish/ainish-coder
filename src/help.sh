@@ -294,22 +294,26 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 20 skill packs:
+                              Deploys 18 skill packs (ainish-security and
+                              pqc-secrets are mandatory; the rest are opt-in):
                               - advisory-council/          (Multi-expert advisory council)
+                              - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance) [mandatory]
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
-                              - browser-harness/           (CDP browser automation)
-                              - camofox-stack/             (Anti-detection browser stack)
-                              - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance)
+                              - browser-skill/             (Drive the real logged-in Chromium via bsk)
+                              - browser-use/               (CDP browser automation)
+                              - comfyui-orchestration/     (Local ComfyUI operation)
+                              - document-enhancer/         (Knowledge fusion & document hardening)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - modern-prompting/          (OOReDAct advanced prompting)
-                              - document-enhancer/         (Knowledge fusion & document hardening)
-                              - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
-                              - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing)
-                              - remotion-video/            (Programmatic video creation)
-                              - skyvern/                   (AI browser automation)
+                              - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing) [mandatory]
                               - question-me/               (Socratic design interview & tree resolution)
+                              - remotion-video/            (Programmatic video creation)
+                              - tts-cli/                   (On-device spoken end-of-turn suggestion)
+                              - typesafe-jev/              (Calibrated decision models)
+                              - video-knowledge-extractor/ (YouTube video knowledge extraction)
+                              - wtf-is-going-on-mcp/       (Cross-machine agent coordination)
 
                               Example: ainish-coder --skills-sync ~/my-project
 
