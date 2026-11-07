@@ -3987,21 +3987,64 @@ def _extract_orient_task_summary_py(repo_root: Path, query: Optional[str]) -> st
 
 
 # ---------------------------------------------------------------------------
-# Driver transport (generative) — tiered local-router → openrouter → zenmux → local-model
+# Driver transport (generative) — explicit chain, local-router head, local-model floor
 #
-# The decision layer answers calibrated typed questions; the driver layer writes prose. They are
-# deliberately separate orders (see `local-router/docs/driver-models.md`): the generic
-# `local-router/fallback-models` chain serves every other client, while this engine carries its own
-# explicit tier order so a change here cannot reroute the whole fleet.
+# The decision layer answers calibrated typed questions; the driver layer writes prose. The driver
+# order is this engine's own and is NOT a re-ordering of local-router's `fallback-models` chain: that
+# chain is shared with VS Code, Claude Code, Cline and every other client on the machine, so
+# repointing it here would reroute the whole fleet to suit one tool. This engine carries its order as
+# explicit model ids, and `local-router/fallback-models` is simply one step in it.
 # ---------------------------------------------------------------------------
 
 DRIVER_TIERS: Tuple[str, ...] = ("local-router", "openrouter", "zenmux", "local-model")
 
-# Verified live 2026-11-06/07. There is NO working `latest` alias: an unknown id resolves through
-# the generic fallback chain and still returns HTTP 200, so a typo silently changes the model.
-# `response.model` is compared on every call and a mismatch is reported as degraded, never accepted.
+# The requested order (operator decision, 2026-11-07). Every id below was verified live on this
+# machine: all four answered DRIVER_OK. There is NO working `latest` alias — an unknown id resolves
+# through the generic fallback chain and still answers HTTP 200, so a typo silently changes the model.
+# `model` is the id the provider reports back, used to prove the request was honoured.
+DRIVER_CHAIN: Tuple[Dict[str, Any], ...] = (
+    {
+        "id": "local-router/fallback-models",
+        "transport": "local-router",
+        # This step's whole purpose is the shared generic chain, so whatever it selects is correct.
+        # Without this flag every call here would report a false "routed to a different model".
+        "expect_any": True,
+        "label": "local-router generic fallback chain",
+    },
+    {
+        "id": "zai-glm-5.3-flash",
+        "transport": "local-router",
+        "model": "glm-5.3-flash",
+        "label": "Z.AI GLM 5.3 Flash",
+    },
+    {
+        "id": "xiaomi-mimo-mimo-v2.6-pro",
+        "transport": "local-router",
+        "model": "mimo-v2.6-pro",
+        "label": "Xiaomi MiMo 2.6 Pro",
+    },
+    {
+        "id": "openrouter-deepseek-v4.1-flash-1017",
+        "transport": "local-router",
+        "model": "deepseek/deepseek-v4.1-flash-1017",
+        "label": "DeepSeek V4.1 Flash 1017 (router → OpenRouter)",
+        # A reasoning model: max_tokens must cover reasoning *plus* answer.
+        "reasoning": True,
+    },
+    # Direct provider steps, reached only when the router itself is unreachable. Kept after the
+    # requested order so a dead router degrades to a real provider instead of to nothing.
+    {
+        "id": "deepseek/deepseek-v4.1-flash-1017",
+        "transport": "openrouter",
+        "model": "deepseek/deepseek-v4.1-flash-1017",
+        "label": "DeepSeek V4.1 Flash 1017 (direct OpenRouter)",
+        "reasoning": True,
+    },
+)
+
+# Per-transport ids, used only when the router is unreachable and a direct provider is tried.
 DRIVER_MODEL_IDS: Dict[str, List[str]] = {
-    "local-router": ["openrouter-deepseek-v4.1-flash-1017", "zenmux-deepseek-v4.1-flash"],
+    "local-router": ["local-router/fallback-models"],
     "openrouter": ["deepseek/deepseek-v4.1-flash-1017"],
     "zenmux": ["deepseek/deepseek-v4.1-flash"],
     "local-model": [],
@@ -4099,23 +4142,32 @@ def driver_tier_order(allow_remote: bool = True) -> List[str]:
 def driver_model_matches(requested: str, returned: Optional[str]) -> bool:
     """Compares the requested id with the provider's reported model.
 
-    Router-facing ids prefix the provider (`openrouter-…`), and providers answer with the canonical
-    id (`deepseek/deepseek-v4.1-flash-1017`). Strip both decorations and compare the family tail: a
-    snapshot suffix is a *different* model, so `…-1017` never matches a bare `deepseek-v4.1-flash`.
+    Router ids are `<provider>-<family>-<variant>` and the router answers with only the tail, so
+    `xiaomi-mimo-mimo-v2.6-pro` comes back as `mimo-v2.6-pro` and `zai-glm-5.3-flash` as
+    `glm-5.3-flash`. Verification is therefore suffix-based on normalized tokens, while still
+    refusing a *different* model: a snapshot suffix is a distinct model, so `…-1017` must never
+    match a bare `deepseek-v4.1-flash`.
     """
     def norm(value: str) -> str:
         text = (value or "").strip().lower()
-        for prefix in ("openrouter-", "zenmux-", "ollama-", "unsloth-", "nous-portal-"):
-            if text.startswith(prefix):
-                text = text[len(prefix):]
-                break
-        return text.rsplit("/", 1)[-1]
+        return re.sub(r"[^a-z0-9.]+", "-", text).strip("-")
 
     want = norm(requested)
     got = norm(returned or "")
     if not want or not got:
         return False
-    return want == got
+    if want == got:
+        return True
+    # Strip the router's provider prefix and compare the remainder as a suffix of the answer:
+    # xiaomi-mimo-mimo-v2.6-pro -> mimo-mimo-v2.6-pro, whose tail mimo-v2.6-pro is what comes back.
+    parts = want.split("-")
+    for start in range(1, len(parts)):
+        candidate = "-".join(parts[start:])
+        if not candidate:
+            continue
+        if got == candidate or got.endswith("-" + candidate) or candidate.endswith("-" + got):
+            return True
+    return got.endswith("-" + want)
 
 
 def _driver_unload_local(base: str, model: str) -> bool:
@@ -4312,83 +4364,121 @@ class DriverEngine:
 
     # -- public surface ----------------------------------------------------
 
+    def chain_steps(self) -> List[Dict[str, Any]]:
+        """The ordered steps this engine will try, honouring offline/priority/pin overrides."""
+        steps = [dict(step) for step in DRIVER_CHAIN]
+        pinned = (_env_nonempty("AINISH_RAG_DRIVER_MODEL") or "").strip()
+        if pinned:
+            steps = [s for s in steps if s["id"] == pinned] or [{
+                "id": pinned,
+                "transport": "local-router",
+                "label": f"operator pin {pinned}",
+            }]
+        if not self.allow_remote:
+            # Offline / local-only: every remote step is dropped. The local-model floor is appended
+            # unconditionally because it is the whole point of this mode — returning an empty chain
+            # would report "no driver step configured" instead of "no local backend", which is the
+            # one thing an offline operator needs to know.
+            steps = [s for s in steps if s["transport"] == "local-model"]
+            if not steps:
+                steps = [{"id": None, "transport": "local-model", "label": "local model (offline floor)"}]
+        return steps
+
     def chat(
         self,
         messages: List[Dict[str, str]],
         max_tokens: Optional[int] = None,
         tier: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Answers from the first usable tier. Never raises; failures land in `error`."""
+        """Answers from the first step that can. Never raises; failures land in `attempts`."""
         self.attempts = []
-        tiers = [tier] if tier else list(self.order)
-        for name in tiers:
-            if name in ("local-router", "openrouter", "zenmux"):
-                base_var, default_base = DRIVER_REMOTE_BASES[name]
+        steps = self.chain_steps()
+        if tier:
+            steps = [s for s in steps if s["transport"] == tier] or steps
+        if not steps:
+            steps = [{"id": None, "transport": "local-model", "label": "local model"}]
+
+        for step in steps:
+            transport = step["transport"]
+            if transport in ("local-router", "openrouter", "zenmux"):
+                base_var, default_base = DRIVER_REMOTE_BASES[transport]
                 base = (_env_nonempty(base_var) or default_base).rstrip("/")
-                key = None if name == "local-router" else resolve_driver_key(name)
-                if name != "local-router" and not key:
-                    self.attempts.append(f"{name}: no API key resolved")
+                key = None if transport == "local-router" else resolve_driver_key(transport)
+                if transport != "local-router" and not key:
+                    self.attempts.append(f"{step['label']}: no API key resolved")
                     continue
-                for model in DRIVER_MODEL_IDS.get(name, []):
-                    try:
-                        result = self._post_chat(base, model, messages, key=key, max_tokens=max_tokens)
-                    except RuntimeError as exc:
-                        self.attempts.append(f"{name}/{model}: {exc}")
-                        continue
-                    matched = driver_model_matches(model, result.get("model"))
-                    if not matched:
-                        self.attempts.append(
-                            f"{name}/{model}: routed to {result.get('model')} (identifier mismatch)"
-                        )
-                    return {
-                        "text": result["text"],
-                        "source": f"{name}:{result.get('model')}",
-                        "tier": name,
-                        "requested_model": model,
-                        "model_verified": matched,
-                        "degraded": not matched,
-                        "usage": result.get("usage") or {},
-                        "attempts": list(self.attempts),
-                    }
-            elif name == "local-model":
-                local = self._resolve_local()
-                if not local:
-                    self.attempts.append("local-model: no reachable local backend (8888/11435/8080)")
+                model = step.get("id") or ""
+                if not model:
+                    self.attempts.append(f"{step['label']}: no model id")
                     continue
-                payload_keep_alive = self.keep_alive if local.get("native_ollama") else None
                 try:
-                    result = self._post_chat(
-                        local["base"],
-                        local["model"],
-                        messages,
-                        max_tokens=max_tokens,
-                        timeout=DRIVER_TIMEOUT_LOCAL,
-                        keep_alive=payload_keep_alive,
-                    )
+                    result = self._post_chat(base, model, messages, key=key, max_tokens=max_tokens)
                 except RuntimeError as exc:
-                    self.attempts.append(f"local-model/{local['model']}: {exc}")
+                    self.attempts.append(f"{step['label']} ({model}): {exc}")
                     continue
+                matched = bool(step.get("expect_any")) or driver_model_matches(
+                    step.get("model") or model, result.get("model")
+                )
+                if not matched:
+                    self.attempts.append(
+                        f"{step['label']} ({model}): routed to {result.get('model')} (identifier mismatch)"
+                    )
                 return {
                     "text": result["text"],
-                    "source": f"local-model:{result.get('model')}",
-                    "tier": "local-model",
-                    "requested_model": local["model"],
-                    "model_verified": driver_model_matches(local["model"], result.get("model")),
-                    "degraded": False,
-                    "keep_alive": payload_keep_alive,
+                    "source": f"{transport}:{result.get('model')}",
+                    "tier": transport,
+                    "step": step.get("label"),
+                    "requested_model": model,
+                    "model_verified": matched,
+                    "degraded": not matched,
                     "usage": result.get("usage") or {},
                     "attempts": list(self.attempts),
                 }
+
+            # local-model is the offline floor.
+            local = self._resolve_local()
+            if not local:
+                self.attempts.append(
+                    f"{step['label']}: no reachable local backend (8888/11435/8080)"
+                )
+                continue
+            payload_keep_alive = self.keep_alive if local.get("native_ollama") else None
+            try:
+                result = self._post_chat(
+                    local["base"],
+                    local["model"],
+                    messages,
+                    max_tokens=max_tokens,
+                    timeout=DRIVER_TIMEOUT_LOCAL,
+                    keep_alive=payload_keep_alive,
+                )
+            except RuntimeError as exc:
+                self.attempts.append(f"local-model/{local['model']}: {exc}")
+                continue
+            return {
+                "text": result["text"],
+                "source": f"local-model:{result.get('model')}",
+                "tier": "local-model",
+                "step": step.get("label"),
+                "requested_model": local["model"],
+                "model_verified": driver_model_matches(local["model"], result.get("model")),
+                "degraded": False,
+                "keep_alive": payload_keep_alive,
+                "usage": result.get("usage") or {},
+                "attempts": list(self.attempts),
+            }
+
         return {
             "text": "",
             "source": "unavailable",
             "tier": None,
+            "step": None,
             "requested_model": None,
             "model_verified": False,
             "degraded": True,
             "usage": {},
             "attempts": list(self.attempts),
-            "error": "; ".join(self.attempts) or "no driver tier configured",
+            "error": "; ".join(self.attempts) or "no driver step configured",
         }
 
     def unload(self) -> Dict[str, Any]:
@@ -4401,7 +4491,11 @@ class DriverEngine:
 
 
 def inspect_drivers() -> Dict[str, Any]:
-    """Driver-tier report for `ainish-rag secrets`/`status`: reachability and key presence only."""
+    """Driver report for `ainish-rag secrets`: the ordered chain, reachability, key presence.
+
+    Reports the chain the engine will actually walk rather than a tier table, because the operator's
+    question is "which model answers next", not "which hosts exist".
+    """
     engine = DriverEngine()
     report: Dict[str, Any] = {
         "format": "ainish-rag/driver-status/v1",
@@ -4409,30 +4503,60 @@ def inspect_drivers() -> Dict[str, Any]:
         "order": list(engine.order),
         "max_tokens": engine.max_tokens,
         "keep_alive": engine.keep_alive,
+        "chain": [],
         "tiers": [],
     }
+    for step in engine.chain_steps():
+        row: Dict[str, Any] = {
+            "step": step.get("label"),
+            "model_id": step.get("id"),
+            "transport": step.get("transport"),
+        }
+        transport = step["transport"]
+        if transport in DRIVER_REMOTE_BASES:
+            base_var, default_base = DRIVER_REMOTE_BASES[transport]
+            base = (_env_nonempty(base_var) or default_base).rstrip("/")
+            key = None if transport == "local-router" else resolve_driver_key(transport)
+            reachable, _models, reason = engine.probe_health(base, timeout=2.0, key=key)
+            row.update({
+                "base_url": base,
+                "reachable": reachable,
+                "probe": reason,
+                "key_present": (transport == "local-router") or bool(key),
+            })
+            if not reachable and "404" in reason and transport != "local-router":
+                row["probe_note"] = "/v1/models not published; chat completions is the tested path"
+        else:
+            local = engine._resolve_local()
+            row.update({
+                "reachable": local is not None,
+                "base_url": (local or {}).get("base"),
+                "model": (local or {}).get("model"),
+                "probe": "ok" if local else "no reachable local backend",
+            })
+        report["chain"].append(row)
+
     for name in DRIVER_TIERS:
-        row: Dict[str, Any] = {"tier": name}
+        row = {"tier": name}
         if name in DRIVER_REMOTE_BASES:
             base_var, default_base = DRIVER_REMOTE_BASES[name]
             base = (_env_nonempty(base_var) or default_base).rstrip("/")
             key = None if name == "local-router" else resolve_driver_key(name)
-            row["base_url"] = base
-            row["models"] = DRIVER_MODEL_IDS.get(name, [])
-            row["key_present"] = (name == "local-router") or bool(key)
             reachable, _models, reason = engine.probe_health(base, timeout=2.0, key=key)
-            row["reachable"] = reachable
-            row["probe"] = reason
-            # A direct provider that 404s /v1/models is not down; it simply does not publish a
-            # catalogue there. Report that distinctly so "down" never means "we asked the wrong URL".
-            if not reachable and "404" in reason and name != "local-router":
-                row["probe_note"] = "/v1/models not published; chat completions is the tested path"
+            row.update({
+                "base_url": base,
+                "models": DRIVER_MODEL_IDS.get(name, []),
+                "key_present": (name == "local-router") or bool(key),
+                "reachable": reachable,
+                "probe": reason,
+            })
         else:
             local = engine._resolve_local()
-            row["reachable"] = local is not None
-            row["base_url"] = (local or {}).get("base")
-            row["model"] = (local or {}).get("model")
-            row["probe"] = "ok" if local else "no reachable local backend"
+            row.update({
+                "reachable": local is not None,
+                "base_url": (local or {}).get("base"),
+                "model": (local or {}).get("model"),
+            })
         report["tiers"].append(row)
     return report
 
@@ -7134,25 +7258,20 @@ def main():
             print("Status:             FALLBACK (Calibrated local heuristics active)")
         drv = inspect_drivers()
         print()
-        print("=== Driver (generative) Tier Status ===")
+        print("=== Driver (generative) Chain ===")
         print(f"Mode:               {'LOCAL-ONLY (offline)' if drv['offline'] else 'tiered'}")
-        print(f"Order:              {' -> '.join(drv['order'])}")
+        print(f"Tiers:              {' -> '.join(drv['order'])}")
         print(f"max_tokens:         {drv['max_tokens']} (must cover reasoning + answer)")
         print(f"keep_alive:         {drv['keep_alive']}")
-        for row in drv["tiers"]:
+        for i, row in enumerate(drv["chain"], 1):
             state = "up" if row.get("reachable") else "down"
-            if row["tier"] == "local-model":
-                detail = row.get("model") or "no backend found"
-            else:
-                detail = (
-                    f"key={'present' if row.get('key_present') else 'missing'} "
-                    f"models={','.join(row.get('models') or []) or '-'}"
-                )
-                if row.get("probe_note"):
-                    detail += f" [{row['probe_note']}]"
-                elif not row.get("reachable"):
-                    detail += f" [{row.get('probe', 'unreachable')}]"
-            print(f"  {row['tier']:<13} {state:<5} {detail}")
+            detail = row.get("model_id") or row.get("model") or "-"
+            if not row.get("reachable"):
+                detail += f" [{row.get('probe', 'unreachable')}]"
+            if row.get("probe_note"):
+                detail += f" [{row['probe_note']}]"
+            print(f"  {i}. {state:<4} {row.get('transport'):<13} {detail}")
+            print(f"       {row.get('step')}")
         print()
 
     elif args.subcommand == "index":

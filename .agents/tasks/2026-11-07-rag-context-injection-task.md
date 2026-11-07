@@ -13,8 +13,30 @@
 
 The operator asked for `AGENTS.md` to integrate with the ainish-rag context-injection system so that
 an agent reads the contract, makes **one** tool call, and receives an engineered injection that
-combines Elephant (session-aware) and Goldfish (stateless) additions — with model tiers
-`local-router → openrouter → zenmux → local-model` and a genuine offline floor.
+combines Elephant (session-aware) and Goldfish (stateless) additions — with a real model chain and a
+genuine offline floor. A follow-up pinned that chain explicitly: `local-router/fallback-models →
+zai-glm-5.3-flash → xiaomi-mimo-mimo-v2.6-pro → openrouter-deepseek-v4.1-flash-1017`, carried by
+`ainish-rag` rather than by local-router's shared fallback content.
+
+## Driver chain (final, operator-specified)
+
+Verified live 2026-11-07, all four router steps answered `DRIVER_OK`:
+
+| Step | Model id sent | Reported back |
+|---|---|---|
+| 1 | `local-router/fallback-models` | `mimo-v2.6-pro` (shared chain head) |
+| 2 | `zai-glm-5.3-flash` | `glm-5.3-flash` |
+| 3 | `xiaomi-mimo-mimo-v2.6-pro` | `mimo-v2.6-pro` |
+| 4 | `openrouter-deepseek-v4.1-flash-1017` | `deepseek/deepseek-v4.1-flash-1017` |
+| 5 | `deepseek/deepseek-v4.1-flash-1017` (direct; only if the router is unreachable) | same |
+
+Why step 1 is `expect_any`: its whole purpose is the shared generic chain, so whatever that chain
+selects is correct for that step. Without the flag every call there reported a false "routed to a
+different model" mismatch. Steps 2–4 are pinned, so a mismatch there is a real signal.
+
+Why the order is not in local-router: that chain serves VS Code, Claude Code, Cline and every other
+client. Repointing it to suit `ainish-rag` would reroute the machine. Step 1 *calls* it; it does not
+define the order.
 
 The contract could not honestly point at that pipeline: it said the engine was "not an agent intake
 requirement", and the engine had no generative path at all (every model call was a typed decision or
@@ -104,27 +126,26 @@ an embedding). So the contract and the code had to move together.
 
 ## Verification
 
-- `py -m unittest discover -s src/rag/tests -p "test_*.py"` — **124 pass** (89 before, 35 new).
+- `py -m unittest discover -s src/rag/tests -p "test_*.py"` — **128 pass** (89 before, 39 new).
 - `bash scripts/test-pqc-dist.sh` under Git Bash — **99/99** (86 before, 13 new assertions covering
   the contract→engine wiring and a no-key/no-endpoint rule for `AGENTS.md`).
 - `ainish-rag audit verify` — 16/16 after re-signing the canonical contract.
-- Live end-to-end, through the launcher the contract actually names:
-  `ainish-rag context --task "…" --budget 1400 --json` → `retrieval`+`elephant`+`goldfish`,
-  544/1400 tokens, `degraded: false`, drivers both `local-router:deepseek/deepseek-v4.1-flash-1017`,
-  strategy `hybrid_rerank`, and a real 0.71-relevance hit from `rag-decision-catalog.md`.
-- Live driver tiers probed directly (not just through the router): OpenRouter
-  `deepseek/deepseek-v4.1-flash-1017` (839 ms), ZenMux `deepseek/deepseek-v4.1-flash` (5206 ms),
-  local-router tier 1 (9659 ms cold) — all `DRIVER_OK` with reasoning tokens reported, confirming the
-  reasoning-budget constraint is real and not theoretical.
-- Offline floor: `AINISH_RAG_DRIVER_OFFLINE=1` contacts no remote tier and reports the exact local
-  failure (`No model is loaded…` on 8888), so an operator knows which tier to fix. The local tier is
-  genuinely unserviceable on this machine right now (8888 has no model loaded, 11435 requires auth,
-  8080 is down) — that is a machine state, not a code defect, and it is now reported accurately
-  instead of as a generic "unavailable".
-- `context --json` stdout parses as pure JSON when invoked from a subprocess (asserted by test and by
-  a live check); `statusline --json` likewise.
-- Budget: `--budget 400` → `cap: 400`; `--budget 20` → floor 300 with a reported raise; no flag →
-  route-derived 2000. All three exercised live.
+- Driver chain verified live, not just through the router: step 1 `local-router/fallback-models` ->
+  `mimo-v2.6-pro`, step 2 `zai-glm-5.3-flash` -> `glm-5.3-flash`, step 3
+  `xiaomi-mimo-mimo-v2.6-pro` -> `mimo-v2.6-pro`, step 4 `openrouter-deepseek-v4.1-flash-1017` ->
+  `deepseek/deepseek-v4.1-flash-1017`. All answered `DRIVER_OK` with `model_verified: true`.
+- Forced failover: with step 1 rejected, step 2 answered and the attempt log carried exactly one
+  reason; the order is walked rather than the first step assumed.
+- Live end-to-end through the launcher: `context --budget 1400 --json` produced
+  `retrieval`+`elephant`+`goldfish`, 544/1400 tokens, `degraded: false`, both drivers
+  `local-router:mimo-v2.6-pro`.
+- Offline floor: `AINISH_RAG_DRIVER_OFFLINE=1` contacts no remote step and reports the exact local
+  failure ("No model is loaded..." on 8888). The local tier is genuinely unserviceable on this
+  machine right now (8888 has no model loaded, 11435 requires auth, 8080 is down); that is machine
+  state, not a code defect, and it is now reported accurately instead of as a generic "unavailable".
+- `context --json` stdout parses as pure JSON from a subprocess; `statusline --json` likewise.
+- Budget: `--budget 400` -> cap 400; `--budget 20` -> floor 300 with a reported raise; no flag ->
+  route-derived. All three exercised live.
 
 ## Not done, and why
 

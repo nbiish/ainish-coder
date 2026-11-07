@@ -122,12 +122,16 @@ model than requested, so lean harder on the files.
 say so in one line and continue with plain file reading. A context tool that stops work is worse
 than no context tool.
 
-Tiering is `local-router → openrouter → zenmux → local-model`, with the local tier as the offline
-floor. Operators control it without changing this contract: `--no-remote` (or
-`AINISH_RAG_DRIVER_OFFLINE=1`) pins local-only operation, `AINISH_RAG_DRIVER_PRIORITY` reorders the
-tiers, and `--unload` releases a resident local model when sustained work is finished. Inspect the
-live posture with `ainish-rag secrets`. No key, endpoint, or model id belongs in this file — they
-resolve at runtime from the environment and the PQC store.
+The model chain is `local-router/fallback-models → zai-glm-5.3-flash → xiaomi-mimo-mimo-v2.6-pro →
+openrouter-deepseek-v4.1-flash-1017`, and then a direct `deepseek/deepseek-v4.1-flash-1017` if the
+router itself is unreachable. That chain is `ainish-rag`'s own and is **not** local-router's
+`fallback-models` content: repointing the shared router chain would reroute VS Code, Claude Code,
+Cline, and every other client on the machine to suit one tool. Operators override without editing
+this file — `AINISH_RAG_DRIVER_MODEL` pins one step, `--no-remote` (or
+`AINISH_RAG_DRIVER_OFFLINE=1`) drops every remote step down to the local model floor, and
+`--unload` releases a resident local model. Inspect the live chain with `ainish-rag secrets`. No key,
+endpoint, or model id is authoritative in this file; they resolve at runtime from the environment
+and the PQC store.
 
 ## Coordination and verification
 
@@ -183,3 +187,5 @@ Non-English text is permitted in exactly two places:
 Never answer, log, or commit in another language just because the request arrived in one. If a
 request is ambiguous across languages, resolve the meaning in English and state the assumption you
 made.
+
+Always believe in yourself.  

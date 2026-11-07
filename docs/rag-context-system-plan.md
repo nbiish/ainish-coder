@@ -193,25 +193,33 @@ technique selection without a human-visible receipt.
 
 **Why:** This is the actual product surface, and it needs a generative path that doesn't exist.
 
-**4a. Driver model.** New `driver` transport layer mirroring the decision layer:
-`local-router → openrouter → zenmux → local-model`, with the same `source` discipline and hard
-timeouts. Reuses `_first_env` / PQC key resolution; **never** logs keys.
+**4a. Driver model.** New `driver` transport layer mirroring the decision layer, with the same
+`source` discipline and hard timeouts. Reuses `_first_env` / PQC key resolution; **never** logs keys.
 
-Provider tier order and model ids are **verified live** (2026-11-06) and recorded in
-`local-router/docs/driver-models.md`:
+The chain is an explicit ordered list in `DRIVER_CHAIN`, verified live 2026-11-07 (all four
+router steps answered `DRIVER_OK`):
 
-| Tier | Model id | Status |
+| Step | Model id (as sent) | Reported back |
 |---|---|---|
-| local-router → OpenRouter | `openrouter-deepseek-v4.1-flash-1017` | responds, routes to `deepseek/deepseek-v4.1-flash-1017` |
-| local-router → ZenMux | `zenmux-deepseek-v4.1-flash` | responds, routes to `deepseek/deepseek-v4-flash` family |
-| local-model | `…-lightning-30b-a3b-gguf-mxfp4_moe` | **offline today** (Unsloth Studio closed) |
+| 1 | `local-router/fallback-models` | `mimo-v2.6-pro` (the shared chain's current head) |
+| 2 | `zai-glm-5.3-flash` | `glm-5.3-flash` |
+| 3 | `xiaomi-mimo-mimo-v2.6-pro` | `mimo-v2.6-pro` |
+| 4 | `openrouter-deepseek-v4.1-flash-1017` | `deepseek/deepseek-v4.1-flash-1017` |
+| 5 | `deepseek/deepseek-v4.1-flash-1017` (direct; used only if the router is unreachable) | same |
+
+**This chain belongs to `ainish-rag`; it is not local-router's `fallback-models` content.** The
+shared chain serves VS Code, Claude Code, Cline and every other client — repointing it here would
+reroute the machine to suit one tool. Step 1 *calls* that chain deliberately and is marked
+`expect_any`, so whatever it selects is correct for that step rather than a false mismatch.
 
 **Do not invent `latest` aliases.** Verified: `deepseek-v4.1-flash-latest`,
 `openrouter-deepseek-v4.1-flash-latest` and `zenmux-deepseek-v4.1-flash-latest` all return **HTTP
 200 with `routed=auto`** — the generic fallback chain, not the requested model. The `~`-prefixed
 `-latest` rows in the router registry are display aliases stripped by `normalizeModelAlias`, not
 callable ids. So the driver **must compare `response.model` to the requested id** and treat a
-mismatch as degraded; a 200 alone proves nothing.
+mismatch as degraded; a 200 alone proves nothing. Router ids answer with only the provider-stripped
+tail, so matching is suffix-based (`xiaomi-mimo-mimo-v2.6-pro` ← `mimo-v2.6-pro`), while a snapshot
+suffix still counts as a different model.
 
 Two constraints that must shape the implementation, not just the docs:
 
@@ -220,13 +228,12 @@ Two constraints that must shape the implementation, not just the docs:
   reasoning *plus* answer, and must not treat empty content as a transport error — that would
   mis-diagnose a budget problem as a provider outage.
 - **NVFP4 Lightning cannot run here.** `llama-quantize --help` on this build (`0.8.0-dev, 7e2fea0`)
-  has no NVFP4 type; only `MXFP4_MOE` exists. The chosen local tier is therefore
-  `…-lightning-30b-a3b-gguf-mxfp4_moe`.
+  has no NVFP4 type; only `MXFP4_MOE` exists. The local floor is therefore
+  `…-lightning-30b-a3b-gguf-mxfp4_moe`, or whatever the discovered backend serves.
 
-**The driver order is a separate order from `local-router/fallback-models`.** The shared 20-step
-chain serves VS Code, Claude Code, Cline and scripts; the driver order (tier 1–4) is `ainish-rag`'s
-own, carried as explicit model ids. Neither replaces the other, and reordering the shared chain for
-one tool would change routing for every consumer.
+**The driver order is a separate order from `local-router/fallback-models`.** Neither replaces the
+other: step 1 *consumes* the shared chain, steps 2–5 are this engine's own, and reordering the shared
+chain for one tool would change routing for every consumer.
 
 **4b. Elephant.** Session-aware synthesizer.
 - Input: current task text, the session's accumulated injection state (a small JSON sidecar in
@@ -270,14 +277,14 @@ shipping Phase 4 could not wait for the full evidence dossier:
   content as a transport failure will mis-diagnose a budget problem as an outage. The engine reports
   it as a budget error and defaults to 900 tokens.
 
-Measured on this repo (3,627-record store, local-router tier 1):
+Measured on this repo (3,627-record store, chain step 1):
 
 | Path | Result |
 |---|---|
-| `context --task … --budget 1200` (remote embeddings + local-router drivers) | 917 tokens, ~21s wall clock (two sequential driver calls dominate) |
+| `context --task … --budget 1400` (remote embeddings + chain step 1) | 544 tokens, ~11s wall clock (two sequential driver calls dominate) |
 | `context --retrieval-only` | one embedding round trip, no driver spend |
-| `AINISH_RAG_DRIVER_OFFLINE=1` | local-model tier only; degrades cleanly and says so |
-| All tiers unreachable | `source: unavailable` + per-tier attempt log; injection still returns |
+| `AINISH_RAG_DRIVER_OFFLINE=1` | local-model floor only; degrades cleanly and names the local failure |
+| All steps unreachable | `source: unavailable` + per-step attempt log; injection still returns |
 
 Known limit worth stating plainly: **two sequential generative passes cost ~2× a single call.** That
 is inside the plan's ≤4s remote budget only because the local router answers in ~0.8–1s per call;
