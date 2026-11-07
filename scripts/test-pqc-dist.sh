@@ -95,6 +95,18 @@ echo "== selection guard =="
 source "${REPO}/src/skills_selection.sh"
 check "selected pack resolves on" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_ON" pqc-secrets)" "on"
 check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_OFF" pqc-secrets)" "off"
+# The config lookup above is intentionally raw. Distribution must ignore it for a
+# mandatory pack, which is the whole difference between "stored off" and "not shipped".
+if _skill_mandatory pqc-secrets && ! _skill_mandatory typesafe-jev; then
+    ok "mandatory classification covers only pqc-secrets"
+else
+    not_ok "mandatory classification covers only pqc-secrets"
+fi
+excluded_n=0
+for _p in $(sed -n '/^_skill_channel_excluded()/,/^}/p' "${REPO}/src/skills_selection.sh" | grep -o 'pqc-secrets' | head -1); do
+    excluded_n=1
+done
+check "selector hides pqc-secrets" "$excluded_n" "1"
 
 echo "== provenance stamp is readable across WSL and Windows Git Bash =="
 # `.ainish-source` stores whichever absolute POSIX path the WRITER saw:
@@ -253,11 +265,22 @@ sd_file="$(HOME="$HOME_DIR" skills_selection_global_default)"
 check "skills-set-default persisted as on" "$sd_file" "on"
 
 # Scripted per-repo selection: no prompt, persisted, and scoped to this repo.
-HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" --off pqc-secrets >/dev/null 2>&1
-check "skills --off persists for this repo" \
-    "$(HOME="$HOME_DIR" skills_selection_state "$SD_TARGET" pqc-secrets)" "off"
+# pqc-secrets is mandatory, so it is not a toggle target: the command must refuse
+# it with a clear reason rather than saving an `off` that --rules would ignore.
+OPT_TARGET="${WORK}/target-skills-opt"
+mkdir -p "${OPT_TARGET}"
+if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$OPT_TARGET" --off pqc-secrets >/dev/null 2>&1; then
+    not_ok "skills refuses to toggle a mandatory pack"
+else
+    ok "skills refuses to toggle a mandatory pack"
+fi
+HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$OPT_TARGET" --off typesafe-jev >/dev/null 2>&1
+check "skills --off persists for a selectable pack" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$OPT_TARGET" typesafe-jev)" "off"
 check "skills --off does not touch another repo" \
-    "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_ON" pqc-secrets)" "on"
+    "$(HOME="$HOME_DIR" skills_selection_state "$OPT_TARGET" typesafe-jev)" "off"
+check "skills --off left the other repo alone" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$SD_TARGET" typesafe-jev)" "on"
 
 # A typo must fail loudly rather than be saved as a setting that selects nothing.
 if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" --on not-a-real-pack >/dev/null 2>&1; then
@@ -313,8 +336,11 @@ check "source ships exactly one pqc pack" "${#pqc_packs[@]}" "1"
 echo "== --pqc-sync-targets =="
 sync_json="${WORK}/sync.json"
 run_cli --pqc-sync-targets --all --json > "$sync_json"
-check "one target synced" "$(jget synced "$sync_json")" "1"
-check "deselected target skipped" "$(jget deselected "$sync_json")" "1"
+# pqc-secrets is mandatory: a target carrying a stale `off` entry is synced anyway,
+# because --rules deploys the pack regardless and a skipped target would be left
+# without the engine its contract resolves every secret through.
+check "both enrolled targets synced" "$(jget synced "$sync_json")" "2"
+check "no target skipped as deselected" "$(jget deselected "$sync_json")" "0"
 check "missing target reported" "$(jget missing "$sync_json")" "1"
 check "no failures" "$(jget failed "$sync_json")" "0"
 check "legacy signature pack pruned" "$(jget legacyPruned "$sync_json")" "1"
@@ -347,7 +373,9 @@ else
 fi
 check "target engine digest matches source" "$target_sha" "$source_sha"
 [[ -x "${TARGET_ON}/bin/pqc-secrets" ]] && ok "launcher copied with the pack" || not_ok "launcher copied with the pack"
-[[ ! -e "${TARGET_OFF}/bin/pqc-secrets" ]] && ok "deselected target untouched" || not_ok "deselected target untouched"
+# A stale `off` entry is ignored, but it must not be *erased* from the config:
+# the entry is the operator's history, and --rules is what actually governs.
+[[ -x "${TARGET_OFF}/bin/pqc-secrets" ]] && ok "stale-off target still received the mandatory pack" || not_ok "stale-off target still received the mandatory pack"
 
 echo "== documentation-only drift =="
 # The engine is untouched; only the merged reference changes. Freshness must be
@@ -367,14 +395,14 @@ else
 fi
 
 run_cli --pqc-sync-targets --all --json > "${WORK}/sync2.json"
-check "second sync is a no-op" "$(jget current "${WORK}/sync2.json")" "1"
+check "second sync leaves both targets current" "$(jget current "${WORK}/sync2.json")" "2"
 check "second sync reuses the attested manifest" "$(jget_first manifest "${WORK}/sync2.json")" "attested"
 
 echo "== --pqc-status =="
 run_cli --pqc-status --json --no-wsl > "${WORK}/status.json"
 status_rc=$?
 check "status exits 0 when only optional packs are missing" "$status_rc" "0"
-check "target reports current" "$(jget current "${WORK}/status.json")" "1"
+check "both targets report current" "$(jget current "${WORK}/status.json")" "2"
 check "deselected target is not a required miss" "$(jget missingRequired "${WORK}/status.json")" "0"
 check "status reports no legacy packs" "$(jget legacyPacks "${WORK}/status.json")" "0"
 check "status binds the pack to the signed manifest" "$(jget_first packAuth "${WORK}/status.json")" "bound"
@@ -478,6 +506,14 @@ contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CO
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'advisory evidence, never authority'
 contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
 contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'local-router/fallback-models → zai-glm-5.3-flash'
+# A mandatory pack must be invisible to the selector and still be deployed. Both halves are pinned:
+# hiding it alone would let --rules silently ship nothing, and deploying it alone would put a
+# non-choice in front of the operator.
+contains "pqc-secrets is declared mandatory" "$(cat "${REPO}/src/skills_selection.sh")" '_skill_mandatory'
+contains "selector treats it as not-selectable" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets) return 0 ;;'
+contains "deploy ships it unconditionally" "$(cat "${REPO}/src/deploy_skills.sh")" 'Deployed (mandatory)'
+contains "verify fails when it is absent" "$(cat "${REPO}/src/verify_skills.sh")" 'MISSING MANDATORY'
+contains "contract states it is mandatory" "$(cat "${REPO}/AGENTS.md")" 'mandatory, not optional'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
 contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'it is advisory evidence'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
