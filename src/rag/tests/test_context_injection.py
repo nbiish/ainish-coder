@@ -776,6 +776,7 @@ class RoleModelSeparationTest(unittest.TestCase):
                 "AINISH_RAG_ELEPHANT_MODEL", "AINISH_RAG_GOLDFISH_MODEL",
                 "AINISH_RAG_ELEPHANT_DRIVER_MODEL", "AINISH_RAG_GOLDFISH_DRIVER_MODEL",
                 "AINISH_RAG_DRIVER_MODEL", "AINISH_RAG_DRIVER_OFFLINE",
+                "AINISH_RAG_DISTINCT_REVIEWER",
             )
         }
         for key in self._saved:
@@ -788,10 +789,19 @@ class RoleModelSeparationTest(unittest.TestCase):
             else:
                 os.environ[key] = value
 
-    def test_goldfish_prefers_a_different_transport(self):
-        # The head is a route whose answer is only known after the call, so a positional skip alone
-        # cannot guarantee a different model. Preferring another transport is the strongest signal
-        # available before the request is made.
+    def test_goldfish_defaults_to_the_same_route_as_elephant(self):
+        # The documented pair: both roles call local-router/fallback-models. Two separate calls buy a
+        # fresh-context review; requiring a different model would be imposing a cost decision.
+        engine = rag.DriverEngine(allow_remote=True)
+        elephant = engine.chain_steps("elephant")
+        goldfish = engine.chain_steps("goldfish")
+        self.assertEqual(elephant[0]["id"], "local-router/fallback-models")
+        self.assertEqual(goldfish[0]["id"], "local-router/fallback-models")
+
+    def test_distinct_reviewer_moves_goldfish_to_another_transport(self):
+        # Opt-in stronger version: prefers another transport, because the head is a route whose model
+        # is unknown until it replies and a positional skip cannot guarantee a different one.
+        os.environ["AINISH_RAG_DISTINCT_REVIEWER"] = "1"
         engine = rag.DriverEngine(allow_remote=True)
         elephant = engine.chain_steps("elephant")
         goldfish = engine.chain_steps("goldfish")
@@ -857,8 +867,9 @@ class RoleModelSeparationTest(unittest.TestCase):
         result = engine.chat([{"role": "user", "content": "x"}], role="goldfish")
         self.assertEqual(result["role"], "goldfish")
 
-    def test_the_two_roles_ask_for_different_models(self):
-        # The end-to-end claim: two chat() calls with different roles request different ids.
+    def test_the_two_roles_request_the_same_model_by_default(self):
+        # Two calls, same model: the default. Asserting the request ids are equal proves the calls are
+        # independent without pretending the models differ.
         requested = []
 
         def fake_post(base, model, messages, key=None, **kwargs):
@@ -869,8 +880,51 @@ class RoleModelSeparationTest(unittest.TestCase):
         engine._post_chat = fake_post
         engine.chat([{"role": "user", "content": "x"}], role="elephant")
         engine.chat([{"role": "user", "content": "x"}], role="goldfish")
+        self.assertEqual(len(requested), 2, "both roles must make their own call")
+        self.assertEqual(requested[0], requested[1])
+
+    def test_distinct_reviewer_makes_the_two_roles_request_different_models(self):
+        requested = []
+
+        def fake_post(base, model, messages, key=None, **kwargs):
+            requested.append(model)
+            return {"text": "answer", "model": model, "usage": {}, "finish_reason": "stop"}
+
+        os.environ["AINISH_RAG_DISTINCT_REVIEWER"] = "1"
+        engine = rag.DriverEngine(allow_remote=True)
+        engine._post_chat = fake_post
+        engine.chat([{"role": "user", "content": "x"}], role="elephant")
+        engine.chat([{"role": "user", "content": "x"}], role="goldfish")
         self.assertEqual(len(requested), 2)
         self.assertNotEqual(requested[0], requested[1])
+
+
+class ContextFlagAliasTest(unittest.TestCase):
+    """`ainish-rag --context` is how the contract and muscle memory reach for the command."""
+
+    def test_leading_flag_becomes_the_subcommand(self):
+        self.assertEqual(
+            rag.normalize_argv(["--context", "--task", "x"]), ["context", "--task", "x"]
+        )
+
+    def test_subcommand_form_is_untouched(self):
+        self.assertEqual(
+            rag.normalize_argv(["context", "--task", "x"]), ["context", "--task", "x"]
+        )
+
+    def test_flag_alone_becomes_the_bare_subcommand(self):
+        self.assertEqual(rag.normalize_argv(["--context"]), ["context"])
+
+    def test_non_leading_flag_is_not_rewritten(self):
+        # A `--context` where a subcommand is not expected must not be silently rewritten: it will
+        # fail as an unknown option, which is the correct outcome.
+        self.assertEqual(rag.normalize_argv(["query", "--context"]), ["query", "--context"])
+        self.assertEqual(rag.normalize_argv(["--task", "--context"]), ["--task", "--context"])
+
+    def test_other_leading_flags_are_preserved(self):
+        self.assertEqual(
+            rag.normalize_argv(["--max-mem", "2048", "--context"]), ["--max-mem", "2048", "--context"]
+        )
 
 
 class FileFallbackTest(unittest.TestCase):
