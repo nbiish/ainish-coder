@@ -7260,7 +7260,7 @@ def main():
         print()
         print("=== Driver (generative) Chain ===")
         print(f"Mode:               {'LOCAL-ONLY (offline)' if drv['offline'] else 'tiered'}")
-        print(f"Tiers:              {' -> '.join(drv['order'])}")
+        print(f"Tiers:              {' -> '.join(drv['order'])} (routing groups; the chain below is authoritative)")
         print(f"max_tokens:         {drv['max_tokens']} (must cover reasoning + answer)")
         print(f"keep_alive:         {drv['keep_alive']}")
         for i, row in enumerate(drv["chain"], 1):
