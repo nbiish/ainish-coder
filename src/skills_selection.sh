@@ -52,11 +52,37 @@ skills_selection_env_guard() {
 # True when a skill name may NEVER be selected for skills/rules distribution.
 # .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
 # — never listed or selectable.
+#
+# `pqc-secrets` is a MANDATORY pack, not an optional one: every rules bundle
+# resolves secrets through it, so it is deployed unconditionally by
+# `ainish-coder --rules` and never appears in the selector. Hiding it here is
+# what keeps it out of the operator's choices; deploy_mandatory_skills is what
+# guarantees it still arrives. It is excluded from the *selection* channel, not
+# from distribution.
 _skill_channel_excluded() {
     case "$1" in
         .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*|code-security|llm-security|production-security|orchestrate-subagent-masters) return 0 ;;
+        pqc-secrets) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# True when a pack is deployed regardless of the operator's selection.
+# Kept separate from _skill_channel_excluded so "invisible to the selector" and
+# "always shipped" stay distinguishable: one is a prompt-surface decision, the
+# other a runtime dependency the contract relies on.
+_skill_mandatory() {
+    case "$1" in
+        pqc-secrets) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# _skills_mandatory_names — the mandatory packs present in the source tree.
+# Deploy, verify, and status paths share this one list so a pack can never be
+# mandatory in one place and optional in another.
+_skills_mandatory_names() {
+    printf '%s\n' pqc-secrets
 }
 
 # skills_selection_default_on — is a pack with no recorded preference
@@ -145,6 +171,9 @@ print('yes' if isinstance(entry, dict) else 'no')
 }
 # skills_selection_enabled_count <repo_root> — number of source packs that
 # currently resolve to ON for this repo (drives the deployment summary).
+# Mandatory packs are counted unconditionally: they always ship, so omitting
+# them would make a repo that receives pqc-secrets look like it received no
+# packs at all.
 skills_selection_enabled_count() {
     local repo_root="${1:-$(pwd)}"
     local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
@@ -152,7 +181,12 @@ skills_selection_enabled_count() {
     local count=0 d name
     while IFS= read -r d; do
         name="$(basename "$d")"
-        _skill_channel_excluded "$name" && continue
+        _skill_channel_excluded "$name" && ! _skill_mandatory "$name" && continue
+        [[ -d "$d" ]] || continue
+        if _skill_mandatory "$name"; then
+            count=$((count + 1))
+            continue
+        fi
         if [[ "$(skills_selection_state "$repo_root" "$name")" == "on" ]]; then
             count=$((count + 1))
         fi
@@ -424,9 +458,13 @@ skills_selection_report() {
     local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
     [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
 
-    local on_names=() off_names=() d name
+    local on_names=() off_names=() mandatory_names=() d name
     while IFS= read -r d; do
         name="$(basename "$d")"
+        if _skill_mandatory "$name"; then
+            mandatory_names+=("$name")
+            continue
+        fi
         _skill_channel_excluded "$name" && continue
         if [[ "$(skills_selection_state "$repo_root" "$name")" == "on" ]]; then
             on_names+=("$name")
@@ -442,9 +480,11 @@ skills_selection_report() {
         local on_json="" off_json="" n
         for n in ${on_names[@]+"${on_names[@]}"}; do on_json+="\"$n\","; done
         for n in ${off_names[@]+"${off_names[@]}"}; do off_json+="\"$n\","; done
-        printf '{"format": "ainish-coder/skills-selection/v1", "repo": "%s", "recorded": %s, "default": "%s", "on": [%s], "off": [%s], "counts": {"on": %d, "off": %d}}\n' \
+        printf '{"format": "ainish-coder/skills-selection/v1", "repo": "%s", "recorded": %s, "default": "%s", "on": [%s], "off": [%s], "mandatory": [%s], "counts": {"on": %d, "off": %d, "mandatory": %d}}\n' \
             "$repo_root" "$recorded" "$(_skills_selection_repo_default "$repo_root")" \
-            "${on_json%,}" "${off_json%,}" "${#on_names[@]}" "${#off_names[@]}"
+            "${on_json%,}" "${off_json%,}" \
+            "$(printf '"%s",' ${mandatory_names[@]+"${mandatory_names[@]}"} | sed 's/,$//')" \
+            "${#on_names[@]}" "${#off_names[@]}" "${#mandatory_names[@]}"
         return 0
     fi
 
@@ -455,11 +495,16 @@ skills_selection_report() {
         echo -e "  Selection: ${YELLOW}not recorded yet${RESET} — the next interactive 'ainish-coder --rules' asks"
     fi
     echo ""
+    if (( ${#mandatory_names[@]} > 0 )); then
+        echo -e "  ${BRIGHT_CYAN}Always deployed (mandatory, not selectable)${RESET}"
+        for name in "${mandatory_names[@]}"; do echo -e "    ${BRIGHT_CYAN}[*]${RESET} $name"; done
+        echo ""
+    fi
     if (( ${#on_names[@]} > 0 )); then
         echo -e "  ${GREEN}Deployed on --rules${RESET}"
         for name in "${on_names[@]}"; do echo -e "    ${GREEN}[x]${RESET} $name"; done
     else
-        echo -e "  ${YELLOW}Nothing selected — --rules will deploy no optional packs.${RESET}"
+        echo -e "  ${YELLOW}No optional packs selected — --rules deploys only the mandatory packs above.${RESET}"
     fi
     if (( ${#off_names[@]} > 0 )); then
         echo ""

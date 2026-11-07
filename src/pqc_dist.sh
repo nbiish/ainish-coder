@@ -457,7 +457,7 @@ pqc_status() {
         fi
     fi
 
-    local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0 legacy_present=0 pack_bound=0 pack_unsigned=0
+    local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0 legacy_present=0 pack_bound=0 pack_unsigned=0 stale_selection=0
     local source_pack_sha
     source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
     registry="$(_pqc_config_dir)/targets.txt"
@@ -480,7 +480,13 @@ pqc_status() {
                 missing) missing=$((missing + 1)); [[ "$selection" != "off" ]] && missing_required=$((missing_required + 1)) ;;
                 unreachable) unreachable=$((unreachable + 1)) ;;
             esac
-            [[ "$selection" == "off" ]] && deselected=$((deselected + 1))
+            # pqc-secrets is mandatory: a recorded `off` is stale state from an
+            # older release, not an operator choice to honour. Counting it as
+            # deselected would report a target as intentionally skipped while
+            # --rules deploys the pack anyway.
+            if [[ "$selection" == "off" ]]; then
+                stale_selection=$((stale_selection + 1))
+            fi
 
             # Report (never mutate here) whether the pre-merge standalone pack
             # is still present; --pqc-sync-targets removes it.
@@ -526,8 +532,8 @@ pqc_status() {
         printf '  "native": %s,\n' "${native_store:-null}"
         printf '  "wsl": {"attempted": %s, "detail": "%s", "store": %s},\n' "$wsl" "$(_pqc_json_escape "$wsl_detail")" "${wsl_store:-null}"
         printf '  "targets": [%s],\n' "$targets_json"
-        printf '  "summary": {"total": %s, "current": %s, "stale": %s, "missing": %s, "missingRequired": %s, "deselected": %s, "unreachable": %s, "legacyPacks": %s, "packBound": %s, "packUnattested": %s}\n' \
-            "$total" "$current" "$stale" "$missing" "$missing_required" "$deselected" "$unreachable" "$legacy_present" "$pack_bound" "$pack_unsigned"
+        printf '  "summary": {"total": %s, "current": %s, "stale": %s, "missing": %s, "missingRequired": %s, "deselected": %s, "staleSelection": %s, "unreachable": %s, "legacyPacks": %s, "packBound": %s, "packUnattested": %s}\n' \
+            "$total" "$current" "$stale" "$missing" "$missing_required" "$deselected" "$stale_selection" "$unreachable" "$legacy_present" "$pack_bound" "$pack_unsigned"
         printf '}\n'
     else
         print_header "🔐 PQC secrets — store & distribution status"
@@ -539,7 +545,9 @@ pqc_status() {
             echo "  wsl:       ${wsl_detail}"
             [[ -n "$wsl_store" ]] && echo "             $(printf '%s' "$wsl_store" | _pqc_json_field store) [$(printf '%s' "$wsl_store" | _pqc_json_field source)] keys=$(printf '%s' "$wsl_store" | _pqc_json_scalar keyCount)"
         fi
-        echo "  targets:   ${total} enrolled · ${current} current · ${stale} stale · ${missing} missing · ${deselected} deselected"
+        echo "  pack:      pqc-secrets (mandatory — deployed by --rules, not selectable)"
+        echo "  targets:   ${total} enrolled · ${current} current · ${stale} stale · ${missing} missing"
+        [[ "$stale_selection" -gt 0 ]] && echo "             ${stale_selection} target(s) carry a stale 'off' entry from an older release; it is ignored"
         if [[ -f "$registry" ]]; then
             while IFS= read -r target; do
                 target="$(printf '%s' "$target" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
@@ -676,14 +684,20 @@ pqc_sync_targets() {
         elif [[ "$target" == "$REPO_DIR" ]]; then
             state="source"
             note="source checkout"
-        elif [[ "$(skills_selection_state "$target" pqc-secrets 2>/dev/null || printf 'on')" != "on" ]]; then
-            state="deselected"
-            deselected=$((deselected + 1))
-            note="pqc-secrets is off for this repo"
         else
             local target_engine="${target}/${_PQC_ENGINE_REL}"
             local target_pack_sha=""
             target_pack_sha="$(_pqc_pack_sha "${target}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
+
+            # pqc-secrets is mandatory since 2026-11-07: `ainish-coder --rules`
+            # deploys it unconditionally, so a stale `off` entry recorded by an
+            # older release no longer means "skip this target". Silently
+            # honouring it here would leave a repo without the pack its contract
+            # resolves every secret through, which is exactly the state this
+            # change exists to prevent.
+            if [[ "$(skills_selection_state "$target" pqc-secrets 2>/dev/null || printf 'on')" != "on" ]]; then
+                note="mandatory; stale off entry ignored"
+            fi
 
             if [[ -n "$target_pack_sha" && "$target_pack_sha" == "$source_pack_sha" ]]; then
                 state="current"

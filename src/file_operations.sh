@@ -101,15 +101,24 @@ deploy_path() {
 # Deploy all files from a source directory into a destination directory.
 # When AINISH_LINK_MODE=true, symlinks each file individually.
 # When AINISH_NO_OVERWRITE=true, skips files that already exist at destination.
-# Usage: deploy_path_contents <src_dir> <dest_dir>
+# Usage: deploy_path_contents <src_dir> <dest_dir> [force]
+#   force=1 ignores AINISH_NO_OVERWRITE for this call. Mandatory packs use it:
+#   "add missing only" must still refresh a pack whose entire contract is that
+#   it is present and current, and a stale copy silently kept is exactly the
+#   failure mode this option exists to prevent.
 deploy_path_contents() {
     local src_dir="$1"
     local dest_dir="$2"
+    local force="${3:-0}"
 
     mkdir -p "$dest_dir" || return 1
 
     # Non-destructive mode: deploy only files that don't already exist
-    if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then
+    local no_overwrite="${AINISH_NO_OVERWRITE:-false}"
+    if [[ "$force" == "1" ]]; then
+        no_overwrite="false"
+    fi
+    if [[ "$no_overwrite" == "true" ]]; then
         local skipped=0 deployed=0 rc=0
         shopt -s dotglob nullglob
         for item in "$src_dir"/*; do

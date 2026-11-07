@@ -79,9 +79,23 @@ _ainish_skills_source() {
 # True when a skill name is managed-by-default-excluded (scrolls channel).
 # .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
 # — never enumerate, deploy, or ingest them.
+#
+# pqc-secrets is NOT excluded here: it is a mandatory pack that every deploy
+# must ship and that --skills-verify must therefore audit. It is hidden from the
+# selector, not from distribution or verification.
 _ainish_skill_excluded() {
     case "$1" in
         .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# True when a pack must be present at every target regardless of selection.
+# verify uses this to treat an absent mandatory pack as an error rather than as
+# an ordinary "missing (not deployed)" note.
+_ainish_skill_mandatory() {
+    case "$1" in
+        pqc-secrets) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -111,7 +125,7 @@ verify_ainish_skills() {
     fi
 
     echo -e "${BRIGHT_BLUE}Verifying skill byte-identity vs $source_dir${RESET}"
-    local identical=0 mismatched=0 foreign=0 missing=0
+    local identical=0 mismatched=0 foreign=0 missing=0 missing_mandatory=0
     local mismatches=()
 
     local skill
@@ -138,12 +152,21 @@ verify_ainish_skills() {
         name="$(basename "$skill")"
         _ainish_skill_excluded "$name" && continue
         if [[ ! -d "$skills_target/$name" ]]; then
-            echo -e "${YELLOW}◦ missing (not deployed): $name${RESET}"
+            if _ainish_skill_mandatory "$name"; then
+                echo -e "${BRIGHT_RED}✗ MISSING MANDATORY: $name (every target must carry it)${RESET}"
+                missing_mandatory=$((missing_mandatory + 1))
+            else
+                echo -e "${YELLOW}◦ missing (not deployed): $name${RESET}"
+            fi
             ((missing++)) || true
         fi
     done
 
     echo -e "${BRIGHT_GREEN}✅ identical=$identical${RESET} ${BRIGHT_RED}mismatch=$mismatched${RESET} ${YELLOW}foreign=$foreign missing=$missing${RESET}"
+    if (( missing_mandatory > 0 )); then
+        echo -e "${BRIGHT_RED}${missing_mandatory} mandatory pack(s) absent — re-run: ainish-coder --rules $target_dir${RESET}"
+        return 1
+    fi
     if (( mismatched > 0 )); then
         echo -e "${YELLOW}Run: ainish-coder --skills-sync $target_dir${RESET}"
         return 1

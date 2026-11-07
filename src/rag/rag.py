@@ -3996,12 +3996,27 @@ def _extract_orient_task_summary_py(repo_root: Path, query: Optional[str]) -> st
 # explicit model ids, and `local-router/fallback-models` is simply one step in it.
 # ---------------------------------------------------------------------------
 
-DRIVER_TIERS: Tuple[str, ...] = ("local-router", "openrouter", "zenmux", "local-model")
+DRIVER_TIERS: Tuple[str, ...] = (
+    "local-router",
+    "nous-portal",
+    "nebius",
+    "openrouter",
+    "zenmux",
+    "zai",
+    "xiaomi-mimo",
+    "local-model",
+)
 
-# The requested order (operator decision, 2026-11-07). Every id below was verified live on this
-# machine: all four answered DRIVER_OK. There is NO working `latest` alias — an unknown id resolves
-# through the generic fallback chain and still answers HTTP 200, so a typo silently changes the model.
-# `model` is the id the provider reports back, used to prove the request was honoured.
+# The requested order (operator decision, 2026-11-07), then direct-provider fallbacks. Every id
+# below was verified live on this machine: each answered DRIVER_OK. There is NO working `latest`
+# alias — an unknown id resolves through the generic fallback chain and still answers HTTP 200, so a
+# typo silently changes the model. `model` is the id the provider reports back, used to prove the
+# request was honoured.
+#
+# Structure: the four router steps are the operator's order and always run first. The direct steps
+# after them exist only so a dead or misconfigured router degrades to a real provider instead of to
+# nothing. They are ordered by measured latency, and each carries its own key requirement, so a host
+# with only one provider key still gets a working driver.
 DRIVER_CHAIN: Tuple[Dict[str, Any], ...] = (
     {
         "id": "local-router/fallback-models",
@@ -4031,8 +4046,21 @@ DRIVER_CHAIN: Tuple[Dict[str, Any], ...] = (
         # A reasoning model: max_tokens must cover reasoning *plus* answer.
         "reasoning": True,
     },
-    # Direct provider steps, reached only when the router itself is unreachable. Kept after the
-    # requested order so a dead router degrades to a real provider instead of to nothing.
+    # ── Direct-provider fallbacks: router unreachable, or its steps all rejected ---------------
+    {
+        "id": "deepseek/deepseek-v4.1-flash-1017",
+        "transport": "nous-portal",
+        "model": "deepseek/deepseek-v4.1-flash-1017",
+        "label": "DeepSeek V4.1 Flash 1017 (direct Nous Portal)",
+        "reasoning": True,
+    },
+    {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "transport": "nebius",
+        "model": "DeepSeek-V4.1-Flash",
+        "label": "DeepSeek V4.1 Flash (direct Nebius)",
+        "reasoning": True,
+    },
     {
         "id": "deepseek/deepseek-v4.1-flash-1017",
         "transport": "openrouter",
@@ -4040,22 +4068,60 @@ DRIVER_CHAIN: Tuple[Dict[str, Any], ...] = (
         "label": "DeepSeek V4.1 Flash 1017 (direct OpenRouter)",
         "reasoning": True,
     },
+    {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "transport": "zenmux",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "label": "DeepSeek V4.1 Flash (direct ZenMux)",
+        "reasoning": True,
+    },
+    {
+        # Z.AI answers with the served model name and silently substitutes on an unknown id
+        # (measured: requesting glm-4.6 returned glm-5.3-flash). The identity check reports that as
+        # degraded rather than pretending the request was honoured.
+        "id": "glm-5.3-flash",
+        "transport": "zai",
+        "model": "glm-5.3-flash",
+        "label": "GLM 5.3 Flash (direct Z.AI)",
+        "reasoning": True,
+    },
+    {
+        "id": "mimo-v2.6-pro",
+        "transport": "xiaomi-mimo",
+        "model": "mimo-v2.6-pro",
+        "label": "Xiaomi MiMo 2.6 Pro (direct)",
+        "reasoning": True,
+    },
 )
 
-# Per-transport ids, used only when the router is unreachable and a direct provider is tried.
+# Per-transport ids advertised for the tier table. The authoritative order is DRIVER_CHAIN; this map
+# only reports what each transport would be asked for.
 DRIVER_MODEL_IDS: Dict[str, List[str]] = {
     "local-router": ["local-router/fallback-models"],
     "openrouter": ["deepseek/deepseek-v4.1-flash-1017"],
     "zenmux": ["deepseek/deepseek-v4.1-flash"],
+    "nous-portal": ["deepseek/deepseek-v4.1-flash-1017"],
+    "nebius": ["deepseek-ai/DeepSeek-V4.1-Flash"],
+    "zai": ["glm-5.3-flash"],
+    "xiaomi-mimo": ["mimo-v2.6-pro"],
     "local-model": [],
 }
 
+# Provider-facing chat bases. `local-router` is loopback and needs no key; every other entry is
+# keyed. URLs are overridable so an operator behind a mirror or proxy is not blocked by a constant.
 DRIVER_REMOTE_BASES: Dict[str, Tuple[str, str]] = {
     "local-router": ("AINISH_RAG_DRIVER_LOCAL_ROUTER_URL", DEFAULT_LOCAL_ROUTER_URL),
     "openrouter": ("AINISH_RAG_DRIVER_OPENROUTER_URL", "https://openrouter.ai/api/v1"),
     "zenmux": ("AINISH_RAG_DRIVER_ZENMUX_URL", "https://zenmux.ai/api/v1"),
+    "nous-portal": ("AINISH_RAG_DRIVER_NOUS_URL", "https://inference-api.nousresearch.com/v1"),
+    "nebius": ("AINISH_RAG_DRIVER_NEBIUS_URL", "https://api.tokenfactory.nebius.com/v1"),
+    "zai": ("AINISH_RAG_DRIVER_ZAI_URL", "https://api.z.ai/api/coding/paas/v4"),
+    "xiaomi-mimo": ("AINISH_RAG_DRIVER_XIAOMI_URL", "https://token-plan-sgp.xiaomimimo.com/v1"),
 }
 
+# Key names per transport, checked in order, covering both the operator's `LOCALROUTER_*` naming and
+# consumer-prefixed variants in the PQC store. A transport with no resolvable key is skipped with a
+# recorded reason, never silently substituted.
 DRIVER_KEY_NAMES: Dict[str, Tuple[str, ...]] = {
     "openrouter": (
         "OPENROUTER_DRIVER_API_KEY",
@@ -4069,6 +4135,26 @@ DRIVER_KEY_NAMES: Dict[str, Tuple[str, ...]] = {
         "ZENMUX_API_KEY",
         "LOCALROUTER_ZENMUX_API_KEY",
         "AINISHCODER_ZENMUX_API_KEY",
+    ),
+    "nous-portal": (
+        "NOUS_DRIVER_API_KEY",
+        "NOUS_API_KEY",
+        "LOCALROUTER_NOUS_API_KEY",
+    ),
+    "nebius": (
+        "NEBIUS_DRIVER_API_KEY",
+        "NEBIUS_API_KEY",
+        "LOCALROUTER_NEBIUS_API_KEY",
+    ),
+    "zai": (
+        "ZAI_DRIVER_API_KEY",
+        "ZAI_API_KEY",
+        "LOCALROUTER_ZAI_API_KEY",
+    ),
+    "xiaomi-mimo": (
+        "XIAOMI_MIMO_DRIVER_API_KEY",
+        "XIAOMI_MIMO_API_KEY",
+        "LOCALROUTER_XIAOMI_MIMO_API_KEY",
     ),
 }
 
@@ -4111,7 +4197,10 @@ def driver_offline_mode() -> bool:
 
 
 def driver_tier_order(allow_remote: bool = True) -> List[str]:
-    """Resolves the driver tier order; `AINISH_RAG_DRIVER_PRIORITY` reorders it."""
+    """Resolves the transport tier order; `AINISH_RAG_DRIVER_PRIORITY` reorders it.
+
+    Ordering is a report/selection aid now — the authoritative driver order is `DRIVER_CHAIN`.
+    """
     aliases = {
         "local-router": "local-router",
         "localrouter": "local-router",
@@ -4119,6 +4208,14 @@ def driver_tier_order(allow_remote: bool = True) -> List[str]:
         "openrouter": "openrouter",
         "or": "openrouter",
         "zenmux": "zenmux",
+        "nous": "nous-portal",
+        "nous-portal": "nous-portal",
+        "nebius": "nebius",
+        "zai": "zai",
+        "glm": "zai",
+        "xiaomi": "xiaomi-mimo",
+        "mimo": "xiaomi-mimo",
+        "xiaomi-mimo": "xiaomi-mimo",
         "local": "local-model",
         "local-model": "local-model",
         "localmodel": "local-model",
@@ -4187,6 +4284,23 @@ def _driver_unload_local(base: str, model: str) -> bool:
         return False
 
 
+def _chat_url(base: str) -> str:
+    """Builds the chat-completions URL from a configured base.
+
+    Provider bases are inconsistent: some end in `/v1` (OpenRouter, ZenMux, Nous, Nebius, Xiaomi)
+    and some already carry a versioned path (Z.AI's `/api/coding/paas/v4`). Appending a fixed
+    `/v1/chat/completions` produced `/api/v1/v1/chat/completions` and a 404 on every direct provider
+    — which looked like six dead vendors rather than one URL bug. Join on the suffix the base does
+    not already supply.
+    """
+    trimmed = base.rstrip("/")
+    if trimmed.endswith("/chat/completions"):
+        return trimmed
+    if trimmed.endswith("/v1") or re.search(r"/v[0-9]+$", trimmed):
+        return f"{trimmed}/chat/completions"
+    return f"{trimmed}/v1/chat/completions"
+
+
 class DriverEngine:
     """Generative transport mirroring `DecisionEngine`: tier order, `source` discipline, timeouts.
 
@@ -4225,22 +4339,30 @@ class DriverEngine:
     def probe_health(
         self, base: str, timeout: float = 1.5, key: Optional[str] = None
     ) -> Tuple[bool, List[str], str]:
-        """Returns (reachable, model_ids, reason). `reason` names the real failure, not just "down".
+        """Returns (reachable, model_ids, reason) for a configured chat base.
 
-        Providers answer `/v1/models` inconsistently — a keyed endpoint may 403 a bare request or
-        reject `/v1/models` entirely while chat completions work. Reporting "down" for an
-        authentication or routing detail is misleading in the one place an operator looks to decide
-        whether a tier exists.
+        The catalogue path is derived with the same join as the chat path (`_chat_url`), because
+        provider bases end inconsistently (`/v1` versus Z.AI's `/api/coding/paas/v4`). A hardcoded
+        `/v1/models` produced 404s on six healthy providers and made them all look dead.
+
+        Reachability is "the host answered HTTP at all", not "it served a catalogue": some providers
+        do not publish a model list while serving chat normally. A 401/403 is reported separately
+        because that is an auth problem, which is actionable, not an outage.
         """
+        chat = _chat_url(base)
+        catalogue = chat[: -len("/chat/completions")] + "/models"
         headers = {"Accept": "application/json"}
         if key:
             headers["Authorization"] = f"Bearer {key}"
         try:
-            req = urllib.request.Request(f"{base.rstrip('/')}/v1/models", headers=headers, method="GET")
+            req = urllib.request.Request(catalogue, headers=headers, method="GET")
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 body = json.loads(resp.read().decode("utf-8", errors="replace"))
         except urllib.error.HTTPError as exc:
-            return False, [], f"HTTP {exc.code} on /v1/models"
+            if exc.code in (401, 403):
+                return False, [], f"auth rejected (HTTP {exc.code}) — key present but not accepted"
+            # Any other status still proves the endpoint is alive and serving this path family.
+            return True, [], f"reachable (HTTP {exc.code} on /models; chat path is what matters)"
         except Exception as exc:
             return False, [], str(exc)[:120]
         models = [
@@ -4329,7 +4451,7 @@ class DriverEngine:
         if key:
             headers["Authorization"] = f"Bearer {key}"
         req = urllib.request.Request(
-            f"{base.rstrip('/')}/v1/chat/completions",
+            f"{_chat_url(base)}",
             data=json.dumps(payload).encode("utf-8"),
             headers=headers,
             method="POST",
@@ -4400,7 +4522,7 @@ class DriverEngine:
 
         for step in steps:
             transport = step["transport"]
-            if transport in ("local-router", "openrouter", "zenmux"):
+            if transport in DRIVER_REMOTE_BASES:
                 base_var, default_base = DRIVER_REMOTE_BASES[transport]
                 base = (_env_nonempty(base_var) or default_base).rstrip("/")
                 key = None if transport == "local-router" else resolve_driver_key(transport)
