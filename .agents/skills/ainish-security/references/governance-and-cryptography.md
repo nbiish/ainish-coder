@@ -67,7 +67,7 @@ assert Signature("ML-DSA-65", pk).verify(b"authorize deploy", sig)
 ```
 
 ```python
-# pyca/cryptography >= 45 — preferred where wheels must avoid the liboqs dependency
+# pyca/cryptography >= 47 — preferred where wheels must avoid the liboqs dependency
 from cryptography.hazmat.primitives.asymmetric import mlkem, mldsa
 ```
 
