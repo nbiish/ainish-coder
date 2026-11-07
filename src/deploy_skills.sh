@@ -54,6 +54,11 @@ deploy_skills() {
 
     # Retired packs are no longer independently deployed. Remove only copies
     # previously managed by this source, leaving foreign target packs intact.
+    #
+    # code-security / llm-security / production-security are gone from the source
+    # tree entirely: they were consolidated into ainish-security, and a target that
+    # still carries them is reading a stale contract that contradicts the current
+    # one. The has-entry guard means a hand-authored pack of the same name survives.
     local retired_skill
     for retired_skill in code-security llm-security production-security orchestrate-subagent-masters; do
         if [[ -d "$skills_target/$retired_skill" && "${AINISH_NO_OVERWRITE:-false}" != "true" ]] &&

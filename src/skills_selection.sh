@@ -53,16 +53,19 @@ skills_selection_env_guard() {
 # .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
 # — never listed or selectable.
 #
-# `pqc-secrets` is a MANDATORY pack, not an optional one: every rules bundle
-# resolves secrets through it, so it is deployed unconditionally by
-# `ainish-coder --rules` and never appears in the selector. Hiding it here is
-# what keeps it out of the operator's choices; deploy_mandatory_skills is what
-# guarantees it still arrives. It is excluded from the *selection* channel, not
-# from distribution.
+# Three distinct reasons a name is excluded from the *selection* channel:
+#   - retired/consolidated packs, kept only for history (code-security,
+#     llm-security, production-security merged into ainish-security;
+#     orchestrate-subagent-masters is retired);
+#   - the scroll channel, which has its own explicit distribution surface;
+#   - mandatory packs, which are shipped regardless of any selection.
+# Excluded-from-selection is a prompt-surface decision and says nothing about
+# whether the pack ships — that is _skill_mandatory's job.
 _skill_channel_excluded() {
     case "$1" in
-        .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*|code-security|llm-security|production-security|orchestrate-subagent-masters) return 0 ;;
-        pqc-secrets) return 0 ;;
+        .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
+        code-security|llm-security|production-security|orchestrate-subagent-masters) return 0 ;;
+        pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -71,9 +74,14 @@ _skill_channel_excluded() {
 # Kept separate from _skill_channel_excluded so "invisible to the selector" and
 # "always shipped" stay distinguishable: one is a prompt-surface decision, the
 # other a runtime dependency the contract relies on.
+#
+# `pqc-secrets`: every secret resolution goes through it.
+# `ainish-security`: the universal AGENTS.md links to it by path, so a deploy that
+#   omitted it shipped a contract with two dangling links. Anything the always-on
+#   rail points at must be mandatory, or the link is a lie in every default repo.
 _skill_mandatory() {
     case "$1" in
-        pqc-secrets) return 0 ;;
+        pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac
 }

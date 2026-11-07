@@ -535,7 +535,12 @@ class ContextBudgetContractTest(unittest.TestCase):
         inv = rag.run_context_command(
             self.root, "task text", budget=1200, json_out=True, retrieval_only=True
         )
-        self.assertEqual([s["source"] for s in inv["sections"]], ["retrieval"])
+        sources = [s["source"] for s in inv["sections"]]
+        # Orientation is code-only (git + ledger reads) and runs regardless; the assertion that
+        # matters is that no model-generated section appears.
+        self.assertIn("retrieval", sources)
+        self.assertNotIn("elephant", sources)
+        self.assertNotIn("goldfish", sources)
 
     def test_budget_below_the_floor_is_raised_and_the_raise_is_reported(self):
         self._stub_route("hybrid_rerank")
@@ -549,14 +554,107 @@ class ContextBudgetContractTest(unittest.TestCase):
     def test_skip_retrieval_route_emits_no_filler_and_no_driver_spend(self):
         self._stub_route("skip_retrieval")
         inv = rag.run_context_command(self.root, "hello there", budget=1200, json_out=True)
-        self.assertEqual(inv["sections"], [], "a skip route must not fabricate a retrieval section")
+        sources = [s["source"] for s in inv["sections"]]
+        self.assertNotIn("retrieval", sources, "a skip route must not fabricate a retrieval section")
+        self.assertNotIn("elephant", sources)
+        self.assertNotIn("goldfish", sources)
         self.assertTrue(any("skipped by route" in note for note in inv["degrade_notes"]))
         self.assertEqual(inv["provenance"]["drivers"], {})
+
+    def test_orientation_survives_a_skip_route(self):
+        # Branch, tree state, and the last ledger entry are true whatever the route decided about
+        # retrieval, so orientation is the one section a skip must not remove.
+        self._stub_route("skip_retrieval")
+        inv = rag.run_context_command(self.root, "hello there", budget=1200, json_out=True)
+        sources = [s["source"] for s in inv["sections"]]
+        self.assertIn("orientation", sources)
 
     def test_default_budget_is_route_derived(self):
         self._stub_route("symbol_anchored")
         inv = rag.run_context_command(self.root, "task text", json_out=True, retrieval_only=True)
         self.assertEqual(inv["budget"]["cap"], 2000)
+
+
+class OrientationSectionTest(unittest.TestCase):
+    """Orientation is the mechanical half of the old context-orchestration procedure, in code."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / ".agents" / "comms").mkdir(parents=True)
+        (self.root / ".agents" / "tasks").mkdir(parents=True)
+        today = __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+        (self.root / ".agents" / "comms" / f"{today}-team.txt").write_text(
+            "### [2026-01-01T00:00:00Z] feat | branch:main | wt:/x\n"
+            "- objective: wire the orientation section\n- status:in-progress\n",
+            encoding="utf-8",
+        )
+        (self.root / ".agents" / "tasks" / f"{today}-task.md").write_text(
+            "# Task\n- status: in-progress\n- scope: rag.py\n- objective: test it\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_gathers_branch_tree_and_ledger_state(self):
+        body = rag.render_orientation_section(self.root, 400)
+        self.assertIn("branch:", body)
+        self.assertIn("working tree:", body)
+        self.assertIn("today's COMMS", body)
+        self.assertIn("wire the orientation section", body)
+        self.assertIn("newest task record", body)
+
+    def test_git_state_comes_from_the_current_directory_not_the_canonical_root(self):
+        # `repo_root` is the canonical checkout (for shared index/session state); the branch an agent
+        # is on is the one in cwd. Reporting the canonical branch would say "main" from a worktree,
+        # which is the one thing the contract forbids.
+        import subprocess
+        worktree = self.root / "wt"
+        worktree.mkdir()
+        subprocess.run(["git", "init", "-q", str(worktree)], capture_output=True)
+        subprocess.run(["git", "-C", str(worktree), "checkout", "-q", "-b", "feat/probe"],
+                       capture_output=True)
+        saved = os.getcwd()
+        os.chdir(worktree)
+        try:
+            body = rag.render_orientation_section(self.root, 400)
+        finally:
+            os.chdir(saved)
+        self.assertIn("feat/probe", body)
+        self.assertNotIn("warning: on a protected branch", body)
+
+    def test_protected_branch_is_flagged(self):
+        import subprocess
+        repo = self.root / "mainrepo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@example.com"])
+        subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"])
+        (repo / "f.txt").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "."], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-qm", "init"], capture_output=True)
+        saved = os.getcwd()
+        os.chdir(repo)
+        try:
+            body = rag.render_orientation_section(repo, 400)
+        finally:
+            os.chdir(saved)
+        self.assertIn("branch: `main`", body)
+        self.assertIn("warning: on a protected branch", body)
+
+    def test_no_git_repo_does_not_raise(self):
+        # A temp dir is not a git repo; orientation must degrade, not explode.
+        body = rag.render_orientation_section(self.root, 400)
+        self.assertIn("branch:", body)
+
+    def test_respects_the_token_cap(self):
+        body = rag.render_orientation_section(self.root, 20)
+        self.assertLessEqual(rag.estimate_tokens(body), 20)
+
+    def test_zero_cap_disables_the_section(self):
+        self.assertEqual(rag.render_orientation_section(self.root, 0), "")
 
 
 class FileFallbackTest(unittest.TestCase):

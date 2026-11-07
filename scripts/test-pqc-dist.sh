@@ -458,7 +458,8 @@ echo "== advisory masters are defined, wired, and not dangling =="
 # The nine dual-expertise niches live in AGENTS.md (the always-on rail) with
 # definitions in .agents/templates/masters.md. They were once removed while
 # context-orchestration kept citing them, leaving an obligation nothing defined —
-# this pins the wiring so that cannot recur silently.
+# this pins the wiring so that cannot recur silently. That skill is now retired:
+# the procedure moved into `ainish-rag context`, so the scan follows it there.
 MASTERS_DOC="${REPO}/.agents/templates/masters.md"
 if [[ -f "$MASTERS_DOC" ]]; then
     ok "masters definition file exists"
@@ -472,9 +473,10 @@ done
 check "all nine masters named in the contract" "$masters_named" "9"
 contains "contract links the definitions" "$(cat "${REPO}/AGENTS.md")" "templates/masters.md"
 # No surface may cite a lens set the contract no longer defines.
+# context-orchestration is retired (2026-11-07), so the scan covers the surfaces that remain.
 dangling=0
-for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" \
-         "${REPO}/.agents/skills/context-orchestration/SKILL.md" "${REPO}/llms.txt"; do
+for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" "${REPO}/llms.txt" \
+         "${REPO}/.agents/skills/ainish-security/SKILL.md"; do
     [[ -f "$f" ]] || continue
     grep -q "nine core lenses" "$f" && dangling=$((dangling + 1))
 done
@@ -510,12 +512,52 @@ contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'lo
 # hiding it alone would let --rules silently ship nothing, and deploying it alone would put a
 # non-choice in front of the operator.
 contains "pqc-secrets is declared mandatory" "$(cat "${REPO}/src/skills_selection.sh")" '_skill_mandatory'
-contains "selector treats it as not-selectable" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets) return 0 ;;'
+contains "selector treats it as not-selectable" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security) return 0 ;;'
 contains "deploy ships it unconditionally" "$(cat "${REPO}/src/deploy_skills.sh")" 'Deployed (mandatory)'
 contains "verify fails when it is absent" "$(cat "${REPO}/src/verify_skills.sh")" 'MISSING MANDATORY'
 contains "contract states it is mandatory" "$(cat "${REPO}/AGENTS.md")" 'mandatory, not optional'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
-contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'it is advisory evidence'
+contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
+
+echo "== security is one skill and context orchestration is a command =="
+# Four packs split security by domain, so an agent had to know in advance which
+# one a task belonged to before loading any rules. One skill removes that guess.
+SEC_DIR="${REPO}/.agents/skills/ainish-security"
+for gone in code-security llm-security production-security context-orchestration; do
+    if [[ -d "${REPO}/.agents/skills/${gone}" ]]; then
+        not_ok "retired pack removed: $gone"
+    else
+        ok "retired pack removed: $gone"
+    fi
+done
+for kept in SKILL.md references/code-and-infrastructure.md references/ai-and-agentic.md \
+            references/governance-and-cryptography.md references/deployable-standards.md; do
+    if [[ -f "${SEC_DIR}/${kept}" ]]; then
+        ok "consolidated security carries ${kept}"
+    else
+        not_ok "consolidated security carries ${kept}"
+    fi
+done
+# The instructional must actually span the fields, not just claim to.
+sec_skill="$(cat "${SEC_DIR}/SKILL.md")"
+contains "covers input handling" "$sec_skill" "SQL injection"
+contains "covers authn/authz" "$sec_skill" "Deny by default"
+contains "covers AI/agentic" "$sec_skill" "blast-radius"
+contains "covers PQC" "$sec_skill" "ML-KEM-768"
+contains "covers supply chain" "$sec_skill" "SBOM"
+contains "covers compiler integrity" "$sec_skill" "source is not binary"
+contains "covers governance" "$sec_skill" "EU AI Act"
+# Mandatory because the always-on rail links to it: an optional pack leaves that link dangling.
+contains "ainish-security is mandatory" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security'
+contains "verify treats it as mandatory" "$(cat "${REPO}/src/verify_skills.sh")" 'pqc-secrets|ainish-security'
+# --secure must ship one file, and must not still reference the deleted pair.
+secure_block="$(sed -n '/--secure)/,/;;/p' "${REPO}/bin/ainish-coder")"
+contains "secure deploys the consolidated standard" "$secure_block" "deployable-standards.md"
+contains "secure writes AGENTS_SECURITY.md" "$secure_block" "AGENTS_SECURITY.md"
+# Orientation is the mechanical half of the retired skill; it must be in the envelope.
+contains "engine emits an orientation section" "$(cat "${REPO}/src/rag/rag.py")" 'def render_orientation_section'
+contains "orientation is a labelled section" "$(cat "${REPO}/src/rag/rag.py")" '"source": "orientation"'
+contains "contract documents the orientation section" "$(cat "${REPO}/AGENTS.md")" '| `orientation` |'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
