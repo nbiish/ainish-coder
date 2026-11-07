@@ -1,50 +1,92 @@
----
-description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
----
-
 # AGENT COMMS — 2026-10-31
 
-<PROTOCOL>
 ## PROTOCOL (binding — follow like AGENTS.md)
 
-**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
-
-**Two channels:**
-- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
-- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
-
-**Read:** this file + the live board — at start, before any merge, and whenever blocked.
-
-**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
-
-**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`, toggled via `ainish-coder --skills-sync` or `--rules`). Agents and CI MUST use the headless path — `ainish-coder --skills-sync <dir> --headless` or `ainish-coder --rules <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
-
-**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
-- `start:` the instant the agent **begins** the action (input received / work begun).
-- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
-- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
-
-\*\*Entry block:\*\*
-
-~~~
-### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
-- start:<ISO-8601>               # input received / work began
-- end:<ISO-8601>                 # output produced / work ended
-- parent:<orchestrator>          # subagents only
-- scope:<paths/modules>
-- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
-- objective:<one line>
-- input:<one line — what was received or requested>
-- output:<one line — what was produced or handed off>
-- status:<new|in-progress|blocked|verifying|merged|abandoned>
-- blockers:<none | description>
-~~~
-
-**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
-
-</PROTOCOL>
+**When:** ≥1 agent or subagent is working at once. Solo? Still check in/out — the ledger is the audit trail.
+Durable ledger = this file (committed, append-only). Live board = `2026-10-31-team.live.txt` (gitignored, never committed).
+Full protocol: `src/templates/AGENTS.COMMS.md`.
 
 ---
+
+### [2026-10-31T01:04:00Z] checkin | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:04:00Z
+- end:2026-10-31T01:05:00Z
+- scope:.agents/skills/typesafe-jev/, src/rag/src/{decision.rs,main.rs,provider.rs,config.rs}, src/rag/rag.py, src/rag/tests/test_jev_decisions.py, llms.txt, AGENTS.md
+- triage:now
+- objective: ship the TypeSafe skill as a repo skill pack and integrate the latest TypeSafe Jev decision model from OpenRouter so RAG automation and agent context coherence improve in every `ainish-coder --rules` target
+- input: upstream TypeSafe skill + docs; live OpenRouter model list (`typesafe/jev-router` is chat-only); PQC store holds `LOCALROUTER_OPENROUTER_API_KEY`
+- output: typed Decisions API integration on `typesafe/jev-1.14`, corrected criteria/response handling, bundled rerank, `decide --questions`, skill pack with references + probe
+- status:in-progress
+- blockers:none
+
+
+### [2026-10-31T01:20:00Z] update | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:05:00Z
+- end:2026-10-31T01:25:00Z
+- scope:same
+- objective: prove the integration against the live API and gate the branch
+- input: live probes returned `typesafe/jev-1.14-20261014`; 40/40 Rust tests; 35/35 Python tests; skill front matter passes `bin/security_gate.py`
+- output: route `context_freshness` 0.94 on a branch-change prompt; typed decide batch (choice 1.00 confidence, score 3.55, noul 0.92); faithfulness 0.738; rerank returned `src/rag/src/provider.rs` first with role `implementation` and utility 3.42; branch gate green except the pre-merge canonical hash; patch 68.6% ADEQUATE (13/14 files)
+- status:verifying
+- blockers:none
+
+
+### [2026-10-31T01:27:00Z] intent-merge | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:26:00Z
+- end:2026-10-31T01:27:00Z
+- scope:same
+- objective: merge to main, re-sign the canonical contract, rebuild the engine, and prove the gate
+- input: three atomic commits; receipts 10/10; lockfiles clean; COMMS hygiene clean
+- output: merge, canonical re-sign, rebuild, main reindex, gate on main
+- status:merged
+- blockers:none
+
+
+### [2026-10-31T01:35:00Z] checkout | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
+- start:2026-10-31T01:04:00Z
+- end:2026-10-31T01:35:00Z
+- scope:same
+- objective: close the loop after merge, rebuild, reindex, and gate
+- input: merged fa2e5f8; canonical re-signed (bbf59042…); engine rebuilt; main reindexed to 3,497 chunks; gate GREEN (58.1% ADEQUATE, 11 receipts, Zero-Trust PASS); audit 15/15
+- output: smoke on main — route/decide via `openrouter:typesafe/jev-1.14-20261014`, query ranks the new catalog and `decision.rs` with correct roles; no resident language or embedding process; worktree and branch removed
+- status:verified
+- blockers:none
+
+
+### [2026-10-31T01:44:00Z] checkin | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
+- start:2026-10-31T01:38:00Z
+- end:2026-10-31T01:45:00Z
+- scope:src/rag/src/{decision.rs,main.rs}, src/rag/rag.py, src/rag/tests/test_jev_decisions.py, .agents/skills/typesafe-jev/, llms.txt, AGENTS.md
+- triage:now
+- objective: always use OpenRouter's latest TypeSafe Jev decision model (no older downgrade) and additionally discover the local-router Jev endpoint at localhost:11434/v1
+- input: OpenRouter decisions endpoint accepts jev-1.14 only among current ids; local-router :11434 advertises `openrouter-jev-router` but returns 404 for /api/alpha/decisions, /v1/decisions and /decisions, and a chat completion for that id resolved to anthropic/claude-opus-5.5
+- output: latest-only model policy with a reported diagnostic pin, local-router discovery (models + decisions-route probe), local-router fallback transport that never receives the OpenRouter key, chat-only routers reported not used, `secrets` transport report; 44/44 Rust, 41/41 Python tests
+- status:verifying
+- blockers:none
+
+
+### [2026-10-31T01:47:00Z] intent-merge | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
+- start:2026-10-31T01:46:00Z
+- end:2026-10-31T01:47:00Z
+- scope:same
+- objective: merge, re-sign the canonical contract, rebuild, reindex, and prove the gate on main
+- input: branch gate green except the pre-merge canonical hash; patch 70.3% STRONG_ANCHOR (9/9 files); receipts 10/10
+- output: merge fa2e5f8+
+- status:merged
+- blockers:none
+
+
+### [2026-10-31T01:53:00Z] checkout | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
+- start:2026-10-31T01:38:00Z
+- end:2026-10-31T01:53:00Z
+- scope:same
+- objective: close the loop after merge, rebuild, reindex, and gate
+- input: merged b71c4a5; canonical re-signed (793b04cb…); engine rebuilt; main reindexed to 3,522 chunks; gate GREEN (11 receipts, Zero-Trust PASS); audit 15/15
+- output: smoke on main — secrets reports latest model + chat-only local router; route/decide via `openrouter:typesafe/jev-1.14-20261014`; pin warning verified; worktree and branch removed; no resident processes
+- status:verified
+- blockers:none
+
+
 ### [2026-10-31T05:13:37Z] checkin | branch:feat/rules-fleet-migration | wt:/Users/nbiish/code/ainish-rules-fleet
 - start:2026-10-31T05:13:37Z
 - end:2026-10-31T05:15:00Z
@@ -56,6 +98,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:in_progress
 - blockers:none
 
+
 ### [2026-10-31T05:32:00Z] update | branch:feat/rules-fleet-migration | wt:/Users/nbiish/code/ainish-rules-fleet
 - start:2026-10-31T05:15:00Z
 - end:2026-10-31T05:32:00Z
@@ -65,6 +108,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:migration imported 2 real targets and dropped dead + /tmp paths; --rules-sync --all bootstrapped both; nested target kept hooks off the parent; second sync a no-op; manifests ML-DSA-65 verified
 - status:verifying
 - blockers:none
+
 
 ### [2026-10-31T05:41:00Z] update | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
 - start:2026-10-31T05:33:00Z
@@ -76,6 +120,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:verifying
 - blockers:none
 
+
 ### [2026-10-31T05:50:00Z] intent-merge | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
 - start:2026-10-31T05:50:00Z
 - end:2026-10-31T05:50:30Z
@@ -85,6 +130,18 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:merged 2ba7fac (migration) and 1bb0a7f (cross-device); fleet sync enrolled 8/8
 - status:merged
 - blockers:none
+
+
+### [2026-10-31T01:50:54.3907412-04:00] update | branch:main | wt:D:/Code/ainish-coder
+- start:2026-10-31T01:50:54.3907412-04:00
+- end:2026-10-31T01:50:54.3907412-04:00
+- scope:.agents/skills/typesafe-jev/{SKILL.md,references/api-contract.md}, llms.txt, src/rag/{rag.py,src/decision.rs,src/main.rs}
+- objective:align the engine + skill with the now-verified Local Router decisions transport.
+- input:Local Router 1.1.0 merged the decisions proxy (all three routes, pinned models, availability-only failover, provenance); operator keyed OpenRouter and ZenMux.
+- output:merge 61467cf (--no-ff). Skill transports + failure-mode guidance now describe the typed transport and pinned ids; api-contract.md records the 2026-10-31 verification (three routes, pinned openrouter/jev-1.14 + zenmux/jev-1.14, availability-only failover, zenmux dialect + 404 status, forced-fallback source string); PRD decision-layer line updated; engine comments/secrets message no longer claim local-router is chat-only. Checks: cargo check --all-targets clean, 41 Python decision tests OK. No behavior change.
+- status:merged
+- blockers:ZenMux decisions route still answers 404 model_not_supported for typesafe/jev-1.14; requests fall back to OpenRouter with provenance.
+
 
 ### [2026-10-31T05:52:00Z] checkout | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
 - start:2026-10-31T05:13:37Z
@@ -98,6 +155,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - blockers:none
 - rebuild:no-rebuild-needed
 
+
 ### [2026-10-31T06:18:00Z] update | branch:fix/rules-sync-lock-reclaim | wt:/Users/nbiish/code/ainish-rules-fix
 - start:2026-10-31T05:56:00Z
 - end:2026-10-31T06:18:00Z
@@ -107,6 +165,7 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - output:15-minute stale-lock reclaim, rm -rf instead of rmdir, and git -C based source-commit detection (a worktree .git is a file, so the digest fallback was masking stale deployments)
 - status:verifying
 - blockers:none
+
 
 ### [2026-10-31T06:22:00Z] checkout | branch:fix/rules-sync-lock-reclaim | wt:/Users/nbiish/code/ainish-rules-fix
 - start:2026-10-31T05:56:00Z
@@ -119,3 +178,145 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - status:done
 - blockers:none
 - rebuild:no-rebuild-needed
+
+### [2026-10-31T13:50:00Z] checkin | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
+- start:2026-10-31T13:50:00Z
+- end:2026-10-31T13:50:00Z
+- scope:AGENTS.md, .agents/canonical/, .agents/audit/contract-history.*, .agents/tasks/2026-10-31-task.md
+- triage:now
+- objective:teach every target that implementation comes before test theatre - tests only for a real reproduction or a subtle contract, no per-function sweeps or coverage mocks
+- input:operator request to cut useless/excessive tests and token bloat; current contract EXECUTION/WORKFLOW wording
+- output:pending
+- status:in-progress
+- blockers:none
+
+
+### [2026-10-31T14:12:00Z] intent-merge | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
+- start:2026-10-31T13:50:00Z
+- end:2026-10-31T14:12:00Z
+- scope:same
+- objective:merge the contract change to main and prove the gate on both sides
+- input:atomic commit 4e25534; canonical re-signed in-branch (5baa44ab, k=1, 16/16 history); docs-only patch anchor-exempt
+- output:merge --no-ff c26ecae
+- status:merged
+- blockers:none
+
+
+### [2026-10-31T14:22:00Z] checkout | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
+- start:2026-10-31T13:50:00Z
+- end:2026-10-31T14:22:00Z
+- scope:same
+- objective:close the loop after merge and gate
+- input:merged c26ecae; gate GREEN on branch and on main (docs-only exempt, lockfiles, 11 receipts, canonical signed, COMMS, zero-trust); audit verify 15/15
+- output:no-rebuild-needed (docs-only); AGENTS.md EXECUTION gains the implementation-over-test-theatre rule and real-surface proof; worktree and branch removed
+- status:verified
+- blockers:local embedding server cannot auto-spawn on this GPU-less host (see memory 14:20)
+
+### [2026-10-31T15:45:00Z] checkin | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
+- start:2026-10-31T15:45:00Z
+- end:2026-10-31T15:45:00Z
+- scope:src/rag/src/{server.rs,main.rs}, src/rag/rag.py, AGENTS.md, .agents/canonical/, .agents/skills/orchestrate-subagent-masters/SKILL.md
+- triage:now
+- objective:implement the latest masters block for docs/agents-test-discipline - spawn floor, CPU pinning, gate test evidence, contract digest, test delta, contract and skill clauses
+- input:latest block in .agents/suggestions/2026-10-31-suggestions.txt; gate blocker recorded at 14:20 (ubatch 170 and NGL=0 not forcing CPU)
+- output:pending
+- status:in-progress
+- blockers:none
+
+
+### [2026-10-31T15:58:00Z] intent-merge | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
+- start:2026-10-31T15:45:00Z
+- end:2026-10-31T15:58:00Z
+- scope:same
+- objective:merge and prove the gate on main with the real suite
+- input:Rust 47/47 release tests; branch gate GREEN 46.0% ADEQUATE with `echo suite-ok` PASS and canonical 7baf0b5e; failing-suite probe (`cmd /c exit 7`) turned the card RED as designed
+- output:merge --no-ff 09be626 (code) + 7be88ed (task record)
+- status:merged
+- blockers:none
+
+
+### [2026-10-31T16:08:00Z] checkout | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
+- start:2026-10-31T15:45:00Z
+- end:2026-10-31T16:08:00Z
+- scope:same
+- objective:close the loop after merge, rebuild, reindex, and gate
+- input:merged 09be626/7be88ed; engine rebuilt from main; main reindexed to 3,550 chunks; gate GREEN 53.3% ADEQUATE with `cargo test --release` PASS (47 passed); audit 15/15
+- output:spawn floor (512 with mmproj), real -ngl 0 CPU pinning, no -fa on CPU, llama stderr log + hints, gate --tests evidence, test/impl delta, contract sha256 on the card and in gate-status.json; contract and skill clauses for security repros/no test deps/real-usage proof/subagent inheritance
+- status:verified
+- blockers:none
+
+### [2026-10-31T17:35:16Z] checkin | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:16Z
+- end:2026-10-31T17:35:16Z
+- scope:src/rag/src/{provider.rs,decision.rs,config.rs,main.rs}, src/rag/rag.py, .agents/skills/typesafe-jev/, AGENTS.md, llms.txt
+- triage:now
+- objective:prioritize OpenRouter and Local Router tooling for embeddings and decision models, and implement cutting-edge decision-model RAG enhancements (Adaptive RAG routing, CRAG corrective retrieval & hard-negative gating, Self-RAG contradiction/completeness evaluation, decision-guided orient primer, and code-scoped patch anchoring)
+- input:operator request; live OpenRouter + Local Router (:11434) endpoints; TypeSafe Jev 1.14 decision catalog
+- output:pending
+- status:in-progress
+- blockers:none
+
+### [2026-10-31T18:15:00Z] update | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:00Z
+- end:2026-10-31T18:15:00Z
+- scope:same
+- objective:prove the prioritized decision transports and the CRAG/adaptive retrieval on the real surface
+- input:OpenRouter `typesafe/jev-1.14`; Local Router 1.1.0 on :11434 with `/api/decisions/status`; main index
+- output:default route -> `openrouter:typesafe/jev-1.14-20261014` (5 signals, `hybrid_rerank` pool 12); `JEV_TRANSPORT_PRIORITY=local-router,openrouter` -> `local-router:.../api/alpha/decisions` (`security_governance`, `multi_hop_expand` pool 16); query -> `context_sufficiency: partial_unsettled (CRAG corrective expansion pass applied)`; eval -> contradiction 0.45 / verdict `unsupported`; orient -> route hint + `route_decision` in JSON
+- status:verifying
+- blockers:none
+
+
+### [2026-10-31T18:25:00Z] intent-merge | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:00Z
+- end:2026-10-31T18:25:00Z
+- scope:same
+- objective:merge the decision-priority feature, fix the provider-config regression it exposed, and prove the gate on main
+- input:branch gate GREEN 71.8% STRONG_ANCHOR with cargo+python suites PASS; canonical `f71d5368…`; main gate then caught 4 embed-provider failures
+- output:merge --no-ff 23c18b2; fix d2c0fbd (`_linked_worktree_root`, worktree-only canonical fallback) merged cb7d584; task record db63b0d merged 244366f
+- status:merged
+- blockers:none
+
+
+### [2026-10-31T18:33:00Z] checkout | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
+- start:2026-10-31T17:35:00Z
+- end:2026-10-31T18:33:00Z
+- scope:src/rag/src/{decision.rs,provider.rs,config.rs,main.rs}, src/rag/rag.py, src/rag/tests/test_embed_provider.py, .agents/skills/typesafe-jev/, AGENTS.md, llms.txt
+- objective:close the loop after merge, rebuild, reindex, and audit
+- input:merged 23c18b2 + cb7d584 + 244366f; engine rebuilt from main; main reindexed to 3,583 records; main gate GREEN 73.3% STRONG_ANCHOR with `cargo test` + Python suite PASS; audit verify 15/15
+- output:OpenRouter + Local Router prioritized transports with `JEV_TRANSPORT_PRIORITY` and `/api/decisions/status` fast path; adaptive `retrieval_strategy`/`candidate_pool_size`; CRAG sufficiency + one corrective expansion; contradiction/completeness/verdict bands; decision-guided orient; consumer-prefixed PQC key suffixes (`PSIONICS_*`); worktree-only canonical config fallback
+- status:verified
+- blockers:none
+
+### [2026-10-31T23:31:00Z] checkin | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
+- start:2026-10-31T23:31:00Z
+- end:2026-10-31T23:31:00Z
+- scope:AGENTS.md, src/rag/src/main.rs, src/rag/rag.py, src/rag/tests/test_gate_ready.py
+- triage:now
+- objective:add the missing surface lenses to the universal contract and make compatibility, concurrency, and economics machine-checkable in the gate
+- input:operator analysis of the nine masters' coverage gaps; research anchors (Hyrum/semver migrations, append-only concurrency, cost-aware inference)
+- output:pending
+- status:in-progress
+- blockers:none
+
+
+### [2026-10-31T23:50:00Z] intent-merge | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
+- start:2026-10-31T23:31:00Z
+- end:2026-10-31T23:50:00Z
+- scope:same
+- objective:merge the six triggered lenses and their three gate checks, then prove the gate on main
+- input:branch gate GREEN 74.0% STRONG_ANCHOR with cargo+python suites PASS and Master Surfaces compat/concurrency/econ PASS; a synthetic non-append comms edit correctly turned the gate RED
+- output:merge --no-ff 00e3427; canonical re-signed `bef21fa7…`; Rust 54/54, Python 44/44
+- status:merged
+- blockers:none
+
+
+### [2026-10-31T23:55:00Z] checkout | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
+- start:2026-10-31T23:31:00Z
+- end:2026-10-31T23:55:00Z
+- scope:AGENTS.md, src/rag/src/main.rs, src/rag/rag.py, src/rag/tests/test_gate_ready.py, .agents/canonical/
+- objective:close the loop after merge, rebuild, reindex, and audit
+- input:merged 00e3427; engine rebuilt from main; main reindexed to 3,604 records; main gate GREEN 74.0% STRONG_ANCHOR with both suites PASS and Master Surfaces PASS; audit verify 15/15
+- output:nine core lenses + six triggered lenses (compatibility, concurrency, economics, accessibility, rights, interop); gate `Master Surfaces:` derives compat/concurrency/economics from the diff and reports them in gate-status.json; non-append shared-state edits are RED, missing compat declarations are RED, missing budgets are WARN (RED under --strict)
+- status:verified
+- blockers:none

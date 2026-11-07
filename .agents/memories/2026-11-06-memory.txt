@@ -1,0 +1,3 @@
+### [2026-11-06T14:30:00Z] rules-deploy-needed-a-signer-preflight
+Deployment provenance is ML-DSA-65 signed, but the compiled engine is a gitignored build artifact, so a fresh clone has no signer. deploy_rules_sync wrote the manifest and refresher first and only then attempted signing, leaving clones with a manifest that could never verify, armed hooks, and no fleet enrollment - a half-deployed target behind a one-line warning. A signer preflight now runs before anything is written, so the refusal is clean and names the build step. The signature was deliberately NOT made optional: relaxing a fail-closed trust boundary to suit a missing build artifact would be the wrong fix.
+

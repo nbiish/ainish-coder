@@ -1,0 +1,7 @@
+
+- 01:05 Surface rules now live in `src/rag/master-surfaces.json` (contract paths, schema suffixes, dependency manifests, CLI tokens, append-only prefixes, spend prefixes); both engines load it, so adding a surface is one edit. Dependency manifests (`Cargo.toml/.lock`, `package.json`, `pyproject.toml`) are compatibility surfaces and require a `compat:` line.
+- 01:10 Gate `master_surfaces` now carries the actual `compat:`/`budget:` declaration text; the card shows why a surface fired (`compat PASS (contract, schema, cli)`), and `NO_COLOR`/`TERM=dumb` strips the status line's ANSI while the PASS/WARN words carry meaning.
+- 01:12 Route returns `context_budget_tokens` (0/1200/2000/2600/3600) and `next_action`; `orient --inject` leads with the action and caps sections at `budget / 12 / sections` (floor 3), so the primer spends context only where the strategy justifies it.
+- 01:18 Gotcha: `bin/ainish-rag.exe` can stay locked by a lingering CLI process after a gate run — kill the exact PID before copying a fresh build, do not retry blindly.
+- 01:20 Main gate GREEN 77.4% STRONG_ANCHOR, both suites PASS, 12 receipts, canonical `e3c72db6…`; main reindexed to 3,627; audit 16/16.
+- 01:41 Polish: the `Master Surfaces:` line only prints the detected labels when the surface is actually touched; an untouched compat check reads `compat PASS` instead of `compat PASS ()`.

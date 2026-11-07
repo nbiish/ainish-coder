@@ -37,6 +37,40 @@ keypair, one stable wrapping key, and zero plaintext on disk.
 - **No per-repo keys.** A key added once is immediately available to every
   repo, project, and shell session that reads the bundle.
 
+## Distribution across toolchains
+
+The bundle is shared; the *engine* used to be copied by hand. Since 2026-10-29
+ainish-coder distributes it:
+
+```bash
+ainish-coder --pqc-install --json          # launcher on PATH (+ Windows .cmd, WSL mirroring)
+ainish-coder --pqc-status --json           # store per environment + target drift
+ainish-coder --pqc-sync-targets --all      # refresh enrolled repos' vendored engine
+```
+
+| Question | Command | What it proves |
+|---|---|---|
+| Does *this* tool see the store? | `pqc-secrets store --json` | resolved path, `source` (`home`, `host-interop`, `isolated`, `env`), bundle presence, key names |
+| Is the launcher installed here? | `ainish-coder --pqc-status --json` → `launcher` | path, `installed`, `onPath` |
+| Does Windows see the WSL store? | `--pqc-status` → `wsl` | `store` + `source` from the WSL engine |
+| Is every repo current? | `--pqc-status` → `targets[]` | `current`/`stale`/`missing` + per-repo selection |
+
+`--pqc-install` resolves the engine from `AINISH_PQC_ENGINE`, then
+`AINISH_PQC_ROOT`, then `~/.config/ainish-coder/pqc-root` — never from the
+current directory — so a tool can call `pqc-secrets` from any cwd. It only
+generates the identity when no bundle resolves, and on Windows it never
+overwrites a working WSL launcher (that checkout may be a different clone).
+
+`--pqc-sync-targets` honours the per-repo skills selection: a repo that
+deselected `pqc-secrets` is reported `deselected` and left untouched, so
+distribution cannot silently override an operator's choice. `--pqc-status`
+exits 1 only for a *stale* engine or a *required* target missing one, which
+makes it usable as a CI gate.
+
+**Drift is a digest comparison**, not a version string: every target's
+`scripts/pqc_secrets.py` is hashed against the source engine. A target is
+`current` only on an exact match, so a partial copy is never reported healthy.
+
 ## How keys are shared across repos
 
 Because all repos point at one bundle, a key added through any of them is
@@ -142,3 +176,57 @@ exits.
 - `references/pqc-secrets-cli.md` — CLI reference
 - `references/agent-integration.md` — wiring into Claude Code, Hermes, etc.
 - `SKILL.md` §2 Infrastructure Architecture
+
+## Cross-environment access (WSL ↔ Windows ↔ macOS ↔ Linux, 2026-10-29)
+
+The one-system principle used to stop at an OS boundary: a WSL shell and a
+PowerShell session each had their own `~/.config/pqc-secrets`, so a key packed
+on one side was invisible to the other. The engine now resolves one store per
+machine and reports it:
+
+```bash
+pqc-secrets store --json
+# {"store":"/mnt/c/Users/kenwa/.config/pqc-secrets","source":"host-interop",
+#  "platform":"wsl","bundleExists":true,"keyCount":14,...}
+```
+
+Resolution order:
+
+1. `PQC_CONFIG_DIR` (or the contract alias `PQC_SECRETS_DIR`) — explicit wins.
+2. Host interop: **WSL reads the Windows host store**; Windows reads its local
+   store first, then falls back to a WSL store when it has no local bundle.
+   On macOS/Linux the user store is the store.
+3. `~/.config/pqc-secrets`.
+
+`PQC_STORE_ISOLATED=1` keeps per-environment stores when separate identities are
+intentional (for example a throwaway test store).
+
+Practical consequences:
+
+- `pqc-secrets set LOCALROUTER_ZAI_API_KEY=...` from PowerShell is immediately
+  visible to `pqc-secrets export` in WSL (and vice versa) **because both point
+  at the same bundle**, not because anything was copied.
+- A store is still one ML-KEM-768 identity. If you deliberately keep two
+  stores, `pqc-secrets sync --from <dir> --to <dir>` re-packs values under each
+  store's own identity; `--stdout | ssh host 'sync --stdin --to ...'` is the
+  remote lane.
+- `pqc-secrets store --json` is the first diagnostic when a tool claims a key is
+  missing: compare `store`/`source` across the two shells before re-packing.
+- The local-router server applies the same resolution order and additionally
+  scans Windows + WSL stores at boot (see its `pqc:doctor`).
+
+## Reusable-key workflow
+
+Prefer `set` over re-packing the whole bundle:
+
+```bash
+pqc-secrets set LOCALROUTER_ZAI_API_KEY=...        # add or rotate one key
+pqc-secrets set --stdin < keys.txt                # batch upsert
+pqc-secrets list --json                           # names only
+pqc-secrets export --json                         # values for non-shell tooling
+```
+
+`set` decrypts, overlays the named keys, keeps every other entry, writes the
+bundle atomically, and leaves `secrets.bundle.json.bak.<UTC>` behind. `pack`
+without `--merge` still replaces the bundle; `pack --merge` has the same
+overlay semantics for stdin batches.

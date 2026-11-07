@@ -51,3 +51,172 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:Merged feat/embed-mem-round20 to main, pushed origin/main, binary rebuilt, llama server restarted at 2.4 GB, fleet registry EMPTY
 - status:merged
 - blockers:none
+
+### [2026-10-29T19:10:00Z] CHECKIN | branch:feat/pqc-distribution | wt:D:\Code\pqc-dist
+- start:2026-10-29T18:45:00Z
+- end:2026-10-29T19:10:00Z
+- scope:src/pqc_dist.sh, src/skills_selection.sh, bin/ainish-coder, bin/pqc-secrets.cmd, scripts/test-pqc-dist.sh, src/help.sh, llms.txt, .agents/skills/pqc-secrets/{SKILL.md,references/cross-repo-key-sharing.md}
+- triage:now
+- objective: make the working PQC engine installable once and distributed to every toolchain and repo, and fix the Windows selection bug that broke fleet distribution
+- input: operator asked for the working pqc system to be distributed and working across other tooling; a survey found 15 repos carrying a vendored engine across 6 distinct digests
+- output: `--pqc-install` (launcher on PATH + .cmd, root marker, keygen only when no bundle, WSL verify/provision), `--pqc-status --json` (digest/build, launcher, native+WSL store, per-target drift, exit 1 on stale/required-missing), `--pqc-sync-targets` (selection-aware refresh + digest verify); MSYS selection fix; hermetic 22-assertion test; docs
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:10:00Z] INTENT-MERGE | branch:feat/pqc-distribution | wt:D:\Code\pqc-dist
+- start:2026-10-29T19:05:00Z
+- end:2026-10-29T19:10:00Z
+- scope:same
+- objective: merge after syntax checks, the security gate, and the distribution test
+- input: commit 8fdd02d
+- output: `bash -n` on every touched script; `python3 bin/security_gate.py .` PASS; `scripts/test-pqc-dist.sh` 22/22; `--help` renders the new block
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:10:00Z] CHECKOUT | branch:feat/pqc-distribution | wt:D:\Code\pqc-dist
+- start:2026-10-29T19:10:00Z
+- end:2026-10-29T19:12:00Z
+- provenance:source_commit=8fdd02d manifest_sha256=n/a (root repo)
+- scope:same + fix/pqc-dist-followup
+- objective: close the loop after merge, install for real, and distribute to the repos that already vendor the pack
+- input: main after f0fb948
+- output: launcher installed at ~/.local/bin/pqc-secrets (on PATH); native engine resolves the WSL host store (host-interop); WSL reports "present"; stale vendored engines refreshed by explicit `--pqc-sync-targets <dir>` because only local-router is enrolled
+- status:merged
+- blockers:none
+
+### [2026-10-29T19:12:00Z] UPDATE | branch:feat/pqc-key-upsert | wt:D:\Code\pqc-key-upsert
+- start:2026-10-29T19:12:00Z
+- end:2026-10-29T19:12:00Z
+- scope:.agents/comms
+- objective: log the merge that shipped without an entry (retroactive)
+- input: merge 932b37b (set/del/store, cross-environment store resolution) closed with no COMMS entry or memory line
+- output: retroactive record; worktree left in place because it is inside the 24h quiet window
+- status:merged
+- blockers:none
+### [2026-10-29T19:20:00Z] CHECKIN | branch:feat/agents-tooling-contract | wt:D:\Code\agents-contract
+- start:2026-10-29T19:05:00Z
+- end:2026-10-29T19:20:00Z
+- scope:AGENTS.md (description, RULES, REFERENCE, EXECUTION, AUDIT)
+- triage:now
+- objective: instruct every model on every harness how to use the installed tooling — accurately, tersely, and without changing the contract schema
+- input: operator asked for expert tooling instructions across harnesses while keeping the concise instruction schema
+- output: pqc-secrets named as the access path in the description; five terse secrets rules (no plaintext/argv, one resolved store + interop, consumer-prefixed names, write-then-prove, installed-once tooling); new `Secrets & PQC quick reference` table (store/list/set/del/pack/export/verify/sync/rename/gen/version + install/status/sync-targets); detect→write→prove→consume protocol; darwin-only vault/issue caveat; JSON-only machine I/O in EXECUTION; AUDIT proves writes
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:20:00Z] UPDATE | branch:feat/agents-tooling-contract | wt:D:\Code\agents-contract
+- start:2026-10-29T19:12:00Z
+- end:2026-10-29T19:20:00Z
+- scope:same
+- objective: prove every documented command and keep the schema intact
+- input: edits staged in the worktree
+- output: ran keygen/set/set --stdin/pack --merge/export --json/rename/del/verify/store on a throwaway PQC_CONFIG_DIR (all rc=0, JSON shapes as documented); section markers unchanged in order; +28/−4 lines only
+- status:verifying
+- blockers:canonical `.sig`/`AGENTS.threshold.sig` cannot be regenerated here (no bin/ainish-rag.exe; rag.py's fallback writes a labelled SHA-256 placeholder, not ML-DSA-65)
+
+### [2026-10-29T19:20:00Z] INTENT-MERGE | branch:feat/agents-tooling-contract | wt:D:\Code\agents-contract
+- start:2026-10-29T19:20:00Z
+- end:2026-10-29T19:20:00Z
+- scope:AGENTS.md, .agents/{comms,memories,tasks,suggestions}
+- objective: land the contract change and let the post-merge hook deploy it to the fleet
+- input: commit pending; local-router is the only enrolled target
+- output: merge --no-ff; hook refreshes local-router AGENTS.md + manifest at the new HEAD
+- status:verifying
+- blockers:none
+### [2026-10-29T19:35:00Z] CHECKIN | branch:feat/pqc-skill-consolidation | wt:D:\Code\pqc-skill
+- start:2026-10-29T19:26:00Z
+- end:2026-10-29T19:35:00Z
+- scope:.agents/skills/pqc-secrets (SKILL.md + references/signatures-security.md), .agents/skills/pqc-signatures-security (removed), src/pqc_dist.sh, src/help.sh, scripts/test-pqc-dist.sh
+- triage:now
+- objective: ship the secured PQC system as one distributable skill pack instead of two overlapping packs
+- input: operator asked to consolidate `.agents/skills/pqc*` into a singular skill folder/files for other repo tooling
+- output: signing/integrity guidance (17.5 KB, sections 1-11) moved verbatim to `pqc-secrets/references/signatures-security.md`; SKILL description and top banner now cover both halves; standalone pack deleted; help lists 20 packs; `--pqc-sync-targets` prunes the legacy pack and reports it; test extended to 28 assertions
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:35:00Z] INTENT-MERGE | branch:feat/pqc-skill-consolidation | wt:D:\Code\pqc-skill
+- start:2026-10-29T19:33:00Z
+- end:2026-10-29T19:35:00Z
+- scope:same
+- objective: merge after the distribution test, syntax checks, and the repo security gate
+- input: working tree with one added reference, one deletion, four touched files
+- output: `scripts/test-pqc-dist.sh` 28/28 (one source pack, legacy pruned, merged reference distributed, one pack left in the target); `bash -n` clean
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:38:00Z] CHECKOUT | branch:feat/pqc-skill-consolidation | wt:D:\Code\pqc-skill
+- start:2026-10-29T19:35:00Z
+- end:2026-10-29T19:38:00Z
+- scope:same + fleet distribution
+- objective: merge, let the hook deploy local-router, then refresh every repo that vendors the pack
+- input: main after the merge; local-router enrolled, 11 other repos vendor the pack unenrolled
+- output: local-router carries one `pqc-secrets` pack with the merged reference; every vendored repo refreshed by explicit `--pqc-sync-targets <dir>` with the legacy pack pruned
+- status:merged
+- blockers:none
+### [2026-10-29T19:46:00Z] UPDATE | branch:fix/pqc-pack-digest | wt:D:\Code\pqc-digest
+- start:2026-10-29T19:41:00Z
+- end:2026-10-29T19:46:00Z
+- scope:src/pqc_dist.sh, scripts/test-pqc-dist.sh
+- triage:now
+- objective: stop distribution from pruning the legacy pack while skipping the merged documentation
+- input: the consolidation sync reported `state=current` for 11 repos because only `pqc_secrets.py` was compared; it pruned their old signature pack and never copied the merged reference
+- output: `_pqc_pack_sha` (sorted per-file digests over the whole pack) now drives both `--pqc-status` and `--pqc-sync-targets`; target entries carry `packSha256`, the sync emits `sourcePackSha256`, and the test adds a documentation-only drift cycle (stale -> re-sync -> byte-identical restore)
+- status:verifying
+- blockers:none
+
+### [2026-10-29T19:48:00Z] CHECKOUT | branch:fix/pqc-pack-digest | wt:D:\Code\pqc-digest
+- start:2026-10-29T19:46:00Z
+- end:2026-10-29T19:48:00Z
+- scope:same + fleet
+- objective: merge, then repair the 11 repos the engine-only check had skipped
+- input: test 32/32; the 11 repos still missing the reference
+- output: merged; every vendored repo re-synced on the pack digest and now carries the merged reference with one pqc pack
+- status:merged
+- blockers:none
+### [2026-10-29T19:54:00Z] CHECKOUT | branch:fix/pqc-skill-yaml | wt:D:\Code\pqc-yaml
+- start:2026-10-29T19:52:00Z
+- end:2026-10-29T19:54:00Z
+- scope:.agents/skills/pqc-secrets/SKILL.md, .agents/skills/browser-use/SKILL.md, fleet
+- triage:now
+- objective: make the consolidated pack discoverable by harness skill catalogs
+- input: the pack never appeared in a catalog; PyYAML rejected its front matter (`v1.2.0: ` unquoted) and browser-use had the same defect
+- output: both descriptions use an em dash; every distributed pack validates; `pqc-secrets` now appears in the harness catalog; all 11 vendored repos re-synced on the pack digest and local-router updated (source 9d37ce9)
+- status:merged
+- blockers:none
+### [2026-10-29T23:05:00Z] CHECKIN | branch:feat/pack-authorship | wt:D:\Code\pack-authorship
+- start:2026-10-29T22:30:00Z
+- end:2026-10-29T23:05:00Z
+- scope:src/deploy_rules_sync.sh, src/pqc_dist.sh, bin/security_gate.py, .agents/skills/ghost-layer-injector/SKILL.md, scripts/test-pqc-dist.sh
+- triage:now
+- objective: make pack authorship provable and make a catalog-invisible skill impossible to ship
+- input: follow-ups from the consolidation — sign the pack digest so a target can prove whom the content came from; add front-matter validation to the gate/CI
+- output: signed manifest carries `source_pack_sha256`; `--rules-verify` fails closed on unsigned/mismatched packs; `--pqc-sync-targets` stamps + re-signs and reports `manifest: stamped|attested`; `--pqc-status` reports `packAuth`; the gate validates every `SKILL.md` front matter (name, description, unquoted ': '); 36/36 distribution assertions
+- status:verifying
+- blockers:none
+
+### [2026-10-29T23:05:00Z] INTENT-MERGE | branch:feat/pack-authorship | wt:D:\Code\pack-authorship
+- start:2026-10-29T23:02:00Z
+- end:2026-10-29T23:05:00Z
+- scope:same
+- objective: merge after the hermetic distribution test, the gate self-check, and a negative fixture test
+- input: 36/36 assertions; gate passes the repo and fails a crafted invalid front matter with exit 1
+- output: merged, deployed to the enrolled target, fleet re-synced
+- status:merged
+- blockers:none
+### [2026-10-29T23:30:00Z] INTENT-REBUILD | branch:main | wt:D:\Code\local-router
+- start:2026-10-29T23:29:00Z
+- scope: local-router runtime (WSL node build/index.js, pid 119690)
+- objective: prove `/config` PQC keys survive a process restart by restarting the router and reading `/api/pqc/status`
+- input: 4 bundle keys (openrouter, zai, zenmux, admin token); bundle on disk; machine.kek present
+- output: pending restart + post-restart verification
+- status:in-progress
+- blockers:none
+### [2026-10-29T23:34:00Z] CHECKOUT | branch:main | wt:D:\Code\local-router
+- start:2026-10-29T23:29:00Z
+- end:2026-10-29T23:34:00Z
+- scope: local-router runtime (WSL node build/index.js)
+- objective: prove `/config` PQC keys survive a process restart
+- input: 4 bundle keys; bundle 2744 B on disk; machine.kek present
+- output: stopped pid 119690, started pid 143518; `/api/pqc/status` bundleLoaded=true with openrouter/zai/zenmux loaded; log "Loaded 3 provider key(s) from bundle"; live completion through zenmux returned OK (117 tokens); `pqc-secrets list` still shows the same 4 names
+- status:verified
+- blockers:none

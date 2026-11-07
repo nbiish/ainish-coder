@@ -1,11 +1,11 @@
 ---
 name: pqc-secrets
-description: Post-quantum cryptography secrets management system for protecting API keys, tokens, and private data. Includes the passphrase-wrapped vault.pqc identity root (v1.2.0: ML-KEM-768 + ML-DSA-65 seeds under Argon2id, signed audit chain, TTL session holder), the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, and the PQC Rust binary (device-key issuance + signed cross-machine envelopes).
+description: Post-quantum cryptography secrets and integrity system for API keys, tokens, private data, and signed code. Covers the ML-KEM-768 + AES-256-GCM bundle, the passphrase-wrapped vault.pqc identity root (v1.2.0 — ML-KEM-768 + ML-DSA-65 seeds under Argon2id, signed audit chain, TTL session holder), the 10 browser_secrets_* MCP tools (betterbrowsermcp v0.7.0+ rotates v0.8.0+), the append-only audit log at ~/.config/pqc-secrets/audit.log, the PQC Rust binary (device-key issuance + signed cross-machine envelopes), and ML-DSA-65 code signing/verification (references/signatures-security.md). Consolidated single pack since 2026-10-29 — the former pqc-signatures-security pack merged here.
 ---
 
 # PQC Secrets Management Agent Skill
 
-> **Companion skill:** [pqc-signatures-security](../pqc-signatures-security/SKILL.md) — ML-DSA-65 code signing, integrity verification, and secure coding patterns. Use both together for complete PQC coverage: this skill encrypts secrets at rest; pqc-signatures-security verifies code hasn't been tampered with.
+> **One pack, full PQC coverage (2026-10-29):** this pack carries both halves of the secured system — secrets at rest (this file + `references/`) and **code integrity** ([references/signatures-security.md](references/signatures-security.md): ML-DSA-65 keygen, signing, verification, anti-patterns, threat model). The former standalone `pqc-signatures-security` pack merged here so one distribution gives any repo the whole system.
 
 > **New in v0.8.0 (betterbrowsermcp):** `browser_secrets_rotate` tool
 > (data-key rotation, identity key stays), `secrets_get mode=plain|redact`,
@@ -28,6 +28,46 @@ AI agents using this skill are equipped to:
 1. Protect credentials at rest and in memory using FIPS-compliant algorithms.
 2. Integrate with the platform's native keychain and standard runtime environments.
 3. Validate environments and ensure zero plaintext credentials are written to disk.
+
+---
+
+## 0. Distribution: one engine, every toolchain
+
+The engine ships in this skill pack and is installed once per machine, so any
+caller — node, python, bash, PowerShell, a build script, a DAW tool — reaches
+the **same** store through the **same** CLI:
+
+```bash
+ainish-coder --pqc-install              # installs ~/.local/bin/pqc-secrets (+ .cmd on Windows)
+ainish-coder --pqc-status --json        # what store does each environment resolve?
+ainish-coder --pqc-sync-targets --all   # refresh every enrolled repo's vendored engine
+```
+
+- `--pqc-install` writes a launcher that resolves the engine from
+  `AINISH_PQC_ENGINE`, `AINISH_PQC_ROOT`, or `~/.config/ainish-coder/pqc-root`
+  (never from the current directory), records the root, generates the
+  ML-KEM-768 identity only when no bundle exists, and — on Windows — verifies
+  or provisions the WSL side (`--no-wsl` opts out). Re-run it after moving the
+  checkout; the marker is the only thing that changes.
+- `--pqc-status` prints the engine digest and build date, the launcher's PATH
+  visibility, the store each environment resolves (native + WSL, including
+  `host-interop`), and every enrolled target as `current`/`stale`/`missing`
+  with its per-repo selection. It exits 1 when a target's vendored engine is
+  stale or a required target has none, so CI fails closed.
+- `--pqc-sync-targets` copies this skill pack (and `bin/pqc-secrets[.cmd]` when
+  the target has a `bin/`) into every enrolled target, skips repos that
+  deselected the pack, and re-hashes the copy before reporting success.
+
+**Store resolution is shared by design:** `PQC_CONFIG_DIR` / `PQC_SECRETS_DIR`
+wins; otherwise WSL reads the Windows host store and Windows falls back to a
+WSL store only when it has no local bundle (`PQC_STORE_ISOLATED=1` opts out).
+`pqc-secrets store --json` is the "am I on the same system?" probe and reports
+the resolved path, source, and key names (never values).
+
+**Naming:** write keys under the consuming tool's prefix
+(`LOCALROUTER_*_API_KEY`, `AINISHCODER_*_API_KEY`). Readers accept the
+canonical prefix, the legacy underscore form, provider-slug names, and plain
+env names, but the canonical name is what survives a rename.
 
 ---
 
@@ -353,14 +393,34 @@ Use the primary native Rust binary `bin/pqc-secrets` (or run the Python fallback
 | Step | Rust Command | Python Fallback Command | Description |
 |---|---|---|---|
 | **Keygen** | `bin/pqc-secrets keygen` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py keygen` | Generates a new ML-KEM-768 keypair. Stores the private key in local encrypted file in FIPS 203 seed form, 64 bytes (system keychain if opted-in via `PQC_USE_KEYCHAIN=true`). Public key → `~/.config/pqc-secrets/recipient.pub`. |
-| **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json`. |
-| **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines. Use `secrets-load` shell function. |
+| **Pack** | `bin/pqc-secrets pack` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py pack` | Reads `KEY=VAL` lines from stdin, encrypts via AES-256-GCM + ML-KEM-768, writes `secrets.bundle.json` atomically (backup kept). `pack --merge` preserves existing keys. |
+| **Set** | `bin/pqc-secrets set NAME=VALUE ...` | `uv run ... pqc_secrets.py set NAME=VALUE ...` | **Preferred upsert path (2026-10-29):** adds or rotates only the named keys and leaves every other entry untouched. Also accepts `--stdin` and `NAME VALUE`. This is what makes a store reusable across repos and platform iterations. |
+| **Del** | `bin/pqc-secrets del NAME ...` | `uv run ... pqc_secrets.py del NAME ...` | Removes only the named keys (idempotent; absent names are skipped), so tooling can reconcile its managed set without rewriting the bundle. |
+| **Store** | `bin/pqc-secrets store` | `uv run ... pqc_secrets.py store` | Prints the resolved store, its source (`env` / `host-interop` / `home` / `isolated`), platform, and key names — the cross-platform "same system?" check. |
+| **Load** | `bin/pqc-secrets export` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py export` | Decrypts bundle in-memory, outputs `export KEY=VALUE` lines (`--json` for tooling). Use `secrets-load` shell function. |
 | **Verify** | `bin/pqc-secrets verify` | `uv run .agents/skills/pqc-secrets/scripts/pqc_secrets.py verify` | Verifies bundle can be decrypted, lists key names. |
-| **List** | `bin/pqc-secrets list` | `uv run ... pqc_secrets.py list` | Lists every secret **name** (never values), sorted — the inspection surface for what is set, what belongs to which tool prefix, and what needs renaming. |
+| **List** | `bin/pqc-secrets list` | `uv run ... pqc_secrets.py list` | Lists every secret **name** (never values), sorted — the inspection surface for what is set, what belongs to which tool prefix, and what needs renaming. `--json` emits `{bundle, count, names}`. |
 | **Rename** | `bin/pqc-secrets rename OLD NEW` | `uv run ... pqc_secrets.py rename OLD NEW` | Renames one secret **name** keeping its value; the previous bundle is backed up to `secrets.bundle.json.bak.<UTC>` first. Refuses to overwrite an existing name. |
 | **Rotate** | `bin/pqc-secrets keygen && bin/pqc-secrets pack` | `keygen && pack` | Generates new keypair and re-packs secrets under new public key. |
 | **Rewrap** | `bin/pqc-secrets rewrap --new-pub <path> --out <path>` | — | Re-encrypts bundle under a different public key without exposing plaintext. |
 | **Migrate** | `bin/pqc-secrets migrate` | `uv run ... pqc_secrets.py migrate` | Migrates keychain entry from old account name to new. |
+
+### Cross-environment store resolution (2026-10-29)
+
+Every platform resolves the store through one function, so PowerShell, WSL,
+Linux, and macOS tooling all agree on what "the system" is:
+
+1. `PQC_CONFIG_DIR`, then the contract alias `PQC_SECRETS_DIR` (explicit wins).
+2. Host interop: **WSL reads the Windows host store** (`/mnt/c/Users/<user>/.config/pqc-secrets`);
+   Windows reads its local store first and falls back to a WSL store only when
+   it has no local bundle. This makes a key set once visible from both sides
+   without copying bundles.
+3. `~/.config/pqc-secrets`.
+
+`PQC_STORE_ISOLATED=1` keeps per-environment stores (separate identities for
+intentional isolation). Check what any shell resolves with
+`pqc-secrets store --json`; the local-router server applies the same order and
+additionally scans both Windows and WSL stores on boot.
 
 ### Key Naming Convention (tool-relative prefixes)
 

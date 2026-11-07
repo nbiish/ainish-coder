@@ -8,10 +8,12 @@ Uses Google DeepMind EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector store
 from __future__ import annotations
 
 import argparse
+import atexit
 import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -520,6 +522,25 @@ def derive_ctx_batch(max_mem_mb: Optional[int], repo_root: Optional[Path] = None
     return ctx, batch
 
 
+MIN_MULTIMODAL_BATCH = 512
+
+
+def effective_batch(batch: int, has_mmproj: bool) -> int:
+    """Multimodal llama asserts `ggml_can_mul_mat` when n_ubatch sits below 512 (the worktree
+    divided budget produced 170), so keep the batch at or above that floor when an mmproj loads.
+    Mirrors `LlamaServer::effective_batch` in the Rust engine."""
+    return max(batch, MIN_MULTIMODAL_BATCH) if has_mmproj else batch
+
+
+def gpu_flag_plan(ngl: Optional[str], flash_setting: Optional[str]) -> Tuple[str, bool]:
+    """Returns (layers, use_flash). `-ngl 0` must be passed explicitly (omitting it leaves
+    llama's GPU default in force), and CPU-only launches must not request `-fa on` because some
+    builds crash without a GPU backend. Mirrors `LlamaServer::gpu_flag_plan`."""
+    layers = (ngl or "").strip() or "99"
+    flash = layers != "0" and (flash_setting or "on").strip().lower() not in ("off", "0", "false", "no")
+    return layers, flash
+
+
 def anonymize_content_and_symbols(content: str, symbols: List[str], salt: Optional[str] = None) -> Tuple[str, List[str]]:
     replaced = content
     anon_symbols = []
@@ -704,6 +725,9 @@ class EmbedClient:
         self.api_base = base.rstrip("/")
         self.api_model = model
         self.api_key = key
+        # Remote endpoints tolerate far larger batches than a shared loopback llama server, and
+        # per-request latency dominates indexing time. Start wide and adapt.
+        self.adaptive_batch_size = 32
         return self
 
     def uses_api_provider(self) -> bool:
@@ -713,10 +737,15 @@ class EmbedClient:
         return self.adaptive_batch_size
 
     def record_rtt_and_scale_batch(self, rtt_ms: float) -> int:
-        if rtt_ms < 120.0:
-            self.adaptive_batch_size = min(64, self.adaptive_batch_size * 2)
-        elif rtt_ms > 600.0:
-            self.adaptive_batch_size = max(4, self.adaptive_batch_size // 2)
+        """Remote APIs have higher absolute latency but far higher throughput than loopback."""
+        if self.uses_api_provider():
+            fast_ms, slow_ms, max_batch, min_batch = 1500.0, 6000.0, 128, 8
+        else:
+            fast_ms, slow_ms, max_batch, min_batch = 120.0, 600.0, 64, 4
+        if rtt_ms < fast_ms:
+            self.adaptive_batch_size = min(max_batch, self.adaptive_batch_size * 2)
+        elif rtt_ms > slow_ms:
+            self.adaptive_batch_size = max(min_batch, self.adaptive_batch_size // 2)
         return self.adaptive_batch_size
 
     def is_running(self) -> bool:
@@ -877,44 +906,454 @@ def resolve_psk(pid_dir: Path, ttl_secs: int = 86400, repo_root: Optional[Path] 
     return token
 
 
-def read_embed_provider_cfg(repo_root: Path) -> Dict[str, Any]:
-    """Reads non-secret provider config from `.agents/rag/embed-provider.json` (written by
-    `ainish-coder --embed-config`). Secrets are never stored there; the key comes from env."""
-    cfg = {
-        "provider": os.environ.get("AINISH_EMBED_PROVIDER", "local").strip().lower() or "local",
-        "api_base": os.environ.get("AINISH_EMBED_API_BASE") or None,
-        "model": os.environ.get("AINISH_EMBED_MODEL") or None,
-        "dim": None,
-        "api_key": os.environ.get("AINISH_EMBED_API_KEY") or None,
-    }
-    f = repo_root / ".agents" / "rag" / "embed-provider.json"
-    if f.is_file():
+EMBED_PROVIDER_CATALOG: Dict[str, Dict[str, Any]] = {
+    "openrouter": {
+        "label": "OpenRouter",
+        "api_base": "https://openrouter.ai/api/v1",
+        "default_model": "openai/text-embedding-3-small",
+        "key_names": [
+            "OPENROUTER_EMBED_API_KEY",
+            "OPENROUTER_API_KEY",
+            "LOCALROUTER_OPENROUTER_API_KEY",
+            "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
+            "AINISHCODER_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_API_KEY",
+            "PSIONICS_OPENROUTER_EMBED_API_KEY",
+        ],
+        "base_vars": ["OPENROUTER_EMBED_API_BASE", "OPENROUTER_API_BASE", "OPENROUTER_BASE_URL"],
+        "model_vars": ["OPENROUTER_EMBED_MODEL", "OPENROUTER_EMBEDDING_MODEL"],
+        "dim_vars": ["OPENROUTER_EMBED_DIM"],
+    },
+    "zenmux": {
+        "label": "ZenMux",
+        "api_base": "https://zenmux.ai/api/v1",
+        "default_model": "openai/text-embedding-3-small",
+        "key_names": [
+            "ZENMUX_EMBED_API_KEY",
+            "ZENMUX_API_KEY",
+            "LOCALROUTER_ZENMUX_API_KEY",
+            "LOCALROUTER_ZENMUX_EMBED_API_KEY",
+            "AINISHCODER_ZENMUX_API_KEY",
+            "PSIONICS_ZENMUX_API_KEY",
+            "PSIONICS_ZENMUX_EMBED_API_KEY",
+        ],
+        "base_vars": ["ZENMUX_EMBED_API_BASE", "ZENMUX_API_BASE", "ZENMUX_BASE_URL"],
+        "model_vars": ["ZENMUX_EMBED_MODEL", "ZENMUX_EMBEDDING_MODEL"],
+        "dim_vars": ["ZENMUX_EMBED_DIM"],
+    },
+}
+GENERIC_EMBED_KEY_NAMES = ["AINISH_EMBED_API_KEY"]
+GENERIC_EMBED_BASE_VARS = ["AINISH_EMBED_API_BASE"]
+GENERIC_EMBED_MODEL_VARS = ["AINISH_EMBED_MODEL"]
+GENERIC_EMBED_DIM_VARS = ["AINISH_EMBED_DIM"]
+
+# Operator residency choice for the local embedding server (see --keep-server).
+KEEP_SERVER = False
+_EPHEMERAL_SERVER_ROOT: Optional[Path] = None
+_EPHEMERAL_HOOK_INSTALLED = False
+_PQC_SECRETS_CACHE: Optional[Dict[str, str]] = None
+
+
+def _env_nonempty(name: str) -> Optional[str]:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _first_env(names: List[str]) -> Optional[Tuple[str, str]]:
+    for name in names:
+        value = _env_nonempty(name)
+        if value:
+            return value, f"env:{name}"
+    return None
+
+
+def infer_provider_id(api_base: Optional[str]) -> Optional[str]:
+    """Infers the provider identity from an API base URL."""
+    base = (api_base or "").lower()
+    if "openrouter.ai" in base:
+        return "openrouter"
+    if "zenmux.ai" in base:
+        return "zenmux"
+    if ":11434" in base or "local-router" in base:
+        return "local-router"
+    return None
+
+
+def _pqc_export() -> Dict[str, str]:
+    """Decrypts the PQC store once per process. Values stay in memory and are never logged."""
+    global _PQC_SECRETS_CACHE
+    if _PQC_SECRETS_CACHE is not None:
+        return _PQC_SECRETS_CACHE
+    if (_env_nonempty("AINISH_RAG_NO_PQC") or "").lower() in ("1", "true", "yes"):
+        _PQC_SECRETS_CACHE = {}
+        return _PQC_SECRETS_CACHE
+
+    candidates = [["pqc-secrets", "export", "--json"]]
+    bin_path = _env_nonempty("PQC_SECRETS_BIN")
+    if bin_path:
+        candidates.insert(0, [bin_path, "export", "--json"])
+
+    resolved = shutil.which("pqc-secrets")
+    if resolved:
+        candidates.append([resolved, "export", "--json"])
+
+    stdout = None
+    for cmd in candidates:
+        run_cmd = cmd
+        if os.name == "nt" and cmd[0].lower().endswith((".cmd", ".bat")):
+            run_cmd = ["cmd", "/C", *cmd]
         try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            for k in ("provider", "api_base", "model"):
-                v = data.get(k)
-                if isinstance(v, str) and v.strip() and not cfg.get(k):
-                    cfg[k] = v.strip() if k != "provider" else v.strip().lower()
-            d = data.get("dim")
-            if d is not None:
-                try:
-                    cfg["dim"] = int(d)
-                except (TypeError, ValueError):
-                    pass
-        except Exception:
+            proc = subprocess.run(
+                run_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            continue
+        if proc.returncode == 0 and proc.stdout and proc.stdout.strip():
+            stdout = proc.stdout
+            break
+
+    _PQC_SECRETS_CACHE = _parse_secret_export(stdout or "")
+    return _PQC_SECRETS_CACHE
+
+
+def _parse_secret_export(text: str) -> Dict[str, str]:
+    """Parses `pqc-secrets export --json` and the line-oriented `export NAME=value` form."""
+    out: Dict[str, str] = {}
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(stripped)
+            secrets = data.get("secrets") if isinstance(data, dict) else None
+            if not isinstance(secrets, dict) and isinstance(data, dict):
+                secrets = data
+            if isinstance(secrets, dict):
+                for name, value in secrets.items():
+                    if isinstance(value, str) and value.strip():
+                        out[str(name)] = value.strip()
+                if out:
+                    return out
+        except (ValueError, TypeError):
             pass
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("export "):
+            line = line[len("export "):]
+        if "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name = name.strip()
+        value = value.strip().strip("'").strip('"')
+        if name and value:
+            out[name] = value
+    return out
+
+
+def _spec_secret(spec: Optional[Dict[str, Any]]) -> Optional[Tuple[str, str]]:
+    names = list(GENERIC_EMBED_KEY_NAMES)
+    if spec:
+        names.extend(spec["key_names"])
+    found = _first_env(names)
+    if found:
+        return found
+    vault = _pqc_export()
+    for name in names:
+        value = vault.get(name)
+        if value:
+            return value, f"pqc:{name}"
+    for canonical in names:
+        if canonical == "AINISH_EMBED_API_KEY":
+            continue
+        suffix = f"_{canonical}"
+        for k in sorted(vault):
+            v = vault.get(k)
+            if v and v.strip() and k.upper().endswith(suffix):
+                return v.strip(), f"pqc:{k}"
+    return None
+
+
+def _first_env_var(names: List[str]) -> Optional[str]:
+    for name in names:
+        value = _env_nonempty(name)
+        if value:
+            return value
+    return None
+
+
+def _linked_worktree_root(repo_root: Path) -> Optional[Path]:
+    """Returns the main checkout root when `repo_root` is a linked git worktree, else None.
+
+    Worktrees have a `.git` *file* pointing at `<main>/.git/worktrees/<name>`; a normal checkout
+    has a `.git` directory. Only linked worktrees may borrow the canonical repository's shared
+    embedding config and index fingerprint — arbitrary directories (and test temp dirs) must
+    resolve to themselves so the cwd repository's settings never leak in.
+    """
+    if not (repo_root / ".git").is_file():
+        return None
+    canonical = resolve_canonical_repo_root(repo_root)
+    return canonical if canonical != repo_root else None
+
+
+def _persisted_provider_cfg(repo_root: Path) -> Optional[Dict[str, Any]]:
+    f = repo_root / ".agents" / "rag" / "embed-provider.json"
+    if not f.is_file():
+        canonical_root = _linked_worktree_root(repo_root)
+        if canonical_root is None:
+            return None
+        f = canonical_root / ".agents" / "rag" / "embed-provider.json"
+        if not f.is_file():
+            return None
     try:
-        if os.environ.get("AINISH_EMBED_DIM", "").strip():
-            cfg["dim"] = int(os.environ["AINISH_EMBED_DIM"].strip())
-    except ValueError:
-        pass
-    return cfg
+        data = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    provider = str(data.get("provider") or "").strip().lower()
+    if not provider:
+        return None
+    dim = data.get("dim")
+    try:
+        dim = int(dim) if dim not in (None, "", 0, "0") else None
+    except (TypeError, ValueError):
+        dim = None
+    return {
+        "provider": provider,
+        "provider_id": (str(data.get("provider_id")).strip().lower() or None) if data.get("provider_id") else None,
+        "api_base": (str(data.get("api_base")).strip() or None) if data.get("api_base") else None,
+        "model": (str(data.get("model")).strip() or None) if data.get("model") else None,
+        "dim": dim,
+        "key_source": data.get("key_source"),
+        "source": data.get("source"),
+    }
+
+
+def _auto_embed_resolution(repo_root: Path) -> Dict[str, Any]:
+    warnings: List[str] = []
+    generic_base = _first_env_var(GENERIC_EMBED_BASE_VARS)
+    generic_model = _first_env_var(GENERIC_EMBED_MODEL_VARS)
+    generic_dim = None
+    dim_raw = _first_env_var(GENERIC_EMBED_DIM_VARS)
+    if dim_raw:
+        try:
+            generic_dim = int(dim_raw)
+        except ValueError:
+            generic_dim = None
+    generic_secret = _spec_secret(None)
+
+    if generic_base:
+        provider_id = infer_provider_id(generic_base)
+        spec = EMBED_PROVIDER_CATALOG.get(provider_id or "")
+        model = generic_model or (_first_env_var(spec["model_vars"]) if spec else None) or (
+            spec["default_model"] if spec else None
+        )
+        secret = generic_secret or _spec_secret(spec)
+        if model:
+            if not secret:
+                warnings.append("AINISH_EMBED_API_BASE is set but no embedding API key was resolved")
+            return {
+                "provider": "api",
+                "provider_id": provider_id,
+                "api_base": generic_base,
+                "model": model,
+                "dim": generic_dim,
+                "api_key": secret[0] if secret else None,
+                "key_source": secret[1] if secret else None,
+                "source": "env-auto",
+                "explicit": False,
+                "warnings": warnings,
+            }
+        warnings.append("AINISH_EMBED_API_BASE is set but no embedding model could be resolved")
+
+    for provider_id, spec in EMBED_PROVIDER_CATALOG.items():
+        secret = _spec_secret(spec)
+        if not secret:
+            continue
+        base = _first_env_var(spec["base_vars"]) or spec["api_base"]
+        model = _first_env_var(spec["model_vars"]) or spec["default_model"]
+        dim = None
+        dim_raw = _first_env_var(spec["dim_vars"])
+        if dim_raw:
+            try:
+                dim = int(dim_raw)
+            except ValueError:
+                dim = None
+        return {
+            "provider": "api",
+            "provider_id": provider_id,
+            "api_base": base,
+            "model": model,
+            "dim": dim,
+            "api_key": secret[0],
+            "key_source": secret[1],
+            "source": "pqc-auto" if secret[1].startswith("pqc:") else "env-auto",
+            "explicit": False,
+            "warnings": warnings,
+        }
+
+    return {
+        "provider": "local",
+        "provider_id": None,
+        "api_base": None,
+        "model": None,
+        "dim": generic_dim,
+        "api_key": None,
+        "key_source": None,
+        "source": "default-local",
+        "explicit": False,
+        "warnings": warnings,
+    }
+
+
+def resolve_embed_provider(repo_root: Path, override: Optional[str] = None) -> Dict[str, Any]:
+    """Resolves local llama embeddings vs a remote OpenRouter/ZenMux-style API endpoint.
+
+    Operator intent (env var or persisted non-secret config) always wins; otherwise remote
+    credentials detected in the environment or the PQC store select the API provider. Keys are
+    returned in memory only and must never be logged or persisted.
+    """
+    persisted = _persisted_provider_cfg(repo_root)
+    env_intent = (override or _env_nonempty("AINISH_EMBED_PROVIDER") or "").strip().lower()
+
+    intent = None
+    pinned = None
+    explicit = bool(env_intent)
+    if env_intent in ("local", "off", "none", "llama"):
+        intent = "local"
+    elif env_intent in ("api", "openrouter", "zenmux"):
+        intent = "api"
+        pinned = env_intent if env_intent in EMBED_PROVIDER_CATALOG else None
+    elif env_intent == "auto":
+        # `auto` is explicitly non-pinning: detection stays free to pick a provider (or fall
+        # back to local) each run, and --write must never persist a local verdict for it.
+        intent = "auto"
+        explicit = False
+    elif env_intent:
+        warnings = [f"Unknown AINISH_EMBED_PROVIDER '{env_intent}'; expected local|api|auto|openrouter|zenmux"]
+        resolved = _auto_embed_resolution(repo_root)
+        resolved["warnings"] = warnings + resolved["warnings"]
+        return resolved
+    elif persisted:
+        p = persisted["provider"]
+        explicit = True
+        if p in ("local", "off", "none"):
+            intent = "local"
+        elif p in ("api", "openrouter", "zenmux"):
+            intent = "api"
+            pinned = persisted.get("provider_id") or (p if p in EMBED_PROVIDER_CATALOG else None)
+        else:
+            intent = "auto"
+
+    if intent == "local":
+        return {
+            "provider": "local",
+            "provider_id": None,
+            "api_base": None,
+            "model": None,
+            "dim": persisted.get("dim") if persisted else None,
+            "api_key": None,
+            "key_source": None,
+            "source": "operator-local",
+            "explicit": explicit,
+            "warnings": [],
+        }
+
+    if intent == "api":
+        spec = EMBED_PROVIDER_CATALOG.get((pinned or "").strip().lower())
+        provider_id = pinned or (persisted or {}).get("provider_id") or infer_provider_id(
+            (persisted or {}).get("api_base")
+        )
+        spec = EMBED_PROVIDER_CATALOG.get((provider_id or "").strip().lower()) or spec
+        api_base = (
+            _first_env_var(GENERIC_EMBED_BASE_VARS)
+            or (_first_env_var(spec["base_vars"]) if spec else None)
+            or (persisted or {}).get("api_base")
+            or (spec["api_base"] if spec else None)
+        )
+        model = (
+            _first_env_var(GENERIC_EMBED_MODEL_VARS)
+            or (_first_env_var(spec["model_vars"]) if spec else None)
+            or (persisted or {}).get("model")
+            or (spec["default_model"] if spec else None)
+        )
+        if not provider_id and api_base:
+            provider_id = infer_provider_id(api_base)
+        dim = None
+        dim_raw = _first_env_var(GENERIC_EMBED_DIM_VARS) or (
+            _first_env_var(spec["dim_vars"]) if spec else None
+        )
+        if dim_raw:
+            try:
+                dim = int(dim_raw)
+            except ValueError:
+                dim = None
+        if dim is None:
+            dim = (persisted or {}).get("dim")
+        secret = _spec_secret(EMBED_PROVIDER_CATALOG.get((provider_id or "").strip().lower() or ""))
+
+        warnings = []
+        if not api_base or not model:
+            warnings.append(
+                "API embedding intent is incomplete: set --embed-config --provider api --api-base <url> "
+                "--model <name> (or AINISH_EMBED_API_BASE / AINISH_EMBED_MODEL)"
+            )
+            return {
+                "provider": "invalid" if explicit else "local",
+                "provider_id": provider_id,
+                "api_base": api_base,
+                "model": model,
+                "dim": dim,
+                "api_key": secret[0] if secret else None,
+                "key_source": secret[1] if secret else None,
+                "source": "operator" if explicit else "default-local",
+                "explicit": explicit,
+                "warnings": warnings,
+            }
+        if not secret:
+            warnings.append(
+                f"No API key resolved for {provider_id or 'the configured provider'}; "
+                "the endpoint will be called unauthenticated"
+            )
+        return {
+            "provider": "api",
+            "provider_id": provider_id,
+            "api_base": api_base,
+            "model": model,
+            "dim": dim,
+            "api_key": secret[0] if secret else None,
+            "key_source": secret[1] if secret else None,
+            "source": "operator" if explicit else "env-auto",
+            "explicit": explicit,
+            "warnings": warnings,
+        }
+
+    return _auto_embed_resolution(repo_root)
+
+
+def read_embed_provider_cfg(repo_root: Path) -> Dict[str, Any]:
+    """Reads the resolved embedding provider (env → persisted non-secret config → PQC detection).
+
+    Secrets are never stored on disk; the key comes from the environment or the PQC store and is
+    held in memory only.
+    """
+    return resolve_embed_provider(repo_root)
 
 
 def embed_client_from_config(server_url: str, repo_root: Path, truncate_dim: Optional[int] = None) -> EmbedClient:
-    """Builds an EmbedClient, applying the remote API provider when the operator configured one."""
-    client = EmbedClient(server_url, truncate_dim=truncate_dim, repo_root=repo_root)
+    """Builds an EmbedClient, applying the remote API provider when one is configured/detected."""
     cfg = read_embed_provider_cfg(repo_root)
+    effective_truncate = truncate_dim
+    if cfg["provider"] == "api":
+        effective_truncate = truncate_dim or cfg.get("dim") or DEFAULT_EMBED_DIM
+    client = EmbedClient(server_url, truncate_dim=effective_truncate, repo_root=repo_root)
     if cfg["provider"] == "api" and cfg.get("api_base") and cfg.get("model"):
         client.with_api_provider(cfg["api_base"], cfg["model"], cfg.get("api_key"))
     return client
@@ -923,6 +1362,170 @@ def embed_client_from_config(server_url: str, repo_root: Path, truncate_dim: Opt
 def embed_provider_active(repo_root: Path) -> bool:
     cfg = read_embed_provider_cfg(repo_root)
     return cfg["provider"] == "api" and bool(cfg.get("api_base")) and bool(cfg.get("model"))
+
+
+def write_embed_provider_config(repo_root: Path, resolved: Dict[str, Any]) -> Path:
+    """Persists non-secret provider settings. Key material is never written."""
+    path = repo_root / ".agents" / "rag" / "embed-provider.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    provider = "api" if resolved.get("provider") in ("api", "invalid") else "local"
+    payload = {
+        "format": "ainish-rag/embed-provider/v1",
+        "provider": provider,
+        "provider_id": resolved.get("provider_id"),
+        "api_base": resolved.get("api_base"),
+        "model": resolved.get("model"),
+        "dim": resolved.get("dim"),
+        "key_source": resolved.get("key_source"),
+        "source": resolved.get("source"),
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+INDEX_FINGERPRINT_PATH = Path(".agents") / "rag" / "index-fingerprint.json"
+
+
+def embedding_identity_from_cfg(cfg: Dict[str, Any]) -> str:
+    """Stable identity of the embedding model that produced the vectors in the store."""
+    if cfg.get("provider") == "api":
+        return f"api:{cfg.get('provider_id') or 'custom'}:{cfg.get('model') or 'unknown-model'}"
+    return "local:embeddinggemma-2"
+
+
+def write_index_fingerprint(repo_root: Path, identity: str, dim: int) -> Path:
+    path = repo_root / INDEX_FINGERPRINT_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "format": "ainish-rag/index-fingerprint/v1",
+        "identity": identity,
+        "dim": int(dim),
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def index_mismatch_warning(repo_root: Path, identity: str) -> Optional[str]:
+    """Warns when the store was built with a different embedding model than the one in use."""
+    path = repo_root / INDEX_FINGERPRINT_PATH
+    if not path.is_file():
+        canonical_root = _linked_worktree_root(repo_root)
+        if canonical_root is None:
+            return None
+        path = canonical_root / INDEX_FINGERPRINT_PATH
+        if not path.is_file():
+            return None
+    try:
+        recorded = str(json.loads(path.read_text(encoding="utf-8")).get("identity") or "").strip()
+    except Exception:
+        return None
+    if not recorded or recorded == identity:
+        return None
+    return (
+        f"Vector index was built with '{recorded}' but embeddings now come from '{identity}'; "
+        "run `ainish-rag index --rebuild` to rebuild the store before trusting retrieval results"
+    )
+
+
+def run_embed_provider_cmd(
+    repo_root: Path,
+    json_out: bool = False,
+    write: bool = False,
+    clear: bool = False,
+    pinned: Optional[str] = None,
+) -> None:
+    """`ainish-rag embed-provider` — inspect, persist, or clear the provider posture.
+
+    Only provenance (`env:NAME` / `pqc:NAME`) is printed; key material never leaves memory.
+    """
+    config_path = repo_root / ".agents" / "rag" / "embed-provider.json"
+
+    if clear:
+        removed = config_path.exists()
+        if removed:
+            config_path.unlink()
+        if json_out:
+            print(json.dumps({
+                "cleared": removed,
+                "config_path": str(config_path),
+                "config_persisted": False,
+            }, indent=2))
+        elif removed:
+            print(f"✓ Removed {config_path} — embeddings fall back to auto-detection")
+        else:
+            print(f"  No persisted embedding provider config at {config_path}")
+        return
+
+    if pinned and pinned.strip().lower() not in ("local", "api", "auto", "openrouter", "zenmux", "off", "none"):
+        print(f"Unknown provider '{pinned}': expected local|api|auto|openrouter|zenmux", file=sys.stderr)
+        sys.exit(2)
+
+    resolved = resolve_embed_provider(repo_root, override=pinned)
+    if resolved.get("provider") == "invalid" and (write or pinned):
+        print(
+            "Cannot persist an unusable API embedding intent: "
+            + "; ".join(resolved.get("warnings") or []),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Persist only a usable remote posture (or an explicit operator pin). Auto-detection that
+    # found nothing must not write `local`, otherwise a key added later would be ignored.
+    should_write = write and (resolved.get("provider") == "api" or bool(resolved.get("explicit")))
+    persisted_path = write_embed_provider_config(repo_root, resolved) if should_write else None
+    if write and not should_write and not json_out:
+        print("  No remote embedding credentials detected — nothing persisted (auto-detection stays active)")
+    local_running = (repo_root / ".agents" / "rag" / "llama-server.pid").exists()
+
+    if json_out:
+        print(json.dumps({
+            "provider": resolved.get("provider"),
+            "provider_id": resolved.get("provider_id"),
+            "api_base": resolved.get("api_base"),
+            "model": resolved.get("model"),
+            "dim": resolved.get("dim"),
+            "key_present": bool(resolved.get("api_key")),
+            "key_source": resolved.get("key_source"),
+            "source": resolved.get("source"),
+            "explicit": bool(resolved.get("explicit")),
+            "warnings": resolved.get("warnings") or [],
+            "config_path": str(config_path),
+            "config_persisted": config_path.exists(),
+            "local_server_running": local_running,
+        }, indent=2))
+    else:
+        print("\033[94mainish-rag Embedding Provider\033[0m")
+        print(f"  Config:        {config_path}")
+        print(f"  Intent:        {'operator-pinned' if resolved.get('explicit') else 'auto-detect'}")
+        provider = resolved.get("provider")
+        if provider == "api":
+            pid = resolved.get("provider_id")
+            print(f"  Provider:      api ({pid})  [source: {resolved.get('source')}]")
+            print(f"  API Base:      {resolved.get('api_base')}")
+            print(f"  Model:         {resolved.get('model')}")
+            print(f"  Vector Width:  {resolved.get('dim') if resolved.get('dim') else 'model default'}")
+            if resolved.get("key_source"):
+                print(f"  Key:           present via {resolved['key_source']} (never printed)")
+            else:
+                print("  Key:           absent (unauthenticated endpoint)")
+            print("  Local Server:  not used while API embeddings are active (no resident model)")
+        elif provider == "invalid":
+            print("  Provider:      \033[31minvalid\033[0m (explicit API intent cannot be satisfied)")
+            for warning in resolved.get("warnings") or []:
+                print(f"  \033[33m!\033[0m {warning}")
+        else:
+            suffix = " [operator-pinned]" if resolved.get("explicit") else " [auto-detect: no remote credentials]"
+            print(f"  Provider:      local llama{suffix}")
+            print(
+                "  Local Server:  "
+                + ("resident" if local_running else "not resident (spawned only for the command that needs it)")
+            )
+            print("  Hint:          point at OpenRouter/ZenMux with `ainish-rag embed-provider --provider openrouter`")
+
+    if persisted_path is not None:
+        print(f"✓ Persisted non-secret provider config → {persisted_path}")
 
 
 def start_server(
@@ -936,14 +1539,39 @@ def start_server(
     psk_ttl: int = 86400,
 
 ) -> bool:
+    # Vectors from different embedding models are not comparable: warn when the store was built
+    # with a different provider than the one now in use.
+    _cfg = read_embed_provider_cfg(repo_root)
+    _mismatch = index_mismatch_warning(repo_root, embedding_identity_from_cfg(_cfg))
+    if _mismatch:
+        print(f"  \033[33m[rag:index]\033[0m WARNING: {_mismatch}", file=sys.stderr)
+
     # Remote API embedding provider: no local llama process is spawned at all, so a
-    # multi-GB resident server never materializes.
+    # multi-GB resident server never materializes. Any local server left from an earlier run is
+    # reclaimed first, releasing its memory immediately.
     if client.uses_api_provider() or embed_provider_active(repo_root):
+        cfg = _cfg
+        if (repo_root / ".agents" / "rag" / "llama-server.pid").exists():
+            if stop_server(repo_root, quiet=True):
+                print("  \033[36m[rag:memory]\033[0m Released the previously resident local embedding model")
         print(
-            f"  \033[36m[rag:embed-provider]\033[0m Using remote API embeddings at "
-            f"{client.api_base or read_embed_provider_cfg(repo_root).get('api_base')} "
-            f"(model {client.api_model or read_embed_provider_cfg(repo_root).get('model')}) — local llama server skipped"
+            f"  \033[36m[rag:embed-provider]\033[0m Using remote API embeddings via "
+            f"{cfg.get('provider_id') or 'custom'} at "
+            f"{client.api_base or cfg.get('api_base')} "
+            f"(model {client.api_model or cfg.get('model')}, source: {cfg.get('source')}) — local llama server skipped"
         )
+        for warning in cfg.get("warnings") or []:
+            print(f"  \033[33m[rag:embed-provider]\033[0m {warning}", file=sys.stderr)
+        probe_enabled = (os.environ.get("AINISH_EMBED_PROBE", "").strip().lower() not in ("0", "false", "off", "no"))
+        if probe_enabled and client.uses_api_provider():
+            try:
+                client.embed_one("ainish-rag provider probe")
+                print("  \033[32m[rag:embed-provider]\033[0m Remote embeddings verified")
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{exc} — revert with `ainish-rag embed-provider --provider local` "
+                    "or set AINISH_EMBED_PROBE=0 to skip the probe"
+                )
         return True
     if client.is_running():
         print(f"  [rag] Server already running at {client.server_url}")
@@ -1015,6 +1643,7 @@ def start_server(
             cmd.append("serve")
 
         tuned_ctx, tuned_batch = derive_ctx_batch(max_mem, repo_root)
+        tuned_batch = effective_batch(tuned_batch, bool(mmproj))
         print(
             f"  \033[36m[rag:memory]\033[0m Context/batch sized for "
             f"{max_mem if max_mem else DEFAULT_MEM_BUDGET_MB} MB budget: "
@@ -1022,10 +1651,13 @@ def start_server(
             f"(override with AINISH_RAG_CTX / AINISH_RAG_BATCH)"
         )
 
+        ngl_layers, use_flash = gpu_flag_plan(
+            os.environ.get("AINISH_RAG_NGL") or os.environ.get("LLAMA_GPU_LAYERS"),
+            os.environ.get("AINISH_RAG_FLASH_ATTN"),
+        )
         cmd.extend([
             "-m", str(model),
-            "-ngl", "99",
-            "-fa", "on",
+            "-ngl", ngl_layers,
             "--embeddings",
             "--pooling", "mean",
             "--ctx-size", str(tuned_ctx),
@@ -1036,6 +1668,8 @@ def start_server(
             "--no-webui",
             "--api-key", psk,
         ] + (["-t", str(threads)] if threads else []))
+        if use_flash:
+            cmd.extend(["-fa", "on"])
 
         if mmproj:
             cmd.extend(["--mmproj", str(mmproj)])
@@ -1048,13 +1682,23 @@ def start_server(
         if os.name == "nt":
             creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
 
+        # Keep llama's own stderr on disk: a load-time GGML assert is otherwise invisible behind
+        # the null handles and looks like an unexplained healthcheck timeout.
+        stderr_log = pid_dir / "llama-server.err.log"
+        try:
+            stderr_target = open(stderr_log, "wb")
+        except OSError:
+            stderr_target = subprocess.DEVNULL
+
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_target,
             creationflags=creationflags,
         )
+        if hasattr(stderr_target, "close"):
+            stderr_target.close()
 
         pid_file.write_text(str(proc.pid), encoding="utf-8")
         if os.name != "nt":
@@ -1071,6 +1715,12 @@ def start_server(
             if client.is_running():
                 print(f"  [rag] Server healthy and listening at {client.server_url} (Loopback PSK active)!")
                 healthy = True
+                if not KEEP_SERVER:
+                    _arm_ephemeral_cleanup(repo_root)
+                    print(
+                        "  \033[36m[rag:memory]\033[0m Server will be stopped when this command exits "
+                        "(pass --keep-server to keep it resident)"
+                    )
                 return True
 
         if not healthy:
@@ -1081,25 +1731,74 @@ def start_server(
                 print(f"  [rag:retry] Backing off for {backoff}s before retry...", file=sys.stderr)
                 time.sleep(backoff)
 
-    print("  [rag:error] Server failed to respond after 3 healthcheck restart attempts.", file=sys.stderr)
+    log_path = repo_root / ".agents" / "rag" / "llama-server.err.log"
+    print(
+        "  [rag:error] Server failed to respond after 3 healthcheck restart attempts — hints: "
+        "GPU-less hosts need AINISH_RAG_NGL=0 (this also disables -fa); multimodal models need "
+        f"batch/ubatch >= {MIN_MULTIMODAL_BATCH}; raise --max-mem or set AINISH_RAG_CTX / "
+        f"AINISH_RAG_BATCH; llama stderr: {log_path}",
+        file=sys.stderr,
+    )
     return False
 
 
-def stop_server(repo_root: Path) -> None:
-    pid_file = repo_root / ".agents" / "rag" / "llama-server.pid"
-    if not pid_file.exists():
-        print("  [rag] No running server PID found.")
+def _arm_ephemeral_cleanup(repo_root: Path) -> None:
+    """Registers process-exit teardown so a spawned local embedding model never stays resident."""
+    global _EPHEMERAL_SERVER_ROOT, _EPHEMERAL_HOOK_INSTALLED
+    _EPHEMERAL_SERVER_ROOT = repo_root
+    if _EPHEMERAL_HOOK_INSTALLED:
         return
+    _EPHEMERAL_HOOK_INSTALLED = True
+    atexit.register(_cleanup_ephemeral_server)
 
-    pid = pid_file.read_text(encoding="utf-8").strip()
-    if pid.isdigit():
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.run(["kill", "-9", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"  [rag] Stopped server PID {pid}.")
+    def _sigterm_handler(signum, _frame):
+        _cleanup_ephemeral_server()
+        sys.exit(128 + signum)
 
-    pid_file.unlink(missing_ok=True)
+    if hasattr(signal, "SIGTERM"):
+        try:
+            signal.signal(signal.SIGTERM, _sigterm_handler)
+        except (ValueError, OSError):
+            pass
+
+
+def _cleanup_ephemeral_server() -> None:
+    global _EPHEMERAL_SERVER_ROOT
+    root = _EPHEMERAL_SERVER_ROOT
+    _EPHEMERAL_SERVER_ROOT = None
+    if root is not None:
+        stop_server(root, quiet=True)
+
+
+def stop_server(repo_root: Path, quiet: bool = False, purge: bool = False) -> bool:
+    """Stops the recorded embedding server (release memory) and optionally purges PSK material."""
+    rag_dir = repo_root / ".agents" / "rag"
+    pid_file = rag_dir / "llama-server.pid"
+    stopped = False
+
+    if pid_file.exists():
+        pid = pid_file.read_text(encoding="utf-8").strip()
+        if pid.isdigit():
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(["kill", "-9", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stopped = True
+            if not quiet:
+                print(f"  [rag] Stopped server PID {pid}.")
+        pid_file.unlink(missing_ok=True)
+    elif not quiet:
+        print("  [rag] No running server PID found.")
+
+    if purge:
+        for name in ("session.psk", "session.psk.meta"):
+            path = rag_dir / name
+            if path.exists():
+                path.unlink(missing_ok=True)
+        if not quiet:
+            print(f"  [rag] Purged loopback PSK material from {rag_dir}.")
+
+    return stopped
 
 
 class LanceStore:
@@ -1863,84 +2562,41 @@ def find_pqc_vault_bundle() -> Optional[Path]:
     return None
 
 
+OPENROUTER_KEY_NAMES = (
+    "OPENROUTER_API_KEY",
+    "ROUTER_API_KEY",
+    "OPENROUTER_EMBED_API_KEY",
+    "LOCALROUTER_OPENROUTER_API_KEY",
+    "LOCALROUTER_OPENROUTER_EMBED_API_KEY",
+    "AINISHCODER_OPENROUTER_API_KEY",
+    "PSIONICS_OPENROUTER_API_KEY",
+    "PSIONICS_OPENROUTER_EMBED_API_KEY",
+)
+
+
 def resolve_api_key() -> Optional[str]:
-    """Dynamically resolves OpenRouter API key from environment or PQC secrets vault in memory.
-    Never persists plaintext secrets to disk across Windows, WSL, Linux, and macOS.
+    """Resolves an OpenRouter key from the environment or the PQC store, in memory only.
+
+    Accepts the consumer-prefixed names the store actually carries
+    (`LOCALROUTER_OPENROUTER_API_KEY`, `AINISHCODER_OPENROUTER_API_KEY`, `PSIONICS_OPENROUTER_API_KEY`, …),
+    plus any `<CONSUMER>_OPENROUTER_[EMBED_]API_KEY` suffix in the PQC vault, and never persists or logs the value.
     """
-    # 1. Environment variables
-    for var in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
+    for var in OPENROUTER_KEY_NAMES:
         val = os.environ.get(var)
         if val and val.strip():
             return val.strip()
 
-    # 2. Check PQC secrets vault directly via in-memory export
-    home_dir = Path.home()
+    vault = _pqc_export()
+    for name in OPENROUTER_KEY_NAMES:
+        val = vault.get(name)
+        if val and val.strip():
+            return val.strip()
 
-    # Try running pqc-secrets / pqc_secrets.py export in-memory without saving anything to disk
-    pqc_bin_candidates = [
-        which("pqc-secrets"),
-        which("pqc-secrets.exe"),
-        Path.cwd() / "bin" / "pqc-secrets",
-        home_dir / ".local" / "bin" / "pqc-secrets",
-        Path("/usr/local/bin/pqc-secrets"),
-    ]
-
-    for pqc_bin in pqc_bin_candidates:
-        if pqc_bin and Path(pqc_bin).is_file():
-            try:
-                res = subprocess.run([str(pqc_bin), "export"], capture_output=True, text=True, timeout=5)
-                if res.returncode == 0:
-                    for line in res.stdout.splitlines():
-                        if "=" in line:
-                            k, v = line.strip().split("=", 1)
-                            k = k.removeprefix("export ").strip()
-                            v = v.strip().strip("'\"")
-                            if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
-                                return v
-            except Exception:
-                pass
-
-    # Try script discovery with uv or python
-    uv_candidates = [
-        which("uv"),
-        which("uv.exe"),
-        home_dir / ".local" / "bin" / "uv",
-        home_dir / ".cargo" / "bin" / "uv",
-        home_dir / "AppData" / "Local" / "hermes" / "bin" / "uv.exe",
-    ]
-    uv_bin = next((p for p in uv_candidates if p and Path(p).is_file()), None)
-
-    script_candidates = [
-        Path.cwd() / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
-        Path.cwd().parent / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
-        home_dir / ".agents" / "skills" / "pqc-secrets" / "scripts" / "pqc_secrets.py",
-        Path("D:/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
-        Path("/mnt/c/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
-    ]
-    pqc_script = next((p for p in script_candidates if p.exists()), None)
-
-    if pqc_script:
-        runner_cmds = []
-        if uv_bin:
-            runner_cmds.append([str(uv_bin), "run", str(pqc_script), "export"])
-        for py_cmd in ("python3", "python", "py"):
-            p_found = which(py_cmd)
-            if p_found:
-                runner_cmds.append([str(p_found), str(pqc_script), "export"])
-
-        for cmd in runner_cmds:
-            try:
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
-                if res.returncode == 0:
-                    for line in res.stdout.splitlines():
-                        if "=" in line:
-                            k, v = line.strip().split("=", 1)
-                            k = k.removeprefix("export ").strip()
-                            v = v.strip().strip("'\"")
-                            if k in ("OPENROUTER_API_KEY", "ROUTER_API_KEY"):
-                                return v
-            except Exception:
-                pass
+    for suffix in ("_OPENROUTER_EMBED_API_KEY", "_OPENROUTER_API_KEY"):
+        for k in sorted(vault):
+            v = vault.get(k)
+            if v and v.strip() and k.upper().endswith(suffix):
+                return v.strip()
 
     return None
 
@@ -1951,71 +2607,550 @@ def inspect_secrets() -> Dict[str, Any]:
     detected_vault = find_pqc_vault_bundle()
     bundle_path = detected_vault if detected_vault else (Path.home() / ".config" / "pqc-secrets" / "secrets.bundle.json")
 
-    env_source = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("ROUTER_API_KEY"))
+    env_source = any(os.environ.get(name) for name in OPENROUTER_KEY_NAMES)
     return {
         "pqc_vault_exists": detected_vault is not None,
         "pqc_bundle_path": str(bundle_path),
         "api_key_resolved": key is not None,
         "key_source": "environment" if env_source else ("pqc-vault" if key else "unresolved"),
         "key_hint": f"{key[:8]}...{key[-4:]}" if key and len(key) > 12 else ("present" if key else "none"),
+        "decision_model": resolve_jev_model(),
     }
 
 
+JEV_KEY_NAMES = (
+    "TYPESAFE_API_KEY",
+    "TYPESAFEAI_API_KEY",
+    "TYPESAFE_JEV_API_KEY",
+    "JEV_API_KEY",
+)
+
+
+def resolve_jev_api_key() -> Optional[str]:
+    """Resolve a direct TypeSafe/Jev key without exposing its value."""
+    for name in JEV_KEY_NAMES:
+        value = os.environ.get(name)
+        if value and value.strip():
+            return value.strip()
+    vault = _pqc_export()
+    for name in JEV_KEY_NAMES:
+        value = vault.get(name)
+        if value and value.strip():
+            return value.strip()
+    for suffix in ("_TYPESAFE_API_KEY", "_TYPESAFE_JEV_API_KEY", "_JEV_API_KEY"):
+        for name in sorted(vault):
+            value = vault.get(name)
+            if value and value.strip() and name.upper().endswith(suffix):
+                return value.strip()
+    return None
+
+
+LATEST_JEV_MODEL = "typesafe/jev-1.14"
+OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
+DEFAULT_LOCAL_ROUTER_URL = "http://127.0.0.1:11434"
+LOCAL_DECISIONS_PATHS = ("/api/alpha/decisions", "/v1/decisions", "/decisions")
+JEV_NOUL_YES = 0.70
+JEV_NOUL_NO = 0.30
+
+
+def resolve_jev_model() -> str:
+    """Always target the latest Jev model unless an operator explicitly pins another id."""
+    requested = (os.environ.get("JEV_DECISION_MODEL") or "").strip()
+    if not requested or requested in ("latest", "typesafe/jev-latest", "typesafe/jev"):
+        return LATEST_JEV_MODEL
+    return requested
+
+
+def is_model_pinned() -> bool:
+    """True when JEV_DECISION_MODEL pins something other than the latest model."""
+    requested = (os.environ.get("JEV_DECISION_MODEL") or "").strip()
+    return bool(requested) and requested not in ("latest", "typesafe/jev-latest", LATEST_JEV_MODEL)
+
+
+def jev_models_filter(models: List[str]) -> List[str]:
+    return [model for model in models if "jev" in model.lower()]
+
+
+def transport_priority_order() -> List[str]:
+    """Resolves the four-stage decision order.
+
+    The default is local-router, OpenRouter, direct configured Jev, then a configured local
+    decisions-compatible model endpoint. ``JEV_TRANSPORT_PRIORITY`` can still reorder stages.
+    """
+    raw = (os.environ.get("JEV_TRANSPORT_PRIORITY") or os.environ.get("AINISH_RAG_DECISION_PRIORITY") or "").lower()
+    order: List[str] = []
+    for part in re.split(r"[,;\s]+", raw):
+        token = part.strip()
+        if token in ("openrouter", "or") and "openrouter" not in order:
+            order.append("openrouter")
+        elif token in ("local-router", "localrouter", "local_router", "router") and "local-router" not in order:
+            order.append("local-router")
+        elif token in ("jev", "typesafe", "direct-jev") and "jev" not in order:
+            order.append("jev")
+        elif token in ("local-model", "localmodel", "local_model", "model") and "local-model" not in order:
+            order.append("local-model")
+    for default_item in ("local-router", "openrouter", "jev", "local-model"):
+        if default_item not in order:
+            order.append(default_item)
+    return order
+
+
+def derive_retrieval_strategy(
+    needs_retrieval: bool,
+    target_domain: str,
+    context_freshness: float,
+    query_specificity: str,
+    modality_preference: str,
+) -> Tuple[str, int]:
+    """Code-owned mapping from calibrated Jev routing judgments to an actionable retrieval strategy."""
+    if not needs_retrieval or target_domain == "general_knowledge":
+        return "skip_retrieval", 0
+    if context_freshness >= JEV_NOUL_YES:
+        return "fresh_orient_first", 12
+    if query_specificity == "exact_symbol":
+        return "symbol_anchored", 10
+    if query_specificity == "broad_audit":
+        return "multi_hop_expand", 16
+    if modality_preference == "code_first":
+        return "symbol_anchored", 12
+    return "hybrid_rerank", 12
+
+
+def context_budget_for(strategy: str) -> int:
+    """Token budget for retrieved context per strategy (0 = do not retrieve)."""
+    return {
+        "skip_retrieval": 0,
+        "symbol_anchored": 1200,
+        "fresh_orient_first": 2600,
+        "multi_hop_expand": 3600,
+    }.get(strategy, 2000)
+
+
+def next_action_for(strategy: str) -> str:
+    """One-line next action derived from the strategy (context-engineering priming)."""
+    return {
+        "skip_retrieval": "answer directly; do not retrieve",
+        "symbol_anchored": "query --code with the named symbol or file",
+        "fresh_orient_first": "check git status/log, then orient --inject before trusting stable docs",
+        "multi_hop_expand": "query with the larger pool, then one corrective pass if sufficiency is partial",
+    }.get(strategy, "query with rerank; read decision role and context sufficiency before answering")
+
+
+def evaluate_context_sufficiency(results: List[Dict[str, Any]]) -> str:
+    """Evaluates collective context sufficiency across reranked candidates (Corrective RAG / CRAG):
+    `sufficient`, `partial_unsettled`, or `insufficient`."""
+    if not results:
+        return "insufficient"
+    has_settled_yes = any(
+        (r.get("noul_band") == "yes" or float(r.get("decision_probability") or 0.0) >= JEV_NOUL_YES)
+        and float(r.get("decision_utility") or 0.0) >= 2.4
+        and r.get("decision_role") != "generated"
+        for r in results[:3]
+    )
+    top_score = float(results[0].get("decision_score") or 0.0)
+    if has_settled_yes or top_score >= 0.62:
+        return "sufficient"
+    all_no = all(
+        r.get("noul_band") == "no" or float(r.get("decision_probability") or 0.5) <= JEV_NOUL_NO
+        for r in results
+    )
+    if all_no or top_score < 0.42:
+        return "insufficient"
+    return "partial_unsettled"
+
+
+def extract_corrective_expansion_terms(query: str, candidates: List[Dict[str, Any]]) -> List[str]:
+    """Extracts high-signal symbol/file anchors from top partial candidates for a CRAG second-stage pass."""
+    q_lower = query.lower()
+    terms: List[str] = []
+    for hit in candidates[:4]:
+        for raw in re.findall(r"[A-Za-z0-9_]+", str(hit.get("symbols") or "")):
+            if len(raw) >= 4 and raw.lower() not in q_lower and not any(t.lower() == raw.lower() for t in terms):
+                terms.append(raw)
+                if len(terms) >= 6:
+                    return terms
+        stem = Path(str(hit.get("path") or "")).stem
+        if len(stem) >= 4 and stem.lower() not in q_lower and not any(t.lower() == stem.lower() for t in terms):
+            terms.append(stem)
+            if len(terms) >= 6:
+                return terms
+    return terms
+
+
+def _discover_local_router() -> Optional[Dict[str, Any]]:
+    """Probes loopback local-router bases for Jev models and a decisions-compatible route.
+
+    Fast-path: checks `GET {base}/api/decisions/status` first (Local Router 1.1.0+, ~2ms, zero
+    upstream token spend). Falls back to `GET {base}/v1/models` + a minimal typed POST probe when
+    `/api/decisions/status` is absent. A chat-only Jev entry is reported, never silently substituted.
+    """
+    bases: List[str] = []
+    configured = (os.environ.get("JEV_LOCAL_ROUTER_URL") or "").strip().rstrip("/")
+    if configured:
+        bases.append(configured)
+    for base in (DEFAULT_LOCAL_ROUTER_URL, "http://localhost:11434"):
+        if base not in bases:
+            bases.append(base)
+
+    for base in bases:
+        status_ready = False
+        status_route: Optional[str] = None
+        status_models: List[str] = []
+        try:
+            req_status = urllib.request.Request(f"{base}/api/decisions/status", method="GET")
+            with urllib.request.urlopen(req_status, timeout=0.8) as s_resp:
+                if s_resp.status == 200:
+                    s_body = json.loads(s_resp.read().decode("utf-8"))
+                    status_ready = bool(s_body.get("ready"))
+                    routes = s_body.get("routes") or []
+                    if routes and isinstance(routes, list) and isinstance(routes[0], str):
+                        status_route = f"{base}{routes[0]}"
+                    for item in s_body.get("advertised_models") or []:
+                        if isinstance(item, dict) and item.get("id"):
+                            status_models.append(str(item["id"]))
+        except Exception:
+            pass
+
+        try:
+            req = urllib.request.Request(f"{base}/v1/models", method="GET")
+            with urllib.request.urlopen(req, timeout=1.2) as resp:
+                if resp.status != 200:
+                    continue
+                body = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            if status_ready and status_route:
+                return {
+                    "base_url": base,
+                    "jev_models": status_models or [LATEST_JEV_MODEL],
+                    "decisions_url": status_route,
+                    "chat_only": False,
+                }
+            continue
+
+        models = [str(item.get("id")) for item in body.get("data") or [] if isinstance(item, dict) and item.get("id")]
+        jev_models = jev_models_filter(models)
+        for sm in status_models:
+            if sm not in jev_models:
+                jev_models.append(sm)
+        if not jev_models:
+            continue
+
+        decisions_url = status_route if status_ready else None
+        if decisions_url is None:
+            for path in LOCAL_DECISIONS_PATHS:
+                url = f"{base}{path}"
+                probe = {
+                    "model": LATEST_JEV_MODEL,
+                    "state": "probe",
+                    "questions": {
+                        "q": DecisionEngine.noul_question(
+                            "Does this probe reach a decisions endpoint?",
+                            "the endpoint answered",
+                            "the endpoint did not answer",
+                        )
+                    },
+                }
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(probe).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=1.2) as resp:
+                        if resp.status == 200:
+                            decisions_url = url
+                            break
+                except Exception:
+                    continue
+
+        return {
+            "base_url": base,
+            "jev_models": jev_models,
+            "decisions_url": decisions_url,
+            "chat_only": decisions_url is None,
+        }
+    return None
+
+
+def inspect_jev() -> Dict[str, Any]:
+    """Decision-transport report for `ainish-rag secrets`."""
+    key = resolve_api_key()
+    return {
+        "model": resolve_jev_model(),
+        "latest_model": LATEST_JEV_MODEL,
+        "model_pinned": is_model_pinned(),
+        "endpoint": OPENROUTER_DECISIONS_URL,
+        "key_present": key is not None,
+        "local_router": _discover_local_router(),
+    }
+
+
+def noul_band(probability: float) -> str:
+    """Calibrated noul bands: above YES reads as yes, below NO as no, between is unsettled."""
+    if probability >= JEV_NOUL_YES:
+        return "yes"
+    if probability <= JEV_NOUL_NO:
+        return "no"
+    return "unsettled"
+
+
 class DecisionEngine:
-    def __init__(self, model: str = "typesafe/jev-1.13"):
+    """TypeSafe Jev (System One) decision client with a calibrated local fallback.
+
+    Questions, criteria, and thresholds are the audited surface of the integration: keep them in
+    one place, send every typed question for a state in one request (Jev answers in parallel), and
+    let code map the judgments to actions.
+    """
+
+    def __init__(self, model: Optional[str] = None):
         self.api_key = resolve_api_key()
-        self.model = os.environ.get("JEV_DECISION_MODEL", model)
-        self.decisions_url = "https://openrouter.ai/api/alpha/decisions"
+        self.model = model or resolve_jev_model()
+        self.decisions_url = OPENROUTER_DECISIONS_URL
 
     def is_pqc_or_openrouter_ready(self) -> bool:
         return self.api_key is not None
 
-    def route(self, prompt: str) -> dict:
-        if self.api_key:
-            try:
-                import urllib.request
-                import json
-                payload = {
-                    "model": self.model,
-                    "state": prompt,
-                    "questions": {
-                        "needs_retrieval": {
-                            "type": "noul",
-                            "instructions": "Does answering this coding or engineering prompt require retrieving codebase symbols, architecture, or documentation context?"
-                        },
-                        "domain_target": {
-                            "type": "choice",
-                            "options": ["codebase_symbols", "architectural_wiki", "security_governance", "technical_debt", "general_knowledge"],
-                            "instructions": "Which domain best categorizes the information needed for this request?"
-                        }
-                    }
-                }
-                req = urllib.request.Request(
-                    self.decisions_url,
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-                        "X-Title": "ainish-rag"
-                    }
-                )
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    if resp.status == 200:
-                        data = json.loads(resp.read().decode("utf-8"))
-                        root = data.get("decisions", data)
-                        nr = root.get("needs_retrieval", {})
-                        dom = root.get("domain_target", {})
-                        return {
-                            "needs_retrieval": nr.get("value", True),
-                            "retrieval_probability": nr.get("probability", 0.85),
-                            "target_domain": dom.get("value", "codebase_symbols"),
-                            "route_confidence": dom.get("probability", 0.80),
-                            "source": f"openrouter:{self.model}"
-                        }
-            except Exception:
-                pass
+    @staticmethod
+    def noul_question(instructions: str, true_case: str, false_case: str) -> Dict[str, Any]:
+        return {
+            "type": "noul",
+            "instructions": instructions,
+            "criteria": {"true": true_case, "false": false_case},
+        }
 
+    @staticmethod
+    def choice_question(instructions: str, options: List[tuple]) -> Dict[str, Any]:
+        return {
+            "type": "choice",
+            "instructions": instructions,
+            "options": [name for name, _ in options],
+            "criteria": {name: description for name, description in options},
+        }
+
+    @staticmethod
+    def score_question(instructions: str, level_criteria: List[str]) -> Dict[str, Any]:
+        return {
+            "type": "score",
+            "instructions": instructions,
+            "levels": list(range(1, len(level_criteria) + 1)),
+            "criteria": list(level_criteria),
+        }
+
+    @staticmethod
+    def parse_answers(body: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        """Parses the Decisions API envelope (`answers`), accepting the legacy `decisions` shape."""
+        root = body.get("answers") or body.get("decisions") or body
+        answers: Dict[str, Dict[str, Any]] = {}
+        if not isinstance(root, dict):
+            return answers
+        for qid, fields in root.items():
+            if not isinstance(fields, dict):
+                continue
+            kind = str(fields.get("type") or "")
+            noul = fields.get("noul")
+            if noul is None:
+                noul = fields.get("probability")
+            if noul is None and isinstance(fields.get("value"), bool):
+                noul = 0.95 if fields["value"] else 0.05
+            choice = fields.get("choice")
+            if choice is None and isinstance(fields.get("value"), str):
+                choice = fields["value"]
+            score = fields.get("score")
+            if score is None and not kind and isinstance(fields.get("value"), (int, float)):
+                score = float(fields["value"])
+            answers[qid] = {
+                "id": qid,
+                "type": kind,
+                "noul": float(noul) if noul is not None else None,
+                "choice": choice,
+                "score": float(score) if score is not None else None,
+                "confidence": fields.get("confidence"),
+                "probabilities": fields.get("probabilities"),
+                "legend": fields.get("legend"),
+            }
+        return answers
+
+    def _post_decisions(
+        self,
+        endpoint: str,
+        key: Optional[str],
+        state: str,
+        questions: Dict[str, Any],
+    ) -> tuple:
+        """POSTs one typed batch to a specific decisions endpoint (auth only where provided)."""
+        payload = {"model": self.model, "state": state, "questions": questions}
+        headers = {
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
+            "X-Title": "ainish-rag-decisions",
+        }
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Jev API {exc.code} at {endpoint} for {self.model}: {detail[:300]}")
+        except Exception as exc:
+            raise RuntimeError(f"Jev request to {endpoint} failed: {exc}")
+
+        answers = self.parse_answers(body)
+        if not answers:
+            raise RuntimeError("Jev response contained no answers")
+        if "openrouter.ai" in endpoint:
+            transport = "openrouter"
+        elif "local-router" in endpoint or endpoint.startswith(("http://127.0.0.1", "http://localhost")):
+            transport = f"local-router:{endpoint}"
+        elif endpoint == os.environ.get("JEV_API_URL") or endpoint == os.environ.get("TYPESAFE_API_URL"):
+            transport = "jev"
+        else:
+            transport = f"local-model:{endpoint}"
+        return str(body.get("model") or self.model), answers, body.get("usage") or {}, transport
+
+    def _ask(self, state: str, questions: Dict[str, Any]) -> tuple:
+        """Sends one typed batch over the first usable configured transport."""
+        errors: List[str] = []
+        for transport in transport_priority_order():
+            if transport == "local-router":
+                router = _discover_local_router()
+                if router:
+                    if router.get("decisions_url"):
+                        try:
+                            return self._post_decisions(router["decisions_url"], None, state, questions)
+                        except RuntimeError as exc:
+                            errors.append(f"local-router {router['base_url']}: {exc}")
+                    else:
+                        errors.append(
+                            f"local-router {router['base_url']} advertises Jev chat models "
+                            f"({', '.join(router['jev_models'])}) but exposes no decisions route"
+                        )
+            elif transport == "openrouter":
+                if self.api_key:
+                    try:
+                        return self._post_decisions(OPENROUTER_DECISIONS_URL, self.api_key, state, questions)
+                    except RuntimeError as exc:
+                        errors.append(str(exc))
+                else:
+                    errors.append("no OpenRouter key resolved (set OPENROUTER_API_KEY or store LOCALROUTER_OPENROUTER_API_KEY)")
+            elif transport == "jev":
+                endpoint = (os.environ.get("JEV_API_URL") or os.environ.get("TYPESAFE_API_URL") or "").strip()
+                key = resolve_jev_api_key()
+                if endpoint and key:
+                    try:
+                        return self._post_decisions(endpoint, key, state, questions)
+                    except RuntimeError as exc:
+                        errors.append(f"jev {endpoint}: {exc}")
+                elif endpoint:
+                    errors.append("direct Jev endpoint configured but no TypeSafe/Jev API key resolved")
+            elif transport == "local-model":
+                endpoint = (os.environ.get("JEV_LOCAL_MODEL_URL") or "").strip()
+                if endpoint:
+                    try:
+                        return self._post_decisions(
+                            endpoint,
+                            (os.environ.get("JEV_LOCAL_MODEL_API_KEY") or "").strip() or None,
+                            state,
+                            questions,
+                        )
+                    except RuntimeError as exc:
+                        errors.append(f"local-model {endpoint}: {exc}")
+        raise RuntimeError("; ".join(errors) if errors else "Jev request failed")
+
+    def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
+        """Typed decision primitive used by `ainish-rag decide --questions`."""
+        model, answers, usage, transport = self._ask(state, questions)
+        return {
+            "model": model,
+            "source": f"{transport}:{model}",
+            "answers": [answers[qid] for qid in sorted(answers)],
+            "usage": usage,
+        }
+
+    def route(self, prompt: str) -> Dict[str, Any]:
+        try:
+            questions = {
+                "needs_retrieval": self.noul_question(
+                    "Does answering this request require retrieving this repository's code, architecture wiki, or coordination context instead of relying on general knowledge?",
+                    "the answer depends on files, symbols, documentation, or task history that live in this repository",
+                    "the request is self-contained or answerable from general knowledge",
+                ),
+                "domain_target": self.choice_question(
+                    "Which part of this repository's context would best answer the request?",
+                    [
+                        ("codebase_symbols", "source code, symbol definitions, call sites, or APIs in the repository"),
+                        ("architectural_wiki", "system architecture, component relationships, data flow, or design rationale"),
+                        ("security_governance", "security policy, PQC, secrets handling, audit, or compliance rules"),
+                        ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
+                        ("general_knowledge", "language or tooling knowledge that does not depend on this repository"),
+                    ],
+                ),
+                "context_freshness": self.noul_question(
+                    "Does the request concern recent changes, the current branch, or today's work rather than long-lived architecture?",
+                    "it asks about recent edits, uncommitted work, the current branch, or today's activity",
+                    "it asks about stable architecture or long-lived behaviour",
+                ),
+                "query_specificity": self.choice_question(
+                    "How specific is the lookup required by this request?",
+                    [
+                        ("exact_symbol", "names a specific function, struct, file path, CLI flag, or error string"),
+                        ("conceptual_flow", "asks how a subsystem, protocol, or component interaction works"),
+                        ("broad_audit", "asks for a multi-file audit, repo-wide review, or broad architectural scan"),
+                    ],
+                ),
+                "modality_preference": self.choice_question(
+                    "Which artefact modality should retrieval prioritize first?",
+                    [
+                        ("code_first", "shipping source code and symbol definitions"),
+                        ("docs_first", "architectural wiki pages, PRD (llms.txt), or governing contracts (AGENTS.md)"),
+                        ("balanced", "a mix of implementation code and architectural documentation"),
+                    ],
+                ),
+            }
+            model, answers, _usage, transport = self._ask(prompt, questions)
+            retrieval_probability = float(answers.get("needs_retrieval", {}).get("noul") or 0.85)
+            needs_retrieval = retrieval_probability >= 0.5
+            domain = answers.get("domain_target", {})
+            target_domain = domain.get("choice") or "codebase_symbols"
+            freshness = float(answers.get("context_freshness", {}).get("noul") or 0.5)
+            specificity = answers.get("query_specificity", {}).get("choice") or (
+                "exact_symbol" if target_domain == "codebase_symbols" else "conceptual_flow"
+            )
+            modality = answers.get("modality_preference", {}).get("choice") or (
+                "code_first"
+                if target_domain == "codebase_symbols"
+                else ("docs_first" if target_domain in ("architectural_wiki", "security_governance") else "balanced")
+            )
+            strategy, pool_size = derive_retrieval_strategy(
+                needs_retrieval, target_domain, freshness, specificity, modality
+            )
+            return {
+                "needs_retrieval": needs_retrieval,
+                "retrieval_probability": round(retrieval_probability, 3),
+                "target_domain": target_domain,
+                "route_confidence": round(float(domain.get("confidence") or 0.80), 3),
+                "context_freshness": round(freshness, 3),
+                "query_specificity": specificity,
+                "modality_preference": modality,
+                "retrieval_strategy": strategy,
+                "candidate_pool_size": pool_size,
+                "context_budget_tokens": context_budget_for(strategy),
+                "next_action": next_action_for(strategy),
+                "source": f"{transport}:{model}",
+            }
+        except Exception:
+            pass
+        return self.route_local(prompt)
+
+    def route_local(self, prompt: str) -> Dict[str, Any]:
         p_lower = prompt.lower()
         if p_lower.startswith(("hello", "echo ", "format json")) or "2 + 2" in p_lower:
             return {
@@ -2023,7 +3158,14 @@ class DecisionEngine:
                 "retrieval_probability": 0.15,
                 "target_domain": "general_knowledge",
                 "route_confidence": 0.95,
-                "source": "local-calibrated"
+                "context_freshness": 0.10,
+                "query_specificity": "exact_symbol",
+                "modality_preference": "balanced",
+                "retrieval_strategy": "skip_retrieval",
+                "candidate_pool_size": 0,
+                "context_budget_tokens": 0,
+                "next_action": next_action_for("skip_retrieval"),
+                "source": "local-calibrated",
             }
 
         domain, conf = "codebase_symbols", 0.75
@@ -2036,92 +3178,124 @@ class DecisionEngine:
         elif any(w in p_lower for w in ["fn ", "struct ", "class ", "method", "symbol"]):
             domain, conf = "codebase_symbols", 0.90
 
+        freshness = 0.80 if any(w in p_lower for w in ["today", "recent", "branch", "latest", "diff"]) else 0.50
+        specificity = (
+            "broad_audit"
+            if any(w in p_lower for w in ["audit", "every ", "all ", "across "])
+            else ("exact_symbol" if any(w in p_lower for w in ["::", ".rs", ".py", "fn ", "--"]) else "conceptual_flow")
+        )
+        modality = (
+            "code_first"
+            if domain == "codebase_symbols"
+            else ("docs_first" if domain in ("architectural_wiki", "security_governance") else "balanced")
+        )
+        strategy, pool_size = derive_retrieval_strategy(True, domain, freshness, specificity, modality)
+
         return {
             "needs_retrieval": True,
             "retrieval_probability": 0.88,
             "target_domain": domain,
             "route_confidence": conf,
-            "source": "local-calibrated"
+            "context_freshness": freshness,
+            "query_specificity": specificity,
+            "modality_preference": modality,
+            "retrieval_strategy": strategy,
+            "candidate_pool_size": pool_size,
+            "context_budget_tokens": context_budget_for(strategy),
+            "next_action": next_action_for(strategy),
+            "source": "local-calibrated",
         }
 
     def rerank(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float = 0.35) -> List[Dict[str, Any]]:
-        """Two-stage retrieval reranking:
-        Dispatches to OpenRouter Jev decision model if PQC key resolved, else calibrated local mode.
-        """
+        """Two-stage retrieval reranking via one typed Jev batch (OpenRouter + Local Router), else calibrated local RRF."""
         if not candidates:
             return []
-
-        if self.api_key:
-            try:
-                return self.rerank_via_jev(query, candidates, min_relevance)
-            except Exception:
-                pass
-
+        try:
+            return self.rerank_via_jev(query, candidates, min_relevance)
+        except Exception:
+            pass
         return self.rerank_local(query, candidates, min_relevance)
 
     def rerank_via_jev(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
-        questions = {}
-        for i, c in enumerate(candidates):
-            title = c.get("title", "")
-            path = c.get("path", "")
-            snippet = c.get("content", "")[:350]
-            context = f"File: {path} | Title: {title}\nContent:\n{snippet}"
-            questions[f"rel_{i}"] = {
-                "type": "noul",
-                "instructions": f"Given the query '{query}', is this context chunk directly relevant and helpful?\nContext:\n{context}"
-            }
-            questions[f"score_{i}"] = {
-                "type": "score",
-                "min": 1,
-                "max": 5,
-                "instructions": f"Rate technical precision and utility of this context chunk for query '{query}' from 1 (irrelevant) to 5 (exact match/interface):\n{context}"
-            }
+        capped = candidates[:12]
+        questions: Dict[str, Any] = {}
+        for index, candidate in enumerate(capped):
+            context = (
+                f"Candidate {index + 1}: file {candidate.get('path', '')}, "
+                f"type {candidate.get('doc_type', '')}, title {candidate.get('title', '')}.\n"
+                f"Excerpt:\n{str(candidate.get('content', ''))[:900]}"
+            )
+            questions[f"answers_directly_{index}"] = self.noul_question(
+                f"{context}\n\nDoes this excerpt provide the specific fact, symbol, or implementation the query needs?",
+                "the excerpt states the definition, behaviour, or symbol the query asks for",
+                "the excerpt is only topically related or answers a different question",
+            )
+            questions[f"names_query_symbols_{index}"] = self.noul_question(
+                f"{context}\n\nDoes this excerpt contain any symbol, file, or API named in the query?",
+                "at least one symbol or API named by the query appears in the excerpt",
+                "none of the query's named symbols or APIs appear",
+            )
+            questions[f"utility_{index}"] = self.score_question(
+                f"{context}\n\nHow useful is this excerpt for answering the query?",
+                [
+                    "unrelated to the query",
+                    "tangential background",
+                    "related but incomplete",
+                    "directly useful evidence",
+                    "the canonical implementation or reference",
+                ],
+            )
+            questions[f"chunk_role_{index}"] = self.choice_question(
+                f"{context}\n\nWhat kind of artefact is this excerpt from?",
+                [
+                    ("implementation", "production source code or shipping configuration"),
+                    ("documentation", "prose, PRD, wiki, or comments that explain behaviour"),
+                    ("test", "test code, fixtures, or benchmarks"),
+                    ("generated", "vendored, generated, or minified content with no clear authorship"),
+                ],
+            )
 
-        payload = {
-            "model": self.model,
-            "state": f"Task: Rerank codebase RAG context chunks for query: '{query}'",
-            "questions": questions
-        }
+        state = f"Query: {query}\nTask: rank retrieved context for a coding agent. Prefer primary sources over generated or vendored material."
+        model, answers, _usage, transport = self._ask(state, questions)
 
-        req = urllib.request.Request(
-            self.decisions_url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-                "X-Title": "ainish-rag-reranker"
-            }
-        )
+        reranked: List[Dict[str, Any]] = []
+        for index, candidate in enumerate(capped):
+            direct = float(answers.get(f"answers_directly_{index}", {}).get("noul") or 0.5)
+            support = float(answers.get(f"names_query_symbols_{index}", {}).get("noul") or 0.5)
+            utility_raw = float(answers.get(f"utility_{index}", {}).get("score") or 2.0)
+            utility = max(0.0, min(1.0, utility_raw / 4.0))
+            role = answers.get(f"chunk_role_{index}", {}).get("choice") or "unknown"
 
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            decision_score = (0.45 * direct) + (0.25 * support) + (0.30 * utility)
+            penalty = 0.08 if role == "generated" else (0.03 if role == "test" else 0.0)
+            primary_bonus = 0.04 if (role == "implementation" and direct >= JEV_NOUL_YES and support >= 0.50) else 0.0
+            distractor_penalty = 0.12 if (direct <= JEV_NOUL_NO and utility_raw < 2.0) else 0.0
+            adjusted_decision = max(0.0, min(1.0, decision_score + primary_bonus - penalty - distractor_penalty))
+            band = noul_band(direct)
+            vec_score = float(candidate.get("score", 0.5))
+            if direct <= JEV_NOUL_NO and utility_raw < 2.0:
+                combined = (adjusted_decision * 0.80) + (min(vec_score, 0.45) * 0.20)
+            elif band == "unsettled":
+                combined = (adjusted_decision * 0.65) + (vec_score * 0.35)
+            else:
+                combined = (adjusted_decision * 0.70) + (vec_score * 0.30)
 
-        decisions = data.get("decisions", data)
-        reranked = []
-        for i, c in enumerate(candidates):
-            rel_dec = decisions.get(f"rel_{i}", {})
-            score_dec = decisions.get(f"score_{i}", {})
+            candidate["decision_score"] = round(combined, 4)
+            candidate["decision_relevance"] = direct >= 0.5
+            candidate["decision_probability"] = round(direct, 3)
+            candidate["symbol_support"] = round(support, 3)
+            candidate["decision_utility"] = round(utility_raw, 2)
+            candidate["noul_band"] = band
+            candidate["decision_role"] = role
+            candidate["rerank_source"] = f"{transport}:{model}"
+            candidate["rationale"] = (
+                f"Jev {transport}:{model}: direct {direct:.2f} ({band}), symbols {support:.2f}, "
+                f"utility {utility_raw:.2f}/4 [{role}], vector {vec_score:.2f}"
+            )
+            if combined >= min_relevance:
+                reranked.append(candidate)
 
-            is_rel = rel_dec.get("value", True)
-            rel_prob = rel_dec.get("probability", 0.7)
-            raw_score = score_dec.get("value", 3)
-            norm_score = max(0.0, min(1.0, (float(raw_score) - 1.0) / 4.0))
-
-            vec_score = c.get("score", 0.5)
-            # 70% decision utility + 30% vector cosine similarity
-            combined = (norm_score * 0.70) + (vec_score * 0.30)
-
-            c["decision_score"] = round(combined, 4)
-            c["decision_relevance"] = is_rel
-            c["decision_probability"] = round(rel_prob, 3)
-            c["decision_utility"] = raw_score
-            c["rerank_source"] = f"openrouter:{self.model}"
-
-            if is_rel and combined >= min_relevance:
-                reranked.append(c)
-
-        reranked.sort(key=lambda x: x["decision_score"], reverse=True)
+        reranked.sort(key=lambda item: item["decision_score"], reverse=True)
         return reranked
 
     def rerank_local(self, query: str, candidates: List[Dict[str, Any]], min_relevance: float) -> List[Dict[str, Any]]:
@@ -2182,42 +3356,72 @@ class DecisionEngine:
         return self.rerank(query, chunks, min_relevance)
 
     def evaluate_faithfulness(self, context: str, output: str) -> dict:
-        if self.api_key:
-            try:
-                import urllib.request
-                import json
-                payload = {
-                    "model": self.model,
-                    "state": f"CONTEXT:\n{context[:2000]}\n\nOUTPUT TO EVALUATE:\n{output[:1000]}",
-                    "questions": {
-                        "is_faithful": {
-                            "type": "noul",
-                            "instructions": "Is the output completely faithful to the provided context, without unverified claims or hallucinations?"
-                        }
-                    }
-                }
-                req = urllib.request.Request(
-                    self.decisions_url,
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    }
+        try:
+            questions = {
+                "is_faithful": self.noul_question(
+                    "Is the output grounded in the provided context, without claims the context does not support?",
+                    "every claim in the output is supported by the context",
+                    "the output adds claims or specifics that the context does not contain",
+                ),
+                "faithfulness_score": self.score_question(
+                    "How completely does the output stay within the provided context?",
+                    [
+                        "the output contradicts the context",
+                        "mostly unsupported by the context",
+                        "partly grounded with unsupported gaps",
+                        "grounded with minor gaps",
+                        "fully grounded in the context",
+                    ],
+                ),
+                "contradicts_context": self.noul_question(
+                    "Does the output state any claim, rule, or detail that directly contradicts or inverts the provided context?",
+                    "the output states at least one claim that directly conflicts with or inverts the context",
+                    "the output does not contradict the provided context",
+                ),
+                "completeness_score": self.score_question(
+                    "How completely does the output cover the key facts, symbols, and constraints in the provided context?",
+                    [
+                        "omits almost all relevant facts from the context",
+                        "covers only a minor part of the relevant context",
+                        "covers the main point with notable omissions",
+                        "covers nearly all key facts and symbols",
+                        "comprehensive coverage of the relevant context",
+                    ],
+                ),
+            }
+            state = f"CONTEXT:\n{context[:4000]}\n\nOUTPUT TO EVALUATE:\n{output[:2000]}"
+            model, answers, _usage, transport = self._ask(state, questions)
+            noul = float(answers.get("is_faithful", {}).get("noul") or 0.9)
+            score = float(answers.get("faithfulness_score", {}).get("score") or 3.6)
+            score_norm = max(0.0, min(1.0, score / 4.0))
+            contradiction = float(answers.get("contradicts_context", {}).get("noul") or 0.05)
+            completeness_raw = float(answers.get("completeness_score", {}).get("score") or 3.2)
+            completeness_norm = max(0.0, min(1.0, completeness_raw / 4.0))
+
+            base_faithfulness = (0.6 * noul) + (0.4 * score_norm)
+            has_contradiction = contradiction >= JEV_NOUL_YES
+            faithfulness = min(base_faithfulness, 1.0 - contradiction) if has_contradiction else base_faithfulness
+            is_faithful = (not has_contradiction) and noul >= 0.5 and score_norm >= 0.4
+            verdict_band = (
+                "contradiction_detected"
+                if has_contradiction
+                else (
+                    "grounded"
+                    if (noul >= JEV_NOUL_YES and score_norm >= 0.6)
+                    else ("unsupported" if (noul <= JEV_NOUL_NO or score_norm < 0.4) else "unsettled_grounding")
                 )
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    if resp.status == 200:
-                        data = json.loads(resp.read().decode("utf-8"))
-                        root = data.get("decisions", data)
-                        f = root.get("is_faithful", {})
-                        prob = f.get("probability", 0.90)
-                        return {
-                            "is_faithful": f.get("value", True),
-                            "faithfulness_score": prob,
-                            "hallucination_risk": 1.0 - prob,
-                            "evaluation_source": f"openrouter:{self.model}"
-                        }
-            except Exception:
-                pass
+            )
+            return {
+                "is_faithful": is_faithful,
+                "faithfulness_score": round(faithfulness, 4),
+                "hallucination_risk": round(max(0.0, 1.0 - faithfulness), 4),
+                "contradiction_probability": round(contradiction, 4),
+                "completeness_score": round(completeness_norm, 4),
+                "verdict_band": verdict_band,
+                "evaluation_source": f"{transport}:{model}",
+            }
+        except Exception:
+            pass
 
         out_words = [w for w in output.lower().split() if len(w) > 4]
         ctx_lower = context.lower()
@@ -2227,7 +3431,10 @@ class DecisionEngine:
             "is_faithful": ratio >= 0.40,
             "faithfulness_score": ratio,
             "hallucination_risk": max(0.0, 1.0 - ratio),
-            "evaluation_source": "local-heuristic"
+            "contradiction_probability": 0.0,
+            "completeness_score": round(ratio, 4),
+            "verdict_band": "grounded" if ratio >= 0.70 else ("unsettled_grounding" if ratio >= 0.40 else "unsupported"),
+            "evaluation_source": "local-heuristic",
         }
 
 
@@ -2480,7 +3687,33 @@ def sync_rules_if_stale(repo_root: Path, gate_ready: bool) -> Tuple[bool, bool]:
         return True, False
 
 
+def _extract_orient_task_summary_py(repo_root: Path, query: Optional[str]) -> str:
+    if query and query.strip():
+        return query.strip()
+    tasks_dir = repo_root / ".agents" / "tasks"
+    if tasks_dir.exists():
+        t_files = sorted(tasks_dir.glob("*.md"))
+        if t_files:
+            try:
+                t_text = t_files[-1].read_text(encoding="utf-8", errors="replace")
+                picked = []
+                for line in reversed(t_text.splitlines()):
+                    if line.startswith(("- objective:", "- scope:", "## ")):
+                        picked.append(line.strip())
+                        if len(picked) >= 3:
+                            break
+                if picked:
+                    picked.reverse()
+                    return " | ".join(picked)
+            except Exception:
+                pass
+    return "orient repository architecture, symbols, security governance, and active worktree state"
+
+
 def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str] = None, task_conditioned: bool = True, verify: bool = False, compact: bool = False, max_lines: Optional[int] = None, sections: Optional[int] = None, include_symbols: bool = True, sync_rules: bool = False, json_out: bool = False) -> None:
+    orient_prompt = _extract_orient_task_summary_py(repo_root, query)
+    dec_engine = DecisionEngine()
+    route_decision = dec_engine.route(orient_prompt) if task_conditioned else dec_engine.route_local(orient_prompt)
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_files = []
     if wiki_dir.exists():
@@ -2505,9 +3738,19 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
                     if len(w) >= 3:
                         task_keywords.append(w.lower())
 
+            target_domain = str(route_decision.get("target_domain") or "")
+
             def _score_wiki(p: Path) -> Tuple[int, str]:
                 s = 0
                 name_l = p.name.lower()
+                if target_domain == "security_governance" and ("security" in name_l or "03" in name_l):
+                    s += 12
+                elif target_domain == "codebase_symbols" and ("call" in name_l or "02" in name_l or "symbol" in name_l):
+                    s += 12
+                elif target_domain == "technical_debt" and ("debt" in name_l or "04" in name_l or "risk" in name_l):
+                    s += 12
+                elif target_domain == "architectural_wiki" and ("arch" in name_l or "01" in name_l):
+                    s += 12
                 for kw in task_keywords:
                     if kw in name_l:
                         s += 5
@@ -2556,9 +3799,22 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
         "## Grounded Architectural Context",
         f"<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {git_branch} | commit: {git_sha} -->",
         "",
+        f"### Decision-Model Routing Hint (`{route_decision.get('source', 'local-calibrated')}`)",
+        (
+            f"- domain: `{route_decision.get('target_domain')}` (confidence {float(route_decision.get('route_confidence') or 0.8):.2f}) "
+            f"| freshness: `{float(route_decision.get('context_freshness') or 0.5):.2f}` "
+            f"| specificity: `{route_decision.get('query_specificity', 'conceptual_flow')}` "
+            f"| modality: `{route_decision.get('modality_preference', 'balanced')}` "
+            f"| strategy: `{route_decision.get('retrieval_strategy', 'hybrid_rerank')}` (pool {route_decision.get('candidate_pool_size', 12)}) "
+            f"| context budget: {route_decision.get('context_budget_tokens', 2000)} tokens"
+        ),
+        f"- next: {route_decision.get('next_action', next_action_for('hybrid_rerank'))}",
+        "",
     ]
-    lines_per_sec = max_lines if max_lines is not None else (8 if compact else 40)
+    default_lines = 8 if compact else 40
     section_limit = sections if sections is not None else 3
+    budget_lines = max(3, int(route_decision.get("context_budget_tokens", 2000)) // 12 // max(1, section_limit))
+    lines_per_sec = max_lines if max_lines is not None else min(default_lines, budget_lines)
     max_items = 3 if compact else 6
 
     sections = []
@@ -2683,6 +3939,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
             "compact": compact,
             "classical_crypto_redacted": total_sanitized > 0,
             "task_conditioned": task_conditioned,
+            "route_decision": route_decision,
         }, indent=2))
     else:
         print(primer_text)
@@ -2727,8 +3984,10 @@ def run_eval_patch(repo_root: Path, patch_path: Any, client: EmbedClient, store:
                 if m:
                     canary_leaks.append(f"Canary/credential leak pattern detected: {m.group(0)}")
 
-    covered_files = [f for f in modified_files if (repo_root / f).exists()]
-    file_coverage = (len(covered_files) / max(1, len(modified_files))) if modified_files else 1.0
+    code_files = [f for f in modified_files if not is_docs_or_coord_path(f)]
+    eval_files = code_files if code_files else modified_files
+    covered_files = [f for f in eval_files if (repo_root / f).exists()]
+    file_coverage = (len(covered_files) / max(1, len(eval_files))) if eval_files else 1.0
 
     anchored_symbols = 0
     matched_syms = set()
@@ -2973,32 +4232,45 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
     }
 
 
-def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> None:
+def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> bool:
     if not target_file.exists():
         print(f"  [rag:error] Target file not found: {target_file}", file=sys.stderr)
-        return
+        return False
 
-    sig_file = target_file.with_suffix(".sig")
-    file_bytes = target_file.read_bytes()
-    file_sha256 = hashlib.sha256(file_bytes).hexdigest()
-
-    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
-    if rust_bin.exists():
+    candidates = [
+        repo_root / "bin" / "ainish-rag.exe",
+        repo_root / "bin" / "ainish-rag-linux",
+        repo_root / "bin" / "ainish-rag-darwin",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
+    ]
+    for rust_bin in candidates:
+        if rust_bin.is_file() and os.access(rust_bin, os.X_OK):
+            try:
+                # Never recurse into the shell/Python launcher at bin/ainish-rag.
+                if rust_bin.read_bytes()[:2] == b"#!":
+                    continue
+            except OSError:
+                continue
+        else:
+            continue
         args = [str(rust_bin), "audit", "sign", str(target_file)]
         if priv_key_path:
             args.extend(["--priv-key", str(priv_key_path)])
-        res = subprocess.run(args, capture_output=True, text=True)
+        try:
+            res = subprocess.run(args, capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            print("  [rag:error] ML-DSA signer timed out after 20 seconds", file=sys.stderr)
+            return False
         if res.returncode == 0:
-            return
+            return True
+        print(f"  [rag:error] ML-DSA signer failed: {res.stderr.strip()}", file=sys.stderr)
+        return False
 
-    sig_data = {
-        "file": target_file.name,
-        "sha256": file_sha256,
-        "mode": "ML-DSA-65",
-        "signature": hashlib.sha256(f"mldsa65:{file_sha256}".encode()).hexdigest(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    sig_file.write_text(json.dumps(sig_data, indent=2), encoding="utf-8")
+    print("  [rag:error] No compiled ML-DSA-65 signer is available; refusing hash-only fallback", file=sys.stderr)
+    return False
 
 
 def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]]:
@@ -3309,56 +4581,37 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
         return
     if hardware_seal:
         print("  \033[36m[rag:audit]\033[0m Unwrapping hardware-backed FIDO2 / TPM 2.0 seal for council signing seed...")
-    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
-    if rust_bin.exists():
+    rust_candidates = [
+        repo_root / "bin" / "ainish-rag.exe",
+        repo_root / "bin" / "ainish-rag-linux",
+        repo_root / "bin" / "ainish-rag-darwin",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
+        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
+    ]
+    for rust_bin in rust_candidates:
+        if not (rust_bin.is_file() and os.access(rust_bin, os.X_OK)):
+            continue
+        try:
+            if rust_bin.read_bytes()[:2] == b"#!":
+                continue
+        except OSError:
+            continue
         cmd = [str(rust_bin), "audit", "contract", "--threshold", str(threshold)]
         if hardware_seal:
             cmd.append("--hardware-seal")
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            print("  [rag:error] ML-DSA contract signer timed out after 20 seconds", file=sys.stderr)
+            raise SystemExit(1)
         if res.returncode == 0:
             print(res.stdout, end="")
             return
 
-    canon_dir = repo_root / ".agents" / "canonical"
-    canon_dir.mkdir(parents=True, exist_ok=True)
-    src_agents = repo_root / "AGENTS.md"
-    dest_agents = canon_dir / "AGENTS.md"
-    if src_agents.exists() and src_agents != dest_agents:
-        shutil.copy2(src_agents, dest_agents)
-    h = hashlib.sha256(dest_agents.read_bytes()).hexdigest()
-    (canon_dir / "AGENTS.md.sha256").write_text(f"{h}\n", encoding="utf-8")
-    run_audit_sign(repo_root, dest_agents)
-
-    thresh_file = canon_dir / "AGENTS.threshold.sig"
-    sigs = []
-    k = max(1, threshold)
-    if thresh_file.exists():
-        try:
-            existing = json.loads(thresh_file.read_text(encoding="utf-8"))
-            k = int(existing.get("threshold_k", k))
-            sigs = existing.get("signatures", [])
-        except Exception:
-            pass
-    fpr = h[:32]
-    sigs = [s for s in sigs if s.get("signer_fingerprint") != fpr]
-    sigs.append({
-        "signer_fingerprint": fpr,
-        "public_key": "",
-        "signature": hashlib.sha256(f"mldsa65:{h}".encode()).hexdigest(),
-        "signed_at": datetime.now(timezone.utc).isoformat(),
-    })
-    bundle = {
-        "format": "ainish-rag/mldsa65-threshold-envelope/v1",
-        "target": "AGENTS.md",
-        "sha256": h,
-        "threshold_k": k,
-        "signers_count": len(sigs),
-        "signatures": sigs,
-    }
-    thresh_file.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
-    print(f"  \033[32m[rag:audit]\033[0m Signed canonical AGENTS.md contract with FIPS 204 ML-DSA-65 (threshold k={k}):")
-    print(f"    Digest:    {canon_dir / 'AGENTS.md.sha256'}")
-    print(f"    Envelope:  {thresh_file}\n")
+    print("  [rag:error] No compiled ML-DSA-65 contract signer is available; refusing synthetic signatures", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def trigger_desktop_notification(title: str, message: str) -> None:
@@ -3398,7 +4651,250 @@ def check_comms_harness_agnostic(repo_root: Path) -> List[str]:
     return violations
 
 
-def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, strict: bool = False, statusline_json: bool = False, json_out: bool = False) -> bool:
+TEST_PATH_HINTS = ("/tests/", "/test/", "/spec/")
+
+
+def is_test_path(path: str) -> bool:
+    """Test files are noise for the implementation-over-test-theatre budget, so the gate counts
+    them separately from the implementation lines a patch adds."""
+    p = path.replace("\\", "/").lower()
+    name = p.rsplit("/", 1)[-1]
+    return (
+        any(hint in p for hint in TEST_PATH_HINTS)
+        or name.startswith("test_")
+        or "_test." in name
+        or ".test." in name
+        or ".spec." in name
+    )
+
+
+def diff_test_stats(diff_text: str) -> Tuple[int, int]:
+    """Returns (test_lines_added, impl_lines_added) for a unified diff."""
+    current = ""
+    test_lines = 0
+    impl_lines = 0
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            current = line[len("+++ b/"):]
+            continue
+        if line.startswith("+++") or line.startswith("---") or line.startswith("\\"):
+            continue
+        if line.startswith("+"):
+            if is_test_path(current):
+                test_lines += 1
+            else:
+                impl_lines += 1
+    return test_lines, impl_lines
+
+
+def run_test_command(repo_root: Path, cmd: str) -> Tuple[bool, Optional[int]]:
+    """Runs the operator-supplied existing-suite command so the gate card shows a real exit code
+    instead of a prose claim. The command comes from the operator's own gate invocation, never
+    from repository content."""
+    try:
+        proc = subprocess.run(cmd, cwd=str(repo_root), shell=True, timeout=1800)
+        return proc.returncode == 0, proc.returncode
+    except Exception:
+        return False, None
+
+
+def truncate_cmd(cmd: str, max_len: int = 34) -> str:
+    return cmd if len(cmd) <= max_len else cmd[: max_len - 1] + "…"
+
+
+# --- Triggered master lenses (compatibility / concurrency / economics) -------------------------
+# Mirrors `assess_master_surfaces` in the Rust engine. The surface rules live in
+# `src/rag/master-surfaces.json` so both engines read one file.
+
+MASTER_SURFACE_RULES_DEFAULTS: Dict[str, Any] = {
+    "contract_paths": ["agents.md", "llms.txt", ".agents/canonical/", ".agents/skills/", "src/templates/"],
+    "schema_suffixes": ["embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json"],
+    "dependency_manifests": [
+        "cargo.toml",
+        "cargo.lock",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "pyproject.toml",
+        "uv.lock",
+    ],
+    "cli_tokens": ["#[arg(", "add_argument(", 'long = "', 'env::var("', 'os.environ.get("', 'os.environ["'],
+    "append_only_prefixes": [".agents/comms/", ".agents/memories/", ".agents/suggestions/"],
+    "spend_prefixes": ["src/rag/", ".github/", "benchmarks/", "scripts/"],
+}
+
+
+def load_master_surface_rules(repo_root: Path) -> Dict[str, Any]:
+    """Loads the shared rule file, falling back to defaults for any missing key."""
+    rules = {key: list(value) for key, value in MASTER_SURFACE_RULES_DEFAULTS.items()}
+    candidates = [repo_root / "src" / "rag" / "master-surfaces.json"]
+    canonical = resolve_canonical_repo_root(repo_root) / "src" / "rag" / "master-surfaces.json"
+    if canonical != candidates[0]:
+        candidates.append(canonical)
+    for path in candidates:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            for key in rules:
+                value = data.get(key)
+                if isinstance(value, list) and all(isinstance(item, str) for item in value):
+                    rules[key] = [item.lower() for item in value]
+            return rules
+    return rules
+
+
+def _today_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _read_today_task_record(repo_root: Path) -> str:
+    path = repo_root / ".agents" / "tasks" / f"{_today_utc()}-task.md"
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def find_declaration(text: str, key: str) -> Optional[str]:
+    """Returns the declaration line (`compat:` / `budget:`) when present, trimmed and capped."""
+    prefix = f"{key.lower()}:"
+    for line in text.splitlines():
+        candidate = line.strip().lstrip("-+").strip()
+        if candidate.lower().startswith(prefix):
+            return candidate[:180]
+    return None
+
+
+def has_declaration(text: str, key: str) -> bool:
+    """True when `text` carries a `key:` declaration line (bullets and diff `+` rows allowed)."""
+    return find_declaration(text, key) is not None
+
+
+def contract_surfaces_touched(diff_text: str, rules: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Detects contract surfaces whose change needs a `compat:` declaration."""
+    rules = rules or MASTER_SURFACE_RULES_DEFAULTS
+    labels: List[str] = []
+
+    def push(label: str) -> None:
+        if label not in labels:
+            labels.append(label)
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            path = line[len("+++ b/"):].strip().lower()
+            if any(path == prefix or path.startswith(prefix) for prefix in rules["contract_paths"]):
+                push("contract")
+            if any(path.endswith(suffix) for suffix in rules["schema_suffixes"]):
+                push("schema")
+            if any(path.endswith(name) for name in rules["dependency_manifests"]):
+                push("dependency")
+            continue
+        if line.startswith(("+++", "---")) or not line.startswith(("+", "-")):
+            continue
+        content = line[1:]
+        if any(token in content for token in rules["cli_tokens"]):
+            push("cli")
+        if '"format":' in content or "format=" in content:
+            push("schema")
+    return labels
+
+
+def shared_state_removals(diff_text: str, rules: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Shared state is append-only: non-header removed lines in comms/memories/suggestions are a
+    lost-update risk under multiple writers. Task records are updated in place and exempt."""
+    rules = rules or MASTER_SURFACE_RULES_DEFAULTS
+    violations: List[str] = []
+    current = ""
+    removed = 0
+
+    def flush() -> None:
+        nonlocal removed
+        lower = current.lower()
+        if removed and any(lower.startswith(prefix) for prefix in rules["append_only_prefixes"]):
+            violations.append(f"{current} ({removed} removed line(s))")
+        removed = 0
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ b/"):
+            flush()
+            current = line[len("+++ b/"):].strip()
+            continue
+        if line.startswith("-") and not line.startswith("---"):
+            removed += 1
+    flush()
+    return violations
+
+
+def spends_resources(path: str, rules: Optional[Dict[str, Any]] = None) -> bool:
+    rules = rules or MASTER_SURFACE_RULES_DEFAULTS
+    lower = path.replace("\\", "/").lower()
+    return any(lower.startswith(prefix) for prefix in rules["spend_prefixes"])
+
+
+def strip_ansi(text: str) -> str:
+    """Removes ANSI SGR sequences so a NO_COLOR render carries the same meaning."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def no_color_enabled() -> bool:
+    return bool(os.environ.get("NO_COLOR")) or os.environ.get("TERM", "").lower() == "dumb"
+
+
+def assess_master_surfaces(repo_root: Path, diff_text: str) -> Dict[str, Any]:
+    rules = load_master_surface_rules(repo_root)
+    task_record = _read_today_task_record(repo_root)
+    compat_decl = find_declaration(task_record, "compat") or find_declaration(diff_text, "compat")
+    labels = contract_surfaces_touched(diff_text, rules)
+    compatibility = {
+        "touched": bool(labels),
+        "declared": compat_decl is not None,
+        "detail": ", ".join(labels),
+        "declaration": compat_decl or "",
+    }
+
+    removals = shared_state_removals(diff_text, rules)
+    touched_shared = any(
+        line.startswith("+++ b/") and any(
+            line[len("+++ b/"):].strip().lower().startswith(prefix) for prefix in rules["append_only_prefixes"]
+        )
+        for line in diff_text.splitlines()
+    )
+    concurrency = {"touched": touched_shared, "declared": not removals, "detail": "; ".join(removals), "declaration": ""}
+
+    touched_spend = any(
+        spends_resources(line[len("+++ b/"):].strip(), rules)
+        for line in diff_text.splitlines()
+        if line.startswith("+++ b/")
+    )
+    budget_decl = (
+        find_declaration(task_record, "budget")
+        or find_declaration(diff_text, "budget")
+        or ((os.environ.get("AINISH_GATE_BUDGET") or "").strip() or None)
+    )
+    economics = {
+        "touched": touched_spend,
+        "declared": budget_decl is not None,
+        "detail": "spend surface touched" if touched_spend else "",
+        "declaration": budget_decl or "",
+    }
+
+    return {"compatibility": compatibility, "concurrency": concurrency, "economics": economics}
+
+
+def master_surfaces_pass(report: Dict[str, Any], strict: bool) -> bool:
+    compat = report["compatibility"]
+    conc = report["concurrency"]
+    econ = report["economics"]
+    return (
+        (not compat["touched"] or compat["declared"])
+        and bool(conc["declared"])
+        and (not strict or not econ["touched"] or econ["declared"])
+    )
+
+
+def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, store: LanceStore, bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, strict: bool = False, statusline_json: bool = False, json_out: bool = False, tests_cmd: Optional[str] = None) -> bool:
     while True:
         if patch_arg:
             p = Path(patch_arg)
@@ -3552,9 +5048,10 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
 
         agents_f = repo_root / "AGENTS.md"
         canon_hash_f = repo_root / ".agents" / "canonical" / "AGENTS.md.sha256"
+        agents_sha = hashlib.sha256(agents_f.read_bytes()).hexdigest().lower() if agents_f.is_file() else ""
         zt_hash_ok = True
         if agents_f.is_file() and canon_hash_f.is_file():
-            zt_hash_ok = hashlib.sha256(agents_f.read_bytes()).hexdigest().lower() == canon_hash_f.read_text(encoding="utf-8").strip().lower()
+            zt_hash_ok = agents_sha == canon_hash_f.read_text(encoding="utf-8").strip().lower()
         bin_ac = repo_root / "bin" / "ainish-coder"
         zt_lf_ok = (b"\r\n" not in bin_ac.read_bytes()) if bin_ac.is_file() else True
         history_ok, _ = verify_contract_history_chain_py(repo_root)
@@ -3567,7 +5064,12 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
         docs_only_patch = bool(diff_text.strip()) and bool(modified_files) and all(is_docs_or_coord_path(f) for f in modified_files)
         anchor_ok = (not diff_text) or docs_only_patch or patch_eval.get("composite_score", 0.0) >= min_anchor
         patch_pass = patch_eval.get("status") != "FAILED_CREDENTIAL_LEAK" and anchor_ok
-        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass
+        test_lines_added, impl_lines_added = diff_test_stats(diff_text)
+        tests_result = (tests_cmd, run_test_command(repo_root, tests_cmd)) if tests_cmd else None
+        tests_pass = tests_result is None or tests_result[1][0]
+        master_report = assess_master_surfaces(repo_root, diff_text)
+        masters_pass = master_surfaces_pass(master_report, strict)
+        overall_pass = patch_pass and lock_pass and audit_pass and comms_pass and zt_pass and tests_pass and masters_pass
 
         try:
             cache_dir = repo_root / ".agents" / "rag"
@@ -3579,6 +5081,18 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 "status": "GREEN" if overall_pass else "RED",
                 "anchor_pct": round(patch_eval.get("composite_score", 0.0) * 100),
                 "docs_only": docs_only_patch,
+                "contract_sha256": agents_sha,
+                "master_surfaces": master_report,
+                "diff_stats": {
+                    "test_lines_added": test_lines_added,
+                    "impl_lines_added": impl_lines_added,
+                },
+                "tests": {
+                    "provided": tests_result is not None,
+                    "command": tests_result[0] if tests_result else None,
+                    "exit_code": tests_result[1][1] if tests_result else None,
+                    "pass": tests_pass,
+                },
                 "branch": cache_branch,
                 "commit": cache_commit,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -3616,7 +5130,18 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
                 "patch_evaluation": patch_eval,
                 "lockfile_check": lock_res,
                 "audit_receipts": {"pass": audit_pass, "passed": audit_receipts_passed, "failed": audit_receipts_failed},
-                "canonical_contract": {"pass": canon_pass},
+                "diff_stats": {
+                    "test_lines_added": test_lines_added,
+                    "impl_lines_added": impl_lines_added,
+                },
+                "tests": {
+                    "provided": tests_result is not None,
+                    "command": tests_result[0] if tests_result else None,
+                    "exit_code": tests_result[1][1] if tests_result else None,
+                    "pass": tests_pass,
+                },
+                "master_surfaces": master_report,
+                "canonical_contract": {"pass": canon_pass, "sha256": agents_sha},
                 "comms_hygiene": {"pass": comms_pass, "legacy_agent_tag_violations": comms_violations},
                 "zero_trust_gate": {
                     "pass": zt_pass,
@@ -3635,11 +5160,48 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
             print("├────────────────────────────────────────────────────────────────────────┤")
             patch_status = "\033[32mPASS (docs/coordination-only patch — anchor exempt)\033[0m" if docs_only_patch else (f"\033[32mPASS ({patch_eval.get('composite_score', 0)*100:.1f}% - {patch_eval.get('status')})\033[0m" if patch_pass else f"\033[31mFAIL ({patch_eval.get('status')})\033[0m")
             print(f"  Patch Anchoring:        {patch_status}")
+            delta_status = "n/a (no patch)" if not diff_text.strip() else f"+{test_lines_added} test / +{impl_lines_added} impl"
+            print(f"  Test Delta:             {delta_status}")
+            if tests_result:
+                tests_ok = tests_result[1][0]
+                tests_status = (
+                    f"\033[32mPASS\033[0m ({truncate_cmd(tests_result[0])} → exit {tests_result[1][1]})"
+                    if tests_ok
+                    else f"\033[31mFAIL\033[0m ({truncate_cmd(tests_result[0])} → exit {tests_result[1][1]})"
+                )
+            else:
+                tests_status = '\033[33mSKIPPED (pass --tests "<cmd>")\033[0m'
+            print(f"  Existing Tests:         {tests_status}")
+            compat = master_report["compatibility"]
+            conc = master_report["concurrency"]
+            econ = master_report["economics"]
+            compat_status = (
+                "\033[32mPASS\033[0m" + (f" ({compat['detail']})" if compat["touched"] else "")
+                if (not compat["touched"] or compat["declared"])
+                else f"\033[31mFAIL (no compat: for {compat['detail']})\033[0m"
+            )
+            conc_status = (
+                "\033[32mPASS\033[0m"
+                if conc["declared"]
+                else f"\033[31mFAIL ({conc['detail']})\033[0m"
+            )
+            if not econ["touched"]:
+                econ_status = "\033[90mn/a\033[0m"
+            elif econ["declared"]:
+                econ_status = "\033[32mPASS\033[0m"
+            elif strict:
+                econ_status = "\033[31mFAIL (no budget:)\033[0m"
+            else:
+                econ_status = "\033[33mWARN (no budget:)\033[0m"
+            master_line = f"  Master Surfaces:        compat {compat_status} · concurrency {conc_status} · econ {econ_status}"
+            if no_color_enabled():
+                master_line = strip_ansi(master_line)
+            print(master_line)
             lock_status = f"\033[32mPASS (0 drift, {len(lock_res.get('unpinned_files', []))} unpinned)\033[0m" if lock_pass else "\033[31mFAIL\033[0m"
             print(f"  Supply Chain Lockfiles: {lock_status}")
             audit_status = f"\033[32mPASS ({audit_receipts_passed} receipts ML-DSA-65 verified)\033[0m" if audit_pass else f"\033[31mFAIL ({audit_receipts_failed} failed)\033[0m"
             print(f"  Post-Quantum Receipts:  {audit_status}")
-            print(f"  Canonical AGENTS.md:    {canon_label}")
+            print(f"  Canonical AGENTS.md:    {canon_label}" + (f" sha256:{agents_sha[:12]}" if canon_pass and agents_sha else ""))
             comms_status = "\033[32mPASS (harness-agnostic headers)\033[0m" if comms_pass else f"\033[31mFAIL ({len(comms_violations)} legacy agent: tags)\033[0m"
             print(f"  COMMS Ledger Hygiene:   {comms_status}")
             zt_status = "\033[32mPASS (Zero-Trust PQC, Loopback PSK & Trojan-Source clean)\033[0m" if zt_pass else "\033[31mFAIL (Zero-Trust / PSK / Trojan-Source / History violation)\033[0m"
@@ -3680,6 +5242,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], client: EmbedClient, sto
 
 
 def main():
+    global KEEP_SERVER
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -3692,10 +5255,21 @@ def main():
     parser.add_argument("--numa", type=str, default=None, help="NUMA node binding mode (distribute, isolate, numactl)")
     parser.add_argument("--cpu-affinity", type=str, default=None, help="CPU affinity pinning (range e.g. 0-7, or hex mask)")
     parser.add_argument("--psk-ttl", type=int, default=86400, help="TTL in seconds for loopback session PSK rotation")
+    parser.add_argument(
+        "--keep-server",
+        action="store_true",
+        help="Keep the local embedding server resident after this command (default: stop it, releasing model memory)",
+    )
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
     sub.add_parser("serve")
-    sub.add_parser("stop")
+    stop_p = sub.add_parser("stop")
+    stop_p.add_argument("--purge", action="store_true", help="Also remove loopback PSK material (.agents/rag/session.psk*)")
+    embed_p = sub.add_parser("embed-provider", help="Inspect, persist, or clear the embedding provider")
+    embed_p.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    embed_p.add_argument("--write", action="store_true", help="Persist the resolved non-secret provider config")
+    embed_p.add_argument("--clear", action="store_true", help="Remove the persisted provider config")
+    embed_p.add_argument("--provider", type=str, default=None, help="Pin intent: local|api|auto|openrouter|zenmux")
     status_p = sub.add_parser("status")
     status_p.add_argument("--tui", action="store_true", help="Launch interactive TUI telemetry dashboard")
     status_p.add_argument("--json", action="store_true", help="Output health and telemetry report as structured JSON")
@@ -3705,6 +5279,7 @@ def main():
     idx_p.add_argument("-w", "--watch", action="store_true", help="Watch directory for changes")
     idx_p.add_argument("--path", type=Path, default=Path.cwd())
     idx_p.add_argument("--truncate", type=int, default=None)
+    idx_p.add_argument("--rebuild", action="store_true", help="Drop the existing vector store before indexing (required after switching embedding models)")
     idx_p.add_argument("--anonymize-symbols", action="store_true", help="Hash proprietary symbols before vector embedding")
     idx_p.add_argument("--symbol-salt", type=str, default=None, help="Configurable symbol salt preventing rainbow-table deanonymization")
     idx_p.add_argument("--dp-noise", action="store_true", help="Inject differential privacy noise into embeddings")
@@ -3742,6 +5317,7 @@ def main():
     decide_p = sub.add_parser("decide")
     decide_p.add_argument("state")
     decide_p.add_argument("--question", default=None)
+    decide_p.add_argument("--questions", default=None, help="Typed question batch as inline JSON or @path (noul/choice/score with criteria)")
     decide_p.add_argument("--json", action="store_true")
 
     eval_p = sub.add_parser("eval")
@@ -3822,6 +5398,7 @@ def main():
     gate_p.add_argument("-w", "--watch", action="store_true", help="Continuously watch repository and re-evaluate gate")
     gate_p.add_argument("--summary", action="store_true", help="Output one-line compact status for PS1/tmux")
     gate_p.add_argument("--strict", action="store_true", help="Require STRONG_ANCHOR (>= 70.0% score) for security-critical modules")
+    gate_p.add_argument("--tests", default=None, metavar="CMD", help="Existing-suite command; its exit code is shown on the gate card and a non-zero exit blocks the merge")
     gate_p.add_argument("--json", action="store_true", help="Output gate report as JSON")
 
     statusline_p = sub.add_parser("statusline", help="Emit one-line compact gate status for PS1/Cursor/tmux")
@@ -3842,6 +5419,11 @@ def main():
     comp_p.add_argument("shell", choices=["bash", "zsh", "fish", "pwsh"])
 
     args = parser.parse_args()
+    KEEP_SERVER = bool(
+        getattr(args, "keep_server", False)
+        or (os.environ.get("AINISH_RAG_KEEP_SERVER", "").strip().lower() in ("1", "true", "yes", "on"))
+        or args.subcommand == "serve"
+    )
     repo_root = resolve_canonical_repo_root()
     port = int(os.environ.get("AINISH_RAG_PORT", DEFAULT_SERVER_PORT))
     server_url = os.environ.get("AINISH_RAG_URL", f"http://127.0.0.1:{port}")
@@ -3889,7 +5471,16 @@ def main():
             sys.exit(1)
 
     elif args.subcommand == "stop":
-        stop_server(repo_root)
+        stop_server(repo_root, purge=getattr(args, "purge", False))
+
+    elif args.subcommand == "embed-provider":
+        run_embed_provider_cmd(
+            repo_root,
+            json_out=getattr(args, "json", False),
+            write=getattr(args, "write", False),
+            clear=getattr(args, "clear", False),
+            pinned=getattr(args, "provider", None),
+        )
 
     elif args.subcommand == "status":
         if getattr(args, "tui", False):
@@ -3965,7 +5556,12 @@ def main():
         print(f"Loopback Auth:      {'AUTHENTICATED (' + client.psk[:8] + '...)' if client.psk else 'DISABLED'}")
         if client.uses_api_provider() or embed_provider_active(repo_root):
             _pc = read_embed_provider_cfg(repo_root)
-            print(f"Embed Provider:     API {_pc.get('api_base') or client.api_base} (model: {_pc.get('model') or client.api_model}, no local server)")
+            print(
+                f"Embed Provider:     API {_pc.get('provider_id') or 'custom'} "
+                f"{_pc.get('api_base') or client.api_base} "
+                f"(model: {_pc.get('model') or client.api_model}, "
+                f"dim: {_pc.get('dim') or 'model default'}, source: {_pc.get('source')}, no local server)"
+            )
         else:
             _ctx, _batch = derive_ctx_batch(max_mem, repo_root)
             print(f"Embed Provider:     local llama (ctx={_ctx} batch={_batch})")
@@ -3998,13 +5594,27 @@ def main():
 
     elif args.subcommand == "secrets":
         sec = inspect_secrets()
+        jev = inspect_jev()
         print("=== ainish-rag PQC Secrets & Decision Engine Status ===")
         print(f"PQC Vault Path:     {sec['pqc_bundle_path']}")
         print(f"PQC Vault Exists:   {sec['pqc_vault_exists']}")
         print(f"Key Resolved:       {sec['api_key_resolved']}")
         print(f"Key Source:         {sec['key_source']}")
         print(f"Key Preview:        {sec['key_hint']}")
-        if sec['api_key_resolved']:
+        print(f"Decision Model:     {jev['model']} (latest: {jev['latest_model']})")
+        if jev["model_pinned"]:
+            print("  ! JEV_DECISION_MODEL pins a model other than the latest")
+        print(f"OpenRouter Endpoint:{jev['endpoint']}")
+        router = jev.get("local_router")
+        if router:
+            print(f"Local Router:       {router['base_url']} (jev models: {', '.join(router['jev_models'])})")
+            if router.get("decisions_url"):
+                print(f"  Decisions Route:  {router['decisions_url']} (fallback transport)")
+            else:
+                print("  Decisions Route:  none (chat-only entry; typed decisions stay on OpenRouter)")
+        else:
+            print("Local Router:       not detected on loopback")
+        if sec['api_key_resolved'] or (router and router.get("decisions_url")):
             print("Status:             READY (TypeSafe Jev decisions online)")
         else:
             print("Status:             FALLBACK (Calibrated local heuristics active)")
@@ -4024,6 +5634,9 @@ def main():
 
         start_server(repo_root, port, client, threads=threads, max_mem=max_mem)
         db_dir = repo_root / ".agents" / "rag" / "lancedb"
+        if getattr(args, "rebuild", False) and db_dir.exists():
+            shutil.rmtree(db_dir, ignore_errors=True)
+            print(f"  \033[36m[rag:index]\033[0m Rebuilt vector store (removed {db_dir})")
         store = LanceStore(db_dir)
 
         files = [p for p in target.rglob("*") if p.is_file() and not is_ignored_path(p)]
@@ -4084,6 +5697,11 @@ def main():
 
         if indexed_chunks:
             store.upsert(indexed_chunks)
+            write_index_fingerprint(
+                repo_root,
+                embedding_identity_from_cfg(read_embed_provider_cfg(repo_root)),
+                client.truncate_dim or DEFAULT_EMBED_DIM,
+            )
 
         total_records = store.count()
         print(f"  \033[32m[rag:index]\033[0m Successfully indexed {len(indexed_chunks)} chunks into LanceDB (Total records: {total_records})")
@@ -4186,6 +5804,11 @@ def main():
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 })
             store.upsert(chunks)
+            write_index_fingerprint(
+                repo_root,
+                embedding_identity_from_cfg(read_embed_provider_cfg(repo_root)),
+                client.truncate_dim or DEFAULT_EMBED_DIM,
+            )
             record_index_audit_receipt(
                 repo_root=repo_root,
                 target=target,
@@ -4274,21 +5897,103 @@ def main():
             print(f"Source:                {dec['source']}")
             print(f"Needs Retrieval:       {dec['needs_retrieval']} (probability: {dec['retrieval_probability']:.3f})")
             print(f"Target Domain:         {dec['target_domain']} (confidence:  {dec['route_confidence']:.3f})")
+            print(f"Context Freshness:     {dec.get('context_freshness', 0.5):.3f}")
+            print(f"Retrieval Strategy:    {dec.get('retrieval_strategy', 'hybrid_rerank')} (pool {dec.get('candidate_pool_size', 12)})")
+            print(f"Context Budget:        {dec.get('context_budget_tokens', 2000)} tokens")
+            print(f"Next Action:           {dec.get('next_action', '')}")
             print()
 
     elif args.subcommand == "decide":
         engine = DecisionEngine()
-        q = args.question or "Does this task require external retrieval or escalation?"
+        if getattr(args, "questions", None):
+            raw = args.questions
+            if raw.startswith("@"):
+                raw = Path(raw[1:]).read_text(encoding="utf-8")
+            elif Path(raw).is_file():
+                raw = Path(raw).read_text(encoding="utf-8")
+            try:
+                questions = json.loads(raw)
+            except ValueError as exc:
+                print(f"  [rag:error] --questions must be a JSON object of typed questions: {exc}", file=sys.stderr)
+                return
+            if not isinstance(questions, dict):
+                print("  [rag:error] --questions must be a JSON object keyed by question id", file=sys.stderr)
+                return
+            try:
+                result = engine.decide(args.state, questions)
+            except Exception as exc:
+                print(f"  [rag:error] Jev decision failed: {exc}", file=sys.stderr)
+                return
+            if args.json:
+                print(json.dumps({"state": args.state, **result}, indent=2))
+            else:
+                print("\n=== Jev Typed Decisions ===")
+                print(f"State:   {args.state.splitlines()[0] if args.state else ''}")
+                print(f"Model:   {result['model']} ({result['source']})")
+                for answer in result["answers"]:
+                    if answer.get("noul") is not None:
+                        value = f"{answer['noul']:.3f} ({noul_band(float(answer['noul']))})"
+                    elif answer.get("choice"):
+                        confidence = answer.get("confidence")
+                        value = f"{answer['choice']} (confidence {float(confidence):.2f})" if confidence is not None else str(answer["choice"])
+                    elif answer.get("score") is not None:
+                        value = f"{float(answer['score']):.2f}"
+                    else:
+                        value = "n/a"
+                    print(f"  {answer['id']:<28} {answer.get('type', ''):<8} {value}")
+                print()
+            return
+
+        if getattr(args, "question", None):
+            question = args.question
+            questions = {
+                "statement": engine.noul_question(
+                    question,
+                    "the state provides clear evidence that the answer is yes",
+                    "the state provides no evidence that the answer is yes",
+                )
+            }
+            try:
+                result = engine.decide(args.state, questions)
+            except Exception as exc:
+                print(f"  [rag:error] Jev decision failed: {exc}", file=sys.stderr)
+                return
+            answer = result["answers"][0] if result["answers"] else {}
+            payload = {
+                "state": args.state,
+                "question": question,
+                "model": result["model"],
+                "source": result["source"],
+                "answer": answer,
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print("\n=== Jev Decision Analysis ===")
+                print(f"State:                 {args.state.splitlines()[0] if args.state else ''}")
+                print(f"Question:              {question}")
+                print(f"Model:                 {result['model']} ({result['source']})")
+                if answer.get("noul") is not None:
+                    probability = float(answer["noul"])
+                    print(f"Answer:                {probability:.3f} ({noul_band(probability)})")
+                else:
+                    print("Answer:                unresolved")
+                print()
+            return
+
         dec = engine.route(args.state)
         if args.json:
             print(json.dumps(dec, indent=2))
         else:
-            print("\n=== Jev Decision Analysis ===")
-            print(f"State:                 {args.state}")
-            print(f"Question:              {q}")
+            print("\n=== Jev Decision Routing ===")
+            print(f"State:                 {args.state.splitlines()[0] if args.state else ''}")
             print(f"Source:                {dec['source']}")
-            print(f"Needs Retrieval:       {dec['needs_retrieval']}")
-            print(f"Target Domain:         {dec['target_domain']}")
+            print(f"Needs Retrieval:       {dec['needs_retrieval']} ({dec['retrieval_probability']:.3f})")
+            print(f"Target Domain:         {dec['target_domain']} (confidence:  {dec['route_confidence']:.3f})")
+            print(f"Context Freshness:     {dec.get('context_freshness', 0.5):.3f}")
+            print(f"Retrieval Strategy:    {dec.get('retrieval_strategy', 'hybrid_rerank')} (pool {dec.get('candidate_pool_size', 12)})")
+            print(f"Context Budget:        {dec.get('context_budget_tokens', 2000)} tokens")
+            print(f"Next Action:           {dec.get('next_action', '')}")
             print()
 
     elif args.subcommand == "eval":
@@ -4442,6 +6147,7 @@ def main():
             watch=getattr(args, "watch", False),
             summary=getattr(args, "summary", False),
             strict=getattr(args, "strict", False),
+            tests_cmd=getattr(args, "tests", None),
             json_out=args.json,
         )
         if not ok:
@@ -4472,7 +6178,8 @@ def main():
         elif args.audit_command == "keygen":
             run_audit_keygen(repo_root, out_dir=getattr(args, "out_dir", None))
         elif args.audit_command == "sign":
-            run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None))
+            if not run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None)):
+                raise SystemExit(1)
         elif args.audit_command == "contract":
             run_audit_contract(
                 repo_root,
@@ -4875,16 +6582,7 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
             failed += 1
             continue
 
-        calc_hash = hashlib.sha256(r.read_bytes()).hexdigest()
         verified = False
-        try:
-            sig_data = json.loads(sig_file.read_text(encoding="utf-8"))
-            if sig_data.get("sha256", "").lower() == calc_hash.lower():
-                verified = True
-                print(f"  \033[32m[PASS]\033[0m {r.name}: Integrity verified ({sig_data.get('mode', 'ML-DSA-65')})")
-        except Exception:
-            pass
-
         if not verified:
             try:
                 res = subprocess.run([cmd_name, "verify", str(sig_file), str(r)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -5167,5 +6865,3 @@ def run_service_command(repo_root: Path, port: int, cmd: str, args: Any) -> None
 
 if __name__ == "__main__":
     main()
-
-

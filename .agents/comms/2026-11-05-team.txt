@@ -1,0 +1,77 @@
+# AGENT COMMS — 2026-11-05
+
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`). `ainish-coder --rules` asks on a real terminal the FIRST time a repo has no saved selection, then applies that saved choice on every later run; `ainish-coder --select-skills [DIR]` reopens the choice and `ainish-coder --skills-list [DIR] [--json]` shows it. Agents and CI MUST use the headless path — `ainish-coder --rules <dir> --headless` or `ainish-coder --skills-sync <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+**Entry block:**
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+- compat:<window and rollback path>   # contract/schema/CLI/cross-OS changes
+- verification:<what proved it>
+~~~
+
+**Rules:** append-only. Never edit or delete another agent's block. Timestamps UTC. One writer per shared boundary.
+
+---
+
+### [2026-11-05T03:05:00Z] checkout | branch:fix/rules-skill-selection | wt:D:\Code\ainish-coder-skills-select
+- start:2026-11-05T02:20:00Z
+- end:2026-11-05T03:05:00Z
+- scope:bin/ainish-coder, src/skills_selection.sh, src/deploy_skills.sh, src/help.sh, llms.txt, AGENTS.md, .agents/canonical/, scripts/test-pqc-dist.sh, src/templates/AGENTS.COMMS.md
+- objective:Restore the ability to choose which skill packs `--rules` deploys, without reintroducing the interactive stall that motivated deleting the selector.
+- input:Operator report that `ainish-coder --rules` deployed zero packs and never offered a selection.
+- output:Ask-once-per-repo selector on first contact; `--select-skills` and `--skills-list [--json]` surfaces; bounded idle read with cancel/timeout falling back to the saved selection; documentation and a 14-assertion regression guard.
+- status:done
+- blockers:none
+- compat:No selection-file or manifest format change; existing per-repo choices keep working; `--headless`/`-y`/non-TTY behavior unchanged. New flags and env vars (`AINISH_SKILLS_PROMPT`, `AINISH_SKILLS_PROMPT_TIMEOUT`) are additive, so no migration is required; roll back by reverting this branch.
+- verification:scripts/test-pqc-dist.sh selection assertions 14/14; pty smoke 17/17; set -euo pipefail edge cases; ainish-rag audit verify 16/16; contract history 27 transitions; canonical byte identity.
+
+### [2026-11-05T03:20:00Z] update | branch:fix/rules-skill-selection | wt:D:\Code\ainish-coder-skills-select
+- start:2026-11-05T03:05:00Z
+- end:2026-11-05T03:20:00Z
+- scope:src/embed_config.sh, src/deploy_rules_sync.sh, src/agents_protection.sh, src/pqc_dist.sh, scripts/test-pqc-dist.sh, llms.txt
+- objective:Fix the two defects found while proving the skills-selection change, rather than shipping around them.
+- input:Operator asked for everything fixed and working as intended before rules are pushed to other repos.
+- output:Engine invocations detach stdin, which stops the WSL SIGTTIN hang (root-caused: inherited pty stdin + non-foreground process group stops the `.exe`, and the stopped child drags `timeout` down with it, so the watchdog never fired). `--pqc-install` no longer false-negatives on a fresh install: success means launcher installed plus a usable identity (`generated`/`present`/`failed`), not `bundleExists`, which `keygen` never writes.
+- status:done
+- blockers:none
+- compat:No CLI, manifest, or store-format change. `keygen` state gains `present` alongside `generated`/`failed`/`skipped` in `pqc-install/v1` JSON; `ok` can now be true without a bundle, which is the correct fresh-install state. Roll back by reverting this branch.
+- verification:scripts/test-pqc-dist.sh 51/51 PASS; real-engine pty smoke 21/21 (no stubs) with `--rules` now 6-8s exit 0 where it previously hung; unattended refresher and `--rules-sync --all --quiet` bounded, no selector; fresh-install identity 7/7; audit verify 16/16; contract history 27 transitions.
+### [2026-11-05T03:38:00Z] docs | branch:docs/rag-operator-utility | wt:D:\Code\ainish-coder
+- start:2026-11-05T03:28:00Z
+- end:2026-11-05T03:38:00Z
+- scope:AGENTS.md, .agents/canonical/, .agents/llms.txt, .agents/skills/context-orchestration/SKILL.md, llms.txt
+- objective:Reposition ainish-rag as the operator's project utility rather than an agent intake requirement.
+- input:Operator observation that agents do not auto-intake RAG context-engineering, so the mandatory-sounding orientation step was overkill.
+- output:Contract, child index, and orchestration skill no longer direct agents to route/orient; RAG scope stated explicitly in the repo PRD. Every ainish-rag command unchanged. Merged branch and empty leftover worktree removed; smoke target kept enrolled.
+- status:done
+- blockers:none
+- compat:Prompt-contract and docs only; no CLI, schema, or manifest change. Targets receive the revised contract on their next rules refresh; revert the commit to roll back.
+- verification:no remaining route/orient directive in agent-facing docs; contract byte-identical and re-signed; audit verify 16/16; test-pqc-dist 57/57; fleet 3/3 CURRENT.

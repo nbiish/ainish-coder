@@ -1,5 +1,23 @@
+
+
 - 01:13 merged origin/main ce46980 into local main as 8389213; 30 remote commits plus six local commits preserved.
 - 01:13 [gotcha] `.agents/canonical/AGENTS.md` carries macOS `uchg`; fast-forward aborts with "Operation not permitted" until `chflags nouchg` is run.
 - 01:13 [gotcha] `uv run` selects Python 3.10 here; backslashes inside f-string expressions fail, so extract them into variables in `src/rag/rag.py`.
 - 01:14 [decision] RAG gate resolves the canonical repo root from a worktree, so fleet-level gate checks must run from the main checkout.
 - 01:15 [fact] Latest release adds official rules registry commands; current fleet remains on the custom `sync-rules-targets.sh` hook and `targets.txt` is empty.
+- 01:20 `src/rag/src/provider.rs` resolves the embedding provider: operator intent (env `AINISH_EMBED_PROVIDER` / persisted `.agents/rag/embed-provider.json`) → env → PQC store (`pqc-secrets export --json`, in memory only). Accepts canonical, provider-slug, and consumer-prefixed names, notably `LOCALROUTER_OPENROUTER_API_KEY` / `LOCALROUTER_ZENMUX_API_KEY`.
+- 01:21 Catalog defaults: OpenRouter `https://openrouter.ai/api/v1`, ZenMux `https://zenmux.ai/api/v1`, model `openai/text-embedding-3-small` (1536-d native, truncated+renormalized to the store's 768 via `provider::DEFAULT_STORE_DIM`).
+- 01:22 Verified live with the PQC keys: both `POST /embeddings` returned HTTP 200 with 1536 dims, so auto-detection is not speculative.
+- 01:28 `provider::write_config` persists only non-secret fields (`provider`, `provider_id`, `api_base`, `model`, `dim`, `key_source`, `source`); the key value never touches disk or logs.
+- 01:30 Gotcha: `pqc-secrets` on Windows is a `.cmd` shim, which `CreateProcess` cannot run directly; `provider::export_secrets` routes it through `cmd /C` and also honours `PQC_SECRETS_BIN`.
+- 01:37 Memory lifecycle: `LlamaServer::mark_ephemeral` + `EphemeralServerGuard` (Drop) kill only a server *this* process spawned, on every exit path; `serve` and `service status --warm` set keep=true; `--keep-server`/`AINISH_RAG_KEEP_SERVER=1` opts out. `stop --purge` also removes `session.psk*`.
+- 01:38 Switching to API reclaims a resident local model in `ensure_running` (reported as "Released the previously resident local embedding model"). The operator's stale llama (2,034 MB) was stopped this way and never came back.
+- 01:40 Gotcha: every worktree carries tracked `.agents/` (skills, canonical), so `resolve_canonical_repo_root(worktree)` returns the worktree itself — LanceDB, PID, PSK and provider config are per-worktree. Gate/eval must run against that worktree's own index or it reports UNGROUNDED.
+- 01:42 Gotcha: signing in a worktree without `.agents/audit/signer.mldsa65.priv` generates a fresh random seed, so `audit verify` reports "signed by a key other than the trust anchor". Sign on main (priv file present, gitignored) or copy the priv file into the worktree.
+- 01:43 Remote batch sizing: `EmbedClient::with_api_provider` starts at 32 and `record_rtt_and_scale_batch` doubles below 1500 ms up to 128, halves above 6000 ms. 3,355 chunks took 28 requests (~1 min) instead of 840 at loopback-sized batches of 4.
+- 01:45 `ainish-rag index --rebuild` is required after an embedding-provider switch; `.agents/rag/index-fingerprint.json` stores `identity` (`api:openrouter:openai/text-embedding-3-small`) + `dim`, and a mismatch prints a rebuild warning from `ensure_running`.
+- 01:46 `--embed-config --detect` delegates to `ainish-rag embed-provider` inside the target repo; `--rules` runs the same detection and persists config only when a real remote credential exists (nothing is written for auto-detection that found nothing).
+- 01:47 Canonical contract: after editing AGENTS.md, run `ainish-rag audit contract` on main and commit `.agents/canonical/{AGENTS.md,*.sha256,*.sig,*.threshold.sig}`; the gate's Zero-Trust `canonical_sha256_match` is red until then.
+- 02:06 Gotcha: an apostrophe inside a `${var:-default}` word opens a single-quoted region for bash, surfacing only as "unexpected EOF" at the file's end (line 252 in `src/embed_config.sh`). Keep parameter-expansion defaults quote-free; re-run `bash -n` after every edit, not just the first draft.
+- 02:07 The broken expansion made every `ainish-coder` invocation fail while sourcing `embed_config.sh`; fixed in ec198b3 and verified with `bash -n`, `--embed-config --status`, and `--embed-config --detect --json`.
+- 02:09 Final main state: 8a83fdb (auto-intent fix) + ec198b3 (quote-safe status expansion); gate GREEN 82.4% STRONG_ANCHOR; `bin/ainish-rag.exe` rebuilt at 21:58; no llama/ainish-rag process resident.
