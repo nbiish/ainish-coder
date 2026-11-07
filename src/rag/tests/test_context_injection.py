@@ -33,7 +33,12 @@ class DriverOrderTest(unittest.TestCase):
     def setUp(self):
         self._saved = {
             k: os.environ.get(k)
-            for k in ("AINISH_RAG_DRIVER_PRIORITY", "AINISH_RAG_DRIVER_OFFLINE", "AINISH_RAG_OFFLINE")
+            for k in (
+                "AINISH_RAG_DRIVER_PRIORITY",
+                "AINISH_RAG_DRIVER_OFFLINE",
+                "AINISH_RAG_OFFLINE",
+                "AINISH_RAG_DRIVER_MODEL",
+            )
         }
         for key in self._saved:
             os.environ.pop(key, None)
@@ -45,29 +50,48 @@ class DriverOrderTest(unittest.TestCase):
             else:
                 os.environ[key] = value
 
-    def test_default_order_is_local_router_first(self):
+    def test_default_chain_is_the_requested_order(self):
         self.assertEqual(
-            rag.driver_tier_order(),
-            ["local-router", "openrouter", "zenmux", "local-model"],
+            [step["id"] for step in rag.DriverEngine().chain_steps()],
+            [
+                "local-router/fallback-models",
+                "zai-glm-5.3-flash",
+                "xiaomi-mimo-mimo-v2.6-pro",
+                "openrouter-deepseek-v4.1-flash-1017",
+                "deepseek/deepseek-v4.1-flash-1017",
+            ],
         )
 
-    def test_priority_env_reorders_but_keeps_every_tier(self):
-        os.environ["AINISH_RAG_DRIVER_PRIORITY"] = "zenmux,openrouter"
-        order = rag.driver_tier_order()
-        self.assertEqual(order[:2], ["zenmux", "openrouter"])
-        self.assertEqual(sorted(order), sorted(rag.DRIVER_TIERS))
+    def test_chain_head_is_the_local_router_generic_chain(self):
+        first = rag.DriverEngine().chain_steps()[0]
+        self.assertEqual(first["transport"], "local-router")
+        self.assertTrue(first.get("expect_any"), "the generic chain step must accept any model it picks")
 
-    def test_offline_mode_offers_only_the_local_tier(self):
-        self.assertTrue(rag.driver_offline_mode() is False)
+    def test_chain_is_not_the_router_fallback_content(self):
+        # The order lives in this engine. local-router's own fallback-models chain is a single step
+        # here, and the engine never reads router-settings.json to build its order.
+        source = RAG_PATH.read_text(encoding="utf-8")
+        self.assertIn("DRIVER_CHAIN", source)
+        self.assertNotIn("router-settings.json", source)
+
+    def test_offline_mode_offers_only_the_local_floor(self):
+        self.assertFalse(rag.driver_offline_mode())
         os.environ["AINISH_RAG_DRIVER_OFFLINE"] = "1"
         self.assertTrue(rag.driver_offline_mode())
-        self.assertEqual(rag.driver_tier_order(allow_remote=False), ["local-model"])
+        steps = rag.DriverEngine().chain_steps()
+        self.assertEqual([s["transport"] for s in steps], ["local-model"])
+        self.assertFalse(rag.DriverEngine().allow_remote)
 
-    def test_offline_engine_never_lists_a_remote_tier(self):
+    def test_offline_chain_is_never_empty(self):
+        # An empty chain would report "no driver step configured" instead of naming the local
+        # failure, which is the only diagnostic an offline operator has.
         os.environ["AINISH_RAG_OFFLINE"] = "yes"
-        engine = rag.DriverEngine()
-        self.assertEqual(engine.order, ["local-model"])
-        self.assertFalse(engine.allow_remote)
+        self.assertTrue(rag.DriverEngine().chain_steps())
+
+    def test_model_pin_collapses_the_chain_to_that_step(self):
+        os.environ["AINISH_RAG_DRIVER_MODEL"] = "zai-glm-5.3-flash"
+        steps = rag.DriverEngine().chain_steps()
+        self.assertEqual([s["id"] for s in steps], ["zai-glm-5.3-flash"])
 
 
 class DriverModelIdentityTest(unittest.TestCase):
@@ -79,7 +103,11 @@ class DriverModelIdentityTest(unittest.TestCase):
                 "openrouter-deepseek-v4.1-flash-1017", "deepseek/deepseek-v4.1-flash-1017"
             )
         )
-        self.assertTrue(rag.driver_model_matches("zenmux-deepseek-v4.1-flash", "deepseek/deepseek-v4-flash") is False)
+
+    def test_router_stripped_ids_still_match(self):
+        # Measured: the router answers with only the provider-stripped tail.
+        self.assertTrue(rag.driver_model_matches("xiaomi-mimo-mimo-v2.6-pro", "mimo-v2.6-pro"))
+        self.assertTrue(rag.driver_model_matches("zai-glm-5.3-flash", "glm-5.3-flash"))
 
     def test_snapshot_suffix_is_a_different_model(self):
         # The router strips `-1017` only for display; it is a real snapshot id.
@@ -87,9 +115,8 @@ class DriverModelIdentityTest(unittest.TestCase):
             rag.driver_model_matches("deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4.1-flash-1017")
         )
 
-    def test_fallback_chain_answer_is_a_mismatch(self):
-        # `local-router/fallback-models` answers as whatever upstream won, e.g. mimo.
-        self.assertFalse(rag.driver_model_matches("openrouter-deepseek-v4.1-flash-1017", "mimo-v2.6-pro"))
+    def test_fallback_chain_answer_is_a_mismatch_for_a_pinned_step(self):
+        self.assertFalse(rag.driver_model_matches("zai-glm-5.3-flash", "mimo-v2.6-pro"))
 
     def test_empty_values_never_match(self):
         self.assertFalse(rag.driver_model_matches("", "deepseek/deepseek-v4.1-flash"))
@@ -122,41 +149,62 @@ class DriverChatTest(unittest.TestCase):
 
         def fake_post(base, model, messages, key=None, **kwargs):
             calls.append((base, model, key))
-            if "11434" in base:  # the local router is down for this test
-                raise RuntimeError("HTTP 503 from router")
-            return {"text": "answer", "model": model, "usage": {}}
+            raise RuntimeError("simulated outage at every step")
 
         self.engine._post_chat = fake_post
-        self.engine._probe_models = lambda base, timeout=1.5: None  # no local model backend
+        self.engine._probe_models = lambda base, timeout=1.5, key=None: None
         result = self.engine.chat([{"role": "user", "content": "hi"}])
 
-        # Local router is always attempted first (no key needed); OpenRouter/ZenMux cannot run.
-        self.assertEqual(calls[0][1], rag.DRIVER_MODEL_IDS["local-router"][0])
-        self.assertIsNone(calls[0][2])
-        self.assertEqual(len(calls), len(rag.DRIVER_MODEL_IDS["local-router"]))
-        self.assertTrue(any("openrouter: no API key resolved" in a for a in result["attempts"]))
-        self.assertTrue(any("zenmux: no API key resolved" in a for a in result["attempts"]))
+        # The chain is walked in order, each failure recorded with its own label.
+        self.assertEqual([c[1] for c in calls][0], "local-router/fallback-models")
         self.assertEqual(result["source"], "unavailable")
+        self.assertTrue(any("generic fallback chain" in a for a in result["attempts"]))
+        self.assertTrue(any("GLM 5.3 Flash" in a for a in result["attempts"]))
+        self.assertTrue(any("MiMo 2.6 Pro" in a for a in result["attempts"]))
 
-    def test_first_working_tier_wins_and_later_tiers_are_not_called(self):
+    def test_first_working_step_wins_and_later_steps_are_not_called(self):
         calls = []
 
         def fake_post(base, model, messages, key=None, **kwargs):
             calls.append(model)
-            return {"text": "answer", "model": model, "usage": {}}
+            return {"text": "answer", "model": "mimo-v2.6-pro", "usage": {}}
 
         self.engine._post_chat = fake_post
         result = self.engine.chat([{"role": "user", "content": "hi"}])
-        self.assertEqual(result["tier"], "local-router")
-        self.assertEqual(calls, [rag.DRIVER_MODEL_IDS["local-router"][0]])
+        self.assertEqual(result["step"], "local-router generic fallback chain")
+        self.assertEqual(calls, ["local-router/fallback-models"])
         self.assertEqual(result["attempts"], [])
+        self.assertTrue(result["model_verified"], "the generic chain accepts whatever it picks")
+
+    def test_failover_moves_to_the_next_step_when_the_head_rejects(self):
+        calls = []
+
+        def fake_post(base, model, messages, key=None, **kwargs):
+            calls.append(model)
+            if model == "local-router/fallback-models":
+                raise RuntimeError("router refused")
+            return {"text": "answer", "model": "glm-5.3-flash", "usage": {}}
+
+        self.engine._post_chat = fake_post
+        result = self.engine.chat([{"role": "user", "content": "hi"}])
+        self.assertEqual(calls, ["local-router/fallback-models", "zai-glm-5.3-flash"])
+        self.assertEqual(result["step"], "Z.AI GLM 5.3 Flash")
+        self.assertTrue(result["model_verified"])
+        self.assertFalse(result["degraded"])
+        self.assertEqual(len(result["attempts"]), 1)
 
     def test_model_mismatch_is_reported_degraded_not_raised(self):
         def fake_post(base, model, messages, key=None, **kwargs):
-            return {"text": "answer from somewhere", "model": "mimo-v2.6-pro", "usage": {}}
+            return {"text": "answer from somewhere", "model": "some-other-model", "usage": {}}
 
-        self.engine._post_chat = fake_post
-        result = self.engine.chat([{"role": "user", "content": "hi"}])
+        # Pin a single step so the generic-chain exemption (expect_any) does not apply.
+        os.environ["AINISH_RAG_DRIVER_MODEL"] = "zai-glm-5.3-flash"
+        try:
+            engine = rag.DriverEngine(allow_remote=True)
+            engine._post_chat = fake_post
+            result = engine.chat([{"role": "user", "content": "hi"}])
+        finally:
+            os.environ.pop("AINISH_RAG_DRIVER_MODEL", None)
         self.assertTrue(result["degraded"])
         self.assertFalse(result["model_verified"])
         self.assertEqual(result["text"], "answer from somewhere")

@@ -477,7 +477,7 @@ contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-ra
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'advisory evidence, never authority'
 contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
-contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'local-router → openrouter → zenmux → local-model'
+contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'local-router/fallback-models → zai-glm-5.3-flash'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
 contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'it is advisory evidence'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
