@@ -21,20 +21,21 @@ some of the request is already built. Concretely:
 | Corrective expansion (CRAG) | **Exists** | `evaluate_context_sufficiency` (`:2739`), `extract_corrective_expansion_terms` (`:2762`) |
 | Transport failover | **Partial** | order is `local-router → openrouter → jev → local-model` (`:2674-2694`). The router itself already reports `order: ["openrouter","zenmux"]` for decisions, but the engine's own stage list has **no zenmux stage** — so engine-level failover cannot reach ZenMux directly |
 | Living wiki + signed ledger | **Exists** | `generate_wiki` (`:2232`), `append_wiki_note_and_sign` (`:2136`), bidirectional resolutions (`:2212`) |
-| Context injection | **Partial** | `orient --inject` emits a primer; it is **not** a two-agent pipeline |
-| Elephant/Goldfish | **Docs only** | `.agents/skills/context-orchestration/SKILL.md` is a *human procedure*; `bin/egm-check.sh` only greps headings. No code, no model calls |
-| Generative driver model | **Absent** | **No `chat/completions` call anywhere in the engine.** Every model call is a typed decision or an embedding |
+| Context injection | **Exists** | `context` (`:4790` region) emits a labelled, budgeted envelope; `orient --inject` remains the wiki-only primer |
+| Elephant/Goldfish | **Exists (Phase 4d)** | `elephant_synthesize` + `goldfish_review`; the isolation is signature-enforced and pinned by `test_context_injection.py` |
+| Generative driver model | **Exists (Phase 4a)** | `DriverEngine` — tiered chat completions with `source`, `model_verified`, and per-tier attempt logs |
 | Self-maintaining index | **Absent** | `index` is a full scan with optional `--watch`; no delta, no autonomous curation |
 
-Two facts drive the whole plan:
+Two facts drove the whole plan. **Both have since changed** — see the Phase 4 status block:
 
-1. **There is no generative path in the engine.** Elephant and Goldfish as described — an agent that
-   "modifies/adds to the initial prompt injection" and a reviewer that "adds its unfiltered
-   addition" — require *text generation*, not calibrated probabilities. That is a new subsystem, not
-   a flag on an existing one.
-2. **The two-command surface does not exist yet.** The engine exposes **22 top-level subcommands**
+1. **There was no generative path in the engine.** Elephant and Goldfish — an agent that "modifies/
+   adds to the initial prompt injection" and a reviewer that "adds its unfiltered addition" — require
+   *text generation*, not calibrated probabilities. That was a new subsystem, not a flag; `DriverEngine`
+   is now that subsystem.
+2. **The two-command surface did not exist.** The engine exposed **22 top-level subcommands**
    (33 including nested `audit`/`service`), verified from the parser (`grep 'sub\.add_parser'`).
-   The plan has to *hide* them behind two verbs rather than add a third way to use them.
+   `context` now exists as the agent-facing verb; `sync` is still unbuilt, so the surface is
+   half-complete and the subcommands remain the internal escape hatch.
 
 ---
 
@@ -251,6 +252,39 @@ no session state (test asserts the absence); total latency within budget on loca
 measured remote fallback.
 **Deliverable:** `ainish-rag context --task "<text>"`.
 
+**Status: DONE (2026-11-07, Phase 4a–4d).** `ainish-rag context` ships with the driver tiering, the
+Elephant session sidecar, the stateless Goldfish review, and budgeted assembly. Verified live against
+local-router on the operator host; measured latency is recorded below.
+
+Two things Phase 1 was supposed to settle had to be decided from the literature directly, because
+shipping Phase 4 could not wait for the full evidence dossier:
+
+- **The Elephant/Goldfish split is our design hypothesis, not a published technique.** The Google
+  blog post describes a plugin, not a measured result. What *is* published is the pair of effects it
+  leans on: a fresh-context reviewer catches errors an incremental reviewer misses, and
+  critique-then-revise improves output when the critic is adversarial. Those justify the split; the
+  specific two-agent topology remains unproven on our corpus. The code and the contract say
+  "advisory" for exactly that reason.
+- **The driver model is a reasoning model.** This is a hard constraint, not a detail: `max_tokens:
+  16` returns empty content and burns the whole budget on reasoning, so a caller that reads empty
+  content as a transport failure will mis-diagnose a budget problem as an outage. The engine reports
+  it as a budget error and defaults to 900 tokens.
+
+Measured on this repo (3,627-record store, local-router tier 1):
+
+| Path | Result |
+|---|---|
+| `context --task … --budget 1200` (remote embeddings + local-router drivers) | 917 tokens, ~21s wall clock (two sequential driver calls dominate) |
+| `context --retrieval-only` | one embedding round trip, no driver spend |
+| `AINISH_RAG_DRIVER_OFFLINE=1` | local-model tier only; degrades cleanly and says so |
+| All tiers unreachable | `source: unavailable` + per-tier attempt log; injection still returns |
+
+Known limit worth stating plainly: **two sequential generative passes cost ~2× a single call.** That
+is inside the plan's ≤4s remote budget only because the local router answers in ~0.8–1s per call;
+against a cold tier it exceeds the budget. The mitigation that shipped is `--retrieval-only` and
+`--no-remote`, not a faster model. Phase 2's incremental indexing and Phase 4 caching are still the
+right fix.
+
 ---
 
 ### Phase 5 — The two-command agent surface + thin `AGENTS.md`
@@ -303,8 +337,12 @@ Documentation and code move together: a phase that changes behaviour updates thi
 
 ```
 ainish-rag sync [PATH] [--apply] [--json]      # build / refresh / maintain
-ainish-rag context --task "<text>" [--budget N] [--json] [--no-remote]
+ainish-rag context --task "<text>" [--budget N] [--json] [--no-remote] [--retrieval-only]
+                                               [--session ID] [--unload]
 ```
+
+`context` is implemented (Phase 4). `sync` is not: `index` + `cleanup` remain separate verbs and
+Phase 2's incremental manifest is the prerequisite, so the two-verb surface of Phase 5 is half done.
 
 Injection envelope (JSON):
 
