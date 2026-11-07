@@ -591,6 +591,14 @@ contains "provenance reports distinct models" "$(cat "${REPO}/src/rag/rag.py")" 
 contains "render names the pair" "$(cat "${REPO}/src/rag/rag.py")" "<!-- pair: elephant="
 contains "context exposes a per-role model flag" "$(cat "${REPO}/src/rag/rag.py")" '"--elephant-model"'
 contains "contract documents the per-role pins" "$(cat "${REPO}/AGENTS.md")" 'two separate model calls'
+# `--context` is the spelling the contract and muscle memory use; argparse needs the subcommand.
+contains "engine normalizes the --context alias" "$(cat "${REPO}/src/rag/rag.py")" "def normalize_argv"
+contains "argparse receives normalized argv" "$(cat "${REPO}/src/rag/rag.py")" "parse_args(normalize_argv"
+contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
+# The default pair is same-model/fresh-context; distinct models are the opt-in.
+contains "both roles default to the router route" "$(cat "${REPO}/src/rag/rag.py")" 'def distinct_reviewer_requested'
+contains "distinct reviewer is user-selectable" "$(cat "${REPO}/src/rag/rag.py")" '"--distinct-reviewer"'
+contains "contract documents the default pair" "$(cat "${REPO}/AGENTS.md")" 'fresh-context review'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
