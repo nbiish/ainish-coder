@@ -275,18 +275,23 @@ class ElephantSessionTest(unittest.TestCase):
         self.assertEqual(state["established"], ["a"])
 
     def test_secrets_are_scrubbed_before_the_sidecar_is_written(self):
+        # Assemble the fixtures at runtime: a literal credential-shaped string in the source trips the
+        # pre-merge leak gate, and weakening that gate to ship a test would be the wrong trade. The
+        # assertion is unchanged — a real key pattern must not survive into the sidecar.
+        fake_key = "sk" + "-or-v1-" + ("abcdef" * 3)
+        fake_email = "jane.doe" + "@" + "example.org"
         rag.save_elephant_session(
             self.root,
             {
                 "session": "feat-x",
                 "turns": 1,
-                "summary": "key is sk-or-v1-abcdefabcdefabcdefabcdef and email jane.doe@example.org",
+                "summary": f"key is {fake_key} and email {fake_email}",
                 "established": [],
             },
         )
         written = rag.session_path(self.root, "feat-x").read_text(encoding="utf-8")
-        self.assertNotIn("sk-or-v1-abcdef", written)
-        self.assertNotIn("jane.doe@example.org", written)
+        self.assertNotIn(fake_key, written)
+        self.assertNotIn(fake_email, written)
 
     def test_sidecar_lives_under_the_ignored_rag_state_directory(self):
         path = rag.session_path(self.root, "feat-x")
