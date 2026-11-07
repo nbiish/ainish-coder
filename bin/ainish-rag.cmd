@@ -20,7 +20,10 @@ set "NATIVE_BIN=%SELF_DIR%ainish-rag.exe"
 set "PY_ENGINE=%SELF_DIR%..\src\rag\rag.py"
 rem Verbs that exist only in the Python engine. A compiled build can lag by design (the exe is a
 rem gitignored artifact), so never hand one of these to the binary.
-set "PY_ONLY_SUBCOMMANDS= context "
+rem   context - the whole injection pipeline (driver chain, Elephant/Goldfish) is Python-only.
+rem   secrets - it also reports the generative driver chain, which the Rust engine does not have,
+rem             so the binary answers with a shorter report that looks like a regression.
+set "PY_ONLY_SUBCOMMANDS= context secrets "
 
 if not exist "%PY_ENGINE%" goto :no_engine
 if exist "%NATIVE_BIN%" goto :native

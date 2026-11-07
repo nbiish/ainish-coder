@@ -575,6 +575,12 @@ contains "secure writes AGENTS_SECURITY.md" "$secure_block" "AGENTS_SECURITY.md"
 contains "engine emits an orientation section" "$(cat "${REPO}/src/rag/rag.py")" 'def render_orientation_section'
 contains "orientation is a labelled section" "$(cat "${REPO}/src/rag/rag.py")" '"source": "orientation"'
 contains "contract documents the orientation section" "$(cat "${REPO}/AGENTS.md")" '| `orientation` |'
+# A verb the compiled binary answers with a SHORTER report reads as a regression, so the launchers
+# must route it to the Python engine even though the binary advertises it.
+contains "bash launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag")" 'PY_ONLY_SUBCOMMANDS=" context secrets "'
+contains "cmd launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag.cmd")" 'PY_ONLY_SUBCOMMANDS= context secrets '
+# The native engine writes UTF-8; decoding with the platform default crashed every native search.
+contains "native query decode is explicit" "$(cat "${REPO}/src/rag/rag.py")" 'errors="replace"'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"

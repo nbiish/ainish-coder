@@ -4983,7 +4983,13 @@ class NativeQueryStore:
                 [str(self.binary), "query", query, "--json", "--no-rerank", "--limit", str(limit)],
                 cwd=str(self.repo_root),
                 capture_output=True,
-                text=True,
+                # Decode explicitly. `text=True` alone uses the platform default (cp1252 on Windows),
+                # and the native engine writes UTF-8 — its log lines contain em-dashes, so the decode
+                # raised UnicodeDecodeError mid-read and the whole `context` call died with a
+                # traceback instead of returning retrieval. `errors="replace"` means a stray byte
+                # costs one character, never the entire result.
+                encoding="utf-8",
+                errors="replace",
                 stdin=subprocess.DEVNULL,
                 timeout=90,
             )

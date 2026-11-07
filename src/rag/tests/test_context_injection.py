@@ -18,6 +18,7 @@ Run with:  py -m unittest discover -s src/rag/tests -p "test_*.py"
 import importlib.util
 import json
 import os
+import re
 import tempfile
 import textwrap
 import unittest
@@ -714,6 +715,50 @@ class OrientationSectionTest(unittest.TestCase):
 
     def test_zero_cap_disables_the_section(self):
         self.assertEqual(rag.render_orientation_section(self.root, 0), "")
+
+
+class NativeQueryStoreEncodingTest(unittest.TestCase):
+    """The native engine writes UTF-8; decoding it with the platform default killed `context`.
+
+    `subprocess.run(..., text=True)` uses cp1252 on Windows, and the native engine's log lines
+    contain em-dashes (U+2014). The decode raised UnicodeDecodeError inside reader-thread cleanup,
+    so the whole command died with a traceback rather than degrading to file fallback — the user saw
+    a crash instead of an injection. This pins the explicit encoding so it cannot regress silently.
+    """
+
+    def test_search_decodes_utf8_explicitly(self):
+        import inspect
+
+        source = inspect.getsource(rag.NativeQueryStore.search)
+        code = "\n".join(
+            line for line in source.splitlines() if not line.lstrip().startswith("#")
+        )
+        self.assertIn('encoding="utf-8"', code)
+        self.assertIn('errors="replace"', code)
+        # A bare text=True would re-introduce the platform default; it may only survive as prose.
+        self.assertNotIn("text=True", code)
+
+    def test_utf8_payload_with_unmapped_byte_parses(self):
+        # Reproduces the exact failure: the native engine emits a character whose UTF-8 encoding
+        # ends in 0x90 (U+2010 HYPHEN), which cp1252 leaves undefined — that is byte 0x90 at
+        # position 48799 in the real traceback. Any non-ASCII byte here would decode as mojibake,
+        # so the trigger has to be one cp1252 genuinely rejects, or the test proves nothing.
+        unmapped = "\u2010"  # U+2010 HYPHEN -> e2 80 90
+        payload = (
+            "  \x1b[36m[rag:embed-provider]\x1b[0m Using remote API embeddings " + unmapped +
+            " local llama server skipped\n"
+            '[{"path": "a.py", "content": "x", "score": 0.5, "start_line": 1, "end_line": 2}]'
+        )
+        raw = payload.encode("utf-8")
+        # The old behaviour: platform-default decode raises, killing the whole command.
+        with self.assertRaises(UnicodeDecodeError):
+            raw.decode("cp1252")
+        # The fixed behaviour: explicit utf-8, then the same parse the store performs.
+        text = rag.strip_ansi(raw.decode("utf-8", errors="replace"))
+        start = next(m.start() for m in re.finditer(r"^\[", text, re.MULTILINE))
+        parsed = json.loads(text[start:])
+        self.assertEqual(parsed[0]["path"], "a.py")
+        self.assertIn(unmapped, text)
 
 
 class FileFallbackTest(unittest.TestCase):
