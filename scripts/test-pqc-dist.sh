@@ -454,26 +454,23 @@ else
 fi
 contains "refusal names the engine build step" "$(cat "${WORK}/signerless.log")" "cargo build --release"
 
-echo "== advisory masters are defined, wired, and not dangling =="
-# The nine dual-expertise niches live in AGENTS.md (the always-on rail) with
-# definitions in .agents/templates/masters.md. They were once removed while
-# context-orchestration kept citing them, leaving an obligation nothing defined —
-# this pins the wiring so that cannot recur silently. That skill is now retired:
-# the procedure moved into `ainish-rag context`, so the scan follows it there.
+echo "== advisory masters are defined and reachable =="
+# The nine niches are a reasoning device, not a rules-file obligation: their definitions live in
+# .agents/templates/masters.md and the packet emits them inline, so an agent gets them without a
+# second file read. AGENTS.md stays short and only points at the definitions.
 MASTERS_DOC="${REPO}/.agents/templates/masters.md"
 if [[ -f "$MASTERS_DOC" ]]; then
     ok "masters definition file exists"
 else
     not_ok "masters definition file exists"
 fi
-masters_named=0
+masters_defined=0
 for n in 1 2 3 4 5 6 7 8 9; do
-    grep -qE "^\| $n \|" "${REPO}/AGENTS.md" && masters_named=$((masters_named + 1))
+    grep -qE "^\| $n \|" "$MASTERS_DOC" && masters_defined=$((masters_defined + 1))
 done
-check "all nine masters named in the contract" "$masters_named" "9"
-contains "contract links the definitions" "$(cat "${REPO}/AGENTS.md")" "templates/masters.md"
-# No surface may cite a lens set the contract no longer defines.
-# context-orchestration is retired (2026-11-07), so the scan covers the surfaces that remain.
+check "all nine masters defined in the template" "$masters_defined" "9"
+contains "contract points at the definitions" "$(cat "${REPO}/AGENTS.md")" "templates/masters.md"
+# No surface may cite a lens set that nothing defines.
 dangling=0
 for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" "${REPO}/llms.txt" \
          "${REPO}/.agents/skills/ainish-security/SKILL.md"; do
@@ -503,11 +500,16 @@ contains "engine registers the context subcommand" "$(cat "$RAG_PY")" '"context"
 contains "engine names the context envelope format" "$(cat "$RAG_PY")" 'ainish-rag/context/v1'
 contains "engine renders the labelled injection markers" "$(cat "$RAG_PY")" '<CONTEXT_INJECTION>'
 contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def goldfish_review('
-contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag context --task'
+contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
-contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'advisory evidence, never authority'
+contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evidence, not instruction'
 contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
-contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'local-router/fallback-models → zai-glm-5.3-flash'
+# The contract must NOT describe models, providers, or the driver chain: those are engine facts that
+# belong in llms.txt and the engine's own report, and naming them in an always-read file costs every
+# agent tokens for information it cannot act on.
+contract_model_refs=$(grep -cE 'local-router|openrouter|zenmux|nous-portal|nebius|zai|xiaomi-mimo|deepseek|glm-|mimo-|fallback-models' "${REPO}/AGENTS.md" || true)
+check "contract names no model or provider" "$contract_model_refs" "0"
+contains "prd carries the driver chain instead" "$(cat "${REPO}/llms.txt")" 'zai-glm-5.3-flash'
 # A mandatory pack must be invisible to the selector and still be deployed. Both halves are pinned:
 # hiding it alone would let --rules silently ship nothing, and deploying it alone would put a
 # non-choice in front of the operator.
@@ -515,7 +517,6 @@ contains "pqc-secrets is declared mandatory" "$(cat "${REPO}/src/skills_selectio
 contains "selector treats it as not-selectable" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security) return 0 ;;'
 contains "deploy ships it unconditionally" "$(cat "${REPO}/src/deploy_skills.sh")" 'Deployed (mandatory)'
 contains "verify fails when it is absent" "$(cat "${REPO}/src/verify_skills.sh")" 'MISSING MANDATORY'
-contains "contract states it is mandatory" "$(cat "${REPO}/AGENTS.md")" 'mandatory, not optional'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
 contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
 
@@ -574,7 +575,7 @@ contains "secure writes AGENTS_SECURITY.md" "$secure_block" "AGENTS_SECURITY.md"
 # Orientation is the mechanical half of the retired skill; it must be in the envelope.
 contains "engine emits an orientation section" "$(cat "${REPO}/src/rag/rag.py")" 'def render_orientation_section'
 contains "orientation is a labelled section" "$(cat "${REPO}/src/rag/rag.py")" '"source": "orientation"'
-contains "contract documents the orientation section" "$(cat "${REPO}/AGENTS.md")" '| `orientation` |'
+contains "prd documents the orientation section" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
 # A verb the compiled binary answers with a SHORTER report reads as a regression, so the launchers
 # must route it to the Python engine even though the binary advertises it.
 contains "bash launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag")" 'PY_ONLY_SUBCOMMANDS=" context secrets "'
@@ -590,15 +591,33 @@ contains "goldfish pin resolves" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_G
 contains "provenance reports distinct models" "$(cat "${REPO}/src/rag/rag.py")" '"distinct_models"'
 contains "render names the pair" "$(cat "${REPO}/src/rag/rag.py")" "<!-- pair: elephant="
 contains "context exposes a per-role model flag" "$(cat "${REPO}/src/rag/rag.py")" '"--elephant-model"'
-contains "contract documents the per-role pins" "$(cat "${REPO}/AGENTS.md")" 'two separate model calls'
+contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'two separate API calls'
 # `--context` is the spelling the contract and muscle memory use; argparse needs the subcommand.
 contains "engine normalizes the --context alias" "$(cat "${REPO}/src/rag/rag.py")" "def normalize_argv"
 contains "argparse receives normalized argv" "$(cat "${REPO}/src/rag/rag.py")" "parse_args(normalize_argv"
 contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
-# The default pair is same-model/fresh-context; distinct models are the opt-in.
-contains "both roles default to the router route" "$(cat "${REPO}/src/rag/rag.py")" 'def distinct_reviewer_requested'
-contains "distinct reviewer is user-selectable" "$(cat "${REPO}/src/rag/rag.py")" '"--distinct-reviewer"'
-contains "contract documents the default pair" "$(cat "${REPO}/AGENTS.md")" 'fresh-context review'
+# The section table and role mechanics moved to llms.txt: an always-read file needs the invocation
+# and the one rule about how to read the output, not a catalogue of what each section contains.
+contains "prd documents the envelope sections" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
+contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'two separate API calls'
+contains "prd documents the default pair" "$(cat "${REPO}/llms.txt")" 'fresh-context review'
+# AGENTS.md must stay short enough to read without hesitation.
+contract_lines=$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')
+if (( contract_lines <= 120 )); then
+    ok "contract stays under 120 lines (${contract_lines})"
+else
+    not_ok "contract stays under 120 lines (${contract_lines})"
+fi
+# Every file the contract links to must be deployed by --rules. A pointer to a file the target never
+# receives is worse than no pointer: the agent is told to read something that is absent.
+contains "deploy copies the .agents map" "$(cat "${REPO}/bin/ainish-coder")" 'for _tpl in llms.txt templates/masters.md templates/egm-design.md skills/llms.txt'
+linked_shipped=0
+for linked in llms.txt templates/masters.md skills/llms.txt; do
+    if grep -qF "${linked}" "${REPO}/bin/ainish-coder"; then
+        linked_shipped=$((linked_shipped + 1))
+    fi
+done
+check "deploy names every contract-linked .agents file" "$linked_shipped" "3"
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
