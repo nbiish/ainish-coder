@@ -270,6 +270,20 @@ main() {
         # Ensure workspace customizations root (.agents/tasks, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
         mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
 
+        # AGENTS.md points every agent at these three, so they must exist at the target or the
+        # contract ships dangling links (verified: a default deploy left all three absent). They are
+        # contract surfaces, not optional packs: .agents/llms.txt is the map of the tree,
+        # .agents/templates/ holds the reasoning lenses, and .agents/skills/llms.txt indexes whatever
+        # packs the operator selected (it is a valid index even when zero packs are on).
+        local _tpl
+        for _tpl in llms.txt templates/masters.md templates/egm-design.md skills/llms.txt; do
+            local _src="${REPO_DIR}/.agents/${_tpl}"
+            local _dst="${target_dir}/.agents/${_tpl}"
+            [[ -f "$_src" ]] || continue
+            mkdir -p "$(dirname "$_dst")" 2>/dev/null || true
+            cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-${_tpl%%/*}" || true
+        done
+
         # Detect PQC/environment embedding credentials (OpenRouter/ZenMux) and route the RAG
         # engine's embeddings through them; nothing is persisted when no credentials exist.
         if confirm_action "Detect remote embedding credentials (OpenRouter/ZenMux via PQC) and configure RAG?" "y"; then
