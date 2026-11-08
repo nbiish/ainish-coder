@@ -42,7 +42,34 @@ wtf enroll --url http://HUB:7800 --name <name> --token T   # on the new machine
 wtf join user@host                                         # or over ssh, self-serve
 ```
 
-Keys print once. They live in `$WTF_HOME` (default `~/.config/wtf-mcp`).
+Keys print once. They live in `$WTF_HOME` (default: `~/.config/wtf-mcp`).
+
+**Windows hosts are first-class** (0.19.0+): the binary is `wtf.exe`, state lives at
+`%USERPROFILE%\.config\wtf-mcp`, runner discovery honours `PATHEXT` (so `orca-ide.exe`
+is found, not just `orca-ide`), and local commands run through `cmd /C`. No WSL detour.
+
+`join` shells out to plain `ssh`, so give it an alias whose key already works:
+
+```powershell
+wtf.exe join mac --name windows      # ~/.ssh/config alias -> the key block that verified
+```
+
+A bare `user@host` only works when that host's **default** identity is passphrase-free.
+A macOS key protected by a passphrase + keychain cannot be unlocked from a
+non-interactive session, so a hub enrolling itself needs a local key:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_local -N "" -C "wtf-hub-local@$(scutil --get LocalHostName)"
+# authorize it with `restrict,pty`, then give it a Host block:
+#   Host localhost 127.0.0.1 ::1
+#       IdentityFile ~/.ssh/id_ed25519_local
+#       IdentitiesOnly yes
+wtf join nbiish@localhost --name mac
+```
+
+The hub binds where the other machines can reach it (`wtf serve --bind 0.0.0.0:7800
+--no-open`); put it on the always-on machine. Enrollment and every signed call are
+refused without a device key, so an open bind port is not an open API.
 
 ## 2. Wire the MCP server
 
@@ -275,3 +302,5 @@ wtf_call() { local m=$1 p=$2 b=${3:-}; local ts n bh sig
 | Port busy | Pick another port: `wtf serve --bind 127.0.0.1:7801`. There is no auto-fallback. |
 | Agent not visible in Herdr | It isn't in a Herdr pane. Launch it with `herdr agent start`. |
 | Peer machine silent | `env_probe` — is it enrolled and reporting? |
+| `wtf join` → `Permission denied (publickey)` | the ssh target did not resolve to an authorized, passphrase-free key | pass an `~/.ssh/config` alias (`wtf join mac`), or create a dedicated local key plus a `Host localhost` block |
+| `wtf status` → `bridge config incomplete` | this machine was never enrolled | `wtf join <alias> --name <device>`; state lives at `$WTF_HOME` (`%USERPROFILE%\.config\wtf-mcp` on Windows) |
