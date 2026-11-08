@@ -464,6 +464,7 @@ sync_ainish_skills() {
     echo -e "${BRIGHT_BLUE}Syncing ainish-coder skills ↔ $skills_target (verify + two-way sync)${RESET}"
     safe_mkdir "$skills_target" || return 1
     safe_mkdir "$target_dir/.agents/tasks" 2>/dev/null || true
+    safe_mkdir "$target_dir/.agents/plans" 2>/dev/null || true
     safe_mkdir "$target_dir/.agents/suggestions" 2>/dev/null || true
     safe_mkdir "$target_dir/.agents/memories" 2>/dev/null || true
 

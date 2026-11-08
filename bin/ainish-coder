@@ -269,16 +269,18 @@ main() {
             _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
         fi
 
-        # Ensure workspace customizations root (.agents/tasks, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
-        mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
+        # Ensure workspace customizations root (.agents/tasks, .agents/plans, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
+        mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/plans" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
 
-        # AGENTS.md points every agent at these three, so they must exist at the target or the
+        # AGENTS.md points every agent at these, so they must exist at the target or the
         # contract ships dangling links (verified: a default deploy left all three absent). They are
         # contract surfaces, not optional packs: .agents/llms.txt is the map of the tree,
-        # .agents/templates/ holds the reasoning lenses, and .agents/skills/llms.txt indexes whatever
-        # packs the operator selected (it is a valid index even when zero packs are on).
+        # .agents/templates/ holds the reasoning lenses and the plan template, .agents/plans/llms.txt
+        # documents where plans of record live (question-me writes them there), and
+        # .agents/skills/llms.txt indexes whatever packs the operator selected (it is a valid index
+        # even when zero packs are on).
         local _tpl
-        for _tpl in llms.txt templates/masters.md templates/egm-design.md skills/llms.txt; do
+        for _tpl in llms.txt templates/llms.txt templates/masters.md templates/egm-design.md templates/plan.md plans/llms.txt skills/llms.txt; do
             local _src="${REPO_DIR}/.agents/${_tpl}"
             local _dst="${target_dir}/.agents/${_tpl}"
             [[ -f "$_src" ]] || continue
