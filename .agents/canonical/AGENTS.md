@@ -54,6 +54,28 @@ reading files directly. **Never block on it.** A context tool that stops work is
 11. **Quality is the measure.** Always believe in yourself and you will be graded based on the quality
     of task completion; deliver correctness and verification, not just activity.
 
+## Destructive commands
+
+On 2026-11-08 a cleanup step ran `Remove-Item '~' -Recurse -Force`. PowerShell expanded `~` to
+`C:\Users\kenwa`; 26 dot-directories, including `.ssh` and `.aws`, were destroyed before the job was
+stopped. These rules exist because of that.
+
+1. **Print the resolved absolute path before deleting anything.** If it is not the directory you were
+   asked to clean, stop.
+2. **Never pass `~`, `.`, `..`, `$HOME`, `%USERPROFILE%`, a glob, or an unvalidated variable to a
+   recursive delete or move.** `~` is a home-directory alias in PowerShell and POSIX shells alike.
+3. **Use literal paths:** `Remove-Item -LiteralPath '<absolute path>' -Recurse`, or
+   `cmd /c rd /s /q "<absolute path>"`. Never a bare token a shell may expand.
+4. **Deletes stay inside the worktree you were given.** Home, `AppData`, `/etc`, drive roots, and any
+   path outside the repository are out of scope — say so instead of deleting.
+5. **Recursive deletes outside a repo get a dry run first** (`-WhatIf`, `git clean -n`, or listing the
+   exact target) and a one-line statement of what will be removed.
+6. **Inside a repo, use git:** `git rm`, `git clean -n` then `git clean -f`, worktrees instead of
+   `rm -rf`.
+
+An ambiguous path is a stop-and-ask, not a judgement call. A refused cleanup costs a message; a wrong
+one costs a machine.
+
 ## Close
 
 - Mark the task record done or blocked, with evidence.
@@ -90,3 +112,5 @@ non-English passage is unreviewable to the operator and silently degrades every 
 operator or upstream input verbatim when translation would change its meaning, and give the English
 meaning alongside it; never answer, log, or commit in another language because the request arrived in
 one.
+
+Never leave bloat, stray processes, or wasted cpu/gpu. Always believe in yourself.
