@@ -97,7 +97,7 @@ CORE COMMANDS:
                               Also refreshes global copies:
                                 ~/.agents/AGENTS.md (tracked copy)
                                 ~/.config/AGENTS.md (tracked copy)
-    --secure [DIR]            Deploy the legacy standalone security documents
+    --secure [DIR]            Deploy the consolidated AGENTS_SECURITY.md standard
                               (new targets receive the rules/runtime security contract; optional packs stay off)
 
 
@@ -249,10 +249,29 @@ UTILITY COMMANDS:
 
     --skills-verify [DIR]     Read-only check: byte-identity vs the ainish-coder
                               repo (foreign skills reported, untouched)
-    --select-skills [DIR]     Interactive selector: choose which optional skill
-                              packs this repo receives from --rules. Saves the
-                              choice for every later run. Interactive terminal
-                              only; refused under --headless / -y.
+    --skills-set-default on|off [--json]
+                              Persist the machine-wide default for packs a repo
+                              has not answered for. Applies to every future
+                              --rules in every repo, and suppresses the
+                              first-contact prompt, so a new repo deploys your
+                              usual packs without asking. A repo that recorded
+                              its own choice always keeps it. Outranks the
+                              AINISH_SKILLS_DEFAULT env var (which stays a
+                              per-invocation CI override).
+                              Example: ainish-coder --skills-set-default on
+    --skills [DIR]            Reconfigure THIS repo's skill selection,
+                              persistently — the per-repo counterpart to
+                              --skills-set-default. Interactive terminal opens
+                              the selector; use --on/--off for scripted changes.
+                              Example: ainish-coder --skills ~/my-project
+                              Example: ainish-coder --skills ~/my-project --on pqc-secrets,typesafe-jev --off remotion-video
+    --skills [DIR] --list [--json]
+                              Same report as --skills-list, without mutating
+                              anything.
+    --select-skills [DIR]     Alias entry point to the same selector; kept for
+                              existing scripts. --skills is the documented name.
+                              Interactive terminal only; refused under
+                              --headless / -y.
                               Example: ainish-coder --select-skills ~/my-project
     --skills-list [DIR] [--json]
                               Read-only: show the saved selection for a repo —
@@ -275,22 +294,26 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the repo's
                               .agents/skills/ are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 20 skill packs:
+                              Deploys 18 skill packs (ainish-security and
+                              pqc-secrets are mandatory; the rest are opt-in):
                               - advisory-council/          (Multi-expert advisory council)
+                              - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance) [mandatory]
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
-                              - browser-harness/           (CDP browser automation)
-                              - camofox-stack/             (Anti-detection browser stack)
-                              - ainish-security/           (Integrated security, prompt, and tool containment)
+                              - browser-skill/             (Drive the real logged-in Chromium via bsk)
+                              - browser-use/               (CDP browser automation)
+                              - comfyui-orchestration/     (Local ComfyUI operation)
+                              - document-enhancer/         (Knowledge fusion & document hardening)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - modern-prompting/          (OOReDAct advanced prompting)
-                              - document-enhancer/         (Knowledge fusion & document hardening)
-                              - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
-                              - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing)
-                              - remotion-video/            (Programmatic video creation)
-                              - skyvern/                   (AI browser automation)
+                              - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing) [mandatory]
                               - question-me/               (Socratic design interview & tree resolution)
+                              - remotion-video/            (Programmatic video creation)
+                              - tts-cli/                   (On-device spoken end-of-turn suggestion)
+                              - typesafe-jev/              (Calibrated decision models)
+                              - video-knowledge-extractor/ (YouTube video knowledge extraction)
+                              - wtf-is-going-on-mcp/       (Cross-machine agent coordination)
 
                               Example: ainish-coder --skills-sync ~/my-project
 
@@ -348,12 +371,12 @@ NOTES:
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
     - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.txt + the skill packs you selected + global copies
-    - Skill packs are optional and chosen by you: --rules offers the selector the first time a repo has no saved selection, and --select-skills reopens it any time. --skills-list shows the current choice.
+    - Skill packs are optional and chosen by you: --skills-set-default sets a machine-wide default for packs a repo has not answered for; --skills reconfigures one repo (persistently); --skills-list shows the current choice. --rules deploys whatever the selection resolves to.
     - --headless second arg (e.g. 'ainish-coder --skills-sync <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs
     - --agents deploys AGENTS.md (project-agnostic rules, single governing tracked copy) + global copies
     - --llms-txt deploys llms.txt (separate from --rules)
-    - --secure deploys AGENTS_CODE_SECURITY.md + AGENTS_LLM_SECURITY.md
+    - --secure deploys AGENTS_SECURITY.md (one consolidated standard; retires the CODE+LLM pair)
     - All tool-specific flags consolidated into .agents/skills/
     - Provider API keys stored in ~/.config/ainish-coder/providers.json
 

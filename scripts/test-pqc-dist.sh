@@ -17,8 +17,17 @@ FAIL=0
 SKIP=0
 
 if ! command -v uv >/dev/null 2>&1; then
-    echo "SKIP: uv is required to resolve the engine's dependencies"
-    exit 0
+    # A gate that silently exits 0 when its dependency is missing reads as PASSED in CI, which is
+    # the one failure mode a distribution gate must never have. Skip only when explicitly opted in
+    # (local convenience); otherwise fail closed and say how to fix it.
+    if [[ "${AINISH_ALLOW_GATE_SKIP:-}" == "1" ]]; then
+        echo "SKIP: uv is required to resolve the engine's dependencies (AINISH_ALLOW_GATE_SKIP=1)"
+        exit 0
+    fi
+    echo "FAIL: uv is required to resolve the engine's dependencies but was not found on PATH." >&2
+    echo "      Install it:  curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    echo "      Or skip deliberately with AINISH_ALLOW_GATE_SKIP=1 (never in CI)." >&2
+    exit 1
 fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/pqc-dist-test.XXXXXX")"
@@ -48,7 +57,15 @@ JSON
 run_cli() {
     # Signing is exercised by the real manifests; the hermetic test asserts the
     # attestation fields and must never touch the operator's signing key.
-    env HOME="$HOME_DIR" AINISH_NO_TRACKING=true AINISH_NON_INTERACTIVE=true \
+    #
+    # HOME= alone is NOT sufficient isolation. On Windows, Python reads USERPROFILE and
+    # pathlib.Path.home() ignores HOME entirely, so the pqc engine found the operator's real
+    # keypair and reported `keygen: present` where a clean install must report `generated` --
+    # which also means the test was reaching the live store rather than a sandbox. Pin the
+    # engine's own documented override (PQC_SECRETS_DIR), which is authoritative on every host,
+    # and set USERPROFILE too so anything reading the platform variable stays in the sandbox.
+    env HOME="$HOME_DIR" USERPROFILE="$HOME_DIR" PQC_SECRETS_DIR="$HOME_DIR/.config/pqc-secrets" \
+        AINISH_NO_TRACKING=true AINISH_NON_INTERACTIVE=true \
         PQC_SKIP_MANIFEST_SIGN=1 bash "$CLI" "$@" 2>&1
 }
 
@@ -78,6 +95,18 @@ echo "== selection guard =="
 source "${REPO}/src/skills_selection.sh"
 check "selected pack resolves on" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_ON" pqc-secrets)" "on"
 check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state "$TARGET_OFF" pqc-secrets)" "off"
+# The config lookup above is intentionally raw. Distribution must ignore it for a
+# mandatory pack, which is the whole difference between "stored off" and "not shipped".
+if _skill_mandatory pqc-secrets && ! _skill_mandatory typesafe-jev; then
+    ok "mandatory classification covers only pqc-secrets"
+else
+    not_ok "mandatory classification covers only pqc-secrets"
+fi
+excluded_n=0
+for _p in $(sed -n '/^_skill_channel_excluded()/,/^}/p' "${REPO}/src/skills_selection.sh" | grep -o 'pqc-secrets' | head -1); do
+    excluded_n=1
+done
+check "selector hides pqc-secrets" "$excluded_n" "1"
 
 echo "== provenance stamp is readable across WSL and Windows Git Bash =="
 # `.ainish-source` stores whichever absolute POSIX path the WRITER saw:
@@ -94,9 +123,19 @@ check "a native POSIX path is left alone" \
     "$(_ainish_stamp_alternative /tmp/x)" "/tmp/x"
 STAMP_TARGET="${WORK}/stamp-target"
 mkdir -p "${STAMP_TARGET}/.agents/skills"
-printf '%s\n' "$(printf '/d%s' "${REPO#/mnt/d}")" > "${STAMP_TARGET}/.agents/skills/.ainish-source"
-check "an opposite-host stamp still resolves to this checkout" \
-    "$(_ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
+# Build the OPPOSITE host's form of this checkout, whichever host is running. The previous
+# construction hardcoded the WSL prefix (`${REPO#/mnt/d}`), so under Git Bash the strip was a
+# no-op, the fixture became '/d/d/Code/...', and the assertion failed on a correct translator.
+# Derive the counterpart from the translator itself so the fixture cannot drift from the code.
+REPO_OPPOSITE="$(_ainish_stamp_alternative "$REPO")"
+if [[ "$REPO_OPPOSITE" == "$REPO" ]]; then
+    # A native POSIX path (macOS/Linux) has no counterpart form; nothing to translate.
+    ok "an opposite-host stamp still resolves to this checkout (native POSIX host, N/A)"
+else
+    printf '%s\n' "$REPO_OPPOSITE" > "${STAMP_TARGET}/.agents/skills/.ainish-source"
+    check "an opposite-host stamp still resolves to this checkout" \
+        "$(_ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
+fi
 printf '/nowhere/at/all\n' > "${STAMP_TARGET}/.agents/skills/.ainish-source"
 check "an unresolvable stamp falls through to REPO_DIR" \
     "$(REPO_DIR="$REPO" _ainish_skills_source "$STAMP_TARGET" 2>/dev/null)" "$REPO"
@@ -131,6 +170,41 @@ check "legacy string default=on still reads as on" \
     "$(HOME="$HOME_DIR" _skills_selection_repo_default "$DEFAULT_REPO")" "on"
 check "unrecorded pack inherits legacy string default=on" \
     "$(HOME="$HOME_DIR" skills_selection_state "$DEFAULT_REPO" advisory-council)" "on"
+# A machine-wide default (--skills-set-default) is what lets a fresh repo deploy
+# the operator's usual packs without being asked. It must lose to a per-repo
+# answer, and it must suppress the first-contact prompt -- otherwise "set a
+# default" still stops and asks on every new repo, which is the bug this flag
+# exists to remove.
+GLOBAL_REPO="${WORK}/target-global-default"
+mkdir -p "${GLOBAL_REPO}/.agents/skills"
+HOME="$HOME_DIR" skills_selection_set_global_default on >/dev/null 2>&1
+check "saved global default reads as on" \
+    "$(HOME="$HOME_DIR" skills_selection_global_default)" "on"
+check "saved global default makes an unrecorded pack on" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$GLOBAL_REPO" advisory-council)" "on"
+if HOME="$HOME_DIR" skills_selection_should_prompt "$GLOBAL_REPO"; then
+    not_ok "a saved global default suppresses the first-contact prompt"
+else
+    ok "a saved global default suppresses the first-contact prompt"
+fi
+# A repo that recorded its own answer must keep it, whatever the global says.
+# Recorded explicitly here rather than leaning on an earlier fixture, because
+# the fixture config is rewritten between blocks and a stale key made this
+# assertion pass or fail for reasons unrelated to precedence.
+PRECEDENCE_REPO="${WORK}/target-precedence"
+mkdir -p "${PRECEDENCE_REPO}"
+HOME="$HOME_DIR" skills_selection_batch_save "$PRECEDENCE_REPO" off "pqc-secrets:off" >/dev/null 2>&1
+check "per-repo answer outranks the global default" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$PRECEDENCE_REPO" pqc-secrets)" "off"
+HOME="$HOME_DIR" skills_selection_set_global_default off >/dev/null 2>&1
+check "saved global default reads as off" \
+    "$(HOME="$HOME_DIR" skills_selection_global_default)" "off"
+check "off global default leaves an unrecorded pack off" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$GLOBAL_REPO" advisory-council)" "off"
+# The env var is a per-invocation override and must not outrank a saved default.
+check "env var does not outrank the saved global default" \
+    "$(HOME="$HOME_DIR" AINISH_SKILLS_DEFAULT=on skills_selection_global_default)" "off"
+
 # Restore the fixture config for the remaining assertions.
 cat > "${HOME_DIR}/.config/ainish-coder/skills-selection.json" <<JSON
 {"repos": {"${KEY_ON}": {"pqc-secrets": true}, "${KEY_OFF}": {"pqc-secrets": false}}}
@@ -180,6 +254,47 @@ contains "skills-list marks the repo recorded" "$report_json" '"recorded": true'
 report_fresh="$(HOME="$HOME_DIR" bash "$CLI" --skills-list "$UNRECORDED" --json 2>/dev/null || true)"
 contains "skills-list marks a fresh repo unrecorded" "$report_fresh" '"recorded": false'
 
+echo "== --skills-set-default and --skills (persisted, per-repo) =="
+# The operator-facing surface: a machine-wide default, then a per-repo override
+# that must persist for that repo only.
+SD_TARGET="${WORK}/target-skills-flag"
+mkdir -p "${SD_TARGET}"
+sd_json="$(HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills-set-default on --json 2>/dev/null || true)"
+contains "skills-set-default reports the new default" "$sd_json" '"global_default": "on"'
+sd_file="$(HOME="$HOME_DIR" skills_selection_global_default)"
+check "skills-set-default persisted as on" "$sd_file" "on"
+
+# Scripted per-repo selection: no prompt, persisted, and scoped to this repo.
+# pqc-secrets is mandatory, so it is not a toggle target: the command must refuse
+# it with a clear reason rather than saving an `off` that --rules would ignore.
+OPT_TARGET="${WORK}/target-skills-opt"
+mkdir -p "${OPT_TARGET}"
+if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$OPT_TARGET" --off pqc-secrets >/dev/null 2>&1; then
+    not_ok "skills refuses to toggle a mandatory pack"
+else
+    ok "skills refuses to toggle a mandatory pack"
+fi
+HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$OPT_TARGET" --off typesafe-jev >/dev/null 2>&1
+check "skills --off persists for a selectable pack" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$OPT_TARGET" typesafe-jev)" "off"
+check "skills --off does not touch another repo" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$OPT_TARGET" typesafe-jev)" "off"
+check "skills --off left the other repo alone" \
+    "$(HOME="$HOME_DIR" skills_selection_state "$SD_TARGET" typesafe-jev)" "on"
+
+# A typo must fail loudly rather than be saved as a setting that selects nothing.
+if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" --on not-a-real-pack >/dev/null 2>&1; then
+    not_ok "skills rejects an unknown pack name"
+else
+    ok "skills rejects an unknown pack name"
+fi
+# Without on/off and with no TTY, it must refuse instead of hanging on a prompt.
+if HOME="$HOME_DIR" AINISH_NON_INTERACTIVE=true bash "$CLI" --skills "$SD_TARGET" >/dev/null 2>&1; then
+    not_ok "skills refuses without a TTY instead of prompting"
+else
+    ok "skills refuses without a TTY instead of prompting"
+fi
+
 echo "== --pqc-install =="
 install_json="${WORK}/install.json"
 run_cli --pqc-install --json --no-wsl > "$install_json"
@@ -221,8 +336,11 @@ check "source ships exactly one pqc pack" "${#pqc_packs[@]}" "1"
 echo "== --pqc-sync-targets =="
 sync_json="${WORK}/sync.json"
 run_cli --pqc-sync-targets --all --json > "$sync_json"
-check "one target synced" "$(jget synced "$sync_json")" "1"
-check "deselected target skipped" "$(jget deselected "$sync_json")" "1"
+# pqc-secrets is mandatory: a target carrying a stale `off` entry is synced anyway,
+# because --rules deploys the pack regardless and a skipped target would be left
+# without the engine its contract resolves every secret through.
+check "both enrolled targets synced" "$(jget synced "$sync_json")" "2"
+check "no target skipped as deselected" "$(jget deselected "$sync_json")" "0"
 check "missing target reported" "$(jget missing "$sync_json")" "1"
 check "no failures" "$(jget failed "$sync_json")" "0"
 check "legacy signature pack pruned" "$(jget legacyPruned "$sync_json")" "1"
@@ -255,7 +373,9 @@ else
 fi
 check "target engine digest matches source" "$target_sha" "$source_sha"
 [[ -x "${TARGET_ON}/bin/pqc-secrets" ]] && ok "launcher copied with the pack" || not_ok "launcher copied with the pack"
-[[ ! -e "${TARGET_OFF}/bin/pqc-secrets" ]] && ok "deselected target untouched" || not_ok "deselected target untouched"
+# A stale `off` entry is ignored, but it must not be *erased* from the config:
+# the entry is the operator's history, and --rules is what actually governs.
+[[ -x "${TARGET_OFF}/bin/pqc-secrets" ]] && ok "stale-off target still received the mandatory pack" || not_ok "stale-off target still received the mandatory pack"
 
 echo "== documentation-only drift =="
 # The engine is untouched; only the merged reference changes. Freshness must be
@@ -275,14 +395,14 @@ else
 fi
 
 run_cli --pqc-sync-targets --all --json > "${WORK}/sync2.json"
-check "second sync is a no-op" "$(jget current "${WORK}/sync2.json")" "1"
+check "second sync leaves both targets current" "$(jget current "${WORK}/sync2.json")" "2"
 check "second sync reuses the attested manifest" "$(jget_first manifest "${WORK}/sync2.json")" "attested"
 
 echo "== --pqc-status =="
 run_cli --pqc-status --json --no-wsl > "${WORK}/status.json"
 status_rc=$?
 check "status exits 0 when only optional packs are missing" "$status_rc" "0"
-check "target reports current" "$(jget current "${WORK}/status.json")" "1"
+check "both targets report current" "$(jget current "${WORK}/status.json")" "2"
 check "deselected target is not a required miss" "$(jget missingRequired "${WORK}/status.json")" "0"
 check "status reports no legacy packs" "$(jget legacyPacks "${WORK}/status.json")" "0"
 check "status binds the pack to the signed manifest" "$(jget_first packAuth "${WORK}/status.json")" "bound"
@@ -338,7 +458,8 @@ echo "== advisory masters are defined, wired, and not dangling =="
 # The nine dual-expertise niches live in AGENTS.md (the always-on rail) with
 # definitions in .agents/templates/masters.md. They were once removed while
 # context-orchestration kept citing them, leaving an obligation nothing defined —
-# this pins the wiring so that cannot recur silently.
+# this pins the wiring so that cannot recur silently. That skill is now retired:
+# the procedure moved into `ainish-rag context`, so the scan follows it there.
 MASTERS_DOC="${REPO}/.agents/templates/masters.md"
 if [[ -f "$MASTERS_DOC" ]]; then
     ok "masters definition file exists"
@@ -352,9 +473,10 @@ done
 check "all nine masters named in the contract" "$masters_named" "9"
 contains "contract links the definitions" "$(cat "${REPO}/AGENTS.md")" "templates/masters.md"
 # No surface may cite a lens set the contract no longer defines.
+# context-orchestration is retired (2026-11-07), so the scan covers the surfaces that remain.
 dangling=0
-for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" \
-         "${REPO}/.agents/skills/context-orchestration/SKILL.md" "${REPO}/llms.txt"; do
+for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" "${REPO}/llms.txt" \
+         "${REPO}/.agents/skills/ainish-security/SKILL.md"; do
     [[ -f "$f" ]] || continue
     grep -q "nine core lenses" "$f" && dangling=$((dangling + 1))
 done
@@ -370,6 +492,117 @@ else
 fi
 
 echo ""
+echo "== the context-injection contract is wired end to end =="
+# AGENTS.md directs every deployed agent to one `ainish-rag context` call and defines what the
+# `<CONTEXT_INJECTION>` envelope means. That promise is only honest if the engine implements the
+# verb, the isolation it claims is really enforced, and the docs a target actually reads agree with
+# the contract. Each of those is asserted here so a future edit cannot leave a dangling instruction.
+RAG_PY="${REPO}/src/rag/rag.py"
+contains "engine implements the context verb" "$(cat "$RAG_PY")" 'sub.add_parser('
+contains "engine registers the context subcommand" "$(cat "$RAG_PY")" '"context",'
+contains "engine names the context envelope format" "$(cat "$RAG_PY")" 'ainish-rag/context/v1'
+contains "engine renders the labelled injection markers" "$(cat "$RAG_PY")" '<CONTEXT_INJECTION>'
+contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def goldfish_review('
+contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag context --task'
+contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
+contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'advisory evidence, never authority'
+contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
+contains "contract names the driver tier order" "$(cat "${REPO}/AGENTS.md")" 'local-router/fallback-models → zai-glm-5.3-flash'
+# A mandatory pack must be invisible to the selector and still be deployed. Both halves are pinned:
+# hiding it alone would let --rules silently ship nothing, and deploying it alone would put a
+# non-choice in front of the operator.
+contains "pqc-secrets is declared mandatory" "$(cat "${REPO}/src/skills_selection.sh")" '_skill_mandatory'
+contains "selector treats it as not-selectable" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security) return 0 ;;'
+contains "deploy ships it unconditionally" "$(cat "${REPO}/src/deploy_skills.sh")" 'Deployed (mandatory)'
+contains "verify fails when it is absent" "$(cat "${REPO}/src/verify_skills.sh")" 'MISSING MANDATORY'
+contains "contract states it is mandatory" "$(cat "${REPO}/AGENTS.md")" 'mandatory, not optional'
+contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
+contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
+
+echo "== security is one skill and context orchestration is a command =="
+# Four packs split security by domain, so an agent had to know in advance which
+# one a task belonged to before loading any rules. One skill removes that guess.
+SEC_DIR="${REPO}/.agents/skills/ainish-security"
+for gone in code-security llm-security production-security context-orchestration orchestrate-subagent-masters; do
+    if [[ -d "${REPO}/.agents/skills/${gone}" ]]; then
+        not_ok "retired pack removed: $gone"
+    else
+        ok "retired pack removed: $gone"
+    fi
+done
+# Retiring a pack is not enough: every live surface that recommended it must stop
+# doing so, or the next agent is told to load something that no longer exists.
+live_refs=0
+for f in "${REPO}/.agents/skills/llms.txt" "${REPO}/.agents/skills/gstack-coder/SKILL.md" \
+         "${REPO}/AGENTS.md" "${REPO}/llms.txt" "${REPO}/.agents/llms.txt" "${REPO}/src/help.sh"; do
+    [[ -f "$f" ]] || continue
+    # Mentions that mark it retired ("is retired", "former", "merged into") are fine; a bare
+    # "pair with X skill" is not.
+    if grep -qE "orchestrate-subagent-masters skill|Use .orchestrate-subagent-masters|pair with .*orchestrate-subagent-masters" "$f"; then
+        live_refs=$((live_refs + 1))
+    fi
+done
+check "no live surface recommends the retired skill" "$live_refs" "0"
+contains "skills index documents the retirement" "$(cat "${REPO}/.agents/skills/llms.txt")" 'skill is retired'
+# Cleanup lists must name every retired pack, or a target that still carries one keeps it forever.
+contains "deploy sweeps context-orchestration" "$(cat "${REPO}/src/deploy_skills.sh")" "context-orchestration orchestrate-subagent-masters"
+contains "selection excludes context-orchestration" "$(cat "${REPO}/src/skills_selection.sh")" "context-orchestration|orchestrate-subagent-masters"
+for kept in SKILL.md references/code-and-infrastructure.md references/ai-and-agentic.md \
+            references/governance-and-cryptography.md references/deployable-standards.md; do
+    if [[ -f "${SEC_DIR}/${kept}" ]]; then
+        ok "consolidated security carries ${kept}"
+    else
+        not_ok "consolidated security carries ${kept}"
+    fi
+done
+# The instructional must actually span the fields, not just claim to.
+sec_skill="$(cat "${SEC_DIR}/SKILL.md")"
+contains "covers input handling" "$sec_skill" "SQL injection"
+contains "covers authn/authz" "$sec_skill" "Deny by default"
+contains "covers AI/agentic" "$sec_skill" "blast-radius"
+contains "covers PQC" "$sec_skill" "ML-KEM-768"
+contains "covers supply chain" "$sec_skill" "SBOM"
+contains "covers compiler integrity" "$sec_skill" "source is not binary"
+contains "covers governance" "$sec_skill" "EU AI Act"
+# Mandatory because the always-on rail links to it: an optional pack leaves that link dangling.
+contains "ainish-security is mandatory" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security'
+contains "verify treats it as mandatory" "$(cat "${REPO}/src/verify_skills.sh")" 'pqc-secrets|ainish-security'
+# --secure must ship one file, and must not still reference the deleted pair.
+secure_block="$(sed -n '/--secure)/,/;;/p' "${REPO}/bin/ainish-coder")"
+contains "secure deploys the consolidated standard" "$secure_block" "deployable-standards.md"
+contains "secure writes AGENTS_SECURITY.md" "$secure_block" "AGENTS_SECURITY.md"
+# Orientation is the mechanical half of the retired skill; it must be in the envelope.
+contains "engine emits an orientation section" "$(cat "${REPO}/src/rag/rag.py")" 'def render_orientation_section'
+contains "orientation is a labelled section" "$(cat "${REPO}/src/rag/rag.py")" '"source": "orientation"'
+contains "contract documents the orientation section" "$(cat "${REPO}/AGENTS.md")" '| `orientation` |'
+# A verb the compiled binary answers with a SHORTER report reads as a regression, so the launchers
+# must route it to the Python engine even though the binary advertises it.
+contains "bash launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag")" 'PY_ONLY_SUBCOMMANDS=" context secrets "'
+contains "cmd launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag.cmd")" 'PY_ONLY_SUBCOMMANDS= context secrets '
+# The native engine writes UTF-8; decoding with the platform default crashed every native search.
+contains "native query decode is explicit" "$(cat "${REPO}/src/rag/rag.py")" 'errors="replace"'
+# The pair is two calls with two model choices. Pin both halves: that the engine scopes a chain by
+# role, and that the contract tells the reader the roles can diverge.
+contains "engine scopes the chain by role" "$(cat "${REPO}/src/rag/rag.py")" "def chain_steps(self, role"
+contains "roles rotate to a distinct model" "$(cat "${REPO}/src/rag/rag.py")" "def _rotate_for_role"
+contains "both role pins resolve" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_ELEPHANT_MODEL'
+contains "goldfish pin resolves" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_GOLDFISH_MODEL'
+contains "provenance reports distinct models" "$(cat "${REPO}/src/rag/rag.py")" '"distinct_models"'
+contains "render names the pair" "$(cat "${REPO}/src/rag/rag.py")" "<!-- pair: elephant="
+contains "context exposes a per-role model flag" "$(cat "${REPO}/src/rag/rag.py")" '"--elephant-model"'
+contains "contract documents the per-role pins" "$(cat "${REPO}/AGENTS.md")" 'two separate model calls'
+# `--context` is the spelling the contract and muscle memory use; argparse needs the subcommand.
+contains "engine normalizes the --context alias" "$(cat "${REPO}/src/rag/rag.py")" "def normalize_argv"
+contains "argparse receives normalized argv" "$(cat "${REPO}/src/rag/rag.py")" "parse_args(normalize_argv"
+contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
+# The default pair is same-model/fresh-context; distinct models are the opt-in.
+contains "both roles default to the router route" "$(cat "${REPO}/src/rag/rag.py")" 'def distinct_reviewer_requested'
+contains "distinct reviewer is user-selectable" "$(cat "${REPO}/src/rag/rag.py")" '"--distinct-reviewer"'
+contains "contract documents the default pair" "$(cat "${REPO}/AGENTS.md")" 'fresh-context review'
+# No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
+contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
+check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1
