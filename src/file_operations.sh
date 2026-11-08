@@ -112,6 +112,25 @@ deploy_path() {
     return 0
 }
 
+# Removes runtime bytecode caches from a deployed directory tree.
+#
+# Filtering `__pycache__` only at the top level of a pack is not enough: packs
+# nest Python (pqc-secrets/scripts/, tests/), so `cp -r` copies the interpreter
+# caches inside them. A target then receives bytecode built by whichever Python
+# produced it at the source — wrong interpreter version, absolute source paths
+# baked into .pyc headers, and files the target's own .gitignore did not expect.
+# Pruning after the copy is one place, covers every copy strategy, and cannot be
+# forgotten by a future branch: three separate loops did this filtering before.
+# Usage: ainish_prune_runtime_junk <dir>
+ainish_prune_runtime_junk() {
+    local dir="$1"
+    [[ -d "$dir" ]] || return 0
+    # -prune stops find descending into a match; -exec rm -rf handles each.
+    find "$dir" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    find "$dir" -name '*.pyc' -type f -delete 2>/dev/null || true
+    return 0
+}
+
 # Deploy all files from a source directory into a destination directory.
 # When AINISH_LINK_MODE=true, symlinks each file individually.
 # When AINISH_NO_OVERWRITE=true, skips files that already exist at destination.
@@ -164,6 +183,8 @@ deploy_path_contents() {
             echo "  ⏭️  Skipped $skipped existing file(s)" >&2
         fi
         shopt -u dotglob nullglob
+        # Nested caches ride along inside `cp -r`; prune them wherever they landed.
+        ainish_prune_runtime_junk "$dest_dir"
         return "$rc"
     fi
 
@@ -186,31 +207,33 @@ deploy_path_contents() {
             fi
         done
         return "$rc"
-    else
-        # Explicit dotfile-aware copy (glob * misses .env/.env.example);
-        # secrets (.env) never distribute — .env.example does. Runtime junk
-        # (__pycache__) never distributes either. Per-item failures are
-        # collected into the return code so callers running under `set -e`
-        # degrade gracefully instead of aborting the whole run.
-        shopt -s dotglob nullglob
-        local item name rc=0
-        for item in "$src_dir"/*; do
-            [[ -e "$item" ]] || continue
-            name="$(basename "$item")"
-            if [[ "$name" == ".env" || "$name" == "__pycache__" ]]; then
-                continue
-            fi
-            if ! rm -rf "$dest_dir/$name"; then
-                rc=1
-                continue
-            fi
-            if [[ -d "$item" ]]; then
-                cp -r "$item" "$dest_dir/$name" || rc=1
-            else
-                cp "$item" "$dest_dir/$name" || rc=1
-            fi
-        done
-        shopt -u dotglob nullglob
-        return "$rc"
     fi
+
+    # Explicit dotfile-aware copy (glob * misses .env/.env.example);
+    # secrets (.env) never distribute — .env.example does. Runtime junk
+    # (__pycache__) never distributes either. Per-item failures are
+    # collected into the return code so callers running under `set -e`
+    # degrade gracefully instead of aborting the whole run.
+    shopt -s dotglob nullglob
+    local item name rc=0
+    for item in "$src_dir"/*; do
+        [[ -e "$item" ]] || continue
+        name="$(basename "$item")"
+        if [[ "$name" == ".env" || "$name" == "__pycache__" ]]; then
+            continue
+        fi
+        if ! rm -rf "$dest_dir/$name"; then
+            rc=1
+            continue
+        fi
+        if [[ -d "$item" ]]; then
+            cp -r "$item" "$dest_dir/$name" || rc=1
+        else
+            cp "$item" "$dest_dir/$name" || rc=1
+        fi
+    done
+    shopt -u dotglob nullglob
+    # Nested caches ride along inside `cp -r`; prune them wherever they landed.
+    ainish_prune_runtime_junk "$dest_dir"
+    return "$rc"
 }

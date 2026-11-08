@@ -637,6 +637,16 @@ for linked in llms.txt templates/masters.md templates/plan.md plans/llms.txt ski
     fi
 done
 check "deploy names every contract-linked .agents file" "$linked_shipped" "5"
+# The manifest must describe what is actually deployed. `--rules-status`,
+# `--rules-verify`, and `--rules-doctor` all reason from `managed_paths`, so a
+# manifest that omits a surface it ships makes those tools blind to drift in it.
+# Assert the two template/plan surfaces added with the plans work are declared.
+for declared in ".agents/templates" ".agents/plans/llms.txt"; do
+    contains "manifest declares ${declared}" "$(cat "${REPO}/src/deploy_rules_sync.sh")" "\"${declared}\""
+done
+# Runtime bytecode must never distribute. Packs nest Python, so a top-level-only
+# filter is not enough; the prune runs over the copied tree.
+contains "deploy prunes nested bytecode caches" "$(cat "${REPO}/src/file_operations.sh")" 'ainish_prune_runtime_junk "$dest_dir"'
 # Every path named in the .agents Child DOX index must exist. This is the dangling-pointer class the
 # check above only covers for the contract's own links: an index entry pointing at a filename the
 # target never receives tells the next agent to read something that is not there.
