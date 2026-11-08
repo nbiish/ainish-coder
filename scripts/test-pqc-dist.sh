@@ -470,6 +470,24 @@ for n in 1 2 3 4 5 6 7 8 9; do
 done
 check "all nine masters defined in the template" "$masters_defined" "9"
 contains "contract points at the definitions" "$(cat "${REPO}/AGENTS.md")" "templates/masters.md"
+# A skill index or a pack table that names a directory which does not exist is worse than silent: it
+# sends a reader looking for a file that is not there. This has drifted twice (README advertised three
+# deleted browser packs and omitted four real ones, plus two packs that never existed).
+stale_pack_refs=0
+for surfacedoc in "${REPO}/README.md" "${REPO}/.agents/skills/llms.txt" "${REPO}/src/help.sh" \
+                  "${REPO}/.agents/llms.txt" "${REPO}/llms.txt"; do
+    [[ -f "$surfacedoc" ]] || continue
+    while IFS= read -r refname; do
+        [[ -n "$refname" ]] || continue
+        [[ -d "${REPO}/.agents/skills/${refname}" ]] || {
+            echo "    stale pack reference in ${surfacedoc##*/}: ${refname}"
+            stale_pack_refs=$((stale_pack_refs + 1))
+        }
+    done < <(grep -oE '\.agents/skills/[a-z0-9-]+/' "$surfacedoc" 2>/dev/null | sed 's#.*/skills/##; s#/$##' | sort -u)
+done
+check "no surface names a nonexistent skill pack" "$stale_pack_refs" "0"
+# The wtf pack must stay discoverable: it is a distributed pack, so the skills index names it.
+contains "skills index lists the wtf pack" "$(cat "${REPO}/.agents/skills/llms.txt")" "wtf-is-going-on-mcp"
 # No surface may cite a lens set that nothing defines.
 dangling=0
 for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" "${REPO}/llms.txt" \

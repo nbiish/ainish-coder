@@ -474,10 +474,15 @@ Two caveats that decide how these numbers may be used:
 
 ## Appendix B — What Elephant/Goldfish is, precisely
 
-Today `bin/egm-check.sh` is a **heading linter**: it asserts a design document contains eleven
-required section titles and returns `READY_FOR_GOLDFISH`. It does not run an agent, call a model, or
-produce context. The `context-orchestration` skill describes a *human/agent procedure* for applying
-the pattern, not an implemented pipeline.
+> **Historical note (written 2026-11-06, before Phase 4 shipped).** The `context-orchestration` skill
+> referenced below is now retired: its mechanical half became the `orientation` section of
+> `ainish-rag context` and its review half is the `goldfish` section. The paragraph is kept because it
+> records *why* Phase 4 was scoped as new code — at the time of writing, nothing executed the pattern.
+
+At the time of writing, `bin/egm-check.sh` was a **heading linter**: it asserts a design document
+contains eleven required section titles and returns `READY_FOR_GOLDFISH`. It does not run an agent,
+call a model, or produce context. The `context-orchestration` skill described a *human/agent
+procedure* for applying the pattern, not an implemented pipeline.
 
 So the request's "elephant and goldfish agents operate ... to concatenate their context-injection
 additions" is genuinely new code (Phase 4), and it depends on a generative transport that does not

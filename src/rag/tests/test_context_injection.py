@@ -884,19 +884,17 @@ class RoleModelSeparationTest(unittest.TestCase):
         self.assertEqual(requested[0], requested[1])
 
     def test_distinct_reviewer_makes_the_two_roles_request_different_models(self):
-        requested = []
-
-        def fake_post(base, model, messages, key=None, **kwargs):
-            requested.append(model)
-            return {"text": "answer", "model": model, "usage": {}, "finish_reason": "stop"}
-
+        # The rotation is a chain property, so assert it on the chain rather than on live credentials.
+        # An earlier version of this test drove chat() and read the *answered* model, which silently
+        # asserted on ambient PQC keys: with no provider keys present, every direct step fails over to
+        # the router and both roles legitimately land on the same model, so the test failed for an
+        # environment reason instead of a code one. Chain selection is what the rotation owns.
         os.environ["AINISH_RAG_DISTINCT_REVIEWER"] = "1"
         engine = rag.DriverEngine(allow_remote=True)
-        engine._post_chat = fake_post
-        engine.chat([{"role": "user", "content": "x"}], role="elephant")
-        engine.chat([{"role": "user", "content": "x"}], role="goldfish")
-        self.assertEqual(len(requested), 2)
-        self.assertNotEqual(requested[0], requested[1])
+        self.assertNotEqual(
+            engine.chain_steps("elephant")[0]["id"],
+            engine.chain_steps("goldfish")[0]["id"],
+        )
 
 
 class ContextFlagAliasTest(unittest.TestCase):
