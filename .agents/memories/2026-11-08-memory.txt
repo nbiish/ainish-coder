@@ -1,0 +1,14 @@
+### [2026-11-08T15:40:00Z] a-plan-and-a-task-record-are-two-lifetimes
+`.agents/tasks/` was doing double duty: coordination state that every agent reads cheaply at orient (lane, branch, status, scope) and design intent that an implementing agent reads deeply once. Folding the second into the first makes the frequent read pay for the rare one, and gives the design nowhere to live once the task closes. The split that worked: the plan owns reasoning and checkbox progress, the task owns coordination and carries one `plan:` line. Neither restates the other — a duplicate list drifts the moment either side is edited, which is why §5 todos are the only list and the task record points at them instead of copying them.
+
+### [2026-11-08T15:40:00Z] a-gate-that-asserts-a-literal-breaks-on-the-right-edit
+`scripts/test-pqc-dist.sh` asserted the deploy loop as an exact string (`for _tpl in llms.txt templates/masters.md ...`). Adding two files to that loop is exactly the edit the assertion exists to catch, but it also means the string and the loop must move together or the gate fails on a correct change. Worth keeping, worth knowing about: search for the literal before editing the loop.
+
+### [2026-11-08T15:40:00Z] a-child-index-check-can-pass-vacuously
+The new "every `.agents` child index entry exists" assertion first used `sed -n '/^## Child DOX index/,/^$/p'`, which stops at the *first blank line* — and the heading is followed by one. The range was empty, the loop body never ran, and the check reported success having verified nothing. Fixed with an `awk` range plus an assertion that the extracted entry count is non-trivial. Any check that iterates over parsed output needs a companion assertion that the parse found something; otherwise a broken parser is indistinguishable from a clean tree.
+
+### [2026-11-08T15:40:00Z] fourteen-failures-are-only-meaningful-against-a-baseline
+`test-pqc-dist.sh` reports 14 failures on this WSL host in `--pqc-install`/`--pqc-status`/drift. They look alarming and are unrelated: a detached worktree at the pre-change commit fails the identical 14, because the host has no `uv` on the WSL PATH (the shim fixed that) and no usable signer for those subcommands. The measurement that matters is the delta — 144 passing before, 150 after, zero new failures. When a suite is not green, establish the baseline before attributing anything to your change.
+
+### [2026-11-08T15:40:00Z] wsl-bash-cannot-see-windows-exe-without-the-suffix
+The agent's default `bash` on this machine is WSL, not Git Bash, so `C:\Users\...` paths and Windows PATH entries do not apply. `uv.exe` exists on the Windows side but WSL only finds it at `/mnt/c/.../uv.exe`, and `/bin/sh` needs the suffix explicitly — a two-line shim in `/tmp/uvshim/uv` doing `exec /mnt/c/.../uv.exe "$@"` is what let the gate run without skipping it.
