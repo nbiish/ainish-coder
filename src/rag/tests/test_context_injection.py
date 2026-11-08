@@ -729,7 +729,8 @@ class NativeQueryStoreEncodingTest(unittest.TestCase):
     def test_search_decodes_utf8_explicitly(self):
         import inspect
 
-        source = inspect.getsource(rag.NativeQueryStore.search)
+        # The decode lives in search_with_reason now; search() delegates to it.
+        source = inspect.getsource(rag.NativeQueryStore.search_with_reason)
         code = "\n".join(
             line for line in source.splitlines() if not line.lstrip().startswith("#")
         )
@@ -737,6 +738,10 @@ class NativeQueryStoreEncodingTest(unittest.TestCase):
         self.assertIn('errors="replace"', code)
         # A bare text=True would re-introduce the platform default; it may only survive as prose.
         self.assertNotIn("text=True", code)
+        # And the public entrypoint must still delegate rather than duplicate the decode.
+        self.assertIn(
+            "search_with_reason", inspect.getsource(rag.NativeQueryStore.search)
+        )
 
     def test_utf8_payload_with_unmapped_byte_parses(self):
         # Reproduces the exact failure: the native engine emits a character whose UTF-8 encoding
@@ -923,6 +928,66 @@ class ContextFlagAliasTest(unittest.TestCase):
         self.assertEqual(
             rag.normalize_argv(["--max-mem", "2048", "--context"]), ["--max-mem", "2048", "--context"]
         )
+
+
+class NativeQueryReasonTest(unittest.TestCase):
+    """A zero-hit search must say WHY, because the fixes are completely different.
+
+    "The index is empty" and "the embedding key returned 401" both yield zero hits. Reporting both
+    as an empty store sends an operator hunting for a missing index when the index is intact and the
+    credential is gone — observed live on 2026-11-08 when the PQC store lost its provider keys.
+    """
+
+    def test_missing_binary_reports_that_reason(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = rag.NativeQueryStore(Path(tmp))
+            hits, reason = store.search_with_reason("x")
+            self.assertEqual(hits, [])
+            self.assertIn("no compiled engine", reason)
+
+    def test_nonzero_exit_surfaces_engine_stderr(self):
+        import sys
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # A fake "engine" that fails the way the real one does when the key is missing. It is a
+            # Python script rather than a shell script so the test runs on every host without needing
+            # a POSIX shell or a `.cmd` shim.
+            fake = root / "fake-engine.py"
+            fake.write_text(
+                "import sys\n"
+                "print('[rag:embed-provider] No API key resolved for openrouter', file=sys.stderr)\n"
+                "sys.exit(1)\n",
+                encoding="utf-8",
+            )
+            store = rag.NativeQueryStore(root)
+            # _locate() only accepts real executables; hand the binary in directly and wrap it so the
+            # subprocess call uses the interpreter.
+            store.binary = fake
+            original = rag.subprocess.run
+
+            def run(cmd, **kwargs):
+                return original([sys.executable, *cmd], **kwargs)
+
+            rag.subprocess.run = run
+            try:
+                hits, reason = store.search_with_reason("x")
+            finally:
+                rag.subprocess.run = original
+            self.assertEqual(hits, [])
+            self.assertIn("exited 1", reason)
+            self.assertIn("No API key resolved", reason)
+
+    def test_search_still_returns_a_plain_list(self):
+        # The public `search` keeps its old shape so existing callers are unaffected.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = rag.NativeQueryStore(Path(tmp))
+            self.assertEqual(store.search("x"), [])
 
 
 class FileFallbackTest(unittest.TestCase):
