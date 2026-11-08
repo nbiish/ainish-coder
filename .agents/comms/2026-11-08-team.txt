@@ -58,3 +58,30 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - compat:Additive with one contract change. Question-me no longer writes its design record to .agents/tasks/{date}-question-me-{slug}.md; it writes .agents/plans/{date}-{slug}.plan.md and creates the task record at the path its frontmatter names. AGENTS.md's "Do not create planning documents outside the task record unless allowed" became an explicit pointer to .agents/plans/, so the canonical contract was re-signed (ML-DSA-65, 57 chained transitions) and targets will report drift until their next rules refresh. New frontmatter keys plan_format/slug/date/status/branch/worktree/task_record/operator; unknown status values are read as `designing` (fail closed). No CLI flag added, no new Python dependency.
 - verification:172 python tests pass (167 before, 5 new: plan reporting, mtime ordering, absent directory, malformed frontmatter, unknown status); scripts/test-pqc-dist.sh 150 assertions pass with 6 new plan/index checks and no new failures (the 14 failures are pre-existing WSL-host pqc-install/pqc-status environment failures, confirmed identical on a detached baseline at 663da33); audit verify 16/16 after re-sign, contract history chained; scratch `--rules` deploy to /tmp/plans-target ships .agents/plans/, templates/plan.md, and plans/llms.txt; live `ainish-rag context` in that target reports "newest plan: 2026-11-08-smoke.plan.md (status: implementing), todos: 1 done, 2 open" and exits 0 with an empty tree; context-packet.sh plan_state reports the same two counts.
 - budget:No generative spend beyond the existing gate. The orientation reader adds one directory glob and one file read per invocation.
+
+### [2026-11-08T17:45:00Z] verify | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-08T17:00:00Z
+- end:2026-11-08T17:45:00Z
+- parent:none (operator direct)
+- scope:src/rag (rebuild), src/cmd-tracker (rebuild), bin/ainish-rag.exe, bin/cmd-tracker.exe, rules distribution end to end
+- objective:Full rebuild of the system and tooling, and a verified answer on whether rules distribution behaves as intended.
+- input:Operator asked to make sure the system and tooling are fully rebuilt and that rules distribution is worked out properly.
+- output:Two of three Rust crates rebuild and install; one is broken upstream. Rules distribution verified correct end to end with one real content defect. One contract-breaking engine defect confirmed in source (not a stale binary).
+- status:done
+- blockers:see findings below
+- verification:172 python tests pass; `cargo test --release` 57 pass; `scripts/test-pqc-dist.sh` 150 assertions pass with the same 14 environment failures; `--rules-status` CURRENT, `--rules-verify` VERIFIED (PACK_BOUND), `--rules-doctor` HEALTHY on a live target; `audit verify` 16/16.
+- rebuild:REBUILT — src/rag 7m11s clean, src/cmd-tracker clean, both installed to bin/. pqc-secrets Rust crate FAILS to build (core-foundation/libc PATH_MAX, pre-existing); its Python engine is canonical and works on Windows (24 secrets resolve). WSL cannot build src/rag (no OpenSSL dev headers) — Windows is the build host for .exe artifacts.
+
+## Findings
+
+1. **`ainish-rag --context` fails on Windows (contract-breaking).** The compiled `ainish-rag.exe` has no `context` verb and no `--context` normalisation, so the exact command `AGENTS.md` mandates exits 2 with "unexpected argument '--context'". Windows PATH resolves `.exe` before `.cmd`, so the `.cmd` and bash launchers that DO work are never reached by a plain `ainish-rag --context`. Confirmed against a fresh 7m11s release build, so this is source, not a stale artifact. `src/rag/src/main.rs` on `feat/agents-context-prime` fixes it with `PY_ONLY_SUBCOMMANDS` + leading-`--context` rewriting; that work is still uncommitted there.
+
+2. **`.agents/skills/pqc-secrets` ships `__pycache__` (9 .pyc files) to targets.** `deploy_path_contents` in `src/file_operations.sh` filters `__pycache__` only at the top level of each pack, then `cp -r` copies nested ones wholesale. Three branches (no-overwrite, link-mode, normal) all have the bug. Targets receive another machine's compiled bytecode.
+
+3. **Manifest `managed_paths` understates what is distributed.** It names only AGENTS.md, llms.txt, .gitignore, .agents/skills, .agents/comms, .agents/bin/ainish-rules-sync — but `.agents/templates/*` and `.agents/plans/llms.txt` also arrive. Harmless today because nothing asserts against it, but `--rules-status`/`--rules-verify` reason from a manifest that does not describe the deployment.
+
+## Verified correct (not defects)
+
+- **Refresh is idempotent and complete.** `--rules` and `--rules-sync` both refresh `templates/plan.md` and `plans/llms.txt`; both preserve a target's own `*.plan.md`. An earlier apparent failure was my test error — the refresher correctly no-ops when the source commit has not advanced.
+- **Provenance chain is healthy.** `--rules-status` CURRENT, `--rules-verify` VERIFIED with PACK_BOUND, `--rules-doctor` HEALTHY with root hooks healthy.
+- **The 14 gate failures are WSL environment, not code.** WSL `cryptography` is 46.0.5 and the PQC engine needs >=47.0 for ML-KEM-768; the engine fails closed with a correct, actionable message. Windows PQC works.

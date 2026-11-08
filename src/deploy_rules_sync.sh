@@ -416,6 +416,8 @@ _ainish_rules_manifest_write() {
     ".gitignore",
     ".agents/skills",
     ".agents/comms",
+    ".agents/templates",
+    ".agents/plans/llms.txt",
     ".agents/bin/ainish-rules-sync"
   ],
   "sync_script": ".agents/bin/ainish-rules-sync"
