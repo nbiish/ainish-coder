@@ -1,18 +1,22 @@
 ---
 name: question-me
 description: >
-  Interactive Socratic design interview and requirements resolution protocol.
-  Explores codebase first, constructs a hierarchical design decision tree,
-  interviews the operator one question at a time with recommended answers,
-  resolves architectural dependencies, and produces a concrete, verified
-  implementation blueprint. Delivers its interview through whatever interaction
-  surface the environment provides: native structured question tools, interactive
-  terminal loops, or subagent master handoffs.
+  Interactive Socratic design interview, requirements resolution, and plan
+  authoring protocol. Explores the codebase first, constructs a hierarchical
+  design decision tree, interviews the operator one question at a time with
+  recommended answers, resolves architectural dependencies, and compiles
+  everything into a committed plan document at
+  `.agents/plans/{date}-{name}.plan.md` holding the agent's plan, the
+  clarification ledger, and a derived todo list. Delivers its interview through
+  whatever interaction surface the environment provides: native structured
+  question tools, interactive terminal loops, or subagent master handoffs.
 ---
 
-# Question-Me — Interactive Design Tree Resolution Protocol
+# Question-Me — Interactive Design Tree Resolution & Plan Authoring
 
 > **Protocol Stance:** Interview the operator about every aspect of the task until a shared understanding is reached — walk down each branch of the design tree, resolving dependencies one-by-one; provide recommended answers; ask one question at a time; explore the codebase first.
+>
+> **Deliverable:** One committed plan document at `.agents/plans/{YYYY-MM-DD}-{slug}.plan.md` — the agent's plan, the clarification ledger, and the todo list it derives, in the shape defined by [`.agents/templates/plan.md`](../../templates/plan.md).
 >
 > **Environment-Agnostic Delivery:** Conducts the interview through whatever interaction surface the running environment offers — native structured question tools, interactive terminal prompts, or autonomous subagent orchestration — without depending on any specific model, platform, or tooling vendor.
 
@@ -32,8 +36,8 @@ description: >
    - **Native Structured Questions:** When the environment exposes a structured question tool, deliver the interview through it — options first, recommendation first, user-perspective phrasing, and markdown file links.
    - **Interactive Terminal Prompts:** When no native question tooling exists, output a structured, high-visibility interactive prompt with numbered choices, highlighted recommendations, and write-in support.
    - **Subagent Delegation:** Orchestrator locks design via `question-me` before dispatching implementation or test subagents.
-6. **Living Design Artifact:**
-   Maintain an active session artifact (`.agents/tasks/{date}-question-me-{slug}.md` or conversation artifact). Every answer logs immediately into the Decision Ledger, building toward a final, airtight **Implementation Blueprint** before any code is touched.
+6. **Living Plan Artifact:**
+   The plan is the working surface, not a summary written at the end. Open `.agents/plans/{YYYY-MM-DD}-{slug}.plan.md` before the first question, fill §2 Anchor Facts during reconnaissance, append to §4 Clarifications after every answer, and derive §5 Todos only once the walk terminates. A plan whose clarifications were reconstructed from memory at close time is fiction with headings.
 
 ---
 
@@ -64,30 +68,41 @@ Invoke or recommend `question-me` when:
 └───────────┬─────────────┘
             ▼
 ┌─────────────────────────┐
-│ Phase 3: Blueprint Lock │ ➔ Final verified plan & worktree dispatch
+│ Phase 3: Plan Compilation│ ➔ .plan.md written, todos derived, worktree dispatch
 └─────────────────────────┘
 ```
+
+The plan file is opened at the start of Phase 0 and updated at every phase boundary — it is not
+produced in Phase 3. Phase 3 only completes it: derive the todos, lock `status`, and hand off.
 
 ---
 
 ### Phase 0: Codebase Reconnaissance & Fact Anchoring
 
-Before drafting the first question, execute passive observation:
-1. **Tree & Branch Check:** Inspect `git status`, `git branch --show-current`, and `git worktree list`.
+Before drafting the first question, open the plan file and execute passive observation:
+
+0. **Open the plan.** Copy [`.agents/templates/plan.md`](../../templates/plan.md) to
+   `.agents/plans/{YYYY-MM-DD}-{slug}.plan.md`, fill the frontmatter (`slug`, `date`, `branch`,
+   `worktree`, `task_record`), and set `status: designing`. Write §1 Problem in the operator's own
+   terms before anything else — if you cannot, you are not ready to ask questions.
+1. **Tree & Branch Check:** Inspect `git status`, `git branch --show-current`, and `git worktree list`. Create the worktree now if the plan is already known to be non-trivial; record its path in the frontmatter.
 2. **DOX Chain Walk:** Read repo `llms.txt` and nearest child contracts to absorb conventions and constraints.
 3. **Codebase Exploration:** Use `grep_search`, `find_by_name`, or `view_file` to inspect existing patterns:
    - What libraries and dependencies are already pinned?
    - How are similar features implemented elsewhere in this repo?
    - What error-handling and logging paradigms are standard?
-4. **Anchor Facts Extraction:** Record known facts in the session ledger:
+4. **Anchor Facts Extraction:** Record known facts in plan §2 — always with the file or command that
+   established them:
    ```markdown
-   ### Anchor Facts (Established from Codebase Truth)
-   - Language/Runtime: Python 3.11 / Rust 2024 / TypeScript 5.6
-   - Crypto Standard: FIPS 203 ML-KEM-768 for secrets; FIPS 204 ML-DSA-65 for signing
-   - Persistence: Local JSON files in ~/.config/ainish-coder/ (no SQLite in this package)
-   - Existing CLI Framework: Bash molecular dispatch / clap 4.5
+   ## 2. Anchor Facts
+   - Runtime: Python 3.11 / Rust 2024 / TypeScript 5.6 — from `pyproject.toml`, `Cargo.toml`, `package.json`.
+   - Crypto standard: FIPS 203 ML-KEM-768 for secrets; FIPS 204 ML-DSA-65 for signing — from `AGENTS.md`.
+   - Persistence: JSON under `~/.config/ainish-coder/`, no SQLite — from `llms.txt` § storage.
+   - CLI framework: Bash molecular dispatch / clap 4.5 — from `bin/ainish-coder` and `src/rag/Cargo.toml`.
    ```
-   *Rule: Never ask a question whose answer is already an Anchor Fact.*
+   *Rule: Never ask a question whose answer is already an Anchor Fact. When a fact settles what
+   would have been a question, also log it in §4 Clarifications marked `asked: resolved from code`,
+   so the operator can audit what was decided on their behalf.*
 
 ---
 
@@ -123,7 +138,8 @@ Walk depth-first down each branch. For each node in the tree:
 2. **Put `(Recommended)` first:** Always provide a strong technical recommendation as the first option, accompanied by a brief rationale explaining why it aligns best with existing patterns and quality gates.
 3. **No trivial Yes/No questions:** If a decision is binary, elevate it into trade-off alternatives with clear technical consequences.
 4. **Include File/Symbol Markdown Links:** When referencing files or symbols, use clickable links: `[config.json](file:///path/to/config.json)` or [`Parser`](file:///path/to/parser.rs#L25-L40).
-5. **Prune Dependent Leaves:** If the operator selects Option B that renders downstream questions obsolete, instantly prune those questions from the tree.
+5. **Prune Dependent Leaves:** If the operator selects Option B that renders downstream questions obsolete, instantly prune those questions from the tree — and record the pruning in the plan's §7 Open Decisions only if a genuinely undecided fork remains.
+6. **Log before asking the next question:** Append the decision to plan §4 Clarifications *before* posing the next node. A decision held only in conversation is lost the moment context compacts, and the plan is the artifact that outlives the chat.
 
 #### Question Delivery Modalities:
 
@@ -173,36 +189,47 @@ How should the operator trigger the Question-Me interview workflow?
 
 ##### Modality C: Subagent Master Handoff
 When an orchestrator dispatches a task to a subagent (e.g. a headless subagent run carrying an implementation master prompt):
-- The orchestrator runs `question-me` with the operator *first*.
-- The resulting resolved Decision Ledger is embedded directly into the subagent's task file (`/tmp/task_ast.md` or `.agents/tasks/`).
-- The subagent receives zero ambiguity, zero open architectural forks, and a locked specification.
+- The orchestrator runs `question-me` with the operator *first*, producing the plan document.
+- The subagent receives the **plan path** (`.agents/plans/{date}-{slug}.plan.md`), not a paraphrased brief: the plan already carries the anchor facts, resolved clarifications, and todos, so re-summarizing it into a prompt only introduces drift.
+- The subagent receives zero ambiguity, zero open architectural forks, and a locked specification; it owns §5 checkboxes and `status`, and reports back against them.
 
 ---
 
-### Phase 3: Blueprint Lock & Implementation Hand-off
+### Phase 3: Plan Compilation & Implementation Hand-off
 
-Once all branches reach terminal leaf nodes:
-1. **Compile the Implementation Blueprint:** Summarize all decisions into an immutable, actionable specification.
-2. **Present the Blueprint:** Show the operator the exact worktree, target files, acceptance criteria, and quality gates.
-3. **Execute via Worktree Gate:** Proceed into implementation per the repository's `AGENTS.md` workflow.
+Once every branch reaches a terminal leaf node:
+
+1. **Derive §5 Todos from the finished tree.** Sections 1-4 are the input; the todos are what an
+   implementing agent will actually execute. Each item names the file or symbol it touches, states a
+   `done when:` condition that is observable rather than a judgement call, and a `verify:` command.
+   Derivation rules live in [Plan Artifacts](references/plan-artifacts.md).
+2. **Fill §6 Verification** with the gates that must pass before `status: done`. Reuse the repo's
+   existing gates rather than inventing new ones; a check nobody runs is decoration.
+3. **Lock the plan.** Set `status: ready` in the frontmatter. From this point §4 Clarifications is
+   history: append-only, never rewritten.
+4. **Create the task record** at the path named in the plan's `task_record` frontmatter key, with a
+   `plan:` line pointing back at the plan. The two artifacts split the work — the plan owns
+   reasoning and progress, the task owns coordination state (lane, branch, scope, status, verdict)
+   and receives the COMMS lifecycle lines.
+5. **Present the locked plan** to the operator: the path, the worktree, the todo count, and the
+   gates. Then proceed into implementation per `AGENTS.md`.
+
+There is no separate prose blueprint. The plan file *is* the blueprint; re-typing it into the chat
+creates a second copy that drifts the moment either is edited.
 
 ```markdown
-# Implementation Blueprint: Question-Me Protocol
-- **Date:** 2026-09-07
-- **Worktree:** `feat/skills-question-me` (isolated from `main`)
-- **Resolved Decisions:**
-  1. Scope: Standalone skill pack `.agents/skills/question-me/` deployed via `--skills`.
-  2. Interaction Mode: Adaptive delivery (native structured question tools when available, otherwise interactive terminal prompts).
-  3. Archetypes: Include 6 pre-built decision tree templates in `references/`.
-  4. Anti-Patterns: Include exhaustive negative examples in `references/anti-patterns.md`.
-- **Target Files:**
-  - `.agents/skills/question-me/SKILL.md`
-  - `.agents/skills/question-me/references/decision-tree-templates.md`
-  - `.agents/skills/question-me/references/anti-patterns.md`
-  - `README.md` (Skills catalog table)
-  - `src/help.sh` (Skill pack enumeration)
-  - `llms.txt` (DOX index count sync)
-- **Quality Gates:** `python3 bin/security_gate.py` (PASS), `bash bin/ainish-coder --help` (PASS).
+# Task: {short title}
+
+- lane: now
+- branch: {type}/{scope}-{slug}
+- status: in-progress
+- plan: .agents/plans/{YYYY-MM-DD}-{slug}.plan.md
+- scope: {paths}
+- objective: {one line}
+
+## Progress
+
+Tracked as checkboxes in plan §5 — do not duplicate the list here.
 ```
 
 ---
@@ -237,42 +264,69 @@ Every question produced by `question-me` must satisfy five tests:
 
 ---
 
-## 6. End-of-Session Artifact Template
+## 6. The Plan Artifact
 
-When `question-me` concludes, persist the decision log into `.agents/tasks/{date}-question-me-{slug}.md`:
+The session's durable output is one file: `.agents/plans/{YYYY-MM-DD}-{slug}.plan.md`, copied from
+[`.agents/templates/plan.md`](../../templates/plan.md). Do not restate its full shape here — a second
+copy of a template is a copy that drifts. What matters at this level is the frontmatter contract and
+the section ownership.
 
-```markdown
-# Socratic Design Record: {Task Title}
-**Session Date:** {ISO-8601}
-**Branch/Worktree:** {branch-name}
-**Status:** Design Locked / Ready for Implementation
+### Frontmatter
 
-## 1. Anchor Facts (Codebase Truth)
-- [Fact 1]
-- [Fact 2]
-
-## 2. Decision Tree & Resolution Log
-### Decision 1: {Title}
-- **Question:** {Prompt text}
-- **Selected Option:** {Chosen answer}
-- **Trade-offs Accepted:** {Summary of trade-offs}
-
-### Decision 2: {Title}
-...
-
-## 3. Implementation Plan & Target Allowlist
-- **Editable Files Allowlist:**
-  - `path/to/file1`
-  - `path/to/file2`
-- **Verification Gates:**
-  - Gate 1: {Linter/Typecheck}
-  - Gate 2: {Unit/Integration Tests}
-  - Gate 3: {Security/PQC Audit}
+```yaml
+---
+plan_format: ainish/plan/v1
+slug: {kebab-name}
+date: {YYYY-MM-DD}
+status: designing          # designing -> ready -> implementing -> done | abandoned
+branch: {type}/{scope}-{slug}
+worktree: {absolute path}
+task_record: .agents/tasks/{YYYY-MM-DD}-{slug}-task.md
+operator: question-me
+---
 ```
+
+`status` is the one field every reader depends on: `ainish-rag` orientation reports it, and the
+implementing agent sets it. Treat an unknown value as `designing`.
+
+### Section ownership
+
+| Section | Owner | Mutability |
+|---|---|---|
+| §1 Problem, §2 Anchor Facts, §3 Plan | Authoring agent | Frozen once `status: ready` |
+| §4 Clarifications | Authoring agent | Append-only after lock; never rewritten |
+| §5 Todos | Implementing agent | The only section edited in place — tick boxes, do not reorder |
+| §6 Verification | Authoring agent writes, implementing agent runs | Frozen once `status: done` |
+| §7 Open Decisions | Any agent | Append; a new fork moves `status` back to `designing` |
+
+The task record keeps its existing shape and gains exactly one line — `plan: <relative path>` —
+so the coordination record and the design record can never lose each other.
 
 ---
 
-## 7. Reference Files
+## 7. Plan Lifecycle
+
+A plan outlives the chat that produced it, so its mutation rules must be explicit.
+
+1. **`designing`** — the walk is in progress. §1 and §2 fill first; §4 grows one entry per answer;
+   §3 is drafted as the tree resolves. A second agent must not edit this plan.
+2. **`ready`** — every branch reached a leaf, §5 and §6 are written, and the operator has seen the
+   path. Implementation may start. §4 is now history.
+3. **`implementing`** — the implementing agent ticks §5 boxes and nothing else. If a clarification
+   proves wrong, it does not silently diverge: it appends to §7, sets `status: designing`, and
+   returns the plan to the operator.
+4. **`done`** — every box ticked and every §6 gate green. Record the outcome in the task record and
+   the daily COMMS ledger; the plan itself is not edited again.
+5. **`abandoned`** — reason in §7. A plan abandoned without a reason is indistinguishable from one
+   forgotten.
+
+A plan superseded by a later plan gets a line in §7 naming the successor. Never delete a plan or
+reuse its slug: the filename is a durable reference that task records and commit messages point at.
+
+---
+
+## 8. Reference Files
 
 - [Decision Tree Templates](references/decision-tree-templates.md) — Pre-built decision tree archetypes for common engineering scenarios.
 - [Questioning Anti-Patterns](references/anti-patterns.md) — Catalog of questioning failures and concrete remedies.
+- [Plan Artifacts](references/plan-artifacts.md) — Deriving todos, splitting a plan, and closing one out.

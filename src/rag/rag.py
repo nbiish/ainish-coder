@@ -5379,6 +5379,53 @@ def assemble_injection(
     }
 
 
+PLAN_FRONTMATTER_KEYS = (
+    "plan_format", "slug", "date", "status", "branch", "worktree", "task_record", "operator",
+)
+PLAN_STATUS_VALUES = ("designing", "ready", "implementing", "done", "abandoned")
+
+
+def read_plan_frontmatter(path: Path) -> Dict[str, str]:
+    """Reads the `key: value` frontmatter block of a `.plan.md` file.
+
+    Deliberately line-based rather than YAML: the engine is stdlib-only, the plan contract fixes the
+    keys, and a parser that accepts arbitrary YAML would silently tolerate a plan whose frontmatter
+    has drifted from `.agents/templates/plan.md`. Unknown keys are ignored; a file without a leading
+    `---` returns `{}` so callers can degrade instead of raising.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    fields: Dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip()
+        if key in PLAN_FRONTMATTER_KEYS:
+            fields[key] = value.strip()
+    return fields
+
+
+def count_plan_todos(text: str) -> Tuple[int, int]:
+    """Returns (open, done) for the GitHub-style checkboxes in a plan's §5 Todos."""
+    open_count = 0
+    done_count = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- [ ]"):
+            open_count += 1
+        elif stripped.startswith(("- [x]", "- [X]")):
+            done_count += 1
+    return open_count, done_count
+
+
 def render_orientation_section(repo_root: Path, token_cap: int) -> str:
     """Gathers the mechanical orientation state a fresh agent would otherwise collect by hand.
 
@@ -5480,6 +5527,40 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
                         parts.append(f"  - {stripped.lstrip('- ')[:200]}")
             except OSError:
                 pass
+
+    # Newest plan of record: `question-me` writes these, and the implementing agent's next action is
+    # usually the top unchecked box. Reported by mtime, not filename: a plan touched during
+    # implementation is more current than one merely dated later.
+    plans_dir = repo_root / ".agents" / "plans"
+    if plans_dir.is_dir():
+        def _plan_mtime(path: Path) -> float:
+            # A plan removed between glob and stat must not take the whole orientation down; it
+            # sorts last and the next one is reported instead.
+            try:
+                return path.stat().st_mtime
+            except OSError:
+                return 0.0
+
+        plans = sorted(plans_dir.glob("*.plan.md"), key=_plan_mtime, reverse=True)
+        if plans:
+            newest = plans[0]
+            fields = read_plan_frontmatter(newest)
+            # Treat an unrecognised or absent status as `designing` — fail closed, never assume
+            # progress. A plan whose frontmatter did not parse is one nobody can trust the state of.
+            status = fields.get("status", "") or "designing"
+            if status not in PLAN_STATUS_VALUES:
+                status = "designing"
+            try:
+                plan_text = newest.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                plan_text = ""
+            open_todos, done_todos = count_plan_todos(plan_text)
+            parts.append(f"- newest plan: `{newest.name}` (status: {status})")
+            parts.append(f"  - todos: {done_todos} done, {open_todos} open")
+            if fields.get("branch"):
+                parts.append(f"  - plan branch: `{fields['branch'][:120]}`")
+            if fields.get("task_record"):
+                parts.append(f"  - plan task record: `{fields['task_record'][:160]}`")
 
     body = "\n".join(parts)
     if estimate_tokens(body) > token_cap:
@@ -5590,7 +5671,7 @@ def run_context_command(
             {
                 "source": "orientation",
                 "text": orientation_text,
-                "reason": "branch/worktree/status, today's COMMS, newest task record",
+                "reason": "branch/worktree/status, today's COMMS, newest task record, newest plan",
                 "driver": None,
             }
         )

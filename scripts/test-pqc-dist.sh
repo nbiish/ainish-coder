@@ -628,14 +628,35 @@ else
 fi
 # Every file the contract links to must be deployed by --rules. A pointer to a file the target never
 # receives is worse than no pointer: the agent is told to read something that is absent.
-contains "deploy copies the .agents map" "$(cat "${REPO}/bin/ainish-coder")" 'for _tpl in llms.txt templates/masters.md templates/egm-design.md skills/llms.txt'
+DEPLOY_TMPL_LINE='for _tpl in llms.txt templates/llms.txt templates/masters.md templates/egm-design.md templates/plan.md plans/llms.txt skills/llms.txt'
+contains "deploy copies the .agents map" "$(cat "${REPO}/bin/ainish-coder")" "${DEPLOY_TMPL_LINE}"
 linked_shipped=0
-for linked in llms.txt templates/masters.md skills/llms.txt; do
+for linked in llms.txt templates/masters.md templates/plan.md plans/llms.txt skills/llms.txt; do
     if grep -qF "${linked}" "${REPO}/bin/ainish-coder"; then
         linked_shipped=$((linked_shipped + 1))
     fi
 done
-check "deploy names every contract-linked .agents file" "$linked_shipped" "3"
+check "deploy names every contract-linked .agents file" "$linked_shipped" "5"
+# Every path named in the .agents Child DOX index must exist. This is the dangling-pointer class the
+# check above only covers for the contract's own links: an index entry pointing at a filename the
+# target never receives tells the next agent to read something that is not there.
+index_missing=0
+index_checked=0
+while IFS= read -r index_rel; do
+    [[ -z "${index_rel}" ]] && continue
+    index_checked=$((index_checked + 1))
+    [[ -e "${REPO}/.agents/${index_rel}" ]] || { index_missing=$((index_missing + 1)); echo "  missing index target: .agents/${index_rel}"; }
+done < <(awk '/^## Child DOX index/{inside=1; next} inside && /^## /{exit} inside' "${REPO}/.agents/llms.txt" \
+            | grep -oE '\]\(\./[^)]+\)' | sed 's/^](\.\///; s/)$//')
+# A parse that silently finds nothing passes vacuously; assert the count too.
+check "child index entries were found to check" "$([[ ${index_checked} -ge 5 ]] && echo yes || echo no)" "yes"
+check "every .agents child index entry exists" "$index_missing" "0"
+# The plan artifact is only real if its template, its directory contract, and its deploy wiring all
+# exist: a skill that writes plans into a directory no target receives is a skill that fails silently.
+check "plan template ships" "$([[ -f "${REPO}/.agents/templates/plan.md" ]] && echo yes || echo no)" "yes"
+check "plans directory contract ships" "$([[ -f "${REPO}/.agents/plans/llms.txt" ]] && echo yes || echo no)" "yes"
+contains "plan template declares the frontmatter contract" "$(cat "${REPO}/.agents/templates/plan.md")" 'plan_format: ainish/plan/v1'
+contains "question-me writes plans of record" "$(cat "${REPO}/.agents/skills/question-me/SKILL.md")" '.agents/plans/{YYYY-MM-DD}-{slug}.plan.md'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"

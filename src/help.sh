@@ -308,7 +308,7 @@ UTILITY COMMANDS:
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
                               - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing) [mandatory]
-                              - question-me/               (Socratic design interview & tree resolution)
+                              - question-me/               (Socratic design interview -> .plan.md)
                               - remotion-video/            (Programmatic video creation)
                               - tts-cli/                   (On-device spoken end-of-turn suggestion)
                               - typesafe-jev/              (Calibrated decision models)
