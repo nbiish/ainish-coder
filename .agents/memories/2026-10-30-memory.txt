@@ -1,3 +1,10 @@
+
+
+- 01:13 merged origin/main ce46980 into local main as 8389213; 30 remote commits plus six local commits preserved.
+- 01:13 [gotcha] `.agents/canonical/AGENTS.md` carries macOS `uchg`; fast-forward aborts with "Operation not permitted" until `chflags nouchg` is run.
+- 01:13 [gotcha] `uv run` selects Python 3.10 here; backslashes inside f-string expressions fail, so extract them into variables in `src/rag/rag.py`.
+- 01:14 [decision] RAG gate resolves the canonical repo root from a worktree, so fleet-level gate checks must run from the main checkout.
+- 01:15 [fact] Latest release adds official rules registry commands; current fleet remains on the custom `sync-rules-targets.sh` hook and `targets.txt` is empty.
 - 01:20 `src/rag/src/provider.rs` resolves the embedding provider: operator intent (env `AINISH_EMBED_PROVIDER` / persisted `.agents/rag/embed-provider.json`) → env → PQC store (`pqc-secrets export --json`, in memory only). Accepts canonical, provider-slug, and consumer-prefixed names, notably `LOCALROUTER_OPENROUTER_API_KEY` / `LOCALROUTER_ZENMUX_API_KEY`.
 - 01:21 Catalog defaults: OpenRouter `https://openrouter.ai/api/v1`, ZenMux `https://zenmux.ai/api/v1`, model `openai/text-embedding-3-small` (1536-d native, truncated+renormalized to the store's 768 via `provider::DEFAULT_STORE_DIM`).
 - 01:22 Verified live with the PQC keys: both `POST /embeddings` returned HTTP 200 with 1536 dims, so auto-detection is not speculative.

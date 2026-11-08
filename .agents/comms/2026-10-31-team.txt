@@ -19,6 +19,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:in-progress
 - blockers:none
 
+
 ### [2026-10-31T01:20:00Z] update | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
 - start:2026-10-31T01:05:00Z
 - end:2026-10-31T01:25:00Z
@@ -28,6 +29,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: route `context_freshness` 0.94 on a branch-change prompt; typed decide batch (choice 1.00 confidence, score 3.55, noul 0.92); faithfulness 0.738; rerank returned `src/rag/src/provider.rs` first with role `implementation` and utility 3.42; branch gate green except the pre-merge canonical hash; patch 68.6% ADEQUATE (13/14 files)
 - status:verifying
 - blockers:none
+
 
 ### [2026-10-31T01:27:00Z] intent-merge | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
 - start:2026-10-31T01:26:00Z
@@ -39,6 +41,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:merged
 - blockers:none
 
+
 ### [2026-10-31T01:35:00Z] checkout | branch:feat/typesafe-jev-routing | wt:D:\Code\ainish-typesafe-jev
 - start:2026-10-31T01:04:00Z
 - end:2026-10-31T01:35:00Z
@@ -48,6 +51,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: smoke on main — route/decide via `openrouter:typesafe/jev-1.14-20261014`, query ranks the new catalog and `decision.rs` with correct roles; no resident language or embedding process; worktree and branch removed
 - status:verified
 - blockers:none
+
 
 ### [2026-10-31T01:44:00Z] checkin | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
 - start:2026-10-31T01:38:00Z
@@ -60,6 +64,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:verifying
 - blockers:none
 
+
 ### [2026-10-31T01:47:00Z] intent-merge | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
 - start:2026-10-31T01:46:00Z
 - end:2026-10-31T01:47:00Z
@@ -69,6 +74,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output: merge fa2e5f8+
 - status:merged
 - blockers:none
+
 
 ### [2026-10-31T01:53:00Z] checkout | branch:feat/jev-latest-local-router | wt:D:\Code\ainish-jev-router
 - start:2026-10-31T01:38:00Z
@@ -80,6 +86,52 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:verified
 - blockers:none
 
+
+### [2026-10-31T05:13:37Z] checkin | branch:feat/rules-fleet-migration | wt:/Users/nbiish/code/ainish-rules-fleet
+- start:2026-10-31T05:13:37Z
+- end:2026-10-31T05:15:00Z
+- scope:src/deploy_rules_sync.sh, src/deploy_agents.sh, llms.txt, ~/.config/ainish-coder/targets.txt
+- objective:migrate the enrolled fleet onto the official rules registry and make distribution automatic
+- input:rules-targets.json held 8 live repos; targets.txt absent, so --rules-status reported none registered
+- output:legacy registry importer, in-place enrollment of refresher-less targets, AGENTS.md snapshot before overwrite
+- triage:now
+- status:in_progress
+- blockers:none
+
+
+### [2026-10-31T05:32:00Z] update | branch:feat/rules-fleet-migration | wt:/Users/nbiish/code/ainish-rules-fleet
+- start:2026-10-31T05:15:00Z
+- end:2026-10-31T05:32:00Z
+- scope:src/deploy_rules_sync.sh, src/deploy_agents.sh, bin/ainish-coder
+- objective:prove migration and enrollment on a throwaway fleet before touching live repos
+- input:two sandbox repos (one standalone, one nested under a parent repo) plus legacy JSON fixtures
+- output:migration imported 2 real targets and dropped dead + /tmp paths; --rules-sync --all bootstrapped both; nested target kept hooks off the parent; second sync a no-op; manifests ML-DSA-65 verified
+- status:verifying
+- blockers:none
+
+
+### [2026-10-31T05:41:00Z] update | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:33:00Z
+- end:2026-10-31T05:41:00Z
+- scope:src/file_operations.sh, src/deploy_gitignore.sh, src/deploy_agents_comms.sh, src/deploy_rules_sync.sh, bin/ainish-coder
+- objective:fix the two failures the first live fleet run exposed
+- input:betterbrowsermcp .gitignore merge died with EXDEV (mktemp in $TMPDIR, target on /Volumes); errexit aborted the fleet at that target
+- output:ainish_temp_beside keeps scratch files on the destination filesystem, bundle survives gitignore/comms errors, per-target rc capture continues the fleet, refresher exits non-zero on failed refresh
+- status:verifying
+- blockers:none
+
+
+### [2026-10-31T05:50:00Z] intent-merge | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:50:00Z
+- end:2026-10-31T05:50:30Z
+- scope:canonical main, eight enrolled target repositories
+- objective:land the registry migration and the cross-device fix
+- input:security gate PASS, ainish-rag gate GREEN, sandbox fleet green on both volumes
+- output:merged 2ba7fac (migration) and 1bb0a7f (cross-device); fleet sync enrolled 8/8
+- status:merged
+- blockers:none
+
+
 ### [2026-10-31T01:50:54.3907412-04:00] update | branch:main | wt:D:/Code/ainish-coder
 - start:2026-10-31T01:50:54.3907412-04:00
 - end:2026-10-31T01:50:54.3907412-04:00
@@ -89,6 +141,43 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:merge 61467cf (--no-ff). Skill transports + failure-mode guidance now describe the typed transport and pinned ids; api-contract.md records the 2026-10-31 verification (three routes, pinned openrouter/jev-1.14 + zenmux/jev-1.14, availability-only failover, zenmux dialect + 404 status, forced-fallback source string); PRD decision-layer line updated; engine comments/secrets message no longer claim local-router is chat-only. Checks: cargo check --all-targets clean, 41 Python decision tests OK. No behavior change.
 - status:merged
 - blockers:ZenMux decisions route still answers 404 model_not_supported for typesafe/jev-1.14; requests fall back to OpenRouter with provenance.
+
+
+### [2026-10-31T05:52:00Z] checkout | branch:fix/rules-sync-cross-device | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:13:37Z
+- end:2026-10-31T05:52:00Z
+- scope:rules registry, eight target repos, deployed refreshers, provenance
+- objective:leave every enrolled repo current and self-refreshing
+- input:final verification sweep
+- output:8/8 CURRENT, 8/8 HEALTHY, 8/8 manifest signatures VERIFIED, AGENTS.md identical everywhere, all refreshers carry the fail-visible version
+- provenance:source_commit=1bb0a7f62a44 manifest_sha256=3ae0e04de735
+- status:done
+- blockers:none
+- rebuild:no-rebuild-needed
+
+
+### [2026-10-31T06:18:00Z] update | branch:fix/rules-sync-lock-reclaim | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:56:00Z
+- end:2026-10-31T06:18:00Z
+- scope:src/deploy_rules_sync.sh (deployed refresher heredoc)
+- objective:stop one crashed refresh from disabling a repository permanently
+- input:all eight targets held a stale .agents/.rules-sync.lock; rmdir failed with EPERM (com.apple.provenance xattr), so the EXIT trap never cleaned up and every later run exited at the lock while --rules-status still said CURRENT
+- output:15-minute stale-lock reclaim, rm -rf instead of rmdir, and git -C based source-commit detection (a worktree .git is a file, so the digest fallback was masking stale deployments)
+- status:verifying
+- blockers:none
+
+
+### [2026-10-31T06:22:00Z] checkout | branch:fix/rules-sync-lock-reclaim | wt:/Users/nbiish/code/ainish-rules-fix
+- start:2026-10-31T05:56:00Z
+- end:2026-10-31T06:22:00Z
+- scope:eight enrolled repositories, deployed refreshers, fleet registry
+- objective:leave every target on the fixed refresher with no stale locks
+- input:merged 631853d; cleared the eight legacy locks once (an old refresher cannot reclaim its own lock because it exits before the reclaim code runs)
+- output:8/8 manifests re-stamped at 631853d, 0 locks remaining, fleet sync exit 0
+- provenance:source_commit=631853d6ab54
+- status:done
+- blockers:none
+- rebuild:no-rebuild-needed
 
 ### [2026-10-31T13:50:00Z] checkin | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
 - start:2026-10-31T13:50:00Z
@@ -101,6 +190,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:in-progress
 - blockers:none
 
+
 ### [2026-10-31T14:12:00Z] intent-merge | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
 - start:2026-10-31T13:50:00Z
 - end:2026-10-31T14:12:00Z
@@ -111,6 +201,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:merged
 - blockers:none
 
+
 ### [2026-10-31T14:22:00Z] checkout | branch:docs/agents-test-discipline | wt:D:\Code\agents-test-discipline
 - start:2026-10-31T13:50:00Z
 - end:2026-10-31T14:22:00Z
@@ -120,6 +211,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:no-rebuild-needed (docs-only); AGENTS.md EXECUTION gains the implementation-over-test-theatre rule and real-surface proof; worktree and branch removed
 - status:verified
 - blockers:local embedding server cannot auto-spawn on this GPU-less host (see memory 14:20)
+
 ### [2026-10-31T15:45:00Z] checkin | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
 - start:2026-10-31T15:45:00Z
 - end:2026-10-31T15:45:00Z
@@ -131,6 +223,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:in-progress
 - blockers:none
 
+
 ### [2026-10-31T15:58:00Z] intent-merge | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
 - start:2026-10-31T15:45:00Z
 - end:2026-10-31T15:58:00Z
@@ -141,6 +234,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:merged
 - blockers:none
 
+
 ### [2026-10-31T16:08:00Z] checkout | branch:feat/gate-spawn-hardening | wt:D:\Code\gate-spawn-hardening
 - start:2026-10-31T15:45:00Z
 - end:2026-10-31T16:08:00Z
@@ -150,6 +244,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:spawn floor (512 with mmproj), real -ngl 0 CPU pinning, no -fa on CPU, llama stderr log + hints, gate --tests evidence, test/impl delta, contract sha256 on the card and in gate-status.json; contract and skill clauses for security repros/no test deps/real-usage proof/subagent inheritance
 - status:verified
 - blockers:none
+
 ### [2026-10-31T17:35:16Z] checkin | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
 - start:2026-10-31T17:35:16Z
 - end:2026-10-31T17:35:16Z
@@ -160,6 +255,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:pending
 - status:in-progress
 - blockers:none
+
 ### [2026-10-31T18:15:00Z] update | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
 - start:2026-10-31T17:35:00Z
 - end:2026-10-31T18:15:00Z
@@ -169,6 +265,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:default route -> `openrouter:typesafe/jev-1.14-20261014` (5 signals, `hybrid_rerank` pool 12); `JEV_TRANSPORT_PRIORITY=local-router,openrouter` -> `local-router:.../api/alpha/decisions` (`security_governance`, `multi_hop_expand` pool 16); query -> `context_sufficiency: partial_unsettled (CRAG corrective expansion pass applied)`; eval -> contradiction 0.45 / verdict `unsupported`; orient -> route hint + `route_decision` in JSON
 - status:verifying
 - blockers:none
+
 
 ### [2026-10-31T18:25:00Z] intent-merge | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
 - start:2026-10-31T17:35:00Z
@@ -180,6 +277,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:merged
 - blockers:none
 
+
 ### [2026-10-31T18:33:00Z] checkout | branch:feat/rag-decision-priority | wt:D:\Code\rag-decision-priority
 - start:2026-10-31T17:35:00Z
 - end:2026-10-31T18:33:00Z
@@ -189,6 +287,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:OpenRouter + Local Router prioritized transports with `JEV_TRANSPORT_PRIORITY` and `/api/decisions/status` fast path; adaptive `retrieval_strategy`/`candidate_pool_size`; CRAG sufficiency + one corrective expansion; contradiction/completeness/verdict bands; decision-guided orient; consumer-prefixed PQC key suffixes (`PSIONICS_*`); worktree-only canonical config fallback
 - status:verified
 - blockers:none
+
 ### [2026-10-31T23:31:00Z] checkin | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
 - start:2026-10-31T23:31:00Z
 - end:2026-10-31T23:31:00Z
@@ -200,6 +299,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - status:in-progress
 - blockers:none
 
+
 ### [2026-10-31T23:50:00Z] intent-merge | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
 - start:2026-10-31T23:31:00Z
 - end:2026-10-31T23:50:00Z
@@ -209,6 +309,7 @@ Full protocol: `src/templates/AGENTS.COMMS.md`.
 - output:merge --no-ff 00e3427; canonical re-signed `bef21fa7…`; Rust 54/54, Python 44/44
 - status:merged
 - blockers:none
+
 
 ### [2026-10-31T23:55:00Z] checkout | branch:feat/master-surface-lenses | wt:D:\Code\master-surface-lenses
 - start:2026-10-31T23:31:00Z
