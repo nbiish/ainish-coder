@@ -4963,7 +4963,7 @@ def retrieve_context(
     if not hits:
         native = native_query_store(repo_root)
         if native.available():
-            raw = native.search(task, limit=max(12, want * 2))
+            raw, native_reason = native.search_with_reason(task, limit=max(12, want * 2))
             if raw:
                 try:
                     engine = DecisionEngine()
@@ -4971,8 +4971,11 @@ def retrieve_context(
                 except Exception:
                     hits = raw[:want]
                 mode = f"native_engine ({mode})"
-            elif mode in ("no_store", "vector_driver_unavailable"):
-                mode = f"native_engine_empty ({mode})"
+            else:
+                # Carry the engine's actual reason. Reporting a 401 as `native_engine_empty` sends
+                # an operator hunting for a missing index when the index is intact and the embedding
+                # key is missing — two completely different fixes.
+                mode = f"{mode}; native engine: {native_reason}"
         else:
             mode = f"{mode}; {native.reason}"
 
@@ -5087,8 +5090,19 @@ class NativeQueryStore:
 
     def search(self, query: str, limit: int = 12) -> List[Dict[str, Any]]:
         """Returns hits in this engine's own record shape so reranking is unchanged."""
+        hits, _reason = self.search_with_reason(query, limit)
+        return hits
+
+    def search_with_reason(self, query: str, limit: int = 12) -> Tuple[List[Dict[str, Any]], str]:
+        """Like `search`, but reports why a search returned nothing.
+
+        The distinction matters for diagnosis: "the index is empty" and "the embedding key returned
+        401" both produce zero hits, and the caller used to report both as `native_engine_empty`,
+        which sends an operator looking for a missing index when the index is fine and the key is
+        not. Every early return now carries a reason string.
+        """
         if not self.binary:
-            return []
+            return [], "no compiled engine"
         try:
             res = subprocess.run(
                 [str(self.binary), "query", query, "--json", "--no-rerank", "--limit", str(limit)],
@@ -5104,28 +5118,36 @@ class NativeQueryStore:
                 stdin=subprocess.DEVNULL,
                 timeout=90,
             )
-        except (OSError, subprocess.SubprocessError):
-            return []
-        if res.returncode != 0 or not res.stdout.strip():
-            return []
-        text = res.stdout
-        # The native engine prints ANSI-coloured startup chatter before the payload. Strip SGR
-        # sequences first (they contain `[`), then locate the array by structure: a line that is
-        # exactly `[` or begins `[{`. Searching for a bare `[` matches the `[rag:embed-provider]`
-        # log tag and every parse then fails against a perfectly valid response.
-        text = strip_ansi(text)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return [], f"native engine did not run: {str(exc)[:120]}"
+
+        text = strip_ansi(res.stdout or "")
+        if res.returncode != 0:
+            # Pull the engine's own first-line reason (it names 401 vs a missing model etc.).
+            detail = (strip_ansi((res.stderr or "")).strip().splitlines() or [""])[0]
+            if not detail:
+                detail = text.strip().splitlines()[0] if text.strip() else ""
+            return [], f"native engine exited {res.returncode}: {detail[:160]}"
+        if not text.strip():
+            return [], "native engine returned no output"
+
+        # The native engine prints ANSI-coloured startup chatter before the payload. Locate the array
+        # by structure — a line that begins `[` — after stripping SGR, because a bare `[` also matches
+        # the `[rag:embed-provider]` log tag.
         start = -1
         for match in re.finditer(r"^\[", text, re.MULTILINE):
             start = match.start()
             break
         if start < 0:
-            return []
+            return [], "native engine output carried no JSON array"
         try:
             hits = json.loads(text[start:])
         except ValueError:
-            return []
+            return [], "native engine output was not valid JSON"
         if not isinstance(hits, list):
-            return []
+            return [], "native engine returned a non-list payload"
+        if not hits:
+            return [], "native engine found no hits"
         normalised: List[Dict[str, Any]] = []
         for hit in hits:
             if not isinstance(hit, dict):
