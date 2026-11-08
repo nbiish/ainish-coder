@@ -84,7 +84,9 @@ Install the binary on the **internal** disk (a copy, not a symlink into the
 checkout). A LaunchAgent whose executable sits on an external volume blocks in
 `dyld::open` at login: launchd reports `running`, nothing listens, the log stays
 empty, and `lsof -p <pid>` naming `/Volumes/…` is the tell. Rebuilding therefore
-needs `cp target/release/wtf ~/.local/bin/wtf` before restarting the agent.
+needs the installed copy refreshed: `cp target/release/wtf ~/.local/bin/wtf` on
+macOS, `copy target\release\wtf.exe %USERPROFILE%\bin\wtf.exe` on Windows (that
+directory is already on the user PATH, so `{"command":"wtf"}` resolves).
 
 ## 2. Wire the MCP server
 
