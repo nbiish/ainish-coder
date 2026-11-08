@@ -198,7 +198,41 @@ dispatcher may cancel one.
 Never leave `working` open without `check_in done` or `blocked`. A stale lane is
 worse than none.
 
-## 6. No MCP? Signed curl
+## 6. Transport - the SSH link between the machines
+
+wtf carries the record and the messages; it deliberately does not move files or
+run remote commands. That is plain OpenSSH, already wired and verified.
+
+| From | Command | Lands on |
+|---|---|---|
+| Mac | `ssh windows '<cmd>'` (alias of `psh`) | Windows PowerShell 5.1, user `kenwa` |
+| Mac | `ssh wsl '<cmd>'` | WSL Ubuntu 26.04, user `nanoboozhoo` |
+| Windows / WSL | `ssh mac '<cmd>'` | macOS, user `nbiish` |
+| any | `run-on <alias> '<cmd>'` | same targets, BatchMode + timeouts pinned |
+
+- **Names, not addresses.** Targets resolve by name (`peopleofthedawn.local`,
+  `mac.attlocal.net`); the `*-ip` aliases (`psh-ip`, `wsl-ip`, `mac-ip`) carry
+  the last-known DHCP address. Prefer names in anything long-lived.
+- **No prompts, ever.** Key-only auth - `PasswordAuthentication no` and
+  `AuthenticationMethods publickey` on both servers - so `BatchMode=yes`
+  succeeds. A code path that needs interactive auth is broken by definition.
+- **Exit status is the remote program's.** `255` means the SSH layer failed;
+  anything else is the command's own result.
+- **Keys are `restrict,pty`.** No agent forwarding, no `-L`/`-R`/`-W` tunnels,
+  no X11. Do not build a feature on tunnelling.
+- **Files:** `scp`, `sftp`, and `rsync -e ssh` work through the same aliases.
+  Windows paths need the drive form (`psh:D:/Workspace/...` or
+  `psh:/D:/Workspace/...`), and Win32-OpenSSH cannot traverse a junction - a
+  path through one fails with `dest open ...: Failure`, so use the real path or
+  the WSL view (`wsl:/mnt/d/Workspace/...`).
+- **Pick the right lane.** `ssh`/`scp` for one-off transport and anything you
+  drive yourself; the **task lane** (`task_*`) when the work belongs to the
+  other machine's own agent, keys, or repo checkout.
+
+Full topology, keys, fingerprints, rollback, and the failure table:
+`INTER_MACHINE_SSH_RUNBOOK.md` in `system-care-and-updates`.
+
+## 7. No MCP? Signed curl
 
 HMAC-SHA256 over `wtf-hmac-v1\nMETHOD\npath-and-query\nTS\nNONCE\nsha256hex(body)`,
 key = the device secret's raw 32 bytes.
@@ -214,7 +248,7 @@ wtf_call() { local m=$1 p=$2 b=${3:-}; local ts n bh sig
     -H "X-Wtf-Nonce: $n" -H "X-Wtf-Signature: $sig"; }
 ```
 
-## 7. Rules
+## 8. Rules
 
 - **Never** log, echo, or commit device keys or the capability token.
 - **Never** port-forward plain HTTP to the internet. TLS, WireGuard, or Tailscale.
@@ -223,7 +257,7 @@ wtf_call() { local m=$1 p=$2 b=${3:-}; local ts n bh sig
 - Dashboard lives at one unguessable path, `/w/<64-hex>`. Wrong path = 404.
 - Default port `7800` (set in `wtf serve --bind IP:PORT` or `config.json`).
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
