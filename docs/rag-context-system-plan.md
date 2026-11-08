@@ -21,20 +21,21 @@ some of the request is already built. Concretely:
 | Corrective expansion (CRAG) | **Exists** | `evaluate_context_sufficiency` (`:2739`), `extract_corrective_expansion_terms` (`:2762`) |
 | Transport failover | **Partial** | order is `local-router → openrouter → jev → local-model` (`:2674-2694`). The router itself already reports `order: ["openrouter","zenmux"]` for decisions, but the engine's own stage list has **no zenmux stage** — so engine-level failover cannot reach ZenMux directly |
 | Living wiki + signed ledger | **Exists** | `generate_wiki` (`:2232`), `append_wiki_note_and_sign` (`:2136`), bidirectional resolutions (`:2212`) |
-| Context injection | **Partial** | `orient --inject` emits a primer; it is **not** a two-agent pipeline |
-| Elephant/Goldfish | **Docs only** | `.agents/skills/context-orchestration/SKILL.md` is a *human procedure*; `bin/egm-check.sh` only greps headings. No code, no model calls |
-| Generative driver model | **Absent** | **No `chat/completions` call anywhere in the engine.** Every model call is a typed decision or an embedding |
+| Context injection | **Exists** | `context` (`:4790` region) emits a labelled, budgeted envelope; `orient --inject` remains the wiki-only primer |
+| Elephant/Goldfish | **Exists (Phase 4d)** | `elephant_synthesize` + `goldfish_review`; the isolation is signature-enforced and pinned by `test_context_injection.py` |
+| Generative driver model | **Exists (Phase 4a)** | `DriverEngine` — tiered chat completions with `source`, `model_verified`, and per-tier attempt logs |
 | Self-maintaining index | **Absent** | `index` is a full scan with optional `--watch`; no delta, no autonomous curation |
 
-Two facts drive the whole plan:
+Two facts drove the whole plan. **Both have since changed** — see the Phase 4 status block:
 
-1. **There is no generative path in the engine.** Elephant and Goldfish as described — an agent that
-   "modifies/adds to the initial prompt injection" and a reviewer that "adds its unfiltered
-   addition" — require *text generation*, not calibrated probabilities. That is a new subsystem, not
-   a flag on an existing one.
-2. **The two-command surface does not exist yet.** The engine exposes **22 top-level subcommands**
+1. **There was no generative path in the engine.** Elephant and Goldfish — an agent that "modifies/
+   adds to the initial prompt injection" and a reviewer that "adds its unfiltered addition" — require
+   *text generation*, not calibrated probabilities. That was a new subsystem, not a flag; `DriverEngine`
+   is now that subsystem.
+2. **The two-command surface did not exist.** The engine exposed **22 top-level subcommands**
    (33 including nested `audit`/`service`), verified from the parser (`grep 'sub\.add_parser'`).
-   The plan has to *hide* them behind two verbs rather than add a third way to use them.
+   `context` now exists as the agent-facing verb; `sync` is still unbuilt, so the surface is
+   half-complete and the subcommands remain the internal escape hatch.
 
 ---
 
@@ -94,6 +95,27 @@ ones landed.
 
 **Exit criteria:** baseline JSON committed; a single command reproduces it.
 **Deliverable:** `.agents/rag/bench-baseline.json` + a short results table in the plan's appendix.
+
+**Status: DONE for this repo** (`138a7f3`, see `.agents/tasks/2026-11-06-rag-phase0-baseline-task.md`).
+Harness records nDCG@3, chunk tokens, embedding identity, store rows, and engine commit; the
+baseline is committed via a targeted `.gitignore` exception. Three preconditions had to be fixed
+first, and they were not visible from the audit:
+
+1. `.agents/rag/` was ignored in full, so "baseline committed" was unsatisfiable. A directory-level
+   ignore also blocks a child exception, hence `.agents/rag/*` plus one `!` rule.
+2. Recall@3 was saturated at 100% on the only three queries, which is a ceiling, not a floor.
+3. `bin/ainish-rag` could exec itself on any host missing its preferred binary — which is why a WSL
+   bench run silently produced nothing.
+
+**Still open before Phase 0 is closed across both repos:**
+
+- `local-router` is not baselined: it has 18 uncommitted paths, which blocks starting work there.
+- `bench` delegates to `bin/ainish-rag.exe` when Python `lancedb` is absent, and that binary is
+  stale (built 2026-10-31 vs source at 2026-11-04). A launcher-driven Windows benchmark therefore
+  still reports the **old** metrics. Mirror the harness into `src/rag/src/main.rs` or rebuild.
+- The embedding key resolves only under WSL (13 keys there, 0 in the Windows PQC store), so the
+  baseline was recorded on the WSL host. Resolve the host split before treating numbers as
+  comparable across machines.
 
 ---
 
@@ -171,25 +193,33 @@ technique selection without a human-visible receipt.
 
 **Why:** This is the actual product surface, and it needs a generative path that doesn't exist.
 
-**4a. Driver model.** New `driver` transport layer mirroring the decision layer:
-`local-router → openrouter → zenmux → local-model`, with the same `source` discipline and hard
-timeouts. Reuses `_first_env` / PQC key resolution; **never** logs keys.
+**4a. Driver model.** New `driver` transport layer mirroring the decision layer, with the same
+`source` discipline and hard timeouts. Reuses `_first_env` / PQC key resolution; **never** logs keys.
 
-Provider tier order and model ids are **verified live** (2026-11-06) and recorded in
-`local-router/docs/driver-models.md`:
+The chain is an explicit ordered list in `DRIVER_CHAIN`, verified live 2026-11-07 (all four
+router steps answered `DRIVER_OK`):
 
-| Tier | Model id | Status |
+| Step | Model id (as sent) | Reported back |
 |---|---|---|
-| local-router → OpenRouter | `openrouter-deepseek-v4.1-flash-1017` | responds, routes to `deepseek/deepseek-v4.1-flash-1017` |
-| local-router → ZenMux | `zenmux-deepseek-v4.1-flash` | responds, routes to `deepseek/deepseek-v4-flash` family |
-| local-model | `…-lightning-30b-a3b-gguf-mxfp4_moe` | **offline today** (Unsloth Studio closed) |
+| 1 | `local-router/fallback-models` | `mimo-v2.6-pro` (the shared chain's current head) |
+| 2 | `zai-glm-5.3-flash` | `glm-5.3-flash` |
+| 3 | `xiaomi-mimo-mimo-v2.6-pro` | `mimo-v2.6-pro` |
+| 4 | `openrouter-deepseek-v4.1-flash-1017` | `deepseek/deepseek-v4.1-flash-1017` |
+| 5 | `deepseek/deepseek-v4.1-flash-1017` (direct; used only if the router is unreachable) | same |
+
+**This chain belongs to `ainish-rag`; it is not local-router's `fallback-models` content.** The
+shared chain serves VS Code, Claude Code, Cline and every other client — repointing it here would
+reroute the machine to suit one tool. Step 1 *calls* that chain deliberately and is marked
+`expect_any`, so whatever it selects is correct for that step rather than a false mismatch.
 
 **Do not invent `latest` aliases.** Verified: `deepseek-v4.1-flash-latest`,
 `openrouter-deepseek-v4.1-flash-latest` and `zenmux-deepseek-v4.1-flash-latest` all return **HTTP
 200 with `routed=auto`** — the generic fallback chain, not the requested model. The `~`-prefixed
 `-latest` rows in the router registry are display aliases stripped by `normalizeModelAlias`, not
 callable ids. So the driver **must compare `response.model` to the requested id** and treat a
-mismatch as degraded; a 200 alone proves nothing.
+mismatch as degraded; a 200 alone proves nothing. Router ids answer with only the provider-stripped
+tail, so matching is suffix-based (`xiaomi-mimo-mimo-v2.6-pro` ← `mimo-v2.6-pro`), while a snapshot
+suffix still counts as a different model.
 
 Two constraints that must shape the implementation, not just the docs:
 
@@ -198,13 +228,12 @@ Two constraints that must shape the implementation, not just the docs:
   reasoning *plus* answer, and must not treat empty content as a transport error — that would
   mis-diagnose a budget problem as a provider outage.
 - **NVFP4 Lightning cannot run here.** `llama-quantize --help` on this build (`0.8.0-dev, 7e2fea0`)
-  has no NVFP4 type; only `MXFP4_MOE` exists. The chosen local tier is therefore
-  `…-lightning-30b-a3b-gguf-mxfp4_moe`.
+  has no NVFP4 type; only `MXFP4_MOE` exists. The local floor is therefore
+  `…-lightning-30b-a3b-gguf-mxfp4_moe`, or whatever the discovered backend serves.
 
-**The driver order is a separate order from `local-router/fallback-models`.** The shared 20-step
-chain serves VS Code, Claude Code, Cline and scripts; the driver order (tier 1–4) is `ainish-rag`'s
-own, carried as explicit model ids. Neither replaces the other, and reordering the shared chain for
-one tool would change routing for every consumer.
+**The driver order is a separate order from `local-router/fallback-models`.** Neither replaces the
+other: step 1 *consumes* the shared chain, steps 2–5 are this engine's own, and reordering the shared
+chain for one tool would change routing for every consumer.
 
 **4b. Elephant.** Session-aware synthesizer.
 - Input: current task text, the session's accumulated injection state (a small JSON sidecar in
@@ -229,6 +258,39 @@ when over budget: drop retrieved tail → drop Goldfish → drop Elephant → ra
 no session state (test asserts the absence); total latency within budget on local-router, with
 measured remote fallback.
 **Deliverable:** `ainish-rag context --task "<text>"`.
+
+**Status: DONE (2026-11-07, Phase 4a–4d).** `ainish-rag context` ships with the driver tiering, the
+Elephant session sidecar, the stateless Goldfish review, and budgeted assembly. Verified live against
+local-router on the operator host; measured latency is recorded below.
+
+Two things Phase 1 was supposed to settle had to be decided from the literature directly, because
+shipping Phase 4 could not wait for the full evidence dossier:
+
+- **The Elephant/Goldfish split is our design hypothesis, not a published technique.** The Google
+  blog post describes a plugin, not a measured result. What *is* published is the pair of effects it
+  leans on: a fresh-context reviewer catches errors an incremental reviewer misses, and
+  critique-then-revise improves output when the critic is adversarial. Those justify the split; the
+  specific two-agent topology remains unproven on our corpus. The code and the contract say
+  "advisory" for exactly that reason.
+- **The driver model is a reasoning model.** This is a hard constraint, not a detail: `max_tokens:
+  16` returns empty content and burns the whole budget on reasoning, so a caller that reads empty
+  content as a transport failure will mis-diagnose a budget problem as an outage. The engine reports
+  it as a budget error and defaults to 900 tokens.
+
+Measured on this repo (3,627-record store, chain step 1):
+
+| Path | Result |
+|---|---|
+| `context --task … --budget 1400` (remote embeddings + chain step 1) | 544 tokens, ~11s wall clock (two sequential driver calls dominate) |
+| `context --retrieval-only` | one embedding round trip, no driver spend |
+| `AINISH_RAG_DRIVER_OFFLINE=1` | local-model floor only; degrades cleanly and names the local failure |
+| All steps unreachable | `source: unavailable` + per-step attempt log; injection still returns |
+
+Known limit worth stating plainly: **two sequential generative passes cost ~2× a single call.** That
+is inside the plan's ≤4s remote budget only because the local router answers in ~0.8–1s per call;
+against a cold tier it exceeds the budget. The mitigation that shipped is `--retrieval-only` and
+`--no-remote`, not a faster model. Phase 2's incremental indexing and Phase 4 caching are still the
+right fix.
 
 ---
 
@@ -282,8 +344,12 @@ Documentation and code move together: a phase that changes behaviour updates thi
 
 ```
 ainish-rag sync [PATH] [--apply] [--json]      # build / refresh / maintain
-ainish-rag context --task "<text>" [--budget N] [--json] [--no-remote]
+ainish-rag context --task "<text>" [--budget N] [--json] [--no-remote] [--retrieval-only]
+                                               [--session ID] [--unload]
 ```
+
+`context` is implemented (Phase 4). `sync` is not: `index` + `cleanup` remain separate verbs and
+Phase 2's incremental manifest is the prerequisite, so the two-verb surface of Phase 5 is half done.
 
 Injection envelope (JSON):
 
@@ -363,9 +429,9 @@ checks before trusting them if the engine has changed.
 | Claim | Verified value |
 |---|---|
 | `src/rag/rag.py` size | **6,861 lines** |
-| Top-level subcommands | **22** (`audit bench cleanup completion decide embed-provider eval gate index monitor orient query rerank route secrets serve service status statusline stop wiki`) |
-| Total `add_parser` calls | **33** (22 top-level + 11 nested) |
-| Generative model calls | **0** — no `chat/completions` anywhere |
+| Top-level subcommands | **21** (`audit bench cleanup completion decide embed-provider eval gate index monitor orient query rerank route secrets serve status statusline stop wiki`) |
+| Total `add_parser` calls | **33** (21 top-level + 12 nested: 8 `audit_sub`, 4 `service_sub`) |
+| Generative model calls | **0** — no `chat/completions` anywhere, in **either** engine |
 | zenmux in decision transport | **absent** (`:2674-2694` covers local-router, openrouter, jev, local-model only) |
 | Embedding width | 768 (`DEFAULT_EMBED_DIM`, `:29`) |
 | Index mode | full scan + optional `--watch`; **no** delta/incremental path |
@@ -377,6 +443,34 @@ Anchors cited in this plan, all confirmed present at the stated lines:
 `extract_corrective_expansion_terms` (:2762) · `generate_wiki` (:2232) ·
 `append_wiki_note_and_sign` (:2136) · `transport_priority_order` (:2674) · `LanceStore` (:1804) ·
 `index` parser (:5278) · `bench` parser (:5349)
+
+### Appendix A.1 — Phase 0 baseline, measured 2026-11-06
+
+Recorded by `ainish-rag bench --save-baseline` against this repo's full store (3,627 records) at
+commit `fab34e1`. Committed at `.agents/rag/bench-baseline.json` (`format:
+ainish-rag/bench-baseline/v2`). Reproduce with:
+
+    ainish-rag bench --regression
+
+| Metric | Value |
+|---|---|
+| Recall@3 | 1.000 (3/3) |
+| nDCG@3 | 1.000 |
+| Chunk tokens, avg per query | 920 |
+| Avg latency | 1,149 ms |
+| Store records | 3,627 |
+| Embedding identity | `api:openrouter:openai/text-embedding-3-small` |
+
+Two caveats that decide how these numbers may be used:
+
+- **Three queries is a smoke test, not a corpus.** Recall and nDCG are both saturated, exactly as
+  before; the harness can now *detect* a regression but cannot yet *discriminate* between
+  techniques. Phase 2 needs a larger fixed query set before it can claim an improvement, so
+  expanding the set is a prerequisite of the Phase 2 exit criteria, not a nicety.
+- **The identity is the API embedding provider, not EmbeddingGemma-2.** The row above contradicts
+  the "LanceDB + EmbeddingGemma-2 GGUF" claim in this document's own capability table, because the
+  store on this machine was built through OpenRouter. Whichever backend is canonical, the plan and
+  the code must name it consistently before cross-machine numbers mean anything.
 
 ## Appendix B — What Elephant/Goldfish is, precisely
 

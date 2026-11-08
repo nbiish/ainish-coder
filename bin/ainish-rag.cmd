@@ -18,10 +18,17 @@ setlocal EnableExtensions
 set "SELF_DIR=%~dp0"
 set "NATIVE_BIN=%SELF_DIR%ainish-rag.exe"
 set "PY_ENGINE=%SELF_DIR%..\src\rag\rag.py"
+rem Verbs that exist only in the Python engine. A compiled build can lag by design (the exe is a
+rem gitignored artifact), so never hand one of these to the binary.
+rem   context - the whole injection pipeline (driver chain, Elephant/Goldfish) is Python-only.
+rem   secrets - it also reports the generative driver chain, which the Rust engine does not have,
+rem             so the binary answers with a shorter report that looks like a regression.
+set "PY_ONLY_SUBCOMMANDS= context secrets "
 
 if not exist "%PY_ENGINE%" goto :no_engine
 if exist "%NATIVE_BIN%" goto :native
 
+:py_first
 rem --- backend 1: uv on PATH ------------------------------------------------
 where uv >nul 2>nul
 if not errorlevel 1 goto :uv_path
@@ -48,9 +55,36 @@ endlocal & exit /b 1
 
 rem --- dispatch -------------------------------------------------------------
 :native
-"%NATIVE_BIN%" %*
-set "RC=%ERRORLEVEL%"
-endlocal & exit /b %RC%
+rem A compiled build can lag the Python engine (the exe is a gitignored artifact). If the binary does
+rem not advertise the requested verb in --help, fall through to Python instead of failing with
+rem "unrecognized subcommand". PY_ONLY_SUBCOMMANDS is the escape hatch for verbs added ahead of a rebuild.
+rem
+rem The scan uses a subroutine rather than a `for` block: this file does not enable delayed expansion,
+rem so `!VAR!` inside a block stays literal and every verb would fall through to Python.
+set "NATIVE_OK=1"
+set "FIRST_ARG="
+for %%A in (%*) do call :take_first "%%~A"
+if not defined FIRST_ARG goto :run_native
+echo %PY_ONLY_SUBCOMMANDS% | findstr /C:" %FIRST_ARG% " >nul && set "NATIVE_OK=0"
+if "%NATIVE_OK%"=="1" (
+    "%NATIVE_BIN%" --help 2>nul | findstr /R /C:"^  %FIRST_ARG% " >nul
+    if errorlevel 1 set "NATIVE_OK=0"
+)
+:run_native
+if "%NATIVE_OK%"=="1" (
+    "%NATIVE_BIN%" %*
+    set "RC=%ERRORLEVEL%"
+    endlocal & exit /b %RC%
+)
+goto :py_first
+
+:take_first
+rem %1 = one token; record it only if it is the first non-option token, then stop.
+if defined FIRST_ARG exit /b 0
+set "CANDIDATE=%~1"
+if "%CANDIDATE:~0,1%"=="-" exit /b 0
+set "FIRST_ARG=%CANDIDATE%"
+exit /b 0
 
 :uv_path
 uv run "%PY_ENGINE%" %*

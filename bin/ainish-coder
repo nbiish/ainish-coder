@@ -199,11 +199,20 @@ main() {
                 print_warning "Skills deployment reported errors — continuing with remaining rules steps"
         fi
 
-        # A zero-pack result is a legitimate choice, but it must never look like
-        # an accident: name the command that changes it.
-        if [[ "$(skills_selection_enabled_count "$target_dir")" == "0" ]]; then
+        # A zero-*optional* result is a legitimate choice, but it must never look
+        # like an accident: name the command that changes it. The count includes
+        # mandatory packs, so compare against those explicitly rather than
+        # reporting "no packs" when pqc-secrets did deploy.
+        local optional_on mandatory_total
+        optional_on="$(skills_selection_enabled_count "$target_dir")"
+        mandatory_total=0
+        for _m in $(_skills_mandatory_names); do
+            [[ -d "${REPO_DIR}/.agents/skills/${_m}" ]] && mandatory_total=$((mandatory_total + 1))
+        done
+        if (( optional_on <= mandatory_total )); then
             echo -e "${YELLOW}ℹ No optional skill packs selected for this repo.${RESET}"
-            echo -e "  Choose packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
+            echo -e "  Mandatory packs are still deployed (see .agents/skills/)."
+            echo -e "  Choose optional packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
         fi
 
         if [[ "$prompted" == "true" ]]; then
@@ -379,36 +388,38 @@ main() {
 
         # Security files deployment
         --secure)
-            _TRACK_DETAIL="AGENTS_CODE+LLM_SECURITY"
-            echo -e "${BRIGHT_BLUE}Deploying Agents Security Files${RESET}"
+            _TRACK_DETAIL="AGENTS_SECURITY"
+            echo -e "${BRIGHT_BLUE}Deploying Agents Security Standard${RESET}"
 
-            if confirm_action "Deploy AGENTS_CODE_SECURITY.md (code security standards)?" "y"; then
-                local code_security_source="${REPO_DIR}/.agents/skills/code-security/references/production-standards.md"
-                if [[ ! -f "$code_security_source" ]]; then
-                     code_security_source="${REPO_DIR}/AGENTS_CODE_SECURITY.md"
-                fi
-                if [[ -f "$code_security_source" ]]; then
-                     _with_link_choice deploy_path "$code_security_source" "$target_dir/AGENTS_CODE_SECURITY.md"
-                     echo -e "${GREEN}✓ AGENTS_CODE_SECURITY.md at $target_dir${RESET}"
+            # One consolidated standard replaces the former AGENTS_CODE_SECURITY.md +
+            # AGENTS_LLM_SECURITY.md pair. Two separate files forced a reader to know
+            # in advance which domain a rule lived in, and the two drifted: the code
+            # file referenced sections of the LLM file by path. One file, one gate.
+            local security_source="${REPO_DIR}/.agents/skills/ainish-security/references/deployable-standards.md"
+            if [[ ! -f "$security_source" ]]; then
+                security_source="${REPO_DIR}/AGENTS_SECURITY.md"
+            fi
+            if confirm_action "Deploy AGENTS_SECURITY.md (consolidated code, AI, secrets, and production standards)?" "y"; then
+                if [[ -f "$security_source" ]]; then
+                    _with_link_choice deploy_path "$security_source" "$target_dir/AGENTS_SECURITY.md"
+                    echo -e "${GREEN}✓ AGENTS_SECURITY.md at $target_dir${RESET}"
+                    # Remove the superseded pair only when this tool previously managed
+                    # them, so a hand-authored file of the same name is never clobbered.
+                    local legacy
+                    for legacy in AGENTS_CODE_SECURITY.md AGENTS_LLM_SECURITY.md; do
+                        if [[ -f "$target_dir/$legacy" ]] && grep -q "ainish-coder --secure" "$target_dir/$legacy" 2>/dev/null; then
+                            rm -f "$target_dir/$legacy"
+                            echo -e "${YELLOW}⊘ Consolidated into AGENTS_SECURITY.md — removed: $legacy${RESET}"
+                        elif [[ -f "$target_dir/$legacy" ]]; then
+                            echo -e "${YELLOW}ℹ Left in place (not managed by ainish-coder): $legacy${RESET}"
+                        fi
+                    done
                 else
-                     echo -e "${BRIGHT_RED}Error: AGENTS_CODE_SECURITY.md not found at $code_security_source${RESET}"
+                    echo -e "${BRIGHT_RED}Error: security standard not found at $security_source${RESET}"
                 fi
             fi
 
-            if confirm_action "Deploy AGENTS_LLM_SECURITY.md (LLM/agentic security standards)?" "y"; then
-                local llm_security_source="${REPO_DIR}/.agents/skills/llm-security/references/production-standards.md"
-                if [[ ! -f "$llm_security_source" ]]; then
-                     llm_security_source="${REPO_DIR}/AGENTS_LLM_SECURITY.md"
-                fi
-                if [[ -f "$llm_security_source" ]]; then
-                     _with_link_choice deploy_path "$llm_security_source" "$target_dir/AGENTS_LLM_SECURITY.md"
-                     echo -e "${GREEN}✓ AGENTS_LLM_SECURITY.md at $target_dir${RESET}"
-                else
-                     echo -e "${BRIGHT_RED}Error: AGENTS_LLM_SECURITY.md not found at $llm_security_source${RESET}"
-                fi
-            fi
-
-            echo -e "${BRIGHT_GREEN}✅ Agents security deployment complete${RESET}"
+            echo -e "${BRIGHT_GREEN}✅ Security deployment complete${RESET}"
             ;;
 
 
@@ -510,6 +521,131 @@ main() {
                 _list_target="$(cd -P "$_list_target" 2>/dev/null && pwd)"
             fi
             skills_selection_report "$_list_target" "$_list_json"
+            ;;
+
+        # Machine-wide default for packs a repo has not answered for. Persisted,
+        # so it applies to every future --rules in every repo -- which is what
+        # makes a fresh repo deploy the operator's usual packs without prompting.
+        --skills-set-default)
+            _TRACK_DETAIL="skills-set-default"
+            local _sd_state="" _sd_json=false _sd_arg
+            for _sd_arg in "$@"; do
+                case "$_sd_arg" in
+                    --json) _sd_json=true ;;
+                    on|off) _sd_state="$_sd_arg" ;;
+                    -*) ;;
+                esac
+            done
+            if [[ -z "$_sd_state" ]]; then
+                print_error "--skills-set-default needs 'on' or 'off' (ainish-coder --skills-set-default on)"
+                exit 1
+            fi
+            skills_selection_set_global_default "$_sd_state" || exit 1
+            if [[ "$_sd_json" == "true" ]]; then
+                printf '{"format": "ainish-coder/skills-default/v1", "global_default": "%s"}\n' "$_sd_state"
+            else
+                echo -e "${BRIGHT_GREEN}Default for new skill packs set to '${_sd_state}'${RESET}"
+                echo -e "  Applies to every repo with no recorded selection. Set a repo's own choice with:"
+                echo -e "    ${BRIGHT_BLUE}ainish-coder --skills <repo>${RESET}"
+                echo -e "  Then deploy with: ${BRIGHT_BLUE}ainish-coder --rules <repo>${RESET}"
+            fi
+            ;;
+
+        # Reconfigure THIS repo's skill selection, persistently. Deliberately
+        # distinct from --select-skills (same UI, but this is the documented
+        # per-repo entry point) and from --skills-list (read-only report).
+        --skills)
+            _TRACK_DETAIL="skills"
+            local _sk_arg _sk_target="" _sk_json=false _sk_list=false
+            local _sk_on_csv="" _sk_off_csv=""
+            for _sk_arg in "$@"; do
+                case "$_sk_arg" in
+                    --json) _sk_json=true ;;
+                    --list) _sk_list=true ;;
+                    --on) _sk_on_next=true ;;
+                    --off) _sk_off_next=true ;;
+                    -*) ;;
+                    *)
+                        if [[ "${_sk_on_next:-false}" == "true" ]]; then
+                            _sk_on_csv="$_sk_arg"; _sk_on_next=false
+                        elif [[ "${_sk_off_next:-false}" == "true" ]]; then
+                            _sk_off_csv="$_sk_arg"; _sk_off_next=false
+                        elif [[ -z "$_sk_target" ]]; then
+                            _sk_target="$_sk_arg"
+                        fi
+                        ;;
+                esac
+            done
+            _sk_target="${_sk_target:-$(pwd)}"
+            if [[ -d "$_sk_target" ]]; then
+                _sk_target="$(cd -P "$_sk_target" 2>/dev/null && pwd)"
+            else
+                print_error "not a directory: $_sk_target"
+                exit 1
+            fi
+
+            # Read-only: must never mutate the selection.
+            if [[ "$_sk_list" == "true" ]]; then
+                skills_selection_report "$_sk_target" "$_sk_json"
+            elif [[ -n "$_sk_on_csv" || -n "$_sk_off_csv" ]]; then
+                local -a _sk_pairs=()
+                local _sk_name
+                local _sk_cur_default
+                _sk_cur_default="$(_skills_selection_repo_default "$_sk_target")"
+                for _sk_name in ${_sk_on_csv//,/ }; do
+                    [[ -n "$_sk_name" ]] && _sk_pairs+=("${_sk_name}:on")
+                done
+                for _sk_name in ${_sk_off_csv//,/ }; do
+                    [[ -n "$_sk_name" ]] && _sk_pairs+=("${_sk_name}:off")
+                done
+                if (( ${#_sk_pairs[@]} == 0 )); then
+                    print_error "--on/--off need at least one pack name"
+                    exit 1
+                fi
+                # Validate names against packs that actually exist, so a typo cannot be
+                # persisted as a setting that silently selects nothing.
+                local _sk_src="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+                local _sk_bad=() _sk_mandatory=() _sk_pair
+                for _sk_pair in "${_sk_pairs[@]}"; do
+                    _sk_name="${_sk_pair%:*}"
+                    if [[ ! -d "$_sk_src/$_sk_name" ]]; then
+                        _sk_bad+=("$_sk_name")
+                    elif _skill_mandatory "$_sk_name"; then
+                        # Mandatory packs are not a choice: saying "unknown" here would send the
+                        # operator hunting for a typo they did not make.
+                        _sk_mandatory+=("$_sk_name")
+                    elif _skill_channel_excluded "$_sk_name"; then
+                        _sk_bad+=("$_sk_name (channel-excluded)")
+                    fi
+                done
+                if (( ${#_sk_mandatory[@]} > 0 )); then
+                    print_error "mandatory pack(s) cannot be toggled: ${_sk_mandatory[*]}"
+                    print_error "  they are deployed by --rules on every run and have no selection entry"
+                    exit 1
+                fi
+                if (( ${#_sk_bad[@]} > 0 )); then
+                    print_error "unknown or undeployable pack(s): ${_sk_bad[*]}"
+                    exit 1
+                fi
+                skills_selection_batch_save "$_sk_target" "$_sk_cur_default" "${_sk_pairs[@]}" || exit 1
+                if [[ "$_sk_json" == "true" ]]; then
+                    skills_selection_report "$_sk_target" true
+                else
+                    echo -e "${BRIGHT_GREEN}✅ Saved for ${_sk_target}${RESET}"
+                    echo -e "  Deploy these packs with: ${BRIGHT_BLUE}ainish-coder --rules ${_sk_target}${RESET}"
+                fi
+            elif [[ "${AINISH_HEADLESS:-false}" == "true" ]] || \
+               [[ "${AINISH_NON_INTERACTIVE:-false}" == "true" ]] || ! skills_selection_tty_ok; then
+                print_error "--skills needs an interactive terminal to reconfigure."
+                echo -e "  For scripted changes use: ${BRIGHT_BLUE}ainish-coder --skills <repo> --on a,b --off c${RESET}" >&2
+                echo -e "  To see the current selection: ${BRIGHT_BLUE}ainish-coder --skills-list <repo>${RESET}" >&2
+                exit 1
+            elif _skills_toggle_ui "$_sk_target"; then
+                echo -e "${BRIGHT_GREEN}✅ Saved for ${_sk_target}${RESET}"
+                echo -e "  Deploy these packs with: ${BRIGHT_BLUE}ainish-coder --rules ${_sk_target}${RESET}"
+            else
+                echo -e "${YELLOW}Selection unchanged.${RESET}"
+            fi
             ;;
 
         --skills-sync)

@@ -1,0 +1,43 @@
+{
+  "format": "ainish-rag/bench-baseline/v2",
+  "saved_at": "2026-11-06T16:45:21.456677+00:00",
+  "embedding_identity": "api:openrouter:openai/text-embedding-3-small",
+  "store_records": 3627,
+  "engine": "fab34e1",
+  "recall_at_3": 1.0,
+  "ndcg_at_3": 1.0,
+  "chunk_tokens_avg": 920.3333333333334,
+  "total_queries": 3,
+  "passed": 3,
+  "avg_latency_ms": 1148.6666666666667,
+  "results": [
+    {
+      "query": "post-quantum cryptography secrets FIPS ML-KEM ML-DSA",
+      "expected_domain": "security",
+      "recall_at_3": true,
+      "latency_ms": 1048,
+      "top_match": ".agents/skills/pqc-secrets/references/signatures-security.md",
+      "top_score": 0.591,
+      "chunk_tokens": 845
+    },
+    {
+      "query": "codebase multimodal rag lancedb embeddinggemma",
+      "expected_domain": "rag",
+      "recall_at_3": true,
+      "latency_ms": 1039,
+      "top_match": ".agents/comms/2026-10-11-team.txt",
+      "top_score": 0.5522,
+      "chunk_tokens": 1580
+    },
+    {
+      "query": "worktree isolation branch main workflow OOReDAct",
+      "expected_domain": "agents",
+      "recall_at_3": true,
+      "latency_ms": 1359,
+      "top_match": ".agents/comms/2026-10-30-team.live.txt",
+      "top_score": 0.5387,
+      "chunk_tokens": 336
+    }
+  ],
+  "iterations": 3
+}

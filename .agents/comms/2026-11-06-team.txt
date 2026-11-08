@@ -21,3 +21,51 @@
 - blockers:none
 - compat:The "nine core lenses" phrasing is retired, not aliased; deployed targets receive the masters table on their next rules refresh and any target quoting the old phrase is corrected by the same refresh. Additive for readers; the only removal is a name nothing enforced. Roll back by reverting the commit.
 - verification:scripts/test-pqc-dist.sh 73/73; packet emits all nine; contract byte-identical and re-signed; audit verify 16/16.
+
+### [2026-11-06T17:05:00Z] feat | branch:feat/rag-phase-0-bench-baseline -> main | wt:D:\Code\ainish-coder
+- start:2026-11-06T16:30:00Z
+- end:2026-11-06T17:05:00Z
+- scope:src/rag/rag.py, src/rag/tests/test_bench_metrics.py, .gitignore, .agents/rag/bench-baseline.json, bin/ainish-rag
+- objective:Execute Phase 0 of docs/rag-context-system-plan.md - produce a real measurement floor before any retrieval change.
+- input:Operator asked to review recent changes, locate the plan to iterate from, then approved Phase 0 and the un-ignore approach for the baseline path.
+- output:bench now records nDCG@3, per-query chunk tokens, embedding identity, store row count and engine commit; regression gate compares both metrics and reports a changed embedding identity as incomparable instead of a false regression; baseline committed under a targeted .gitignore exception; bin/ainish-rag no longer execs itself.
+- status:done
+- blockers:none
+- compat:Additive CLI surface - bench keeps every existing flag and adds fields to --json output and the baseline file, which moves to format ainish-rag/bench-baseline/v2. v1 baselines still compare on recall alone. .gitignore narrows from a directory ignore to a contents glob, so .agents/rag/* is still ignored except the baseline. Roll back by reverting the merge.
+- verification:71 python tests pass (18 new); full-corpus baseline Recall@3 1.000, nDCG@3 1.000, 920 avg chunk tokens, 3627 records, api:openrouter:openai/text-embedding-3-small at fab34e1; --regression passes healthy, fails on a 0.40 nDCG, reports incomparable on identity change; ainish-rag --version returns under WSL and Git Bash (previously hung); test-pqc-dist 73/73 on WSL and the same 2 Windows-only failures reproduce at pristine HEAD.
+
+### [2026-11-06T18:45:00Z] fix | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-06T18:20:00Z
+- end:2026-11-06T18:45:00Z
+- scope:.agents/skills/pqc-secrets/scripts/pqc_secrets.py, scripts/test-pqc-dist.sh
+- objective:Make the PQC store resolve on every fleet host and make the distribution gate actually run everywhere.
+- input:Operator reported that the PQC system and local-router key setup likely needed attention across Windows/WSL/mac/Linux.
+- output:Four defects fixed. (1) Windows could not see the WSL PQC store: wsl.exe output was decoded unconditionally as UTF-16-LE but this build emits UTF-8, producing mojibake distro names so the interop probe always failed and Windows fell back to an empty local store. Encoding is now detected from byte shape and both wsl.localhost and legacy wsl\$ shares are tried. (2) The gate isolation used HOME= only, which Windows Python ignores, so the hermetic test reached the operator's real keypair and reported 'present' instead of 'generated'; PQC_SECRETS_DIR plus USERPROFILE now pin the sandbox. (3) A stamp assertion hardcoded the WSL path form so it failed on a correct translator under Git Bash and had no native-POSIX branch. (4) The whole gate exited 0 with SKIP when uv was absent, so CI would read it as passed; it now fails closed.
+- status:done
+- blockers:none
+- compat:No interface, schema, flag, or dependency change. AINISH_ALLOW_GATE_SKIP=1 is a new opt-in escape hatch; without it a missing uv now fails the gate instead of skipping. pqc_secrets.py keeps the same store precedence order and the same JSON output shape.
+- verification:Windows Git Bash 73/73 (was 71/73); WSL 73/73; Linux ubuntu:24.04 in Docker with real uv 73/73; Linux without uv exits 1 with guidance (was 0/SKIP); native-POSIX stamp translation verified in alpine (macOS-style path untouched, both Windows forms translate); Windows now reports 13 keys and resolve_embed_provider returns pqc:LOCALROUTER_OPENROUTER_API_KEY; 71 python tests pass. macOS not executed - no host available; its code paths are os.name!='nt' and covered by the POSIX container.
+
+### [2026-11-07T00:45:00Z] feat | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-06T19:20:00Z
+- end:2026-11-07T00:45:00Z
+- scope:src/rag/rag.py, src/rag/tests/test_embedding_identity.py
+- objective:Make the RAG embedding path work through local-router with one embedding space across every provider.
+- input:Operator confirmed local-router now has the purpose-scoped fallback-embedding route and asked that the same embedding model be used across all providers down to local.
+- output:Two defects fixed. (1) The store fingerprint identified the PROVIDER rather than the model, so a harmless failover between bit-identical providers looked like index corruption, and pointing retrieval at local-router/fallback-embedding looked like a third space. Identity is now model-derived with a declared route-alias table, and normalize_identity rewrites legacy v1 fingerprints so existing stores are not falsely flagged. (2) 'dimensions' was never sent, leaving the router's width-pinning guard inert; it is now sent for remote endpoints and a short vector raises rather than being padded.
+- status:done
+- blockers:none
+- compat:index-fingerprint.json keeps format v1 but the identity string changes from api:<provider>:<model> to model:<space>. Readers normalize the legacy form, so no target needs reindexing; a genuinely different model (text-embedding-3-large, local embeddinggemma-2) is still reported as a mismatch. Remote embedding requests gain a dimensions field; local llama requests are unchanged.
+- verification:89 python tests (18 new); real bench through local-router/fallback-embedding against the existing 3627-record index gives Recall@3 1.000 and nDCG@3 1.000 with scores matching the direct-OpenRouter run to four decimals; --regression passes with no rebuild warning; width guard fires on a 256-d response for a 768-d index; test-pqc-dist 73/73.
+
+### [2026-11-07T01:05:00Z] feat | branch:main | wt:D:\Code\ainish-coder
+- start:2026-11-07T00:50:00Z
+- end:2026-11-07T01:05:00Z
+- scope:bin/ainish-coder, src/skills_selection.sh, src/help.sh, scripts/test-pqc-dist.sh
+- objective:Let the operator set a machine-wide skills default once, have --rules honour it, and reconfigure any repo persistently.
+- input:Operator asked for --skills-set-default plus a --skills surface so a per-repo reconfiguration persists across repos.
+- output:--skills-set-default on|off persists global_default and now also suppresses the first-contact prompt (without that a saved default still asked on every new repo). Precedence is repo default > persisted global > AINISH_SKILLS_DEFAULT > off; the env var deliberately no longer outranks a saved default so the setting stays durable across shells. --skills reconfigures one repo: interactive selector on a TTY, --on/--off for scripted use, --list/--json read-only; pack names are validated so a typo exits 1 instead of saving an empty selection.
+- status:done
+- blockers:none
+- compat:Additive CLI only; no existing flag changed meaning and --select-skills still works as an alias. One behaviour change: a persisted global_default of on now outranks AINISH_SKILLS_DEFAULT=off for repos with no recorded answer, and suppresses their prompt. No config schema change - global_default is a new top-level key beside repos, and older readers ignore unknown keys.
+- verification:scripts/test-pqc-dist.sh 86/86 on Windows Git Bash, WSL and Linux (ubuntu:24.04, Docker), with 13 new assertions covering default persistence, prompt suppression, repo-over-global precedence, env precedence, per-repo scoping, unknown-name rejection and TTY refusal; nine behaviours checked end-to-end with a sandboxed AINISH_SKILLS_SELECTION plus real exit codes; 89 python tests pass.
