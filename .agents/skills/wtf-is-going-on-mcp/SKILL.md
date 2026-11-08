@@ -71,6 +71,21 @@ The hub binds where the other machines can reach it (`wtf serve --bind 0.0.0.0:7
 --no-open`); put it on the always-on machine. Enrollment and every signed call are
 refused without a device key, so an open bind port is not an open API.
 
+Keep it alive with the platform's supervisor, not `nohup`:
+
+```bash
+# macOS: ~/Library/LaunchAgents/dev.wtf.hub.plist with RunAtLoad + KeepAlive,
+# ProgramArguments = [$HOME/.local/bin/wtf, serve, --bind, 0.0.0.0:7800, --no-open]
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.wtf.hub.plist
+launchctl print gui/$(id -u)/dev.wtf.hub | grep -E 'state =|pid ='
+```
+
+Install the binary on the **internal** disk (a copy, not a symlink into the
+checkout). A LaunchAgent whose executable sits on an external volume blocks in
+`dyld::open` at login: launchd reports `running`, nothing listens, the log stays
+empty, and `lsof -p <pid>` naming `/Volumes/…` is the tell. Rebuilding therefore
+needs `cp target/release/wtf ~/.local/bin/wtf` before restarting the agent.
+
 ## 2. Wire the MCP server
 
 ```json
