@@ -218,3 +218,16 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - compat:No CLI or schema change. `NativeQueryStore.search_with_reason` is additive; `search` keeps its signature and return type. degrade_notes carry a more specific string, which is a diagnostic improvement rather than a contract change. Roll back by reverting the merge.
 - verification:167 python tests (3 new covering the reason path: missing binary, non-zero exit surfacing stderr, and search keeping its list shape); test-pqc-dist 158/158; live `--context` returning four sections with an accurate degrade note and exit 0; both engines confirmed to fail with 401 rather than an empty store; audit verify after re-sign.
 - budget:No model or CI spend change. Two driver calls per context invocation, unchanged.
+### [2026-11-08T03:40:00Z] MERGED | branch:feat/repo-sync-latest | wt:/Users/nbiish/code/ainish-sync-latest
+- start:2026-11-08T03:10:00Z
+- end:2026-11-08T03:40:00Z
+- scope:bin/ainish-rag, llms.txt, .agents/comms/, .agents/tasks/, src/rag/, fleet registry
+- provenance:source_commit=400994efb53f manifest_sha256=1edeab0dd582
+- objective:Pull the latest remote content and install it on this machine, preserving the 19 local commits that had never been pushed.
+- input:Operator: "Pull down the latest content from the remote for this repo and let's get it installed for this machine."
+- output:Local main was 19 ahead / 30 behind origin/main. Merged origin into a sibling worktree, resolved two conflicts, verified, fast-forwarded main to 400994e, installed, and re-stamped the fleet.
+- status:merged
+- blockers:none
+- compat:Two files conflicted. bin/ainish-rag: origin wins because its is_self() real-path comparison fixes the same launcher self-exec recursion the local commit 4db2f98 patched by deleting candidate branches, and it also routes Python-only verbs (context, secrets) past a stale compiled binary; the exec bit is preserved (100755). llms.txt: origin's context/CLI block taken wholesale, then the local registry-migration sentences (legacy rules-targets.json import, bootstrapped enrollment, nested-target hook rule, agents-copies snapshots) re-attached to the rules-distribution bullet, since origin does not document them and the code for each survives the auto-merge untouched. No CLI flag changed meaning. Roll back by resetting main to 647d851 (the pre-merge local head) and re-running ainish-coder --rules-rotate.
+- verification:bash -n clean on all 8 touched shell entrypoints; 164/164 rag python tests pass plus 27 subtests (the one pre-existing failure, RoleModelSeparationTest.test_distinct_reviewer_makes_the_two_roles_request_different_models, reproduces identically on pristine origin/main and is environmental - it needs a resolvable remote provider key, and the vault needs an interactive passphrase, so no remote step is reachable; with a stub key it passes); ainish-rag gate GREEN on a normal patch (anchor 96%); ainish-coder --rules-doctor 10/10 healthy; --rules-verify 10/10 verified, pack bound 10/10; --skills-verify identical=18 mismatch=0; merge preflight proved origin/main cannot even import rag.py on Python 3.10 (PEP 701 nested-quote f-string) while the merged tree does.
+- budget:No new model or CI spend. The fleet refresh is local file I/O; the two generative calls per ainish-rag context invocation are unchanged.

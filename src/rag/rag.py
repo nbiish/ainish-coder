@@ -8443,9 +8443,12 @@ def run_audit_privacy(repo_root: Path, max_b: float, reset: bool, out_p: Optiona
         print("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)")
         print(f"  Protected Vecs:   {vec_cnt}")
         print(f"  Cumulative Eps:   {cum_eps:.4f} / {max_b:.4f} max budget")
-        print(f"  Redaction Test:   {'\033[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\033[0m' if redaction_ok else '\033[31mFAIL\033[0m'}")
-        print(f"  ML-DSA-65 Sig:    {'\033[32mVERIFIED (privacy-budget.sig)\033[0m' if sig_ok else '\033[33mUNSIGNED\033[0m'}")
-        print(f"  Status:           {'\033[32mPASS (Within Privacy Budget & Redaction Verified)\033[0m' if (within and redaction_ok) else '\033[31mFAIL\033[0m'}\n")
+        redaction_status = "\033[32mPASS (PII, Credentials, User Paths, Internal IPs, MAC & Trojan-Source Bidi)\033[0m" if redaction_ok else "\033[31mFAIL\033[0m"
+        print(f"  Redaction Test:   {redaction_status}")
+        sig_status = "\033[32mVERIFIED (privacy-budget.sig)\033[0m" if sig_ok else "\033[33mUNSIGNED\033[0m"
+        print(f"  ML-DSA-65 Sig:    {sig_status}")
+        privacy_status = "\033[32mPASS (Within Privacy Budget & Redaction Verified)\033[0m" if (within and redaction_ok) else "\033[31mFAIL\033[0m"
+        print(f"  Status:           {privacy_status}\n")
 
 
 def _redact_check_file(repo_root: Path, path: Path) -> Tuple[Dict[str, Any], bool]:
@@ -8712,7 +8715,8 @@ def run_tui_dashboard(repo_root: Path, server_url: str, client: EmbedClient) -> 
     print("\033[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \033[0m")
     print("\033[1;36m========================================================================\033[0m")
     print(f"  Timestamp:      {datetime.now(timezone.utc).isoformat()}")
-    print(f"  Server Status:  {'\033[1;32mONLINE (healthy)\033[0m' if is_running else '\033[1;31mOFFLINE\033[0m'}")
+    server_status = "\033[1;32mONLINE (healthy)\033[0m" if is_running else "\033[1;31mOFFLINE\033[0m"
+    print(f"  Server Status:  {server_status}")
     print(f"  Endpoint:       {server_url}")
     print(f"  Loopback Auth:  {psk_status}")
     print(f"  Symbol Salt:    {salt_status}")
@@ -8920,7 +8924,8 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
     print("\nVerification Summary:")
     print(f"  Total Receipts:  {len(receipts)}")
     print(f"  Passed:          \033[32m{passed}\033[0m")
-    print(f"  Failed:          {failed if failed == 0 else f'\033[31m{failed}\033[0m'}")
+    failed_display = str(failed) if failed == 0 else f"\033[31m{failed}\033[0m"
+    print(f"  Failed:          {failed_display}")
     if failed == 0 and receipts:
         print("  Status:          \033[1;32mALL RECEIPTS VERIFIED (FIPS 204 ML-DSA-65 Standard)\033[0m\n")
     elif not receipts:
@@ -9001,7 +9006,8 @@ def run_service_command(repo_root: Path, port: int, cmd: str, args: Any) -> None
                 pass
         print("=== ainish-rag Background Service Status ===")
         print(f"  Port:      {p}")
-        print(f"  Status:    {'\033[32mRUNNING\033[0m' if running else '\033[31mSTOPPED\033[0m'}")
+        service_status = "\033[32mRUNNING\033[0m" if running else "\033[31mSTOPPED\033[0m"
+        print(f"  Status:    {service_status}")
         if running:
             thermal = "\033[32mWARM (sub-50ms ready)\033[0m" if rtt_ms <= 50 else "\033[33mACTIVE\033[0m"
             print(f"  Latency:   {rtt_ms} ms ({thermal})")
