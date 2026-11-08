@@ -75,7 +75,7 @@ Skills are portable, expert-level knowledge packs that inject domain expertise i
 | **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Parameterized 3D models from Python templates and OpenSCAD, compiled to STL via Makefile. |
 | **PQC Secrets** | `.agents/skills/pqc-secrets/` | Post-quantum secrets for API keys and private data: ML-KEM-768 at rest, ML-DSA-65 signing. **Mandatory** — every secret resolution goes through it. |
 | **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock`. |
-| **Question Me** | `.agents/skills/question-me/` | Socratic design interview and requirements resolution — walks the decision tree one question at a time with recommended answers and codebase recon first. |
+| **Question Me** | `.agents/skills/question-me/` | Socratic design interview and requirements resolution — codebase recon first, one question at a time with recommended answers, compiled into a `.agents/plans/{date}-{name}.plan.md` holding the plan, clarification ledger, and derived todos. |
 | **Remotion Video** | `.agents/skills/remotion-video/` | Programmatic video creation with Remotion — APIs, media components, 3D, captions, fonts, Lambda rendering, and layout rules. |
 | **TTS CLI** | `.agents/skills/tts-cli/` | On-device `cli-tts` for one end-of-chat spoken suggestion per turn, fusing the next step with deterministic masters. Plays automatically. |
 | **TypeSafe Jev** | `.agents/skills/typesafe-jev/` | Calibrated decision models over the Decisions API: routing, two-stage reranking, context freshness, faithfulness evaluation, and typed `noul`/`choice`/`score` questions. |
@@ -260,6 +260,7 @@ ainish-coder/
 │   ├── pqc-secrets/             # Rust: FIPS 203 secrets manager (ML-KEM-768)
 │   └── cmd-tracker/             # Rust: CSV CLI usage tracker (stdlib-only) (NEW)
 ├── .agents/
+│   ├── plans/                   # Per-task plans of record: {date}-{slug}.plan.md
 │   ├── skills/                  # 18 distributable skill packs (20 dirs incl. 2 scroll-channel)
 │   │   ├── 8thfire-scrolls/SKILL.md
 │   │   ├── advisory-council/SKILL.md

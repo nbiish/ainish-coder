@@ -654,6 +654,24 @@ class OrientationSectionTest(unittest.TestCase):
             "# Task\n- status: in-progress\n- scope: rag.py\n- objective: test it\n",
             encoding="utf-8",
         )
+        (self.root / ".agents" / "plans").mkdir(parents=True)
+        self.plan_path = self.root / ".agents" / "plans" / f"{today}-orientation.plan.md"
+        self.plan_path.write_text(
+            "---\n"
+            "plan_format: ainish/plan/v1\n"
+            "slug: orientation\n"
+            f"date: {today}\n"
+            "status: implementing\n"
+            "branch: feat/plans-artifact\n"
+            f"task_record: .agents/tasks/{today}-task.md\n"
+            "operator: question-me\n"
+            "---\n\n"
+            "## 5. Todos\n\n"
+            "- [x] T1 first thing\n"
+            "- [ ] T2 second thing\n"
+            "- [ ] T3 third thing\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -665,6 +683,51 @@ class OrientationSectionTest(unittest.TestCase):
         self.assertIn("today's COMMS", body)
         self.assertIn("wire the orientation section", body)
         self.assertIn("newest task record", body)
+
+    def test_reports_the_newest_plan_with_its_open_todo_count(self):
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("newest plan:", body)
+        self.assertIn("orientation.plan.md", body)
+        self.assertIn("status: implementing", body)
+        # One box ticked, two open — the count is the implementing agent's next action.
+        self.assertIn("todos: 1 done, 2 open", body)
+        self.assertIn("plan branch: `feat/plans-artifact`", body)
+
+    def test_newest_plan_is_chosen_by_mtime_not_by_filename(self):
+        # A plan touched during implementation is more current than one merely dated later; ordering
+        # by filename would report a stale plan as the live one.
+        import time
+        older = self.root / ".agents" / "plans" / "2026-01-01-older.plan.md"
+        older.write_text("---\nstatus: done\n---\n\n- [x] T1\n", encoding="utf-8")
+        newest = self.root / ".agents" / "plans" / "zzzz-touched.plan.md"
+        newest.write_text("---\nstatus: ready\n---\n\n- [ ] T1\n", encoding="utf-8")
+        future = time.time() + 60
+        os.utime(older, (future, future))
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("2026-01-01-older.plan.md", body)
+        self.assertIn("status: done", body)
+
+    def test_absent_plans_directory_does_not_raise(self):
+        import shutil
+        shutil.rmtree(self.root / ".agents" / "plans")
+        body = rag.render_orientation_section(self.root, 400)
+        self.assertNotIn("newest plan:", body)
+        self.assertIn("newest task record", body)
+
+    def test_malformed_plan_frontmatter_degrades_to_designing(self):
+        # No leading `---`: the file is not parseable as a plan, so the status must fail closed to
+        # `designing` rather than being reported as progress nobody can trust.
+        self.plan_path.write_text("# not a plan\n- [ ] T1\n", encoding="utf-8")
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("status: designing", body)
+        self.assertIn("todos: 0 done, 1 open", body)
+
+    def test_unknown_plan_status_degrades_to_designing(self):
+        self.plan_path.write_text(
+            "---\nstatus: mostly-done\n---\n\n- [ ] T1\n", encoding="utf-8")
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("status: designing", body)
+        self.assertNotIn("mostly-done", body)
 
     def test_git_state_comes_from_the_current_directory_not_the_canonical_root(self):
         # `repo_root` is the canonical checkout (for shared index/session state); the branch an agent

@@ -62,6 +62,22 @@ for file in $(ls -1 .agents/tasks/*-task.md .agents/tasks/TASK.*.md 2>/dev/null 
 done
 [ "$found" -eq 1 ] || echo 'none'
 
+echo '--- plan_state ---'
+# Parity with the RAG orientation section: without this, the non-RAG fallback would be the one path
+# that cannot see the plan of record. Newest by mtime — a plan touched during implementation is more
+# current than one merely dated later.
+found=0
+for plan_file in $(ls -1t .agents/plans/*.plan.md 2>/dev/null | head -3); do
+  [ -f "$plan_file" ] || continue
+  found=1
+  printf '%s: ' "$plan_file"
+  grep -E '^(status|branch|task_record):' "$plan_file" 2>/dev/null | head -3 | tr '\n' ';' || true
+  open_todos=$(grep -c '^- \[ \]' "$plan_file" 2>/dev/null || true)
+  done_todos=$(grep -cE '^- \[[xX]\]' "$plan_file" 2>/dev/null || true)
+  printf 'todos: %s done, %s open\n' "${done_todos:-0}" "${open_todos:-0}"
+done
+[ "$found" -eq 1 ] || echo 'none'
+
 echo '--- masters ---'
 # The always-on contract names the nine dual-expertise niches; the packet echoes
 # them as one line each so an agent can constitute the relevant pair without a

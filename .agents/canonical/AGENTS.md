@@ -72,6 +72,7 @@ Do not read ahead. Open these only when your task needs them:
 | Security, prompt-injection, tool, and secrets rules | [`.agents/skills/ainish-security/SKILL.md`](./.agents/skills/ainish-security/SKILL.md) |
 | Secret storage and signing operations | [`.agents/skills/pqc-secrets/SKILL.md`](./.agents/skills/pqc-secrets/SKILL.md) |
 | Cross-agent history: tasks, COMMS, memory, suggestions | [`.agents/comms/`](./.agents/comms/), [`.agents/tasks/`](./.agents/tasks/), [`.agents/memories/`](./.agents/memories/) |
+| The plan being followed, with its clarifications and todos | [`.agents/plans/`](./.agents/plans/), [`.agents/templates/plan.md`](./.agents/templates/plan.md) |
 | Reasoning lenses for a hard decision | [`.agents/templates/masters.md`](./.agents/templates/masters.md) |
 
 `.agents/rag/`, `.agents/audit/`, and `.agents/canonical/` are **generated**. Read the context call's
@@ -80,8 +81,9 @@ output rather than the store; never hand-edit signed receipts or contract copies
 ## Writing
 
 Be concise and direct. Link to existing detail instead of copying it. Report what changed, what you
-verified, and what remains uncertain before claiming completion. Do not create planning documents
-outside the task record unless asked.
+verified, and what remains uncertain before claiming completion. Planning documents belong in
+`.agents/plans/{date}-{slug}.plan.md` and coordination in `.agents/tasks/` — never in `docs/` or the
+repository root.
 
 **Write in English.** Code, comments, commits, and every artifact this contract governs are English. A
 non-English passage is unreviewable to the operator and silently degrades every handoff. Quote
