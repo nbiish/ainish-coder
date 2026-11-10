@@ -356,9 +356,16 @@ _ms_push() { # repo host peer_path peer_name bundle
     fi
 
     scp -q -o BatchMode=yes -o ConnectTimeout=10 "$bundle" "${host}:${remote_bundle}" || return 1
-    _ms_remote "$host" "git -C '${path}' fetch '${remote_bundle}' $(printf "'%s' " "${specs[@]}")" >/dev/null 2>&1
-    local rc=$?
+    # Capture the peer's fetch output instead of discarding it: a ref that silently fails to update
+    # is indistinguishable from a successful run otherwise, and this is the one place a peer's own
+    # git gets a vote.
+    local out rc=0
+    out="$(_ms_remote "$host" "git -C '${path}' fetch '${remote_bundle}' $(printf "'%s' " "${specs[@]}")" 2>&1)" || rc=$?
     _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
+    if (( rc != 0 )); then
+        _ms_err "$peer — the peer's git refused the fetch:"
+        printf '%s\n' "$out" | sed 's/^/    /' >&2
+    fi
     return $rc
 }
 
