@@ -1,0 +1,15 @@
+#!/bin/sh
+# whalecode — shim that routes arguments to the codewhale agent CLI.
+#
+# The daily-info banner and dotfiles/.config/cli_agents_registry.tsv advertise
+# this agent as `whalecode`, but the upstream package installs the `codewhale`
+# binary (npm install -g codewhale). This wrapper keeps the advertised name
+# resolvable on PATH without a second install. Registry manager: `wrapper`.
+set -u
+
+if ! command -v codewhale >/dev/null 2>&1; then
+    echo "whalecode: codewhale not found on PATH; install it with: npm install -g codewhale" >&2
+    exit 127
+fi
+
+exec codewhale "$@"
