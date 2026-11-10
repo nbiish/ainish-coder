@@ -48,6 +48,11 @@ TARGET="${TARGET_DIR}/fallback-models.json"
 BACKUP_DIR="${TARGET_DIR}/backups"
 DRY=false
 VERIFY_ONLY=false
+# Launcher override: on Windows the CLI is `local-router.cmd` and is not on a Git-Bash PATH, so
+# `command -v local-router` says "not installed" about a machine that has it.
+LR_BIN="${LOCAL_ROUTER_BIN:-}"
+if [[ -z "$LR_BIN" ]] && command -v local-router >/dev/null 2>&1; then LR_BIN="local-router"; fi
+if [[ -z "$LR_BIN" ]] && command -v local-router.cmd >/dev/null 2>&1; then LR_BIN="local-router.cmd"; fi
 
 for arg in "$@"; do
     case "$arg" in
@@ -85,7 +90,7 @@ fi
 echo "canonical: $canon_models models from $CANON"
 
 verify_chain() { # 0 when the live router serves the canonical route
-    command -v local-router >/dev/null 2>&1 || { echo "  · local-router not installed here — skipped"; return 3; }
+    [[ -n "$LR_BIN" ]] || { echo "  · local-router not installed here — skipped"; return 3; }
     local port="${LOCAL_ROUTER_PORT:-11434}"
     local ids
     ids="$(curl -sS -m 6 "http://127.0.0.1:${port}/v1/models" 2>/dev/null | ${PY:-python3} -c "
@@ -109,7 +114,7 @@ if [[ "$VERIFY_ONLY" == "true" ]]; then
     exit $?
 fi
 
-command -v local-router >/dev/null 2>&1 || { echo "local-router not installed on this machine — nothing to install"; exit 0; }
+[[ -n "$LR_BIN" ]] || { echo "local-router not installed on this machine — config staged, nothing to restart"; exit 0; }
 
 if [[ "$DRY" == "true" ]]; then
     echo "would back up ${TARGET} -> ${BACKUP_DIR}/fallback-models.json.$(date -u +%Y%m%dT%H%M%SZ)"
@@ -128,14 +133,23 @@ fi
 cp -f "$CANON" "$TARGET" || { echo "local-router-sync: could not write $TARGET" >&2; exit 1; }
 echo "  ✓ installed canonical chain -> $TARGET"
 
-if command -v local-router >/dev/null 2>&1; then
-    local-router stop >/dev/null 2>&1 || true
-    if local-router start --config "$TARGET" >/dev/null 2>&1; then
-        echo "  ✓ router restarted with --config $TARGET"
-    elif local-router ensure >/dev/null 2>&1; then
-        echo "  ✓ router restarted with 'local-router ensure'"
+if [[ -n "$LR_BIN" ]]; then
+    if [[ "$LR_BIN" == *.cmd ]]; then
+        "$LR_BIN" stop >/dev/null 2>&1 || true
+        if "$LR_BIN" start --config "$(cygpath -w "$TARGET")" >/dev/null 2>&1; then
+            echo "  ✓ router restarted with --config $TARGET"
+        else
+            echo "  ! router did not restart; run '$LR_BIN start --config $TARGET' so the chain reloads" >&2
+        fi
     else
-        echo "  ! router did not restart; start it manually so /fallback-models reloads" >&2
+        "$LR_BIN" stop >/dev/null 2>&1 || true
+        if "$LR_BIN" start --config "$TARGET" >/dev/null 2>&1; then
+            echo "  ✓ router restarted with --config $TARGET"
+        elif "$LR_BIN" ensure >/dev/null 2>&1; then
+            echo "  ✓ router restarted with 'local-router ensure'"
+        else
+            echo "  ! router did not restart; start it manually so /fallback-models reloads" >&2
+        fi
     fi
 fi
 
