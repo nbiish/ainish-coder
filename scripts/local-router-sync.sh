@@ -58,6 +58,10 @@ if [[ -z "${PY:-}" ]]; then
     exit 1
 fi
 
+# Native Windows python cannot open a /d/... path; hand it a Windows path.
+CANON_PY="$CANON"
+if command -v cygpath >/dev/null 2>&1; then CANON_PY="$(cygpath -w "$CANON")"; fi
+
 canon_models="$(${PY} -c "
 import json,sys
 d=json.load(open(sys.argv[1]))
@@ -65,7 +69,7 @@ for r in d['routes']:
     if r['id']=='fallback-models':
         print(len(r['models']))
         break
-" "$CANON" 2>/dev/null)"
+" "$CANON_PY" 2>/dev/null)"
 
 if [[ -z "${canon_models:-}" || "$canon_models" == "0" ]]; then
     echo "local-router-sync: canonical chain has no models — refusing to deploy an empty route" >&2
