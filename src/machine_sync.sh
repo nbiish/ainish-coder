@@ -288,6 +288,26 @@ _ms_fast_forward_peer() { # host path branch
     return 0
 }
 
+# Where to stage the transfer bundle on the peer. Deliberately OUTSIDE the repository: fetching a
+# bundle that lives inside the receiving `.git` on a virtualised mount (WSL's /mnt/d, drvfs) leaves
+# refs/heads/main unadvanced while reporting success, and only `main` — verified repeatedly. A path
+# in the peer's own temp directory behaves every time.
+_ms_peer_tmp() { # host path -> directory on the peer for transfer files
+    local host="$1" path="$2" tmp
+    if [[ -z "$host" ]]; then
+        printf '%s\n' "${TMPDIR:-/tmp}"
+        return 0
+    fi
+    if [[ "$path" =~ ^[A-Za-z]: ]]; then
+        tmp="$(_ms_remote "$host" 'Write-Output $env:TEMP' 2>/dev/null | tr -d '\r' | tail -1)"
+        tmp="${tmp//\\//}"
+    else
+        tmp="$(_ms_remote "$host" 'printf %s "${TMPDIR:-/tmp}"' 2>/dev/null | tr -d '\r' | tail -1)"
+    fi
+    [[ -n "$tmp" ]] || tmp="."
+    printf '%s\n' "${tmp%/}"
+}
+
 _ms_peer_reachable() { # host path
     local host="$1" path="$2"
     if [[ -z "$host" ]]; then
@@ -384,7 +404,8 @@ _ms_snapshot_peer() { # host path peer
 
 _ms_push() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
-    local remote_bundle="${path}/.git/ainish-machine-sync-in.bundle"
+    local remote_bundle
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-in.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$_MS_SELF")
@@ -456,7 +477,8 @@ _ms_pull() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
     # A distinct filename from the push direction: on a --both run the two transfers would otherwise
     # share one path in the peer's .git and clobber each other mid-flight.
-    local remote_bundle="${path}/.git/ainish-machine-sync-out.bundle"
+    local remote_bundle
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-out.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$peer")
