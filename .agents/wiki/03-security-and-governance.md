@@ -1,4 +1,25 @@
-# 03. Security & Governance — ainish-coder
+---
+title: "03. Security & Governance"
+aliases:
+  - "03 Security and Governance"
+  - "Security and Governance"
+tags:
+  - agents/wiki
+  - security
+  - pqc
+generated: true
+---
+
+# 03. Security & Governance — ainish-coder-context-prime
+
+## See also
+
+- [[01 Architecture|System Architecture]]
+- [[02 Codebase Connections|Codebase Connections and Symbols]]
+- [[04 Improvements and Debt|Improvements and Technical Debt]]
+- [[05 Research and Intelligence|Research and Intelligence]]
+- [[06 Marketing and Positioning|Marketing and Positioning]]
+- [[ledger|Operator Ledger]]
 
 ## 1. Cryptographic Mandate (Post-Quantum Security)
 - **Secrets Encryption:** FIPS 203 ML-KEM-768 / ML-KEM-1024 encapsulation.

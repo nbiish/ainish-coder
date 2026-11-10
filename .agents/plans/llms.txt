@@ -1,0 +1,34 @@
+# `.agents/plans/` — Implementation Blueprints
+
+## Purpose
+
+Durable, reviewable implementation blueprints produced by the `question-me` protocol
+([`.agents/skills/question-me/SKILL.md`](../skills/question-me/SKILL.md)). One file per plan, named
+`{date}-{plan_name}.plan.md`.
+
+This directory is repo-local. `ainish-coder --rules` never distributes it — a plan describes work in
+*this* repository and is meaningless in another. The distributed shape of a plan (the interview
+protocol) lives in the `question-me` skill; only the protocol travels, never the answers.
+
+## Ownership
+
+- A plan is written at Blueprint Lock (Phase 3 of `question-me`) and is the authoritative statement of
+  what will be built, in what order, and how it is verified.
+- A plan is not a contract. `AGENTS.md` and the `llms.txt` chain govern behaviour; a plan governs one
+  piece of work. Where they disagree, the contract wins and the plan is corrected.
+- Executed work is recorded in `.agents/tasks/`. A plan states intent; a task record states what
+  actually happened, including where it deviated.
+
+## Lifecycle
+
+1. `question-me` interviews the operator and resolves every open fork.
+2. The resolved blueprint is written here as `{date}-{plan_name}.plan.md`.
+3. Implementation proceeds on a worktree, with `.agents/plans/` and the plan cited in the task record.
+4. On completion the plan stays as written — it is the record of what was intended. Deviations belong
+   in the task record, not as retroactive edits to the plan.
+
+## Retrieval
+
+Plans are part of the `.agents/**` knowledge corpus, so `ainish-rag index --agents` indexes them under
+`doc_type: agents_plan` and `ainish-rag context` can surface a prior plan when a task resembles one.
+The newest plan is also part of the bounded "most recent" set in `AGENTS.md`.

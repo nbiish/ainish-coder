@@ -4,6 +4,84 @@ use std::collections::{HashMap, HashSet};
 use walkdir::WalkDir;
 use chrono::Utc;
 
+/// The canonical wiki note names: `(filename, note name, display title, one-line blurb)`.
+///
+/// Obsidian resolves `[[Note Name]]` against a note's *aliases*, not its filename, so the generated
+/// pages and their frontmatter must agree on these names. Kept in the same order and spelling as
+/// `WIKI_NOTES` in `rag.py`: the two engines write the same vault, and a divergence would hand an
+/// operator a vault whose links resolve on one host and break on the other.
+const WIKI_NOTES: &[(&str, &str, &str, &str)] = &[
+    ("01-architecture.md", "01 Architecture", "System Architecture",
+     "Core components, subsystem boundaries, data flow, and directory taxonomy."),
+    ("02-codebase-connections.md", "02 Codebase Connections", "Codebase Connections and Symbols",
+     "Call graphs, key interfaces, symbol registry, and inter-module coupling."),
+    ("03-security-and-governance.md", "03 Security and Governance", "Security and Governance",
+     "Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface."),
+    ("04-improvements-and-debt.md", "04 Improvements and Debt", "Improvements and Technical Debt",
+     "Refactoring targets, debt ledger, code hotspots, and modernizing paths."),
+    ("05-research-and-intelligence.md", "05 Research and Intelligence", "Research and Intelligence",
+     "Algorithmic foundations, model specifications, cultural/philosophical doctrine, and citations."),
+    ("06-marketing-and-positioning.md", "06 Marketing and Positioning", "Marketing and Positioning",
+     "Strategic positioning, value propositions, key differentiators, and ecosystem role."),
+];
+
+/// YAML frontmatter that makes a generated page a first-class Obsidian note.
+fn obsidian_frontmatter(title: &str, tags: &[&str], aliases: &[&str]) -> String {
+    let mut out = String::from("---\n");
+    out.push_str(&format!("title: \"{}\"\n", title));
+    if !aliases.is_empty() {
+        out.push_str("aliases:\n");
+        for alias in aliases {
+            out.push_str(&format!("  - \"{}\"\n", alias));
+        }
+    }
+    if !tags.is_empty() {
+        out.push_str("tags:\n");
+        for tag in tags {
+            out.push_str(&format!("  - {}\n", tag));
+        }
+    }
+    out.push_str("generated: true\n---\n\n");
+    out
+}
+
+/// A wikilink, optionally with a display label (`[[Note|Label]]`).
+fn obsidian_link(target: &str, label: Option<&str>) -> String {
+    match label {
+        Some(l) => format!("[[{}|{}]]", target, l),
+        None => format!("[[{}]]", target),
+    }
+}
+
+/// The ledger link. Uses the *filename* as the target because the ledger is operator-owned and the
+/// generator must leave it byte-identical — `[[ledger]]` resolves without any frontmatter.
+fn obsidian_ledger_link() -> String {
+    "[[ledger|Operator Ledger]]".to_string()
+}
+
+fn obsidian_wiki_toc() -> String {
+    WIKI_NOTES
+        .iter()
+        .enumerate()
+        .map(|(idx, (_f, note, title, blurb))| {
+            format!("{}. **{}** — {}", idx + 1, obsidian_link(note, Some(title)), blurb)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// A footer of sibling links so every page is reachable from every other page: an orphan is
+/// invisible in Obsidian's link pane even when its content is good.
+fn obsidian_wiki_backlinks(current: &str) -> String {
+    let mut links: Vec<String> = WIKI_NOTES
+        .iter()
+        .filter(|(_f, note, _t, _b)| *note != current)
+        .map(|(_f, note, title, _b)| obsidian_link(note, Some(title)))
+        .collect();
+    links.push(obsidian_ledger_link());
+    format!("## See also\n\n- {}\n", links.join("\n- "))
+}
+
 pub struct WikiGenerator {
     repo_root: PathBuf,
     repo_name: String,
@@ -94,6 +172,10 @@ impl WikiGenerator {
         fs::write(&index_path, index_content).map_err(|e| e.to_string())?;
         generated.push(index_path);
 
+        // Deliberately no ledger write: `.agents/wiki/ledger.md` is operator-owned and every run
+        // must leave it byte-identical. The generated pages link `[[ledger|Operator Ledger]]`, which
+        // resolves by filename without requiring frontmatter on the file.
+
         println!("  [rag:wiki] Successfully generated {} wiki pages in {}", generated.len(), self.wiki_dir.display());
         Ok(generated)
     }
@@ -178,7 +260,12 @@ impl WikiGenerator {
     }
 
     fn render_index(&self, _stats: &RepoStats) -> String {
-        format!(r#"# {repo} — Knowledge & Architecture Wiki
+        let mut page = obsidian_frontmatter(
+            &format!("{} — Knowledge & Architecture Wiki", self.repo_name),
+            &["agents/wiki", "index"],
+            &[&format!("{} Wiki", self.repo_name), "Wiki Index"],
+        );
+        page.push_str(&format!(r#"# {repo} — Knowledge & Architecture Wiki
 
 Generated on: {date} (UTC)
 Repository: `{repo}`
@@ -186,20 +273,26 @@ Repository: `{repo}`
 ## Overview
 This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo}`. It is automatically indexed into the local LanceDB multimodal RAG store for semantic vector search and LLM context augmentation.
 
+Open `.agents/wiki/` as an Obsidian vault. Every link below is a wikilink, so the pages form a
+connected graph rather than a set of files that happen to share a directory.
+
 ## Wiki Table of Contents
-1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.
-2. **[02. Codebase Connections & Symbols](02-codebase-connections.md)** — Call graphs, key interfaces, symbol registry, and inter-module coupling.
-3. **[03. Security & Governance](03-security-and-governance.md)** — Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface.
-4. **[04. Improvements & Technical Debt](04-improvements-and-debt.md)** — Refactoring targets, debt ledger, code hotspots, and modernizing paths.
-5. **[05. Research & Intelligence](05-research-and-intelligence.md)** — Algorithmic foundations, model specifications, cultural/philosophical doctrine, and citations.
-6. **[06. Marketing & Positioning](06-marketing-and-positioning.md)** — Strategic positioning, value propositions, key differentiators, and ecosystem role.
+{toc}
+
+## Operator Ledger
+{ledger_link} — append-only notes; the generator splices it into
+{debt_link} and never rewrites the file itself.
 
 ---
 *Maintained by ainish-coder Multimodal RAG & Wiki Engine.*
 "#,
             repo = self.repo_name,
-            date = Utc::now().to_rfc3339()
-        )
+            date = Utc::now().to_rfc3339(),
+            toc = obsidian_wiki_toc(),
+            ledger_link = obsidian_ledger_link(),
+            debt_link = obsidian_link("04 Improvements and Debt", None),
+        ));
+        page
     }
 
     fn render_architecture(&self, stats: &RepoStats) -> String {
@@ -218,8 +311,14 @@ This wiki provides a living architectural map, codebase connectivity graph, secu
             entry_list.push_str("- Standard entrypoints configured in project manifests.\n");
         }
 
-        format!(r#"# 01. System Architecture — {repo}
+        let mut page = obsidian_frontmatter(
+            "01. System Architecture",
+            &["agents/wiki", "architecture"],
+            &["01 Architecture", "System Architecture"],
+        );
+        page.push_str(&format!(r#"# 01. System Architecture — {repo}
 
+{backlinks}
 ## 1. Executive Summary
 `{repo}` is engineered with modular boundaries, strict separation of concerns, and reproducible deployment artifacts.
 
@@ -243,6 +342,7 @@ The primary execution boundaries and user-facing entrypoints:
 - State mutations execute on task worktrees (`feat/*`, `fix/*`, `chore/*`) and merge autonomously when verification gates pass.
 "#,
             repo = self.repo_name,
+            backlinks = obsidian_wiki_backlinks("01 Architecture"),
             dirs_list = dirs_list,
             entry_list = entry_list,
             total_files = stats.total_files,
@@ -250,7 +350,8 @@ The primary execution boundaries and user-facing entrypoints:
             doc_files = stats.doc_files,
             image_files = stats.image_files,
             media_files = stats.audio_video_files,
-        )
+        ));
+        page
     }
 
     fn render_connections(&self, stats: &RepoStats) -> String {
@@ -262,8 +363,14 @@ The primary execution boundaries and user-facing entrypoints:
             dep_list.push_str("- Zero external heavy dependencies; platform standard library oriented.\n");
         }
 
-        format!(r#"# 02. Codebase Connections & Symbols — {repo}
+        let mut page = obsidian_frontmatter(
+            "02. Codebase Connections & Symbols",
+            &["agents/wiki", "architecture"],
+            &["02 Codebase Connections", "Codebase Connections and Symbols"],
+        );
+        page.push_str(&format!(r#"# 02. Codebase Connections & Symbols — {repo}
 
+{backlinks}
 ## 1. Component Linkage & Call Graph
 Codebase components in `{repo}` communicate across well-defined interfaces and CLI surfaces.
 
@@ -276,13 +383,21 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
 - **Rules Synchronization:** Rules and agent contracts propagate outward from `ainish-coder` to target repositories via `--rules` deployment.
 "#,
             repo = self.repo_name,
+            backlinks = obsidian_wiki_backlinks("02 Codebase Connections"),
             dep_list = dep_list
-        )
+        ));
+        page
     }
 
     fn render_security(&self, _stats: &RepoStats) -> String {
-        format!(r#"# 03. Security & Governance — {repo}
+        let mut page = obsidian_frontmatter(
+            "03. Security & Governance",
+            &["agents/wiki", "security", "pqc"],
+            &["03 Security and Governance", "Security and Governance"],
+        );
+        page.push_str(&format!(r#"# 03. Security & Governance — {repo}
 
+{backlinks}
 ## 1. Cryptographic Mandate (Post-Quantum Security)
 - **Secrets Encryption:** FIPS 203 ML-KEM-768 / ML-KEM-1024 encapsulation.
 - **Code Signing & Integrity:** FIPS 204 ML-DSA-65 / ML-DSA-87 signatures.
@@ -295,8 +410,10 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
 - Secrets are never persisted in source control, `.env` files, task records, or memory ledgers.
 - Host communication utilizes loopback `127.0.0.1` binding with strict SSRF protections.
 "#,
-            repo = self.repo_name
-        )
+            repo = self.repo_name,
+            backlinks = obsidian_wiki_backlinks("03 Security and Governance"),
+        ));
+        page
     }
 
     fn render_improvements(&self, stats: &RepoStats) -> String {
@@ -309,8 +426,14 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
         }
 
         let ledger = self.read_operator_ledger();
-        let mut page = format!(r#"# 04. Improvements & Technical Debt — {repo}
+        let mut page = obsidian_frontmatter(
+            "04. Improvements & Technical Debt",
+            &["agents/wiki", "debt", "ledger"],
+            &["04 Improvements and Debt", "Improvements and Technical Debt"],
+        );
+        page.push_str(&format!(r#"# 04. Improvements & Technical Debt — {repo}
 
+{backlinks}
 ## 1. In-Flight Debt & Code Hotspots
 The following actionable items and markers were identified across the codebase:
 {todo_list}
@@ -323,10 +446,14 @@ The following actionable items and markers were identified across the codebase:
 ## 3. Operator ledger
 `ainish-rag wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
 
+### {ledger_link}
+
 "#,
             repo = self.repo_name,
+            backlinks = obsidian_wiki_backlinks("04 Improvements and Debt"),
             todo_list = todo_list,
-        );
+            ledger_link = obsidian_ledger_link(),
+        ));
         page.push_str(&ledger);
         page
     }
@@ -718,8 +845,14 @@ The following actionable items and markers were identified across the codebase:
     }
 
     fn render_research(&self, _stats: &RepoStats) -> String {
-        format!(r#"# 05. Research & Intelligence — {repo}
+        let mut page = obsidian_frontmatter(
+            "05. Research & Intelligence",
+            &["agents/wiki", "research"],
+            &["05 Research and Intelligence", "Research and Intelligence"],
+        );
+        page.push_str(&format!(r#"# 05. Research & Intelligence — {repo}
 
+{backlinks}
 ## 1. Multimodal Embedding Architecture
 - **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).
 - **Parameters:** 740M total (270M text backbone + 170M vision encoder + 300M audio encoder).
@@ -731,13 +864,21 @@ The following actionable items and markers were identified across the codebase:
 - **Storage:** LanceDB (columnar Arrow table format with embedded IVF-PQ / HNSW vector indexing).
 - **Hybrid Retrieval:** Dense vector similarity combined with lexical BM25/FTS search.
 "#,
-            repo = self.repo_name
-        )
+            repo = self.repo_name,
+            backlinks = obsidian_wiki_backlinks("05 Research and Intelligence"),
+        ));
+        page
     }
 
     fn render_marketing(&self, _stats: &RepoStats) -> String {
-        format!(r#"# 06. Marketing & Positioning — {repo}
+        let mut page = obsidian_frontmatter(
+            "06. Marketing & Positioning",
+            &["agents/wiki", "positioning"],
+            &["06 Marketing and Positioning", "Marketing and Positioning"],
+        );
+        page.push_str(&format!(r#"# 06. Marketing & Positioning — {repo}
 
+{backlinks}
 ## 1. Core Value Proposition
 `{repo}` delivers an autonomous, high-integrity AI coding infrastructure combining:
 - **Post-Quantum Cryptographic Security** for all machine identity and secrets operations.
@@ -749,8 +890,10 @@ The following actionable items and markers were identified across the codebase:
 - **Autonomous Peer Protocol:** Autonomous git worktree branching, green gate validation, and seamless merging.
 - **Living Architectural Wiki:** Automatic generation of structured repository wikis that ground agents and developers in true codebase structure.
 "#,
-            repo = self.repo_name
-        )
+            repo = self.repo_name,
+            backlinks = obsidian_wiki_backlinks("06 Marketing and Positioning"),
+        ));
+        page
     }
 }
 

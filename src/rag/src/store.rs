@@ -3,7 +3,7 @@ use lancedb::query::{ExecutableQuery, QueryBase};
 use arrow_schema::{Schema, Field, DataType};
 use arrow_array::{
     RecordBatch, StringArray, Int32Array, Float32Array, FixedSizeListArray,
-    RecordBatchIterator, ArrayRef,
+    ArrayRef,
 };
 use arrow_array::cast::AsArray;
 use futures::StreamExt;
@@ -42,20 +42,47 @@ pub struct SearchHit {
     pub score: f32,
 }
 
+/// The two logical corpora in one LanceDB directory.
+///
+/// `codebase_rag` is the repository (code, docs, media). `agents_knowledge` is the `.agents/**`
+/// durable state: coordination ledgers, task records, plans, memories, suggestions, templates, the
+/// wiki, skills, and the tree's own `llms.txt`. They are separate tables because an agent's own
+/// records answer a different question than its source code does, and a single ranked list lets
+/// thousands of code chunks drown the handful of records that describe what this repository has
+/// already decided.
+pub const CODEBASE_TABLE: &str = "codebase_rag";
+pub const AGENTS_TABLE: &str = "agents_knowledge";
+
 #[derive(Clone)]
 pub struct LanceStore {
     db_uri: String,
     embedding_dim: i32,
+    table_name: String,
     reader_pool: Arc<tokio::sync::RwLock<Option<lancedb::Table>>>,
 }
 
 impl LanceStore {
+    /// The repository corpus. Keeps the original signature so every existing call site is unchanged.
     pub fn new(lancedb_dir: &Path, embedding_dim: usize) -> Self {
+        Self::with_table(lancedb_dir, embedding_dim, CODEBASE_TABLE)
+    }
+
+    /// The `.agents/**` knowledge corpus.
+    pub fn agents(lancedb_dir: &Path, embedding_dim: usize) -> Self {
+        Self::with_table(lancedb_dir, embedding_dim, AGENTS_TABLE)
+    }
+
+    pub fn with_table(lancedb_dir: &Path, embedding_dim: usize, table_name: &str) -> Self {
         Self {
             db_uri: lancedb_dir.to_string_lossy().to_string(),
             embedding_dim: embedding_dim as i32,
+            table_name: table_name.to_string(),
             reader_pool: Arc::new(tokio::sync::RwLock::new(None)),
         }
+    }
+
+    pub fn table_name(&self) -> &str {
+        &self.table_name
     }
 
     /// Reuses cached table handle from the memory-mapped reader pool to avoid redundant disk I/O
@@ -74,10 +101,20 @@ impl LanceStore {
             .execute()
             .await
             .map_err(|e| format!("Failed to connect to LanceDB at {}: {}", self.db_uri, e))?;
-        let table = db.open_table("codebase_rag").execute().await
-            .map_err(|e| format!("Failed to open codebase_rag table: {}", e))?;
+        let table = db.open_table(&self.table_name).execute().await
+            .map_err(|e| format!("Failed to open {} table: {}", self.table_name, e))?;
         *guard = Some(table.clone());
         Ok(table)
+    }
+
+    /// True when this table has been created in the store yet.
+    pub async fn table_exists(&self) -> bool {        match connect(&self.db_uri).execute().await {
+            Ok(db) => match db.table_names().execute().await {
+                Ok(names) => names.iter().any(|t| t == &self.table_name),
+                Err(_) => false,
+            },
+            Err(_) => false,
+        }
     }
 
     /// Invalidates reader pool cache on table writes or compactions
@@ -184,11 +221,14 @@ impl LanceStore {
             .await
             .map_err(|e| format!("Failed to connect to LanceDB at {}: {}", self.db_uri, e))?;
 
-        let schema = self.schema();
         let batch = self.chunks_to_batch(chunks)?;
-        let reader = RecordBatchIterator::new(vec![Ok(batch)], schema.clone());
+        // lancedb 0.41 implements `Scannable` for `Vec<RecordBatch>` directly; the
+        // `RecordBatchIterator` form no longer satisfies the bound. Passing the batch by value is
+        // also what keeps this engine on the same storage format as the Python engine (0.41), which
+        // is the whole reason both can read one store.
+        let reader = vec![batch];
 
-        let table_name = "codebase_rag";
+        let table_name = self.table_name.as_str();
         let table_names = db.table_names().execute().await.map_err(|e| e.to_string())?;
 
         if table_names.iter().any(|t| t == table_name) {
@@ -201,9 +241,9 @@ impl LanceStore {
                 let list = group.iter().map(|p| format!("'{}'", p.replace('\'', "''"))).collect::<Vec<_>>().join(", ");
                 table.delete(&format!("path IN ({})", list)).await.map_err(|e| e.to_string())?;
             }
-            table.add(Box::new(reader)).execute().await.map_err(|e| e.to_string())?;
+            table.add(reader).execute().await.map_err(|e| e.to_string())?;
         } else {
-            db.create_table(table_name, Box::new(reader)).execute().await.map_err(|e| e.to_string())?;
+            db.create_table(table_name, reader).execute().await.map_err(|e| e.to_string())?;
         }
 
         self.invalidate_reader_pool().await;
@@ -220,8 +260,20 @@ impl LanceStore {
             .map_err(|e| format!("Vector search query error: {}", e))?;
 
         if let Some(f) = type_filter {
-            if !matches!(f, "code" | "wiki" | "doc" | "image" | "audio" | "video") {
-                return Err(format!("Invalid doc type filter '{}': expected code|wiki|doc|image|audio|video", f));
+            // `agents_*` types live in the knowledge corpus; the rest in the codebase corpus. The
+            // allowlist is explicit so a typo in a filter is an error rather than a silently
+            // unfiltered search that returns whatever ranked highest.
+            if !matches!(
+                f,
+                "code" | "wiki" | "doc" | "image" | "audio" | "video"
+                    | "agents_comms" | "agents_task" | "agents_plan" | "agents_memory"
+                    | "agents_suggestion" | "agents_template" | "agents_wiki"
+                    | "agents_skill" | "agents_llms"
+            ) {
+                return Err(format!(
+                    "Invalid doc type filter '{}': expected code|wiki|doc|image|audio|video or an agents_* type",
+                    f
+                ));
             }
             query = query.only_if(format!("doc_type = '{}'", f));
         }
@@ -326,10 +378,10 @@ impl LanceStore {
             Ok(d) => d,
             Err(e) => return Err(format!("Unrecoverable LanceDB connection error: {}", e)),
         };
-        match db.open_table("codebase_rag").execute().await {
+        match db.open_table(&self.table_name).execute().await {
             Ok(table) => {
                 match table.count_rows(None).await {
-                    Ok(rows) => Ok(format!("Integrity verified: {} active rows in codebase_rag", rows)),
+                    Ok(rows) => Ok(format!("Integrity verified: {} active rows in {}", rows, self.table_name)),
                     Err(e) => {
                         eprintln!("  [rag:recovery] Table corruption detected: {}. Attempting compaction recovery...", e);
                         self.invalidate_reader_pool().await;

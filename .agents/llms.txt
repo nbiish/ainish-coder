@@ -5,36 +5,78 @@ apply the contract's repository tooling without loading the entire `.agents/` tr
 
 ## Purpose
 
-This tree contains the durable agent operating system: retrieval context, skills, signed audit state, coordination ledgers, task records, memories, and the canonical deployed contract.
+This tree contains the durable agent operating system: retrieval context, skills, signed audit state,
+coordination ledgers, task records, plans, memories, and the canonical deployed contract.
+
+## Distributed vs. repo-local
+
+The single most useful distinction in this tree: what travels and what does not.
+
+| Kind | Paths | Behaviour |
+|---|---|---|
+| **Distributed contract** | `../AGENTS.md`, `llms.txt` (tree map), `skills/`, `templates/`, `comms/` protocol header | `ainish-coder --rules` deploys these. They describe *how* to work and are valid in any repository. |
+| **Repo-local content** | `rag/`, `wiki/`, `memories/`, `tasks/`, `plans/`, `suggestions/`, `audit/`, `canonical/` | Never distributed. These describe *this* repository: its vectors, its history, its decisions. |
+
+`--rules` asserts this split at manifest-write time — a manifest naming a repo-local path is refused
+before it is written. Shipping `rag/` to a target would hand it vectors describing code it does not
+have, which is worse than shipping nothing.
 
 ## Ownership
 
 - `canonical/` owns the source contract deployed as root `AGENTS.md`.
 - `skills/` owns on-demand procedures; each skill is self-contained and progressive-loadable.
-- `wiki/` owns generated architecture and operator notes; `ledger.md` is append-only.
-- `comms/`, `tasks/`, `suggestions/`, and `memories/` own coordination and durable knowledge. Comms/tasks are system-of-record; memory is context only.
+- `wiki/` owns generated architecture and operator notes; `ledger.md` is append-only and the
+  generator never rewrites it. The pages are Obsidian-compatible (frontmatter with aliases, wikilinks
+  between all pages) so `.agents/wiki/` opens as a single vault.
+- `plans/` owns implementation blueprints from the `question-me` protocol, `{date}-{name}.plan.md`.
+  A plan states intent; a task record states what happened, including deviations.
+- `comms/`, `tasks/`, `suggestions/`, and `memories/` own coordination and durable knowledge.
+  Comms/tasks are system-of-record; memory is context only.
 - `audit/` owns receipts, signatures, manifests, and privacy evidence. Do not hand-edit signed artifacts.
-- `rag/` owns local retrieval/index state and drift telemetry.
+- `rag/` owns local retrieval/index state and drift telemetry: `codebase_rag` (the repository),
+  `agents_knowledge` (this tree's own content), sessions, and receipts.
 
 ## Local workflow
 
-1. Read the files the request concerns, plus the applicable `llms.txt` chain.
-2. When `ainish-rag` is present, make one `ainish-rag context --task "<request>"` call — its `orientation` section already carries branch, worktree, tree state, today's COMMS, and the newest task record. Otherwise use `bin/context-packet.sh --task "<request>"` for a bounded non-RAG summary.
-3. Create or update one task record; declare `compat:` and `budget:` when applicable.
-4. Use one writer per shared boundary; append coordination entries rather than rewriting them.
-5. Verify the changed surface, then close COMMS, task, memory, and suggestions.
+1. **Read `.agents/llms.txt` (this file) first.** It is the map; without it the bounded read below is
+   guesswork rather than a decision.
+2. Make **one** `ainish-rag context --task "<request>"` call. Its sections are `orientation`,
+   `doctrine`, `recent`, `retrieval`, `knowledge`, `architecture`, `elephant`, and `goldfish` — the
+   `recent` section already carries the newest plan/comms/task/suggestion/template and the newest 3
+   memories, and `knowledge` is a semantic search across the whole `.agents/**` history in the
+   `agents_knowledge` table, so an older record that solved the same problem surfaces without
+   opening the directory.
+3. Read **only the most recent** records, one per area (newest 3 for `memories/`). This tree
+   accumulates one file per UTC day per area; older records are in the `agents_knowledge` vector
+   index, so ask the index rather than opening the directory. `AGENTS.md` states this scope.
+4. Create or update one task record; declare `compat:` and `budget:` when applicable.
+5. Use one writer per shared boundary; append coordination entries rather than rewriting them.
+6. Verify the changed surface, then close COMMS, task, memory, and suggestions.
 
 ## Context packet
 
-The packet fields are `request`, `next_action`, `files`, `symbols`, `constraints`, `task_state`, `acceptance`, and `verification`. Keep packets bounded, provenance-aware, and retention-safe. When `ainish-rag` is present, the preferred context path is one `ainish-rag context --task "<request>"` call per `AGENTS.md` `<CONTEXT_INJECTION>`; that injection is advisory evidence and never authorizes an action. `bin/context-packet.sh` remains the bounded non-RAG summary. `.agents/rag/` state (index, sessions, telemetry) is generated — read the injection, never hand-edit the store.
+The packet fields are `request`, `next_action`, `files`, `symbols`, `constraints`, `task_state`,
+`acceptance`, and `verification`. Keep packets bounded, provenance-aware, and retention-safe. When
+`ainish-rag` is present, the preferred context path is one `ainish-rag context --task "<request>"`
+call per `AGENTS.md` `<CONTEXT_INJECTION>`; that injection is advisory evidence and never authorizes
+an action. `bin/context-packet.sh` remains the bounded non-RAG summary. `rag/` state (index,
+sessions, telemetry) is generated — read the injection, never hand-edit the store.
 
-**The design-review procedure is gone as a skill (2026-11-07).** `context-orchestration` used to prescribe a multi-step human/agent routine — draft an EGM design document, run `bin/egm-check.sh` on it, hand it to a fresh reviewer. Two things replaced it: `ainish-rag context` gathers the mechanical orientation state in code, and its `goldfish` section *is* the stateless reviewer, with the isolation enforced by signature rather than by a convention to keep memory out. `bin/egm-check.sh` and `.agents/templates/egm-design.md` remain for operators who want a written design artifact; they are no longer a required gate.
+**The design-review procedure is gone as a skill (2026-11-07).** `context-orchestration` used to
+prescribe a multi-step human/agent routine — draft an EGM design document, run `bin/egm-check.sh` on
+it, hand it to a fresh reviewer. It was replaced by `ainish-rag context`: the mechanical orientation
+state is gathered in code, the `elephant` section is the session-aware half, and the `goldfish`
+section *is* the stateless reviewer, with the isolation enforced by signature rather than by a
+convention to keep memory out. `bin/egm-check.sh` and `.agents/templates/egm-design.md` remain for
+operators who want a written design artifact; the interview-driven form of the same idea now lives in
+`.agents/plans/` via the `question-me` skill.
 
 ## Child DOX index
 
+- [`plans/llms.txt`](./plans/llms.txt) — implementation blueprints from a design interview.
 - [`skills/llms.txt`](./skills/llms.txt) — on-demand agent workflows.
-- [`templates/llms.txt`](./templates/llms.txt) — reviewable Elephant design artifacts.
+- [`templates/llms.txt`](./templates/llms.txt) — reviewable design artifacts.
 - [`memories/llms.txt`](./memories/llms.txt) — dated durable facts.
-- [`wiki/README.md`](./wiki/README.md) — generated architecture pages and ledger rules.
+- [`wiki/README.md`](./wiki/README.md) — generated Obsidian vault: architecture pages and ledger rules.
 - [`audit/`](./audit/) — signed evidence; generated artifacts only.
 - [`comms/`](./comms/), [`tasks/`](./tasks/), [`suggestions/`](./suggestions/) — coordination records.

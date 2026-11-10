@@ -287,6 +287,181 @@ pub fn is_ignored_path(path: &Path) -> bool {
         || s.ends_with(".lock") || s.ends_with(".tmp") || s.ends_with(".log") || s.ends_with(".sig")
 }
 
+// ── .agents/** knowledge corpus ───────────────────────────────────────────────────────────────
+//
+// Mirrors `AGENTS_KNOWLEDGE_DOCTYPES` / `agents_doc_type` / `chunk_agents_doc` in `rag.py`. Both
+// engines must agree: whichever one runs `index` decides what the corpus contains, and a divergence
+// would make retrieval quality depend on which host built the store.
+
+/// One chunk window's target size. A memory entry is a self-contained fact, so splits must follow the
+/// document's own structure rather than a fixed byte window — a chunk straddling two `### [timestamp]`
+/// entries retrieves as neither.
+const AGENTS_CHUNK_CHARS: usize = 1200;
+const AGENTS_CHUNK_OVERLAP: usize = 150;
+const AGENTS_MAX_CHUNKS_PER_FILE: usize = 60;
+
+/// Maps a repo-relative path under `.agents/` to its knowledge doc type.
+///
+/// Returns None for paths outside the knowledge corpus: `.agents/rag/` holds the index itself,
+/// `.agents/audit/` holds signatures and receipts whose bytes are noise, `.agents/canonical/`
+/// duplicates a file already covered at the repository root, and `.agents/bin/` holds generated
+/// scripts that are contract *mechanism* rather than knowledge.
+pub fn agents_doc_type(rel_path: &str) -> Option<&'static str> {
+    // Bind the normalised path: `split` borrows from it, so the temporary cannot be dropped here.
+    let normalised = rel_path.replace('\\', "/");
+    let parts: Vec<&str> = normalised.split('/').collect();
+    if parts.len() < 2 || parts[0] != ".agents" {
+        return None;
+    }
+    let area = parts[1];
+    if matches!(area, "rag" | "audit" | "canonical" | "bin") {
+        return None;
+    }
+    // A file directly under `.agents/` — most importantly `.agents/llms.txt`, the tree's map.
+    if area.ends_with(".md") || area.ends_with(".txt") {
+        return Some("agents_llms");
+    }
+    match area {
+        "comms" => Some("agents_comms"),
+        "tasks" => Some("agents_task"),
+        "plans" => Some("agents_plan"),
+        "memories" => Some("agents_memory"),
+        "suggestions" => Some("agents_suggestion"),
+        "templates" => Some("agents_template"),
+        "wiki" => Some("agents_wiki"),
+        "skills" => Some("agents_skill"),
+        _ => None,
+    }
+}
+
+/// Character-windows a section longer than one chunk, preferring line boundaries.
+fn window_split(body: &str, size: usize, overlap: usize) -> Vec<String> {
+    if body.len() <= size {
+        return vec![body.to_string()];
+    }
+    let bytes: Vec<char> = body.chars().collect();
+    let mut windows = Vec::new();
+    let mut start = 0usize;
+    while start < bytes.len() {
+        let mut end = (start + size).min(bytes.len());
+        if end < bytes.len() {
+            // Prefer the last newline in the back 40% of the window so a split rarely lands mid-line.
+            let floor = start + (size * 6 / 10).min(size);
+            if let Some(nl) = bytes[floor..end].iter().rposition(|c| *c == '\n') {
+                if floor + nl > start {
+                    end = floor + nl;
+                }
+            }
+        }
+        windows.push(bytes[start..end].iter().collect());
+        if end >= bytes.len() {
+            break;
+        }
+        start = end.saturating_sub(overlap).max(start + 1);
+    }
+    windows
+}
+
+/// Splits a `.agents/**` document into retrievable chunks, or empty when the path is out of scope.
+///
+/// This is the fix for the corpus's real defect: the previous path stored one chunk truncated at
+/// 3000 characters, so the ~19 KB daily memory file lost roughly 85% of its text and a fact past
+/// character 3000 was unreachable by vector search no matter how it was queried.
+pub fn chunk_agents_doc(path: &Path, repo_root: &Path, repo_name: &str) -> Vec<UnembeddedChunk> {
+    let rel_path = match path.strip_prefix(repo_root) {
+        Ok(p) => p.to_string_lossy().replace('\\', "/"),
+        Err(_) => return Vec::new(),
+    };
+    let doc_type = match agents_doc_type(&rel_path) {
+        Some(t) => t,
+        None => return Vec::new(),
+    };
+    let raw = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let content = scrub_sensitive_content(&raw);
+    if content.trim().is_empty() {
+        return Vec::new();
+    }
+
+    let mut records = Vec::new();
+    for (heading, body, start_l, end_l) in split_markdown_sections(&content) {
+        for (window_idx, window) in window_split(&body, AGENTS_CHUNK_CHARS, AGENTS_CHUNK_OVERLAP)
+            .into_iter()
+            .enumerate()
+        {
+            if window.trim().is_empty() {
+                continue;
+            }
+            // Repeat the heading into every window so a chunk lifted from the middle of a long
+            // memory file still carries the date/topic it belongs to.
+            let text = if heading.is_empty() || heading == "Overview" {
+                window.clone()
+            } else {
+                format!("{}\n{}", heading, window)
+            };
+            let title = format!("{} > {}", rel_path, heading);
+            let id = hash_id(
+                &format!("{}:{}", rel_path, window_idx),
+                start_l,
+                end_l,
+            );
+            records.push(UnembeddedChunk {
+                id,
+                repo: repo_name.to_string(),
+                path: rel_path.clone(),
+                doc_type: doc_type.to_string(),
+                modality: "text".to_string(),
+                title,
+                content: text,
+                symbols: "[]".to_string(),
+                start_line: start_l,
+                end_line: end_l,
+            });
+            if records.len() >= AGENTS_MAX_CHUNKS_PER_FILE {
+                return records;
+            }
+        }
+    }
+    records
+}
+
+/// Every chunked record from the `.agents/**` knowledge corpus.
+pub fn collect_agents_documents(repo_root: &Path) -> Vec<UnembeddedChunk> {
+    let agents_dir = repo_root.join(".agents");
+    if !agents_dir.is_dir() {
+        return Vec::new();
+    }
+    let repo_name = repo_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("repository")
+        .to_string();
+    let mut records = Vec::new();
+    let mut paths: Vec<PathBuf> = WalkDir::new(&agents_dir)
+        .follow_links(false)
+        .into_iter()
+        .flatten()
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.path().to_path_buf())
+        .collect();
+    // Deterministic order so a re-index produces identical ids and the receipt is comparable.
+    paths.sort();
+    for path in paths {
+        if is_ignored_path(&path) {
+            continue;
+        }
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        if ext != "md" && ext != "txt" {
+            continue;
+        }
+        records.extend(chunk_agents_doc(&path, repo_root, &repo_name));
+    }
+    records
+}
+
+
 fn is_code_ext(ext: &str) -> bool {
     matches!(
         ext,

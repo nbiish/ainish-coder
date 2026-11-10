@@ -4,9 +4,16 @@
 
 Templates for durable, reviewable planning artifacts. Templates are not always-on instructions and should be loaded only for the matching workflow.
 
+This directory is **distributed** by `ainish-coder --rules` (it is contract surface, not repo
+content): the shapes are useful in any repository. The *filled-in* artifacts they produce are
+repo-local and live in `.agents/plans/`.
+
 ## Ownership
 
-- `egm-design.md` is the Elephant design artifact consumed by Goldfish review and implementation readiness checks.
+- `masters.md` — the nine dual-expertise advisory lenses an agent constitutes for a task.
+- `egm-design.md` — the Elephant design artifact consumed by Goldfish review and implementation
+  readiness checks. For interview-driven work, prefer `.agents/plans/{date}-{name}.plan.md` written by
+  the `question-me` skill; this template remains for a written design handed to a reviewer.
 
 ## Verification
 

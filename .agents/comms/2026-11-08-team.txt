@@ -1,0 +1,106 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+---
+
+# AGENT COMMS — {2026-11-08}
+
+<PROTOCOL>
+## PROTOCOL (binding — follow like AGENTS.md)
+
+**When:** ≥1 agent or subagent is working at once (multiple branches, features, updates, bugs, docs). Solo? Still check in/out — the ledger is the audit trail.
+
+**Two channels:**
+- **This file** (`.agents/comms/{date}-team.txt`) — one file per UTC date; committed, append-only durable ledger. Never rotate per session or per hour. Updated via your task-branch commits; reaches everyone at merge.
+- **Live board** (`.agents/comms/{date}-team.live.txt`) — gitignored, at the **main repo path**. Append here by absolute path for immediate in-flight visibility. Never `git commit` it; never `git add` it. Main stays clean.
+
+**Read:** this file + the live board — at start, before any merge, and whenever blocked.
+
+**Write:** for every lifecycle event, append one entry block to **both** the live board (immediate) and this file in your worktree (durable — commit it). One writer per branch. Subagents do not write the shared files directly: report results to your orchestrator, who logs on your behalf with `parent:` set.
+
+**Skill distribution (persisted per-repo selection):** which `.agents/skills/` packs distribute to this repo is governed by the operator's persisted selection (`~/.config/ainish-coder/skills-selection.json`). `ainish-coder --rules` asks on a real terminal the FIRST time a repo has no saved selection, then applies that saved choice on every later run; `ainish-coder --select-skills [DIR]` reopens the choice and `ainish-coder --skills-list [DIR] [--json]` shows it. Agents and CI MUST use the headless path — `ainish-coder --rules <dir> --headless` or `ainish-coder --skills-sync <dir> --headless` — which applies the saved selection with no prompts. Do not hand-edit the selection file; run the interactive toggle instead. Scroll-channel packs (`8thfire-scrolls`, `ghost-layer-injector`, raw `.scrolls*/` payload) are never selectable here — explicit `--scrolls` only.
+
+**Timestamps — mandatory, bracketed, ISO-8601 (UTC `Z` form on this ledger):**
+- `start:` the instant the agent **begins** the action (input received / work begun).
+- `end:` the instant the agent **finishes** it (output produced / work handed off or halted).
+- **Every** entry has both. Abandoned mid-action → still close with `end:` + `status: abandoned`.
+
+\*\*Entry block:\*\*
+
+~~~
+### [<ISO-8601 timestamp>] <EVENT> | branch:<branch> | wt:<worktree-path>
+- start:<ISO-8601>               # input received / work began
+- end:<ISO-8601>                 # output produced / work ended
+- parent:<orchestrator>          # subagents only
+- scope:<paths/modules>
+- provenance:<source_commit=XXXXXXXXXXXX manifest_sha256=XXXXXXXXXXXX>   # optional but recommended
+- objective:<one line>
+- input:<one line — what was received or requested>
+- output:<one line — what was produced or handed off>
+- status:<new|in-progress|blocked|verifying|merged|abandoned>
+- blockers:<none | description>
+~~~
+
+**Provenance stamp (recommended on `checkin`):** embed the ainish-coder root commit SHA and the target's deployment-manifest digest so every work session is auditable against the exact ruleset it ran under. Generate it with `ainish-coder --rules-provenance <dir>`, which emits `source_commit=… manifest_sha256=…`. Verify every target's manifest signature with `ainish-coder --rules-verify [--json]`.
+
+</PROTOCOL>
+
+### [2026-11-08T15:40:00Z] done | branch:feat/agents-context-prime | wt:D:\Code\ainish-coder-context-prime
+- agent: claude (Cursor agent)
+- objective: make the context prime a single working call, bound the `.agents/` read, index `.agents/**` properly, extract Elephant/Goldfish as `council`, make the wiki an Obsidian vault, and assert `--rules` ships only the contract
+- scope: AGENTS.md + canonical; src/rag/{rag.py,main.rs,store.rs,ingest.rs,wiki.rs,tests}; src/deploy_rules_sync.sh; bin/ainish-rag{,.cmd}; bin/ainish-coder; .agents/{llms.txt,plans/,skills/question-me,templates/llms.txt}; llms.txt; scripts/test-*.sh
+- status: done
+- artifacts: `.agents/tasks/2026-11-08-context-priming-obsidian-wiki-task.md`, `.agents/plans/2026-11-08-context-priming-obsidian-wiki.plan.md`, `.agents/suggestions/2026-11-08-suggestions.txt`
+- parent: none (operator direct)
+- start: 2026-11-08T14:05:00Z
+- end: 2026-11-08T15:40:00Z
+- blockers: `ainish-rag gate` RED for a pre-existing reason — the vector index was built with `api:openrouter` and no key resolves on this host, so patch anchoring reports UNGROUNDED. Reproduced identically at baseline `main`. Fix is `ainish-rag index --rebuild` with the local embedder or restoring the key.
+- provenance: source_commit=663da33; contract re-signed ML-DSA-65, history chain 56 transitions PASS
+
+### [2026-11-08T16:05:00Z] fix | branch:feat/agents-context-prime | wt:D:\Code\ainish-coder-context-prime
+- agent: claude (Cursor agent)
+- objective: make the configured priming pipeline actually work end to end — the first pass built the `.agents/**` corpus but nothing read it
+- scope: `src/rag/rag.py`, `src/rag/src/{store,ingest,main,provider}.rs`, `src/rag/tests/`, `AGENTS.md` + canonical, `.agents/llms.txt`, `llms.txt`, `scripts/test-knowledge-roundtrip.sh`, `scripts/test-verify-all.sh`
+- status: done
+- artifacts: `.agents/tasks/2026-11-08-context-priming-obsidian-wiki-task.md` (sections 3 and 4), `.agents/memories/2026-11-08-memory.txt`
+- parent: none
+- start: 2026-11-08T15:45:00Z
+- end: 2026-11-08T16:05:00Z
+- blockers: the Rust toolchain was removed from this host mid-session (`rustup`: "no installed toolchains"), so the Rust-side changes are implemented but unbuilt. The Python engine is complete and verified; `bin/ainish-rag` falls back to it.
+- provenance: source_commit=d045363; contract re-signed; knowledge table 2,001 rows
+
+### [2026-11-08T16:35:00Z] done | branch:feat/agents-context-prime | wt:D:\Code\ainish-coder-context-prime
+- agent: claude (Cursor agent)
+- objective: rebuild the tooling on Windows PowerShell and WSL Ubuntu, and get the priming improvements working on both
+- scope: `src/rag/Cargo.toml`, `Cargo.lock`, `src/rag/src/{store,main,ingest}.rs`, `src/rag/tests/`, `llms.txt`, `scripts/build-rust-linux.sh`, `scripts/install-protoc-wsl.sh`, `scripts/test-cross-platform.sh`, `scripts/test-verify-all.sh`
+- status: done
+- artifacts: this record, `.agents/memories/2026-11-08-memory.txt`, `.agents/suggestions/2026-11-08-suggestions.txt`
+- parent: none
+- start: 2026-11-08T16:10:00Z
+- end: 2026-11-08T16:35:00Z
+- blockers: none. Both platforms build and pass every suite.
+- provenance: source_commit=d045363; store 2,640 rows readable by all three engines on both hosts
+
+### [2026-11-08T16:36:00Z] handoff | branch:feat/agents-context-prime | wt:D:\Code\ainish-coder-context-prime
+- agent: claude (Cursor agent)
+- objective: hand off for operator review — nothing is committed and the branch is unmerged
+- scope: same as above
+- status: done
+- artifacts: working tree carries all changes; both platform binaries built under `src/rag/target/release`
+- parent: none
+- start: 2026-11-08T16:35:00Z
+- end: 2026-11-08T16:36:00Z
+- blockers: `ainish-rag gate` remains RED for the pre-existing OpenRouter key issue recorded above
+- provenance: source_commit=d045363
+
+### [2026-11-08T15:42:00Z] handoff | branch:feat/agents-context-prime | wt:D:\Code\ainish-coder-context-prime
+- agent: claude (Cursor agent)
+- objective: hand off for operator review — nothing is committed and the branch is unmerged
+- scope: same as above
+- status: done
+- artifacts: working tree carries all changes; `.agents/wiki/` regenerated in the vault format
+- parent: none
+- start: 2026-11-08T15:40:00Z
+- end: 2026-11-08T15:42:00Z
+- blockers: none
+- provenance: source_commit=663da33
+

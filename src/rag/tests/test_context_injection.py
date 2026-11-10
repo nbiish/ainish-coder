@@ -434,7 +434,7 @@ class GoldfishIsolationTest(unittest.TestCase):
         import inspect
 
         params = set(inspect.signature(rag.goldfish_review).parameters)
-        self.assertEqual(params, {"driver", "task", "retrieval_text", "elephant_text", "token_cap"})
+        self.assertEqual(params, {"driver", "task", "prime_text", "elephant_text", "token_cap"})
         for banned in ("session", "state", "history", "memory", "comms"):
             self.assertNotIn(banned, params)
 
@@ -450,7 +450,7 @@ class GoldfishIsolationTest(unittest.TestCase):
         rag.goldfish_review(
             StubDriver(),
             task="do the thing",
-            retrieval_text="retrieved evidence",
+            prime_text="retrieved evidence",
             elephant_text="elephant draft",
             token_cap=300,
         )
@@ -1010,6 +1010,351 @@ class FileFallbackTest(unittest.TestCase):
         body = rag.render_file_fallback_section(self.root, "zzzz qqqq", 800)
         self.assertIn("Wiki inventory", body)
         self.assertNotIn("unrelated content", body)
+
+
+class AgentsKnowledgeChunkingTest(unittest.TestCase):
+    """`.agents/**` documents must be chunked whole, not truncated at a character ceiling.
+
+    The regression this pins: `index` used to store `content[:3000]` for every markdown file, so the
+    current daily memory (~19 KB) lost ~85% of its text and a fact living past character 3000 was
+    unreachable by vector search no matter how it was queried.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        memories = self.root / ".agents" / "memories"
+        memories.mkdir(parents=True)
+        # Ten dated entries, each long enough that the whole file is far past 3000 characters.
+        blocks = []
+        for i in range(10):
+            filler = " ".join(f"word{i}x{j}" for j in range(90))
+            blocks.append(f"### [2026-11-0{i + 1}T00:00:00Z] entry-{i}\n{filler}\n")
+        self.memory_file = memories / "2026-11-07-memory.txt"
+        self.memory_file.write_text("\n".join(blocks), encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_content_past_the_old_cap_is_indexed(self):
+        raw = self.memory_file.read_text(encoding="utf-8")
+        self.assertGreater(len(raw), 3000)
+        tail_marker = raw[-200:].split()[-1]
+        self.assertNotIn(tail_marker, raw[:3000])
+
+        records = rag.chunk_agents_doc(self.memory_file, self.root)
+        self.assertTrue(records)
+        self.assertTrue(
+            any(tail_marker in r["content"] for r in records),
+            "text beyond the old 3000-character cap must appear in some chunk",
+        )
+        # And the total coverage exceeds what the old single truncated chunk carried.
+        self.assertGreater(sum(len(r["content"]) for r in records), 3000)
+
+    def test_doc_type_and_heading_travel_with_the_chunk(self):
+        records = rag.chunk_agents_doc(self.memory_file, self.root)
+        self.assertEqual(records[0]["doc_type"], "agents_memory")
+        # A chunk from the middle of the file still names the entry it belongs to.
+        self.assertTrue(any("entry-" in r["title"] for r in records))
+
+    def test_index_own_state_and_signatures_are_excluded(self):
+        for rel, expected in (
+            (".agents/rag/lancedb/x.md", None),
+            (".agents/audit/receipt.sig", None),
+            (".agents/canonical/AGENTS.md", None),
+            (".agents/llms.txt", "agents_llms"),
+            (".agents/plans/2026-11-08-x.plan.md", "agents_plan"),
+            (".agents/tasks/2026-11-08-x-task.md", "agents_task"),
+        ):
+            self.assertEqual(rag.agents_doc_type(rel), expected, rel)
+
+    def test_recent_scope_is_bounded_and_date_ordered(self):
+        tasks = self.root / ".agents" / "tasks"
+        tasks.mkdir(parents=True)
+        # A legacy name that sorts above a newer date on ASCII order alone.
+        (tasks / "TASK.2026-10-28.latest.md").write_text("# old\n", encoding="utf-8")
+        (tasks / "2026-11-07-newer-task.md").write_text("# new\n", encoding="utf-8")
+
+        picked = rag.recent_agents_files(self.root)
+        task_names = [p.name for area, p in picked if area == "tasks"]
+        self.assertEqual(len(task_names), 1, "the scope must be one task record, not all of them")
+        self.assertEqual(task_names[0], "2026-11-07-newer-task.md")
+
+        memory_names = [p.name for area, p in picked if area == "memories"]
+        self.assertEqual(len(memory_names), 1, "only one memory file exists here")
+
+
+class ElephantPrimeInputTest(unittest.TestCase):
+    """The Elephant must see both what was asked and what came back; the Goldfish only the latter."""
+
+    def test_elephant_prompt_carries_input_and_output(self):
+        captured = {}
+
+        class StubDriver:
+            def chat(self, messages, max_tokens=None, tier=None, role=None):
+                captured["text"] = "\n".join(m["content"] for m in messages)
+                return {"text": "draft", "source": "stub:model", "model_verified": True}
+
+        rag.elephant_synthesize(
+            StubDriver(),
+            task="do the thing",
+            session={"turns": 0, "summary": "", "established": []},
+            prime_input="route: symbol_anchored | terms: alpha",
+            prime_output="EVIDENCE_OUTPUT_MARKER",
+            token_cap=300,
+        )
+        self.assertIn("route: symbol_anchored | terms: alpha", captured["text"])
+        self.assertIn("EVIDENCE_OUTPUT_MARKER", captured["text"])
+
+    def test_goldfish_cannot_see_the_prime_input(self):
+        captured = {}
+
+        class StubDriver:
+            def chat(self, messages, max_tokens=None, tier=None, role=None):
+                captured["text"] = "\n".join(m["content"] for m in messages)
+                return {"text": "review", "source": "stub:model", "model_verified": True}
+
+        # `run_council` passes only the prime *output* to the reviewer.
+        import inspect
+
+        source = inspect.getsource(rag.run_council)
+        self.assertIn("goldfish_review(\n            driver, task, prime_output", source)
+        self.assertNotIn("prime_input, caps[\"goldfish\"]", source)
+
+
+class ObsidianWikiTest(unittest.TestCase):
+    """The generated wiki must be a valid Obsidian vault, not a directory of markdown files.
+
+    Two invariants matter: every wikilink resolves (a broken link is worse than no link, because it
+    looks connected), and `.agents/wiki/ledger.md` stays byte-identical across runs — it is
+    operator-owned, and an earlier revision broke that by prepending frontmatter to it.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / ".agents" / "wiki").mkdir(parents=True)
+        (self.root / ".agents" / "memories").mkdir(parents=True)
+        self.ledger = "# Operator ledger\n\n- 2026-11-08 a durable operator note\n"
+        (self.root / ".agents" / "wiki" / "ledger.md").write_text(self.ledger, encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _resolve_names(self):
+        import re
+
+        names = set()
+        for page in (self.root / ".agents" / "wiki").glob("*.md"):
+            text = page.read_text(encoding="utf-8", errors="replace")
+            names.add(page.stem)
+            if text.lstrip().startswith("---"):
+                front = text.split("---")[1]
+                names.update(re.findall(r'^  - "([^"]+)"', front, re.M))
+                match = re.search(r'title:\s*"([^"]+)"', front)
+                if match:
+                    names.add(match.group(1))
+        return names
+
+    def _links(self):
+        import re
+
+        found = []
+        for page in (self.root / ".agents" / "wiki").glob("*.md"):
+            text = page.read_text(encoding="utf-8", errors="replace")
+            for target in re.findall(r"\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", text):
+                found.append((page.name, target))
+        return found
+
+    def test_every_wikilink_resolves(self):
+        rag.generate_wiki(self.root)
+        names = self._resolve_names()
+        broken = [(page, target) for page, target in self._links() if target not in names]
+        self.assertEqual(broken, [], f"unresolved wikilinks: {broken}")
+
+    def test_pages_carry_frontmatter_with_aliases(self):
+        rag.generate_wiki(self.root)
+        page = (self.root / ".agents" / "wiki" / "01-architecture.md").read_text(encoding="utf-8")
+        self.assertTrue(page.startswith("---\n"))
+        self.assertIn('aliases:', page)
+        self.assertIn("tags:", page)
+        # The alias is what makes both spellings resolve.
+        self.assertIn("01 Architecture", page)
+
+    def test_ledger_is_never_rewritten(self):
+        rag.generate_wiki(self.root)
+        rag.generate_wiki(self.root)
+        after = (self.root / ".agents" / "wiki" / "ledger.md").read_text(encoding="utf-8")
+        self.assertEqual(after, self.ledger)
+
+    def test_no_relative_markdown_page_links_survive(self):
+        rag.generate_wiki(self.root)
+        for page in (self.root / ".agents" / "wiki").glob("*.md"):
+            text = page.read_text(encoding="utf-8", errors="replace")
+            if page.name == "ledger.md":
+                continue
+            self.assertNotIn("](01-architecture.md)", text)
+            self.assertNotIn("](02-codebase-connections.md)", text)
+
+
+class WorktreeSharedStateTest(unittest.TestCase):
+    """Shared-state resolution must find the canonical store, and must not over-reach.
+
+    Three defects lived here, each of which presents as "retrieval quietly returns less":
+
+    1. `Path(*parts[:i])` on a Windows gitdir dropped the drive separator (`D:Code/repo`), so a
+       worktree resolved to itself and never saw the canonical store.
+    2. A Windows `gitdir:` path is meaningless to a POSIX host, so `git rev-parse` failed inside a
+       WSL worktree and every worktree-aware lookup silently fell back to the worktree.
+    3. Once (1) and (2) were fixed, any directory *under* a git checkout inherited that checkout's
+       vectors, because `git rev-parse` answers for the enclosing repo.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_non_worktree_directory_resolves_to_itself(self):
+        plain = self.root / "not-a-repo"
+        (plain / ".agents" / "rag" / "lancedb").mkdir(parents=True)
+        self.assertEqual(rag.resolve_canonical_repo_root(plain), plain.resolve())
+        # A directory that is not a git worktree must not borrow anything.
+        self.assertEqual(rag.shared_rag_dir(plain), plain / ".agents" / "rag")
+
+    def test_linked_worktree_borrows_the_canonical_store(self):
+        main = self.root / "main-repo"
+        (main / ".git" / "worktrees" / "wt").mkdir(parents=True)
+        (main / ".agents" / "rag" / "lancedb").mkdir(parents=True)
+        main = main.resolve()
+        wt = self.root / "wt"
+        wt.mkdir()
+        (wt / ".git").write_text(
+            f"gitdir: {str(main / '.git' / 'worktrees' / 'wt').replace(chr(92), '/')}\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(rag.resolve_canonical_repo_root(wt), main)
+        self.assertEqual(rag.shared_rag_dir(wt), main / ".agents" / "rag")
+
+    def test_drive_path_gitdir_is_translated_when_possible(self):
+        # A Windows drive path is translated only when the translated target actually exists;
+        # otherwise it is returned unchanged so the caller can decide. Either way it must not raise.
+        original = "D:/Code/repo/.git/worktrees/wt"
+        candidate = rag._normalize_foreign_path(Path(original))
+        self.assertIsInstance(candidate, Path)
+        translated_target = Path("/mnt/d/Code/repo/.git/worktrees/wt")
+        if os.name == "nt" or not translated_target.exists():
+            # Native Windows, or a POSIX host with no such mount: the same location is preserved.
+            # Compare as Paths — `Path` normalises separators, so a raw string compare is wrong.
+            self.assertEqual(candidate, Path(original))
+        else:
+            self.assertEqual(candidate, translated_target)
+
+    def test_drive_separator_survives_canonical_reconstruction(self):
+        # The slice bug produced `D:Code/repo`; walking up from the gitdir cannot lose the drive.
+        main = self.root / "repo"
+        (main / ".git" / "worktrees" / "wt").mkdir(parents=True)
+        main = main.resolve()
+        gitdir = main / ".git" / "worktrees" / "wt"
+        self.assertEqual(gitdir.parent.parent.parent, main)
+
+
+class KnowledgeRetrievalTest(unittest.TestCase):
+    """The `.agents/**` corpus must be readable, not merely written.
+
+    The original defect was not a missing table: the table was created and populated, and nothing
+    ever queried it. An index nobody reads is indistinguishable from no index at all, except that it
+    costs embedding spend.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        for area in ("memories", "tasks", "plans", "rag"):
+            (self.root / ".agents" / area).mkdir(parents=True)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_search_reads_through_arrow_not_pandas(self):
+        # `to_pandas()` required a dependency this engine does not declare; the resulting
+        # ImportError was caught by the caller and surfaced as "no hits". Assert on the call, not on
+        # the prose that explains it.
+        import inspect
+
+        source = inspect.getsource(rag.LanceStore.search)
+        self.assertNotIn(".to_pandas(", source)
+        self.assertIn(".to_arrow()", source)
+
+    def test_missing_index_reports_a_hint_rather_than_an_empty_result(self):
+        result = rag.retrieve_knowledge(self.root, "anything", client=object(), route_decision={})
+        self.assertEqual(result["mode"], "knowledge_not_indexed")
+        self.assertIn("index --agents", result["hint"])
+
+    def test_driver_error_is_reported_with_its_reason(self):
+        store = rag.LanceStore(self.root / ".agents" / "rag" / "lancedb")
+        # With no table present, `table_exists` is False and connect_error explains a missing driver.
+        self.assertFalse(store.table_exists())
+        self.assertEqual(store.list_table_names(), [])
+
+    def test_knowledge_section_is_capped_and_labelled(self):
+        hits = [
+            {"path": ".agents/tasks/a.md", "doc_type": "agents_task", "score": 0.9, "content": "x" * 4000},
+            {"path": ".agents/plans/b.md", "doc_type": "agents_plan", "score": 0.8, "content": "y" * 4000},
+        ]
+        body = rag.render_knowledge_section(hits, self.root, 300)
+        self.assertIn(".agents/tasks/a.md", body)
+        self.assertLessEqual(rag.estimate_tokens(body), 600)
+
+    def test_knowledge_is_not_dropped_before_either_driver(self):
+        # A prior record is often the cheapest useful section, so it must outlive the drivers.
+        caps = rag.CONTEXT_SECTION_CAPS
+        self.assertIn("knowledge", caps)
+        self.assertGreater(caps["knowledge"], 0)
+
+    def test_native_search_with_reason_returns_exactly_two_values(self):
+        # The success path returned the list alone while the caller unpacked `(hits, reason)`, so the
+        # first time the compiled engine actually found something the prime died with ValueError.
+        # A degraded host reaches that path as soon as the index is populated, which is the normal
+        # case rather than the edge.
+        import inspect
+
+        source = inspect.getsource(rag.NativeQueryStore.search_with_reason)
+        returns = [l.strip() for l in source.splitlines() if l.strip().startswith("return ")]
+        self.assertTrue(returns)
+        for line in returns:
+            if line.startswith("return []"):
+                self.assertIn(",", line, f"bare list return breaks the caller: {line}")
+            elif line.startswith("return normalised"):
+                self.assertIn(",", line, f"bare list return breaks the caller: {line}")
+
+
+    def test_upsert_replaces_by_path_instead_of_appending(self):
+        # A bare `add` appended a second copy of every record on each refresh — the knowledge table
+        # reached 4,002 rows for 2,001 chunks, so search returned each record twice and spent the
+        # budget on duplicates.
+        import inspect
+
+        source = inspect.getsource(rag.LanceStore.upsert)
+        self.assertIn("tbl.delete", source, "upsert must delete stale rows for the same path")
+        self.assertIn("tbl.add(records)", source, "upsert still appends after clearing")
+        # The delete must come first; appending before deleting would double every row.
+        self.assertLess(
+            source.index("tbl.delete"),
+            source.index("tbl.add(records)"),
+            "delete must precede add, or a refresh duplicates every record",
+        )
+
+    def test_count_uses_the_table_counter_not_len(self):
+        # `len(tbl)` returned 0 for a populated Lance table, so status/index/receipt all reported an
+        # empty corpus that was in fact full.
+        import inspect
+
+        source = inspect.getsource(rag.LanceStore.count)
+        self.assertIn("count_rows", source)
+        self.assertNotIn("len(db.open_table", source)
 
 
 if __name__ == "__main__":

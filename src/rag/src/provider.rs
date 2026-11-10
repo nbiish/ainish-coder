@@ -648,6 +648,32 @@ pub fn write_index_fingerprint(repo_root: &Path, identity: &str, dim: usize) -> 
     Ok(path)
 }
 
+/// Writes the freshness receipt for the `.agents/**` knowledge table.
+///
+/// `ainish-rag context` reads this to decide whether the knowledge corpus needs re-embedding, using
+/// mtime against the recorded epoch rather than re-hashing every file. The format matches the Python
+/// engine's `write_agents_index_receipt` exactly: both engines write and read the same receipt, so
+/// whichever one last indexed, the other can tell whether the table is stale.
+pub fn write_agents_index_receipt(repo_root: &Path, chunks: usize) -> Result<PathBuf, String> {
+    let path = repo_root.join(".agents").join("rag").join("agents-index.json");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
+    }
+    let now = chrono::Utc::now();
+    let epoch = now.timestamp_millis() as f64 / 1000.0;
+    let doc = serde_json::json!({
+        "format": "ainish-rag/agents-index/v1",
+        "indexed_at": now.to_rfc3339(),
+        "indexed_at_epoch": epoch,
+        "chunks": chunks,
+        "engine": "ainish-rag/rust",
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&doc).unwrap_or_default())
+        .map_err(|e| format!("failed to write {}: {}", path.display(), e))?;
+    Ok(path)
+}
+
 /// Returns a warning when the store was built with a different embedding model than the one in
 /// use. Vectors from different models are not comparable, so retrieval would silently degrade.
 pub fn index_mismatch_warning(repo_root: &Path, identity: &str) -> Option<String> {

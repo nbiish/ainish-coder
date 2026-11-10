@@ -278,7 +278,7 @@ main() {
         # .agents/templates/ holds the reasoning lenses, and .agents/skills/llms.txt indexes whatever
         # packs the operator selected (it is a valid index even when zero packs are on).
         local _tpl
-        for _tpl in llms.txt templates/masters.md templates/egm-design.md skills/llms.txt; do
+        for _tpl in llms.txt plans/llms.txt templates/masters.md templates/egm-design.md templates/llms.txt skills/llms.txt; do
             local _src="${REPO_DIR}/.agents/${_tpl}"
             local _dst="${target_dir}/.agents/${_tpl}"
             [[ -f "$_src" ]] || continue

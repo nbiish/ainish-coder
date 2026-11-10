@@ -1,0 +1,43 @@
+# Memory — 2026-11-08 (UTC)
+
+### [2026-11-08T15:40:00Z] a-command-the-contract-mandates-had-never-run
+`AGENTS.md` told every agent to run `ainish-rag --context --task "..."`. It failed on every Windows host with `unexpected argument '--context'`, because PATH resolves `bin/ainish-rag.exe` (the compiled engine, no `context` verb) before `ainish-rag.cmd` (which has the redirect list). The launcher's `PY_ONLY_SUBCOMMANDS` protected only the callers who happened to invoke the wrapper, which is exactly the callers who did not need protecting. The durable shape: a delegation list belongs in the *implementation*, not only in the wrapper that is easiest to bypass. The binary now intercepts Python-only verbs before clap parses.
+
+### [2026-11-08T15:40:00Z] a-truncation-cap-is-a-silent-coverage-claim
+The index stored `content[:3000]` for every `.md`/`.txt`. That reads like a display limit and functions as a coverage limit: the current daily memory is 19,396 characters, so ~85% never reached a vector, and no query could retrieve a fact living past character 3000. Nothing errored — the index simply answered with less. Measured before and after: 3000 chars in one chunk versus 26 chunks covering 21,078. Any cap on stored content is a claim about what the corpus contains, so it has to be stated and tested, not chosen for tidiness.
+
+### [2026-11-08T15:40:00Z] a-guard-that-always-refuses-is-a-guard-nobody-keeps
+The `--rules` deny-list check shipped matching `/"managed_paths": \[/,/\]/` with `sed`. On compact JSON that range matches the *entire line*, so the guard found the newly added `repo_local_paths` declaration, concluded managed_paths shipped RAG state, and refused every valid deploy with a confident, precise error. Two lessons: an array in JSON must be located by bracket depth rather than line structure, and a new assertion should be observed both passing and failing for the intended reason before it is trusted — this one was only ever seen refusing. Caught by an end-to-end deploy test, not by reading the code.
+
+### [2026-11-08T15:40:00Z] the-one-file-a-generator-must-never-write
+`.agents/wiki/ledger.md` is operator-owned, and the generator's long-standing guarantee is that it leaves it byte-identical. Making `[[Operator Ledger]]` resolve tempted a small frontmatter prepend — additive, idempotent, and still a violation, caught immediately by `assert_eq!(ledger_disk, custom_ledger)`. The correct fix needed no write at all: Obsidian resolves `[[ledger]]` against the filename, so the link is `[[ledger|Operator Ledger]]`. When a link does not resolve, the cheap repair is usually to change the link, not the target.
+
+### [2026-11-08T15:40:00Z] prove-pre-existing-before-calling-it-yours
+A debug build of `ainish-rag.exe` overflowed its stack on *every* verb including `--version`, immediately after adding an argument-interception step, which is exactly what a regression from that change looks like. Stashing the change and rebuilding showed the same overflow at baseline; the release build, the artifact that actually ships, was fine. Debug async state machines carry enormous frames, and this crate's `main` is a `#[tokio::main]`. The two-minute stash check is worth more than any amount of reasoning about whose bug it is.
+
+### [2026-11-08T16:05:00Z] an-index-nobody-reads-costs-the-same-as-no-index
+The first pass built the `agents_knowledge` table, chunked it properly, wrote a receipt, and reported success. Nothing ever queried it: `retrieve_knowledge` did not exist, and `agents_index_is_stale` was defined but never called. An index that is written and never read is indistinguishable from no index at all, except that it costs embedding spend and creates a false sense of coverage — worse than the gap it replaced, because the gap was at least honest. The general shape: a feature is not done when the write path works, it is done when something reads the write and a test observes the read.
+
+### [2026-11-08T16:05:00Z] trust-the-row-count-not-the-return-value
+Two write-path defects survived because the function's own return value said "fine". `upsert` appended without deleting, so a rebuild produced 4,002 rows for 2,001 chunks; `count()` used `len(tbl)` on a Lance table, which evaluates the Python wrapper and returns 0 — so `status`, `index`, and the receipt all reported an empty corpus that was full. Both were invisible from return codes and obvious from one direct `count_rows()` call. When a function reports what it did, verify it against the store rather than believing it.
+
+### [2026-11-08T16:05:00Z] replace-by-path-and-batching-do-not-compose
+Once `upsert` gained replace-by-path semantics, `index_agents_knowledge` silently self-destructed: it embedded in batches of 8 and upserted each batch, so batch 2 deleted batch 1's rows for the same files. A 15-chunk corpus over 3 paths persisted 7 rows. Embedding is batched because the endpoint has a limit; writing must not be, because one generation is a correctness property. Two correct decisions composed into a wrong one, and the only signal was a row count that did not match the chunk count.
+
+### [2026-11-08T16:05:00Z] a-return-shape-is-an-api
+`search_with_reason` returned `(hits, reason)` on every error path and a bare `hits` list on success. Nothing caught it because the compiled engine rarely found anything on this host — until the index was populated, at which point the normal path raised `ValueError` and the whole prime died. The tests never covered it because they exercised the failure paths. A function whose return arity depends on the branch is a latent crash scheduled for whenever the happy path is finally reached.
+
+### [2026-11-08T16:05:00Z] shared-state-lookup-fails-in-three-ways
+Resolving the canonical store from a worktree broke three separate times, each silently: slicing path parts dropped the Windows drive separator (`D:Code/repo`), a Windows `gitdir:` is meaningless to WSL so `git rev-parse` failed, and once both were fixed any directory under a checkout inherited that checkout's vectors because git answers for the enclosing repo. The lesson is to ask git (`--git-common-dir`) rather than reconstruct paths, translate foreign paths explicitly, and guard the borrow so only a real linked worktree of that canonical root is allowed — a fixture must never read the production store.
+
+### [2026-11-08T16:35:00Z] two-engines-one-store-is-a-version-contract
+The Rust engine pinned `lancedb 0.15` and the Python engine resolved `0.41`. Both compiled, both reported success, and whichever ran `index` last produced a store the other could not read — surfacing as `Unknown Lance storage version: 2.2` only at read time. A shared on-disk format is a contract between the two implementations, not an implementation detail of either. Pin both, and make a test assert the *other* engine can read what one just wrote; a build that compiles proves nothing about the bytes.
+
+### [2026-11-08T16:35:00Z] a-build-dependency-you-cannot-assume-is-a-portability-bug
+Switching `reqwest` from `native-tls` to `rustls` removed the system-OpenSSL requirement and made the Linux build work on a host with no `libssl-dev`. The same class of problem appeared twice more: lancedb 0.41 needs `protoc` *plus* the well-known proto includes (installing only the binary fails at `google/protobuf/empty.proto`, which reads like a code bug), and it needs rustc ≥ 1.94. A dependency that must be installed out of band is fine if the install is scripted; it is a portability bug when it is assumed.
+
+### [2026-11-08T16:35:00Z] the-build-you-never-ran-is-not-the-change-you-made
+The Rust half of a change sat uncompiled for an entire round while the Python half was fully tested, because the toolchain had vanished. The first real compile then failed on a missing `Path` import — an error that costs seconds to fix and nothing to prevent, and that "the code is written" quietly treats as done. Compile every language a change touches before declaring it complete, even when the primary path is elsewhere.
+
+### [2026-11-08T15:40:00Z] two-half-a-consultant-is-one-consultant
+The Elephant/Goldfish pair was already two API calls with two prompts, and the Elephant still received only `retrieval_text`. Without the *input* (task, route decision, expert terms) it cannot tell a thin retrieval from a narrow question, so it invents gaps nobody asked about; without the *output* it has nothing to interpret. The pair also shared a model chain until `--distinct-reviewer` existed. Both halves of the same lesson: a second opinion needs the full problem **and** a different source, and neither is provided by calling twice.

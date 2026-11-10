@@ -13,6 +13,89 @@
 _AINISH_RULES_HOOK_START="# --- AINISH-CODER RULES SYNC START ---"
 _AINISH_RULES_HOOK_END="# --- AINISH-CODER RULES SYNC END ---"
 
+# Paths that are repo-local agent state and must NEVER be distributed to a target.
+#
+# `--rules` ships the *contract*: AGENTS.md, the llms.txt chain, the skill packs, the COMMS
+# protocol template. Everything here is *content* — this repository's own retrieved vectors,
+# generated wiki, task history, memories, plans, and suggestions. Copying them would hand a target
+# another repo's history and, worse, an index whose vectors describe code the target does not have.
+# They were already absent from `managed_paths`; this list makes that an asserted invariant instead
+# of a coincidence, and `_ainish_rules_assert_no_repo_local_paths` fails the manifest write if they
+# ever reappear.
+_ainish_rules_repo_local_paths() {
+    cat <<'REPO_LOCAL_EOF'
+.agents/rag
+.agents/wiki
+.agents/memories
+.agents/tasks
+.agents/plans
+.agents/suggestions
+.agents/audit
+.agents/canonical
+REPO_LOCAL_EOF
+}
+
+# Fails when a manifest's `managed_paths` block names any repo-local path.
+#
+# Reads the manifest text on stdin. Only the `managed_paths` array is inspected: the
+# `repo_local_paths` block names these paths *by design* (it is the declaration), so scanning the
+# whole document would refuse every valid manifest.
+#
+# The array is located and closed by bracket matching rather than a `start/,/end/` address range:
+# on compact (single-line) JSON the range matches the entire line, which is how this guard first
+# shipped and refused every deploy — it was reading `repo_local_paths` as if it were managed.
+_ainish_rules_managed_paths_block() {
+    local text="$1"
+    local prefix="${text%%\"managed_paths\"*}"
+    [ "$prefix" = "$text" ] && { printf ''; return 0; }
+    local rest="${text#*\"managed_paths\"}"
+    rest="${rest#*\[}"
+    local out="" ch depth=1
+    local i=0
+    while [ "$i" -lt "${#rest}" ]; do
+        ch="${rest:$i:1}"
+        if [ "$ch" = "]" ]; then
+            depth=$((depth - 1))
+            [ "$depth" -eq 0 ] && break
+        fi
+        out="${out}${ch}"
+        if [ "$ch" = "[" ]; then
+            depth=$((depth + 1))
+        fi
+        i=$((i + 1))
+    done
+    printf '%s' "$out"
+}
+
+_ainish_rules_assert_no_repo_local_paths() {
+    local manifest_text managed_block
+    manifest_text="$(cat)"
+    managed_block="$(_ainish_rules_managed_paths_block "$manifest_text")"
+    # A manifest without a managed_paths block has nothing to distribute, so nothing to refuse.
+    if [ -z "$managed_block" ]; then
+        printf '%s' "$manifest_text"
+        return 0
+    fi
+    local repo_local
+    while IFS= read -r repo_local; do
+        [ -n "$repo_local" ] || continue
+        # Match the JSON string exactly: `".agents/rag"` must not match `".agents/ragnarok"`.
+        if printf '%s' "$managed_block" | grep -qF "\"${repo_local}\""; then
+            printf 'REFUSED: managed_paths must not distribute repo-local state (%s)\n' "$repo_local" >&2
+            return 1
+        fi
+        # A prefix match is equally disqualifying: `.agents/rag/lancedb` must be caught too.
+        if printf '%s' "$managed_block" | grep -qF "\"${repo_local}/"; then
+            printf 'REFUSED: managed_paths must not distribute repo-local state (%s/...)\n' "$repo_local" >&2
+            return 1
+        fi
+    done <<REPO_LOCAL_LIST
+$(_ainish_rules_repo_local_paths)
+REPO_LOCAL_LIST
+    printf '%s' "$manifest_text"
+    return 0
+}
+
 _ainish_rules_config_dir() {
     local dir="${AINISH_CONFIG_DIR:-${HOME}/.config/ainish-coder}"
     mkdir -p "$dir" 2>/dev/null || return 1
@@ -401,7 +484,8 @@ _ainish_rules_manifest_write() {
     source_pack_sha_json="$(_ainish_rules_json_escape "$source_pack_sha")"
     mkdir -p "$(dirname "$manifest")" 2>/dev/null || return 1
 
-    cat > "$manifest" <<MANIFEST_EOF
+    local manifest_text
+    manifest_text="$(cat <<MANIFEST_EOF
 {
   "format": "ainish-coder/rules-deploy/v1",
   "source_repo": "${source_repo_json}",
@@ -418,9 +502,29 @@ _ainish_rules_manifest_write() {
     ".agents/comms",
     ".agents/bin/ainish-rules-sync"
   ],
+  "repo_local_paths": [
+    ".agents/rag",
+    ".agents/wiki",
+    ".agents/memories",
+    ".agents/tasks",
+    ".agents/plans",
+    ".agents/suggestions",
+    ".agents/audit",
+    ".agents/canonical"
+  ],
   "sync_script": ".agents/bin/ainish-rules-sync"
 }
 MANIFEST_EOF
+)"
+
+    # Asserted invariant, not a convention: a manifest that names repo-local state is refused
+    # before it is written, so no future edit can silently start shipping this repo's index,
+    # wiki, or history to a target.
+    local checked
+    if ! checked="$(printf '%s' "$manifest_text" | _ainish_rules_assert_no_repo_local_paths)"; then
+        return 1
+    fi
+    printf '%s\n' "$checked" > "$manifest"
     return 0
 }
 

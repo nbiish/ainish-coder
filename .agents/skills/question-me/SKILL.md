@@ -33,7 +33,13 @@ description: >
    - **Interactive Terminal Prompts:** When no native question tooling exists, output a structured, high-visibility interactive prompt with numbered choices, highlighted recommendations, and write-in support.
    - **Subagent Delegation:** Orchestrator locks design via `question-me` before dispatching implementation or test subagents.
 6. **Living Design Artifact:**
-   Maintain an active session artifact (`.agents/tasks/{date}-question-me-{slug}.md` or conversation artifact). Every answer logs immediately into the Decision Ledger, building toward a final, airtight **Implementation Blueprint** before any code is touched.
+   Maintain an active session artifact (`.agents/plans/{date}-{plan_name}.plan.md` or conversation artifact). Every answer logs immediately into the Decision Ledger, building toward a final, airtight **Implementation Blueprint** before any code is touched.
+
+   **Why `plans/` and not `tasks/`:** a plan states *intent* — what will be built, in what order, how it
+   will be verified — and stays as written once implementation starts. A task record states what
+   *happened*, including every deviation. Keeping them in one directory means the record of intent is
+   continuously overwritten by the record of fact, and the original reasoning is lost. See
+   [`plans/llms.txt`](../plans/llms.txt).
 
 ---
 
@@ -174,7 +180,7 @@ How should the operator trigger the Question-Me interview workflow?
 ##### Modality C: Subagent Master Handoff
 When an orchestrator dispatches a task to a subagent (e.g. a headless subagent run carrying an implementation master prompt):
 - The orchestrator runs `question-me` with the operator *first*.
-- The resulting resolved Decision Ledger is embedded directly into the subagent's task file (`/tmp/task_ast.md` or `.agents/tasks/`).
+- The resulting resolved Decision Ledger is embedded directly into the subagent's task file (`.agents/plans/` for the blueprint, `.agents/tasks/` for the execution record, or `/tmp/task_ast.md`).
 - The subagent receives zero ambiguity, zero open architectural forks, and a locked specification.
 
 ---
@@ -183,8 +189,9 @@ When an orchestrator dispatches a task to a subagent (e.g. a headless subagent r
 
 Once all branches reach terminal leaf nodes:
 1. **Compile the Implementation Blueprint:** Summarize all decisions into an immutable, actionable specification.
-2. **Present the Blueprint:** Show the operator the exact worktree, target files, acceptance criteria, and quality gates.
-3. **Execute via Worktree Gate:** Proceed into implementation per the repository's `AGENTS.md` workflow.
+2. **Write it to `.agents/plans/{date}-{plan_name}.plan.md`.** It is the durable record of intent; implementation may then deviate, and those deviations go in `.agents/tasks/`, not as retroactive plan edits.
+3. **Present the Blueprint:** Show the operator the exact worktree, target files, acceptance criteria, and quality gates.
+4. **Execute via Worktree Gate:** Proceed into implementation per the repository's `AGENTS.md` workflow.
 
 ```markdown
 # Implementation Blueprint: Question-Me Protocol
@@ -239,10 +246,13 @@ Every question produced by `question-me` must satisfy five tests:
 
 ## 6. End-of-Session Artifact Template
 
-When `question-me` concludes, persist the decision log into `.agents/tasks/{date}-question-me-{slug}.md`:
+When `question-me` concludes, persist the resolved blueprint into
+`.agents/plans/{date}-{plan_name}.plan.md` (and the per-decision log below into the same file). The plan
+is the durable record of *intent* and is never rewritten to match what actually happened — deviations
+belong in `.agents/tasks/`, which is the record of *fact*.
 
 ```markdown
-# Socratic Design Record: {Task Title}
+# Implementation Blueprint: {Task Title}
 **Session Date:** {ISO-8601}
 **Branch/Worktree:** {branch-name}
 **Status:** Design Locked / Ready for Implementation

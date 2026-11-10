@@ -1,4 +1,24 @@
-# 05. Research & Intelligence — ainish-coder
+---
+title: "05. Research & Intelligence"
+aliases:
+  - "05 Research and Intelligence"
+  - "Research and Intelligence"
+tags:
+  - agents/wiki
+  - research
+generated: true
+---
+
+# 05. Research & Intelligence — ainish-coder-context-prime
+
+## See also
+
+- [[01 Architecture|System Architecture]]
+- [[02 Codebase Connections|Codebase Connections and Symbols]]
+- [[03 Security and Governance|Security and Governance]]
+- [[04 Improvements and Debt|Improvements and Technical Debt]]
+- [[06 Marketing and Positioning|Marketing and Positioning]]
+- [[ledger|Operator Ledger]]
 
 ## 1. Multimodal Embedding Architecture
 - **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).

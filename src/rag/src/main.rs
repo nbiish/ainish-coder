@@ -9,8 +9,9 @@ mod pqc;
 mod provider;
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::env;
+use std::process::Command as ProcessCommand;
 use crate::config::RagConfig;
 use crate::server::LlamaServer;
 use crate::embed::EmbedClient;
@@ -120,6 +121,10 @@ enum Commands {
         /// Hard ceiling for cumulative differential privacy epsilon expenditure
         #[arg(long)]
         dp_max_budget: Option<f32>,
+        /// Index only the .agents/** knowledge corpus (comms, tasks, plans, memories, suggestions,
+        /// templates, wiki, skills, llms.txt) into its own `agents_knowledge` table
+        #[arg(long)]
+        agents: bool,
     },
     /// Continuous drift monitoring and regression evaluation
     Monitor {
@@ -211,6 +216,22 @@ enum Commands {
         /// Interactive fuzzy finder mode for terminal browsing and snippet inspection
         #[arg(long)]
         fzf: bool,
+    },
+    /// Query the .agents/** knowledge corpus (comms, tasks, plans, memories, suggestions, templates)
+    #[command(name = "query-agents")]
+    QueryAgents {
+        /// Natural language query
+        query: String,
+        /// Maximum number of hits to return
+        #[arg(short, long, default_value_t = 6)]
+        limit: usize,
+        /// Restrict to one agents_* doc type (agents_comms, agents_task, agents_plan, agents_memory,
+        /// agents_suggestion, agents_template, agents_wiki, agents_skill, agents_llms)
+        #[arg(long)]
+        doc_type: Option<String>,
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
     },
     /// Rerank candidate context chunks for a query using the decision model
     Rerank {
@@ -556,8 +577,262 @@ fn artifact_signature_status(repo_root: &std::path::Path, rel_path: &str) -> ser
     }
 }
 
+/// Verbs that only the Python engine implements. Kept in sync with `PY_ONLY_SUBCOMMANDS` in
+/// `bin/ainish-rag.cmd`; that list protects wrapper callers, this one protects callers that
+/// resolve straight to this binary.
+const PY_ONLY_SUBCOMMANDS: &[&str] = &["context", "council", "secrets"];
+
+/// Returns the argv to forward to the Python engine when the request targets a Python-only verb.
+///
+/// `--context` is normalised to the `context` subcommand because `AGENTS.md` documents the flag
+/// spelling and clap would otherwise reject it. Only a *leading* `--context` is rewritten — it is
+/// the subcommand position — so a value that merely looks like the flag is left alone.
+fn python_only_verb(argv: &[String]) -> Option<Vec<String>> {
+    let mut normalised: Vec<String> = argv.to_vec();
+    if normalised.first().map(String::as_str) == Some("--context") {
+        normalised[0] = "context".to_string();
+    }
+
+    let first = normalised.iter().find(|a| !a.starts_with('-'))?;
+    if PY_ONLY_SUBCOMMANDS.iter().any(|v| v == first) {
+        Some(normalised)
+    } else {
+        None
+    }
+}
+
+/// Locates `src/rag/rag.py` relative to this executable and execs it with the given argv.
+///
+/// Candidate order mirrors the launcher: the repo layout first (`bin/ainish-rag.exe` ->
+/// `../src/rag/rag.py`), then a dev build (`src/rag/target/release/` -> `../../rag.py`).
+fn find_python_engine() -> Option<PathBuf> {
+    if let Some(explicit) = env::var("AINISH_RAG_PY_ENGINE").ok().filter(|v| !v.trim().is_empty()) {
+        let path = PathBuf::from(explicit);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    let exe = env::current_exe().ok()?;
+    let exe_dir = exe.parent()?;
+    let candidates = [
+        exe_dir.join("..").join("src").join("rag").join("rag.py"),
+        exe_dir.join("..").join("..").join("rag.py"),
+    ];
+    for candidate in candidates {
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn python_interpreter() -> &'static str {
+    for name in ["python3", "python"] {
+        if ProcessCommand::new(name)
+            .arg("-c")
+            .arg("import sys")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+        {
+            return name;
+        }
+    }
+    "py"
+}
+
+/// Runs the Python engine and mirrors its exit status. Never falls through to clap: a
+/// Python-only verb answered by this binary would be a silent, confusing "unrecognized
+/// subcommand" for a documented command.
+fn exec_python_engine(argv: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let engine = match find_python_engine() {
+        Some(path) => path,
+        None => {
+            eprintln!(
+                "ainish-rag: '{}' is implemented by the Python engine, which was not found \
+                 (looked for src/rag/rag.py beside this binary; set AINISH_RAG_PY_ENGINE to override)",
+                argv.first().map(String::as_str).unwrap_or("this verb")
+            );
+            std::process::exit(2);
+        }
+    };
+
+    // Prefer `uv run`, which reads the engine's PEP 723 header and provisions LanceDB + PyArrow into
+    // an isolated environment. A bare `python` resolves the engine's imports against whatever
+    // happens to be installed system-wide; when that lacks lancedb, `index` writes nothing and
+    // priming reports an empty corpus — a silent downgrade that looks like a missing index.
+    if let Some(uv) = find_uv() {
+        let mut args: Vec<std::ffi::OsString> = vec!["run".into()];
+        args.push(engine.clone().into_os_string());
+        args.extend(argv.iter().map(std::ffi::OsString::from));
+        match run_and_exit("uv", &uv, &args) {
+            Ok(()) => {}
+            Err(_) => { /* fall through to a plain interpreter */ }
+        }
+    }
+
+    let interpreter = python_interpreter();
+    let mut args: Vec<std::ffi::OsString> = Vec::new();
+    if interpreter == "py" {
+        args.push("-3".into());
+    }
+    args.push(engine.clone().into_os_string());
+    args.extend(argv.iter().map(std::ffi::OsString::from));
+
+    let status = ProcessCommand::new(interpreter).args(&args).status();
+    match status {
+        Ok(status) => match status.code() {
+            Some(0) => Ok(()),
+            Some(code) => std::process::exit(code),
+            None => {
+                eprintln!("ainish-rag: Python engine terminated by a signal");
+                std::process::exit(1);
+            }
+        },
+        Err(err) => {
+            eprintln!(
+                "ainish-rag: could not run the Python engine at {} via {}: {}",
+                engine.display(),
+                interpreter,
+                err
+            );
+            std::process::exit(2);
+        }
+    }
+}
+
+/// Locates `uv`: on PATH, then the known install locations for this host.
+fn find_uv() -> Option<PathBuf> {
+    let mut names: Vec<PathBuf> = vec![PathBuf::from("uv")];
+    if let Ok(local) = env::var("LOCALAPPDATA") {
+        names.push(PathBuf::from(&local).join("hermes").join("bin").join("uv.exe"));
+        // WinGet installs into a versioned package directory; glob it.
+        let winget = PathBuf::from(&local)
+            .join("Microsoft")
+            .join("WinGet")
+            .join("Packages");
+        if let Ok(entries) = std::fs::read_dir(&winget) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_lowercase();
+                if name.starts_with("astral-sh.uv") {
+                    let candidate = entry.path().join("uv.exe");
+                    if candidate.is_file() {
+                        names.push(candidate);
+                    }
+                }
+            }
+        }
+    }
+    if let Ok(home) = env::var("HOME").or_else(|_| env::var("USERPROFILE")) {
+        names.push(PathBuf::from(&home).join(".local").join("bin").join("uv"));
+        names.push(PathBuf::from(&home).join(".cargo").join("bin").join("uv.exe"));
+    }
+    for candidate in names {
+        let probe = ProcessCommand::new(&candidate)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        if probe.map(|s| s.success()).unwrap_or(false) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// Runs a command, mirroring its exit status. Returns Err only when the command could not start, so
+/// the caller can fall back to another interpreter.
+fn run_and_exit(
+    label: &str,
+    program: &Path,
+    args: &[std::ffi::OsString],
+) -> Result<(), Box<dyn std::error::Error>> {
+    match ProcessCommand::new(program).args(args).status() {
+        Ok(status) => match status.code() {
+            Some(0) => Ok(()),
+            Some(code) => std::process::exit(code),
+            None => {
+                eprintln!("ainish-rag: {} terminated by a signal", label);
+                std::process::exit(1);
+            }
+        },
+        Err(_) => Err("could not start".into()),
+    }
+}
+
+/// Embeds unembedded chunks in adaptive batches, reporting progress on one line.
+///
+/// Shared by the codebase index and the `.agents/**` knowledge index so both corpora use the same
+/// batching and the same multimodal formatting — a divergence here would make one corpus embed
+/// differently from the other, which is invisible until retrieval quality changes.
+async fn embed_unembedded(
+    embed_client: &EmbedClient,
+    chunks: Vec<crate::ingest::UnembeddedChunk>,
+) -> Result<Vec<crate::store::RagChunk>, Box<dyn std::error::Error>> {
+    let total = chunks.len();
+    let mut rag_chunks = Vec::with_capacity(total);
+    let mut offset = 0usize;
+    let mut b_idx = 0usize;
+    while offset < total {
+        b_idx += 1;
+        let adaptive_size = embed_client.recommended_batch_size();
+        let end = (offset + adaptive_size).min(total);
+        let chunk_batch = &chunks[offset..end];
+        offset = end;
+
+        let formatted_inputs: Vec<String> = chunk_batch
+            .iter()
+            .map(|c| {
+                if c.modality == "image" {
+                    EmbedClient::format_multimodal_image(Some(&c.title), &c.content)
+                } else {
+                    EmbedClient::format_doc(Some(&c.title), &c.content)
+                }
+            })
+            .collect();
+
+        let vectors = embed_client.embed_batch(&formatted_inputs).await?;
+        for (unemb, vec) in chunk_batch.iter().cloned().zip(vectors) {
+            rag_chunks.push(unemb.to_rag_chunk(vec));
+        }
+        print!(
+            "\r  \x1b[36m[rag:index]\x1b[0m Batch #{} (adaptive size={}) ↻ embedded {}/{} vectors...",
+            b_idx,
+            adaptive_size,
+            rag_chunks.len(),
+            total
+        );
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+    }
+    println!();
+    Ok(rag_chunks)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Verbs implemented only by the Python engine must never reach clap. A shell resolves
+    // `ainish-rag` to whichever candidate comes first on PATH — on Windows that is this
+    // `.exe`, not `ainish-rag.cmd` — so the launcher's PY_ONLY_SUBCOMMANDS redirect only
+    // protects the callers that happen to invoke the wrapper. Without this, the exact command
+    // AGENTS.md mandates (`ainish-rag --context --task "..."`) died with "unexpected argument"
+    // on every host where the compiled binary shadowed the script.
+    //
+    // The check runs in a dedicated thread with an explicit large stack. `#[tokio::main]` gives
+    // `main` a small stack, and the argv/path buffers here overflowed it — which surfaced as
+    // "thread 'main' has overflowed its stack" for EVERY verb, including `--version`.
+    let forwarded = std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(|| python_only_verb(&env::args().skip(1).collect::<Vec<_>>()))
+        .map_err(|e| format!("failed to spawn argument check: {e}"))?
+        .join()
+        .unwrap_or(None);
+    if let Some(rest) = forwarded {
+        return exec_python_engine(&rest);
+    }
+
     let cli = Cli::parse();
     let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let mut config = RagConfig::detect(&current_dir);
@@ -821,7 +1096,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             reporter.finish();
         }
-        Commands::Index { path, truncate, watch, rebuild, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
+        Commands::Index { path, truncate, watch, rebuild, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget, agents } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
             println!("=== Indexing Codebase into LanceDB ===");
             println!("Target directory: {}", target.display());
@@ -855,6 +1130,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let dim = truncate.unwrap_or(config.embedding_dim);
             let embed_client = EmbedClient::with_config(&config, truncate)
                 .with_repo_root(&current_dir);
+
+            // `--agents` indexes only the .agents/** knowledge corpus into its own table. Both
+            // corpora share the embedding loop, so the only difference is which chunks go in.
+            if agents {
+                let store = LanceStore::agents(&config.lancedb_dir, dim);
+                println!("  [rag:index] Scanning .agents/** knowledge corpus...");
+                let chunks = crate::ingest::collect_agents_documents(&current_dir);
+                println!("  [rag:index] Generated {} knowledge chunks. Embedding...", chunks.len());
+                let rag_chunks = embed_unembedded(&embed_client, chunks).await?;
+                store.upsert(&rag_chunks).await?;
+                let total = store.count().await.unwrap_or(0);
+                println!(
+                    "  [rag:index] .agents/** indexing complete: {} chunks, {} records in `{}`",
+                    rag_chunks.len(),
+                    total,
+                    store.table_name()
+                );
+                return Ok(());
+            }
+
             let store = LanceStore::new(&config.lancedb_dir, dim);
             let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
 
@@ -875,32 +1170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!();
             println!("  [rag:index] Generated {} chunks. Creating embeddings via EmbeddingGemma-2...", all_unembedded.len());
 
-            let mut rag_chunks = Vec::new();
-            let mut offset = 0usize;
-            let mut b_idx = 0usize;
-            while offset < all_unembedded.len() {
-                b_idx += 1;
-                let adaptive_size = embed_client.recommended_batch_size();
-                let end = (offset + adaptive_size).min(all_unembedded.len());
-                let chunk_batch = &all_unembedded[offset..end];
-                offset = end;
-
-                let formatted_inputs: Vec<String> = chunk_batch.iter().map(|c| {
-                    if c.modality == "image" {
-                        EmbedClient::format_multimodal_image(Some(&c.title), &c.content)
-                    } else {
-                        EmbedClient::format_doc(Some(&c.title), &c.content)
-                    }
-                }).collect();
-
-                let vectors = embed_client.embed_batch(&formatted_inputs).await?;
-                for (unemb, vec) in chunk_batch.iter().cloned().zip(vectors) {
-                    rag_chunks.push(unemb.to_rag_chunk(vec));
-                }
-                print!("\r  \x1b[36m[rag:index]\x1b[0m Batch #{} (adaptive size={}) ↻ embedded {}/{} vectors...", b_idx, adaptive_size, rag_chunks.len(), all_unembedded.len());
-                let _ = std::io::Write::flush(&mut std::io::stdout());
-            }
-            println!();
+            let rag_chunks = embed_unembedded(&embed_client, all_unembedded).await?;
 
             println!("  [rag:index] Persisting {} vectors into LanceDB...", rag_chunks.len());
             store.upsert(&rag_chunks).await?;
@@ -918,6 +1188,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Record and cryptographically sign index audit receipt
             let _ = record_index_audit_receipt(&current_dir, &target, files.len(), rag_chunks.len(), total, anonymize_symbols);
+
+            // A full index also refreshes the .agents/** corpus, so one command leaves both tables
+            // current. Failing here is reported but does not fail the codebase index that just
+            // succeeded: a stale knowledge table is a degraded prime, not a broken repository.
+            {
+                let agents_store = LanceStore::agents(&config.lancedb_dir, dim);
+                let agents_chunks = crate::ingest::collect_agents_documents(&current_dir);
+                if !agents_chunks.is_empty() {
+                    match embed_unembedded(&embed_client, agents_chunks).await {
+                        Ok(agent_rag_chunks) => {
+                            match agents_store.upsert(&agent_rag_chunks).await {
+                                Ok(written) => println!(
+                                    "  [rag:index] Indexed {} .agents/** chunks into `{}` ({} records)",
+                                    written,
+                                    agents_store.table_name(),
+                                    agents_store.count().await.unwrap_or(0)
+                                ),
+                                Err(e) => eprintln!("  [rag:warning] .agents/** table write failed: {}", e),
+                            }
+                            let _ = crate::provider::write_agents_index_receipt(&current_dir, agent_rag_chunks.len());
+                        }
+                        Err(e) => eprintln!("  [rag:warning] .agents/** embedding failed: {}", e),
+                    }
+                }
+            }
 
             if watch {
                 println!("\n  \x1b[36m[rag:watch]\x1b[0m Entering watch mode on {} (press Ctrl+C to exit)...", target.display());
@@ -1204,6 +1499,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!();
                     }
                 }
+            }
+        }
+        Commands::QueryAgents { query, limit, doc_type, json } => {
+            // The knowledge corpus is small relative to the codebase and every record is already
+            // curated prose, so a coarse vector pass is the right retrieval: decision reranking
+            // exists to separate implementations from generated noise across thousands of code
+            // chunks, which is a problem this table does not have.
+            LlamaServer::ensure_running(&config, &current_dir).await?;
+            let embed_client = EmbedClient::with_config(&config, None);
+            let store = LanceStore::agents(&config.lancedb_dir, config.embedding_dim);
+
+            // Report a missing corpus explicitly. An empty result list is indistinguishable from
+            // "the knowledge table was never built", and the fix for each is different.
+            if !store.table_exists().await {
+                let msg = "No .agents/** knowledge table found. Run `ainish-rag index --agents` first.";
+                if json {
+                    println!("{}", serde_json::json!({"error": "knowledge_not_indexed", "hint": msg}));
+                } else {
+                    println!("{}", msg);
+                }
+                return Ok(());
+            }
+
+            let formatted_query = EmbedClient::format_query(&query, false);
+            let query_vec = embed_client.embed_one(&formatted_query).await?;
+            let hits = store.search_vector(&query_vec, limit, doc_type.as_deref()).await?;
+
+            if json {
+                println!("{}", serde_json::to_string_pretty(&hits)?);
+            } else if hits.is_empty() {
+                println!("No matching .agents/** records found. Run `ainish-rag index --agents` first.");
+            } else {
+                println!("\n=== .agents/** Knowledge Results ({}) ===", hits.len());
+                for (i, hit) in hits.iter().enumerate() {
+                    println!(
+                        "\n[{}] Score: {:.4} | Type: {}",
+                        i + 1,
+                        hit.score,
+                        hit.doc_type
+                    );
+                    println!("     Location: {}:L{}-L{}", hit.path, hit.start_line, hit.end_line);
+                    println!("     Title:    {}", hit.title);
+                    println!("     Snippet:");
+                    for line in hit.content.lines().take(6) {
+                        println!("       {}", line);
+                    }
+                }
+                println!();
             }
         }
         Commands::Rerank { query, limit, doc_type, json } => {
