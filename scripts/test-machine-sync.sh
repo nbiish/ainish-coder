@@ -105,6 +105,10 @@ check "B's branch unchanged" "$B_BRANCH_BEFORE" "$(git -C "$B" rev-parse --abbre
 check "B's working tree unchanged" "$B_STATUS_BEFORE" "$(git -C "$B" status --porcelain | sort)"
 check "A's HEAD unchanged" "$A_HEAD_BEFORE" "$(git -C "$A" rev-parse HEAD)"
 
+echo "== 4b. the push is verified against what the peer actually recorded =="
+A_HEAD_NOW="$(git -C "$A" rev-parse HEAD)"
+check "peer's remote-tracking ref matches this machine's HEAD" "$A_HEAD_NOW" "$(git -C "$B" rev-parse refs/remotes/box-18gb/feature/a 2>/dev/null)"
+
 echo "== 5. repeat run is idempotent =="
 B_HEAD_AFTER_FIRST="$(git -C "$B" rev-parse HEAD)"
 "$CLI" --machine-sync --repo "$A" --machines-file "$REG" --machine peer-b-64gb --both >/dev/null 2>&1
