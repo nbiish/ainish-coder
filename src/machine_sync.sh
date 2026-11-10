@@ -365,8 +365,26 @@ _ms_push() { # repo host peer_path peer_name bundle
     if (( rc != 0 )); then
         _ms_err "$peer — the peer's git refused the fetch:"
         printf '%s\n' "$out" | sed 's/^/    /' >&2
+        return 1
     fi
-    return $rc
+
+    # Read back what the peer actually recorded. A fetch can exit 0 while leaving a ref untouched;
+    # without this check a partial delivery is indistinguishable from a clean sync.
+    local branch tip peer_tip
+    branch="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+    tip="$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || true)"
+    if [[ -n "$tip" ]]; then
+        if [[ -z "$host" ]]; then
+            peer_tip="$(git -C "$path" rev-parse -q --verify "refs/remotes/${_MS_SELF}/${branch}" 2>/dev/null || true)"
+        else
+            peer_tip="$(_ms_remote "$host" "git -C '${path}' rev-parse -q --verify 'refs/remotes/${_MS_SELF}/${branch}'" 2>/dev/null | tr -d '\r')"
+        fi
+        if [[ "$tip" != "$peer_tip" ]]; then
+            _ms_err "$peer — fetch reported success but refs/remotes/${_MS_SELF}/${branch} is '${peer_tip:0:8}', expected '${tip:0:8}'"
+            return 1
+        fi
+    fi
+    return 0
 }
 
 _ms_pull() { # repo host peer_path peer_name bundle
