@@ -39,6 +39,7 @@ _MS_AS=""
 _MS_DIRECTION="both"
 _MS_SELF=""
 _MS_JSON=false
+_MS_FF_PEERS=false
 _MS_PEER_REF=""
 _MS_PEER_BRANCH=""
 
@@ -64,6 +65,9 @@ OPTIONS:
     --pull                 Receive only: peer branches and their uncommitted work to here.
     --both                 Send and receive (default).
     --status               Report what is already known here. No network, no transfer.
+    --ff-peers             After a successful push, fast-forward a peer's checkout onto what was
+                           sent — only when that peer has the same branch checked out and a clean
+                           working tree. Off by default: a peer's branch is not ours to move.
     --dry-run              Print the plan and exit without moving anything.
     --json                 Machine-readable summary on stdout.
     --machines-file PATH   Registry to read (default: ~/.config/ainish-coder/machines.txt).
@@ -244,6 +248,44 @@ _ms_rm_cmd() { # path -> a remote-shell command that deletes it
     else
         printf "rm -f '%s'\n" "$p"
     fi
+}
+
+# Fast-forward the peer's own checkout onto the ref we just delivered.
+#
+# Opt-in, and only when the peer is demonstrably willing: its tree must be clean and the branch it has
+# checked out must be the branch we pushed. This is the "both machines' main move together" case the
+# operator asks for; the default stays hands-off because a peer's branch is not ours to move.
+_ms_fast_forward_peer() { # host path branch
+    local host="$1" path="$2" branch="$3"
+    local dirty peer_branch out rc=1
+
+    if [[ -z "$host" ]]; then
+        peer_branch="$(git -C "$path" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        dirty="$(git -C "$path" status --porcelain 2>/dev/null || true)"
+    else
+        peer_branch="$(_ms_remote "$host" "git -C '${path}' rev-parse --abbrev-ref HEAD" 2>/dev/null | tr -d '\r')"
+        dirty="$(_ms_remote "$host" "git -C '${path}' status --porcelain" 2>/dev/null | tr -d '\r')"
+    fi
+    if [[ "$peer_branch" != "$branch" ]]; then
+        _ms_skip "peer has '${peer_branch}' checked out, not '${branch}' — ref delivered, checkout untouched"
+        return 0
+    fi
+    if [[ -n "$dirty" ]]; then
+        _ms_skip "peer's '${branch}' has local changes — ref delivered, checkout untouched"
+        return 0
+    fi
+
+    if [[ -z "$host" ]]; then
+        git -C "$path" merge --ff-only "refs/remotes/${_MS_SELF}/${branch}" >/dev/null 2>&1 && rc=0
+    else
+        out="$(_ms_remote "$host" "git -C '${path}' merge --ff-only 'refs/remotes/${_MS_SELF}/${branch}'" 2>&1)" && rc=0
+    fi
+    if (( rc == 0 )); then
+        _ms_ok "peer's '${branch}' fast-forwarded"
+    else
+        _ms_skip "peer could not fast-forward '${branch}' (diverged) — ref delivered, checkout untouched"
+    fi
+    return 0
 }
 
 _ms_peer_reachable() { # host path
@@ -456,6 +498,7 @@ machine_sync() {
             --min-ram)     min_ram="${2:-0}";    shift 2 ;;
             --kind)        kind_filter="${2:-}"; shift 2 ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
+            --ff-peers)    _MS_FF_PEERS=true;     shift ;;
             --push)        _MS_DIRECTION="push";  shift ;;
             --pull)        _MS_DIRECTION="pull";  shift ;;
             --both)        _MS_DIRECTION="both";  shift ;;
@@ -617,6 +660,10 @@ machine_sync() {
                 0|3) recv=true ;;
                 *) recv=false ;;
             esac
+        fi
+
+        if [[ "$_MS_FF_PEERS" == "true" && "$sent" == "true" ]]; then
+            _ms_fast_forward_peer "$host" "$path" "$branch"
         fi
 
         if [[ "$sent" == "true" && "$recv" == "true" ]]; then

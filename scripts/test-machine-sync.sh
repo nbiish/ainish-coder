@@ -109,6 +109,20 @@ echo "== 4b. the push is verified against what the peer actually recorded =="
 A_HEAD_NOW="$(git -C "$A" rev-parse HEAD)"
 check "peer's remote-tracking ref matches this machine's HEAD" "$A_HEAD_NOW" "$(git -C "$B" rev-parse refs/remotes/box-18gb/feature/a 2>/dev/null)"
 
+echo "== 4c. --ff-peers moves a clean peer checkout, and only that =="
+git -C "$B" update-ref refs/remotes/machine-2-32gb/feature/b "$(git -C "$B" rev-parse HEAD)" 2>/dev/null || true
+B_TIP_BEFORE="$(git -C "$B" rev-parse refs/remotes/box-18gb/feature/a)"
+"$CLI" --machine-sync --repo "$A" --machines-file "$REG" --machine peer-b-64gb --push --ff-peers >/dev/null 2>&1
+check "--ff-peers fast-forwards the peer's checked-out branch" "$B_TIP_BEFORE" "$(git -C "$B" rev-parse HEAD)"
+printf 'dirty
+' >> "$B/tracked.txt"
+B_DIRTY_TIP="$(git -C "$B" rev-parse HEAD)"
+printf 'next\n' >> "$A/tracked.txt"
+git -C "$A" commit -qam "advance a"
+"$CLI" --machine-sync --repo "$A" --machines-file "$REG" --machine peer-b-64gb --push --ff-peers >/dev/null 2>&1
+check "--ff-peers refuses to move a dirty peer tree" "$B_DIRTY_TIP" "$(git -C "$B" rev-parse HEAD)"
+git -C "$B" checkout -q -- tracked.txt
+
 echo "== 5. repeat run is idempotent =="
 B_HEAD_AFTER_FIRST="$(git -C "$B" rev-parse HEAD)"
 "$CLI" --machine-sync --repo "$A" --machines-file "$REG" --machine peer-b-64gb --both >/dev/null 2>&1

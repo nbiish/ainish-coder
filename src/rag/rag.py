@@ -4911,6 +4911,247 @@ def save_elephant_session(repo_root: Path, state: Dict[str, Any]) -> Optional[Pa
         return None
 
 
+# ── wiki knowledge graph (embedding-free retrieval) ──────────────────────────
+#
+# The embedding model was the wrong dependency for this job. It answers "which chunk is near this
+# task string", which is exactly what a repository index is bad at: the answer almost always lives in
+# the wiki page that documents the subsystem plus the newest coordination artifact, and both are
+# already curated by the agents that wrote them. So retrieval walks a graph built from the wiki and
+# the `.agents` coordination folders instead of a vector store: no embedding endpoint, no dimension
+# mismatch, no degraded host when a key is missing.
+#
+# Nodes are the newest wiki pages (split at `## ` headings, so a hit is a section and not a whole
+# page) plus the newest artifact in each coordination folder, plus `.agents/llms.txt` — the map of
+# the tree. Edges are shared vocabulary and explicit markdown links. Retrieval seeds from the task
+# terms, walks one hop, and prefers recent nodes: "latest wiki + latest artifacts" is the contract.
+
+GRAPH_ARTIFACT_DIRS = ("comms", "memories", "plans", "suggestions", "tasks")
+GRAPH_MAX_ARTIFACTS = 2      # newest files per coordination folder
+GRAPH_MAX_WIKI_PAGES = 8
+GRAPH_CHAPTER_CHARS = 1400
+GRAPH_HOP_BONUS = 0.35
+GRAPH_CACHE = "wiki-graph.json"
+
+_GRAPH_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "into", "are", "was", "were", "been",
+    "have", "has", "had", "not", "but", "you", "your", "our", "its", "it's", "can", "will",
+    "would", "should", "could", "all", "any", "how", "what", "when", "which", "who", "why",
+    "use", "used", "using", "one", "two", "also", "than", "then", "them", "they", "there",
+    "here", "more", "most", "some", "such", "only", "just", "like", "make", "made", "get",
+}
+
+
+def _graph_terms(text: str) -> set:
+    """Lowercase content words: the graph's whole vocabulary is symbols and identifiers."""
+    terms = set()
+    for raw in re.findall(r"[A-Za-z_][A-Za-z0-9_.\-]{2,}", text or ""):
+        token = raw.strip(".-").lower()
+        if len(token) < 3 or token in _GRAPH_STOPWORDS:
+            continue
+        terms.add(token)
+    return terms
+
+
+def _graph_sources(repo_root: Path) -> List[Dict[str, Any]]:
+    """Newest wiki pages, newest artifacts per coordination folder, and the .agents map."""
+    sources: List[Dict[str, Any]] = []
+    agents = repo_root / ".agents"
+
+    wiki_dir = agents / "wiki"
+    if wiki_dir.is_dir():
+        pages = [p for p in wiki_dir.glob("*.md") if p.is_file()]
+        pages.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        for page in pages[:GRAPH_MAX_WIKI_PAGES]:
+            sources.append({"kind": "wiki", "path": page})
+
+    index = agents / "llms.txt"
+    if index.is_file():
+        sources.append({"kind": "map", "path": index})
+
+    for folder in GRAPH_ARTIFACT_DIRS:
+        directory = agents / folder
+        if not directory.is_dir():
+            continue
+        files = [p for p in directory.iterdir() if p.is_file() and p.suffix in (".txt", ".md")]
+        files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in files[:GRAPH_MAX_ARTIFACTS]:
+            sources.append({"kind": folder, "path": path})
+    return sources
+
+
+def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
+    """Graph of the wiki and the newest coordination artifacts. Cached until a source changes."""
+    nodes: List[Dict[str, Any]] = []
+    seen_paths = set()
+    for source in _graph_sources(repo_root):
+        path: Path = source["path"]
+        if path in seen_paths:
+            continue
+        seen_paths.add(path)
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        rel = str(path.relative_to(repo_root)) if str(path).startswith(str(repo_root)) else str(path)
+
+        if source["kind"] == "wiki":
+            # One node per second-level section: a hit should be a section, not a 400-line page.
+            offsets = [(m.start(), m.group(1).strip()) for m in re.finditer(r"(?m)^##\s+(.+)$", text)]
+            if not offsets:
+                offsets = [(0, path.stem)]
+            for idx, (start, title) in enumerate(offsets):
+                end = offsets[idx + 1][0] if idx + 1 < len(offsets) else len(text)
+                body = text[start:end][:GRAPH_CHAPTER_CHARS]
+                line = text[:start].count("\n") + 1
+                nodes.append({
+                    "id": f"{rel}#{line}",
+                    "kind": "wiki",
+                    "path": rel,
+                    "title": title,
+                    "start_line": line,
+                    "end_line": line + body.count("\n"),
+                    "text": body,
+                    "mtime": mtime,
+                    "terms": sorted(_graph_terms(f"{title} {body}")),
+                })
+        else:
+            body = text[:GRAPH_CHAPTER_CHARS]
+            nodes.append({
+                "id": rel,
+                "kind": source["kind"],
+                "path": rel,
+                "title": path.stem,
+                "start_line": 1,
+                "end_line": body.count("\n") + 1,
+                "text": body,
+                "mtime": mtime,
+                "terms": sorted(_graph_terms(f"{path.stem} {body}")),
+            })
+
+    # Edges: explicit markdown links first (curation, cheap, high precision), then shared vocabulary.
+    by_path = {n["path"]: n for n in nodes if n["kind"] != "wiki"}
+    edges: List[List[str]] = []
+    for node in nodes:
+        for target in re.findall(r"\(([^)\s]+\.(?:md|txt))\)", node["text"]):
+            cleaned = target.lstrip("./")
+            for candidate, other in by_path.items():
+                if other["id"] != node["id"] and candidate.endswith(cleaned):
+                    edges.append([node["id"], other["id"]])
+                    break
+    for i, a in enumerate(nodes):
+        for b in nodes[i + 1:]:
+            shared = set(a["terms"]) & set(b["terms"])
+            if len(shared) >= 3:
+                edges.append([a["id"], b["id"]])
+
+    # Recency rank drives the "latest first" tie-break.
+    ordered = sorted(nodes, key=lambda n: n["mtime"], reverse=True)
+    for rank, node in enumerate(ordered):
+        node["recency"] = 1.0 - (rank / max(1, len(ordered)))
+
+    return {
+        "format": "ainish-rag/wiki-graph/v1",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "nodes": nodes,
+        "edges": edges,
+    }
+
+
+def load_wiki_graph(repo_root: Path) -> Dict[str, Any]:
+    """Build-once graph, cached under .agents/rag/ and rebuilt when the source set changes."""
+    cache_path = repo_root / ".agents" / "rag" / GRAPH_CACHE
+    fingerprint = "|".join(
+        f"{p}:{p.stat().st_mtime_ns if p.exists() else 0}"
+        for p in [s["path"] for s in _graph_sources(repo_root)]
+    )
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+    if cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if cached.get("fingerprint") == digest and cached.get("nodes"):
+                return cached
+        except (OSError, ValueError):
+            pass
+    graph = build_wiki_graph(repo_root)
+    graph["fingerprint"] = digest
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(graph), encoding="utf-8")
+    except OSError:
+        pass
+    return graph
+
+
+def graph_retrieve(repo_root: Path, task: str, want: int = 10) -> Dict[str, Any]:
+    """Rank graph nodes against the task, walk one hop, prefer recent nodes. No embeddings."""
+    graph = load_wiki_graph(repo_root)
+    nodes: List[Dict[str, Any]] = graph.get("nodes") or []
+    if not nodes:
+        return {"hits": [], "mode": "wiki_graph_empty", "meta": {"nodes": 0, "edges": 0}}
+
+    neighbors: Dict[str, List[str]] = {}
+    for a, b in graph.get("edges") or []:
+        neighbors.setdefault(a, []).append(b)
+        neighbors.setdefault(b, []).append(a)
+
+    task_terms = _graph_terms(task)
+    if not task_terms:
+        return {"hits": [], "mode": "wiki_graph_no_terms", "meta": {"nodes": len(nodes), "edges": 0}}
+
+    df: Dict[str, int] = {}
+    for node in nodes:
+        for term in node.get("terms") or []:
+            df[term] = df.get(term, 0) + 1
+    total = max(1, len(nodes))
+
+    scores: Dict[str, float] = {}
+    for node in nodes:
+        overlap = task_terms & set(node.get("terms") or [])
+        if not overlap:
+            continue
+        # Rare terms carry the signal: a term present in every node separates nothing.
+        weight = sum(math.log(1.0 + total / max(1, df.get(t, 1))) for t in overlap)
+        scores[node["id"]] = weight * (0.55 + 0.45 * float(node.get("recency") or 0.0))
+
+    for node_id in list(scores):
+        for neighbor in neighbors.get(node_id, []):
+            bonus = scores[node_id] * GRAPH_HOP_BONUS
+            if bonus > scores.get(neighbor, 0.0):
+                scores[neighbor] = bonus
+
+    ranked = sorted(
+        (n for n in nodes if scores.get(n["id"], 0.0) > 0),
+        key=lambda n: (scores[n["id"]], n.get("recency") or 0.0),
+        reverse=True,
+    )[:want]
+
+    hits: List[Dict[str, Any]] = []
+    top = max((scores[n["id"]] for n in ranked), default=1.0) or 1.0
+    for node in ranked:
+        normalised = min(1.0, scores[node["id"]] / top)
+        hits.append({
+            "id": node["id"],
+            "path": node["path"],
+            "start_line": node.get("start_line") or 1,
+            "end_line": node.get("end_line") or 1,
+            "content": f"{node.get('title') or ''}\n{node.get('text') or ''}".strip(),
+            "score": normalised,
+            "decision_score": normalised,
+            "decision_role": "graph",
+            "noul_band": "yes" if normalised >= 0.5 else "partial",
+            "decision_utility": 2.6 if normalised >= 0.5 else 1.0,
+        })
+    mode = (
+        f"wiki_graph ({len(nodes)} nodes, {len(graph.get('edges') or [])} edges, "
+        f"{len(hits)} hits, newest wiki {next((n['path'] for n in nodes if n['kind'] == 'wiki'), 'none')})"
+    )
+    return {"hits": hits, "mode": mode, "meta": {"nodes": len(nodes), "edges": len(graph.get("edges") or [])}}
+
+
 def retrieve_context(
     repo_root: Path,
     task: str,
@@ -4938,6 +5179,19 @@ def retrieve_context(
         }
 
     want = int(pool_size or route_decision.get("candidate_pool_size") or 12)
+
+    # Graph first. The wiki page that documents a subsystem plus the newest coordination artifact
+    # answer most repository questions, and they answer them on a host with no embedding endpoint at
+    # all. Vectors remain the fallback for questions the curated corpus does not cover.
+    graph = graph_retrieve(repo_root, task, want=max(6, want))
+    if graph["hits"]:
+        return {
+            "hits": graph["hits"],
+            "mode": graph["mode"],
+            "sufficiency": evaluate_context_sufficiency(graph["hits"]),
+            "corrective_terms": [],
+        }
+
     hits: List[Dict[str, Any]] = []
     mode = "vector"
     if client is not None and store is not None:
@@ -5257,7 +5511,9 @@ def elephant_synthesize(
             "role": "user",
             "content": (
                 f"TASK:\n{task}\n\nSESSION SUMMARY (rolling):\n{summary}\n\n"
-                f"ESTABLISHED FACTS:\n{established}\n\nRETRIEVED CONTEXT (do not restate):\n"
+                f"ESTABLISHED FACTS:\n{established}\n\n"
+                f"KNOWLEDGE GRAPH + NEWEST .agents CONTEXT (wiki, comms, memories, plans, "
+                f"suggestions, tasks; do not restate):\n"
                 f"{retrieval_text[:6000]}\n\nWrite at most {max(80, token_cap // 3)} words."
             ),
         },
@@ -5281,10 +5537,12 @@ def goldfish_review(
     elephant_text: str,
     token_cap: int,
 ) -> Dict[str, Any]:
-    """Stateless addition. The signature is the isolation guarantee: no session is reachable here.
+    """Stateless addition: the input plus the retrieved evidence, and never the chat context.
 
-    Anything passed in is exactly (task, retrieval, elephant draft). Goldfish cannot see the session
-    sidecar, COMMS, memories, or history because this function has no way to obtain them.
+    The isolation is structural, not a promise: this function receives the task, the retrieval the
+    caller already assembled, and the elephant's draft. It has no route to the session sidecar, the
+    wiki graph, COMMS, memories, or any prior turn — the operator's model is a reviewer that reads the
+    request as a fresh reader would, so accumulated session belief cannot smooth a gap over.
     """
     if token_cap <= 0:
         return {"text": "", "source": "skipped", "reason": "no budget"}
@@ -5302,7 +5560,8 @@ def goldfish_review(
         {
             "role": "user",
             "content": (
-                f"TASK:\n{task}\n\nRETRIEVED CONTEXT:\n{retrieval_text[:6000]}\n\n"
+                f"INPUT (the user/agent request):\n{task}\n\n"
+                f"RETRIEVED EVIDENCE (wiki graph + newest .agents artifacts):\n{retrieval_text[:6000]}\n\n"
                 f"ELEPHANT DRAFT (the only prior material you may consider):\n"
                 f"{elephant_text[:3000] or '(none)'}\n\nWrite at most {max(60, token_cap // 3)} words."
             ),

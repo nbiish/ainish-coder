@@ -234,6 +234,11 @@ bundle carries commits, not a directory tree, so `bin/*.exe`, vector indexes, si
 files stay on the machine that produced them. If the peer's tree is clean, no snapshot is created and
 any stale one is dropped.
 
+By default the far side gets refs and decides when to move. `--ff-peers` is the explicit exception:
+after a successful push it fast-forwards a peer that has the same branch checked out **and** a clean
+working tree, so `main` lands on both machines in one command. A dirty or differently-checked-out peer
+is left alone, and says so.
+
 ---
 
 ## 🔄 OSA Framework (YOLO Mode)
