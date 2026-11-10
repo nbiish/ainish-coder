@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "id": "fallback-decision",
+      "models": [
+        "typesafe/jev-1.14"
+      ]
+    },
+    {
+      "id": "fallback-embedding",
+      "models": [
+        "zenmux/openai/text-embedding-3-small",
+        "openrouter/openai/text-embedding-3-small",
+        "nous-portal/openai/text-embedding-3-small"
+      ]
+    },
+    {
+      "id": "fallback-models",
+      "models": [
+        "pioneer-deepseek-v4-flash",
+        "commandcode-glm-5.3-flash",
+        "opencode-zen-glm-5.2",
+        "cline-z-ai-glm-5.2",
+        "kilo-z-ai-glm-5.3-flash-paid",
+        "nous-portal-glm-5.3-flash-batch",
+        "zai-glm-5.3-flash",
+        "xiaomi-mimo-mimo-v2.5",
+        "opencode-zen-deepseek-v4-flash-free",
+        "cline-xiaomi-mimo-v2.5-free",
+        "openrouter-free",
+        "kilo-openrouter-free",
+        "openrouter-deepseek-v4.1-flash-batch",
+        "openrouter-kimi-latest",
+        "wafer-ai-glm-5.3-flash",
+        "zenmux-glm-5.3-flash"
+      ]
+    }
+  ]
+}
