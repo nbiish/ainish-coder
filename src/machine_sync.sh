@@ -394,37 +394,60 @@ _ms_push() { # repo host peer_path peer_name bundle
         git -C "$path" fetch "$remote_bundle" "${specs[@]}" >/dev/null 2>&1
         local rc=$?
         rm -f "$remote_bundle"
-        return $rc
-    fi
-
-    scp -q -o BatchMode=yes -o ConnectTimeout=10 "$bundle" "${host}:${remote_bundle}" || return 1
-    # Capture the peer's fetch output instead of discarding it: a ref that silently fails to update
-    # is indistinguishable from a successful run otherwise, and this is the one place a peer's own
-    # git gets a vote.
-    local out rc=0
-    out="$(_ms_remote "$host" "git -C '${path}' fetch '${remote_bundle}' $(printf "'%s' " "${specs[@]}")" 2>&1)" || rc=$?
-    _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
-    if (( rc != 0 )); then
-        _ms_err "$peer — the peer's git refused the fetch:"
-        printf '%s\n' "$out" | sed 's/^/    /' >&2
-        return 1
+        if (( rc != 0 )); then _ms_err "$peer — local fetch failed"; return 1; fi
+    else
+        local attempt out rc
+        # A peer on a slow or virtualised mount can hand a truncated bundle to git: the copy returns,
+        # the fetch then fails or lands nothing. Retry once before calling the peer broken, and keep
+        # the bundle in place until the ref is verified so a retry has something to fetch.
+        for attempt in 1 2; do
+            rc=0
+            scp -q -o BatchMode=yes -o ConnectTimeout=10 "$bundle" "${host}:${remote_bundle}" || rc=1
+            if (( rc == 0 )); then
+                out="$(_ms_remote "$host" "git -C '${path}' fetch '${remote_bundle}' $(printf "'%s' " "${specs[@]}")" 2>&1)" || rc=$?
+            fi
+            if (( rc == 0 )); then break; fi
+            if (( attempt == 2 )); then
+                _ms_err "$peer — the peer's git refused the fetch:"
+                printf '%s\n' "${out:-no output}" | sed 's/^/    /' >&2
+                _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
+                return 1
+            fi
+            sleep 1
+        done
     fi
 
     # Read back what the peer actually recorded. A fetch can exit 0 while leaving a ref untouched;
     # without this check a partial delivery is indistinguishable from a clean sync.
-    local branch tip peer_tip
+    local branch tip peer_tip tries=0
     branch="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
     tip="$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || true)"
-    if [[ -n "$tip" ]]; then
-        if [[ -z "$host" ]]; then
-            peer_tip="$(git -C "$path" rev-parse -q --verify "refs/remotes/${_MS_SELF}/${branch}" 2>/dev/null || true)"
+    while :; do
+        if [[ -n "$tip" ]]; then
+            if [[ -z "$host" ]]; then
+                peer_tip="$(git -C "$path" rev-parse -q --verify "refs/remotes/${_MS_SELF}/${branch}" 2>/dev/null || true)"
+            else
+                peer_tip="$(_ms_remote "$host" "git -C '${path}' rev-parse -q --verify 'refs/remotes/${_MS_SELF}/${branch}'" 2>/dev/null | tr -d '\r')"
+            fi
+            [[ "$tip" == "$peer_tip" ]] && break
         else
-            peer_tip="$(_ms_remote "$host" "git -C '${path}' rev-parse -q --verify 'refs/remotes/${_MS_SELF}/${branch}'" 2>/dev/null | tr -d '\r')"
+            break
         fi
-        if [[ "$tip" != "$peer_tip" ]]; then
+        tries=$((tries + 1))
+        if (( tries >= 2 )); then
             _ms_err "$peer — fetch reported success but refs/remotes/${_MS_SELF}/${branch} is '${peer_tip:0:8}', expected '${tip:0:8}'"
+            [[ -n "$host" ]] && _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
             return 1
         fi
+        # Re-fetch once: the first pass may have raced a partially visible bundle.
+        if [[ -z "$host" ]]; then
+            git -C "$path" fetch "$remote_bundle" "${specs[@]}" >/dev/null 2>&1 || true
+        else
+            _ms_remote "$host" "git -C '${path}' fetch '${remote_bundle}' $(printf "'%s' " "${specs[@]}")" >/dev/null 2>&1 || true
+        fi
+    done
+    if [[ -n "$host" ]]; then
+        _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
     fi
     return 0
 }
