@@ -384,7 +384,7 @@ _ms_snapshot_peer() { # host path peer
 
 _ms_push() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
-    local remote_bundle="${path}/.git/ainish-machine-sync.bundle"
+    local remote_bundle="${path}/.git/ainish-machine-sync-in.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$_MS_SELF")
@@ -454,7 +454,9 @@ _ms_push() { # repo host peer_path peer_name bundle
 
 _ms_pull() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
-    local remote_bundle="${path}/.git/ainish-machine-sync.bundle"
+    # A distinct filename from the push direction: on a --both run the two transfers would otherwise
+    # share one path in the peer's .git and clobber each other mid-flight.
+    local remote_bundle="${path}/.git/ainish-machine-sync-out.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$peer")
