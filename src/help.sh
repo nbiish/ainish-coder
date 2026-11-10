@@ -72,6 +72,16 @@ CORE COMMANDS:
     --rules-doctor [--json]   Verify manifest, refresher, hook, and registry health,
                               repairing missing hooks/manifests in place.
     --rules-watch [SECONDS]   Foreground watcher: sync the fleet when root HEAD moves.
+    --machine-sync [DIR]      Federate this repository with the operator's other
+                              machines over the existing SSH link — no remote, no
+                              push/pull cycle. Branches land as refs/remotes/<machine>/*,
+                              and uncommitted work is snapshotted into a commit on
+                              refs/machine-sync/<machine>/<branch>, so a dirty tree on
+                              one machine is readable on every other. Ignored files
+                              never cross. Peers come from ~/.config/ainish-coder/
+                              machines.txt and are named by capacity
+                              (<kind>-<ram>gb), so --min-ram 64 picks the big box.
+                              --push | --pull | --both, --status, --dry-run, --json.
     --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]
                               Use a remote OpenAI-compatible embedding model and
                               skip the local llama server entirely (saves GBs of
@@ -411,6 +421,13 @@ EXAMPLES:
     ainish-coder --rules-provenance --sign  # Emit + ML-DSA-65-sign a COMMS provenance stamp
     ainish-coder --rules-history ~/my-repo  # Inspect a target's manifest commit, signer, and history
     ainish-coder --rules-unenroll ~/my-repo # Remove a target from the fleet registry + uninstall its hooks
+
+    # Cross-machine federation (no remote needed; the LAN SSH link is the transport)
+    ainish-coder --machine-sync             # Send + receive with every registered peer
+    ainish-coder --machine-sync . --min-ram 64   # Only peers with at least 64 GB
+    ainish-coder --machine-sync . --push    # Send only
+    ainish-coder --machine-sync . --status  # What is already known here, no transfer
+    ainish-coder --machine-sync . --dry-run # Print the plan, move nothing
     ainish-coder --embed-config --provider api --api-base https://api.openai.com/v1 --model text-embedding-3-small
                                             # Use a remote API embedding model; skip the local llama server
     ainish-coder --embed-config --status    # Show the active embedding provider and whether llama runs

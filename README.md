@@ -194,6 +194,46 @@ ainish-coder --rules -y                  # AGENTS.md → target dir, copy mode
 ainish-coder --skills-sync --link -y     # Sync skills → target dir, symlink mode
 ```
 
+### Cross-machine federation (`--machine-sync`)
+
+`--rules` distributes the rules to repos. `--machine-sync` distributes the **repository** to your other
+machines — over the SSH link that already exists, without a Git remote in the middle.
+
+```bash
+ainish-coder --machine-sync              # send + receive with every registered peer
+ainish-coder --machine-sync . --min-ram 64   # only peers with at least 64 GB
+ainish-coder --machine-sync . --push     # send only   (--pull for receive only)
+ainish-coder --machine-sync . --status   # what is already known here, no transfer
+```
+
+Peers live in `~/.config/ainish-coder/machines.txt`, one line each, named by capacity:
+
+```ini
+mac-18gb=self                       # this machine (exactly one self line)
+windows-128gb=windows-128gb:D:/Code # an SSH alias plus the directory that CONTAINS repos
+wsl-94gb=wsl-94gb:/mnt/d/Code
+cloud-a100-80gb=cloud-a100-80gb:/srv/code
+```
+
+The name is `<kind>[-<accelerator>]-<ram>gb`, where the number is the RAM a job can actually be given
+(installed for a bare-metal OS, cgroup-visible for a guest like WSL). That makes capacity a selector,
+not a comment: `--min-ram 64` or `--kind windows` pick the machine, and an agent can read the same
+names to decide where work belongs.
+
+What crosses is refs, and only refs:
+
+| Arrives as | What it is |
+|---|---|
+| `refs/remotes/<machine>/*` | every branch the other machine has |
+| `refs/machine-sync/<machine>/<branch>` | that machine's **uncommitted work**, snapshotted as a commit |
+
+A snapshot commit is the part `rsync` cannot do and `git push` will not: the sender's dirty tree —
+tracked edits, new untracked files, staged-but-uncommitted changes — becomes a readable commit on the
+receiver without touching its HEAD, branches, index, or working tree. Ignored files never cross: a
+bundle carries commits, not a directory tree, so `bin/*.exe`, vector indexes, signing keys, and `.env`
+files stay on the machine that produced them. If the peer's tree is clean, no snapshot is created and
+any stale one is dropped.
+
 ---
 
 ## 🔄 OSA Framework (YOLO Mode)

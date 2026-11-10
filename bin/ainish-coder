@@ -57,6 +57,7 @@ source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
 source "${SRC_DIR}/embed_config.sh"
 source "${SRC_DIR}/pqc_dist.sh"
+source "${SRC_DIR}/machine_sync.sh"
 
 # Main function
 main() {
@@ -385,6 +386,10 @@ main() {
 
         --rules-doctor)
             rules_doctor "$@"
+            ;;
+
+        --machine-sync)
+            machine_sync "$@"
             ;;
 
         --rules-watch)
