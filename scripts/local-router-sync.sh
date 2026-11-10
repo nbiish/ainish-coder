@@ -23,6 +23,17 @@
 # of truth and an unrelated host should not be marked broken for not running the router.
 set -uo pipefail
 
+# Interpreter probe: Git-for-Windows has no `python3`, and a guard that fails because it could not
+# find an interpreter reads as "the chain is empty" — the opposite of the truth.
+lr_py() {
+    for c in python3 python; do
+        command -v "$c" >/dev/null 2>&1 && { printf '%s\n' "$c"; return 0; }
+    done
+    command -v py >/dev/null 2>&1 && { printf 'py -3\n'; return 0; }
+    return 1
+}
+PY="$(lr_py || true)"
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CANON="${REPO}/config/local-router/fallback-models.json"
 TARGET_DIR="${LOCAL_ROUTER_CONFIG_DIR:-${HOME}/.config/local-router}"
@@ -42,7 +53,12 @@ done
 
 [[ -f "$CANON" ]] || { echo "local-router-sync: canonical chain missing: $CANON" >&2; exit 1; }
 
-canon_models="$(python3 -c "
+if [[ -z "${PY:-}" ]]; then
+    echo "local-router-sync: no python interpreter found (python3/python/py)" >&2
+    exit 1
+fi
+
+canon_models="$(${PY} -c "
 import json,sys
 d=json.load(open(sys.argv[1]))
 for r in d['routes']:
@@ -61,7 +77,7 @@ verify_chain() { # 0 when the live router serves the canonical route
     command -v local-router >/dev/null 2>&1 || { echo "  · local-router not installed here — skipped"; return 3; }
     local port="${LOCAL_ROUTER_PORT:-11434}"
     local ids
-    ids="$(curl -sS -m 6 "http://127.0.0.1:${port}/v1/models" 2>/dev/null | python3 -c "
+    ids="$(curl -sS -m 6 "http://127.0.0.1:${port}/v1/models" 2>/dev/null | ${PY:-python3} -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
