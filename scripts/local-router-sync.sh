@@ -26,10 +26,17 @@ set -uo pipefail
 # Interpreter probe: Git-for-Windows has no `python3`, and a guard that fails because it could not
 # find an interpreter reads as "the chain is empty" — the opposite of the truth.
 lr_py() {
+    local c
+    # `command -v` is not proof: Windows ships Microsoft Store shims named python3/python that exist,
+    # fail on every invocation, and would make this script report an empty chain. Test, then trust.
     for c in python3 python; do
-        command -v "$c" >/dev/null 2>&1 && { printf '%s\n' "$c"; return 0; }
+        if command -v "$c" >/dev/null 2>&1 && "$c" -c 'print(1)' >/dev/null 2>&1; then
+            printf '%s\n' "$c"; return 0
+        fi
     done
-    command -v py >/dev/null 2>&1 && { printf 'py -3\n'; return 0; }
+    if command -v py >/dev/null 2>&1 && py -3 -c 'print(1)' >/dev/null 2>&1; then
+        printf 'py -3\n'; return 0
+    fi
     return 1
 }
 PY="$(lr_py || true)"
