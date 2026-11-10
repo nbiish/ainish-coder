@@ -59,3 +59,16 @@ description: Agent Communication System protocol template. Deployed by `ainish-c
 - verification:git rev-parse on three surfaces (mac, origin, windows) all c5bf68e; bash -n on src/file_operations.sh, src/deploy_rules_sync.sh, scripts/test-pqc-dist.sh; gate parity against a d045363 baseline worktree (150 pass/14 fail before, 153 pass/14 fail after, same 14).
 - findings:Windows also holds an uncommitted lane in D:\Code\ainish-coder-context-prime (feat/agents-context-prime): 13 files +4184/-2361 under src/rag plus 8 new test scripts, a plan and a task record. It is the only copy of the Rust `PY_ONLY_SUBCOMMANDS` redirect that makes the mandatory `ainish-rag --context` work on Windows, where PATH resolves the stale bin\ainish-rag.exe before the .cmd launcher. Not synced: uncommitted work has no transport; it needs a commit on its branch.
 - nosecrets:crossed the wire; the bundle carried one commit of tracked source only. bin/*.exe and .agents/rag index state stayed machine-local by design.
+
+### [2026-11-10T18:20:00Z] feat | branch:feat/machine-sync | wt:/Users/nbiish/code/ainish-coder
+- start:2026-11-10T16:20:00Z
+- end:2026-11-10T18:20:00Z
+- parent:none (operator direct)
+- scope:src/machine_sync.sh, bin/ainish-coder, src/help.sh, README.md, llms.txt, scripts/test-machine-sync.sh, ~/.ssh/config, ~/.config/ainish-coder/machines.txt
+- objective:One command that federates a repository between the operator's machines directly, carrying branches and uncommitted work, with peers named by RAM.
+- input:Operator asked for `ainish-coder --machine-sync` so a designated repo syncs across one or more machines without going through the Git remote, and for machine identities to carry available RAM (mac-18gb, windows-128gb, cloud-*gb) so tasks can be designated by capacity.
+- output:New CLI verb plus a 23-assertion gate. Branches arrive as refs/remotes/<machine>/*, uncommitted work as a snapshot commit on refs/machine-sync/<machine>/<branch>, ignored files never cross, and the peer's HEAD/index/worktree are never touched. SSH aliases and the machine registry now carry capacity names on both machines, with the convention documented in both ssh configs.
+- status:done
+- blockers:none
+- verification:23/23 hermetic assertions; live mac-18gb to windows-128gb exit 0 with the snapshot ref confirmed by `git show-ref` on Windows; scripts/test-pqc-dist.sh 153 pass / 14 pre-existing; ainish-rag embeddings and advisory models verified through local-router.
+- findings:macOS vector retrieval still degrades (no lancedb in the Python env, no macOS compiled binary) — engine fails closed accurately. Windows bin\ainish-rag.exe is stale and PATH prefers it over the .cmd launcher; the PY_ONLY_SUBCOMMANDS redirect needed to rebuild it lives on feat/agents-context-prime, preserved on origin.
