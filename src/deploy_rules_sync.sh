@@ -205,8 +205,14 @@ _ainish_rules_verify_manifest_sig() {
     [[ -f "$sig" ]] || { printf 'MISSING_SIG\n'; return 1; }
     local rag python
     rag="$(_ainish_rag_bin)" || { printf 'NO_VERIFIER\n'; return 1; }
+    # Verify the MANIFEST, not its directory. This used to pass `$(dirname "$manifest")`,
+    # so `audit verify` swept every receipt in .agents/ and any unrelated stale or
+    # differently-keyed receipt failed the whole rules deploy. At a home directory (where
+    # .agents/ also holds mcp-settings, a skill lock, and contract history) that made
+    # `ainish-coder --rules ~` impossible to complete even when the manifest was fine.
+    # A rules deploy is answerable only for the artifact it just wrote.
     local verify_target
-    verify_target="$(_ainish_rules_sign_arg "$rag" "$(dirname "$manifest")")"
+    verify_target="$(_ainish_rules_sign_arg "$rag" "$manifest")"
     if command -v timeout >/dev/null 2>&1; then
         if (cd "${REPO_DIR}" && timeout 20 "$rag" audit verify --path "$verify_target" </dev/null >/dev/null 2>&1); then
             printf 'VERIFIED\n'
@@ -529,6 +535,18 @@ ROOT_HOOK_BLOCK
 # clone has no signer at all. Checking here — instead of discovering it after
 # the manifest is written — means a clone fails cleanly, with instructions, and
 # never leaves a signed-expectation manifest without its signature behind.
+# _ainish_rules_anchor_mismatch — prints "signer|anchor" when this machine's signing key
+# differs from the committed trust anchor, and nothing when they agree.
+#
+# Read-only and advisory: it never rotates the anchor or fails a deploy. A trust-root change
+# must be a deliberate, reviewed act, not a side effect of `--rules`.
+_ainish_rules_anchor_mismatch() {
+    local rag
+    rag="$(_ainish_rag_bin)" || return 0
+    # The engine resolves its anchor relative to the repo it runs in, so run it in REPO_DIR.
+    ( cd "${REPO_DIR}" 2>/dev/null && "$rag" audit anchor-check 2>/dev/null ) || return 0
+}
+
 _ainish_rules_require_signer() {
     local rag
     if rag="$(_ainish_rag_bin)"; then
@@ -583,6 +601,19 @@ deploy_rules_sync() {
         print_warning "Could not sign deployment manifest in ${target_abs}"
         return 1
     }
+    # A signed manifest proves nothing if this machine's signer is not the committed trust
+    # anchor: the signature verifies only against whoever holds that seed. Report both
+    # fingerprints instead of claiming integrity, and keep deploying — the rules themselves
+    # are correct, it is provenance that is unverifiable until the keypair and anchor agree.
+    local _mismatch
+    _mismatch="$(_ainish_rules_anchor_mismatch "${target_abs}" 2>/dev/null || true)"
+    if [[ -n "$_mismatch" ]]; then
+        print_warning "Signing key does not match the committed trust anchor in ${REPO_DIR}"
+        echo -e "    signer: ${BRIGHT_WHITE}${_mismatch%%|*}${RESET}" >&2
+        echo -e "    anchor: ${BRIGHT_WHITE}${_mismatch##*|}${RESET}" >&2
+        echo -e "    signatures from this machine cannot verify until the anchor is rotated" >&2
+        echo -e "    (or AINISHRAG_MLDSA65_SEED is set to the seed that produced the anchor)." >&2
+    fi
     [[ "$(_ainish_rules_verify_manifest_sig "$target_abs/.agents/ainish-deploy.json" 2>/dev/null || true)" == "VERIFIED" ]] || {
         print_warning "Deployment manifest signature verification failed in ${target_abs}"
         return 1
