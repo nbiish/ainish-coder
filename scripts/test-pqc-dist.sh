@@ -540,6 +540,8 @@ check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]]
 # (this repo's own commits carried `Co-authored-by: Cursor` until 2026-11-11). The contract must
 # forbid it explicitly, because every harness default that offers it is otherwise obeyed.
 contains "contract forbids co-authorship" "$(cat "${REPO}/AGENTS.md")" 'Never co-author a commit'
+contains "contract names the harness identity" "$(cat "${REPO}/AGENTS.md")" 'Nanoboozhoo - embodies by {agent harness}'
+contains "contract points at the identity guard" "$(cat "${REPO}/AGENTS.md")" 'commit-identity-guard.sh'
 coauthor_ok=0
 if grep -qiE 'owner is the only author|only author' "${REPO}/AGENTS.md"; then coauthor_ok=1; fi
 check "contract names the owner as sole author" "$coauthor_ok" "1"
