@@ -724,12 +724,69 @@ for required in ainish-security pqc-secrets question-me security-first-agent; do
 done
 # 4. No script may resolve the SOURCE tree from a hardcoded literal. One shared constant is what keeps
 #    src/deploy_skills.sh, the selector, verify, sync, pqc, scrolls, and unlock in step.
+# 5. The local skills INDEX is a copy of the payload's, because the contract links to it by path and
+#    this repo must be able to follow its own contract. Two copies means drift, so pin byte-identity —
+#    an index that silently diverges would describe packs differently depending on which side you read.
+if [[ -f "${REPO}/skills-to-distribute/skills/llms.txt" ]] && cmp -s \
+        "${REPO}/skills-to-distribute/skills/llms.txt" "${REPO}/.agents/skills/llms.txt"; then
+    ok "local skills index matches the payload index"
+else
+    not_ok "local skills index is missing or drifted from skills-to-distribute/skills/llms.txt"
+fi
+# And every contract link that points INTO .agents/skills must resolve here, or the contract tells an
+# agent in this repo to read a file that was never placed.
+contract_skill_links_missing=0
+while IFS= read -r lk; do
+    [[ -z "$lk" ]] && continue
+    [[ -e "${REPO}/${lk}" ]] || { contract_skill_links_missing=$((contract_skill_links_missing + 1)); echo "  dangling contract link: ${lk}"; }
+done < <(grep -oE '\.agents/skills/[A-Za-z0-9._/-]+' "${REPO}/AGENTS.md" 2>/dev/null | sort -u)
+check "every AGENTS.md skills link resolves in this repo" "$contract_skill_links_missing" "0"
 hardcoded=$(grep -rn 'REPO_DIR}/\.agents/skills\|REPO_DIR}/\.agents/skills/\${' \
     "${REPO}/src" "${REPO}/bin/ainish-coder" 2>/dev/null \
     | grep -v 'AINISH_SKILLS_TARGET_REL' | grep -v '^.*#' | wc -l | tr -d ' ')
 check "no script hardcodes the payload source path" "$hardcoded" "0"
 contains "the shared source constant is defined once" "$(cat "${REPO}/src/paths.sh")" 'AINISH_SKILLS_SOURCE_REL="skills-to-distribute/skills"'
 contains "the shared target constant is defined once" "$(cat "${REPO}/src/paths.sh")" 'AINISH_SKILLS_TARGET_REL=".agents/skills"'
+
+echo "== plan-first gate =="
+# AGENTS.md non-negotiable #1 is prose; --plan-check is the deterministic half. A gate that
+# cannot fail is decoration, so both directions are asserted: refusal without a plan, and
+# acceptance with one whose `branch:` key names this branch.
+contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Plan first'
+contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{slug}.plan.md'
+check "AGENTS.md stays within the 120-line gate" \
+    "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 120 ]] && echo yes || echo no)" "yes"
+PLAN_REPO="${WORK}/plan-gate-repo"
+mkdir -p "${PLAN_REPO}/.agents/plans"
+git -C "${PLAN_REPO}" init -q 2>/dev/null
+git -C "${PLAN_REPO}" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init 2>/dev/null
+git -C "${PLAN_REPO}" checkout -qb feat/gated 2>/dev/null
+plan_verdict() { (cd "$PLAN_REPO" && env HOME="$HOME_DIR" AINISH_NO_TRACKING=true bash "$CLI" --plan-check . >/dev/null 2>&1; echo $?); }
+check "no plan on a feature branch is refused" "$(plan_verdict)" "1"
+printf -- '---\nbranch: feat/gated\nstatus: designing\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+check "a still-designing plan is refused" "$(plan_verdict)" "1"
+printf -- '---\nbranch: feat/other-branch\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+check "a plan for a different branch does not count" "$(plan_verdict)" "1"
+printf -- '---\nbranch: feat/gated\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+check "a ready plan names and clears the branch" "$(plan_verdict)" "0"
+git -C "${PLAN_REPO}" checkout -q main 2>/dev/null
+check "the default branch is never gated" "$(plan_verdict)" "0"
+
+echo "== wiki vault is Obsidian-native =="
+# The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows
+# orphan files, and without a wikilink-aware reader `--context` loses every explicit edge.
+contains "wiki pages emit frontmatter tags" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'ainish/wiki'
+contains "wiki pages emit wikilinks" "$(cat "${REPO}/src/rag/src/wiki.rs")" '[[{}|{}]]'
+contains "the graph reader parses wikilinks" "$(cat "${REPO}/src/rag/rag.py")" 'WIKILINK_RE'
+# A reader that ignores `[[...]]` is the exact regression this pair of patterns prevents.
+contains "the graph reader still parses markdown links" "$(cat "${REPO}/src/rag/rag.py")" 'MDLINK_RE'
+contains "navigation headings are excluded from nodes" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_NAV_HEADINGS'
+contains "code spans never count as links" "$(cat "${REPO}/src/rag/rag.py")" '_strip_code_spans'
+contains "vault config is written once" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'fn ensure_vault_config'
+contains "a Rust test pins the vault format" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'generated_vault_is_obsidian_native'
+# The ledger is operator-owned and signed; generation must never rewrite it.
+contains "ledger is spliced, not regenerated" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'read_operator_ledger'
+
 
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

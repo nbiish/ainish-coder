@@ -10,6 +10,53 @@ pub struct WikiGenerator {
     wiki_dir: PathBuf,
 }
 
+// ── Obsidian vault contract ──────────────────────────────────────────────────
+// These pages are opened in Obsidian as a vault, so the format is a contract, not
+// cosmetics: frontmatter drives search/tags/graph grouping, and `[[wikilinks]]` are
+// what populate the backlinks pane. The graph builder parses `[[...]]` as well (see
+// extract_link_targets / WIKILINK_RE) — emitting one syntax without teaching the
+// reader would leave a vault that looks connected in Obsidian while `--context`
+// silently lost every explicit edge.
+const WIKI_TAGS_ROOT: &str = "ainish/wiki";
+
+/// Frontmatter is written for every generated page. `decision_source` records whether
+/// salience came from a real decision model or the deterministic structural fallback,
+/// because a page that *looks* model-ranked while it is not is worse than an honest one.
+fn render_frontmatter(
+    title: &str,
+    slug: &str,
+    aliases: &[&str],
+    generated: &str,
+    source_commit: &str,
+    decision_source: &str,
+) -> String {
+    let alias_list = if aliases.is_empty() {
+        String::new()
+    } else {
+        format!("{:?}", aliases)
+    };
+    format!(
+        "---\ntitle: {title}\naliases: {alias_list}\ntags: [{tags}/{slug}, {tags}/generated]\nup: \"[[README]]\"\ngenerated: {generated}\nsource_commit: {source_commit}\ndecision_source: {decision_source}\n---\n\n",
+        title = title,
+        alias_list = alias_list,
+        tags = WIKI_TAGS_ROOT,
+        slug = slug,
+        generated = generated,
+        source_commit = source_commit,
+        decision_source = decision_source,
+    )
+}
+
+/// A navigation-only block. Kept as a separate `## ` section so it is visually uniform,
+/// and filtered out of graph nodes by GRAPH_NAV_HEADINGS on the reader side.
+fn render_related(links: &[(&str, &str)]) -> String {
+    let mut out = String::from("\n## Related\n");
+    for (target, label) in links {
+        out.push_str(&format!("- [[{}|{}]]\n", target, label));
+    }
+    out
+}
+
 #[derive(Default)]
 struct RepoStats {
     total_files: usize,
@@ -94,8 +141,47 @@ impl WikiGenerator {
         fs::write(&index_path, index_content).map_err(|e| e.to_string())?;
         generated.push(index_path);
 
+        // Vault configuration so `.agents/wiki/` opens in Obsidian with sane defaults.
+        // Written only when absent: an operator's graph/theme/appearance choices live in
+        // these files and regenerating them on every wiki run would silently discard them.
+        self.ensure_vault_config();
+
         println!("  [rag:wiki] Successfully generated {} wiki pages in {}", generated.len(), self.wiki_dir.display());
         Ok(generated)
+    }
+
+    /// Writes `.obsidian/` once. Existing files are never overwritten — Obsidian stores
+    /// per-vault workspace state (open tabs, theme, graph filters) alongside configuration.
+    fn ensure_vault_config(&self) {
+        let obsidian = self.wiki_dir.join(".obsidian");
+        if obsidian.is_dir() {
+            return;
+        }
+        if fs::create_dir_all(&obsidian).is_err() {
+            return;
+        }
+        let app = serde_json::json!({
+            "attachmentFolderPath": "attachments",
+            "newFileLocation": "current",
+            "alwaysUpdateLinks": true,
+            "showUnsupportedFiles": false,
+            "useMarkdownLinks": false
+        });
+        let _ = fs::write(
+            obsidian.join("app.json"),
+            serde_json::to_string_pretty(&app).unwrap_or_default(),
+        );
+        let core = serde_json::json!({
+            "graph": {"enabled": true},
+            "backlink": {"enabled": true},
+            "tag-pane": {"enabled": true},
+            "outline": {"enabled": true},
+            "file-explorer": {"enabled": true}
+        });
+        let _ = fs::write(
+            obsidian.join("core-plugins.json"),
+            serde_json::to_string_pretty(&core).unwrap_or_default(),
+        );
     }
 
     fn analyze_repo(&self) -> RepoStats {
@@ -178,27 +264,52 @@ impl WikiGenerator {
     }
 
     fn render_index(&self, _stats: &RepoStats) -> String {
-        format!(r#"# {repo} — Knowledge & Architecture Wiki
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            &format!("{} — Knowledge & Architecture Wiki", self.repo_name),
+            "index",
+            &["README", "index", "home"],
+            &generated,
+            &head,
+            "structural",
+        );
+        format!(r#"{fm}# {repo} — Knowledge & Architecture Wiki
 
 Generated on: {date} (UTC)
 Repository: `{repo}`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo}`. It is automatically indexed into the local LanceDB multimodal RAG store for semantic vector search and LLM context augmentation.
+This vault is the repository's living architectural map, connectivity graph, security governance
+framework, improvements ledger, and research foundation. Pages are plain markdown with YAML
+frontmatter and double-bracket hyperlinks, so they open directly in Obsidian with a working graph,
+backlinks, and tag search — and the same pages are parsed by `ainish-rag` for agent retrieval.
 
-## Wiki Table of Contents
-1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.
-2. **[02. Codebase Connections & Symbols](02-codebase-connections.md)** — Call graphs, key interfaces, symbol registry, and inter-module coupling.
-3. **[03. Security & Governance](03-security-and-governance.md)** — Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface.
-4. **[04. Improvements & Technical Debt](04-improvements-and-debt.md)** — Refactoring targets, debt ledger, code hotspots, and modernizing paths.
-5. **[05. Research & Intelligence](05-research-and-intelligence.md)** — Algorithmic foundations, model specifications, cultural/philosophical doctrine, and citations.
-6. **[06. Marketing & Positioning](06-marketing-and-positioning.md)** — Strategic positioning, value propositions, key differentiators, and ecosystem role.
+## Contents
+- [[01-architecture|01. System Architecture]] — Core components, subsystem boundaries, data flow, and directory taxonomy.
+- [[02-codebase-connections|02. Codebase Connections & Symbols]] — Call graphs, key interfaces, symbol registry, and inter-module coupling.
+- [[03-security-and-governance|03. Security & Governance]] — Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface.
+- [[04-improvements-and-debt|04. Improvements & Technical Debt]] — Refactoring targets, debt ledger, code hotspots, and modernizing paths.
+- [[05-research-and-intelligence|05. Research & Intelligence]] — Algorithmic foundations, model specifications, cultural/philosophical doctrine, and citations.
+- [[06-marketing-and-positioning|06. Marketing & Positioning]] — Strategic positioning, value propositions, key differentiators, and ecosystem role.
 
+## How to read this vault
+- **In Obsidian:** open `.agents/wiki/` as a vault; the graph view shows the six domain pages wired to this index.
+- **As an agent:** `ainish-rag --context` retrieves whole sections from these pages, so keep headings meaningful.
+- **Operator notes:** `[[ledger]]` is hand-maintained and never regenerated — append one dated line per cycle.
+
+{related}
 ---
 *Maintained by ainish-coder Multimodal RAG & Wiki Engine.*
 "#,
+            fm = fm,
             repo = self.repo_name,
-            date = Utc::now().to_rfc3339()
+            date = generated,
+            related = render_related(&[
+                ("01-architecture", "System Architecture"),
+                ("03-security-and-governance", "Security & Governance"),
+                ("04-improvements-and-debt", "Improvements & Debt"),
+            ]),
         )
     }
 
@@ -218,7 +329,17 @@ This wiki provides a living architectural map, codebase connectivity graph, secu
             entry_list.push_str("- Standard entrypoints configured in project manifests.\n");
         }
 
-        format!(r#"# 01. System Architecture — {repo}
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            "System Architecture",
+            "architecture",
+            &["architecture", "arch", "layout"],
+            &generated,
+            &head,
+            "structural",
+        );
+        format!(r#"{fm}# 01. System Architecture — {repo}
 
 ## 1. Executive Summary
 `{repo}` is engineered with modular boundaries, strict separation of concerns, and reproducible deployment artifacts.
@@ -240,8 +361,11 @@ The primary execution boundaries and user-facing entrypoints:
 
 ## 5. Architectural Communication Protocol
 - Coordination across agent harnesses and operator sessions is mediated via dated ledger files (`.agents/comms/{{date}}-team.txt`) and durable memory files (`.agents/memories/{{date}}-memory.txt`).
-- State mutations execute on task worktrees (`feat/*`, `fix/*`, `chore/*`) and merge autonomously when verification gates pass.
+- State mutations execute on task worktrees (`feat/*`, `fix/*`, `chore/*`) and merge autonomously when verification gates pass. See [[03-security-and-governance]] for the gates that must pass first.
+
+{related}
 "#,
+            fm = fm,
             repo = self.repo_name,
             dirs_list = dirs_list,
             entry_list = entry_list,
@@ -250,6 +374,11 @@ The primary execution boundaries and user-facing entrypoints:
             doc_files = stats.doc_files,
             image_files = stats.image_files,
             media_files = stats.audio_video_files,
+            related = render_related(&[
+                ("02-codebase-connections", "Codebase Connections"),
+                ("03-security-and-governance", "Security & Governance"),
+                ("README", "Vault index"),
+            ]),
         )
     }
 
@@ -262,7 +391,17 @@ The primary execution boundaries and user-facing entrypoints:
             dep_list.push_str("- Zero external heavy dependencies; platform standard library oriented.\n");
         }
 
-        format!(r#"# 02. Codebase Connections & Symbols — {repo}
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            "Codebase Connections & Symbols",
+            "connections",
+            &["connections", "call-graph", "symbols"],
+            &generated,
+            &head,
+            "structural",
+        );
+        format!(r#"{fm}# 02. Codebase Connections & Symbols — {repo}
 
 ## 1. Component Linkage & Call Graph
 Codebase components in `{repo}` communicate across well-defined interfaces and CLI surfaces.
@@ -274,14 +413,32 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
 - **PQC Secrets Decoupling:** Cryptographic operations are isolated from application logic through FIPS 203/204/205 tools.
 - **RAG & Knowledge Retrieval:** Codebase symbols and documentation chunks are vectorized using EmbeddingGemma-2 (768-d) and queried via LanceDB hybrid search.
 - **Rules Synchronization:** Rules and agent contracts propagate outward from `ainish-coder` to target repositories via `--rules` deployment.
+
+{related}
 "#,
+            fm = fm,
             repo = self.repo_name,
-            dep_list = dep_list
+            dep_list = dep_list,
+            related = render_related(&[
+                ("01-architecture", "System Architecture"),
+                ("03-security-and-governance", "Security & Governance"),
+                ("README", "Vault index"),
+            ]),
         )
     }
 
     fn render_security(&self, _stats: &RepoStats) -> String {
-        format!(r#"# 03. Security & Governance — {repo}
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            "Security & Governance",
+            "security",
+            &["security", "governance", "pqc", "zero-trust"],
+            &generated,
+            &head,
+            "structural",
+        );
+        format!(r#"{fm}# 03. Security & Governance — {repo}
 
 ## 1. Cryptographic Mandate (Post-Quantum Security)
 - **Secrets Encryption:** FIPS 203 ML-KEM-768 / ML-KEM-1024 encapsulation.
@@ -294,8 +451,16 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
 - Untrusted external input is isolated in `<DATA>` XML enclosures.
 - Secrets are never persisted in source control, `.env` files, task records, or memory ledgers.
 - Host communication utilizes loopback `127.0.0.1` binding with strict SSRF protections.
+
+{related}
 "#,
-            repo = self.repo_name
+            fm = fm,
+            repo = self.repo_name,
+            related = render_related(&[
+                ("01-architecture", "System Architecture"),
+                ("04-improvements-and-debt", "Improvements & Debt"),
+                ("README", "Vault index"),
+            ]),
         )
     }
 
@@ -309,7 +474,20 @@ Codebase components in `{repo}` communicate across well-defined interfaces and C
         }
 
         let ledger = self.read_operator_ledger();
-        let mut page = format!(r#"# 04. Improvements & Technical Debt — {repo}
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            "Improvements & Technical Debt",
+            "improvements",
+            &["improvements", "debt", "todo", "refactors"],
+            &generated,
+            &head,
+            "structural",
+        );
+        // Frontmatter leads the file and the operator ledger closes it: `ledger.md` is
+        // hand-maintained and spliced verbatim, so anything written after it would land
+        // outside the page body the author owns.
+        let mut page = format!(r#"{fm}# 04. Improvements & Technical Debt — {repo}
 
 ## 1. In-Flight Debt & Code Hotspots
 The following actionable items and markers were identified across the codebase:
@@ -323,10 +501,18 @@ The following actionable items and markers were identified across the codebase:
 ## 3. Operator ledger
 `ainish-rag wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
 
+{related}
 "#,
+            fm = fm,
             repo = self.repo_name,
             todo_list = todo_list,
+            related = render_related(&[
+                ("03-security-and-governance", "Security & Governance"),
+                ("05-research-and-intelligence", "Research & Intelligence"),
+                ("README", "Vault index"),
+            ]),
         );
+        page.push_str("\n");
         page.push_str(&ledger);
         page
     }
@@ -718,7 +904,17 @@ The following actionable items and markers were identified across the codebase:
     }
 
     fn render_research(&self, _stats: &RepoStats) -> String {
-        format!(r#"# 05. Research & Intelligence — {repo}
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            "Research & Intelligence",
+            "research",
+            &["research", "embeddings", "retrieval"],
+            &generated,
+            &head,
+            "structural",
+        );
+        format!(r#"{fm}# 05. Research & Intelligence — {repo}
 
 ## 1. Multimodal Embedding Architecture
 - **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).
@@ -730,13 +926,31 @@ The following actionable items and markers were identified across the codebase:
 ## 2. Vector Database & Storage Engine
 - **Storage:** LanceDB (columnar Arrow table format with embedded IVF-PQ / HNSW vector indexing).
 - **Hybrid Retrieval:** Dense vector similarity combined with lexical BM25/FTS search.
+
+{related}
 "#,
-            repo = self.repo_name
+            fm = fm,
+            repo = self.repo_name,
+            related = render_related(&[
+                ("02-codebase-connections", "Codebase Connections"),
+                ("04-improvements-and-debt", "Improvements & Debt"),
+                ("README", "Vault index"),
+            ]),
         )
     }
 
     fn render_marketing(&self, _stats: &RepoStats) -> String {
-        format!(r#"# 06. Marketing & Positioning — {repo}
+        let generated = Utc::now().to_rfc3339();
+        let head = self.current_head_short_sha();
+        let fm = render_frontmatter(
+            "Marketing & Positioning",
+            "marketing",
+            &["marketing", "positioning", "value"],
+            &generated,
+            &head,
+            "structural",
+        );
+        format!(r#"{fm}# 06. Marketing & Positioning — {repo}
 
 ## 1. Core Value Proposition
 `{repo}` delivers an autonomous, high-integrity AI coding infrastructure combining:
@@ -748,8 +962,16 @@ The following actionable items and markers were identified across the codebase:
 - **Zero-Blind Searching:** Deep semantic code and multimodal asset search across 100+ languages and media formats.
 - **Autonomous Peer Protocol:** Autonomous git worktree branching, green gate validation, and seamless merging.
 - **Living Architectural Wiki:** Automatic generation of structured repository wikis that ground agents and developers in true codebase structure.
+
+{related}
 "#,
-            repo = self.repo_name
+            fm = fm,
+            repo = self.repo_name,
+            related = render_related(&[
+                ("01-architecture", "System Architecture"),
+                ("05-research-and-intelligence", "Research & Intelligence"),
+                ("README", "Vault index"),
+            ]),
         )
     }
 }
@@ -816,6 +1038,90 @@ mod tests {
     fn redaction_pipeline_self_test_verifies_all_classes() {
         let wiki_gen = WikiGenerator::new(Path::new("."));
         assert!(wiki_gen.verify_redaction_pipeline().is_ok());
+    }
+
+    /// The vault format is a retrieval contract, not cosmetics: if a page stops emitting
+    /// frontmatter or wikilinks, Obsidian still renders it and `--context` silently loses
+    /// every explicit graph edge. Pin all three properties here.
+    #[test]
+    fn generated_vault_is_obsidian_native() {
+        let tmp_dir = std::env::temp_dir().join(format!("ainish-wiki-vault-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp_dir);
+        let wiki_dir = tmp_dir.join(".agents").join("wiki");
+        fs::create_dir_all(&wiki_dir).unwrap();
+        let ledger = "# Operator ledger\n\n- [OPEN] keep me\n";
+        fs::write(wiki_dir.join("ledger.md"), ledger).unwrap();
+
+        let wiki_gen = WikiGenerator::new(&tmp_dir);
+        wiki_gen.generate_all().unwrap();
+
+        // 1. Every generated page opens with parseable YAML frontmatter carrying the contract keys.
+        for page in ["README.md", "01-architecture.md", "03-security-and-governance.md",
+                     "04-improvements-and-debt.md"] {
+            let text = fs::read_to_string(wiki_dir.join(page)).unwrap();
+            assert!(text.starts_with("---\n"), "{page} must begin with frontmatter");
+            for key in ["title:", "tags:", "up:", "generated:", "source_commit:", "decision_source:"] {
+                assert!(text.contains(key), "{page} frontmatter missing {key}");
+            }
+            assert!(text.contains("ainish/wiki/"), "{page} missing vault tag");
+        }
+
+        // 2. Intra-wiki links are wikilinks, so Obsidian builds a graph and backlinks.
+        let readme = fs::read_to_string(wiki_dir.join("README.md")).unwrap();
+        assert!(readme.contains("[[01-architecture"), "README must wikilink to pages");
+        assert!(!readme.contains("](01-architecture.md)"), "markdown links do not build a graph");
+
+        // 3. Every wikilink target resolves to a generated page — no dead edges.
+        //    Code spans and fenced blocks are stripped first, matching the graph reader:
+        //    Obsidian does not render a link inside backticks, so prose that merely
+        //    mentions the syntax must not be counted as an edge.
+        let stems: HashSet<String> = fs::read_dir(&wiki_dir).unwrap()
+            .flatten()
+            .filter_map(|e| {
+                let p = e.path();
+                (p.extension().and_then(|x| x.to_str()) == Some("md"))
+                    .then(|| p.file_stem().and_then(|s| s.to_str()).map(str::to_string))?
+            })
+            .collect();
+        for page in fs::read_dir(&wiki_dir).unwrap().flatten() {
+            let path = page.path();
+            if path.extension().and_then(|x| x.to_str()) != Some("md") { continue; }
+            let raw = fs::read_to_string(&path).unwrap();
+            let mut text = String::new();
+            let mut in_fence = false;
+            for line in raw.lines() {
+                if line.trim_start().starts_with("```") { in_fence = !in_fence; continue; }
+                if in_fence { continue; }
+                // drop inline code spans
+                let mut keep = String::new();
+                let mut in_tick = false;
+                for ch in line.chars() {
+                    if ch == '`' { in_tick = !in_tick; continue; }
+                    if !in_tick { keep.push(ch); }
+                }
+                text.push_str(&keep);
+                text.push('\n');
+            }
+            for cap in text.split("[[").skip(1) {
+                let target = cap.split(&[']', '|', '#'][..]).next().unwrap_or("").trim();
+                if target.is_empty() { continue; }
+                assert!(stems.contains(target), "dangling wikilink [[{target}]] in {}", path.display());
+            }
+        }
+
+        // 4. The operator ledger is spliced, never regenerated.
+        assert_eq!(fs::read_to_string(wiki_dir.join("ledger.md")).unwrap(), ledger);
+
+        // 5. The vault config exists so the directory opens as a vault, and a second run
+        //    must not clobber operator edits to it.
+        let app = wiki_dir.join(".obsidian").join("app.json");
+        assert!(app.is_file(), "vault config must be written");
+        fs::write(&app, "{\"operator\":\"edited\"}").unwrap();
+        wiki_gen.generate_all().unwrap();
+        assert!(fs::read_to_string(&app).unwrap().contains("operator"),
+            "regeneration must never overwrite the operator's vault settings");
+
+        let _ = fs::remove_dir_all(&tmp_dir);
     }
 }
 

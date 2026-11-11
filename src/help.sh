@@ -88,6 +88,16 @@ CORE COMMANDS:
     --rules-doctor [--json]   Verify manifest, refresher, hook, and registry health,
                               repairing missing hooks/manifests in place.
     --rules-watch [SECONDS]   Foreground watcher: sync the fleet when root HEAD moves.
+    --plan-check [DIR] [--json]
+                              Plan-first gate. Verifies the current branch is covered
+                              by a plan of record at
+                              .agents/plans/{date}-{slug}.plan.md (matched on the
+                              plan's `branch:` key) and that the plan is past
+                              `status: designing`. Exit 1 when no plan covers the
+                              branch, so CI can enforce it. `--plan-gate-install
+                              [DIR]` wires the same check as a pre-commit hook; the
+                              only bypass is AINISH_SKIP_PLAN_CHECK=1, and it
+                              announces itself rather than passing silently.
     --machine-sync [DIR]      Federate this repository with the operator's other
                               machines over the existing SSH link — no remote, no
                               push/pull cycle. Branches land as refs/remotes/<machine>/*,
@@ -339,7 +349,6 @@ UTILITY COMMANDS:
                               - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing) [mandatory]
                               - question-me/               (Socratic design interview -> .plan.md)
                               - remotion-video/            (Programmatic video creation)
-                              - tts-cli/                   (On-device spoken end-of-turn suggestion)
                               - typesafe-jev/              (Calibrated decision models)
                               - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - wtf-is-going-on-mcp/       (Cross-machine agent coordination)

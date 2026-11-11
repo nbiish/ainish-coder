@@ -80,7 +80,6 @@ This repository keeps only a small curated subset in its own `.agents/skills/` �
 | **Question Me** | `skills-to-distribute/skills/question-me/` | Socratic design interview and requirements resolution — codebase recon first, one question at a time with recommended answers, compiled into a `.agents/plans/{date}-{name}.plan.md` holding the plan, clarification ledger, and derived todos. |
 | **Security First Agent** | `skills-to-distribute/skills/security-first-agent/` | The operating posture for work where a breach would be expensive: threat-model before acting, least authority, read the primary `.agents/` record instead of a summary, verify by read-back, fail closed. |
 | **Remotion Video** | `skills-to-distribute/skills/remotion-video/` | Programmatic video creation with Remotion — APIs, media components, 3D, captions, fonts, Lambda rendering, and layout rules. |
-| **TTS CLI** | `skills-to-distribute/skills/tts-cli/` | On-device `cli-tts` for one end-of-chat spoken suggestion per turn, fusing the next step with deterministic masters. Plays automatically. |
 | **TypeSafe Jev** | `skills-to-distribute/skills/typesafe-jev/` | Calibrated decision models over the Decisions API: routing, two-stage reranking, context freshness, faithfulness evaluation, and typed `noul`/`choice`/`score` questions. |
 | **Video Knowledge Extractor** | `skills-to-distribute/skills/video-knowledge-extractor/` | Structured markdown knowledge bases from YouTube videos by combining transcripts with sequential visual frames through a Vision-Language Model. |
 | **wtf-is-going-on-mcp** | `skills-to-distribute/skills/wtf-is-going-on-mcp/` | Cross-machine agent coordination. Herdr owns agent sessions; wtf records who is doing what, carries encrypted messages, and dispatches addressable work to a paired machine's own agent (`task_*`). |
@@ -326,7 +325,6 @@ ainish-coder/
 │   │   ├── pqc-secrets/SKILL.md
 │   │   ├── question-me/SKILL.md
 │   │   ├── remotion-video/SKILL.md
-│   │   ├── tts-cli/SKILL.md
 │   │   ├── typesafe-jev/SKILL.md
 │   │   ├── video-knowledge-extractor/SKILL.md
 │   │   └── wtf-is-going-on-mcp/SKILL.md

@@ -1033,9 +1033,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let (ledger_path, sig_path) = generator.append_note_and_sign(&note_text)?;
                 println!("  \x1b[32m[rag:wiki]\x1b[0m Appended UTC-dated note (with HEAD SHA) to {} and signed detached ML-DSA-65 envelope ({})", ledger_path.display(), sig_path.display());
             } else {
+                // Only (re-)sign a ledger whose CONTENT changed. Signing unconditionally made
+                // `ainish-rag wiki` rewrite `ledger.sig` on every run — same `sha256`, different
+                // `signed_at` and, on a host with a rotated key, a different
+                // `public_key_fingerprint`. A signed artifact that churns while its content is
+                // byte-identical cannot be used to prove anything about that content, and it
+                // dirties the tree on a read-mostly command.
                 let ledger_path = target.join(".agents").join("wiki").join("ledger.md");
                 if ledger_path.exists() {
-                    let _ = pqc::sign_file(&ledger_path);
+                    let sig_path = pqc::sig_path(&ledger_path);
+                    let needs_sign = match (pqc::verify_file(&target, &ledger_path), sig_path.exists()) {
+                        (pqc::VerifyOutcome::Verified { .. }, true) => false,
+                        _ => true,
+                    };
+                    if needs_sign {
+                        let _ = pqc::sign_file(&ledger_path);
+                    }
                 }
             }
             println!("=== Generating Codebase Wiki in .agents/wiki/ ===");
