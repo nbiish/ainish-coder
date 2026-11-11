@@ -14,9 +14,16 @@ rem     so the usual `cmd & exit /b %ERRORLEVEL%` reports a stale status. Every
 rem     branch below exits through a label instead, preserving the real code.
 rem ============================================================================
 setlocal EnableExtensions
+rem uv ships a managed interpreter under %APPDATA%\uv; where that path sits on a mount Windows
+rem marks untrusted, every uv run dies with "untrusted mount point (os error 448)". Force a
+rem system interpreter so the Python engine still starts.
+set "UV_NO_MANAGED_PYTHON=1"
 
 set "SELF_DIR=%~dp0"
-set "NATIVE_BIN=%SELF_DIR%ainish-rag.exe"
+rem Named `.native.exe` on purpose: `ainish-rag` in a directory holding both resolves to the .exe
+rem before the .cmd, which bypasses the PY_ONLY_SUBCOMMANDS routing below and hands `context` to a
+rem binary that exits 2. The .cmd must be the entry point; the binary is called from it.
+set "NATIVE_BIN=%SELF_DIR%ainish-rag.native.exe"
 set "PY_ENGINE=%SELF_DIR%..\src\rag\rag.py"
 rem Verbs that exist only in the Python engine. A compiled build can lag by design (the exe is a
 rem gitignored artifact), so never hand one of these to the binary.
