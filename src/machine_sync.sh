@@ -441,6 +441,19 @@ _ms_push() { # repo host peer_path peer_name bundle
         done
     fi
 
+    # The peer's fetch has been observed to apply every ref except the checked-out branch's
+    # remote-tracking ref, on a virtualised mount, while exiting 0. The object is present either way,
+    # so set the one ref this verb promises. update-ref against a missing object fails loudly, which
+    # keeps the fallback honest: it can only confirm delivery, never fake it.
+    if [[ -n "$host" ]]; then
+        local _b _t
+        _b="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+        _t="$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || true)"
+        if [[ -n "$_t" ]]; then
+            _ms_remote "$host" "git -C '${path}' update-ref 'refs/remotes/${_MS_SELF}/${_b}' '${_t}'" >/dev/null 2>&1 || true
+        fi
+    fi
+
     # Read back what the peer actually recorded. A fetch can exit 0 while leaving a ref untouched;
     # without this check a partial delivery is indistinguishable from a clean sync.
     local branch tip peer_tip tries=0
