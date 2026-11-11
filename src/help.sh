@@ -441,7 +441,8 @@ EXAMPLES:
     ainish-coder --machine-sync . --min-ram 64   # Only peers with at least 64 GB
     ainish-coder --machine-sync . --push    # Send only
     ainish-coder --machine-sync . --status  # What is already known here, no transfer
-    ainish-coder --machine-sync . --ff-peers # Also fast-forward a clean peer's checkout
+    ainish-coder --machine-sync .            # Peers with a clean tree on the same branch fast-forward
+    ainish-coder --machine-sync . --no-ff-peers # Leave the peers' checkouts alone
     ainish-coder --machine-sync . --dry-run # Print the plan, move nothing
     ainish-coder --embed-config --provider api --api-base https://api.openai.com/v1 --model text-embedding-3-small
                                             # Use a remote API embedding model; skip the local llama server
