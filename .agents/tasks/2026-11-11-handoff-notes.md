@@ -6,12 +6,7 @@ Written 2026-11-11 so the next session starts from facts, not reconstruction.
 
 - **All three machines are on the same commit** and the same router chain: repo `config/local-router/fallback-models.json`
   hash `e0792421`, installed live on the Mac and on Windows, staged on WSL (no `local-router` binary there).
-  Chain is 17 models: cline-deepseek-v4-flash-free, zenmux-glm-5.3-free, zai-glm-5.3-flash,
-  xiaomi-mimo-v2.6-pro, antigravity-gemini-3.7-flash, cursor-grok-4.7, cursor-deepseek-v41-flash-1017,
-  cursor-auto, github-copilot-auto, opencode-zen-glm-5.3-flash, cline-deepseek-chat-paid,
-  openrouter-deepseek-v4.1-flash-batch, openrouter-deepseek-v4.1-flash-1017,
-  kilo-deepseek-v4.1-flash-1017-paid, zenmux-deepseek-v4.1-flash, commandcode-deepseek-v4.1-flash,
-  pioneer-deepseek-v4-pro.
+  Chain is the operator's saved 15 models (listed under *The router's real config file*).
 - **Retrieval is graph-only.** `--context` walks a wiki graph + the newest `.agents` artifacts. No
   embedding server is started, no API is spent. `AINISH_RAG_VECTOR_FALLBACK=1` is the only way back.
   Verified: ~3.8s, `mode wiki_graph`, `sufficiency sufficient`, `degraded: false`.
@@ -31,6 +26,28 @@ Written 2026-11-11 so the next session starts from facts, not reconstruction.
 Handing it the persisted shape is silently ignored, and the router then **rewrites** the persisted file
 from its own (empty) state — so the installer "succeeds" while `fallback-models` serves `[]`.
 The installer now derives the declarative file from the persisted one and passes that at boot.
+
+## The router's real config file (learned the hard way)
+
+A **checkout** install of local-router reads `router-settings.json` from **its own repository root**
+(log line: `[config] chain config: <checkout>/router-settings.json — applied (N system chain step(s))`),
+and the chain there is the `fallbackModelsText` string — one model id per line, exactly the config page's
+textarea format. `~/.config/local-router/fallback-models.json` is a mirror the router rewrites from its
+own state. Writing only the mirror changes nothing that gets served.
+
+Second: the router rejects the **entire** boot config if any route has fewer than two unique models
+(`Fallback route requires at least two unique model entries`). `fallback-decision` has one, so a boot
+config containing it always failed — and the installer then fell back to `ensure`, which drops
+`--config` and lets the router rewrite the file from its state. Both are fixed: invalid routes are
+omitted from `routes.boot.json`, and the installer mirrors the chain into `router-settings.json`.
+
+The operator's saved chain is **15 models**, now canonical and served on the Mac and on Windows:
+cline-deepseek-deepseek-v4-flash-free, xiaomi-mimo-mimo-v2.6-pro, zai-glm-5.3-flash,
+antigravity-gemini-3.7-flash, cursor-deepseek-v41-flash-1017, cursor-grok-4.7, cursor-auto,
+github-copilot-auto, kilo-deepseek-deepseek-v4.1-flash-1017-paid, opencode-zen-glm-5.3-flash,
+commandcode-deepseek-v4.1-flash, pioneer-deepseek-v4-pro, cline-deepseek-deepseek-chat-paid,
+openrouter-deepseek-v4.1-flash-batch, zenmux-deepseek-v4.1-flash.
+(`test-config.txt` lives at `D:\Code\local-router\test-config.txt`; `--from-text=` adopts such a list.)
 
 ## Launcher facts that cost an afternoon
 
