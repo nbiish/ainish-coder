@@ -91,12 +91,15 @@ if [ -n "$NATIVE_BIN" ] && [ -x "$NATIVE_BIN" ] && ! is_self "$NATIVE_BIN"; then
 fi
 
 # 2. Transparent fallback to Python engine with uv / python3 / python
+# --no-managed-python: uv's managed interpreter can sit on a mount Windows marks untrusted, where
+# every uv run dies with "untrusted mount point (os error 448)" before the engine starts. A system
+# interpreter is what this launcher wants anyway.
 if command -v uv >/dev/null 2>&1; then
-    exec uv run "$PY_ENGINE" "$@"
+    exec uv run --no-managed-python "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.local/bin/uv" ]; then
-    exec "$HOME/.local/bin/uv" run "$PY_ENGINE" "$@"
+    exec "$HOME/.local/bin/uv" run --no-managed-python "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.cargo/bin/uv" ]; then
-    exec "$HOME/.cargo/bin/uv" run "$PY_ENGINE" "$@"
+    exec "$HOME/.cargo/bin/uv" run --no-managed-python "$PY_ENGINE" "$@"
 elif command -v python3 >/dev/null 2>&1; then
     exec python3 "$PY_ENGINE" "$@"
 elif command -v python >/dev/null 2>&1; then
