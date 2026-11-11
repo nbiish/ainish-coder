@@ -48,6 +48,7 @@ _ms_err()  { printf 'machine-sync: %s\n' "$*" >&2; }
 _ms_ok()   { [[ "$_MS_JSON" == "true" ]] || printf '  %b✓%b %s\n' "${GREEN:-}" "${RESET:-}" "$*"; }
 _ms_skip() { [[ "$_MS_JSON" == "true" ]] || printf '  %b·%b %s\n' "${YELLOW:-}" "${RESET:-}" "$*"; }
 _ms_head() { [[ "$_MS_JSON" == "true" ]] || printf '%b%s%b\n' "${BRIGHT_BLUE:-}" "$*" "${RESET:-}"; }
+_ms_info() { [[ "$_MS_JSON" == "true" ]] || printf '  %s\n' "$*"; }
 
 _ms_usage() {
     cat <<'EOF'
