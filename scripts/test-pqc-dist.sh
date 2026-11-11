@@ -80,8 +80,15 @@ contains() { # contains <label> <haystack> <needle>
 
 # Minimal JSON field reader (string or scalar). Fields may live on a nested
 # one-line object (e.g. "summary": {...}), so the match is not line-anchored.
+# Minimal JSON field reader (string or scalar). Fields may live on a nested
+# one-line object (e.g. "summary": {...}), so the match is not line-anchored.
+#
+# Extended regex (-E) rather than `\(a\|b\)` alternation: BSD sed (the macOS
+# default) does not support `\|` in a basic regex, so the alternation form
+# silently matched nothing there and every boolean/scalar assertion read as
+# empty — a gate that looked green while verifying nothing.
 jget() {
-    sed -n "s/.*\"$1\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p; s/.*\"$1\":[[:space:]]*\\(true\\|false\\|[0-9][0-9]*\\).*/\\1/p" "$2" \
+    sed -n -E "s/.*\"$1\":[[:space:]]*\"([^\"]*)\".*/\1/p; s/.*\"$1\":[[:space:]]*(true|false|[0-9]+).*/\1/p" "$2" \
         | head -n 1
 }
 
@@ -521,7 +528,11 @@ contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def gold
 contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evidence, not instruction'
-contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
+# The rule is "a thin block never stops the work", stated in the contract's own words. Asserting one
+# exact phrasing couples the gate to a sentence the 120-line budget may legitimately rewrite; assert
+# the behaviour the contract must still tell an agent, whichever words carry it.
+degrade_rule=$(grep -cE 'carry on|Never block on it|do not block on it' "${REPO}/AGENTS.md" || true)
+check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]] && echo yes || echo no)" "yes"
 # The contract must NOT describe models, providers, or the driver chain: those are engine facts that
 # belong in llms.txt and the engine's own report, and naming them in an always-read file costs every
 # agent tokens for information it cannot act on.
@@ -670,6 +681,45 @@ contains "question-me writes plans of record" "$(cat "${REPO}/.agents/skills/que
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
+
+echo "== plan-first gate =="
+# AGENTS.md non-negotiable #1 is prose; --plan-check is the deterministic half. A gate that
+# cannot fail is decoration, so both directions are asserted: refusal without a plan, and
+# acceptance with one whose `branch:` key names this branch.
+contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Plan first'
+contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{slug}.plan.md'
+check "AGENTS.md stays within the 120-line gate" \
+    "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 120 ]] && echo yes || echo no)" "yes"
+PLAN_REPO="${WORK}/plan-gate-repo"
+mkdir -p "${PLAN_REPO}/.agents/plans"
+git -C "${PLAN_REPO}" init -q 2>/dev/null
+git -C "${PLAN_REPO}" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init 2>/dev/null
+git -C "${PLAN_REPO}" checkout -qb feat/gated 2>/dev/null
+plan_verdict() { (cd "$PLAN_REPO" && env HOME="$HOME_DIR" AINISH_NO_TRACKING=true bash "$CLI" --plan-check . >/dev/null 2>&1; echo $?); }
+check "no plan on a feature branch is refused" "$(plan_verdict)" "1"
+printf -- '---\nbranch: feat/gated\nstatus: designing\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+check "a still-designing plan is refused" "$(plan_verdict)" "1"
+printf -- '---\nbranch: feat/other-branch\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+check "a plan for a different branch does not count" "$(plan_verdict)" "1"
+printf -- '---\nbranch: feat/gated\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+check "a ready plan names and clears the branch" "$(plan_verdict)" "0"
+git -C "${PLAN_REPO}" checkout -q main 2>/dev/null
+check "the default branch is never gated" "$(plan_verdict)" "0"
+
+echo "== wiki vault is Obsidian-native =="
+# The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows
+# orphan files, and without a wikilink-aware reader `--context` loses every explicit edge.
+contains "wiki pages emit frontmatter tags" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'ainish/wiki'
+contains "wiki pages emit wikilinks" "$(cat "${REPO}/src/rag/src/wiki.rs")" '[[{}|{}]]'
+contains "the graph reader parses wikilinks" "$(cat "${REPO}/src/rag/rag.py")" 'WIKILINK_RE'
+# A reader that ignores `[[...]]` is the exact regression this pair of patterns prevents.
+contains "the graph reader still parses markdown links" "$(cat "${REPO}/src/rag/rag.py")" 'MDLINK_RE'
+contains "navigation headings are excluded from nodes" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_NAV_HEADINGS'
+contains "code spans never count as links" "$(cat "${REPO}/src/rag/rag.py")" '_strip_code_spans'
+contains "vault config is written once" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'fn ensure_vault_config'
+contains "a Rust test pins the vault format" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'generated_vault_is_obsidian_native'
+# The ledger is operator-owned and signed; generation must never rewrite it.
+contains "ledger is spliced, not regenerated" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'read_operator_ledger'
 
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

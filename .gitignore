@@ -176,5 +176,13 @@ audit.log.*
 # Compiled native binaries (built locally via cargo or distributed wrappers)
 *.exe
 
+# Locally-built RAG engine (~127 MB). The distributed wrappers (bin/ainish-rag,
+# bin/ainish-rag.cmd) are tracked; the platform binaries are build products and are
+# produced per host with `cargo build --release`. Committing one would bloat history
+# for every clone and still be the wrong architecture on the next machine.
+bin/ainish-rag-darwin
+bin/ainish-rag-linux
+bin/ainish-rag-windows.exe
+
 # Deployment smoke sandbox (created by 'ainish-coder --rules test'); never tracked.
 /test/
