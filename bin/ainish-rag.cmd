@@ -94,12 +94,13 @@ set "FIRST_ARG=%CANDIDATE%"
 exit /b 0
 
 :uv_path
-uv run "%PY_ENGINE%" %*
+uv run --no-managed-python "%PY_ENGINE%" %*
+if errorlevel 1 goto :py
 set "RC=%ERRORLEVEL%"
 endlocal & exit /b %RC%
 
 :uv_hermes
-"%LOCALAPPDATA%\hermes\bin\uv.exe" run "%PY_ENGINE%" %*
+"%LOCALAPPDATA%\hermes\bin\uv.exe" run --no-managed-python "%PY_ENGINE%" %*
 set "RC=%ERRORLEVEL%"
 endlocal & exit /b %RC%
 
