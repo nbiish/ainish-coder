@@ -42,7 +42,9 @@ CORE COMMANDS:
                                 .agents/comms/{date}-team.txt (merge-safe: refreshes
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
-                              ALL skill packs from .agents/skills/
+                              The selected skill packs from the distributable
+                              payload (skills-to-distribute/skills/), installed
+                              into the target's .agents/skills/
                               (raw .scrolls* payload and the scroll-channel
                               packs 8thfire-scrolls / ghost-layer-injector
                               never included — they travel only via the
@@ -126,7 +128,10 @@ CORE COMMANDS:
 
 
 TOOL-SPECIFIC CONFIGURATION:
-    All tool-specific configs have been consolidated into .agents/skills/.
+    All tool-specific configs have been consolidated into the distributable
+    payload at skills-to-distribute/skills/ (installed into a target's
+    .agents/skills/). This repository's own .agents/skills/ holds only the few
+    packs its agents read, so agent tooling does not load every pack as context.
     Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + the
     rules/runtime context and the optional skill packs you select, then arm continuous auto-sync.
     Skill packs are optional: on a real terminal --rules offers the selector the first time a repo
@@ -315,10 +320,10 @@ UTILITY COMMANDS:
                               TUI checkbox system to selectively ingest candidate
                               foreign skills; `--headless` applies
                               the saved selection with no prompts. Live
-                              intake: new/renamed/deleted packs in the repo's
-                              .agents/skills/ are picked up each run (new
+                              intake: new/renamed/deleted packs in the
+                              distributable payload are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 18 skill packs (ainish-security and
+                              Deploys 20 skill packs (ainish-security and
                               pqc-secrets are mandatory; the rest are opt-in):
                               - advisory-council/          (Multi-expert advisory council)
                               - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance) [mandatory]
@@ -343,7 +348,7 @@ UTILITY COMMANDS:
 
     --unlock [TARGET_DIR]     Deploy Pliny Research collection (AI transparency)
                               Deploys:
-                              - .agents/skills/pliny-research/SKILL.md (Skill documentation)
+                              - .agents/skills/pliny-research/SKILL.md (Skill documentation, from the payload)
                               - pliny-research/CL4R1T4S/  (System prompt extractions)
                               - pliny-research/L1B3RT4S/  (Liberation techniques)
                               - pliny-research/G0DM0D3/   (Advanced jailbreak methods)
@@ -401,7 +406,7 @@ NOTES:
     - --agents deploys AGENTS.md (project-agnostic rules, single governing tracked copy) + global copies
     - --llms-txt deploys llms.txt (separate from --rules)
     - --secure deploys AGENTS_SECURITY.md (one consolidated standard; retires the CODE+LLM pair)
-    - All tool-specific flags consolidated into .agents/skills/
+    - All tool-specific flags consolidated into skills-to-distribute/skills/
     - Provider API keys stored in ~/.config/ainish-coder/providers.json
 
 EXAMPLES:

@@ -11,9 +11,15 @@ deploy_unlock() {
     echo -e "${BRIGHT_BLUE}🔓 Deploying Pliny Research — AI Transparency & Observability${RESET}"
 
     # Determine source paths
-    local skills_source="${REPO_DIR}/.agents/skills/pliny-research"
+    local payload_root skills_target_root
+    payload_root="$(ainish_skills_source_root "$REPO_DIR")" || {
+        print_error "Skills payload not found: ${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}"
+        return 1
+    }
+    local skills_source="${payload_root}/pliny-research"
     local research_source="${REPO_DIR}/docs/research/pliny-research"
-    local skills_target="${target_dir}/.agents/skills/pliny-research"
+    skills_target_root="$(ainish_skills_target_root "$target_dir")"
+    local skills_target="${skills_target_root}/pliny-research"
 
     if [[ ! -d "$skills_source" ]]; then
         print_error "Pliny research skill source not found: $skills_source"

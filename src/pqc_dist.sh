@@ -1,11 +1,13 @@
 #!/bin/bash
 # MOLECULE: PQC secrets distribution — one engine, installed once, usable by every tool.
 #
-# The canonical engine lives at .agents/skills/pqc-secrets/scripts/pqc_secrets.py.
-# `--pqc-install` puts a launcher on PATH (~/.local/bin/pqc-secrets, plus the
-# Windows .cmd) that resolves the engine from the recorded root, so node, python,
-# shell and PowerShell callers all reach the same bundle from any directory. On
-# Windows it also provisions the WSL side when a distro answers.
+# The canonical engine lives in the distributable payload at
+# skills-to-distribute/skills/pqc-secrets/scripts/pqc_secrets.py; a consumer
+# repo receives a vendored copy at .agents/skills/pqc-secrets/. `--pqc-install`
+# puts a launcher on PATH (~/.local/bin/pqc-secrets, plus the Windows .cmd) that
+# resolves the engine from the recorded root, so node, python, shell and
+# PowerShell callers all reach the same bundle from any directory. On Windows it
+# also provisions the WSL side when a distro answers.
 # `--pqc-status` proves which store each environment resolves and where enrolled
 # targets drift; `--pqc-sync-targets` refreshes every enrolled target's vendored
 # copy and verifies the digest.
@@ -13,7 +15,16 @@
 # JSON shapes: ainish-coder/pqc-install/v1 · ainish-coder/pqc-status/v1 ·
 #              ainish-coder/pqc-sync/v1
 
-_PQC_ENGINE_REL=".agents/skills/pqc-secrets/scripts/pqc_secrets.py"
+# Engine and pack paths, split by side. The checkout ships the payload; a
+# consumer repo carries the vendored copy. One constant served both roles until
+# the payload moved, which silently made every target check inspect a path that
+# only exists downstream.
+_PQC_PACK_REL_SOURCE="${AINISH_SKILLS_SOURCE_REL}/pqc-secrets"
+_PQC_PACK_REL_TARGET="${AINISH_SKILLS_TARGET_REL}/pqc-secrets"
+_PQC_ENGINE_REL="${_PQC_PACK_REL_SOURCE}/scripts/pqc_secrets.py"
+_PQC_ENGINE_REL_TARGET="${_PQC_PACK_REL_TARGET}/scripts/pqc_secrets.py"
+# Pre-split layout, still resolvable for launchers installed by an older release.
+_PQC_ENGINE_REL_LEGACY=".agents/skills/pqc-secrets/scripts/pqc_secrets.py"
 _PQC_LAUNCHER_REL="bin/pqc-secrets"
 
 _pqc_config_dir() {
@@ -195,9 +206,24 @@ fi
 if [ -n "$root" ] && command -v cygpath >/dev/null 2>&1; then
     root="$(cygpath -u "$root" 2>/dev/null || printf '%s' "$root")"
 fi
-engine="${AINISH_PQC_ENGINE:-${root}/.agents/skills/pqc-secrets/scripts/pqc_secrets.py}"
-if [ ! -f "$engine" ]; then
-    printf 'pqc-secrets: engine not found at %s\n' "$engine" >&2
+engine="${AINISH_PQC_ENGINE:-}"
+if [ -z "$engine" ]; then
+    # The payload moved out of .agents/skills/ so this repository's agents are
+    # not handed every pack as prompt surface. Try the current location first,
+    # then the pre-split one, so a marker recorded by an older install keeps
+    # working instead of failing with a path that looks correct.
+    for candidate in \
+        "${root}/skills-to-distribute/skills/pqc-secrets/scripts/pqc_secrets.py" \
+        "${root}/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"
+    do
+        if [ -f "$candidate" ]; then
+            engine="$candidate"
+            break
+        fi
+    done
+fi
+if [ -z "$engine" ] || [ ! -f "$engine" ]; then
+    printf 'pqc-secrets: engine not found under %s\n' "${root:-<unset>}" >&2
     printf 'hint: re-run "ainish-coder --pqc-install" or set AINISH_PQC_ROOT\n' >&2
     exit 1
 fi
@@ -231,7 +257,9 @@ setlocal
 set "ENGINE=%AINISH_PQC_ENGINE%"
 set "ROOT=%AINISH_PQC_ROOT%"
 if not defined ROOT if exist "%USERPROFILE%\.config\ainish-coder\pqc-root" for /f "usebackq delims=" %%r in ("%USERPROFILE%\.config\ainish-coder\pqc-root") do set "ROOT=%%r"
+if not defined ENGINE if defined ROOT set "ENGINE=%ROOT%\skills-to-distribute\skills\pqc-secrets\scripts\pqc_secrets.py"
 if not defined ENGINE if defined ROOT set "ENGINE=%ROOT%\.agents\skills\pqc-secrets\scripts\pqc_secrets.py"
+if not exist "%ENGINE%" if defined ROOT set "ENGINE=%ROOT%\skills-to-distribute\skills\pqc-secrets\scripts\pqc_secrets.py"
 if not exist "%ENGINE%" (
     echo pqc-secrets: engine not found - run "ainish-coder --pqc-install" 1>&2
     exit /b 1
@@ -431,7 +459,7 @@ pqc_install() {
 # ── --pqc-status ─────────────────────────────────────────────────────────────
 _pqc_target_line() {
     local target="$1"
-    local engine="${target}/${_PQC_ENGINE_REL}"
+    local engine="${target}/${_PQC_ENGINE_REL_TARGET}"
     local state="missing" selection="unknown" sha="" pack_sha=""
 
     if declare -F skills_selection_state >/dev/null 2>&1 && [[ -d "$target" ]]; then
@@ -444,8 +472,8 @@ _pqc_target_line() {
         state="missing"
     else
         sha="$(_calc_sha256 "$engine" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')"
-        pack_sha="$(_pqc_pack_sha "${target}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
-        if [[ "$pack_sha" == "$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)" ]]; then
+        pack_sha="$(_pqc_pack_sha "${target}/${_PQC_PACK_REL_TARGET}" 2>/dev/null || true)"
+        if [[ "$pack_sha" == "$(_pqc_pack_sha "${REPO_DIR}/${_PQC_PACK_REL_SOURCE}" 2>/dev/null || true)" ]]; then
             state="current"
         else
             state="stale"
@@ -496,7 +524,7 @@ pqc_status() {
 
     local registry targets_json="" total=0 current=0 stale=0 missing=0 missing_required=0 deselected=0 unreachable=0 legacy_present=0 pack_bound=0 pack_unsigned=0 stale_selection=0
     local source_pack_sha
-    source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
+    source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/${_PQC_PACK_REL_SOURCE}" 2>/dev/null || true)"
     registry="$(_pqc_config_dir)/targets.txt"
     if [[ -f "$registry" ]]; then
         while IFS= read -r target; do
@@ -709,7 +737,7 @@ pqc_sync_targets() {
 
     local source_sha source_pack_sha targets_json="" total=0 synced=0 current=0 deselected=0 failed=0 missing_n=0 legacy_pruned=0 stamped=0
     source_sha="$(_pqc_engine_sha)"
-    source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
+    source_pack_sha="$(_pqc_pack_sha "${REPO_DIR}/${_PQC_PACK_REL_SOURCE}" 2>/dev/null || true)"
 
     for target in "${targets[@]}"; do
         local state="pending" note=""
@@ -722,9 +750,9 @@ pqc_sync_targets() {
             state="source"
             note="source checkout"
         else
-            local target_engine="${target}/${_PQC_ENGINE_REL}"
+            local target_engine="${target}/${_PQC_ENGINE_REL_TARGET}"
             local target_pack_sha=""
-            target_pack_sha="$(_pqc_pack_sha "${target}/.agents/skills/pqc-secrets" 2>/dev/null || true)"
+            target_pack_sha="$(_pqc_pack_sha "${target}/${_PQC_PACK_REL_TARGET}" 2>/dev/null || true)"
 
             # pqc-secrets is mandatory since 2026-11-07: `ainish-coder --rules`
             # deploys it unconditionally, so a stale `off` entry recorded by an
@@ -742,9 +770,9 @@ pqc_sync_targets() {
             elif [[ "$dry_run" == "true" ]]; then
                 state="would-sync"
             else
-                local skill_src="${REPO_DIR}/.agents/skills/pqc-secrets"
-                local skill_dst="${target}/.agents/skills/pqc-secrets"
-                if safe_mkdir "${target}/.agents/skills" \
+                local skill_src="${REPO_DIR}/${_PQC_PACK_REL_SOURCE}"
+                local skill_dst="${target}/${_PQC_PACK_REL_TARGET}"
+                if safe_mkdir "${target}/${AINISH_SKILLS_TARGET_REL}" \
                     && rm -rf "$skill_dst" \
                     && cp -a "$skill_src" "$skill_dst" 2>/dev/null; then
                     # Keep the repo-relative launchers in step when the target

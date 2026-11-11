@@ -7134,7 +7134,7 @@ def truncate_cmd(cmd: str, max_len: int = 34) -> str:
 # `src/rag/master-surfaces.json` so both engines read one file.
 
 MASTER_SURFACE_RULES_DEFAULTS: Dict[str, Any] = {
-    "contract_paths": ["agents.md", "llms.txt", ".agents/canonical/", ".agents/skills/", "src/templates/"],
+    "contract_paths": ["agents.md", "llms.txt", ".agents/canonical/", ".agents/skills/", "skills-to-distribute/", "src/templates/"],
     "schema_suffixes": ["embed-provider.json", "index-fingerprint.json", "gate-status.json", "ainish-deploy.json"],
     "dependency_manifests": [
         "cargo.toml",
