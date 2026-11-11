@@ -5,6 +5,7 @@
     "llms.txt",
     ".agents/canonical/",
     ".agents/skills/",
+    "skills-to-distribute/",
     "src/templates/"
   ],
   "schema_suffixes": [

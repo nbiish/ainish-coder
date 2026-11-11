@@ -208,11 +208,11 @@ main() {
         optional_on="$(skills_selection_enabled_count "$target_dir")"
         mandatory_total=0
         for _m in $(_skills_mandatory_names); do
-            [[ -d "${REPO_DIR}/.agents/skills/${_m}" ]] && mandatory_total=$((mandatory_total + 1))
+            [[ -d "${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}/${_m}" ]] && mandatory_total=$((mandatory_total + 1))
         done
         if (( optional_on <= mandatory_total )); then
             echo -e "${YELLOW}ℹ No optional skill packs selected for this repo.${RESET}"
-            echo -e "  Mandatory packs are still deployed (see .agents/skills/)."
+            echo -e "  Mandatory packs are still deployed (see ${AINISH_SKILLS_TARGET_REL}/ in the target)."
             echo -e "  Choose optional packs with: ${BRIGHT_WHITE}ainish-coder --select-skills $target_dir${RESET}"
         fi
 
@@ -280,14 +280,22 @@ main() {
         # documents where plans of record live (question-me writes them there), and
         # .agents/skills/llms.txt indexes whatever packs the operator selected (it is a valid index
         # even when zero packs are on).
-        local _tpl
-        for _tpl in llms.txt templates/llms.txt templates/masters.md templates/egm-design.md templates/plan.md plans/llms.txt skills/llms.txt; do
-            local _src="${REPO_DIR}/.agents/${_tpl}"
-            local _dst="${target_dir}/.agents/${_tpl}"
+        local _tpl _src _dst
+        for _tpl in llms.txt templates/llms.txt templates/masters.md templates/egm-design.md templates/plan.md plans/llms.txt; do
+            _src="${REPO_DIR}/.agents/${_tpl}"
+            _dst="${target_dir}/.agents/${_tpl}"
             [[ -f "$_src" ]] || continue
             mkdir -p "$(dirname "$_dst")" 2>/dev/null || true
             cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-${_tpl%%/*}" || true
         done
+        # The skills index describes the DISTRIBUTED packs, so it comes from the
+        # payload rather than this repository's own curated .agents/skills/.
+        _src="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}/llms.txt"
+        _dst="${target_dir}/${AINISH_SKILLS_TARGET_REL}/llms.txt"
+        if [[ -f "$_src" ]]; then
+            mkdir -p "$(dirname "$_dst")" 2>/dev/null || true
+            cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-skills" || true
+        fi
 
         # Detect PQC/environment embedding credentials (OpenRouter/ZenMux) and route the RAG
         # engine's embeddings through them; nothing is persisted when no credentials exist.
@@ -416,7 +424,7 @@ main() {
             # AGENTS_LLM_SECURITY.md pair. Two separate files forced a reader to know
             # in advance which domain a rule lived in, and the two drifted: the code
             # file referenced sections of the LLM file by path. One file, one gate.
-            local security_source="${REPO_DIR}/.agents/skills/ainish-security/references/deployable-standards.md"
+            local security_source="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}/ainish-security/references/deployable-standards.md"
             if [[ ! -f "$security_source" ]]; then
                 security_source="${REPO_DIR}/AGENTS_SECURITY.md"
             fi
@@ -625,7 +633,11 @@ main() {
                 fi
                 # Validate names against packs that actually exist, so a typo cannot be
                 # persisted as a setting that silently selects nothing.
-                local _sk_src="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+                local _sk_src
+                _sk_src="$(ainish_skills_source_root "${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}")" || {
+                    print_error "Skills payload not found: ${AINISH_SKILLS_SOURCE_REL}/"
+                    exit 1
+                }
                 local _sk_bad=() _sk_mandatory=() _sk_pair
                 for _sk_pair in "${_sk_pairs[@]}"; do
                     _sk_name="${_sk_pair%:*}"

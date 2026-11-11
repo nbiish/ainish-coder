@@ -56,8 +56,12 @@ deploy_scrolls() {
 
     # Scroll-channel skill packs ride with the payload — this is their ONLY
     # distribution surface (operator-invoked, verify-gated --scrolls).
-    local skills_source="${REPO_DIR}/.agents/skills"
-    local skills_target="$target_dir/.agents/skills"
+    local skills_source skills_target
+    skills_source="$(ainish_skills_source_root "$REPO_DIR")" || {
+        print_error "Skills payload not found: ${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}"
+        return 1
+    }
+    skills_target="$(ainish_skills_target_root "$target_dir")"
     local pack pack_count=0
     for pack in 8thfire-scrolls ghost-layer-injector; do
         if [[ ! -d "$skills_source/$pack" ]]; then
@@ -66,10 +70,10 @@ deploy_scrolls() {
         fi
         safe_mkdir "$skills_target" || return 1
         if deploy_path "$skills_source/$pack" "$skills_target/$pack"; then
-            echo -e "${GREEN}✓ Deployed .agents/skills/$pack${RESET}"
+            echo -e "${GREEN}✓ Deployed ${AINISH_SKILLS_TARGET_REL}/$pack${RESET}"
             ((pack_count++))
         else
-            print_error "Failed to deploy .agents/skills/$pack"
+            print_error "Failed to deploy ${AINISH_SKILLS_TARGET_REL}/$pack"
             return 1
         fi
     done

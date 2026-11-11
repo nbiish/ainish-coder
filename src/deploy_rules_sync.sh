@@ -367,7 +367,7 @@ AINISH_RULES_SYNC_EOF
 # distribution module is loaded (it normally is); the fallback keeps manifest
 # writing self-contained for the rules path.
 _ainish_rules_pack_digest() {
-    local dir="${REPO_DIR}/.agents/skills/pqc-secrets"
+    local dir="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL:-skills-to-distribute/skills}/pqc-secrets"
     [[ -d "$dir" ]] || return 1
     if declare -F _pqc_pack_sha >/dev/null 2>&1; then
         _pqc_pack_sha "$dir" 2>/dev/null && return 0

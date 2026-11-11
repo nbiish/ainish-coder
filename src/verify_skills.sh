@@ -2,10 +2,11 @@
 # MOLECULE: Skills byte-integrity (verify + safe sync)
 # verify_ainish_skills : read-only report of byte-identity vs this repo
 # sync_ainish_skills   : THE one command — TWO-WAY NEWEST-WINS sync.
-#                        Target-ward: pulls the latest ainish-coder skills
-#                        (missing or drifted only). Source-ward: ingests
-#                        newly detected AND more-recently-refined target
-#                        skills back into ainish-coder. The newest copy of
+#                        Target-ward: pulls the latest ainish-coder packs from
+#                        skills-to-distribute/skills/ into the target's
+#                        .agents/skills/ (missing or drifted only). Source-ward:
+#                        ingests newly detected AND more-recently-refined target
+#                        skills back into the payload. The newest copy of
 #                        each skill wins in both directions — a newer
 #                        target copy is never clobbered by an older source
 #                        (equal mtimes: source wins the tie as canonical
@@ -48,28 +49,35 @@ _ainish_stamp_alternative() {
 }
 
 # Resolve the ainish-coder source repo (AINISH_SOURCE_REPO > stamp > REPO_DIR).
+# A candidate only counts when it carries the distributable payload; the
+# `.agents/skills/` test that used to guard this now describes what a CONSUMER
+# repo holds, not what the source repo ships.
+_ainish_source_has_skills() {
+    [[ -d "${1:-}/${AINISH_SKILLS_SOURCE_REL}" ]]
+}
+
 _ainish_skills_source() {
-    if [[ -n "${AINISH_SOURCE_REPO:-}" && -d "$AINISH_SOURCE_REPO/.agents/skills" ]]; then
+    if [[ -n "${AINISH_SOURCE_REPO:-}" ]] && _ainish_source_has_skills "$AINISH_SOURCE_REPO"; then
         echo "$AINISH_SOURCE_REPO"
         return 0
     fi
     local target_dir="${1:-.}"
-    local stamp="$target_dir/.agents/skills/.ainish-source"
+    local stamp="$target_dir/${AINISH_SKILLS_TARGET_REL}/.ainish-source"
     if [[ -f "$stamp" ]]; then
         local stamped alt
         stamped="$(head -n1 "$stamp" 2>/dev/null)"
-        if [[ -d "$stamped/.agents/skills" ]]; then
+        if _ainish_source_has_skills "$stamped"; then
             echo "$stamped"
             return 0
         fi
         # The stamp may have been written by the other host; try its counterpart.
         alt="$(_ainish_stamp_alternative "$stamped")"
-        if [[ -n "$alt" && "$alt" != "$stamped" && -d "$alt/.agents/skills" ]]; then
+        if [[ -n "$alt" && "$alt" != "$stamped" ]] && _ainish_source_has_skills "$alt"; then
             echo "$alt"
             return 0
         fi
     fi
-    if [[ -d "${REPO_DIR:-}/.agents/skills" ]]; then
+    if _ainish_source_has_skills "${REPO_DIR:-}"; then
         echo "$REPO_DIR"
         return 0
     fi
@@ -119,8 +127,9 @@ verify_ainish_skills() {
         print_error "Cannot resolve ainish-coder source repo (set AINISH_SOURCE_REPO or redeploy skills)"
         return 1
     }
-    local skills_target="$target_dir/.agents/skills"
-    local skills_source="$source_dir/.agents/skills"
+    local skills_target
+    skills_target="$(ainish_skills_target_root "$target_dir")"
+    local skills_source="${source_dir}/${AINISH_SKILLS_SOURCE_REL}"
     if [[ ! -d "$skills_target" ]]; then
         print_error "No skills directory at $skills_target"
         return 1
@@ -445,8 +454,9 @@ sync_ainish_skills() {
         print_error "Cannot resolve ainish-coder source repo (set AINISH_SOURCE_REPO or redeploy skills)"
         return 1
     }
-    local skills_target="$target_dir/.agents/skills"
-    local skills_source="$source_dir/.agents/skills"
+    local skills_target
+    skills_target="$(ainish_skills_target_root "$target_dir")"
+    local skills_source="${source_dir}/${AINISH_SKILLS_SOURCE_REL}"
     if [[ ! -d "$skills_source" ]]; then
         print_error "Source skills directory not found: $skills_source"
         return 1
