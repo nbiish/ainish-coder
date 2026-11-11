@@ -536,6 +536,13 @@ contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evide
 # the behaviour the contract must still tell an agent, whichever words carry it.
 degrade_rule=$(grep -cE 'carry on|Never block on it|do not block on it' "${REPO}/AGENTS.md" || true)
 check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]] && echo yes || echo no)" "yes"
+# Authorship is a claim about who wrote the work, and a harness can inject a co-author trailer
+# (this repo's own commits carried `Co-authored-by: Cursor` until 2026-11-11). The contract must
+# forbid it explicitly, because every harness default that offers it is otherwise obeyed.
+contains "contract forbids co-authorship" "$(cat "${REPO}/AGENTS.md")" 'Never co-author a commit'
+coauthor_ok=0
+if grep -qiE 'owner is the only author|only author' "${REPO}/AGENTS.md"; then coauthor_ok=1; fi
+check "contract names the owner as sole author" "$coauthor_ok" "1"
 # The contract must NOT describe models, providers, or the driver chain: those are engine facts that
 # belong in llms.txt and the engine's own report, and naming them in an always-read file costs every
 # agent tokens for information it cannot act on.
