@@ -31,7 +31,7 @@ than carrying the error forward. `env_report`/`env_probe` sharing one table row 
 
 | Surface | Problem |
 |---|---|
-| `README.md` skills table | Advertised 3 packs that **do not exist** (`browser-harness`, `camofox-stack`, `skyvern`), omitted 4 that do (`browser-skill`, `browser-use`, `tts-cli`, `typesafe-jev`) |
+| `README.md` skills table | Advertised 3 packs that **do not exist** (`browser-harness`, `camofox-stack`, `skyvern`), omitted 4 that do (`browser-skill`, `browser-use`, the TTS pack, `typesafe-jev`) |
 | `README.md` tree | Also listed `osa/` and `pi/` (never existed), and claimed "24 packs" against 20 directories |
 | `docs/rag-context-system-plan.md` | Appendix B described the retired `context-orchestration` skill in the present tense |
 | `.agents/skills/llms.txt` | Did not list `wtf-is-going-on-mcp` |
