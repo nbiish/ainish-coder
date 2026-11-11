@@ -39,7 +39,7 @@ _MS_AS=""
 _MS_DIRECTION="both"
 _MS_SELF=""
 _MS_JSON=false
-_MS_FF_PEERS=false
+_MS_FF_PEERS=true
 _MS_PEER_REF=""
 _MS_PEER_BRANCH=""
 
@@ -65,7 +65,10 @@ OPTIONS:
     --pull                 Receive only: peer branches and their uncommitted work to here.
     --both                 Send and receive (default).
     --status               Report what is already known here. No network, no transfer.
-    --ff-peers             After a successful push, fast-forward a peer's checkout onto what was
+    --no-ff-peers          Leave the peer's checkout where it is. By default a peer that has the
+                           same branch checked out and a clean tree is fast-forwarded, so the next
+                           command run there sees the new commits.
+    --ff-peers             Explicitly fast-forward a peer's checkout onto what was
                            sent — only when that peer has the same branch checked out and a clean
                            working tree. Off by default: a peer's branch is not ours to move.
     --dry-run              Print the plan and exit without moving anything.
@@ -546,6 +549,7 @@ machine_sync() {
             --kind)        kind_filter="${2:-}"; shift 2 ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
             --ff-peers)    _MS_FF_PEERS=true;     shift ;;
+            --no-ff-peers) _MS_FF_PEERS=false;    shift ;;
             --push)        _MS_DIRECTION="push";  shift ;;
             --pull)        _MS_DIRECTION="pull";  shift ;;
             --both)        _MS_DIRECTION="both";  shift ;;
