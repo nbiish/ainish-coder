@@ -1,6 +1,7 @@
 #!/bin/bash
 # MOLECULE: Skills deployment
-# Deploys explicitly selected skills from .agents/skills/ to a target project.
+# Deploys explicitly selected skills from the distributable payload
+# (skills-to-distribute/skills/) into a target project's .agents/skills/.
 # Coordination, memories, suggestions, and core RAG logic are distributed by
 # the rules path; optional skill packs are never implicitly enabled.
 
@@ -12,20 +13,20 @@ deploy_skills() {
     validate_target_dir "$target_dir" || return 1
 
     # Self-deploy guard: distributing into the ainish-coder repo itself
-    # would rm/cp source packs onto themselves (destroying them). Ainish
-    # skills already live here — nothing to distribute.
+    # would rm/cp source packs onto themselves (destroying them). This repo
+    # reads a small curated subset in its own .agents/skills/ instead; the
+    # distributable payload lives in skills-to-distribute/skills/.
     if [[ -n "$target_canon" && "$target_canon" == "$source_dir" ]]; then
-        echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — skills already live here, nothing to distribute.${RESET}"
+        echo -e "${YELLOW}ℹ Target is the ainish-coder source repo itself — distributable packs live in ${AINISH_SKILLS_SOURCE_REL}/, nothing to distribute.${RESET}"
         return 0
     fi
 
-    local skills_source="$source_dir/.agents/skills"
-    local skills_target="$target_dir/.agents/skills"
-
-    if [[ ! -d "$skills_source" ]]; then
-        print_error "Skills source directory not found: $skills_source"
+    local skills_source skills_target
+    skills_source="$(ainish_skills_source_root "$source_dir")" || {
+        print_error "Skills source directory not found: ${source_dir}/${AINISH_SKILLS_SOURCE_REL}"
         return 1
-    fi
+    }
+    skills_target="$(ainish_skills_target_root "$target_dir")"
 
     local mode_label="Deploying"
     if [[ "${AINISH_NO_OVERWRITE:-false}" == "true" ]]; then

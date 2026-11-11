@@ -131,7 +131,10 @@ graphify-out/
 # them (llms.txt "Graph & Memory Tooling Stance")
 .gitnexus/
 .claude/
-.agents/skills/gitnexus-*/
+.agents/skills/gitnexus-*
+# The distributable payload is also discovered by agent tooling when a stale
+# pack is left behind by a retired integration; same accident guard, both trees.
+skills-to-distribute/skills/gitnexus-*/
 
 # PQC secrets — bundle and audit log (the .env patterns above cover
 # most cases, but PQC artifacts are explicit for clarity)

@@ -934,8 +934,17 @@ impl DecisionEngine {
             }
         }
 
-        // Try via uv, python3, python, or py with script discovery
+        // Try via uv, python3, python, or py with script discovery.
+        //
+        // The engine is resolved from BOTH layouts on purpose: the ainish-coder
+        // checkout ships it under skills-to-distribute/skills/, while a consumer
+        // repo receives a vendored copy at .agents/skills/. Probing only one of
+        // them makes the decision path silently unavailable in the other.
         let mut script_candidates = vec![
+            PathBuf::from("skills-to-distribute/skills/pqc-secrets/scripts/pqc_secrets.py"),
+            PathBuf::from("../skills-to-distribute/skills/pqc-secrets/scripts/pqc_secrets.py"),
+            PathBuf::from("D:/Code/ainish-coder/skills-to-distribute/skills/pqc-secrets/scripts/pqc_secrets.py"),
+            PathBuf::from("/mnt/c/Code/ainish-coder/skills-to-distribute/skills/pqc-secrets/scripts/pqc_secrets.py"),
             PathBuf::from(".agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
             PathBuf::from("../.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),
             PathBuf::from("D:/Code/ainish-coder/.agents/skills/pqc-secrets/scripts/pqc_secrets.py"),

@@ -1,0 +1,11 @@
+
+- Skill payload split (2026-11-11): a tool that DISTRIBUTES skills and a repo that READS skills need
+  two different directories. Harnesses auto-discover `**/.agents/skills`, so a payload parked there is
+  standing context in every session. Source = `skills-to-distribute/skills/`, target = the consumer's
+  `.agents/skills/`; `AINISH_SKILLS_[SOURCE|TARGET]_REL` in `src/paths.sh` is the only definition.
+- A path constant that resolves "the same file" in two contexts is a latent bug, not a shortcut.
+  `_PQC_ENGINE_REL` meant both "engine in this checkout" and "vendored engine in a target"; the split
+  surfaced it. Name the side in the constant (`_SOURCE` / `_TARGET`) and keep a legacy fallback.
+- BSD sed does not support `\|` alternation in basic regex — `s/x\(a\|b\)y/` silently matches nothing
+  on macOS. Use `sed -E`. A test helper that silently returns empty turns a gate green while it
+  verifies nothing; check that a gate FAILS when it should before trusting a pass count.

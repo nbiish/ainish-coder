@@ -1,17 +1,18 @@
 #!/bin/bash
 # MOLECULE: Persisting skill-selection for distribution
 #
-# The operator toggles which .agents/skills/ packs distribute via
-# `ainish-coder --skills-sync` (interactive keypress toggle UI: arrows move,
-# space toggles, enter/space on the Save & submit row persists). The
-# choice persists in
+# The operator toggles which packs distribute via `ainish-coder --skills-sync`
+# (interactive keypress toggle UI: arrows move, space toggles, enter/space on
+# the Save & submit row persists). The choice persists in
 # ~/.config/ainish-coder/skills-selection.json (per-repo keys, keyed by
 # absolute repo path) across terminals and machines that share $HOME.
 #
 # Live intake: the config stores per-REPO selections keyed by skill NAME.
-# Source packs are enumerated from disk on every run, so additions, renames,
-# and deletions in the repo's .agents/skills/ are picked up automatically —
-# new packs default to the repo's default-selection policy.
+# Source packs are enumerated from the distributable payload on every run, so
+# additions, renames, and deletions in skills-to-distribute/skills/ are picked
+# up automatically — new packs default to the repo's default-selection policy.
+# Selections describe what a CONSUMER repo receives at its .agents/skills/;
+# they never describe what this repository reads.
 #
 # Hard exclusion (never configurable): .scrolls* payload, 8thfire-scrolls,
 # and ghost-layer-injector — the explicit --scrolls channel only.
@@ -19,6 +20,15 @@
 # Headless: `ainish-coder --skills-sync <dir> --headless` / `--rules <dir>
 # --headless` skips every prompt and applies the persisted selection as-is
 # (agent/CI path).
+
+# _skills_selection_source_dir — the distributable payload this repo SHIPS
+# packs from (skills-to-distribute/skills/). Printing an empty line on failure
+# is deliberate: every caller tests `[[ -d "$source_dir" ]]` and reports the
+# packaging error itself, so a fallback to a path that no longer exists would
+# only move the failure somewhere less obvious.
+_skills_selection_source_dir() {
+    ainish_skills_source_root "${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}" 2>/dev/null || true
+}
 
 # Path of the persisted selection config. AINISH_SKILLS_SELECTION overrides
 # (tests use this to sandbox).
@@ -184,7 +194,8 @@ print('yes' if isinstance(entry, dict) else 'no')
 # packs at all.
 skills_selection_enabled_count() {
     local repo_root="${1:-$(pwd)}"
-    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    local source_dir
+    source_dir="$(_skills_selection_source_dir)"
     [[ -d "$source_dir" ]] || { printf '0\n'; return 0; }
     local count=0 d name
     while IFS= read -r d; do
@@ -442,7 +453,8 @@ os.replace(tmp, path)
 # Prints "ON|OFF <name>" lines, sorted; excluded packs never listed.
 skills_selection_list() {
     local repo_root="${1:-$(pwd)}"
-    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    local source_dir
+    source_dir="$(_skills_selection_source_dir)"
     [[ -d "$source_dir" ]] || return 1
     local d name
     while IFS= read -r d; do
@@ -463,7 +475,8 @@ skills_selection_list() {
 skills_selection_report() {
     local repo_root="${1:-$(pwd)}"
     local json="${2:-false}"
-    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    local source_dir
+    source_dir="$(_skills_selection_source_dir)"
     [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
 
     local on_names=() off_names=() mandatory_names=() d name
@@ -580,7 +593,8 @@ _skills_toggle_ui() {
 # Single frame redrawn in place; batched persistence on submit only.
 _skills_toggle_ui_raw() {
     local repo_root="$1"
-    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    local source_dir
+    source_dir="$(_skills_selection_source_dir)"
     [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
 
     # Live intake: enumerate from disk each run.
@@ -734,7 +748,8 @@ _skills_toggle_ui_raw() {
 # All UI text to stderr; nothing on stdout.
 _skills_toggle_ui_numbered() {
     local repo_root="$1"
-    local source_dir="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/.agents/skills"
+    local source_dir
+    source_dir="$(_skills_selection_source_dir)"
     [[ -d "$source_dir" ]] || { print_error "No skills directory at $source_dir"; return 1; }
 
     # Live intake: enumerate from disk each run.

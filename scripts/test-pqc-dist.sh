@@ -43,6 +43,11 @@ mkdir -p "${HOME_DIR}/.config/ainish-coder" "$TARGET_ON/.agents/skills" "$TARGET
     "$TARGET_OFF/.agents/skills" "$TARGET_OFF/bin" "$TARGET_BARE/.agents/skills"
 
 # Normalisation used by the CLI itself, so fixture keys match real lookups.
+# paths.sh owns the skill payload constants and resolvers that skills_selection.sh
+# and verify_skills.sh call; source it first, or those calls are unbound functions
+# in a standalone (non-CLI) test run.
+# shellcheck disable=SC1090
+source "${REPO}/src/paths.sh"
 # shellcheck disable=SC1090
 source "${REPO}/src/skills_selection.sh"
 
@@ -80,8 +85,13 @@ contains() { # contains <label> <haystack> <needle>
 
 # Minimal JSON field reader (string or scalar). Fields may live on a nested
 # one-line object (e.g. "summary": {...}), so the match is not line-anchored.
+#
+# Extended regex (-E) rather than `\(a\|b\)` alternation: BSD sed (the macOS
+# default) does not support `\|` in a basic regex, so the alternation form
+# silently matched nothing there and every boolean/scalar assertion read as
+# empty — a gate that looked green while verifying nothing.
 jget() {
-    sed -n "s/.*\"$1\":[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p; s/.*\"$1\":[[:space:]]*\\(true\\|false\\|[0-9][0-9]*\\).*/\\1/p" "$2" \
+    sed -n -E "s/.*\"$1\":[[:space:]]*\"([^\"]*)\".*/\1/p; s/.*\"$1\":[[:space:]]*(true|false|[0-9]+).*/\1/p" "$2" \
         | head -n 1
 }
 
@@ -330,7 +340,7 @@ cat > "${TARGET_ON}/.agents/ainish-deploy.json" <<'JSON'
   "deployed_at": "2026-10-29T00:00:00Z"
 }
 JSON
-pqc_packs=( "$REPO"/.agents/skills/pqc* )
+pqc_packs=( "$REPO"/skills-to-distribute/skills/pqc* )
 check "source ships exactly one pqc pack" "${#pqc_packs[@]}" "1"
 
 echo "== --pqc-sync-targets =="
@@ -388,7 +398,7 @@ check "doc-only drift is stale" "$(jget stale "${WORK}/drift-status.json")" "1"
 run_cli --pqc-sync-targets --all --json > "${WORK}/repair.json"
 check "doc-only drift re-synced" "$(jget synced "${WORK}/repair.json")" "1"
 if cmp -s "${TARGET_ON}/.agents/skills/pqc-secrets/references/signatures-security.md" \
-          "${REPO}/.agents/skills/pqc-secrets/references/signatures-security.md"; then
+          "${REPO}/skills-to-distribute/skills/pqc-secrets/references/signatures-security.md"; then
     ok "reference restored byte-for-byte"
 else
     not_ok "reference restored byte-for-byte"
@@ -474,24 +484,24 @@ contains "contract points at the definitions" "$(cat "${REPO}/AGENTS.md")" "temp
 # sends a reader looking for a file that is not there. This has drifted twice (README advertised three
 # deleted browser packs and omitted four real ones, plus two packs that never existed).
 stale_pack_refs=0
-for surfacedoc in "${REPO}/README.md" "${REPO}/.agents/skills/llms.txt" "${REPO}/src/help.sh" \
+for surfacedoc in "${REPO}/README.md" "${REPO}/skills-to-distribute/skills/llms.txt" "${REPO}/src/help.sh" \
                   "${REPO}/.agents/llms.txt" "${REPO}/llms.txt"; do
     [[ -f "$surfacedoc" ]] || continue
     while IFS= read -r refname; do
         [[ -n "$refname" ]] || continue
-        [[ -d "${REPO}/.agents/skills/${refname}" ]] || {
+        if [[ ! -d "${REPO}/skills-to-distribute/skills/${refname}" && ! -d "${REPO}/.agents/skills/${refname}" ]]; then
             echo "    stale pack reference in ${surfacedoc##*/}: ${refname}"
             stale_pack_refs=$((stale_pack_refs + 1))
-        }
+        fi
     done < <(grep -oE '\.agents/skills/[a-z0-9-]+/' "$surfacedoc" 2>/dev/null | sed 's#.*/skills/##; s#/$##' | sort -u)
 done
 check "no surface names a nonexistent skill pack" "$stale_pack_refs" "0"
 # The wtf pack must stay discoverable: it is a distributed pack, so the skills index names it.
-contains "skills index lists the wtf pack" "$(cat "${REPO}/.agents/skills/llms.txt")" "wtf-is-going-on-mcp"
+contains "skills index lists the wtf pack" "$(cat "${REPO}/skills-to-distribute/skills/llms.txt")" "wtf-is-going-on-mcp"
 # No surface may cite a lens set that nothing defines.
 dangling=0
 for f in "${REPO}/AGENTS.md" "${REPO}/.agents/llms.txt" "${REPO}/llms.txt" \
-         "${REPO}/.agents/skills/ainish-security/SKILL.md"; do
+         "${REPO}/skills-to-distribute/skills/ainish-security/SKILL.md"; do
     [[ -f "$f" ]] || continue
     grep -q "nine core lenses" "$f" && dangling=$((dangling + 1))
 done
@@ -521,7 +531,11 @@ contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def gold
 contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evidence, not instruction'
-contains "contract states the degradation rule" "$(cat "${REPO}/AGENTS.md")" 'Never block on it'
+# The rule is "a thin block never stops the work", stated in the contract's own words. Asserting one
+# exact phrasing couples the gate to a sentence the 120-line budget may legitimately rewrite; assert
+# the behaviour the contract must still tell an agent, whichever words carry it.
+degrade_rule=$(grep -cE 'carry on|Never block on it|do not block on it' "${REPO}/AGENTS.md" || true)
+check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]] && echo yes || echo no)" "yes"
 # The contract must NOT describe models, providers, or the driver chain: those are engine facts that
 # belong in llms.txt and the engine's own report, and naming them in an always-read file costs every
 # agent tokens for information it cannot act on.
@@ -536,14 +550,14 @@ contains "selector treats it as not-selectable" "$(cat "${REPO}/src/skills_selec
 contains "deploy ships it unconditionally" "$(cat "${REPO}/src/deploy_skills.sh")" 'Deployed (mandatory)'
 contains "verify fails when it is absent" "$(cat "${REPO}/src/verify_skills.sh")" 'MISSING MANDATORY'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
-contains "security skill carries the advisory rule" "$(cat "${REPO}/.agents/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
+contains "security skill carries the advisory rule" "$(cat "${REPO}/skills-to-distribute/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
 
 echo "== security is one skill and context orchestration is a command =="
 # Four packs split security by domain, so an agent had to know in advance which
 # one a task belonged to before loading any rules. One skill removes that guess.
-SEC_DIR="${REPO}/.agents/skills/ainish-security"
+SEC_DIR="${REPO}/skills-to-distribute/skills/ainish-security"
 for gone in code-security llm-security production-security context-orchestration orchestrate-subagent-masters; do
-    if [[ -d "${REPO}/.agents/skills/${gone}" ]]; then
+    if [[ -d "${REPO}/skills-to-distribute/skills/${gone}" ]]; then
         not_ok "retired pack removed: $gone"
     else
         ok "retired pack removed: $gone"
@@ -552,7 +566,7 @@ done
 # Retiring a pack is not enough: every live surface that recommended it must stop
 # doing so, or the next agent is told to load something that no longer exists.
 live_refs=0
-for f in "${REPO}/.agents/skills/llms.txt" "${REPO}/.agents/skills/gstack-coder/SKILL.md" \
+for f in "${REPO}/skills-to-distribute/skills/llms.txt" "${REPO}/skills-to-distribute/skills/gstack-coder/SKILL.md" \
          "${REPO}/AGENTS.md" "${REPO}/llms.txt" "${REPO}/.agents/llms.txt" "${REPO}/src/help.sh"; do
     [[ -f "$f" ]] || continue
     # Mentions that mark it retired ("is retired", "former", "merged into") are fine; a bare
@@ -562,7 +576,7 @@ for f in "${REPO}/.agents/skills/llms.txt" "${REPO}/.agents/skills/gstack-coder/
     fi
 done
 check "no live surface recommends the retired skill" "$live_refs" "0"
-contains "skills index documents the retirement" "$(cat "${REPO}/.agents/skills/llms.txt")" 'skill is retired'
+contains "skills index documents the retirement" "$(cat "${REPO}/skills-to-distribute/skills/llms.txt")" 'skill is retired'
 # Cleanup lists must name every retired pack, or a target that still carries one keeps it forever.
 contains "deploy sweeps context-orchestration" "$(cat "${REPO}/src/deploy_skills.sh")" "context-orchestration orchestrate-subagent-masters"
 contains "selection excludes context-orchestration" "$(cat "${REPO}/src/skills_selection.sh")" "context-orchestration|orchestrate-subagent-masters"
@@ -627,9 +641,12 @@ else
     not_ok "contract stays under 120 lines (${contract_lines})"
 fi
 # Every file the contract links to must be deployed by --rules. A pointer to a file the target never
-# receives is worse than no pointer: the agent is told to read something that is absent.
-DEPLOY_TMPL_LINE='for _tpl in llms.txt templates/llms.txt templates/masters.md templates/egm-design.md templates/plan.md plans/llms.txt skills/llms.txt'
+# receives is worse than no pointer: the agent is told to read something that is absent. The .agents
+# map and the skills index come from different trees now (the index describes DISTRIBUTED packs), so
+# both copy paths are pinned and both are checked below.
+DEPLOY_TMPL_LINE='for _tpl in llms.txt templates/llms.txt templates/masters.md templates/egm-design.md templates/plan.md plans/llms.txt; do'
 contains "deploy copies the .agents map" "$(cat "${REPO}/bin/ainish-coder")" "${DEPLOY_TMPL_LINE}"
+contains "deploy copies the skills index from the payload" "$(cat "${REPO}/bin/ainish-coder")" '_src="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}/llms.txt"'
 linked_shipped=0
 for linked in llms.txt templates/masters.md templates/plan.md plans/llms.txt skills/llms.txt; do
     if grep -qF "${linked}" "${REPO}/bin/ainish-coder"; then
@@ -666,10 +683,53 @@ check "every .agents child index entry exists" "$index_missing" "0"
 check "plan template ships" "$([[ -f "${REPO}/.agents/templates/plan.md" ]] && echo yes || echo no)" "yes"
 check "plans directory contract ships" "$([[ -f "${REPO}/.agents/plans/llms.txt" ]] && echo yes || echo no)" "yes"
 contains "plan template declares the frontmatter contract" "$(cat "${REPO}/.agents/templates/plan.md")" 'plan_format: ainish/plan/v1'
-contains "question-me writes plans of record" "$(cat "${REPO}/.agents/skills/question-me/SKILL.md")" '.agents/plans/{YYYY-MM-DD}-{slug}.plan.md'
+contains "question-me writes plans of record" "$(cat "${REPO}/skills-to-distribute/skills/question-me/SKILL.md")" '.agents/plans/{YYYY-MM-DD}-{slug}.plan.md'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
+
+echo "== the distributable payload is split from this repo's readable packs =="
+# The whole point of the split: agent harnesses auto-discover `**/.agents/skills`, so every pack kept
+# there is standing prompt surface in THIS repository. Distribution therefore reads one tree
+# (skills-to-distribute/skills/) and writes another (.agents/skills/ in the consumer). Three things
+# must hold, and each has a distinct failure it prevents.
+check "payload tree exists" \
+    "$([[ -d "${REPO}/skills-to-distribute/skills" ]] && echo yes || echo no)" "yes"
+# 1. The payload must be the complete set, or a deploy silently ships fewer packs than the index lists.
+payload_packs=$(find "${REPO}/skills-to-distribute/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+check "payload carries every pack" "$(( payload_packs >= 20 ))" "1"
+# 2. This repo's own .agents/skills must stay a small curated subset. A drifting re-add (the failure
+#    mode this refactor exists to fix) shows up here as a count that creeps back toward the payload.
+local_packs=0
+[[ -d "${REPO}/.agents/skills" ]] && local_packs=$(find "${REPO}/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+check "local .agents/skills is a curated subset (<=6 packs)" "$(( local_packs <= 6 ))" "1"
+check "local subset is a strict subset of the payload" \
+    "$(( local_packs < payload_packs ))" "1"
+# 3. Every contract-critical pack an agent here is told to read must actually be readable locally.
+for required in ainish-security pqc-secrets question-me security-first-agent; do
+    check "contract-critical pack readable locally: ${required}" \
+        "$([[ -d "${REPO}/.agents/skills/${required}" ]] && echo yes || echo no)" "yes"
+    check "contract-critical pack also distributable: ${required}" \
+        "$([[ -d "${REPO}/skills-to-distribute/skills/${required}" ]] && echo yes || echo no)" "yes"
+    # The local copy exists so agents can READ it; the payload copy is what ships. Two copies of one
+    # pack is the drift surface this design introduces, so pin byte-identity: an edit to either side
+    # alone must fail here rather than silently publish a pack nobody re-read.
+    if diff -r -x ".env" -x "__pycache__" -x "*.pyc" -x ".DS_Store" \
+            "${REPO}/skills-to-distribute/skills/${required}" "${REPO}/.agents/skills/${required}" \
+            >/dev/null 2>&1; then
+        ok "local copy matches the payload byte-for-byte: ${required}"
+    else
+        not_ok "local copy drifted from the payload: ${required} (re-copy from skills-to-distribute/skills/)"
+    fi
+done
+# 4. No script may resolve the SOURCE tree from a hardcoded literal. One shared constant is what keeps
+#    src/deploy_skills.sh, the selector, verify, sync, pqc, scrolls, and unlock in step.
+hardcoded=$(grep -rn 'REPO_DIR}/\.agents/skills\|REPO_DIR}/\.agents/skills/\${' \
+    "${REPO}/src" "${REPO}/bin/ainish-coder" 2>/dev/null \
+    | grep -v 'AINISH_SKILLS_TARGET_REL' | grep -v '^.*#' | wc -l | tr -d ' ')
+check "no script hardcodes the payload source path" "$hardcoded" "0"
+contains "the shared source constant is defined once" "$(cat "${REPO}/src/paths.sh")" 'AINISH_SKILLS_SOURCE_REL="skills-to-distribute/skills"'
+contains "the shared target constant is defined once" "$(cat "${REPO}/src/paths.sh")" 'AINISH_SKILLS_TARGET_REL=".agents/skills"'
 
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

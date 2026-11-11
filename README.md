@@ -58,29 +58,32 @@ ainish-coder encodes the **8th Fire Mission**—a commitment to digital sovereig
 
 ## 🧠 Skills System
 
-Skills are portable, expert-level knowledge packs that inject domain expertise into AI agents. Each skill lives in `.agents/skills/<name>/SKILL.md` and is loaded on demand.
+Skills are portable, expert-level knowledge packs that inject domain expertise into AI agents. The packs this tool **distributes** live in the payload at `skills-to-distribute/skills/<name>/SKILL.md`; `ainish-coder --rules` installs the selected ones into a target repo's `.agents/skills/`, which is where agent harnesses discover them.
 
-| Skill | Path | Description |
+This repository keeps only a small curated subset in its own `.agents/skills/` — the packs its agents actually read (`ainish-security`, `pqc-secrets`, `question-me`, `security-first-agent`). That split is deliberate: harnesses auto-discover `**/.agents/skills`, so a full payload kept there would be standing prompt surface in every session.
+
+| Skill | Payload path | Description |
 |-------|------|-------------|
-| **Advisory Council** | `.agents/skills/advisory-council/` | Multi-expert advisory council. Dispatches sub-agents with distinct expert identities for collaborative analysis and decision-making. |
-| **Anishinaabe Cyberpunk** | `.agents/skills/anishinaabe-cyberpunk-style/` | Anishinaabe-inspired cyberpunk styling guide combining Canadian Aboriginal Syllabics with ASCII circuit symbols. |
-| **Browser Skill** | `.agents/skills/browser-skill/` | Drive the user's real logged-in Chromium through the `bsk` CLI and extension: automate, scrape, extract observations, click, fill, emulate mobile, or request human takeover. |
-| **Browser Use** | `.agents/skills/browser-use/` | Direct browser control via CDP for automation, scraping, testing, screenshots, and web work across macOS, Linux, and Windows. |
-| **Ainish Security** | `.agents/skills/ainish-security/` | The single security contract: code and infrastructure, AI/agentic, secrets and post-quantum cryptography, supply chain, compiler integrity, governance. Progressive depth in four `references/` files. **Mandatory** — `AGENTS.md` links to it. |
-| **ComfyUI Orchestration** | `.agents/skills/comfyui-orchestration/` | Operate the local ComfyUI install agentically — comfy-cli JSON envelopes plus the comfy-mcp server, host topology, model-path resolution, lifecycle, VRAM gating, and the environment repairs that keep the MCP server booting. |
-| **Document Enhancer** | `.agents/skills/document-enhancer/` | Dual-pipeline document improvement: fuse external knowledge bases into a target, or recursively harden a document for multi-model LLM effectiveness. |
-| **Ghost Layer Injector** | `.agents/skills/ghost-layer-injector/` | Inject covert AI/bot context into static HTML so LLMs and crawlers ingest instructions without altering the human view. Scroll channel only — not selectable. |
-| **GStack Coder** | `.agents/skills/gstack-coder/` | Multi-tool coding orchestration integrating gstack (Claude Code skills), pi, opencode, and qwen for security audits, code reviews, QA, and feature builds. |
-| **Modern Prompting** | `.agents/skills/modern-prompting/` | Reasoning strategy selection: rates 16 prompting frameworks on a 0–100% suitability scale per task, then applies the highest-rated via OOReDAct. |
-| **OpenSCAD Generator** | `.agents/skills/openscad-generator/` | Parameterized 3D models from Python templates and OpenSCAD, compiled to STL via Makefile. |
-| **PQC Secrets** | `.agents/skills/pqc-secrets/` | Post-quantum secrets for API keys and private data: ML-KEM-768 at rest, ML-DSA-65 signing. **Mandatory** — every secret resolution goes through it. |
-| **Pliny Research** | `.agents/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock`. |
-| **Question Me** | `.agents/skills/question-me/` | Socratic design interview and requirements resolution — codebase recon first, one question at a time with recommended answers, compiled into a `.agents/plans/{date}-{name}.plan.md` holding the plan, clarification ledger, and derived todos. |
-| **Remotion Video** | `.agents/skills/remotion-video/` | Programmatic video creation with Remotion — APIs, media components, 3D, captions, fonts, Lambda rendering, and layout rules. |
-| **TTS CLI** | `.agents/skills/tts-cli/` | On-device `cli-tts` for one end-of-chat spoken suggestion per turn, fusing the next step with deterministic masters. Plays automatically. |
-| **TypeSafe Jev** | `.agents/skills/typesafe-jev/` | Calibrated decision models over the Decisions API: routing, two-stage reranking, context freshness, faithfulness evaluation, and typed `noul`/`choice`/`score` questions. |
-| **Video Knowledge Extractor** | `.agents/skills/video-knowledge-extractor/` | Structured markdown knowledge bases from YouTube videos by combining transcripts with sequential visual frames through a Vision-Language Model. |
-| **wtf-is-going-on-mcp** | `.agents/skills/wtf-is-going-on-mcp/` | Cross-machine agent coordination. Herdr owns agent sessions; wtf records who is doing what, carries encrypted messages, and dispatches addressable work to a paired machine's own agent (`task_*`). |
+| **Advisory Council** | `skills-to-distribute/skills/advisory-council/` | Multi-expert advisory council. Dispatches sub-agents with distinct expert identities for collaborative analysis and decision-making. |
+| **Anishinaabe Cyberpunk** | `skills-to-distribute/skills/anishinaabe-cyberpunk-style/` | Anishinaabe-inspired cyberpunk styling guide combining Canadian Aboriginal Syllabics with ASCII circuit symbols. |
+| **Browser Skill** | `skills-to-distribute/skills/browser-skill/` | Drive the user's real logged-in Chromium through the `bsk` CLI and extension: automate, scrape, extract observations, click, fill, emulate mobile, or request human takeover. |
+| **Browser Use** | `skills-to-distribute/skills/browser-use/` | Direct browser control via CDP for automation, scraping, testing, screenshots, and web work across macOS, Linux, and Windows. |
+| **Ainish Security** | `skills-to-distribute/skills/ainish-security/` | The single security contract: code and infrastructure, AI/agentic, secrets and post-quantum cryptography, supply chain, compiler integrity, governance. Progressive depth in four `references/` files. **Mandatory** — `AGENTS.md` links to it. |
+| **ComfyUI Orchestration** | `skills-to-distribute/skills/comfyui-orchestration/` | Operate the local ComfyUI install agentically — comfy-cli JSON envelopes plus the comfy-mcp server, host topology, model-path resolution, lifecycle, VRAM gating, and the environment repairs that keep the MCP server booting. |
+| **Document Enhancer** | `skills-to-distribute/skills/document-enhancer/` | Dual-pipeline document improvement: fuse external knowledge bases into a target, or recursively harden a document for multi-model LLM effectiveness. |
+| **Ghost Layer Injector** | `skills-to-distribute/skills/ghost-layer-injector/` | Inject covert AI/bot context into static HTML so LLMs and crawlers ingest instructions without altering the human view. Scroll channel only — not selectable. |
+| **GStack Coder** | `skills-to-distribute/skills/gstack-coder/` | Multi-tool coding orchestration integrating gstack (Claude Code skills), pi, opencode, and qwen for security audits, code reviews, QA, and feature builds. |
+| **Modern Prompting** | `skills-to-distribute/skills/modern-prompting/` | Reasoning strategy selection: rates 16 prompting frameworks on a 0–100% suitability scale per task, then applies the highest-rated via OOReDAct. |
+| **OpenSCAD Generator** | `skills-to-distribute/skills/openscad-generator/` | Parameterized 3D models from Python templates and OpenSCAD, compiled to STL via Makefile. |
+| **PQC Secrets** | `skills-to-distribute/skills/pqc-secrets/` | Post-quantum secrets for API keys and private data: ML-KEM-768 at rest, ML-DSA-65 signing. **Mandatory** — every secret resolution goes through it. |
+| **Pliny Research** | `skills-to-distribute/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock`. |
+| **Question Me** | `skills-to-distribute/skills/question-me/` | Socratic design interview and requirements resolution — codebase recon first, one question at a time with recommended answers, compiled into a `.agents/plans/{date}-{name}.plan.md` holding the plan, clarification ledger, and derived todos. |
+| **Security First Agent** | `skills-to-distribute/skills/security-first-agent/` | The operating posture for work where a breach would be expensive: threat-model before acting, least authority, read the primary `.agents/` record instead of a summary, verify by read-back, fail closed. |
+| **Remotion Video** | `skills-to-distribute/skills/remotion-video/` | Programmatic video creation with Remotion — APIs, media components, 3D, captions, fonts, Lambda rendering, and layout rules. |
+| **TTS CLI** | `skills-to-distribute/skills/tts-cli/` | On-device `cli-tts` for one end-of-chat spoken suggestion per turn, fusing the next step with deterministic masters. Plays automatically. |
+| **TypeSafe Jev** | `skills-to-distribute/skills/typesafe-jev/` | Calibrated decision models over the Decisions API: routing, two-stage reranking, context freshness, faithfulness evaluation, and typed `noul`/`choice`/`score` questions. |
+| **Video Knowledge Extractor** | `skills-to-distribute/skills/video-knowledge-extractor/` | Structured markdown knowledge bases from YouTube videos by combining transcripts with sequential visual frames through a Vision-Language Model. |
+| **wtf-is-going-on-mcp** | `skills-to-distribute/skills/wtf-is-going-on-mcp/` | Cross-machine agent coordination. Herdr owns agent sessions; wtf records who is doing what, carries encrypted messages, and dispatches addressable work to a paired machine's own agent (`task_*`). |
 
 ### Skill Format
 
@@ -252,7 +255,7 @@ ainish-coder --skills-sync               # Synchronize explicitly selected skill
 ```
 
 Security and tool-containment guidance is distributed through
-[`.agents/skills/ainish-security/SKILL.md`](.agents/skills/ainish-security/SKILL.md).
+[`skills-to-distribute/skills/ainish-security/SKILL.md`](skills-to-distribute/skills/ainish-security/SKILL.md).
 
 ---
 
