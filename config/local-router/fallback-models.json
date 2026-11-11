@@ -19,22 +19,20 @@
       "id": "fallback-models",
       "models": [
         "cline-deepseek-deepseek-v4-flash-free",
-        "zenmux-glm-5.3-free",
-        "zai-glm-5.3-flash",
         "xiaomi-mimo-mimo-v2.6-pro",
+        "zai-glm-5.3-flash",
         "antigravity-gemini-3.7-flash",
-        "cursor-grok-4.7",
         "cursor-deepseek-v41-flash-1017",
+        "cursor-grok-4.7",
         "cursor-auto",
         "github-copilot-auto",
+        "kilo-deepseek-deepseek-v4.1-flash-1017-paid",
         "opencode-zen-glm-5.3-flash",
+        "commandcode-deepseek-v4.1-flash",
+        "pioneer-deepseek-v4-pro",
         "cline-deepseek-deepseek-chat-paid",
         "openrouter-deepseek-v4.1-flash-batch",
-        "openrouter-deepseek-v4.1-flash-1017",
-        "kilo-deepseek-deepseek-v4.1-flash-1017-paid",
-        "zenmux-deepseek-v4.1-flash",
-        "commandcode-deepseek-v4.1-flash",
-        "pioneer-deepseek-v4-pro"
+        "zenmux-deepseek-v4.1-flash"
       ]
     }
   ]
