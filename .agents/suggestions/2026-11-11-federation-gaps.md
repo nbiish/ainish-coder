@@ -20,3 +20,15 @@ Ordered by cost of leaving them.
    documenting this tool, and it is worth a deliberate decision rather than a silent trim each time.
 5. **Windows' embedding index is stale by construction** (built with API embeddings, host now resolves
    a local model). Harmless under graph-first retrieval, but it is a warning every run until rebuilt.
+
+6. **`--auto-commit` on two machines creates two lanes that never meet.** Verified live: WSL committed
+   `7609e64` on top of `f104102`, the Mac committed on top of the same `f104102`, and the sync happily
+   delivered each side's refs while `main` stayed diverged — the tool reported `✓ synced` for both
+   peers. Nothing broke, because the edits touched different files, but the failure mode is exactly the
+   one this project exists to prevent: two machines that both believe they are `main`.
+
+   The fix belongs in `_ms_pull`, after the peer refs land: if the peer's `<branch>` is not an ancestor
+   of our `HEAD` **and** our tree is clean, `git merge --no-edit <peer ref>`; if the merge conflicts,
+   `git merge --abort` and report the lanes rather than leaving a half-merged tree. A dirty tree is
+   skipped with a reason, like every other peer mutation. Until that exists, after a sync check
+   `git merge-base --is-ancestor <peer>/main HEAD` — `✓ synced` does not mean "same history".
