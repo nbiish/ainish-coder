@@ -133,6 +133,37 @@ fn load_anchor(repo_root: &Path) -> Result<ml_dsa_65::PublicKey, String> {
     ml_dsa_65::PublicKey::try_from_bytes(arr).map_err(|e| format!("anchor public key invalid: {}", e))
 }
 
+/// Compares the key this process would SIGN with against the committed trust anchor.
+///
+/// `resolve_or_create_seed` invents a random seed and writes a gitignored
+/// `.agents/audit/signer.mldsa65.priv` whenever neither `AINISHRAG_MLDSA65_SEED` nor a
+/// vault seed exists. The anchor, by contrast, is committed. On a machine where those two
+/// disagree every signature produced is unverifiable — and until this check existed the
+/// deploy discovered that only after writing its manifest, as an opaque "could not sign".
+///
+/// Returns `Ok(Some((signer, anchor)))` on a mismatch, `Ok(None)` when they agree, and
+/// `Err` when the comparison is impossible (no anchor yet, or a seedless read).
+pub fn anchor_signer_mismatch(repo_root: &Path) -> Result<Option<(String, String)>, String> {
+    let anchor_file = anchor_path(repo_root);
+    if !anchor_file.exists() {
+        return Ok(None);
+    }
+    let text = std::fs::read_to_string(&anchor_file)
+        .map_err(|e| format!("read anchor: {}", e))?;
+    let v: Value = serde_json::from_str(&text).map_err(|e| format!("anchor parse: {}", e))?;
+    let anchor_fpr = match v.get("fingerprint").and_then(|x| x.as_str()) {
+        Some(f) => f.to_string(),
+        None => return Ok(None),
+    };
+    let (pk, _sk) = signing_keypair()?;
+    let signer_fpr = fingerprint(&pk.into_bytes());
+    if signer_fpr == anchor_fpr {
+        Ok(None)
+    } else {
+        Ok(Some((signer_fpr, anchor_fpr)))
+    }
+}
+
 /// Signs `target` with ML-DSA-65 and writes the detached envelope next to it (`*.sig`).
 pub fn sign_file(target: &Path) -> Result<PathBuf, String> {
     let (pk, sk) = signing_keypair()?;

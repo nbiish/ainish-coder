@@ -378,6 +378,9 @@ pub enum AuditCommands {
         #[arg(short, long)]
         path: Option<PathBuf>,
     },
+    /// Compare this machine's signing key against the committed trust anchor.
+    /// Prints "signer|anchor" and exits 3 on a mismatch; silent and exit 0 when they agree.
+    AnchorCheck,
     /// Verify immutable model manifest hashes
     Manifest {
         /// Path to model manifest JSON (default: .agents/audit/model-manifest.json)
@@ -1631,6 +1634,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             AuditCommands::Verify { path } => {
                 run_audit_verify(&current_dir, path.as_deref())?;
             }
+            AuditCommands::AnchorCheck => {
+                match pqc::anchor_signer_mismatch(&current_dir) {
+                    Ok(Some((signer, anchor))) => {
+                        println!("{}|{}", signer, anchor);
+                        std::process::exit(3);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        eprintln!("anchor-check: {}", e);
+                        std::process::exit(2);
+                    }
+                }
+            }
             AuditCommands::Manifest { manifest } => {
                 run_audit_manifest(&config, manifest.as_deref())?;
             }
@@ -2588,6 +2604,41 @@ fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path:
     if !audit_dir.exists() {
         println!("  [rag:audit] Audit directory does not exist yet. No receipts to verify.");
         return Ok(());
+    }
+
+    // `--path` advertises "a Specific receipt file or audit directory path". The directory
+    // branch below is the aggregate sweep; a file must verify ONLY that file. Without this
+    // split, passing a file fell through to `read_dir` and errored with
+    // `NotADirectory`, so callers that need to check one artifact (the rules deploy gate
+    // checking its own manifest) had no way to do it.
+    if audit_dir.is_file() {
+        let file_name = audit_dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        if !pqc::sig_path(&audit_dir).exists() {
+            println!("  \x1b[31m[FAIL]\x1b[0m {}: Missing signature envelope (.sig)", file_name);
+            println!();
+            return Err(format!("missing signature envelope for {}", file_name).into());
+        }
+        match pqc::verify_file(repo_root, &audit_dir) {
+            pqc::VerifyOutcome::Verified { fingerprint } => {
+                println!(
+                    "  \x1b[32m[PASS]\x1b[0m {}: FIPS 204 ML-DSA-65 signature verified (key: {}...)",
+                    file_name,
+                    &fingerprint[..12.min(fingerprint.len())]
+                );
+                println!();
+                return Ok(());
+            }
+            pqc::VerifyOutcome::Unsigned(reason) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, reason);
+                println!();
+                return Err(format!("{}: {}", file_name, reason).into());
+            }
+            pqc::VerifyOutcome::Invalid(err) => {
+                println!("  \x1b[31m[FAIL]\x1b[0m {}: {}", file_name, err);
+                println!();
+                return Err(format!("{}: {}", file_name, err).into());
+            }
+        }
     }
 
     let mut receipts_checked = 0;
