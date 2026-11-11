@@ -3942,6 +3942,7 @@ fn default_contract_paths() -> Vec<String> {
         "llms.txt".to_string(),
         ".agents/canonical/".to_string(),
         ".agents/skills/".to_string(),
+        "skills-to-distribute/".to_string(),
         "src/templates/".to_string(),
     ]
 }
