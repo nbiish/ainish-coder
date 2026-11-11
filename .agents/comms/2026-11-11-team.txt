@@ -1,3 +1,6 @@
+---
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+# AGENT COMMS — 2026-11-11
 
 ---
 agent: claude-sonnet-5-5-high
@@ -10,3 +13,14 @@ end: 2026-11-11T18:05:00Z
 - blockers:none
 - verification:scripts/test-pqc-dist.sh 183/183 (was 167 pass / 17 fail); end-to-end `--rules --headless` into a clean repo deploys 19 packs + skills/llms.txt + AGENTS.md + llms.txt, idempotent on re-run, `--skills-verify` identical=19 mismatch=0; `--skills-list` enumerates all 20 deployable packs; cargo check clean and cargo test --bin ainish-rag 57/57; diff -r confirms payload and local subset are byte-identical to their sources.
 - findings:The suite's `jget` used `\|` alternation, unsupported by BSD sed, so every boolean/scalar assertion silently read empty on macOS — 16 "failures" were the gate, not the code. Fixed to `sed -E`. Also sourced `paths.sh` before `skills_selection.sh` (new resolvers were unbound standalone) and relaxed one assertion that pinned a single phrasing of the degradation rule.
+---
+agent: claude-sonnet-5-5-high
+task: 2026-11-11-rag-obsidian-wiki-task
+start: 2026-11-11T18:35:00Z
+end: 2026-11-11T19:05:00Z
+- input:Operator asked to refactor the RAG tooling into an Obsidian-accessible markdown wiki (using the decision models and local-router fallback chain) and to make AGENTS.md require that all work be planned from .agents/, verified in a worktree, and merged deliberately.
+- output:Wiki pages are now a real Obsidian vault (YAML frontmatter with title/aliases/tags/up/source_commit, [[wikilinks]], ## Related blocks, .obsidian/ written once). The graph reader learned the wikilink syntax FIRST because it previously matched only (path.md) — flipping the format without that would have silently deleted every explicit retrieval edge. Plan-first is now enforced, not just stated: --plan-check matches a plan to its branch via the plan's branch: key, --plan-gate-install wires it as a pre-commit hook, and AGENTS.md #1 states it in 119 of 120 lines.
+- status:done
+- blockers:Decision models are unauthorized on this host — openrouter/jev-1.14 returns 401 "User not found" and zenmux/jev-1.14 returns 403 payg. Chat fails over correctly (zenmux-deepseek-v4.1-flash -> mimo-v2.6-pro), so the chain works for chat and not for decisions. Decision-driven salience (plan 5.4/5.5) is therefore NOT wired; every page honestly reports decision_source: structural rather than pretending to be model-ranked.
+- verification:cargo test --bin ainish-rag 58/58; scripts/test-pqc-dist.sh 184/184; live vault 32 nodes / 236 edges / 0 dangling / 0 phantom nav nodes; ledger.md byte-identical and ledger.sig now stable across regeneration; pre-commit hook proven on real commits (refused, bypassed-with-notice, allowed).
+- findings:ledger.sig was being re-signed on every `wiki` run even when ledger.md was unchanged — same sha256, new signed_at, and a different key fingerprint on this host. A signed artifact that churns on identical content proves nothing about that content, so signing is now skipped when the existing envelope still verifies. Also found bin/ainish-rag-darwin (127 MB local build product) was untracked-but-not-ignored; now gitignored before it could enter history.
