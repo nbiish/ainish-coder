@@ -94,12 +94,23 @@ fi
 # --no-managed-python: uv's managed interpreter can sit on a mount Windows marks untrusted, where
 # every uv run dies with "untrusted mount point (os error 448)" before the engine starts. A system
 # interpreter is what this launcher wants anyway.
+# `--no-managed-python` is a Windows workaround (uv's managed interpreter can sit on a mount Windows
+# marks untrusted). Applying it everywhere breaks macOS/Linux hosts whose pinned Python is only
+# available as a uv-managed download, so it is conditional and overridable.
+UV_FLAGS=""
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) UV_FLAGS="--no-managed-python" ;;
+esac
+if [ "${AINISH_UV_NO_MANAGED_PYTHON:-0}" = "1" ]; then
+    UV_FLAGS="--no-managed-python"
+fi
+
 if command -v uv >/dev/null 2>&1; then
-    exec uv run --no-managed-python "$PY_ENGINE" "$@"
+    exec uv run $UV_FLAGS "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.local/bin/uv" ]; then
-    exec "$HOME/.local/bin/uv" run --no-managed-python "$PY_ENGINE" "$@"
+    exec "$HOME/.local/bin/uv" run $UV_FLAGS "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.cargo/bin/uv" ]; then
-    exec "$HOME/.cargo/bin/uv" run --no-managed-python "$PY_ENGINE" "$@"
+    exec "$HOME/.cargo/bin/uv" run $UV_FLAGS "$PY_ENGINE" "$@"
 elif command -v python3 >/dev/null 2>&1; then
     exec python3 "$PY_ENGINE" "$@"
 elif command -v python >/dev/null 2>&1; then

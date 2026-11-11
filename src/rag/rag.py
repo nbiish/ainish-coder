@@ -5192,6 +5192,23 @@ def retrieve_context(
             "corrective_terms": [],
         }
 
+    # The wiki graph is the engine, not a cache in front of one. Reaching for vectors on a miss
+    # starts an embedding server, downloads a model, and answers a question about the newest
+    # `.agents` artifacts from a 374-file chunk index — measured cost for no measured gain. An
+    # operator who genuinely wants that path opts in; the default result says plainly that the
+    # curated corpus did not cover the question, so the agent reads files instead.
+    if os.environ.get("AINISH_RAG_VECTOR_FALLBACK", "0") != "1":
+        return {
+            "hits": [],
+            "mode": "wiki_graph_empty",
+            "sufficiency": "insufficient",
+            "corrective_terms": [],
+            "notice": (
+                "no wiki/.agents artifact covers this task; read the files directly. "
+                "Set AINISH_RAG_VECTOR_FALLBACK=1 to allow the legacy vector path."
+            ),
+        }
+
     hits: List[Dict[str, Any]] = []
     mode = "vector"
     if client is not None and store is not None:

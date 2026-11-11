@@ -37,6 +37,7 @@ _MS_NAMES=()
 _MS_SPECS=()
 _MS_AS=""
 _MS_DIRECTION="both"
+_MS_AUTO_COMMIT=false
 _MS_SELF=""
 _MS_JSON=false
 _MS_FF_PEERS=true
@@ -65,6 +66,9 @@ OPTIONS:
     --pull                 Receive only: peer branches and their uncommitted work to here.
     --both                 Send and receive (default).
     --status               Report what is already known here. No network, no transfer.
+    --auto-commit          Commit any working-tree edits on this machine before sending, so an
+                           edit made here is a normal commit the peer fast-forwards onto. The
+                           snapshot ref is still taken. This is the fire-and-forget path.
     --no-ff-peers          Leave the peer's checkout where it is. By default a peer that has the
                            same branch checked out and a clean tree is fast-forwarded, so the next
                            command run there sees the new commits.
@@ -562,6 +566,8 @@ machine_sync() {
             --kind)        kind_filter="${2:-}"; shift 2 ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
             --ff-peers)    _MS_FF_PEERS=true;     shift ;;
+            --auto-commit) _MS_AUTO_COMMIT=true;   shift ;;
+            --no-auto-commit) _MS_AUTO_COMMIT=false; shift ;;
             --no-ff-peers) _MS_FF_PEERS=false;    shift ;;
             --push)        _MS_DIRECTION="push";  shift ;;
             --pull)        _MS_DIRECTION="pull";  shift ;;
@@ -639,6 +645,18 @@ machine_sync() {
         if [[ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ]]; then wip_state="uncommitted work present"; fi
     else
         local snap rc=0
+        # Fire-and-forget: an edit that only exists in a working tree is one disk failure from gone,
+        # and "commit first, then sync" is the step both operators and agents skip. Committing makes
+        # the work a normal commit the peer fast-forwards onto; the snapshot below stays as the
+        # safety net for anyone who does not want history touched.
+        if [[ "$_MS_AUTO_COMMIT" == "true" ]] && [[ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ]]; then
+            if git -C "$repo" add -A 2>/dev/null && \
+               git -C "$repo" commit -q -m "wip($(hostname -s 2>/dev/null || echo machine)): synced by --auto-commit" 2>/dev/null; then
+                _ms_ok "committed working-tree edits on $(git -C "$repo" rev-parse --abbrev-ref HEAD)"
+            else
+                _ms_err "auto-commit failed; the snapshot below still carries the work"
+            fi
+        fi
         snap="$(_ms_wip_snapshot "$repo" "$branch" "$self_ref")" || rc=$?
         case "$rc" in
             0) wip_state="snapshot $snap" ;;
