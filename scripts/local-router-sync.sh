@@ -18,6 +18,7 @@
 #   scripts/local-router-sync.sh            # install repo chain, restart router, verify
 #   scripts/local-router-sync.sh --dry-run  # show what would change
 #   scripts/local-router-sync.sh --verify   # verify only, no writes
+#   scripts/local-router-sync.sh --capture  # take this machine's live chain back into the repo
 #
 # A machine with no `local-router` binary is reported and skipped, not failed: the repo is the source
 # of truth and an unrelated host should not be marked broken for not running the router.
@@ -48,6 +49,7 @@ TARGET="${TARGET_DIR}/fallback-models.json"
 BACKUP_DIR="${TARGET_DIR}/backups"
 DRY=false
 VERIFY_ONLY=false
+CAPTURE=false
 # Launcher override: on Windows the CLI is `local-router.cmd` and is not on a Git-Bash PATH, so
 # `command -v local-router` says "not installed" about a machine that has it.
 LR_BIN="${LOCAL_ROUTER_BIN:-}"
@@ -58,6 +60,7 @@ for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY=true ;;
         --verify)  VERIFY_ONLY=true ;;
+        --capture) CAPTURE=true ;;
         -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "local-router-sync: unknown option $arg" >&2; exit 1 ;;
     esac
@@ -106,8 +109,58 @@ print(len(d.get('data') or []))
         return 1
     fi
     echo "  ✓ router on :${port} advertises ${ids} model(s)"
+    # The count of advertised models says nothing about the chain. Read the route back from the
+    # router's own config file, which it rewrites from live state: an empty chain here is the exact
+    # failure that looked like a working router.
+    local chain=0
+    if [[ -f "$TARGET" ]] && [[ -n "$PY" ]]; then
+        chain="$(${PY} - "$TARGET" <<'PYEOF'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    for r in d.get("routes", []):
+        if r.get("id") == "fallback-models":
+            print(len(r.get("models") or [])); break
+    else:
+        print(0)
+except Exception:
+    print(0)
+PYEOF
+)"
+    fi
+    if [[ "${chain:-0}" == "0" ]]; then
+        echo "  ✗ fallback-models chain is EMPTY in $TARGET — the router rejected or overwrote the config"
+        return 1
+    fi
+    echo "  ✓ fallback-models chain carries ${chain} model(s)"
     return 0
 }
+
+if [[ "$CAPTURE" == "true" ]]; then
+    # The workflow this exists for: edit the chain in the router's UI on one machine, then make that
+    # edit the canonical one. Refuses to capture an empty chain — that is the failure, not the input.
+    [[ -f "$TARGET" ]] || { echo "local-router-sync: no chain at $TARGET to capture" >&2; exit 1; }
+    live="$(${PY} - "$TARGET" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for r in d.get("routes", []):
+    if r.get("id") == "fallback-models":
+        print(len(r.get("models") or [])); break
+else:
+    print(0)
+PYEOF
+)"
+    if [[ "${live:-0}" == "0" ]]; then
+        echo "local-router-sync: refusing to capture an empty fallback-models chain from $TARGET" >&2
+        exit 1
+    fi
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    cp -f "$CANON" "${CANON}.bak.${stamp}" 2>/dev/null || true
+    cp -f "$TARGET" "$CANON" || { echo "local-router-sync: could not write $CANON" >&2; exit 1; }
+    echo "captured ${live} model(s) from $TARGET -> $CANON"
+    echo "commit config/local-router/fallback-models.json and run --machine-sync to publish it"
+    exit 0
+fi
 
 if [[ "$VERIFY_ONLY" == "true" ]]; then
     verify_chain
@@ -133,18 +186,37 @@ fi
 cp -f "$CANON" "$TARGET" || { echo "local-router-sync: could not write $TARGET" >&2; exit 1; }
 echo "  ✓ installed canonical chain -> $TARGET"
 
+# The router's `--config`/LOCAL_ROUTER_ROUTES_CONFIG takes the DECLARATIVE shape
+# {"fallbackModels": {"<route>": {"models": [...]}}} — not the persisted {"version":1,"routes":[...]}
+# file. Handing it the persisted shape is silently ignored, and the router then rewrites the persisted
+# file from its own (empty) state, which is how a machine ends up serving `fallback-models: []`.
+# Derive the boot config from the one human-edited file so there is still a single source of truth.
+BOOT_CFG=""
+if [[ -n "$PY" ]]; then
+    BOOT_CFG="${TARGET_DIR}/routes.boot.json"
+    ${PY} - "$CANON_PY" "$BOOT_CFG" <<'PYEOF'
+import json, sys
+src, dst = sys.argv[1], sys.argv[2]
+d = json.load(open(src))
+routes = {r["id"]: {"models": list(r.get("models") or [])} for r in d.get("routes", [])}
+boot = {"fallbackModels": routes}
+open(dst, "w").write(json.dumps(boot, indent=2) + "\n")
+print("  boot config: %s routes -> %s" % (len(routes), dst))
+PYEOF
+fi
+
 if [[ -n "$LR_BIN" ]]; then
     if [[ "$LR_BIN" == *.cmd ]]; then
         "$LR_BIN" stop >/dev/null 2>&1 || true
-        if "$LR_BIN" start --config "$(cygpath -w "$TARGET")" >/dev/null 2>&1; then
+        if "$LR_BIN" start --config "$(cygpath -w "${BOOT_CFG:-$TARGET}")" >/dev/null 2>&1; then
             echo "  ✓ router restarted with --config $TARGET"
         else
             echo "  ! router did not restart; run '$LR_BIN start --config $TARGET' so the chain reloads" >&2
         fi
     else
         "$LR_BIN" stop >/dev/null 2>&1 || true
-        if "$LR_BIN" start --config "$TARGET" >/dev/null 2>&1; then
-            echo "  ✓ router restarted with --config $TARGET"
+        if "$LR_BIN" start --config "${BOOT_CFG:-$TARGET}" >/dev/null 2>&1; then
+            echo "  ✓ router restarted with --config ${BOOT_CFG:-$TARGET}"
         elif "$LR_BIN" ensure >/dev/null 2>&1; then
             echo "  ✓ router restarted with 'local-router ensure'"
         else

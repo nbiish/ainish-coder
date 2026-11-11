@@ -10,30 +10,31 @@
     {
       "id": "fallback-embedding",
       "models": [
-        "zenmux/openai/text-embedding-3-small",
         "openrouter/openai/text-embedding-3-small",
+        "zenmux/openai/text-embedding-3-small",
         "nous-portal/openai/text-embedding-3-small"
       ]
     },
     {
       "id": "fallback-models",
       "models": [
-        "pioneer-deepseek-v4-flash",
-        "commandcode-glm-5.3-flash",
-        "opencode-zen-glm-5.2",
-        "cline-z-ai-glm-5.2",
-        "kilo-z-ai-glm-5.3-flash-paid",
-        "nous-portal-glm-5.3-flash-batch",
+        "cline-deepseek-deepseek-v4-flash-free",
+        "zenmux-glm-5.3-free",
         "zai-glm-5.3-flash",
-        "xiaomi-mimo-mimo-v2.5",
-        "opencode-zen-deepseek-v4-flash-free",
-        "cline-xiaomi-mimo-v2.5-free",
-        "openrouter-free",
-        "kilo-openrouter-free",
+        "xiaomi-mimo-mimo-v2.6-pro",
+        "antigravity-gemini-3.7-flash",
+        "cursor-grok-4.7",
+        "cursor-deepseek-v41-flash-1017",
+        "cursor-auto",
+        "github-copilot-auto",
+        "opencode-zen-glm-5.3-flash",
+        "cline-deepseek-deepseek-chat-paid",
         "openrouter-deepseek-v4.1-flash-batch",
-        "openrouter-kimi-latest",
-        "wafer-ai-glm-5.3-flash",
-        "zenmux-glm-5.3-flash"
+        "openrouter-deepseek-v4.1-flash-1017",
+        "kilo-deepseek-deepseek-v4.1-flash-1017-paid",
+        "zenmux-deepseek-v4.1-flash",
+        "commandcode-deepseek-v4.1-flash",
+        "pioneer-deepseek-v4-pro"
       ]
     }
   ]
