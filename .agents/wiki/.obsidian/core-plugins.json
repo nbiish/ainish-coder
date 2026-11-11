@@ -1,0 +1,17 @@
+{
+  "backlink": {
+    "enabled": true
+  },
+  "file-explorer": {
+    "enabled": true
+  },
+  "graph": {
+    "enabled": true
+  },
+  "outline": {
+    "enabled": true
+  },
+  "tag-pane": {
+    "enabled": true
+  }
+}

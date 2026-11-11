@@ -4932,6 +4932,57 @@ GRAPH_CHAPTER_CHARS = 1400
 GRAPH_HOP_BONUS = 0.35
 GRAPH_CACHE = "wiki-graph.json"
 
+# ── Obsidian wikilinks ───────────────────────────────────────────────────────
+# The vault emits `[[target]]` / `[[target|alias]]` because that is what builds an
+# Obsidian graph and backlinks pane. The edge extractor historically matched only
+# `(path.md)`, so flipping the page format without teaching it the bracket syntax
+# would have silently dropped every explicit edge and left retrieval on the much
+# weaker shared-vocabulary rule alone — the vault would look right while `--context`
+# quietly got worse. Both syntaxes are parsed: old pages and new pages coexist.
+WIKILINK_RE = re.compile(r"\[\[([^\]\|#]+)(?:#[^\]\|]+)?(?:\|[^\]]+)?\]\]")
+MDLINK_RE = re.compile(r"\(([^)\s]+\.(?:md|txt))\)")
+
+# Navigation-only headings: they carry graph edges, not retrievable content. Left in,
+# a `## Related` block would become its own node and compete with real sections.
+GRAPH_NAV_HEADINGS = ("related", "backlinks", "see also", "links")
+
+
+def _is_nav_heading(title: str) -> bool:
+    return title.strip().lower() in GRAPH_NAV_HEADINGS
+
+
+def _strip_code_spans(text: str) -> str:
+    """Remove fenced blocks and inline code before scanning for links.
+
+    Obsidian does not render a wikilink inside backticks or a fenced block, so a page
+    that *documents* the syntax (``[[wikilinks]]``) must not create a dangling edge.
+    The graph reader has to agree with the renderer or every doc mention becomes noise.
+    """
+    without_fences = re.sub(r"(?ms)^```.*?^```", "", text or "")
+    return re.sub(r"`[^`\n]*`", "", without_fences)
+
+
+def extract_link_targets(text: str) -> List[str]:
+    """Every explicit link target in a page, as normalized page identifiers.
+
+    Returns bare stems (``01-architecture``) for wikilinks and cleaned relative paths
+    for markdown links, so callers can match against either a page stem or a path.
+    """
+    targets: List[str] = []
+    scannable = _strip_code_spans(text)
+    for raw in WIKILINK_RE.findall(scannable):
+        stem = raw.strip().replace("\\", "/").rstrip("/")
+        stem = stem.rsplit("/", 1)[-1]
+        if stem.lower().endswith((".md", ".txt")):
+            stem = stem.rsplit(".", 1)[0]
+        if stem:
+            targets.append(stem)
+    for raw in MDLINK_RE.findall(scannable):
+        cleaned = raw.strip().lstrip("./").replace("\\", "/")
+        if cleaned:
+            targets.append(cleaned)
+    return targets
+
 _GRAPH_STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "into", "are", "was", "were", "been",
     "have", "has", "had", "not", "but", "you", "your", "our", "its", "it's", "can", "will",
@@ -5000,11 +5051,17 @@ def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
 
         if source["kind"] == "wiki":
             # One node per second-level section: a hit should be a section, not a 400-line page.
+            # Navigation-only headings are section boundaries but not nodes — they hold the
+            # cross-links the vault emits to build its graph, and treating them as content would
+            # let a "Related" block outrank the material it links to.
             offsets = [(m.start(), m.group(1).strip()) for m in re.finditer(r"(?m)^##\s+(.+)$", text)]
             if not offsets:
                 offsets = [(0, path.stem)]
-            for idx, (start, title) in enumerate(offsets):
-                end = offsets[idx + 1][0] if idx + 1 < len(offsets) else len(text)
+            body_offsets = [
+                (start, title) for start, title in offsets if not _is_nav_heading(title)
+            ] or offsets
+            for idx, (start, title) in enumerate(body_offsets):
+                end = body_offsets[idx + 1][0] if idx + 1 < len(body_offsets) else len(text)
                 body = text[start:end][:GRAPH_CHAPTER_CHARS]
                 line = text[:start].count("\n") + 1
                 nodes.append({
@@ -5032,14 +5089,34 @@ def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
                 "terms": sorted(_graph_terms(f"{path.stem} {body}")),
             })
 
-    # Edges: explicit markdown links first (curation, cheap, high precision), then shared vocabulary.
+    # Edges: explicit links first (curation, cheap, high precision), then shared vocabulary.
+    # Wiki targets are matched by PAGE STEM too, because a `[[01-architecture]]` link names the page,
+    # not a coordination artifact path — matching only artifact paths is what made wikilinks inert.
     by_path = {n["path"]: n for n in nodes if n["kind"] != "wiki"}
+    by_stem: Dict[str, List[Dict[str, Any]]] = {}
+    for n in nodes:
+        if n["kind"] == "wiki":
+            by_stem.setdefault(Path(n["path"]).stem, []).append(n)
     edges: List[List[str]] = []
     for node in nodes:
-        for target in re.findall(r"\(([^)\s]+\.(?:md|txt))\)", node["text"]):
-            cleaned = target.lstrip("./")
+        seen_targets = set()
+        for target in extract_link_targets(node["text"]):
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            matched = False
             for candidate, other in by_path.items():
-                if other["id"] != node["id"] and candidate.endswith(cleaned):
+                if other["id"] != node["id"] and (
+                    candidate.endswith(target) or target.endswith(Path(candidate).name)
+                ):
+                    edges.append([node["id"], other["id"]])
+                    matched = True
+                    break
+            if matched:
+                continue
+            stem = target.rsplit(".", 1)[0] if target.lower().endswith((".md", ".txt")) else target
+            for other in by_stem.get(stem, []):
+                if other["id"] != node["id"]:
                     edges.append([node["id"], other["id"]])
                     break
     for i, a in enumerate(nodes):

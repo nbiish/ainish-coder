@@ -58,6 +58,7 @@ source "${SRC_DIR}/deploy_llms_txt.sh"
 source "${SRC_DIR}/embed_config.sh"
 source "${SRC_DIR}/pqc_dist.sh"
 source "${SRC_DIR}/machine_sync.sh"
+source "${SRC_DIR}/plan_gate.sh"
 
 # Main function
 main() {
@@ -386,6 +387,41 @@ main() {
 
         --rules-doctor)
             rules_doctor "$@"
+            ;;
+
+        # Plan-first gate (AGENTS.md non-negotiable #1). Reads the `branch:` key of the
+        # plan of record, so a plan is matched to its branch, never guessed by filename.
+        --plan-check)
+            _TRACK_DETAIL="plan-check"
+            local _pc_target="." _pc_json=""
+            for _pc_arg in "$@"; do
+                case "$_pc_arg" in
+                    --json) _pc_json="--json" ;;
+                    -*) ;;
+                    *) [[ "$_pc_target" == "." ]] && _pc_target="$_pc_arg" ;;
+                esac
+            done
+            plan_check "$_pc_target" "$_pc_json"
+            ;;
+
+        # Hook entry point. Separate from --plan-check because the bypass belongs to the
+        # pre-commit path only: an operator running --plan-check explicitly must always see
+        # the real verdict, never a bypassed one.
+        --plan-gate)
+            _TRACK_DETAIL="plan-gate"
+            plan_check_precommit "${1:-.}"
+            ;;
+
+        --plan-gate-install)
+            _TRACK_DETAIL="plan-gate-install"
+            local _pgi_target="${1:-.}"
+            if plan_check_install "$_pgi_target"; then
+                echo -e "${GREEN}✓ Plan gate installed as a pre-commit hook in ${_pgi_target}${RESET}"
+                echo -e "  Bypass (recorded): ${BRIGHT_WHITE}AINISH_SKIP_PLAN_CHECK=1 git commit ...${RESET}"
+            else
+                print_error "Could not install the plan gate hook"
+                exit 1
+            fi
             ;;
 
         --machine-sync)

@@ -1,0 +1,16 @@
+- Obsidian vault format and RAG retrieval are one contract, not two. `build_wiki_graph` matched only
+  `(path.md)`, so emitting `[[wikilinks]]` without teaching the reader would have deleted every
+  explicit edge while the vault looked BETTER in Obsidian. Change the reader first, then the writer.
+- Every `## ` heading becomes a retrieval node. A `## Related` cross-link block would therefore compete
+  with the content it links to; navigation-only headings need an explicit skip list.
+- Code spans are not links. Prose that documents `[[syntax]]` inside backticks must not create a
+  dangling edge — strip fenced blocks and inline code before matching, or a doc mention becomes noise.
+- A signed artifact that re-signs on unchanged content is not evidence. `ainish-rag wiki` re-signed
+  `ledger.sig` every run (new signed_at, sometimes a new key fingerprint) with the ledger's sha256
+  identical. Sign only when the existing envelope no longer verifies.
+- Decision transport and chat transport fail independently. Chat failed over to a backup model
+  correctly while both decisions-capable models returned 401/403. Probe each path separately; a
+  working chat chain says nothing about whether decisions will answer.
+- A gate must be able to fail. `--plan-check` was tested in both directions (refused without a plan,
+  allowed with a ready one, wrong-branch rejected, main ungated) and the bypass was proven to announce
+  itself rather than pass silently.
