@@ -517,12 +517,26 @@ ROOT_HOOK_BLOCK
     local quoted_cli
     printf -v quoted_cli "'%s'" "$(printf '%s' "${REPO_DIR}/bin/ainish-coder" | sed "s/'/'\\\\''/g")"
     block="${block//REPO_CLI_PLACEHOLDER/$quoted_cli}"
+    local quoted_cli_guard
+    printf -v quoted_cli_guard "'%s'" "$(printf '%s' "${REPO_DIR}/scripts/commit-identity-guard.sh" | sed "s/'/'\\\\''/g")"
     local already_armed=false
     if [[ -f "${hooks_dir}/post-commit" ]] && grep -qF "$_AINISH_RULES_HOOK_START" "${hooks_dir}/post-commit" 2>/dev/null; then
         already_armed=true
     fi
     _ainish_rules_install_hook_block "${hooks_dir}/post-commit" "$block" || true
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
+    # Second, independent block: a harness that forced its own authorship gets corrected to
+    # "Nanoboozhoo - embodies by <harness>" instead of shipping claude/cursor/... as the author.
+    local guard_block
+    guard_block="$(cat <<GUARD_BLOCK
+# --- AINISH-CODER IDENTITY GUARD START ---
+if [ "\${AINISH_IDENTITY_GUARD_ACTIVE:-0}" != "1" ] && [ -x ${quoted_cli_guard} ]; then
+    AINISH_IDENTITY_GUARD=on ${quoted_cli_guard} >/dev/null 2>&1 || true
+fi
+# --- AINISH-CODER IDENTITY GUARD END ---
+GUARD_BLOCK
+)"
+    _ainish_rules_install_hook_block "${hooks_dir}/post-commit" "$guard_block" || true
     [[ "$already_armed" == "true" ]] || echo -e "${GREEN}✓ Root auto-sync hooks installed (post-commit, post-merge)${RESET}"
     return 0
 }
