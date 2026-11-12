@@ -88,9 +88,9 @@ _ainish_skills_source() {
 # .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
 # — never enumerate, deploy, or ingest them.
 #
-# pqc-secrets is NOT excluded here: it is a mandatory pack that every deploy
-# must ship and that --skills-verify must therefore audit. It is hidden from the
-# selector, not from distribution or verification.
+# Mandatory packs are NOT excluded here: every deploy must ship them and
+# --skills-verify must therefore audit them. They are hidden from the selector,
+# not from distribution or verification.
 _ainish_skill_excluded() {
     case "$1" in
         .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
@@ -99,15 +99,12 @@ _ainish_skill_excluded() {
 }
 
 # True when a pack must be present at every target regardless of selection.
-# verify uses this to treat an absent mandatory pack as an error rather than as
-# an ordinary "missing (not deployed)" note. Keep in step with _skill_mandatory in
-# src/skills_selection.sh — deploy and verify disagreeing is how a pack ships but
-# reports as absent, or the reverse.
+# Delegates to _skill_mandatory (src/skills_selection.sh) rather than keeping a
+# second copy: two lists drift, and a pack that ships but reports as absent (or
+# the reverse) is worse than either answer. verify_ainish_skills fails closed
+# when the predicate is not loaded.
 _ainish_skill_mandatory() {
-    case "$1" in
-        pqc-secrets|ainish-security) return 0 ;;
-        *) return 1 ;;
-    esac
+    _skill_mandatory "$1"
 }
 
 # Byte-compare one skill directory tree (symlinks to source are identical).
@@ -122,6 +119,13 @@ _ainish_skill_identical() {
 
 verify_ainish_skills() {
     local target_dir="${1:-.}"
+    # Fail closed, loudly: without the predicate every mandatory pack would be
+    # reported as an ordinary "missing (not deployed)" note — the exact silent
+    # downgrade this check exists to prevent.
+    if ! declare -F _skill_mandatory >/dev/null 2>&1; then
+        print_error "cannot classify mandatory packs: src/skills_selection.sh is not loaded"
+        return 1
+    fi
     local source_dir
     source_dir="$(_ainish_skills_source "$target_dir")" || {
         print_error "Cannot resolve ainish-coder source repo (set AINISH_SOURCE_REPO or redeploy skills)"
@@ -563,8 +567,12 @@ sync_ainish_skills() {
         source_name="$(basename "$source_skill")"
         _ainish_skill_excluded "$source_name" && continue
 
-        # Persisted per-repo selection governs sync: deselected packs are skipped.
-        if [[ "$(skills_selection_state "$target_dir" "$source_name")" != "on" ]]; then
+        # Persisted per-repo selection governs OPTIONAL packs. Mandatory packs
+        # ship either way: --rules deploys them and --skills-verify fails them
+        # when absent, so honouring a stale `off` entry here would make the three
+        # distribution paths disagree about the same pack.
+        if ! _ainish_skill_mandatory "$source_name" && \
+           [[ "$(skills_selection_state "$target_dir" "$source_name")" != "on" ]]; then
             continue
         fi
 

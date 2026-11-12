@@ -1,0 +1,15 @@
+2026-11-12 memory
+
+- "Mandatory" skill packs are one predicate (`_skill_mandatory` in `src/skills_selection.sh`). Every
+  surface asks it: deploy, sync, verify, selector list, both toggle UIs, and the report. A second list
+  that merely repeats the names — the old `_skill_channel_excluded` entry — is how a pack ends up
+  mandatory in distribution and toggleable in the UI.
+- A hidden list drifts silently. `_skills_mandatory_names` had been left at one name while the
+  predicate carried two; derive such sets by enumerating the source through the predicate instead of
+  re-typing them.
+- Distribution verbs must agree. `--rules` shipped mandatory packs, `--skills-verify` failed them when
+  absent, and `--skills-sync` skipped them: honouring a stale recorded `off` for a mandatory pack is
+  the same bug class as hiding it from the selector.
+- Refreshing the contract via the deploy path re-signs `.agents/canonical/*` and appends to
+  `.agents/audit/contract-history.jsonl` with the local signer. That signer is not the committed
+  trust anchor, so every refresh adds artifacts the anchor rotation must re-sign.

@@ -333,8 +333,9 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the
                               distributable payload are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 20 skill packs (ainish-security and
-                              pqc-secrets are mandatory; the rest are opt-in):
+                              Deploys 19 skill packs (pqc-secrets, ainish-security,
+                              and security-first-agent are mandatory — shipped on
+                              every run, never selectable; the rest are opt-in):
                               - advisory-council/          (Multi-expert advisory council)
                               - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance) [mandatory]
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
@@ -349,6 +350,8 @@ UTILITY COMMANDS:
                               - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing) [mandatory]
                               - question-me/               (Socratic design interview -> .plan.md)
                               - remotion-video/            (Programmatic video creation)
+                              - security-first-agent/      (Posture for security-sensitive work: threat-model, least authority, read-back, fail closed) [mandatory]
+                              - tts-cli/                   (On-device cli-tts one-prompt end-of-turn summary)
                               - typesafe-jev/              (Calibrated decision models)
                               - video-knowledge-extractor/ (YouTube video knowledge extraction)
                               - wtf-is-going-on-mcp/       (Cross-machine agent coordination)
