@@ -123,25 +123,30 @@ check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state 
 # carried the same two names in _skill_mandatory AND _skill_channel_excluded, so a pack added to the
 # first stayed selectable, while _skills_mandatory_names named a third, shorter set.
 mandatory_ok=1
-for _p in pqc-secrets ainish-security security-first-agent; do
+for _p in pqc-secrets ainish-security; do
     _skill_mandatory "$_p" || mandatory_ok=0
 done
-check "mandatory set is pqc-secrets, ainish-security, security-first-agent" "$mandatory_ok" "1"
+check "mandatory set is pqc-secrets, ainish-security" "$mandatory_ok" "1"
 if _skill_mandatory typesafe-jev; then
     not_ok "an optional pack is not mandatory"
 else
     ok "an optional pack is not mandatory"
 fi
+if _skill_mandatory security-first-agent; then
+    not_ok "the retired pack is not mandatory"
+else
+    ok "the retired pack is not mandatory"
+fi
 channel_dupes=0
-for _p in pqc-secrets ainish-security security-first-agent; do
+for _p in pqc-secrets ainish-security; do
     _skill_channel_excluded "$_p" && channel_dupes=1
 done
 check "channel exclusion carries no mandatory pack" "$channel_dupes" "0"
 _mand_names="$(_skills_mandatory_names | tr '\n' ' ')"
-check "mandatory names derive from the payload" "${_mand_names% }" "ainish-security pqc-secrets security-first-agent"
+check "mandatory names derive from the payload" "${_mand_names% }" "ainish-security pqc-secrets"
 selector_leaks=0
 _selection_list="$(HOME="$HOME_DIR" skills_selection_list "$TARGET_ON" 2>/dev/null)"
-for _p in pqc-secrets ainish-security security-first-agent; do
+for _p in pqc-secrets ainish-security; do
     printf '%s\n' "$_selection_list" | grep -q "[[:space:]]${_p}\$" && selector_leaks=1
 done
 check "selector list hides every mandatory pack" "$selector_leaks" "0"
@@ -593,11 +598,22 @@ contains "deploy ships it unconditionally" "$(cat "${REPO}/src/deploy_skills.sh"
 contains "verify fails when it is absent" "$(cat "${REPO}/src/verify_skills.sh")" 'MISSING MANDATORY'
 contains "verify delegates the mandatory list" "$(cat "${REPO}/src/verify_skills.sh")" '_skill_mandatory "$1"'
 contains "sync ships mandatory packs past the selection" "$(cat "${REPO}/src/verify_skills.sh")" '! _ainish_skill_mandatory "$source_name"'
-contains "help inventories security-first-agent" "$(cat "${REPO}/src/help.sh")" 'security-first-agent/'
+if grep -q 'security-first-agent' "${REPO}/src/help.sh"; then
+    not_ok "help no longer inventories the retired pack"
+else
+    ok "help no longer inventories the retired pack"
+fi
 contains "help inventories tts-cli" "$(cat "${REPO}/src/help.sh")" 'tts-cli/'
-contains "payload index marks it mandatory" "$(cat "${REPO}/skills-to-distribute/skills/llms.txt")" 'fail closed. Mandatory.'
-contains "payload index links to the pack it mandates" "$(cat "${REPO}/skills-to-distribute/skills/llms.txt")" '(./security-first-agent/)'
-contains "prd names three mandatory packs" "$(cat "${REPO}/llms.txt")" 'Three packs are mandatory'
+if grep -q 'security-first-agent' "${REPO}/skills-to-distribute/skills/llms.txt"; then
+    not_ok "payload index no longer references the retired pack"
+else
+    ok "payload index no longer references the retired pack"
+fi
+contains "prd names two mandatory packs" "$(cat "${REPO}/llms.txt")" 'Two packs are mandatory'
+# The pack was retired because its posture moved into the contract itself; both halves are pinned
+# so a re-add of the pack cannot happen while the contract silently drops the posture.
+contains "AGENTS.md carries the security-first posture" "$(cat "${REPO}/AGENTS.md")" 'Security-first posture'
+contains "AGENTS.md prompts the suggestions ledger" "$(cat "${REPO}/AGENTS.md")" '.agents/suggestions/{date}-{slug}.txt'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
 contains "security skill carries the advisory rule" "$(cat "${REPO}/skills-to-distribute/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
 
@@ -647,7 +663,7 @@ contains "covers supply chain" "$sec_skill" "SBOM"
 contains "covers compiler integrity" "$sec_skill" "source is not binary"
 contains "covers governance" "$sec_skill" "EU AI Act"
 # Mandatory because the always-on rail links to it: an optional pack leaves that link dangling.
-contains "ainish-security is mandatory" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security|security-first-agent'
+contains "ainish-security is mandatory" "$(cat "${REPO}/src/skills_selection.sh")" 'pqc-secrets|ainish-security'
 contains "verify treats it as mandatory" "$(cat "${REPO}/src/verify_skills.sh")" '_skill_mandatory "$1"'
 # --secure must ship one file, and must not still reference the deleted pair.
 secure_block="$(sed -n '/--secure)/,/;;/p' "${REPO}/bin/ainish-coder")"
@@ -682,12 +698,15 @@ contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainis
 contains "prd documents the envelope sections" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
 contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'two separate API calls'
 contains "prd documents the default pair" "$(cat "${REPO}/llms.txt")" 'fresh-context review'
-# AGENTS.md must stay short enough to read without hesitation.
+# AGENTS.md must stay short enough to read without hesitation. The budget was 120 until
+# 2026-11-12, when the security-first-agent pack was retired into the contract itself — the
+# posture has to live in the one file every session reads whole, so the budget grew to 160
+# by operator decision rather than the section drifting in unbounded.
 contract_lines=$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')
-if (( contract_lines <= 120 )); then
-    ok "contract stays under 120 lines (${contract_lines})"
+if (( contract_lines <= 160 )); then
+    ok "contract stays under 160 lines (${contract_lines})"
 else
-    not_ok "contract stays under 120 lines (${contract_lines})"
+    not_ok "contract stays under 160 lines (${contract_lines})"
 fi
 # Every file the contract links to must be deployed by --rules. A pointer to a file the target never
 # receives is worse than no pointer: the agent is told to read something that is absent. The .agents
@@ -755,7 +774,7 @@ check "local .agents/skills is a curated subset (<=6 packs)" "$(( local_packs <=
 check "local subset is a strict subset of the payload" \
     "$(( local_packs < payload_packs ))" "1"
 # 3. Every contract-critical pack an agent here is told to read must actually be readable locally.
-for required in ainish-security pqc-secrets question-me security-first-agent; do
+for required in ainish-security pqc-secrets question-me; do
     check "contract-critical pack readable locally: ${required}" \
         "$([[ -d "${REPO}/.agents/skills/${required}" ]] && echo yes || echo no)" "yes"
     check "contract-critical pack also distributable: ${required}" \
@@ -827,8 +846,8 @@ contains "checkout identity normalizes the Windows drive form" "$MS" '[A-Za-z]:/
 
 contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Plan first'
 contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{slug}.plan.md'
-check "AGENTS.md stays within the 120-line gate" \
-    "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 120 ]] && echo yes || echo no)" "yes"
+check "AGENTS.md stays within the 160-line gate" \
+    "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 160 ]] && echo yes || echo no)" "yes"
 PLAN_REPO="${WORK}/plan-gate-repo"
 mkdir -p "${PLAN_REPO}/.agents/plans"
 git -C "${PLAN_REPO}" init -q 2>/dev/null

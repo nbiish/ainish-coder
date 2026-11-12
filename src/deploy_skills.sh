@@ -98,8 +98,8 @@ deploy_skills() {
             # Mandatory packs ship on every run: no selection entry, no toggle,
             # no selector row. They are runtime dependencies of the contract
             # (secrets resolve through pqc-secrets, AGENTS.md links to
-            # ainish-security and security-first-agent by path), so treating
-            # them as optional is what allowed a repo to end up without one.
+            # ainish-security by path), so treating them as optional is what
+            # allowed a repo to end up without one.
             # The list lives only in _skill_mandatory (src/skills_selection.sh).
             local is_mandatory="false"
             if _skill_mandatory "$skill_name"; then
