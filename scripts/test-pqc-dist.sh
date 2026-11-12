@@ -31,7 +31,18 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/pqc-dist-test.XXXXXX")"
-cleanup() { rm -rf "$WORK"; }
+# A deployed AGENTS.md is write-protected on purpose (BSD `uchg` on macOS, `+i` on Linux), so a
+# plain removal leaves the temp tree behind on every run. Clear the flags best-effort, then delete.
+cleanup() {
+    if command -v chflags >/dev/null 2>&1; then
+        find "$WORK" -type f -exec chflags nouchg {} + 2>/dev/null || true
+    fi
+    if command -v chattr >/dev/null 2>&1; then
+        find "$WORK" -type f -exec chattr -i {} + 2>/dev/null || true
+    fi
+    chmod -R u+w "$WORK" 2>/dev/null || true
+    rm -rf "$WORK"
+}
 trap cleanup EXIT
 
 HOME_DIR="${WORK}/home"
@@ -820,6 +831,40 @@ contains "a Rust test pins the vault format" "$(cat "${REPO}/src/rag/src/wiki.rs
 # The ledger is operator-owned and signed; generation must never rewrite it.
 contains "ledger is spliced, not regenerated" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'read_operator_ledger'
 
+
+echo "== rules deploy verifies the manifest, not everything beside it =="
+# At $HOME, `.agents/` also holds mcp-settings, a skill lock and contract history. Gating a rules
+# deploy on the whole directory made `ainish-coder --rules ~` impossible: unrelated receipts failed
+# and `ainish-deploy.json` was itself among the failures. A deploy answers only for what it wrote.
+RULES_SYNC="${REPO}/src/deploy_rules_sync.sh"
+contains "the gate verifies the manifest file" "$(cat "$RULES_SYNC")" 'verify_target="$(_ainish_rules_sign_arg "$rag" "$manifest")"'
+if grep -qF 'verify_target="$(_ainish_rules_sign_arg "$rag" "$(dirname "$manifest")")"' "$RULES_SYNC"; then
+    not_ok "the gate no longer sweeps the manifest's directory"
+else
+    ok "the gate no longer sweeps the manifest's directory"
+fi
+
+echo "== audit verify --path <file> verifies one file =="
+# The gate above is only possible if a single-file verify exists: passing a file used to fall
+# through to read_dir and die with NotADirectory, so no caller could check one artifact.
+RAG_MAIN="${REPO}/src/rag/src/main.rs"
+contains "a file path takes the single-file branch" "$(cat "$RAG_MAIN")" 'if audit_dir.is_file() {'
+contains "a missing envelope fails that file" "$(cat "$RAG_MAIN")" 'missing signature envelope for {}'
+
+echo "== a signer/anchor mismatch is named, never silently accepted =="
+# resolve_or_create_seed invents a random, gitignored seed when neither the env var nor the vault
+# has one, while the anchor stays committed. Every signature from such a machine is unverifiable,
+# and the deploy must say so with both fingerprints instead of reporting integrity it lacks.
+contains "anchor-check is a command" "$(cat "$RAG_MAIN")" 'AnchorCheck'
+contains "the comparison exposes both keys" "$(cat "${REPO}/src/rag/src/pqc.rs")" 'fn anchor_signer_mismatch'
+contains "the deploy reports the signer" "$(cat "$RULES_SYNC")" 'Signing key does not match the committed trust anchor'
+# Rotation is a deliberate, reviewed act. A deploy that re-anchored itself would let any machine
+# become the trust root as a side effect of installing rules.
+if grep -qE 'chflags|write_anchor' <(echo "$(cat "$RULES_SYNC")"); then
+    not_ok "the mismatch report never rotates the anchor"
+else
+    ok "the mismatch report never rotates the anchor"
+fi
 
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

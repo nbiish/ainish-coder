@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: rules-sync-signing
 date: 2026-11-11
-status: ready
+status: done
 branch: fix/rules-sync-signing
 worktree: /Users/nbiish/code/rules-sync-signing
 task_record: .agents/tasks/2026-11-11-rules-sync-signing-task.md
@@ -65,13 +65,21 @@ Four independent faults, each measured:
 
 ## 5. Todos
 
-- [ ] 5.1 `main.rs`: `audit verify --path <file>` verifies one file; directory behavior unchanged.
-- [ ] 5.2 `deploy_rules_sync.sh`: gate on the manifest only.
+- [x] 5.1 `main.rs`: `audit verify --path <file>` verifies one file; directory behavior unchanged.
+- [x] 5.2 `deploy_rules_sync.sh`: gate on the manifest only.
 - [ ] 5.3 `deploy_rules_sync.sh`: confirm non-git targets register and the summary names the mechanism.
-- [ ] 5.4 Warn (do not fail) when the signer's fingerprint differs from the committed anchor, naming both
+      Deferred with 5.6: registration sits *after* the manifest gate, so it is unreachable while the
+      signer/anchor mismatch still aborts the deploy. Proving it needs a working anchor.
+- [x] 5.4 Warn (do not fail) when the signer's fingerprint differs from the committed anchor, naming both
       — the deploy must not silently produce artifacts that cannot verify.
-- [ ] 5.5 Gate all four behaviors; prove each fails before the fix and passes after.
+- [x] 5.5 Gate all four behaviors; prove each fails before the fix and passes after.
+      The three reachable fixes are pinned by 8 new assertions in `scripts/test-pqc-dist.sh`.
+      The fourth (`--rules` completing) cannot pass before rotation; see §7.
 - [ ] 5.6 (deferred, own task) Rotate the anchor and re-sign the 14 artifacts with a bulk re-sign path.
+      Corrected count: **18** tracked signature files (14 `.agents/audit/`, 2 `.agents/canonical/`,
+      `.agents/wiki/ledger.sig`, `.scrolls*/manifest.sig*`), and they do not all share one key today —
+      `.agents/canonical/AGENTS.sig` is from the local `69e7…` key while the audit receipts are from
+      the anchor `d984…`, so both groups must be re-signed in one pass.
 
 ## 6. Verification Gates
 
