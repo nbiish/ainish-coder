@@ -761,6 +761,30 @@ echo "== plan-first gate =="
 # AGENTS.md non-negotiable #1 is prose; --plan-check is the deterministic half. A gate that
 # cannot fail is decoration, so both directions are asserted: refusal without a plan, and
 # acceptance with one whose `branch:` key names this branch.
+echo "== federation predicts and verifies =="
+# Transport delivering refs is not the same as a peer being USABLE. These pin the three things that
+# were missing: a dry run that can predict the outcome, a post-sync proof the peer can execute, and
+# de-duplication of two registry entries that are one working tree.
+MS="$(cat "${REPO}/src/machine_sync.sh")"
+contains "dry run forecasts commit delta" "$MS" 'forecast: '
+contains "forecast names the blocking paths" "$MS" 'would NOT advance'
+contains "forecast states when a peer would fast-forward" "$MS" 'would fast-forward'
+contains "a synced peer is smoke-probed" "$MS" '_ms_smoke_peer'
+contains "the smoke probe reports a version" "$MS" '--version'
+# `bin/ainish-coder` is a bash script. Probing it on a Windows peer (PowerShell login shell) fails
+# and reports a healthy machine as unverified; the `.cmd` wrapper is the entry point there.
+contains "the smoke probe picks a Windows launcher" "$MS" 'ainish-coder.cmd'
+# `>/dev/null` and `&&` are PowerShell syntax errors, so the plan-check status must come from ssh.
+contains "plan-check status comes from ssh, not a remote redirect" "$MS" 'plan_rc=$?'
+contains "two entries resolving to one checkout are de-duplicated" "$MS" 'same checkout as'
+# The peer's login shell may be PowerShell, where `&&` and `>/dev/null` are syntax errors. Every
+# remote command must be shell-agnostic (`git -C`), which is why the snapshot plumbing already did.
+remote_cd_forms=$(grep -c "cd '\$path' 2>/dev/null &&" "${REPO}/src/machine_sync.sh" || true)
+check "no remote command assumes a POSIX login shell" "${remote_cd_forms:-0}" "0"
+# De-duplication is only possible if the two spellings of one NTFS path normalize together.
+contains "checkout identity normalizes the WSL path form" "$MS" '/mnt/[a-z]/*'
+contains "checkout identity normalizes the Windows drive form" "$MS" '[A-Za-z]:/*'
+
 contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Plan first'
 contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{slug}.plan.md'
 check "AGENTS.md stays within the 120-line gate" \
