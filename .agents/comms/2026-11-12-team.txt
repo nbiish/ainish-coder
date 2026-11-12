@@ -1,0 +1,15 @@
+description: Agent Communication System protocol template. Deployed by `ainish-coder --rules` as `.agents/comms/{date}-team.txt` (one file per UTC date — the day's whole history is one read). Merge-safe: agents deploying updates must preserve all entry blocks below the PROTOCOL section; only the PROTOCOL block itself may be refreshed from this template.
+# AGENT COMMS — 2026-11-12
+
+---
+agent: deepseek-v4.1-flash
+task: 2026-11-11-rules-sync-signing-task
+start: 2026-11-12T13:34:00Z
+end: 2026-11-12T13:58:00Z
+- input:Operator asked to finish any stray worktrees, verify and merge them properly, and to keep going until the task was complete under the AGENTS.md contract. `fix/rules-sync-signing` was the remaining unmerged worktree, sitting on a `wip` commit with no task record.
+- output:Finished and merged the branch's three reachable fixes: `audit verify --path <file>` now verifies one file instead of dying with NotADirectory, the rules deploy gate verifies the manifest it wrote instead of sweeping all of `.agents/`, and `ainish-rag audit anchor-check` names a signer/anchor mismatch with both fingerprints before the deploy decides. Added the missing task record and 8 regression assertions, and recorded that plan gate 4 does NOT pass.
+- status:done
+- blockers:None for merge. Gate 4 remains unmet by design: `--rules` still refuses on this host because the signing key (`69e7233dc777…`) is not the committed trust anchor (`d98405ea3684…`). The original seed is unrecoverable — `pqc-secrets list` has no `AINISHRAG_MLDSA65_SEED`, the only local `.priv` is the invented one, and the anchor has been unchanged since `20da58c`. Repairing it needs anchor rotation plus re-signing 18 tracked artifacts in one pass (plan todo 5.6), which the operator deliberately deferred.
+- verification:cargo test --bin ainish-rag 58/58; scripts/test-pqc-dist.sh 229/229 (up from 221); `audit anchor-check` returns `69e7233dc777…|d98405ea3684…` exit 3, correctly detecting the live mismatch; single-file verify fails a signed file only with "signed by a key other than the trust anchor" and never raises NotADirectory; `--rules` on a temp target completes the deploy, prints both fingerprints, then refuses at manifest verification.
+- findings:A deployed AGENTS.md is `uchg`-locked by design, so the test suite's `rm -rf "$WORK"` trap failed on every run and had left 13 orphaned `pqc-dist-test.*` trees in $TMPDIR. The trap now clears `uchg`/`+i` and write bits first; a full run now leaves zero. Also: the 18 signed artifacts are not all from one key — `.agents/canonical/AGENTS.sig` is already signed by the local `69e7…` key while the audit receipts use the anchor `d984…`, so a future rotation must re-sign both groups together or the audit directory reports failures indefinitely.
+---
