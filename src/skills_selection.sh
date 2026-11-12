@@ -88,13 +88,12 @@ _skill_channel_excluded() {
 # `pqc-secrets`: every secret resolution goes through it.
 # `ainish-security`: the universal AGENTS.md links to it by path, so a deploy that
 #   omitted it shipped a contract with a dangling link.
-# `security-first-agent`: the order of operations for work a breach would make
-#   expensive. The payload index that ships beside it (`.agents/skills/llms.txt`)
-#   sends an agent there by path before security-sensitive work, so a deploy that
-#   omitted the pack shipped that index with a dead link.
+# (`security-first-agent` was retired 2026-11-12: its posture is now a section of
+# the universal AGENTS.md itself, which every session reads whole, so no payload
+# pack has to carry it and no trigger decides whether it is read.)
 _skill_mandatory() {
     case "$1" in
-        pqc-secrets|ainish-security|security-first-agent) return 0 ;;
+        pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac
 }

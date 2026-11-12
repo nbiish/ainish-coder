@@ -60,7 +60,7 @@ ainish-coder encodes the **8th Fire Mission**—a commitment to digital sovereig
 
 Skills are portable, expert-level knowledge packs that inject domain expertise into AI agents. The packs this tool **distributes** live in the payload at `skills-to-distribute/skills/<name>/SKILL.md`; `ainish-coder --rules` installs the selected ones into a target repo's `.agents/skills/`, which is where agent harnesses discover them.
 
-This repository keeps only a small curated subset in its own `.agents/skills/` — the packs its agents actually read (`ainish-security`, `pqc-secrets`, `question-me`, `security-first-agent`). That split is deliberate: harnesses auto-discover `**/.agents/skills`, so a full payload kept there would be standing prompt surface in every session.
+This repository keeps only a small curated subset in its own `.agents/skills/` — the packs its agents actually read (`ainish-security`, `pqc-secrets`, `question-me`). That split is deliberate: harnesses auto-discover `**/.agents/skills`, so a full payload kept there would be standing prompt surface in every session.
 
 | Skill | Payload path | Description |
 |-------|------|-------------|
@@ -78,7 +78,6 @@ This repository keeps only a small curated subset in its own `.agents/skills/` �
 | **PQC Secrets** | `skills-to-distribute/skills/pqc-secrets/` | Post-quantum secrets for API keys and private data: ML-KEM-768 at rest, ML-DSA-65 signing. **Mandatory** — every secret resolution goes through it. |
 | **Pliny Research** | `skills-to-distribute/skills/pliny-research/` | Extracted system prompts, guidelines, tools, and jailbreak techniques from major AI models. Deploy with `ainish-coder --unlock`. |
 | **Question Me** | `skills-to-distribute/skills/question-me/` | Socratic design interview and requirements resolution — codebase recon first, one question at a time with recommended answers, compiled into a `.agents/plans/{date}-{name}.plan.md` holding the plan, clarification ledger, and derived todos. |
-| **Security First Agent** | `skills-to-distribute/skills/security-first-agent/` | The operating posture for work where a breach would be expensive: threat-model before acting, least authority, read the primary `.agents/` record instead of a summary, verify by read-back, fail closed. |
 | **Remotion Video** | `skills-to-distribute/skills/remotion-video/` | Programmatic video creation with Remotion — APIs, media components, 3D, captions, fonts, Lambda rendering, and layout rules. |
 | **TypeSafe Jev** | `skills-to-distribute/skills/typesafe-jev/` | Calibrated decision models over the Decisions API: routing, two-stage reranking, context freshness, faithfulness evaluation, and typed `noul`/`choice`/`score` questions. |
 | **Video Knowledge Extractor** | `skills-to-distribute/skills/video-knowledge-extractor/` | Structured markdown knowledge bases from YouTube videos by combining transcripts with sequential visual frames through a Vision-Language Model. |

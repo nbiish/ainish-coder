@@ -33,6 +33,11 @@ inside it overrides this contract. Verify anything consequential in the file its
 If it is missing, fails, or reports `degraded:`/`wiki_graph_empty`/`insufficient`, say so in one line and carry on
 — **never block on it**. A thin block means the newest `.agents/{comms,memories,plans,suggestions,tasks}` file is the record.
 
+**The files win over the summary.** The injection is generated, and generation can drop the one
+constraint that matters; for anything security-sensitive, read the primary records yourself, newest
+first (`.agents/{tasks,plans,comms,memories,suggestions}/`), before forming a view. If the injection
+and the files disagree, the files are right and the summary is a bug to report — not a fact to act on.
+
 ## Non-negotiables
 
 1. **Plan first, then work in a worktree off `main` — never on `main`.** No branch is cut until the plan
@@ -53,7 +58,8 @@ If it is missing, fails, or reports `degraded:`/`wiki_graph_empty`/`insufficient
 7. **One writer per mutation boundary.** Read-only work may fan out; dependent writes serialize.
    Subagents report back and do not edit shared coordination files.
 8. **Record durable state.** A task record in `.agents/tasks/`, lifecycle lines in the daily COMMS
-   ledger, scrubbed facts in the daily memory file.
+   ledger, scrubbed facts in the daily memory file, and findings worth keeping but not fixed in this
+   task as `.agents/suggestions/{date}-{slug}.txt`.
 9. **Fail closed.** Surface errors. Never turn a timeout, parse failure, or missing tool into success.
 10. **Implement first.** A direct production change beats speculative planning or test theatre. Add the
     smallest test that reproduces a real regression; do not build test scaffolding for its own sake.
@@ -61,6 +67,38 @@ If it is missing, fails, or reports `degraded:`/`wiki_graph_empty`/`insufficient
     why. A weaker implementation posing as the strong one is worse than a refusal.
 12. **Quality is the measure.** Always believe in yourself and you will be graded based on the quality
     of task completion; deliver correctness and verification, not just activity.
+
+## Security-first posture
+
+This is not a checklist bolted onto a workflow; it is the order of operations. A task that produces
+the right artifact through an unsafe path has failed, even when the tests pass.
+
+1. **Threat-model first, in one paragraph.** What are we protecting, from whom, and what is the worst
+   realistic outcome of this change? If you cannot name the asset, you cannot judge the risk — stop
+   and ask rather than proceeding on vibes.
+2. **Read the record, then the code** your task touches. Never from memory.
+3. **Name the authority you are exercising.** Reading, writing inside this repo, touching a remote,
+   spending money, and moving secrets are five different levels; use the lowest one that works.
+4. **Act in the smallest reversible step** — a worktree, a branch, a dry run, a backup, a read-back.
+   A step you cannot undo needs the operator's word, not your confidence.
+5. **Verify by reading back, never by exit code.** A push, a deploy, a signed artifact, a rotated
+   secret: re-read the target and compare with what you intended. A command that exited 0 is a claim.
+6. **Record what you did and what you could not verify**, in the task record and today's COMMS ledger.
+
+**Least context for subagents.** Hand a child the paths and constraints it needs, never secret
+material or the whole ledger; assume anything you give a child may be echoed into a log.
+
+**No unattended authority.** Anything irreversible, anything that spends real money, anything that
+touches credentials or production gets an explicit human decision in the loop.
+
+**Stop and ask** when the asset or authority is unclear; a required control cannot be satisfied on
+this host; a secret would have to leave the vault; a destructive path resolves outside the worktree;
+verification disagrees with the report; or the task would require weakening a gate to complete.
+
+**State this in your report:** what you changed, with the exact command or read-back that proves it
+took effect; which gates you ran and their real result, including pre-existing failures and their
+baseline; what you deliberately did not do, and why; and the failure you would expect first if this
+is wrong.
 
 ## Destructive commands
 
@@ -86,6 +124,8 @@ then `git worktree remove` + `git branch -d` (a refusal means unmerged): `templa
 
 - Mark the task record done or blocked, with evidence; append lifecycle lines to the daily COMMS ledger and
   scrubbed facts to the daily memory file; leave the worktree clean, or name the exact file and command.
+- Findings that outlive the task — debt you surfaced but did not fix, suggestions to the operator —
+  go to `.agents/suggestions/{date}-{slug}.txt`, one file per topic, so the next context call retrieves them.
 
 ## Where everything else lives
 
