@@ -50,6 +50,71 @@ _ms_skip() { [[ "$_MS_JSON" == "true" ]] || printf '  %b·%b %s\n' "${YELLOW:-}"
 _ms_head() { [[ "$_MS_JSON" == "true" ]] || printf '%b%s%b\n' "${BRIGHT_BLUE:-}" "$*" "${RESET:-}"; }
 _ms_info() { [[ "$_MS_JSON" == "true" ]] || printf '  %s\n' "$*"; }
 
+# _ms_checkout_id <host> <path> — a stable identity for the checkout at host:path.
+#
+# Two registry entries can resolve to ONE working tree: a Windows checkout at `D:/Code/x` and its
+# WSL view at `/mnt/d/Code/x` are the same files on the same NTFS volume. That is a legitimate way
+# to work, but reporting it as two independent peers double-counts one machine and doubles the
+# transfer. `git rev-parse --show-toplevel` is the identity that survives the path translation.
+_ms_checkout_id() {
+    local host="$1" path="$2"
+    local top
+    # `git -C` rather than `cd && git`: the peer's login shell may be POSIX sh or PowerShell,
+    # and `&&` / `>/dev/null` are invalid PowerShell. This is the same constraint the snapshot
+    # plumbing already documents at _ms_snap_cmd.
+    top="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n')"
+    [[ -n "$top" ]] || top="$path"
+    # Normalize the two spellings of one NTFS path. A Windows peer reports `D:/Code/x` and its
+    # WSL view reports `/mnt/d/Code/x`; comparing raw strings therefore never matches, and the
+    # same checkout gets synced twice while being reported as two machines. Collapse both to
+    # the drive-relative form so identity survives the translation between shells.
+    case "$top" in
+        /mnt/[a-z]/*)
+            local drv rest
+            drv="${top#/mnt/}"; drv="${drv%%/*}"
+            rest="${top#/mnt/$drv}"
+            printf '%s:%s\n' "$drv" "$rest"; return 0 ;;
+        [A-Za-z]:/*)
+            local d
+            d="${top%%:*}"
+            printf '%s:%s\n' "$(printf '%s' "$d" | tr 'A-Z' 'a-z')" "${top#*:}"; return 0 ;;
+    esac
+    printf '%s\n' "$top"
+}
+
+#
+# Prints two lines: a commit delta for the branch being synced, and whether the peer's checkout# can fast-forward. A dry run that says only "would sync" is a connectivity check: it cannot tell
+# an operator whether the peer will be USABLE afterward, which is the whole point of federating.
+# Read-only; never mutates the peer.
+_ms_peer_forecast() {
+    local host="$1" path="$2" branch="$3"
+    [[ -n "$branch" ]] || return 0
+
+    local ahead behind dirty
+    # `git -C` on the peer, POSIX shell only: the Windows peer reaches git through its own shell.
+    ahead="$(_ms_remote "$host" "git -C '$path' rev-list --count 'refs/remotes/$(_ms_self_name)/$branch'..'$branch'" 2>/dev/null | tr -d '\r\n')"
+    behind="$(_ms_remote "$host" "git -C '$path' rev-list --count '$branch'..'refs/remotes/$(_ms_self_name)/$branch'" 2>/dev/null | tr -d '\r\n')"
+    [[ "$ahead" =~ ^[0-9]+$ ]] || ahead=0
+    [[ "$behind" =~ ^[0-9]+$ ]] || behind=0
+
+    _ms_info "forecast: $branch is $ahead ahead / $behind behind refs/remotes/$(_ms_self_name)/$branch on this peer"
+
+    # The blocking condition is a non-clean tree. Name the paths, because "local changes" sends the
+    # operator hunting and a single stray file is the usual cause.
+    dirty="$(_ms_remote "$host" "git -C '$path' status --porcelain" 2>/dev/null | tr -d '\r')"
+    if [[ -z "$dirty" ]]; then
+        _ms_info "forecast: peer tree is clean — the checkout would fast-forward"
+    else
+        local count
+        count="$(printf '%s\n' "$dirty" | grep -c '[^[:space:]]' || true)"
+        _ms_info "forecast: peer tree has $count uncommitted path(s) — the checkout would NOT advance"
+        printf '%s\n' "$dirty" | head -5 | while IFS= read -r line; do
+            [[ -n "$line" ]] && _ms_info "          $line"
+        done
+    fi
+    return 0
+}
+
 _ms_usage() {
     cat <<'EOF'
 ainish-coder --machine-sync — federate this repository with its peer machines
@@ -605,6 +670,10 @@ machine_sync() {
 
     # Which peers does this run cover?
     local -a peer_names=() peer_specs=()
+    # Checkout identities already synced this run. Two registry entries can be one working tree
+    # (a Windows path and its WSL view of the same NTFS volume), and syncing it twice both
+    # double-counts the machine and doubles the transfer.
+    local -a _seen_checkouts=()
     local i name spec
     for i in "${!_MS_NAMES[@]}"; do
         name="${_MS_NAMES[$i]}"
@@ -711,12 +780,36 @@ machine_sync() {
                 "$([[ -n "$host" ]] && echo "ssh $host" || echo local):$path"
         fi
 
+        # De-duplicate by checkout identity, not by name. Only meaningful for peers that answer;
+        # an unreachable peer keeps its own slot so its failure is still reported.
+        if _ms_peer_reachable "$host" "$path"; then
+            local _ck
+            _ck="$(_ms_checkout_id "$host" "$path")"
+            local _prev _same=""
+            for _prev in ${_seen_checkouts[@]+"${_seen_checkouts[@]}"}; do
+                if [[ "${_prev%%|*}" == "$_ck" ]]; then _same="${_prev#*|}"; break; fi
+            done
+            if [[ -n "$_same" ]]; then
+                _ms_skip "$name — same checkout as $_same ($_ck); syncing once"
+                _ms_report_peer "$repo" "$name"
+                continue
+            fi
+            _seen_checkouts+=("${_ck}|${name}")
+        fi
+
         if [[ "$status" == "true" ]]; then
             _ms_report_peer "$repo" "$name"
             continue
         fi
 
         if [[ "$dry" == "true" ]]; then
+            if _ms_peer_reachable "$host" "$path"; then
+                local _fc_branch
+                _fc_branch="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+                _ms_peer_forecast "$host" "$path" "$_fc_branch"
+            else
+                _ms_skip "dry-run — peer unreachable at $path; nothing would cross"
+            fi
             _ms_skip "dry-run — would sync $_MS_DIRECTION with $path"
             continue
         fi
@@ -752,6 +845,7 @@ machine_sync() {
         if [[ "$sent" == "true" && "$recv" == "true" ]]; then
             [[ "$json" != "true" ]] && _ms_ok "$name synced"
             _ms_report_peer "$repo" "$name"
+            _ms_smoke_peer "$host" "$path" "$name"
         else
             _ms_err "$name — sync failed (sent=$sent received=$recv)"
             failures+=("$name")
@@ -778,6 +872,59 @@ machine_sync() {
         _ms_err "failed peers: ${failures[*]}"
         return 1
     fi
+    return 0
+}
+
+# _ms_smoke_peer <host> <path> <name> — prove the peer can EXECUTE what it just received.
+#
+# Delivering a ref is not delivering a working project: a peer can hold the right commits and still
+# be unable to run them (stale binary, missing toolchain, wrong architecture). This runs a bounded,
+# read-only probe on the peer and reports it per machine.
+#
+# It never fails the sync. A peer that cannot answer is reported as "unverified", not as failed
+# delivery — a missing toolchain on one machine must not read as a broken federation.
+_ms_smoke_peer() {
+    local host="$1" path="$2" name="$3"
+
+    local root
+    root="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n')"
+    [[ -n "$root" ]] || { _ms_info "smoke: $name — no checkout found (unverified)"; return 0; }
+
+    # Pick the launcher the PEER can actually execute. `bin/ainish-coder` is a bash script, so on a
+    # Windows peer (PowerShell login shell) it cannot run at all — the `.cmd` wrapper is the entry
+    # point there. Probing the wrong one reports a healthy machine as unverified.
+    local cli="" win_root
+    case "$root" in
+        [A-Za-z]:[\\/]*)
+            win_root="$(printf '%s' "$root" | tr '/' '\\')"
+            cli="cmd /c \"${win_root}\\bin\\ainish-coder.cmd\""
+            ;;
+        *)
+            cli="'${root%/}/bin/ainish-coder'"
+            ;;
+    esac
+
+    local version="" rules=""
+    version="$(_ms_remote "$host" "$cli --version" 2>/dev/null | tr -d '\r' | head -1)"
+    rules="$(_ms_remote "$host" "$cli --rules-status --json" 2>/dev/null | tr -d '\r' | head -c 120)"
+
+    # --plan-check is only meaningful inside a git repo with a plan; a non-zero rc is a real answer,
+    # not a transport failure, so the probe reports the code rather than judging it. The exit status
+    # comes from ssh itself — putting `>/dev/null` in the remote command would be a syntax error
+    # under PowerShell, which is the login shell on a Windows peer.
+    local plan="" plan_rc=0
+    _ms_remote "$host" "$cli --plan-check ." >/dev/null 2>&1 || plan_rc=$?
+    plan="$plan_rc"
+
+    local verdict="unverified"
+    if [[ -n "$version" ]]; then
+        verdict="ok"
+        [[ -n "$plan" ]] && verdict="ok (plan-check rc=$plan)"
+    fi
+
+    _ms_info "smoke: $name — $verdict"
+    [[ -n "$version" ]] && _ms_info "        version: $(printf '%s' "$version" | tr -d '\n' | cut -c1-70)"
+    [[ -n "$rules" ]] && _ms_info "        rules-status: $(printf '%s' "$rules" | tr -d '\n' | cut -c1-70)"
     return 0
 }
 
