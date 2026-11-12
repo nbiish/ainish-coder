@@ -45,11 +45,20 @@
   then restored.
 - The peer was advanced from `e2f5cc7` to `7f4f725` (12 commits) and its tree is clean.
 
+## Two cross-architecture bugs found while verifying
+
+1. **The Windows peer's login shell is PowerShell.** `&&`, `>/dev/null`, and `2>/dev/null` are syntax
+   errors there, so any remote command using them fails silently. The snapshot plumbing already
+   documented this constraint (`_ms_snap_cmd` uses `git -C`); a gate now rejects `cd '$path' 2>/dev/null &&`.
+2. **`bin/ainish-coder` is a bash script**, so probing it on Windows fails and reports a healthy peer as
+   unverified. The smoke probe selects the `.cmd` wrapper for drive-letter roots and takes the
+   plan-check status from ssh's exit code rather than a remote redirect.
+
 ## Not done
 
-- `--status` still reports the Windows entry's stale `main` (`e2f5cc73`) while the tree's real HEAD is
-  `7f4f725`, because both registry names are read as independent peers. The dedupe now applies to the
-  sync path; extending it to `--status` output is a follow-up.
+- `--status` still reports the Windows entry's stale `main` while the tree's real HEAD has advanced,
+  because both registry names are read as independent peers. The dedupe applies to the sync path;
+  extending it to `--status` output is a follow-up.
 - No per-architecture build verification (`cargo check` on each peer). The smoke probe proves the tool
   runs, not that a native build succeeds on that architecture.
 - The anchor-rotation work from `fix/rules-sync-signing` (`ca10cd9`) remains parked and unmerged.
