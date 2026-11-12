@@ -96,9 +96,11 @@ deploy_skills() {
             esac
 
             # Mandatory packs ship on every run: no selection entry, no toggle,
-            # no selector row. They are a runtime dependency of the contract
-            # (every secret resolution goes through pqc-secrets), so treating
+            # no selector row. They are runtime dependencies of the contract
+            # (secrets resolve through pqc-secrets, AGENTS.md links to
+            # ainish-security and security-first-agent by path), so treating
             # them as optional is what allowed a repo to end up without one.
+            # The list lives only in _skill_mandatory (src/skills_selection.sh).
             local is_mandatory="false"
             if _skill_mandatory "$skill_name"; then
                 is_mandatory="true"

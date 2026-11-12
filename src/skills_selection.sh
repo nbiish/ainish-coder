@@ -63,44 +63,54 @@ skills_selection_env_guard() {
 # .ainish-ingest.* are transient same-FS staging dirs from sync_ainish_skills
 # — never listed or selectable.
 #
-# Three distinct reasons a name is excluded from the *selection* channel:
+# Two reasons a name is excluded from the *selection* channel:
 #   - retired/consolidated packs (code-security, llm-security, production-security
 #     merged into ainish-security; context-orchestration merged into
 #     `ainish-rag context`; orchestrate-subagent-masters retired);
-#   - the scroll channel, which has its own explicit distribution surface;
-#   - mandatory packs, which are shipped regardless of any selection.
-# Excluded-from-selection is a prompt-surface decision and says nothing about
-# whether the pack ships — that is _skill_mandatory's job.
+#   - the scroll channel, which has its own explicit distribution surface.
+# Mandatory packs are deliberately NOT named here. Every selection surface hides
+# them by asking _skill_mandatory, the same predicate that decides what ships;
+# naming them twice is how a pack becomes mandatory in one path and selectable
+# in another.
 _skill_channel_excluded() {
     case "$1" in
         .scrolls*|8thfire-scrolls|ghost-layer-injector|.ainish-ingest.*) return 0 ;;
         code-security|llm-security|production-security|context-orchestration|orchestrate-subagent-masters) return 0 ;;
-        pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac
 }
 
-# True when a pack is deployed regardless of the operator's selection.
-# Kept separate from _skill_channel_excluded so "invisible to the selector" and
-# "always shipped" stay distinguishable: one is a prompt-surface decision, the
-# other a runtime dependency the contract relies on.
+# True when a pack ships to every target regardless of the operator's selection.
+# THE single mandatory list: deploy, verify, sync, the selector, and the report
+# all consult this predicate, so a pack cannot be mandatory in one path and
+# optional in another. Each entry is a runtime dependency of the contract:
 #
 # `pqc-secrets`: every secret resolution goes through it.
 # `ainish-security`: the universal AGENTS.md links to it by path, so a deploy that
-#   omitted it shipped a contract with two dangling links. Anything the always-on
-#   rail points at must be mandatory, or the link is a lie in every default repo.
+#   omitted it shipped a contract with a dangling link.
+# `security-first-agent`: the order of operations for work a breach would make
+#   expensive. The payload index that ships beside it (`.agents/skills/llms.txt`)
+#   sends an agent there by path before security-sensitive work, so a deploy that
+#   omitted the pack shipped that index with a dead link.
 _skill_mandatory() {
     case "$1" in
-        pqc-secrets|ainish-security) return 0 ;;
+        pqc-secrets|ainish-security|security-first-agent) return 0 ;;
         *) return 1 ;;
     esac
 }
 
 # _skills_mandatory_names — the mandatory packs present in the source tree.
-# Deploy, verify, and status paths share this one list so a pack can never be
-# mandatory in one place and optional in another.
+# Derived from _skill_mandatory over the payload instead of re-listing the names,
+# so the two can never disagree (the previous hardcoded copy named pqc-secrets
+# alone while _skill_mandatory carried two).
 _skills_mandatory_names() {
-    printf '%s\n' pqc-secrets
+    local source_dir d name
+    source_dir="$(_skills_selection_source_dir)"
+    [[ -d "$source_dir" ]] || return 0
+    while IFS= read -r d; do
+        name="$(basename "$d")"
+        _skill_mandatory "$name" && printf '%s\n' "$name"
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
 }
 
 # skills_selection_default_on — is a pack with no recorded preference
@@ -200,7 +210,7 @@ skills_selection_enabled_count() {
     local count=0 d name
     while IFS= read -r d; do
         name="$(basename "$d")"
-        _skill_channel_excluded "$name" && ! _skill_mandatory "$name" && continue
+        _skill_channel_excluded "$name" && continue
         [[ -d "$d" ]] || continue
         if _skill_mandatory "$name"; then
             count=$((count + 1))
@@ -460,6 +470,9 @@ skills_selection_list() {
     while IFS= read -r d; do
         name="$(basename "$d")"
         _skill_channel_excluded "$name" && continue
+        # Mandatory packs are not a choice: they ship either way, so listing them
+        # would offer a toggle that cannot change the outcome.
+        _skill_mandatory "$name" && continue
         if [[ "$(skills_selection_state "$repo_root" "$name")" == "on" ]]; then
             printf 'ON  %s\n' "$name"
         else
@@ -603,6 +616,9 @@ _skills_toggle_ui_raw() {
     while IFS= read -r d; do
         name="$(basename "$d")"
         _skill_channel_excluded "$name" && continue
+        # Mandatory packs ship unconditionally, so they are not rows here: a
+        # toggle the operator cannot turn off is a lie about their authority.
+        _skill_mandatory "$name" && continue
         names+=("$name")
         states+=("$(skills_selection_state "$repo_root" "$name")")
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
@@ -758,6 +774,9 @@ _skills_toggle_ui_numbered() {
     while IFS= read -r d; do
         name="$(basename "$d")"
         _skill_channel_excluded "$name" && continue
+        # Mandatory packs ship unconditionally, so they are not rows here: a
+        # toggle the operator cannot turn off is a lie about their authority.
+        _skill_mandatory "$name" && continue
         names+=("$name")
         states+=("$(skills_selection_state "$repo_root" "$name")")
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d | sort)
