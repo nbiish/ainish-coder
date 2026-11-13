@@ -160,8 +160,10 @@ audit.log.*
 .omp/
 
 # Agent COMMS live board — in-flight coordination, never committed.
-# The daily team ledger .agents/comms/{date}-team.txt IS committed; this sidecar is not.
+# The daily team ledger .agents/comms/{date}-team.md IS committed; this sidecar is not.
+# Both suffixes are ignored: `.live.txt` predates the 2026-11-12 cutover, `.live.md` is current.
 .agents/comms/*-team.live.txt
+.agents/comms/*-team.live.md
 
 # Multimodal RAG local vector store and runtime process PID.
 # Ignored as directory *contents* rather than as a directory, so the benchmark baseline below can

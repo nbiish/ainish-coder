@@ -39,7 +39,7 @@ CORE COMMANDS:
                               copy; committing it is allowed) — plus
                               .gitignore (copy or symlink with --link), the
                               Agent Communication System:
-                                .agents/comms/{date}-team.txt (merge-safe: refreshes
+                                .agents/comms/{date}-team.md (merge-safe: refreshes
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
                               The selected skill packs from the distributable
@@ -91,7 +91,7 @@ CORE COMMANDS:
     --plan-check [DIR] [--json]
                               Plan-first gate. Verifies the current branch is covered
                               by a plan of record at
-                              .agents/plans/{date}-{slug}.plan.md (matched on the
+                              .agents/plans/{date}-{HH}-{slug}.md (matched on the
                               plan's `branch:` key) and that the plan is past
                               `status: designing`. Exit 1 when no plan covers the
                               branch, so CI can enforce it. `--plan-gate-install
@@ -142,7 +142,7 @@ TOOL-SPECIFIC CONFIGURATION:
     payload at skills-to-distribute/skills/ (installed into a target's
     .agents/skills/). This repository's own .agents/skills/ holds only the few
     packs its agents read, so agent tooling does not load every pack as context.
-    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.txt + the
+    Use --rules to deploy AGENTS.md + .gitignore + .agents/comms/{date}-team.md + the
     rules/runtime context and the optional skill packs you select, then arm continuous auto-sync.
     Skill packs are optional: on a real terminal --rules offers the selector the first time a repo
     has no saved selection, then applies that saved selection on every later run.
@@ -348,7 +348,7 @@ UTILITY COMMANDS:
                               - openscad-generator/        (Parametric 3D model generation)
                               - pliny-research/            (AI transparency research)
                               - pqc-secrets/               (PQC secrets + integrity: ML-KEM-768 at rest, ML-DSA-65 signing) [mandatory]
-                              - question-me/               (Socratic design interview -> .plan.md)
+                              - question-me/               (Socratic design interview -> plan of record)
                               - remotion-video/            (Programmatic video creation)
                               - tts-cli/                   (On-device cli-tts one-prompt end-of-turn summary)
                               - typesafe-jev/              (Calibrated decision models)
@@ -410,7 +410,7 @@ NOTES:
     - TARGET_DIR defaults to current directory if not provided
     - Deployments default to copy (safer) — use --link for symlinks
     - Default mode is non-interactive (auto-deploy); use -i/--interactive for prompts
-    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.txt + the skill packs you selected + global copies
+    - --rules deploys AGENTS.md (the project-agnostic rules document, written as the target's single governing tracked copy) + .gitignore + .agents/comms/{date}-team.md + the skill packs you selected + global copies
     - Skill packs are optional and chosen by you: --skills-set-default sets a machine-wide default for packs a repo has not answered for; --skills reconfigures one repo (persistently); --skills-list shows the current choice. --rules deploys whatever the selection resolves to.
     - --headless second arg (e.g. 'ainish-coder --skills-sync <dir> --headless' or 'ainish-coder --rules <dir> --headless'): no prompts; the persisted selection applies as-is (agent/CI path)
     - --scrolls is the ONLY channel for .scrolls payload + 8thfire-scrolls + ghost-layer-injector packs

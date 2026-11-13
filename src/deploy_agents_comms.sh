@@ -1,6 +1,6 @@
 #!/bin/bash
 # MOLECULE: Agent Communication System deployment
-# Deploys .agents/comms/{date}-team.txt — the concurrent-agent coordination ledger —
+# Deploys .agents/comms/{date}-team.md — the concurrent-agent coordination ledger —
 # to a target repository. Merge-safe by design:
 #   - Fresh target:            writes the full protocol template.
 #   - Existing ledger:         merges — refreshes ONLY the template-managed
@@ -8,7 +8,7 @@
 #                              entry block verbatim (never overwrite context).
 #   - No PROTOCOL block found: legacy/foreign file — leaves untouched unless
 #                              the operator explicitly confirms overwrite.
-# The live board (.agents/comms/{date}-team.live.txt) is never deployed: it is a
+# The live board (.agents/comms/{date}-team.live.md) is never deployed: it is a
 # gitignored, per-repo working surface, created empty on demand by agents.
 
 deploy_agents_comms() {
@@ -19,15 +19,16 @@ deploy_agents_comms() {
     local today
     today="$(date +%F)"
     local comms_dir="$target_dir/.agents/comms"
-    # Active ledger = one file per UTC date (legacy {date}-{time} rotations are
-    # history; when both exist the daily file wins).
-    local dest="$comms_dir/${today}-team.txt"
+    # Active ledger = one file per UTC date. Markdown is the current scheme; a legacy `.txt`
+    # ledger for the same date is adopted rather than duplicated, so a target that deployed
+    # before the 2026-11-12 cutover refreshes its existing file instead of starting a second one.
+    # When a legacy rotation and the daily file both exist, the daily file wins.
+    local dest="$comms_dir/${today}-team.md"
     if [[ ! -f "$dest" ]]; then
-        # No daily ledger yet: fall back to the latest rotation for today, if any.
-        # The `|| true` keeps `set -e`/`pipefail` from aborting when the glob is empty.
-        dest="$(ls -1 "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1 || true)"
+        # `|| true` keeps `set -e`/`pipefail` from aborting when the glob is empty.
+        dest="$(ls -1 "$comms_dir/${today}"*-team.md "$comms_dir/${today}"*-team.txt 2>/dev/null | sort | tail -1 || true)"
     fi
-    [[ -z "$dest" ]] && dest="$comms_dir/${today}-team.txt"
+    [[ -z "$dest" ]] && dest="$comms_dir/${today}-team.md"
     local source="${REPO_DIR}/src/templates/AGENTS.COMMS.md"
 
     if [[ ! -f "$source" ]]; then

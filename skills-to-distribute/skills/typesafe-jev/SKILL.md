@@ -160,7 +160,7 @@ Use the decision layer to sequence work, not to replace reading:
 5. **Verify** — before claiming completion, run `eval --context "<retrieved evidence>" --output
    "<your summary>"`. A `grounded` verdict is evidence-bound; a `contradiction_detected` verdict
    means rewrite, not cite; `unsettled_grounding`/`unsupported` means retrieve more.
-6. **Record** — write durable facts to `.agents/memories/{date}-memory.txt` and coordination
+6. **Record** — write durable facts to `.agents/memories/{date}-{HH}-memory.md` and coordination
    events to the COMMS ledger, so the next session's orient primer inherits them.
 
 For a deeper treatment of multi-agent coherence, question design, and when to escalate to a

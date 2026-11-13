@@ -4,6 +4,17 @@ use std::collections::{HashMap, HashSet};
 use walkdir::WalkDir;
 use chrono::Utc;
 
+/// A memory ledger in either scheme. `llms.txt` is the directory index, not a ledger.
+pub fn is_memory_ledger(path: &Path) -> bool {
+    match path.file_name() {
+        Some(n) => {
+            let name = n.to_string_lossy();
+            name.ends_with("-memory.txt") || name.ends_with("-memory.md")
+        }
+        None => false,
+    }
+}
+
 pub struct WikiGenerator {
     repo_root: PathBuf,
     repo_name: String,
@@ -360,7 +371,7 @@ The primary execution boundaries and user-facing entrypoints:
 - **Audio / Video Media:** {media_files}
 
 ## 5. Architectural Communication Protocol
-- Coordination across agent harnesses and operator sessions is mediated via dated ledger files (`.agents/comms/{{date}}-team.txt`) and durable memory files (`.agents/memories/{{date}}-memory.txt`).
+- Coordination across agent harnesses and operator sessions is mediated via dated ledger files (`.agents/comms/{{date}}-team.md`; one per UTC date) and hour-stamped durable memory files (`.agents/memories/{{date}}-{{HH}}-memory.md`).
 - State mutations execute on task worktrees (`feat/*`, `fix/*`, `chore/*`) and merge autonomously when verification gates pass. See [[03-security-and-governance]] for the gates that must pass first.
 
 {related}
@@ -632,7 +643,7 @@ The following actionable items and markers were identified across the codebase:
         if let Ok(entries) = fs::read_dir(&memories_dir) {
             for e in entries.flatten() {
                 let p = e.path();
-                if p.file_name().map_or(false, |n| n.to_string_lossy().ends_with("-memory.txt")) {
+                if is_memory_ledger(&p) {
                     if let Ok(m_text) = fs::read_to_string(&p) {
                         for line in m_text.lines() {
                             if line.contains("[RESOLVED]") {
@@ -737,16 +748,33 @@ The following actionable items and markers were identified across the codebase:
             }
         }
 
-        // Also append [RESOLVED] entry to today's .agents/memories/{date}-memory.txt
+        // Also append the [RESOLVED] entry to today's newest memory ledger. Both schemes are live;
+        // only create an hour-stamped file when the day has none, so one day never scatters across
+        // several files and splits the "newest memory" contract orientation depends on.
         let mem_dir = self.repo_root.join(".agents").join("memories");
         let _ = fs::create_dir_all(&mem_dir);
         let today = Utc::now().format("%Y-%m-%d").to_string();
+        let hh = Utc::now().format("%H").to_string();
         let hhmm = Utc::now().format("%H:%M").to_string();
-        let mem_path = mem_dir.join(format!("{}-memory.txt", today));
+        let mut todays_memory: Vec<PathBuf> = fs::read_dir(&mem_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| is_memory_ledger(p))
+            .filter(|p| {
+                p.file_name()
+                    .map_or(false, |n| n.to_string_lossy().starts_with(&today))
+            })
+            .collect();
+        todays_memory.sort_by_key(|p| p.metadata().and_then(|m| m.modified()).ok());
+        let mem_path = todays_memory
+            .pop()
+            .unwrap_or_else(|| mem_dir.join(format!("{}-{}-memory.md", today, hh)));
         let mut mem_content = if mem_path.exists() {
             fs::read_to_string(&mem_path).unwrap_or_default()
         } else {
-            format!("# memory — {} (UTC)\n# Pairs with ../comms/{}-team.txt. Format law: AGENTS.md <REPO_MEMORY>.\n\n", today, today)
+            format!("# memory — {} (UTC)\n# Pairs with ../comms/{}-team.md. Format law: AGENTS.md <REPO_MEMORY>.\n\n", today, today)
         };
         if !mem_content.ends_with('\n') && !mem_content.is_empty() {
             mem_content.push('\n');

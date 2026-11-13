@@ -61,7 +61,7 @@ _scrolls_comms_append() {
 }
 
 # scrolls_comms_log <event> <detail> — append a protocol block (format per
-# .agents/comms/{date}-team.txt PROTOCOL) to the durable ledger (worktree if present)
+# .agents/comms/{date}-team.md PROTOCOL) to the durable ledger (worktree if present)
 # AND the gitignored live board at the main repo path. Includes start:/end:
 # ISO-8601 pairs, scope:.scrolls/, and the current manifest digest when one
 # exists in the target dir (last arg, optional: <event> <detail> [payload_dir]).
@@ -79,11 +79,12 @@ scrolls_comms_log() {
     local ledger_file live_file
     local comms_dir="${REPO_DIR}/.agents/comms"
     if [[ -d "$comms_dir" ]]; then
-        # One file per UTC date; adopt a legacy rotation only when absent.
-        ledger_file="$comms_dir/$(date +%F)-team.txt"
+        # One file per UTC date. Markdown is the current scheme; a legacy `.txt` ledger for the
+        # same date is adopted so an existing ledger keeps being appended to instead of splitting.
+        ledger_file="$comms_dir/$(date +%F)-team.md"
         if [[ ! -f "$ledger_file" ]]; then
-            ledger_file="$(ls -1 "$comms_dir/$(date +%F)"*-team.txt 2>/dev/null | sort | tail -1)"
-            [[ -z "$ledger_file" ]] && ledger_file="$comms_dir/$(date +%F)-team.txt"
+            ledger_file="$(ls -1 "$comms_dir/$(date +%F)"*-team.md "$comms_dir/$(date +%F)"*-team.txt 2>/dev/null | sort | tail -1)"
+            [[ -z "$ledger_file" ]] && ledger_file="$comms_dir/$(date +%F)-team.md"
         fi
     else
         ledger_file=""
@@ -98,7 +99,7 @@ scrolls_comms_log() {
     else
         main_repo_agents="${REPO_DIR}/.agents/comms"
     fi
-    live_file="${main_repo_agents}/$(date +%Y-%m-%d)-team.live.txt"
+    live_file="${main_repo_agents}/$(date +%Y-%m-%d)-team.live.md"
 
     branch=$(git -C "${REPO_DIR}" branch --show-current 2> /dev/null || echo "unknown")
     wt_path=$(git -C "${REPO_DIR}" rev-parse --show-toplevel 2> /dev/null || echo "${REPO_DIR}")

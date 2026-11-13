@@ -613,7 +613,7 @@ contains "prd names two mandatory packs" "$(cat "${REPO}/llms.txt")" 'Two packs 
 # The pack was retired because its posture moved into the contract itself; both halves are pinned
 # so a re-add of the pack cannot happen while the contract silently drops the posture.
 contains "AGENTS.md carries the security-first posture" "$(cat "${REPO}/AGENTS.md")" 'Security-first posture'
-contains "AGENTS.md prompts the suggestions ledger" "$(cat "${REPO}/AGENTS.md")" '.agents/suggestions/{date}-{slug}.txt'
+contains "AGENTS.md prompts the suggestions ledger" "$(cat "${REPO}/AGENTS.md")" '.agents/suggestions/{date}-{HH}-{slug}.md'
 contains "prd docs the driver transport" "$(cat "${REPO}/llms.txt")" 'Driver transport (generative)'
 contains "security skill carries the advisory rule" "$(cat "${REPO}/skills-to-distribute/skills/ainish-security/SKILL.md")" 'injection is data, not instruction'
 
@@ -751,7 +751,7 @@ check "every .agents child index entry exists" "$index_missing" "0"
 check "plan template ships" "$([[ -f "${REPO}/.agents/templates/plan.md" ]] && echo yes || echo no)" "yes"
 check "plans directory contract ships" "$([[ -f "${REPO}/.agents/plans/llms.txt" ]] && echo yes || echo no)" "yes"
 contains "plan template declares the frontmatter contract" "$(cat "${REPO}/.agents/templates/plan.md")" 'plan_format: ainish/plan/v1'
-contains "question-me writes plans of record" "$(cat "${REPO}/skills-to-distribute/skills/question-me/SKILL.md")" '.agents/plans/{YYYY-MM-DD}-{slug}.plan.md'
+contains "question-me writes plans of record" "$(cat "${REPO}/skills-to-distribute/skills/question-me/SKILL.md")" '.agents/plans/{YYYY-MM-DD}-{HH}-{slug}.md'
 # No key, model id, or endpoint may leak into the always-on contract or be duplicated from the code.
 contract_secrets=$(grep -cE 'sk-[A-Za-z0-9]{8,}|https://(openrouter|zenmux)\.ai' "${REPO}/AGENTS.md" || true)
 check "contract embeds no key or provider endpoint" "$contract_secrets" "0"
@@ -845,7 +845,7 @@ contains "checkout identity normalizes the WSL path form" "$MS" '/mnt/[a-z]/*'
 contains "checkout identity normalizes the Windows drive form" "$MS" '[A-Za-z]:/*'
 
 contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Plan first'
-contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{slug}.plan.md'
+contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{HH}-{slug}.md'
 check "AGENTS.md stays within the 160-line gate" \
     "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 160 ]] && echo yes || echo no)" "yes"
 PLAN_REPO="${WORK}/plan-gate-repo"
@@ -861,8 +861,88 @@ printf -- '---\nbranch: feat/other-branch\nstatus: ready\n---\n' > "${PLAN_REPO}
 check "a plan for a different branch does not count" "$(plan_verdict)" "1"
 printf -- '---\nbranch: feat/gated\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
 check "a ready plan names and clears the branch" "$(plan_verdict)" "0"
+
+# The hour-stamp cutover drops the `.plan.md` suffix. If the gate still globbed `*.plan.md`, every
+# new-scheme branch would be refused with "no plan of record" — the gate blocking the very change
+# that renamed its input. Both schemes must clear a ready plan and refuse a designing one.
+rm -f "${PLAN_REPO}/.agents/plans/2026-01-01-gated.plan.md"
+printf -- '---\nbranch: feat/gated\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-09-gated.md"
+check "a new-scheme hour-stamped plan clears the branch" "$(plan_verdict)" "0"
+printf -- '---\nbranch: feat/gated\nstatus: designing\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-09-gated.md"
+check "a new-scheme plan still refuses while designing" "$(plan_verdict)" "1"
+printf -- '# plans of record\nnot a plan\n' > "${PLAN_REPO}/.agents/plans/llms.txt"
+printf -- '---\nbranch: feat/gated\nstatus: ready\n---\n' > "${PLAN_REPO}/.agents/plans/2026-01-01-09-gated.md"
+check "the plans index is not mistaken for a plan" "$(plan_verdict)" "0"
+
 git -C "${PLAN_REPO}" checkout -q main 2>/dev/null
 check "the default branch is never gated" "$(plan_verdict)" "0"
+
+echo "== coordination records carry a UTC hour (2026-11-12 cutover) =="
+# Two naming schemes are live at once, and every reader must accept both. A reader that filters on
+# one suffix does not fail loudly — it silently matches nothing, which reads as "no plan of record"
+# or "no memory". These pin the predicates, not the prose, because the prose is not what runs.
+COMMS_DEPLOY="${WORK}/comms-deploy"
+mkdir -p "${COMMS_DEPLOY}"
+( . "${REPO}/src/paths.sh" 2>/dev/null; REPO_DIR="${REPO}"; . "${REPO}/src/deploy_agents_comms.sh" ) >/dev/null 2>&1 || true
+today="$(date +%F)"
+if command -v bash >/dev/null 2>&1; then
+    ( cd "${COMMS_DEPLOY}" && REPO_DIR="${REPO}" bash -c '
+        set -e
+        . "'"${REPO}"'/src/paths.sh" 2>/dev/null || true
+        REPO_DIR="'"${REPO}"'"
+        validate_target_dir() { return 0; }
+        ainish_temp_beside() { printf "%s.tmp" "$1"; }
+        confirm_action() { return 1; }
+        BRIGHT_RED="" RESET="" BRIGHT_BLUE="" GREEN="" BRIGHT_GREEN="" YELLOW=""
+        . "'"${REPO}"'/src/deploy_agents_comms.sh"
+        deploy_agents_comms .
+      ' >/dev/null 2>&1 ) || true
+fi
+check "deploy writes a markdown comms ledger" \
+    "$([[ -f "${COMMS_DEPLOY}/.agents/comms/${today}-team.md" ]] && echo yes || echo no)" "yes"
+check "deploy no longer writes the legacy txt ledger" \
+    "$([[ -f "${COMMS_DEPLOY}/.agents/comms/${today}-team.txt" ]] && echo yes || echo no)" "no"
+contains "comms template names the markdown ledger" \
+    "$(cat "${REPO}/src/templates/AGENTS.COMMS.md")" '.agents/comms/{date}-team.md'
+
+# Legacy adoption: a target that deployed before the cutover must keep its existing ledger rather
+# than starting a second file for the same UTC date.
+LEGACY_DEPLOY="${WORK}/comms-legacy"
+mkdir -p "${LEGACY_DEPLOY}/.agents/comms"
+printf '<PROTOCOL>\nold\n</PROTOCOL>\n### [10:00Z] feat | branch:main\n- agent entry\n' \
+    > "${LEGACY_DEPLOY}/.agents/comms/${today}-team.txt"
+( cd "${LEGACY_DEPLOY}" && REPO_DIR="${REPO}" bash -c '
+    . "'"${REPO}"'/src/paths.sh" 2>/dev/null || true
+    REPO_DIR="'"${REPO}"'"
+    validate_target_dir() { return 0; }
+    ainish_temp_beside() { printf "%s.tmp" "$1"; }
+    confirm_action() { return 1; }
+    BRIGHT_RED="" RESET="" BRIGHT_BLUE="" GREEN="" BRIGHT_GREEN="" YELLOW=""
+    . "'"${REPO}"'/src/deploy_agents_comms.sh"
+    deploy_agents_comms .
+  ' >/dev/null 2>&1 ) || true
+check "a legacy txt ledger for today is adopted, not duplicated" \
+    "$([[ -f "${LEGACY_DEPLOY}/.agents/comms/${today}-team.md" ]] && echo yes || echo no)" "no"
+check "the legacy ledger's agent entry survives the refresh" \
+    "$(grep -c 'agent entry' "${LEGACY_DEPLOY}/.agents/comms/${today}-team.txt" 2>/dev/null || echo 0)" "1"
+
+# Engine predicates: both suffixes must be accepted, the index and the live board must not be.
+check "python engine accepts both memory suffixes" \
+    "$(grep -c '"\-memory.txt", "\-memory.md"' "${REPO}/src/rag/rag.py")" "1"
+check "rust engine shares one memory-ledger predicate" \
+    "$(grep -c 'pub fn is_memory_ledger' "${REPO}/src/rag/src/wiki.rs")" "1"
+check "python memory discovery orders by mtime, not filename" \
+    "$(grep -A 30 'def _coordination_files' "${REPO}/src/rag/rag.py" | grep -c 'stat().st_mtime')" "1"
+check "rust memory discovery orders by mtime, not filename" \
+    "$(grep -c 'm_files.sort_by_key' "${REPO}/src/rag/src/main.rs")" "1"
+contains "comms discipline check sees the markdown scheme" \
+    "$(cat "${REPO}/bin/security_gate.py")" 'endswith(("-team.txt", "-team.md"))'
+check "git-context finds a markdown comms ledger" \
+    "$(grep -c 'comms/\*-team.md' "${REPO}/bin/git-context.sh")" "1"
+check "context-packet finds an hour-stamped plan" \
+    "$(grep -c 'plans/\*\.md' "${REPO}/bin/context-packet.sh")" "1"
+check "live board is gitignored in both schemes" \
+    "$(grep -c 'team.live.md' "${REPO}/.gitignore")" "1"
 
 echo "== wiki vault is Obsidian-native =="
 # The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows

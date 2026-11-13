@@ -56,11 +56,13 @@ fi
 echo ''
 echo '--- COMMS ---'
 today=$(date +%Y-%m-%d)
-# Daily ledger: .agents/comms/{date}-team.txt (one file per UTC date; latest date = active).
+# Daily ledger: .agents/comms/{date}-team.md (one file per UTC date; latest date = active).
+# Both naming schemes are live — `.txt` is grandfathered, `.md` is current — and the live board
+# (`*.live.{txt,md}`) is a working file, never the ledger.
 # Legacy fallback: AGENTS/{date}.COMMS.md (pre-migration targets).
 ledger=""
 if [ -d ".agents/comms" ]; then
-  ledger=$(ls -1 .agents/comms/*-team.txt 2>/dev/null | sort | tail -1)
+  ledger=$(ls -1 .agents/comms/*-team.txt .agents/comms/*-team.md 2>/dev/null | grep -v '\.live\.' | sort | tail -1)
 fi
 if [ -z "${ledger}" ] && [ -f "AGENTS/${today}.COMMS.md" ]; then
   ledger="AGENTS/${today}.COMMS.md"
@@ -104,10 +106,11 @@ if [ "${found_sugg}" -eq 0 ]; then
   echo "  none"
 fi
 
-# ── REPO MEMORY (.agents/memories/{date}-memory.txt) ──
+# ── REPO MEMORY (.agents/memories/{date}-{HH}-memory.md) ──
 echo ''
 echo '--- MEMORY ---'
-mem_latest=$(ls -1 .agents/memories/*-memory.txt 2>/dev/null | sort | tail -1)
+# Both memory suffixes are live; newest by mtime, because a name sort prefers the grandfather file.
+mem_latest=$(ls -1t .agents/memories/*-memory.md .agents/memories/*-memory.txt 2>/dev/null | head -1)
 if [ -n "${mem_latest}" ]; then
   mem_lines=$(wc -l < "${mem_latest}" | tr -d ' ')
   echo "  $(basename "${mem_latest}") (${mem_lines}L)"
