@@ -6,7 +6,7 @@
 # exporting GIT_AUTHOR_* themselves. The operator's profile must win either way.
 #
 # This runs as a post-commit hook. If the commit was authored by a harness, it rewrites the commit to
-# `Nanoboozhoo - embodies by <harness>` and strips harness attribution lines from the message. If the
+# `Nanoboozhoo - embodied by <harness>` and strips harness attribution lines from the message. If the
 # commit is already the operator's, it does nothing. Idempotent, and it never touches a commit that
 # does not name a harness.
 #
@@ -22,7 +22,13 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 cd "$repo_root" || exit 0
 
 # The canonical form the operator asked for. {harness} is the tool that forced the commit.
-identity_prefix="Nanoboozhoo - embodies by"
+identity_prefix="Nanoboozhoo - embodied by"
+
+# The prefix was "embodies by" before 2026-11-13. A commit authored under the old spelling is still
+# the operator's own history, so it must count as already-normalised — otherwise the post-commit
+# guard (or any amend of an older commit) would see a mismatch and rewrite an already-correct author,
+# which is an amend loop and a needless rewrite of history nobody asked to change.
+identity_prefix_legacy="Nanoboozhoo - embodies by"
 
 # Harness names, lowercased, as they appear in authors and in attribution trailers.
 harness_pattern='claude|cursor|copilot|codex|aider|opencode|windsurf|cline|devin|gemini|antigravity|jules|qodo|tabnine|continue'
@@ -50,8 +56,12 @@ identity="${identity_prefix} ${harness}"
 cur_name="$(git log -1 --format='%an')"
 cur_email="$(git log -1 --format='%ae')"
 
-# Already ours — nothing to do (also prevents amend loops).
+# Already ours — nothing to do (also prevents amend loops). Both spellings count: history authored
+# before 2026-11-13 says "embodies by" and is still the operator's own.
 [ "$cur_name" = "$identity" ] && exit 0
+case "$cur_name" in
+    "$identity_prefix_legacy "*) exit 0 ;;
+esac
 
 # The operator's email stays put; only the display name is corrected.
 email="${cur_email}"

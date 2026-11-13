@@ -526,7 +526,7 @@ ROOT_HOOK_BLOCK
     _ainish_rules_install_hook_block "${hooks_dir}/post-commit" "$block" || true
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
     # Second, independent block: a harness that forced its own authorship gets corrected to
-    # "Nanoboozhoo - embodies by <harness>" instead of shipping claude/cursor/... as the author.
+    # "Nanoboozhoo - embodied by <harness>" instead of shipping claude/cursor/... as the author.
     local guard_block
     guard_block="$(cat <<GUARD_BLOCK
 # --- AINISH-CODER IDENTITY GUARD START ---
