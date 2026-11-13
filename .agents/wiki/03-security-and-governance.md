@@ -3,12 +3,12 @@ title: Security & Governance
 aliases: ["security", "governance", "pqc", "zero-trust"]
 tags: [ainish/wiki/security, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-11T18:50:47.600226+00:00
-source_commit: 275bbff
+generated: 2026-11-13T01:02:49.054546+00:00
+source_commit: 2225493
 decision_source: structural
 ---
 
-# 03. Security & Governance — repo
+# 03. Security & Governance — ainish-coder
 
 ## 1. Cryptographic Mandate (Post-Quantum Security)
 - **Secrets Encryption:** FIPS 203 ML-KEM-768 / ML-KEM-1024 encapsulation.

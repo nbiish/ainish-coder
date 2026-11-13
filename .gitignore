@@ -162,8 +162,11 @@ audit.log.*
 # Agent COMMS live board — in-flight coordination, never committed.
 # The daily team ledger .agents/comms/{date}-team.md IS committed; this sidecar is not.
 # Both suffixes are ignored: `.live.txt` predates the 2026-11-12 cutover, `.live.md` is current.
-.agents/comms/*-team.live.txt
-.agents/comms/*-team.live.md
+# The pattern is `*.live.*`, not `*-team.live.*`: other boards use the same convention with a
+# different prefix (`{date}-identity-guard.live.txt`), and the narrow form let one of those be
+# committed by accident.
+.agents/comms/*.live.txt
+.agents/comms/*.live.md
 
 # Multimodal RAG local vector store and runtime process PID.
 # Ignored as directory *contents* rather than as a directory, so the benchmark baseline below can
@@ -173,6 +176,17 @@ audit.log.*
 # ...except the benchmark baseline, which is the committed floor every retrieval change is
 # measured against (Phase 0 of docs/rag-context-system-plan.md). It holds no secrets or vectors.
 !.agents/rag/bench-baseline.json
+
+# A nested `.agents/` created by running `ainish-rag wiki --path <subdir>` from a subdirectory.
+# The rules above are root-anchored, so these were NOT covered: it showed up under `src/rag/.agents/`
+# carrying `audit/signer.mldsa65.priv` (a private ML-DSA-65 key) and `rag/session.psk`. Nested state
+# is never a source artifact — it is engine output written to the wrong tree — so it is ignored
+# wholesale, and running the engine from a subdirectory stays safe. The root `.agents/` stays tracked.
+/src/rag/.agents/
+/skills-to-distribute/**/.agents/
+/**/.agents/rag/
+/**/.agents/audit/
+/**/.agents/wiki/
 
 # Rules auto-sync runtime artifacts (manifest and sync script ARE committed)
 .agents/ainish-sync.log

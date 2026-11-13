@@ -167,8 +167,13 @@ enum Commands {
         /// Target repository path (default: current directory)
         #[arg(short, long)]
         path: Option<PathBuf>,
-        /// Also index the generated wiki into LanceDB vector store (default: true)
-        #[arg(long, default_value_t = true)]
+        /// Also index the generated wiki into the LEGACY LanceDB vector store (retired path;
+        /// opt in explicitly). The wiki itself is generated from the filesystem and needs no
+        /// embedding model, which is why this is off by default: the old
+        /// `default_value_t = true` produced a flag that could only ever be true, so every
+        /// `ainish-rag wiki` run hard-required the EmbeddingGemma GGUF even though retrieval
+        /// has been graph-first since 2026-11-11.
+        #[arg(long)]
         index: bool,
         /// Append a UTC-dated bullet note to .agents/wiki/ledger.md (pass '-' to read from stdin), sign with ML-DSA-65, and re-render page 04
         #[arg(short, long)]

@@ -2506,10 +2506,50 @@ def list_wiki_notes(repo_root: Path) -> List[str]:
     return [l.strip() for l in rendered.splitlines() if l.strip().startswith("- ")]
 
 
+VAULT_TAG = "ainish/wiki"
+
+
+def _vault_pages(wiki_dir: Path) -> List[Path]:
+    """Existing pages that are Obsidian-vault pages (carry the `ainish/wiki` tag).
+
+    The vault renderer lives in the Rust crate (`src/rag/src/wiki.rs`); this Python engine
+    only ever wrote plain markdown. Both engines claim `ainish-rag`, but `bin/ainish-rag`
+    routes plain invocations to Python, so the reachable `wiki` command here would overwrite
+    a vault with non-vault pages — stripping frontmatter, aliases, and every `[[wikilink]]`,
+    which silently deletes the Obsidian graph and the explicit retrieval edges built on it.
+    A downgrade that looks like a successful run is exactly what the contract forbids, so
+    this refuses instead of guessing.
+    """
+    if not wiki_dir.is_dir():
+        return []
+    vault: List[Path] = []
+    for page in wiki_dir.glob("*.md"):
+        try:
+            head = page.read_text(encoding="utf-8", errors="replace")[:600]
+        except OSError:
+            continue
+        if VAULT_TAG in head:
+            vault.append(page)
+    return vault
+
+
 def generate_wiki(repo_root: Path) -> List[Path]:
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_dir.mkdir(parents=True, exist_ok=True)
     repo_name = repo_root.name
+
+    existing_vault = _vault_pages(wiki_dir)
+    if existing_vault:
+        raise SystemExit(
+            "ainish-rag wiki: refusing to overwrite an Obsidian vault with plain markdown.\n"
+            f"  {len(existing_vault)} vault page(s) carry the '{VAULT_TAG}' tag "
+            f"(e.g. {existing_vault[0].name}).\n"
+            "  The vault renderer is the native engine: run the compiled binary\n"
+            "  (`src/rag/target/release/ainish-rag wiki`) or `ainish-coder --rag wiki`\n"
+            "  on a host where it is on PATH. Overwriting here would drop frontmatter,\n"
+            "  aliases, tags, and every [[wikilink]] — the Obsidian graph and the\n"
+            "  retrieval edges built from it."
+        )
 
     files = [p for p in repo_root.rglob("*") if p.is_file() and not is_ignored_path(p)]
     code_files = [p for p in files if p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go", ".sh", ".c", ".cpp"}]
@@ -2526,7 +2566,7 @@ Generated on: {now_utc}
 Repository: `{repo_name}`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is automatically indexed into the local LanceDB multimodal RAG store for semantic vector search and LLM context augmentation.
+This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-rag --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
 
 ## Wiki Table of Contents
 1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.

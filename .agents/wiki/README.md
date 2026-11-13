@@ -1,17 +1,17 @@
 ---
-title: repo — Knowledge & Architecture Wiki
+title: ainish-coder — Knowledge & Architecture Wiki
 aliases: ["README", "index", "home"]
 tags: [ainish/wiki/index, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-11T18:50:47.639133+00:00
-source_commit: 275bbff
+generated: 2026-11-13T01:02:49.095228+00:00
+source_commit: 2225493
 decision_source: structural
 ---
 
-# repo — Knowledge & Architecture Wiki
+# ainish-coder — Knowledge & Architecture Wiki
 
-Generated on: 2026-11-11T18:50:47.639133+00:00 (UTC)
-Repository: `repo`
+Generated on: 2026-11-13T01:02:49.095228+00:00 (UTC)
+Repository: `ainish-coder`
 
 ## Overview
 This vault is the repository's living architectural map, connectivity graph, security governance

@@ -3,12 +3,12 @@ title: Research & Intelligence
 aliases: ["research", "embeddings", "retrieval"]
 tags: [ainish/wiki/research, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-11T18:50:47.621145+00:00
-source_commit: 275bbff
+generated: 2026-11-13T01:02:49.078185+00:00
+source_commit: 2225493
 decision_source: structural
 ---
 
-# 05. Research & Intelligence — repo
+# 05. Research & Intelligence — ainish-coder
 
 ## 1. Multimodal Embedding Architecture
 - **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).

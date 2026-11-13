@@ -21,3 +21,37 @@
 - Outstanding: local ML-DSA-65 signer (69e7233d…) does not match the committed trust anchor
   (d98405ea…), so --rules exits 1 after deploying; .agents/canonical/* lag the working contract
   until the anchor rotation re-signs them. Recorded in suggestions 2026-11-12-rules-signing-anchor-mismatch.txt.
+- Coordination records now carry a zero-padded UTC hour (`{date}-{HH}-{slug}.md`, memory adds
+  `-memory`), comms stays one ledger per UTC day as `{date}-team.md`, and pre-2026-11-12 names are
+  grandfathered and still read. Every reader accepts both schemes.
+- "Newest wins" must mean newest by MTIME, never by filename. Under mixed naming `{date}-09-memory.md`
+  sorts before `{date}-memory.txt` ('0' < 'm'), so a name-sorted pick returns the grandfather file as
+  "newest" — silently, on exactly the cutover days it matters. Fixed in one shared resolver in
+  `src/rag/rag.py` (`_coordination_files` + `_memory_files`/`_task_files`/`_plan_files`/`_comms_files`)
+  and mirrored in the Rust crate; do not reintroduce a local glob with `[-1]` or `.last()`.
+- `ainish-rag` on this host is the PYTHON engine: `bin/ainish-rag` forces `context`/`secrets` to
+  `rag.py` and no `bin/ainish-rag-{darwin,linux}`/`.exe` exists, so `src/rag/target/release/ainish-rag`
+  never answers a request. Change `rag.py` for behaviour, and mirror the crate so a native build does
+  not regress. A plan that scopes engine work to the Rust crate alone is scoping the wrong file.
+- Dropping a filename suffix turns every suffix filter into one that matches nothing, and matching
+  nothing reads as "no plan of record" instead of an error: `*.plan.md` globs in `plan_gate.sh`,
+  `rag.py`, and `context-packet.sh` would have blocked every new-scheme branch.
+- Never leave `--rules` or `ainish-rag wiki` side effects committed: `--rules` re-signs
+  `.agents/canonical/*` with the local (non-anchor) signer, and a FAILED `wiki` run still rewrites
+  generated pages with stripped frontmatter. Revert `.agents/{canonical,wiki,audit}` after either.
+  `.agents/canonical/AGENTS.md` is `uchg`-locked — `chflags nouchg` before restoring it.
+- Retrieval is graph-only by default: `graph_retrieve` returns `wiki_graph_empty` unless
+  `AINISH_RAG_VECTOR_FALLBACK=1`. The embedding model is retired, not merely optional.
+- The Obsidian vault RENDERER exists only in `src/rag/src/wiki.rs`; `rag.py` has zero `ainish/wiki`
+  emission. Since the launcher routes plain invocations to Python, `ainish-rag wiki` used to replace
+  a vault with plain markdown — frontmatter, aliases, tags and every `[[wikilink]]` gone, reporting
+  success. `generate_wiki` now REFUSES when it detects `ainish/wiki`-tagged pages. Generate vaults
+  with the native binary (`src/rag/target/release/ainish-rag wiki`).
+- `#[arg(long, default_value_t = true)]` on a clap 4 `bool` is a flag that can only ever be true
+  (no `--no-x`, `--x false` rejected). Seven such flags remain in `src/rag/src/main.rs`; only flags
+  carrying `action = clap::ArgAction::Set` are genuinely configurable. `wiki --index` was fixed.
+- Vault pages must name the PROJECT, not the checkout: derive it from `origin` (or the canonical
+  root), or every task worktree rewrites tracked page titles to its own directory name.
+- `.gitignore` lives in `.agents/comms/`: match `*.live.{txt,md}`, not `*-team.live.*` — other
+  boards use the same convention with a different prefix, and the narrow form let
+  `2026-11-12-identity-guard.live.txt` be committed.

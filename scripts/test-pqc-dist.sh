@@ -941,8 +941,33 @@ check "git-context finds a markdown comms ledger" \
     "$(grep -c 'comms/\*-team.md' "${REPO}/bin/git-context.sh")" "1"
 check "context-packet finds an hour-stamped plan" \
     "$(grep -c 'plans/\*\.md' "${REPO}/bin/context-packet.sh")" "1"
-check "live board is gitignored in both schemes" \
-    "$(grep -c 'team.live.md' "${REPO}/.gitignore")" "1"
+check "live boards are gitignored in both suffixes" \
+    "$(grep -c 'comms/\*\.live\.md' "${REPO}/.gitignore")" "1"
+
+# A nested `.agents/` (engine output written to the wrong tree) must never be committable: the one
+# under `src/rag/` carried a private ML-DSA-65 key and a session PSK before it was noticed.
+_nested_probe="$(mktemp -d "${TMPDIR:-/tmp}/nested-agents.XXXXXX")"
+mkdir -p "${_nested_probe}/src/rag/.agents/audit"
+touch "${_nested_probe}/src/rag/.agents/audit/signer.mldsa65.priv"
+cp "${REPO}/.gitignore" "${_nested_probe}/.gitignore"
+git -C "${_nested_probe}" init -q 2>/dev/null
+if git -C "${_nested_probe}" check-ignore -q "src/rag/.agents/audit/signer.mldsa65.priv"; then
+    ok "a nested .agents/ tree is gitignored (keys cannot be committed)"
+else
+    not_ok "a nested .agents/ tree is gitignored (keys cannot be committed)"
+fi
+rm -rf "${_nested_probe}"
+
+# The reachable engine (rag.py) writes plain markdown and cannot produce the Obsidian vault, so it
+# must refuse rather than overwrite one. Without this guard, a single `ainish-rag wiki` on a stock
+# checkout strips frontmatter and every wikilink — deleting the graph retrieval depends on — and
+# still reports success.
+contains "python engine refuses to clobber an Obsidian vault" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'refusing to overwrite an Obsidian vault'
+contains "the refusal names the vault tag it detected" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'VAULT_TAG = "ainish/wiki"'
+check "wiki vector indexing is opt-in, not forced" \
+    "$(grep -A 8 'Also index the generated wiki' "${REPO}/src/rag/src/main.rs" | grep -E '^\s*#\[arg' | grep -c 'default_value_t')" "0"
 
 echo "== wiki vault is Obsidian-native =="
 # The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows

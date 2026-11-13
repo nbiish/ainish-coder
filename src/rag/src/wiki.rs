@@ -15,6 +15,27 @@ pub fn is_memory_ledger(path: &Path) -> bool {
     }
 }
 
+/// Resolves the project name from the `origin` remote, so a worktree checkout names the project
+/// and not the worktree directory. Accepts both `git@host:owner/repo.git` and `https://host/owner/repo`.
+fn git_repo_name(repo_root: &Path) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["config", "--get", "remote.origin.url"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if url.is_empty() {
+        return None;
+    }
+    let tail = url.rsplit(['/', ':']).next()?;
+    let name = tail.strip_suffix(".git").unwrap_or(tail).trim();
+    if name.is_empty() { None } else { Some(name.to_string()) }
+}
+
 pub struct WikiGenerator {
     repo_root: PathBuf,
     repo_name: String,
@@ -86,11 +107,19 @@ struct RepoStats {
 
 impl WikiGenerator {
     pub fn new(repo_root: &Path) -> Self {
-        let repo_name = repo_root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("repo")
-            .to_string();
+        // Name the PROJECT, not the checkout. A task worktree is a directory called
+        // `ainish-coder-hourcoord`, and using that as the title bakes the worktree name into
+        // tracked pages — so every task regenerating the wiki rewrites the title and the diff
+        // churns for no content change. Prefer the origin remote's repo name, then the
+        // canonical checkout's directory name, then the path it was given.
+        let repo_name = git_repo_name(repo_root)
+            .or_else(|| {
+                let canonical = crate::config::resolve_canonical_repo_root(repo_root);
+                canonical.file_name().and_then(|n| n.to_str()).map(str::to_string)
+            })
+            .filter(|n| !n.is_empty() && n != "repo")
+            .or_else(|| repo_root.file_name().and_then(|n| n.to_str()).map(str::to_string))
+            .unwrap_or_else(|| "repo".to_string());
 
         let wiki_dir = repo_root.join(".agents").join("wiki");
 

@@ -3,15 +3,15 @@ title: Marketing & Positioning
 aliases: ["marketing", "positioning", "value"]
 tags: [ainish/wiki/marketing, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-11T18:50:47.629955+00:00
-source_commit: 275bbff
+generated: 2026-11-13T01:02:49.086891+00:00
+source_commit: 2225493
 decision_source: structural
 ---
 
-# 06. Marketing & Positioning — repo
+# 06. Marketing & Positioning — ainish-coder
 
 ## 1. Core Value Proposition
-`repo` delivers an autonomous, high-integrity AI coding infrastructure combining:
+`ainish-coder` delivers an autonomous, high-integrity AI coding infrastructure combining:
 - **Post-Quantum Cryptographic Security** for all machine identity and secrets operations.
 - **Distributed Agent Coordination** with single-truth ledgers and isolated worktrees.
 - **State-of-the-Art Multimodal RAG** powered by Google DeepMind EmbeddingGemma-2 and LanceDB.
