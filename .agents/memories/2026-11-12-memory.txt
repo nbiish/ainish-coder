@@ -55,3 +55,23 @@
 - `.gitignore` lives in `.agents/comms/`: match `*.live.{txt,md}`, not `*-team.live.*` — other
   boards use the same convention with a different prefix, and the narrow form let
   `2026-11-12-identity-guard.live.txt` be committed.
+- The vector subsystem is DELETED (2026-11-12), not dormant: `embed.rs`/`store.rs`/`ingest.rs`, the
+  lancedb/arrow crates, `EmbedClient`/`LanceStore`, and the `serve`/`stop`/`index`/`query`/`rerank`/
+  `bench`/`monitor`/`embed-provider`/`service` verbs are gone from both engines. Retired verbs still
+  parse and print what replaced them, then exit 1. Retrieval is graph-only over `.agents/wiki` + the
+  context folders; `AINISH_RAG_VECTOR_FALLBACK` no longer exists.
+- Google's Elephant-Goldfish Model is the design source for `--context`: Elephant holds session
+  context, Goldfish is a fresh reader with no route to it, and EGM *stops the review* when a fresh
+  reviewer cannot be created. Reviewer independence is therefore a precondition
+  (`plan_reviewer_model`), not a report: no distinct model means the review is refused and
+  `provenance.reviewer_isolation` is `unavailable`. `--allow-self-review` is the recorded downgrade.
+- Compare models with `driver_model_matches`/`_same_model`, never strings: `zai-glm-5.3-flash` and
+  `local-router:glm-5.3-flash` are ONE model. A second comparator is how a self-review gets reported
+  as independent.
+- Review prompts are much larger than chat turns: at the chat-turn timeout the antagonistic step
+  timed out and returned nothing while the other two answered, which looked like a model refusal.
+  `AINISH_RAG_REVIEW_TIMEOUT` (default 180s) exists for exactly this; a partial review must name the
+  missing step.
+- Survivors from the deletion that must NOT be re-deleted with vector code: `scrub_sensitive_content`
+  and `is_ignored_path` (security + wiki generation), `read_or_init_privacy_budget` (DP audit trail),
+  `SearchHit` (rerank contract), and the gate's canary/Trojan-Source diff checks.
