@@ -685,10 +685,10 @@ contains "engine scopes the chain by role" "$(cat "${REPO}/src/rag/rag.py")" "de
 contains "roles rotate to a distinct model" "$(cat "${REPO}/src/rag/rag.py")" "def _rotate_for_role"
 contains "both role pins resolve" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_ELEPHANT_MODEL'
 contains "goldfish pin resolves" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_GOLDFISH_MODEL'
-contains "provenance reports distinct models" "$(cat "${REPO}/src/rag/rag.py")" '"distinct_models"'
+contains "provenance reports reviewer isolation" "$(cat "${REPO}/src/rag/rag.py")" '"reviewer_isolation"'
 contains "render names the pair" "$(cat "${REPO}/src/rag/rag.py")" "<!-- pair: elephant="
 contains "context exposes a per-role model flag" "$(cat "${REPO}/src/rag/rag.py")" '"--elephant-model"'
-contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'two separate API calls'
+contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'AINISH_RAG_GOLDFISH_MODEL'
 # `--context` is the spelling the contract and muscle memory use; argparse needs the subcommand.
 contains "engine normalizes the --context alias" "$(cat "${REPO}/src/rag/rag.py")" "def normalize_argv"
 contains "argparse receives normalized argv" "$(cat "${REPO}/src/rag/rag.py")" "parse_args(normalize_argv"
@@ -696,8 +696,8 @@ contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainis
 # The section table and role mechanics moved to llms.txt: an always-read file needs the invocation
 # and the one rule about how to read the output, not a catalogue of what each section contains.
 contains "prd documents the envelope sections" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
-contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'two separate API calls'
-contains "prd documents the default pair" "$(cat "${REPO}/llms.txt")" 'fresh-context review'
+contains "prd documents the refused-review rule" "$(cat "${REPO}/llms.txt")" 'EGM stops the review'
+contains "prd documents the three-step goldfish" "$(cat "${REPO}/llms.txt")" 'comprehension check'
 # AGENTS.md must stay short enough to read without hesitation. The budget was 120 until
 # 2026-11-12, when the security-first-agent pack was retired into the contract itself — the
 # posture has to live in the one file every session reads whole, so the budget grew to 160
@@ -968,6 +968,49 @@ contains "the refusal names the vault tag it detected" \
     "$(cat "${REPO}/src/rag/rag.py")" 'VAULT_TAG = "ainish/wiki"'
 check "wiki vector indexing is opt-in, not forced" \
     "$(grep -A 8 'Also index the generated wiki' "${REPO}/src/rag/src/main.rs" | grep -E '^\s*#\[arg' | grep -c 'default_value_t')" "0"
+
+echo "== the vector subsystem is deleted, not dormant =="
+# A retired path that is merely unreachable drifts back. These pin the deletion itself: no module,
+# no crate, no subcommand, no embedding call — in either engine.
+for gone in embed store ingest; do
+    check "rust vector module removed: ${gone}.rs" \
+        "$([[ -f "${REPO}/src/rag/src/${gone}.rs" ]] && echo present || echo absent)" "absent"
+done
+check "no vector crates remain in Cargo.toml" \
+    "$(grep -cE '^(lancedb|arrow-schema|arrow-array) ' "${REPO}/src/rag/Cargo.toml")" "0"
+check "python engine makes no embedding calls" \
+    "$(grep -cE 'embed_one\(|embed_batch\(|search_vector\(|\.embed_one|LanceStore|EmbedClient' "${REPO}/src/rag/rag.py")" "0"
+check "python engine has no local-model server startup" \
+    "$(grep -cE 'def start_server|start_server\(' "${REPO}/src/rag/rag.py")" "0"
+check "retrieval has no vector fallback branch" \
+    "$(grep -c 'AINISH_RAG_VECTOR_FALLBACK' "${REPO}/src/rag/rag.py")" "0"
+# A retired verb must explain itself rather than read as a typo.
+contains "python names a retired verb as retired" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'was retired 2026-11-12'
+contains "rust names a retired verb as retired" \
+    "$(cat "${REPO}/src/rag/src/main.rs")" 'was retired 2026-11-12'
+
+echo "== EGM reviewer independence (Google Elephant-Goldfish) =="
+# The load-bearing rule: a reviewer with no independent model is not a reviewer. Refusing is the only
+# report that cannot mislead; opt-in self-review is the recorded downgrade.
+contains "reviewer separation is enforced before the call" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'def plan_reviewer_model'
+contains "a collision is reported, not honoured" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'resolves to the same model the drafter used'
+contains "self-review requires an explicit opt-in" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_ALLOW_SELF_REVIEW'
+check "self-review is not the default" \
+    "$(grep -c 'AINISH_RAG_DISTINCT_REVIEWER' "${REPO}/src/rag/rag.py")" "0"
+contains "the three-step protocol is present" \
+    "$(cat "${REPO}/src/rag/rag.py")" '1. Comprehension check'
+contains "readiness ends in a verdict" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'VERDICT: ready|not-ready'
+contains "a failed step is named, not hidden" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'returned nothing'
+contains "reviews get their own timeout" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_REVIEW_TIMEOUT'
+contains "context can refresh the vault before retrieval" \
+    "$(cat "${REPO}/src/rag/rag.py")" '"--refresh-wiki"'
 
 echo "== wiki vault is Obsidian-native =="
 # The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows

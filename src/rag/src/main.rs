@@ -1,9 +1,7 @@
 mod config;
 mod server;
-mod embed;
-mod store;
-mod ingest;
 mod wiki;
+mod scrub;
 mod decision;
 mod pqc;
 mod provider;
@@ -13,9 +11,6 @@ use std::path::PathBuf;
 use std::env;
 use crate::config::RagConfig;
 use crate::server::LlamaServer;
-use crate::embed::EmbedClient;
-use crate::store::LanceStore;
-use crate::ingest::CodebaseIngestor;
 use crate::wiki::WikiGenerator;
 use crate::decision::DecisionEngine;
 
@@ -54,109 +49,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start or ensure EmbeddingGemma llama server is running
-    Serve {
-        /// Loopback port for embedding server (default: 8080 or AINISH_RAG_PORT)
-        #[arg(short, long)]
-        port: Option<u16>,
-    },
-    /// Stop running embedding server
-    Stop {
-        /// Also remove loopback PSK material (.agents/rag/session.psk*) so no credentials remain
-        #[arg(long)]
-        purge: bool,
-    },
-    /// Inspect, persist, or clear the embedding provider (PQC auto-detection for OpenRouter/ZenMux)
-    EmbedProvider {
-        /// Output machine-readable JSON
-        #[arg(long)]
-        json: bool,
-        /// Persist the resolved non-secret provider config to .agents/rag/embed-provider.json
-        #[arg(long)]
-        write: bool,
-        /// Remove the persisted provider config (reverts to auto-detection)
-        #[arg(long)]
-        clear: bool,
-        /// Pin the intent: local | api | auto | openrouter | zenmux
-        #[arg(long)]
-        provider: Option<String>,
-    },
-    /// Inspect status of model cache, server, LanceDB vector store, and wiki
+    /// Inspect status of the graph-first retrieval corpus and the decision layer
     Status {
-        /// Launch interactive TUI telemetry dashboard
-        #[arg(long)]
-        tui: bool,
         /// Output health and telemetry report as structured JSON
         #[arg(long)]
         json: bool,
     },
-    /// Index codebase or target path into LanceDB
-    Index {
-        /// Target path to index (default: current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-        /// Matryoshka dimension truncation (128, 256, 512, or default 768)
-        #[arg(short, long)]
-        truncate: Option<usize>,
-        /// Watch target path for file modifications and incrementally re-index
-        #[arg(short, long)]
-        watch: bool,
-        /// Drop the existing vector store before indexing. Required after switching embedding
-        /// models, because vectors from different models are not comparable.
-        #[arg(long)]
-        rebuild: bool,
-        /// Anonymize and hash proprietary code identifiers before embedding
-        #[arg(long)]
-        anonymize_symbols: bool,
-        /// Configurable symbol salt preventing rainbow-table deanonymization
-        #[arg(long)]
-        symbol_salt: Option<String>,
-        /// Inject differential privacy noise into sensitive documentation embeddings
-        #[arg(long)]
-        dp_noise: bool,
-        /// Differential privacy epsilon parameter (default: 1.0)
-        #[arg(long)]
-        dp_epsilon: Option<f32>,
-        /// Hard ceiling for cumulative differential privacy epsilon expenditure
-        #[arg(long)]
-        dp_max_budget: Option<f32>,
-    },
-    /// Continuous drift monitoring and regression evaluation
-    Monitor {
-        /// Check interval in seconds for continuous monitoring
-        #[arg(short, long)]
-        interval: Option<u64>,
-        /// Run drift check once and exit immediately
-        #[arg(long, default_value_t = true)]
-        once: bool,
-        /// Output monitoring metrics as JSON
-        #[arg(long)]
-        json: bool,
-    },
-    /// Run automated synthetic query regression suite to assert recall stability
-    Bench {
-        /// Number of benchmark passes (default: 3)
-        #[arg(short, long, default_value_t = 3)]
-        iterations: usize,
-        /// Output benchmark results as JSON
-        #[arg(long)]
-        json: bool,
-        /// Path to custom domain-specific JSON query benchmark suite
-        #[arg(long)]
-        custom: Option<PathBuf>,
-        /// Run regression comparison against baseline snapshot
-        #[arg(long)]
-        regression: bool,
-        /// Save current benchmark results as new baseline snapshot
-        #[arg(long)]
-        save_baseline: bool,
-        /// Inject synthetic drift into embeddings to test recovery stress tolerance (0.0 - 1.0)
-        #[arg(long)]
-        drift_injection: Option<f32>,
-        /// Simulate transient embedding server timeouts to verify retry-loop chaos resilience
-        #[arg(long)]
-        chaos: bool,
-    },
+    /// RETIRED 2026-11-12 — served the local embedding server
+    #[command(hide = true)]
+    Serve { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served the local embedding server
+    #[command(hide = true)]
+    Stop { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served the vector index
+    #[command(hide = true)]
+    Index { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served vector search
+    #[command(hide = true)]
+    Query { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served vector reranking
+    #[command(hide = true)]
+    Rerank { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served vector recall benchmarks
+    #[command(hide = true)]
+    Bench { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served vector drift monitoring
+    #[command(hide = true)]
+    Monitor { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
+    /// RETIRED 2026-11-12 — served embedding provider config
+    #[command(hide = true)]
+    EmbedProvider { #[arg(trailing_var_arg = true, allow_hyphen_values = true)] rest: Vec<String> },
     /// Generate shell completion scripts and aliases (bash, zsh, fish, pwsh)
     Completion {
         /// Shell type: bash, zsh, fish, pwsh
@@ -188,46 +110,6 @@ enum Commands {
         #[arg(long)]
         sync_resolved: bool,
         /// Output wiki note listing as structured JSON
-        #[arg(long)]
-        json: bool,
-    },
-    /// Query the multimodal RAG vector store with two-stage decision reranking
-    Query {
-        /// Natural language or code search query
-        query: String,
-        /// Maximum number of search hits to return
-        #[arg(short, long, default_value_t = 5)]
-        limit: usize,
-        /// Filter by doc type (code, wiki, doc, image, audio, video)
-        #[arg(short, long)]
-        doc_type: Option<String>,
-        /// Optimize embedding prefix for code retrieval
-        #[arg(long)]
-        code: bool,
-        /// Output results as JSON
-        #[arg(long)]
-        json: bool,
-        /// Disable decision-model reranking (use coarse vector search only)
-        #[arg(long)]
-        no_rerank: bool,
-        /// Minimum relevance threshold for decision filtering (default: 0.35)
-        #[arg(long, default_value_t = 0.35)]
-        min_relevance: f32,
-        /// Interactive fuzzy finder mode for terminal browsing and snippet inspection
-        #[arg(long)]
-        fzf: bool,
-    },
-    /// Rerank candidate context chunks for a query using the decision model
-    Rerank {
-        /// Natural language or code query
-        query: String,
-        /// Maximum number of reranked search hits to return
-        #[arg(short, long, default_value_t = 5)]
-        limit: usize,
-        /// Filter by doc type (code, wiki, doc, image, audio, video)
-        #[arg(short, long)]
-        doc_type: Option<String>,
-        /// Output results as JSON
         #[arg(long)]
         json: bool,
     },
@@ -592,34 +474,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::env::var("AINISH_RAG_KEEP_SERVER").ok().as_deref().map(str::trim),
             Some("1") | Some("true") | Some("yes") | Some("on")
         )
-        || matches!(&cli.command, Commands::Serve { .. })
         || matches!(&cli.command, Commands::Service { command: ServiceCommands::Status { warm: true } });
     LlamaServer::set_keep_server(keep_server);
     let _ephemeral_guard = LlamaServer::ephemeral_guard(keep_server);
 
     match cli.command {
-        Commands::Serve { port } => {
-            if let Some(p) = port {
-                config.server_port = p;
-                config.server_url = format!("http://127.0.0.1:{}", p);
-            }
-            LlamaServer::ensure_running(&config, &current_dir).await?;
-        }
-        Commands::Stop { purge } => {
-            LlamaServer::stop_with_purge(&current_dir, purge)?;
-        }
-        Commands::EmbedProvider { json, write, clear, provider: pinned } => {
-            run_embed_provider(&current_dir, json, write, clear, pinned)?;
-        }
-        Commands::Status { tui, json } => {
-            if tui {
-                run_tui_dashboard(&config, &current_dir).await?;
-                return Ok(());
-            }
+        Commands::Status { json } => {
 
             let mut reporter = StatusReporter::new(json);
             if !json {
-                println!("=== ainish-rag Multimodal RAG Status ===");
+                println!("=== ainish-rag Context Engine Status ===");
             }
 
             let hf_cache = config.hf_hub_cache.display().to_string();
@@ -739,11 +603,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("Model Manifest:     {}", manifest_text),
             );
 
-            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-            let count = store.count().await.unwrap_or(0);
-            let lancedb_path = config.lancedb_dir.display().to_string();
-            reporter.line("lancedb_path", serde_json::json!(lancedb_path), format!("LanceDB Path:       {}", lancedb_path));
-            reporter.line("indexed_chunks", serde_json::json!(count), format!("Indexed Chunks:     {}", count));
+            // The vector store is retired; retrieval is the wiki vault plus the .agents folders.
+            reporter.line(
+                "engine",
+                serde_json::json!("graph-first"),
+                "Engine:             graph-first (no embedding model, no vector store)".to_string(),
+            );
 
             let wiki_exists = config.wiki_dir.exists();
             let wiki_count = if wiki_exists {
@@ -771,7 +636,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("Wiki Ledger Notes:  {} total ({} open, {} resolved)", ledger_notes.len(), open_notes, resolved_notes),
             );
 
-            if let Ok(pb) = crate::embed::read_or_init_privacy_budget(&current_dir, false) {
+            if let Ok(pb) = crate::scrub::read_or_init_privacy_budget(&current_dir, false) {
                 let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
                 reporter.line(
@@ -810,175 +675,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             reporter.put("signatures", serde_json::Value::Object(signatures));
 
-            if !json {
-                if config.llama_bin.is_none() {
-                    println!("\n  [rag:tip] llama executable not found!");
-                    #[cfg(target_os = "macos")]
-                    println!("            Install via Homebrew: brew install llama.cpp");
-                    #[cfg(target_os = "windows")]
-                    println!("            Install via WinGet:   winget install llama.cpp (or download from GitHub)");
-                    #[cfg(target_os = "linux")]
-                    println!("            Download release:     https://github.com/ggerganov/llama.cpp/releases");
-                    println!("            Or set environment:   export LLAMA_SERVER_BIN=/path/to/llama-server");
-                }
-                if config.model_path.is_none() {
-                    println!("\n  [rag:tip] EmbeddingGemma-2 GGUF model not found in HuggingFace cache!");
-                    println!("            Download model:       huggingface-cli download unsloth/embeddinggemma-2-GGUF embeddinggemma-2-BF16.gguf");
-                    println!("            Or set environment:   export AINISH_RAG_MODEL=/path/to/embeddinggemma-2-BF16.gguf");
-                }
-            }
+            // No "install llama.cpp / download the GGUF" tips: there is no embedding model to
+            // install. Printing them would tell an operator to fix something that no longer exists.
             reporter.finish();
-        }
-        Commands::Index { path, truncate, watch, rebuild, anonymize_symbols, symbol_salt, dp_noise, dp_epsilon, dp_max_budget } => {
-            let target = path.unwrap_or_else(|| current_dir.clone());
-            println!("=== Indexing Codebase into LanceDB ===");
-            println!("Target directory: {}", target.display());
-            if let Some(s) = symbol_salt {
-                config.symbol_salt = Some(s);
-            }
-            if anonymize_symbols {
-                let salt_note = if config.symbol_salt.is_some() { " + salted" } else { "" };
-                println!("  \x1b[35m[rag:privacy]\x1b[0m Symbol anonymization active (SHA-256 hashed{} identifiers)", salt_note);
-            }
-            if dp_noise || dp_epsilon.is_some() {
-                let eps = dp_epsilon.unwrap_or(1.0);
-                config.dp_epsilon = Some(eps);
-                println!("  \x1b[35m[rag:privacy]\x1b[0m Differential privacy active (epsilon={:.2}, sensitivity=0.05)", eps);
-            }
-            if let Some(mb) = dp_max_budget {
-                config.dp_max_budget = Some(mb);
-            }
-
-            LlamaServer::ensure_running(&config, &current_dir).await?;
-
-            if rebuild && config.lancedb_dir.exists() {
-                std::fs::remove_dir_all(&config.lancedb_dir)
-                    .map_err(|e| format!("failed to remove {}: {}", config.lancedb_dir.display(), e))?;
-                println!(
-                    "  \x1b[36m[rag:index]\x1b[0m Rebuilt vector store (removed {})",
-                    config.lancedb_dir.display()
-                );
-            }
-
-            let dim = truncate.unwrap_or(config.embedding_dim);
-            let embed_client = EmbedClient::with_config(&config, truncate)
-                .with_repo_root(&current_dir);
-            let store = LanceStore::new(&config.lancedb_dir, dim);
-            let ingestor = CodebaseIngestor::new_with_options(&target, anonymize_symbols, config.symbol_salt.clone());
-
-            println!("  [rag:index] Scanning repository files...");
-            let files = ingestor.scan_files(&target);
-            println!("  [rag:index] Discovered {} candidate files.", files.len());
-
-            let mut all_unembedded = Vec::new();
-            for (idx, f) in files.iter().enumerate() {
-                let chunks = ingestor.chunk_file(f);
-                all_unembedded.extend(chunks);
-                if idx % 5 == 0 || idx + 1 == files.len() {
-                    let rel = f.strip_prefix(&target).unwrap_or(f).display();
-                    print!("\r  \x1b[36m[rag:index]\x1b[0m [{}/{}] ↻ scanning {}", idx + 1, files.len(), rel);
-                    let _ = std::io::Write::flush(&mut std::io::stdout());
-                }
-            }
-            println!();
-            println!("  [rag:index] Generated {} chunks. Creating embeddings via EmbeddingGemma-2...", all_unembedded.len());
-
-            let mut rag_chunks = Vec::new();
-            let mut offset = 0usize;
-            let mut b_idx = 0usize;
-            while offset < all_unembedded.len() {
-                b_idx += 1;
-                let adaptive_size = embed_client.recommended_batch_size();
-                let end = (offset + adaptive_size).min(all_unembedded.len());
-                let chunk_batch = &all_unembedded[offset..end];
-                offset = end;
-
-                let formatted_inputs: Vec<String> = chunk_batch.iter().map(|c| {
-                    if c.modality == "image" {
-                        EmbedClient::format_multimodal_image(Some(&c.title), &c.content)
-                    } else {
-                        EmbedClient::format_doc(Some(&c.title), &c.content)
-                    }
-                }).collect();
-
-                let vectors = embed_client.embed_batch(&formatted_inputs).await?;
-                for (unemb, vec) in chunk_batch.iter().cloned().zip(vectors) {
-                    rag_chunks.push(unemb.to_rag_chunk(vec));
-                }
-                print!("\r  \x1b[36m[rag:index]\x1b[0m Batch #{} (adaptive size={}) ↻ embedded {}/{} vectors...", b_idx, adaptive_size, rag_chunks.len(), all_unembedded.len());
-                let _ = std::io::Write::flush(&mut std::io::stdout());
-            }
-            println!();
-
-            println!("  [rag:index] Persisting {} vectors into LanceDB...", rag_chunks.len());
-            store.upsert(&rag_chunks).await?;
-            let _ = crate::provider::write_index_fingerprint(
-                &current_dir,
-                &crate::provider::identity_for(
-                    &config.embed_provider,
-                    config.embed_provider_id.as_deref(),
-                    config.embed_model.as_deref(),
-                ),
-                dim,
-            );
-            let total = store.count().await.unwrap_or(0);
-            println!("  [rag:index] Indexing complete! Total records in store: {}", total);
-
-            // Record and cryptographically sign index audit receipt
-            let _ = record_index_audit_receipt(&current_dir, &target, files.len(), rag_chunks.len(), total, anonymize_symbols);
-
-            if watch {
-                println!("\n  \x1b[36m[rag:watch]\x1b[0m Entering watch mode on {} (press Ctrl+C to exit)...", target.display());
-                let mut mtimes: std::collections::HashMap<PathBuf, std::time::SystemTime> = std::collections::HashMap::new();
-                for f in &files {
-                    if let Ok(meta) = std::fs::metadata(f) {
-                        if let Ok(m) = meta.modified() {
-                            mtimes.insert(f.clone(), m);
-                        }
-                    }
-                }
-
-                let spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-                let mut spin_count = 0usize;
-
-                loop {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                    spin_count = spin_count.wrapping_add(1);
-                    let current_files = ingestor.scan_files(&target);
-                    for f in &current_files {
-                        if let Ok(meta) = std::fs::metadata(f) {
-                            if let Ok(m) = meta.modified() {
-                                let changed = match mtimes.get(f) {
-                                    Some(prev) => *prev < m,
-                                    None => true,
-                                };
-                                if changed {
-                                    mtimes.insert(f.clone(), m);
-                                    let rel_display = f.strip_prefix(&target).unwrap_or(f).display();
-                                    let spin_char = spinner[spin_count % spinner.len()];
-                                    println!("  \x1b[33m[rag:watch]\x1b[0m [{}] Detected change in {}. Incrementally re-indexing...", spin_char, rel_display);
-                                    let chunks = ingestor.chunk_file(f);
-                                    if !chunks.is_empty() {
-                                        let mut updated = Vec::new();
-                                        for c in &chunks {
-                                            let prompt = EmbedClient::format_doc(Some(&c.title), &c.content);
-                                            if let Ok(v) = embed_client.embed_one(&prompt).await {
-                                                updated.push(c.clone().to_rag_chunk(v));
-                                            }
-                                        }
-                                        if let Ok(_) = store.upsert(&updated).await {
-                                            println!("  \x1b[32m[rag:watch]\x1b[0m [✓] Updated {} chunks for {}.", updated.len(), rel_display);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Commands::Monitor { interval, once, json } => {
-            run_drift_monitor(&config, &current_dir, interval, once, json).await?;
         }
         Commands::Wiki { path, index, note, resolve, list_notes, sync_resolved, json } => {
             let target = path.unwrap_or_else(|| current_dir.clone());
@@ -1063,329 +762,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let generated_pages = generator.generate_all()?;
 
             if index {
-                println!("=== Indexing Generated Wiki Pages ===");
-                LlamaServer::ensure_running(&config, &current_dir).await?;
-                let embed_client = EmbedClient::with_config(&config, None)
-                    .with_repo_root(&current_dir);
-                let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-                let ingestor = CodebaseIngestor::new_with_options(&target, false, config.symbol_salt.clone());
-
-                let mut wiki_unembedded = Vec::new();
-                for page in &generated_pages {
-                    let chunks = ingestor.chunk_file(page);
-                    wiki_unembedded.extend(chunks);
-                }
-
-                println!("  [rag:wiki] Created {} wiki chunks. Generating embeddings...", wiki_unembedded.len());
-                let mut rag_chunks = Vec::new();
-                for batch in wiki_unembedded.chunks(16) {
-                    let inputs: Vec<String> = batch.iter()
-                        .map(|c| EmbedClient::format_doc(Some(&c.title), &c.content))
-                        .collect();
-                    let vecs = embed_client.embed_batch(&inputs).await?;
-                    for (unemb, v) in batch.iter().cloned().zip(vecs) {
-                        rag_chunks.push(unemb.to_rag_chunk(v));
-                    }
-                }
-                store.upsert(&rag_chunks).await?;
-                let _ = crate::provider::write_index_fingerprint(
-                    &current_dir,
-                    &crate::provider::identity_for(
-                        &config.embed_provider,
-                        config.embed_provider_id.as_deref(),
-                        config.embed_model.as_deref(),
-                    ),
-                    config.embedding_dim,
-                );
-                let total = store.count().await.unwrap_or(0);
-                let _ = record_index_audit_receipt(&current_dir, &target, generated_pages.len(), rag_chunks.len(), total, false);
-                println!("  [rag:wiki] Successfully indexed wiki into LanceDB!");
-            }
-        }
-        Commands::Query { query, limit, doc_type, code, json, no_rerank, min_relevance, fzf } => {
-            LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::with_config(&config, None);
-            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-
-            if fzf {
-                run_query_fzf(&store, &embed_client, &query, limit).await?;
-                return Ok(());
-            }
-
-            let formatted_query = EmbedClient::format_query(&query, code);
-            let query_vec = embed_client.embed_one(&formatted_query).await?;
-
-            if no_rerank {
-                let hits = store.search_vector(&query_vec, limit, doc_type.as_deref()).await?;
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&hits)?);
-                } else {
-                    println!("\n=== Search Results (Coarse Vector: {}) ===", hits.len());
-                    if hits.is_empty() {
-                        println!("No matching documents found in vector store.");
-                    } else {
-                        for (i, hit) in hits.iter().enumerate() {
-                            println!("\n[{}] Score: {:.4} | Type: {} | Modality: {}", i + 1, hit.score, hit.doc_type, hit.modality);
-                            println!("     Location: {}:L{}-L{}", hit.path, hit.start_line, hit.end_line);
-                            println!("     Title:    {}", hit.title);
-                            if hit.symbols != "[]" && !hit.symbols.is_empty() {
-                                println!("     Symbols:  {}", hit.symbols);
-                            }
-                            println!("     Snippet:");
-                            for line in hit.content.lines().take(4) {
-                                println!("       {}", line);
-                            }
-                        }
-                        println!();
-                    }
-                }
-            } else {
-                let decision_engine = DecisionEngine::new();
-                let coarse_limit = (limit * 3).max(12);
-                let mut candidates = store.search_vector(&query_vec, coarse_limit, doc_type.as_deref()).await?;
-                let mut reranked = decision_engine.rerank(&query, candidates.clone(), min_relevance).await;
-                let mut sufficiency = crate::decision::evaluate_context_sufficiency(&reranked);
-                let mut corrective_pass_triggered = false;
-
-                // Corrective RAG (CRAG): when the first retrieval pass lands in `partial_unsettled`
-                // or `insufficient`, extract symbol/file anchors from the partial candidates and
-                // run a second-stage symbol-anchored expansion pass before yielding.
-                if sufficiency != "sufficient" && !candidates.is_empty() {
-                    let expansion_terms = crate::decision::extract_corrective_expansion_terms(&query, &candidates);
-                    if !expansion_terms.is_empty() {
-                        corrective_pass_triggered = true;
-                        let expanded_query = format!("{} {}", query, expansion_terms.join(" "));
-                        let expanded_formatted = EmbedClient::format_query(&expanded_query, true);
-                        if let Ok(expanded_vec) = embed_client.embed_one(&expanded_formatted).await {
-                            if let Ok(extra_hits) = store.search_vector(&expanded_vec, coarse_limit, doc_type.as_deref()).await {
-                                for h in extra_hits {
-                                    if !candidates.iter().any(|c| c.path == h.path && c.start_line == h.start_line) {
-                                        candidates.push(h);
-                                    }
-                                }
-                                reranked = decision_engine.rerank(&query, candidates, min_relevance).await;
-                                sufficiency = crate::decision::evaluate_context_sufficiency(&reranked);
-                            }
-                        }
-                    }
-                }
-
-                let top_hits: Vec<_> = reranked.into_iter().take(limit).collect();
-
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&top_hits)?);
-                } else {
-                    let source_label = top_hits
-                        .first()
-                        .map(|h| h.rerank_source.clone())
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or_else(|| {
-                            if decision_engine.api_key.is_some() {
-                                format!("OpenRouter Jev ({})", decision_engine.key_source)
-                            } else {
-                                "Local Calibrated Reranker".to_string()
-                            }
-                        });
-                    println!("\n=== Search Results (Decision Reranked: {}) ===", top_hits.len());
-                    println!("Decision Engine:       {}", source_label);
-                    println!(
-                        "Context Sufficiency:   {}{}",
-                        sufficiency,
-                        if corrective_pass_triggered { " (CRAG corrective expansion pass applied)" } else { "" }
-                    );
-                    if top_hits.is_empty() {
-                        println!("No candidate chunks met the minimum relevance threshold ({:.2}).", min_relevance);
-                    } else {
-                        for (i, item) in top_hits.iter().enumerate() {
-                            let h = &item.chunk;
-                            let vec_bar_len = ((item.original_score * 10.0).round() as usize).min(10);
-                            let dec_bar_len = ((item.decision_score * 10.0).round() as usize).min(10);
-                            let vec_bar = format!("[{}{}]", "=".repeat(vec_bar_len), " ".repeat(10 - vec_bar_len));
-                            let dec_bar = format!("[{}{}]", "#".repeat(dec_bar_len), " ".repeat(10 - dec_bar_len));
-                            println!("\n[{}] Rerank: {:.4} {} | Vector: {:.4} {} | Type: {} | Modality: {}", 
-                                i + 1, item.rerank_score, dec_bar, item.original_score, vec_bar, h.doc_type, h.modality
-                            );
-                            println!("     Location: {}:L{}-L{}", h.path, h.start_line, h.end_line);
-                            println!("     Title:    {}", h.title);
-                            println!("     Decision: {}", item.rationale);
-                            if h.symbols != "[]" && !h.symbols.is_empty() {
-                                println!("     Symbols:  {}", h.symbols);
-                            }
-                            println!("     Snippet:");
-                            for line in h.content.lines().take(4) {
-                                println!("       {}", line);
-                            }
-                        }
-                        let top_score = top_hits.first().map(|h| h.decision_score).unwrap_or(0.0);
-                        if top_score < 0.45 && !top_hits.is_empty() {
-                            println!("  [rag:advisory] Low query-context similarity detected (top score: {:.4}).", top_score);
-                            println!("                 Codebase documentation drift may have occurred. Recommended action: 'ainish-rag wiki' or 'ainish-rag index'.");
-                            println!();
-                        }
-                        println!();
-                    }
-                }
-            }
-        }
-        Commands::Rerank { query, limit, doc_type, json } => {
-            LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::with_config(&config, None);
-            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-
-            let formatted_query = EmbedClient::format_query(&query, false);
-            let query_vec = embed_client.embed_one(&formatted_query).await?;
-            let candidates = store.search_vector(&query_vec, (limit * 3).max(12), doc_type.as_deref()).await?;
-
-            let decision_engine = DecisionEngine::new();
-            let reranked = decision_engine.rerank(&query, candidates, 0.35).await;
-            let top_hits: Vec<_> = reranked.into_iter().take(limit).collect();
-
-            if json {
-                println!("{}", serde_json::to_string_pretty(&top_hits)?);
-            } else {
-                println!("\n=== Decision Model Rerank Results ({}) ===", top_hits.len());
-                for (i, item) in top_hits.iter().enumerate() {
-                    let h = &item.chunk;
-                    let vec_bar_len = ((item.original_score * 10.0).round() as usize).min(10);
-                    let dec_bar_len = ((item.decision_score * 10.0).round() as usize).min(10);
-                    let vec_bar = format!("[{}{}]", "=".repeat(vec_bar_len), " ".repeat(10 - vec_bar_len));
-                    let dec_bar = format!("[{}{}]", "#".repeat(dec_bar_len), " ".repeat(10 - dec_bar_len));
-                    println!("\n[{}] Rerank: {:.4} {} | Vector: {:.4} {} | {}", 
-                        i + 1, item.rerank_score, dec_bar, item.original_score, vec_bar, h.title
-                    );
-                    println!("     Path:     {}:L{}-L{}", h.path, h.start_line, h.end_line);
-                    println!("     Decision: {}", item.rationale);
-                }
-                println!();
-            }
-        }
-        Commands::Bench { iterations, json, custom, regression, save_baseline, drift_injection, chaos } => {
-            LlamaServer::ensure_running(&config, &current_dir).await?;
-            let embed_client = EmbedClient::with_config(&config, None)
-                .with_repo_root(&current_dir);
-            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-
-            println!("=== ainish-rag Synthetic Query Regression Benchmark ===");
-            if let Some(drift) = drift_injection {
-                println!("  \x1b[35m[rag:bench]\x1b[0m Synthetic drift injection active (ratio: {:.2})", drift);
-            }
-            if chaos {
-                println!("  \x1b[33m[rag:chaos]\x1b[0m Chaos fault injection active: simulating transient embedding server timeout and retry-loop recovery...");
-                tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
-                LlamaServer::ensure_running(&config, &current_dir).await?;
-                if let Ok(integrity_msg) = store.verify_or_recover().await {
-                    println!("  \x1b[32m[rag:chaos]\x1b[0m LanceDB self-healing check: {}", integrity_msg);
-                }
-                println!("  \x1b[32m[rag:chaos]\x1b[0m Retry-loop resilience verified: server healthy and responsive after simulated fault.");
-            }
-            let test_suite: Vec<(String, String)> = if let Some(ref c_path) = custom {
-                let content = std::fs::read_to_string(c_path)?;
-                let parsed: Vec<serde_json::Value> = serde_json::from_str(&content)?;
-                parsed.into_iter().filter_map(|item| {
-                    let q = item.get("query")?.as_str()?.to_string();
-                    let d = item.get("expected_domain")?.as_str()?.to_string();
-                    Some((q, d))
-                }).collect()
-            } else {
-                vec![
-                    ("post-quantum cryptography secrets FIPS ML-KEM ML-DSA".to_string(), "security".to_string()),
-                    ("codebase multimodal rag lancedb embeddinggemma".to_string(), "rag".to_string()),
-                    ("worktree isolation branch main workflow OOReDAct".to_string(), "agents".to_string()),
-                ]
-            };
-
-            let mut passed = 0;
-            let mut total_latency_ms = 0u128;
-            let mut results = Vec::new();
-
-            for (query, expected_domain) in &test_suite {
-                let start = std::time::Instant::now();
-                let mut q_vec = embed_client.embed_one(&EmbedClient::format_query(query, false)).await?;
-                if let Some(drift) = drift_injection {
-                    crate::store::inject_synthetic_drift(&mut q_vec, drift);
-                }
-                let hits = store.search_vector(&q_vec, 3, None).await?;
-                let duration = start.elapsed().as_millis();
-                total_latency_ms += duration;
-
-                let hit_matched = hits.iter().any(|h| {
-                    h.path.to_lowercase().contains(expected_domain) ||
-                    h.content.to_lowercase().contains(expected_domain)
-                });
-
-                if hit_matched {
-                    passed += 1;
-                }
-
-                results.push(serde_json::json!({
-                    "query": query,
-                    "expected_domain": expected_domain,
-                    "recall_at_3": hit_matched,
-                    "latency_ms": duration,
-                    "top_match": hits.first().map(|h| h.path.clone()).unwrap_or_default(),
-                    "top_score": hits.first().map(|h| h.score).unwrap_or(0.0),
-                }));
-            }
-
-            let recall_rate = if test_suite.is_empty() { 1.0 } else { passed as f32 / test_suite.len() as f32 };
-            let avg_latency = if test_suite.is_empty() { 0.0 } else { total_latency_ms as f64 / test_suite.len() as f64 };
-            let baseline_file = current_dir.join(".agents").join("rag").join("bench-baseline.json");
-
-            if save_baseline || (regression && !baseline_file.exists()) {
-                if let Some(parent) = baseline_file.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                let baseline_payload = serde_json::json!({
-                    "saved_at": chrono::Utc::now().to_rfc3339(),
-                    "recall_at_3": recall_rate,
-                    "avg_latency_ms": avg_latency,
-                    "total_queries": test_suite.len(),
-                    "passed": passed,
-                    "results": results,
-                });
-                std::fs::write(&baseline_file, serde_json::to_string_pretty(&baseline_payload)?)?;
-                println!("  \x1b[32m[rag:bench]\x1b[0m Saved baseline snapshot to {}", baseline_file.display());
-            }
-
-            if regression && baseline_file.exists() {
-                if let Ok(b_raw) = std::fs::read_to_string(&baseline_file) {
-                    if let Ok(b_val) = serde_json::from_str::<serde_json::Value>(&b_raw) {
-                        let prev_recall = b_val.get("recall_at_3").and_then(|v| v.as_f64()).unwrap_or(1.0) as f32;
-                        println!("Regression Check: Current Recall@3: {:.1}% | Baseline: {:.1}%", recall_rate * 100.0, prev_recall * 100.0);
-                        if recall_rate < prev_recall * 0.90 {
-                            eprintln!("  \x1b[31m[REGRESSION DETECTED]\x1b[0m Ranking recall degraded below baseline threshold!");
-                            return Err("Semantic retrieval regression detected".into());
-                        } else {
-                            println!("  \x1b[32m[PASS]\x1b[0m Ranking recall stable across index revisions.");
-                        }
-                    }
-                }
-            }
-
-            if json {
-                println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                    "iterations": iterations,
-                    "total_queries": test_suite.len(),
-                    "passed": passed,
-                    "recall_at_3": recall_rate,
-                    "avg_latency_ms": avg_latency,
-                    "results": results
-                }))?);
-            } else {
-                for (i, r) in results.iter().enumerate() {
-                    println!("  [{}] Query:    {}", i + 1, r["query"].as_str().unwrap_or(""));
-                    println!("      Match:    {} (Score: {:.4}, Latency: {}ms)", 
-                        r["top_match"].as_str().unwrap_or(""),
-                        r["top_score"].as_f64().unwrap_or(0.0),
-                        r["latency_ms"].as_u64().unwrap_or(0)
-                    );
-                    println!("      Status:   {}", if r["recall_at_3"].as_bool().unwrap_or(false) { "[PASS]" } else { "[FAIL]" });
-                }
-                println!("\nBenchmark Summary:");
-                println!("  Recall@3:     {:.1}% ({}/{})", recall_rate * 100.0, passed, test_suite.len());
-                println!("  Avg Latency:  {:.1} ms", avg_latency);
-                println!("  Overall:      {}", if recall_rate >= 0.66 { "STABLE" } else { "DEGRADED" });
-                println!();
+                // The LanceDB index is retired (2026-11-12); the vault IS the retrieval corpus.
+                // Keep the flag accepted so existing invocations do not break, and say what happened.
+                println!("  [rag:wiki] Vector indexing retired 2026-11-12; the vault IS the retrieval corpus.");
             }
         }
         Commands::Completion { shell } => {
@@ -1505,8 +884,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Eval { context, output, patch, generate_patch, json } => {
-            if let Some(ref p) = patch {
-                run_eval_patch(&config, &current_dir, p, generate_patch, json).await?;
+            if patch.is_some() {
+                // `--patch` scored a diff against the LanceDB index, retired 2026-11-12. Report it
+                // as retired rather than grading against nothing and printing a confident number.
+                eprintln!(
+                    "  [rag:error] `eval --patch` was retired 2026-11-12 with the vector store.\n\
+                     \x20             Use `eval --context <retrieved> --output <summary>` instead."
+                );
+                std::process::exit(1);
             } else {
                 let ctx = context.unwrap_or_default();
                 let out = output.unwrap_or_default();
@@ -1528,15 +913,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Cleanup { compact, prune_days, prune_worktrees, delete_merged, dry_run } => {
-            let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-            println!("=== ainish-rag Database Maintenance & Worktree Hygiene ===");
+            println!("=== ainish-rag Worktree Hygiene ===");
             if compact {
-                println!("Running LanceDB table compaction and WAL prune (older than {} days)...", prune_days);
-                match store.compact(prune_days).await {
-                    Ok(Some(info)) => println!("  \x1b[32m[rag:maintenance]\x1b[0m Compaction finished: {}", info),
-                    Ok(None) => println!("  [rag:maintenance] No database table found yet to compact."),
-                    Err(e) => eprintln!("  \x1b[31m[rag:error]\x1b[0m Compaction failed: {}", e),
-                }
+                // LanceDB compaction is retired with the vector store; the flag stays accepted so
+                // existing invocations do not break, and there is nothing left to compact.
+                println!("  [rag:maintenance] LanceDB compaction: skipped (vector store retired 2026-11-12)");
+                let _ = prune_days;
             }
             if prune_worktrees || delete_merged {
                 let _ = std::process::Command::new("git")
@@ -1759,9 +1141,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         },
-        Commands::Service { command } => {
-            run_service_command(&config, &current_dir, command).await?;
-        }
+        Commands::Serve { .. } => retired("serve"),
+        Commands::Stop { .. } => retired("stop"),
+        Commands::Index { .. } => retired("index"),
+        Commands::Query { .. } => retired("query"),
+        Commands::Rerank { .. } => retired("rerank"),
+        Commands::Bench { .. } => retired("bench"),
+        Commands::Monitor { .. } => retired("monitor"),
+        Commands::EmbedProvider { .. } => retired("embed-provider"),
+        Commands::Service { .. } => retired("service"),
     }
 
     Ok(())
@@ -1775,7 +1163,7 @@ fn run_audit_privacy(
     out: Option<&std::path::Path>,
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let pb = crate::embed::read_or_init_privacy_budget(repo_root, reset)?;
+    let pb = crate::scrub::read_or_init_privacy_budget(repo_root, reset)?;
     let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
     let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
     let within_budget = cum_eps <= max_budget;
@@ -1833,7 +1221,7 @@ fn redact_check_file(
     let raw = String::from_utf8_lossy(&raw_bytes).into_owned();
     let wiki_gen = WikiGenerator::new(repo_root);
     let sanitized = WikiGenerator::sanitize_text_for_redaction(&raw);
-    let scrubbed = crate::ingest::scrub_sensitive_content(&sanitized);
+    let scrubbed = crate::scrub::scrub_sensitive_content(&sanitized);
     let redacted = wiki_gen.redact_local_user_paths(&scrubbed);
 
     let mut classes: Vec<&str> = Vec::new();
@@ -2330,277 +1718,6 @@ fn run_embed_provider(
     Ok(())
 }
 
-async fn run_drift_monitor(
-    config: &RagConfig,
-    current_dir: &std::path::Path,
-    interval_secs: Option<u64>,
-    once: bool,
-    json: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::with_config(&config, None);
-    let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-
-    let test_suite = vec![
-        ("post-quantum cryptography secrets FIPS ML-KEM ML-DSA", "security"),
-        ("codebase multimodal rag lancedb embeddinggemma", "rag"),
-        ("worktree isolation branch main workflow OOReDAct", "agents"),
-    ];
-
-    loop {
-        let mut passed = 0;
-        let mut total_latency_ms = 0u128;
-        let mut results = Vec::new();
-
-        for (query, expected_domain) in &test_suite {
-            let start = std::time::Instant::now();
-            let q_vec = embed_client.embed_one(&EmbedClient::format_query(query, false)).await?;
-            let hits = store.search_vector(&q_vec, 3, None).await?;
-            let duration = start.elapsed().as_millis();
-            total_latency_ms += duration;
-
-            let hit_matched = hits.iter().any(|h| {
-                h.path.to_lowercase().contains(expected_domain) ||
-                h.content.to_lowercase().contains(expected_domain)
-            });
-
-            if hit_matched {
-                passed += 1;
-            }
-
-            results.push(serde_json::json!({
-                "query": query,
-                "expected_domain": expected_domain,
-                "recall_at_3": hit_matched,
-                "latency_ms": duration,
-                "top_match": hits.first().map(|h| h.path.clone()).unwrap_or_default(),
-                "top_score": hits.first().map(|h| h.score).unwrap_or(0.0),
-            }));
-        }
-
-        let recall_rate = passed as f32 / test_suite.len() as f32;
-        let avg_latency = total_latency_ms as f64 / test_suite.len() as f64;
-        let total_chunks = store.count().await.unwrap_or(0);
-
-        let audit_dir = current_dir.join(".agents").join("audit");
-        let last_receipt_mtime = if let Ok(entries) = std::fs::read_dir(&audit_dir) {
-            entries.filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
-                .filter_map(|e| e.metadata().ok()?.modified().ok())
-                .max()
-        } else {
-            None
-        };
-
-        let ingestor = CodebaseIngestor::new(current_dir);
-        let candidate_files = ingestor.scan_files(current_dir);
-        let unindexed_modifications = if let Some(cutoff) = last_receipt_mtime {
-            candidate_files.iter().filter(|f| {
-                std::fs::metadata(f).ok().and_then(|m| m.modified().ok()).map_or(false, |m| m > cutoff)
-            }).count()
-        } else {
-            0
-        };
-
-        let status = if recall_rate >= 0.66 && unindexed_modifications == 0 {
-            "STABLE"
-        } else {
-            "DRIFT_DETECTED"
-        };
-
-        let advisory = if status == "DRIFT_DETECTED" {
-            Some(format!(
-                "Vector index drift detected ({} unindexed modifications). Run 'ainish-coder --rag index' to refresh.",
-                unindexed_modifications
-            ))
-        } else {
-            None
-        };
-
-        let monitor_report = serde_json::json!({
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "status": status,
-            "recall_at_3": recall_rate,
-            "avg_latency_ms": avg_latency,
-            "total_chunks": total_chunks,
-            "unindexed_modifications": unindexed_modifications,
-            "advisory": advisory,
-            "results": results
-        });
-
-        let rag_dir = current_dir.join(".agents").join("rag");
-        let _ = std::fs::create_dir_all(&rag_dir);
-        let _ = std::fs::write(
-            rag_dir.join("drift-monitor.json"),
-            serde_json::to_string_pretty(&monitor_report).unwrap_or_default()
-        );
-
-        if json {
-            println!("{}", serde_json::to_string_pretty(&monitor_report)?);
-        } else {
-            println!("\n=== ainish-rag Continuous Drift Monitor ===");
-            println!("Timestamp:               {}", chrono::Utc::now().to_rfc3339());
-            println!("Status:                  \x1b[{};1m{}\x1b[0m", if status == "STABLE" { "32" } else { "33" }, status);
-            println!("Recall@3:                {:.1}% ({}/{})", recall_rate * 100.0, passed, test_suite.len());
-            println!("Avg Query Latency:       {:.1} ms", avg_latency);
-            println!("Total Store Records:     {}", total_chunks);
-            println!("Unindexed Modifications: {}", unindexed_modifications);
-            if let Some(adv) = &advisory {
-                println!("Advisory:                \x1b[33m{}\x1b[0m", adv);
-            }
-            println!();
-        }
-
-        if once || interval_secs.is_none() {
-            break;
-        }
-
-        if let Some(secs) = interval_secs {
-            tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
-        }
-    }
-
-    Ok(())
-}
-
-async fn run_tui_dashboard(config: &RagConfig, _repo_root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    use std::io::{stdout, Write};
-    let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
-    let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-    let count = store.count().await.unwrap_or(0);
-
-    let client = reqwest::Client::builder().timeout(std::time::Duration::from_millis(2000)).build().unwrap_or_default();
-    let health_url = format!("{}/health", config.server_url.trim_end_matches('/'));
-    let mut latencies: Vec<u128> = Vec::new();
-    if is_running {
-        for _ in 0..5 {
-            let t0 = std::time::Instant::now();
-            let mut req = client.get(&health_url);
-            if let Some(ref psk) = config.psk {
-                req = req.header("Authorization", format!("Bearer {}", psk));
-            }
-            if req.send().await.is_ok() {
-                latencies.push(t0.elapsed().as_millis());
-            } else {
-                latencies.push(0);
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        }
-    }
-
-    let min_lat = latencies.iter().copied().min().unwrap_or(0);
-    let max_lat = latencies.iter().copied().max().unwrap_or(0);
-    let avg_lat = if !latencies.is_empty() {
-        latencies.iter().sum::<u128>() as f64 / latencies.len() as f64
-    } else {
-        0.0
-    };
-
-    let psk_status = if let Some(ref psk) = config.psk {
-        let preview = if psk.len() > 8 { &psk[..8] } else { psk };
-        format!("\x1b[32mAUTHENTICATED\x1b[0m (Loopback PSK: {}...)", preview)
-    } else {
-        "\x1b[33mNONE\x1b[0m (Unrestricted local loopback)".to_string()
-    };
-
-    let salt_status = if let Some(ref s) = config.symbol_salt {
-        format!("\x1b[32mACTIVE\x1b[0m (len: {})", s.len())
-    } else {
-        "\x1b[33mDEFAULT\x1b[0m (Machine/repo hash)".to_string()
-    };
-
-    let manifest_status = match LlamaServer::verify_model_manifest(
-        config.model_path.as_ref().unwrap_or(&PathBuf::from("")),
-        &config.model_manifest_path
-    ) {
-        Ok(Some(hash)) => format!("\x1b[32mVERIFIED\x1b[0m ({})", &hash[..16]),
-        Ok(None) => "\x1b[33mNOT PRESENT\x1b[0m (Optional manifest absent)".to_string(),
-        Err(e) => format!("\x1b[31mTAMPERED\x1b[0m ({})", e),
-    };
-
-    let avail_mem = LlamaServer::get_available_memory_mb();
-    let mem_cap = config.max_mem.unwrap_or(2048);
-
-    let profile_path = _repo_root.join(".agents").join("rag").join("runtime-profile.json");
-    let profile_summary = if let Ok(p_text) = std::fs::read_to_string(&profile_path) {
-        if let Ok(pv) = serde_json::from_str::<serde_json::Value>(&p_text) {
-            let wts = pv.get("worktree_count").and_then(|v| v.as_u64()).unwrap_or(1);
-            let ths = pv.get("allocated_threads").and_then(|v| v.as_u64()).unwrap_or(4);
-            let ab = pv.get("adaptive_batch_size").and_then(|v| v.as_u64()).unwrap_or(16);
-            let rtt = pv.get("last_warm_rtt_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-            format!("\x1b[32m{} wt(s) -> {} threads | Batch: {} | Warm RTT: {}ms\x1b[0m", wts, ths, ab, rtt)
-        } else {
-            "\x1b[33mDEFAULT\x1b[0m".to_string()
-        }
-    } else {
-        "\x1b[33mUNINITIALIZED (run 'ainish-rag service status --warm')\x1b[0m".to_string()
-    };
-
-    let dp_summary = if let Ok(pb) = crate::embed::read_or_init_privacy_budget(_repo_root, false) {
-        let cum_eps = pb.get("cumulative_epsilon").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let vec_cnt = pb.get("total_protected_vectors").and_then(|v| v.as_u64()).unwrap_or(0);
-        format!("\x1b[32mepsilon={:.4}\x1b[0m ({} protected vectors in privacy-budget.json)", cum_eps, vec_cnt)
-    } else {
-        "\x1b[33mUNINITIALIZED\x1b[0m".to_string()
-    };
-
-    let contract_history_summary = match pqc::verify_contract_history_chain(_repo_root) {
-        Ok(transitions) => format!("\x1b[32m{} transition(s)\x1b[0m (hash-chained & ML-DSA-65 verified)", transitions),
-        Err(e) => format!("\x1b[31mINVALID\x1b[0m ({})", e),
-    };
-
-    println!("\x1b[2J\x1b[H");
-    println!("\x1b[1;36m========================================================================\x1b[0m");
-    println!("\x1b[1;36m           ainish-rag REAL-TIME TELEMETRY & VECTOR DASHBOARD           \x1b[0m");
-    println!("\x1b[1;36m========================================================================\x1b[0m");
-    println!("  Timestamp:      {}", chrono::Utc::now().to_rfc3339());
-    println!("  Server Status:  {}", if is_running { "\x1b[1;32mONLINE (healthy)\x1b[0m" } else { "\x1b[1;31mOFFLINE\x1b[0m" });
-    println!("  Endpoint:       {}", config.server_url);
-    println!("  Loopback Auth:  {}", psk_status);
-    println!("  Embed Provider: {}", if config.uses_api_embeddings() {
-        format!(
-            "\x1b[1;36mAPI\x1b[0m {} (model: {}, no local server)",
-            config.embed_api_base.as_deref().unwrap_or_default(),
-            config.embed_model.as_deref().unwrap_or_default()
-        )
-    } else {
-        let (ctx, batch) = LlamaServer::derive_ctx_batch(config.max_mem, _repo_root);
-        format!("\x1b[32mlocal llama\x1b[0m (ctx={} batch={})", ctx, batch)
-    });
-    println!("  Symbol Salt:    {}", salt_status);
-    println!("  Model Manifest: {}", manifest_status);
-    println!("  Host Memory:    {} MB available (Cap: {} MB)", avail_mem, mem_cap);
-    println!("  Runtime Profile:{}", profile_summary);
-    println!("  Privacy Budget: {}", dp_summary);
-    println!("  Contract History: {}", contract_history_summary);
-    println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
-    println!("\x1b[1;34m  LanceDB Vector Store & Knowledge Base                                 \x1b[0m");
-    println!("\x1b[1;34m------------------------------------------------------------------------\x1b[0m");
-    println!("  Path:           {}", config.lancedb_dir.display());
-    println!("  Total Chunks:   \x1b[1;32m{}\x1b[0m records", count);
-    println!("  Embedding Dim:  {} dimensions (Matryoshka capable)", config.embedding_dim);
-    println!("  Living Wiki:    {} in {}", 
-        if config.wiki_dir.exists() { "\x1b[32mPresent\x1b[0m" } else { "\x1b[33mMissing\x1b[0m" },
-        config.wiki_dir.display()
-    );
-    println!("\x1b[1;35m------------------------------------------------------------------------\x1b[0m");
-    println!("\x1b[1;35m  Latency Probes & Histogram (5 samples)                                \x1b[0m");
-    println!("\x1b[1;35m------------------------------------------------------------------------\x1b[0m");
-    if is_running && !latencies.is_empty() {
-        for (i, &l) in latencies.iter().enumerate() {
-            let bar_len = ((l as f32 / 5.0).clamp(1.0, 30.0)) as usize;
-            let bar = "=".repeat(bar_len);
-            println!("  Probe #{}: {:>3} ms  [{:<30}]", i + 1, l, bar);
-        }
-        println!("  Telemetry: Min: {} ms | Avg: {:.1} ms | Max: {} ms", min_lat, avg_lat, max_lat);
-    } else {
-        println!("  [Offline] Cannot sample latency — embedding server is not running.");
-    }
-    println!("\x1b[1;36m========================================================================\x1b[0m");
-    stdout().flush()?;
-    Ok(())
-}
-
 fn run_audit_verify(repo_root: &std::path::Path, target_path: Option<&std::path::Path>) -> Result<(), Box<dyn std::error::Error>> {
     let audit_dir = target_path.map(|p| p.to_path_buf()).unwrap_or_else(|| repo_root.join(".agents").join("audit"));
     println!("=== ainish-rag Post-Quantum Cryptographic Audit Verification ===");
@@ -3053,288 +2170,70 @@ fn run_audit_sign(target: &std::path::Path) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
+/// Result of evaluating a patch diff at the gate.
+///
+/// The embedding-anchored fields (`composite_anchor_score`, `file_coverage`,
+/// `average_retrieval_similarity`, `symbol_anchoring`, covered/matched counts, `repair_patch`) were
+/// computed against the LanceDB index retired on 2026-11-12 and are gone with it. What remains is the
+/// half that never needed a model: which files changed and whether the diff carries a credential
+/// leak or a Trojan Source override. Those are the security checks, and they are why the gate exists.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PatchEvalResult {
     pub status: String,
-    pub composite_anchor_score: f32,
-    pub file_coverage: f32,
-    pub average_retrieval_similarity: f32,
-    pub symbol_anchoring: f32,
-    pub covered_files: usize,
-    pub total_files: usize,
     pub modified_files: Vec<String>,
-    pub total_extracted_symbols: usize,
-    pub matched_symbols_in_context: usize,
     pub canary_leaks: Vec<String>,
-    pub repair_suggestions: Vec<String>,
-    pub repair_patch: Option<String>,
 }
 
-pub async fn evaluate_patch_internal(
-    config: &RagConfig,
-    current_dir: &std::path::Path,
-    patch_text: &str,
-) -> Result<PatchEvalResult, Box<dyn std::error::Error>> {
-    let mut modified_files = Vec::new();
-    let mut added_symbols = Vec::new();
-    let mut canary_leaks = Vec::new();
-    let mut current_file = String::new();
-
-    let normalized_patch = patch_text.replace("\r\n", "\n");
-    for line in normalized_patch.lines() {
-        if let Some(file_line) = line.strip_prefix("+++ b/") {
-            let f = file_line.trim().to_string();
-            current_file = f.clone();
-            if !modified_files.contains(&f) {
-                modified_files.push(f);
-            }
-        } else if let Some(file_line) = line.strip_prefix("--- a/") {
-            let f = file_line.trim().to_string();
-            if f != "/dev/null" && !modified_files.contains(&f) {
-                modified_files.push(f);
-            }
-        } else if line.starts_with('+') && !line.starts_with("+++") {
-            let added_line = &line[1..];
-            if WikiGenerator::contains_bidi_override(added_line) && !added_line.contains("\\u{202") && !added_line.contains("\\u202") {
-                canary_leaks.push("Trojan Source bidirectional Unicode override character detected in diff".to_string());
-            }
-            if !added_line.contains("Regex::new") && !added_line.contains("RE_CANARY") && !added_line.contains("RE_TOKENS") {
-                static RE_CANARY: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-                    regex::Regex::new(r#"(?i)(?:CANARY_[A-Za-z0-9_-]{6,}|SECRET_TOKEN_[A-Za-z0-9_-]{6,}|(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{24,})|(?:gh[pousr]_[A-Za-z0-9]{20,})|(?:AKIA[0-9A-Z]{16})|-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)"#).expect("valid regex")
-                });
-                if let Some(m) = RE_CANARY.find(added_line) {
-                    canary_leaks.push(format!("Canary/credential leak pattern detected: {}", m.as_str()));
-                }
-            }
-
-            // Only extract code symbols from non-coordination/non-docs paths so SHA-256 digests and
-            // signature envelopes in `.agents/canonical/` or `.agents/audit/` do not dilute symbol anchoring.
-            if !is_docs_or_coord_path(&current_file) {
-                for word in added_line.split(|c: char| !c.is_alphanumeric() && c != '_') {
-                    if word.len() >= 4 && !added_symbols.contains(&word.to_string()) {
-                        added_symbols.push(word.to_string());
-                    }
-                }
+/// Evaluates a diff without any retrieval. Deterministic and model-free by construction.
+pub fn evaluate_patch_diff(diff_text: &str) -> PatchEvalResult {
+    let mut modified_files: Vec<String> = Vec::new();
+    for line in diff_text.lines() {
+        if let Some(rest) = line.strip_prefix("+++ b/") {
+            if !rest.is_empty() && rest != "/dev/null" {
+                modified_files.push(rest.to_string());
             }
         }
     }
+    modified_files.dedup();
 
-    LlamaServer::ensure_running(config, current_dir).await?;
-    let embed_client = EmbedClient::with_config(&config, None);
-    let store = LanceStore::new(&config.lancedb_dir, config.embedding_dim);
-
-    // Exclude non-indexed coordination/documentation files from file-coverage denominator when the
-    // patch modifies code files, so mixed code + canonical-contract commits are scored on code.
-    let code_files: Vec<String> = modified_files
-        .iter()
-        .filter(|f| !is_docs_or_coord_path(f))
-        .cloned()
-        .collect();
-    let eval_files: &[String] = if code_files.is_empty() { &modified_files } else { &code_files };
-
-    let mut covered_files = 0;
-    let mut total_score = 0.0f32;
-    let mut matched_sym_set = std::collections::HashSet::new();
-
-    for file_name in eval_files {
-        let q_vec = embed_client.embed_one(&EmbedClient::format_query(file_name, true)).await?;
-        let hits = store.search_vector(&q_vec, 5, None).await?;
-        if hits.iter().any(|h| h.path.contains(file_name)) {
-            covered_files += 1;
-        }
-        for hit in hits.iter().take(2) {
-            for sym in &added_symbols {
-                if hit.content.contains(sym) || hit.symbols.contains(sym) {
-                    matched_sym_set.insert(sym.clone());
+    let mut canary_leaks: Vec<String> = Vec::new();
+    static RE_CANARY: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#"(?i)(?:CANARY_[A-Za-z0-9_-]{6,}|SECRET_TOKEN_[A-Za-z0-9_-]{6,}|(?:sk-(?:or-|proj-|ant-)?[A-Za-z0-9_-]{24,})|(?:gh[pousr]_[A-Za-z0-9]{20,})|(?:AKIA[0-9A-Z]{16})|-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)"#).expect("valid regex")
+    });
+    for line in diff_text.replace("\r\n", "\n").lines() {
+        if line.starts_with('+') && !line.starts_with("+++") {
+            let added = &line[1..];
+            if crate::wiki::WikiGenerator::contains_bidi_override(added)
+                && !added.contains("\\u{202")
+                && !added.contains("\\u202")
+                && !added.contains("0x202")
+            {
+                canary_leaks.push(
+                    "Trojan Source bidirectional Unicode override character detected in diff".to_string(),
+                );
+            }
+            if !added.contains("Regex::new")
+                && !added.contains("RE_CANARY")
+                && !added.contains("RE_TOKENS")
+            {
+                if let Some(m) = RE_CANARY.find(added) {
+                    canary_leaks
+                        .push(format!("Canary/credential leak pattern detected: {}", m.as_str()));
                 }
             }
-        }
-        if let Some(top) = hits.first() {
-            total_score += top.score;
-        }
-    }
-
-    let matched_symbols = matched_sym_set.len();
-    let file_coverage = if eval_files.is_empty() { 1.0 } else { covered_files as f32 / eval_files.len() as f32 };
-    let avg_score = if eval_files.is_empty() { 0.0 } else { total_score / eval_files.len() as f32 };
-    let symbol_anchoring = if added_symbols.is_empty() { 1.0 } else { (matched_symbols as f32 / added_symbols.len() as f32).min(1.0) };
-    let composite_score = (file_coverage * 0.4) + (avg_score * 0.4) + (symbol_anchoring * 0.2);
-
-    let mut repair_suggestions = Vec::new();
-    let mut repair_patch = None;
-
-    if symbol_anchoring < 0.80 && !added_symbols.is_empty() {
-        let unanchored: Vec<_> = added_symbols.iter().filter(|s| !matched_sym_set.contains(*s)).take(5).collect();
-        let mut import_lines = Vec::new();
-
-        for sym in &unanchored {
-            let sym_query = EmbedClient::format_query(sym, true);
-            if let Ok(sym_vec) = embed_client.embed_one(&sym_query).await {
-                if let Ok(hits) = store.search_vector(&sym_vec, 2, Some("code")).await {
-                    if let Some(best) = hits.first() {
-                        repair_suggestions.push(format!("Unanchored symbol '{}': candidate definition in {} (score: {:.3})", sym, best.path, best.score));
-                        let path_clean = best.path.replace('\\', "/");
-                        if path_clean.ends_with(".rs") {
-                            let mod_path = path_clean.trim_start_matches("src/").trim_end_matches(".rs").replace('/', "::");
-                            import_lines.push(format!("use crate::{}::{};", mod_path, sym));
-                        } else if path_clean.ends_with(".py") {
-                            let mod_path = path_clean.trim_start_matches("src/").trim_end_matches(".py").replace('/', ".");
-                            import_lines.push(format!("from {} import {}", mod_path, sym));
-                        } else {
-                            import_lines.push(format!("// import {} from \"{}\";", sym, path_clean));
-                        }
-                    }
-                }
-            }
-        }
-
-        if !import_lines.is_empty() {
-            let target_file = modified_files.first().map(|s| s.as_str()).unwrap_or("src/lib.rs");
-            let full_target = current_dir.join(target_file);
-            let existing_lines: Vec<String> = if full_target.is_file() {
-                std::fs::read_to_string(&full_target)
-                    .map(|s| s.lines().take(3).map(|l| l.to_string()).collect())
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
-
-            let ctx_count = existing_lines.len();
-            let mut diff = if ctx_count > 0 {
-                format!("--- a/{}\n+++ b/{}\n@@ -1,{} +1,{} @@\n", target_file, target_file, ctx_count, ctx_count + import_lines.len())
-            } else {
-                format!("--- a/{}\n+++ b/{}\n@@ -1,3 +1,{} @@\n", target_file, target_file, 3 + import_lines.len())
-            };
-            for imp in import_lines {
-                diff.push('+');
-                diff.push_str(&imp);
-                diff.push('\n');
-            }
-            for ctx in &existing_lines {
-                diff.push(' ');
-                diff.push_str(ctx);
-                diff.push('\n');
-            }
-            repair_patch = Some(diff);
         }
     }
 
     let status = if !canary_leaks.is_empty() {
-        "FAILED_CREDENTIAL_LEAK".to_string()
-    } else if composite_score >= 0.70 {
-        "STRONG_ANCHOR".to_string()
-    } else if composite_score >= 0.45 {
-        "ADEQUATE".to_string()
+        "FAILED_CREDENTIAL_LEAK"
     } else {
-        "UNGROUNDED".to_string()
-    };
+        "CHECKED"
+    }
+    .to_string();
 
-    Ok(PatchEvalResult {
-        status,
-        composite_anchor_score: composite_score,
-        file_coverage,
-        average_retrieval_similarity: avg_score,
-        symbol_anchoring,
-        covered_files,
-        total_files: modified_files.len(),
-        modified_files,
-        total_extracted_symbols: added_symbols.len(),
-        matched_symbols_in_context: matched_symbols,
-        canary_leaks,
-        repair_suggestions,
-        repair_patch,
-    })
+    PatchEvalResult { status, modified_files, canary_leaks }
 }
 
-async fn run_eval_patch(
-    config: &RagConfig,
-    current_dir: &std::path::Path,
-    patch_arg: &str,
-    generate_patch: bool,
-    json: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let patch_text = if std::path::Path::new(patch_arg).is_file() {
-        std::fs::read_to_string(patch_arg)?
-    } else {
-        patch_arg.to_string()
-    };
-
-    let result = evaluate_patch_internal(config, current_dir, &patch_text).await?;
-
-    if generate_patch {
-        if let Some(ref p) = result.repair_patch {
-            // Validate generated unified diff with `git apply --check` before emitting
-            let mut valid_git_patch = false;
-            if let Ok(mut child) = std::process::Command::new("git")
-                .args(["apply", "--check", "-"])
-                .current_dir(current_dir)
-                .stdin(std::process::Stdio::piped())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-            {
-                if let Some(mut stdin) = child.stdin.take() {
-                    let _ = std::io::Write::write_all(&mut stdin, p.as_bytes());
-                }
-                if let Ok(status) = child.wait() {
-                    valid_git_patch = status.success();
-                }
-            }
-            if !valid_git_patch {
-                eprintln!("  [rag:patch-check] Verified AST import diff header structure (git apply --check pre-validated)");
-            }
-            print!("{}", p);
-            return Ok(());
-        } else {
-            eprintln!("No repair patch generated: symbol anchoring is adequate or no candidate definitions were found.");
-            return Ok(());
-        }
-    }
-
-    if json {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    } else {
-        println!("=== Retrieval-Augmented Patch Evaluation (SWE-bench) ===");
-        let color_status = if result.status == "STRONG_ANCHOR" {
-            format!("\x1b[1;32m{}\x1b[0m", result.status)
-        } else if result.status == "ADEQUATE" {
-            format!("\x1b[1;33m{}\x1b[0m", result.status)
-        } else {
-            format!("\x1b[1;31m{}\x1b[0m", result.status)
-        };
-        println!("Patch Status:            {}", color_status);
-        println!("Overall Anchor Score:    \x1b[1m{:.3}\x1b[0m", result.composite_anchor_score);
-        println!("File Coverage:           {:.1}% ({}/{})", result.file_coverage * 100.0, result.covered_files, result.total_files);
-        println!("Retrieval Similarity:   {:.3}", result.average_retrieval_similarity);
-        println!("Symbol Anchoring:        {:.1}%", result.symbol_anchoring * 100.0);
-
-        if !result.canary_leaks.is_empty() {
-            println!("  \x1b[1;31m[CANARY / CREDENTIAL LEAK DETECTED]\x1b[0m");
-            for leak in &result.canary_leaks {
-                println!("    \x1b[31m⚠ {}\x1b[0m", leak);
-            }
-        }
-
-        if !result.repair_suggestions.is_empty() {
-            println!("  \x1b[36m[rag:patch-repair]\x1b[0m Symbol anchoring below 80%. Automated import suggestions:");
-            for sugg in &result.repair_suggestions {
-                println!("    \x1b[36m💡 {}\x1b[0m", sugg);
-            }
-            if result.repair_patch.is_some() {
-                println!("    \x1b[36mAST-guided patch available (pipe with --generate-patch | git apply)\x1b[0m");
-            }
-        }
-
-        if result.status == "UNGROUNDED" {
-            println!("  \x1b[33m[rag:warn]\x1b[0m Proposed patch touches code not grounded in the current vector index.");
-            println!("             Recommend running 'ainish-coder --rag index' before finalizing patch.");
-        }
-        println!();
-    }
-    Ok(())
-}
-
-/// Selects up to 6 operator wiki ledger notes, placing `[OPEN]` (unresolved) entries ahead of `[RESOLVED]` entries.
 pub fn select_prioritized_ledger_notes(clean_ledger: &str) -> Vec<String> {
     let all_bullets: Vec<String> = clean_ledger
         .lines()
@@ -4371,7 +3270,7 @@ async fn run_gate(
         }
     };
 
-    let patch_eval = evaluate_patch_internal(config, repo_root, &patch_text).await?;
+    let patch_eval = evaluate_patch_diff(&patch_text);
     let lockfile_eval = pqc::check_lockfiles(repo_root);
     let canonical_eval = pqc::verify_canonical_contract(repo_root);
 
@@ -4483,14 +3382,12 @@ async fn run_gate(
     let zt_pass = zt_hash_ok && zt_lf_ok && comms_pass && loopback_psk_ok && trojan_source_clean && contract_history_ok && redaction_self_test_ok && model_manifest_sig_ok && privacy_budget_sig_ok && privacy_report_sig_ok;
 
     let effective_strict = strict || std::env::var("AINISH_GATE_STRICT").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
-    let min_anchor = if effective_strict { 0.70 } else { 0.45 };
     let docs_only_patch = !patch_text.trim().is_empty()
         && !patch_eval.modified_files.is_empty()
         && patch_eval.modified_files.iter().all(|f| is_docs_or_coord_path(f));
-    let anchor_ok = patch_text.is_empty()
-        || docs_only_patch
-        || patch_eval.composite_anchor_score >= min_anchor;
-    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK" && anchor_ok;
+    // The embedding-anchored score is gone with the vector store. The remaining patch gate is the
+    // security half that never needed a model: no credential leak, no Trojan Source override.
+    let patch_pass = patch_eval.status != "FAILED_CREDENTIAL_LEAK";
     let lock_pass = lock_drift.is_empty();
     let canonical_pass = matches!(canonical_eval, pqc::VerifyOutcome::Verified { .. });
     let audit_pass = audit_receipts_failed == 0;
@@ -4519,7 +3416,7 @@ async fn run_gate(
         "format": "ainish-rag/gate-status/v1",
         "overall_pass": overall_pass,
         "status": if overall_pass { "GREEN" } else { "RED" },
-        "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+        "anchor_pct": serde_json::Value::Null,
         "docs_only": docs_only_patch,
         "contract_sha256": agents_sha,
         "master_surfaces": master_surfaces,
@@ -4545,7 +3442,7 @@ async fn run_gate(
     );
 
     if summary {
-        let anchor_label = if docs_only_patch { "N/A".to_string() } else { format!("{:.0}%", patch_eval.composite_anchor_score * 100.0) };
+        let anchor_label = if docs_only_patch { "N/A".to_string() } else { "model-free".to_string() };
         let line_str = format!(
             "GATE:{} | anchor:{} | patch:{} | lock:{} | pqc:{}/{} | comms:{} | zt:{}",
             if overall_pass { "GREEN" } else { "RED" },
@@ -4561,7 +3458,7 @@ async fn run_gate(
             println!("{}", serde_json::to_string(&serde_json::json!({
                 "status": if overall_pass { "GREEN" } else { "RED" },
                 "overall_pass": overall_pass,
-                "anchor_pct": (patch_eval.composite_anchor_score * 100.0).round() as u32,
+                "anchor_pct": serde_json::Value::Null,
                 "docs_only": docs_only_patch,
                 "patch_kind": if docs_only_patch { "docs" } else { "code" },
                 "lock": if lock_pass { "OK" } else { "DRIFT" },
@@ -4632,9 +3529,9 @@ async fn run_gate(
         println!("│                    ainish-rag Pre-Merge Gate Card                      │");
         println!("├────────────────────────────────────────────────────────────────────────┤");
         let patch_label = if docs_only_patch {
-            "\x1b[32mPASS (docs/coordination-only patch — anchor exempt)\x1b[0m".to_string()
+            "\x1b[32mPASS (docs/coordination-only patch)\x1b[0m".to_string()
         } else if patch_pass {
-            format!("\x1b[32mPASS ({:.1}% - {})\x1b[0m", patch_eval.composite_anchor_score * 100.0, patch_eval.status)
+            format!("\x1b[32mPASS ({})\x1b[0m", patch_eval.status)
         } else {
             format!("\x1b[31mFAIL ({})\x1b[0m", patch_eval.status)
         };
@@ -4753,9 +3650,8 @@ async fn run_gate(
     }
 
     println!("  \x1b[36m[rag:gate-watch]\x1b[0m Watching repository for file changes (Ctrl+C to stop)...");
-    let ingestor = CodebaseIngestor::new(repo_root);
     let mut baseline_mtimes: std::collections::HashMap<PathBuf, std::time::SystemTime> = std::collections::HashMap::new();
-    for f in ingestor.scan_files(repo_root) {
+    for f in watch_files(repo_root) {
         if let Ok(m) = std::fs::metadata(&f).and_then(|meta| meta.modified()) {
             baseline_mtimes.insert(f, m);
         }
@@ -4763,7 +3659,7 @@ async fn run_gate(
     loop {
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         let mut modified_detected = false;
-        for f in ingestor.scan_files(repo_root) {
+        for f in watch_files(repo_root) {
             if let Ok(m) = std::fs::metadata(&f).and_then(|meta| meta.modified()) {
                 if baseline_mtimes.get(&f).map_or(true, |prev| *prev < m) {
                     modified_detected = true;
@@ -4777,6 +3673,41 @@ async fn run_gate(
         }
     }
     }
+}
+
+/// Repository files a gate watch cycle should stat. Replaces `CodebaseIngestor::scan_files`, which
+/// came from the retired vector module; the watch loop only ever needs paths, never chunks.
+fn watch_files(repo_root: &std::path::Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![repo_root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let path = e.path();
+            if crate::scrub::is_ignored_path(&path) {
+                continue;
+            }
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                out.push(path);
+            }
+        }
+    }
+    out
+}
+
+/// Refuses a retired verb with its reason and the replacement, instead of argparse/clap's
+/// "unrecognized subcommand" — which reads as a typo rather than a deliberate removal.
+fn retired(name: &str) -> ! {
+    eprintln!(
+        "ainish-rag: `{}` was retired 2026-11-12 — it existed only to serve the vector subsystem.\n\
+         \x20 Retrieval is graph-first over the Obsidian wiki vault and the .agents/ context folders,\n\
+         \x20 with no embedding model and no vector store.\n\
+         \x20 Use:  ainish-rag --context --task \"<request>\"",
+        name
+    );
+    std::process::exit(1);
 }
 
 fn which_cmd(cmd: &str) -> Option<PathBuf> {
@@ -4841,215 +3772,6 @@ pub fn sync_rules_if_stale(repo_root: &std::path::Path, gate_ready: bool) -> (bo
         .map(|s| s.success())
         .unwrap_or(false);
     (true, ok)
-}
-
-async fn run_query_fzf(
-    store: &LanceStore,
-    embed_client: &EmbedClient,
-    query_str: &str,
-    limit: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== ainish-rag Interactive Fuzzy Finder ===");
-    let formatted_query = EmbedClient::format_query(query_str, false);
-    let query_vec = embed_client.embed_one(&formatted_query).await?;
-    let coarse_limit = limit.max(20);
-    let hits = store.search_vector(&query_vec, coarse_limit, None).await?;
-    if hits.is_empty() {
-        println!("No matching documents found in vector store.");
-        return Ok(());
-    }
-
-    use std::io::IsTerminal;
-    if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-        if let Some(fzf_path) = which_cmd("fzf") {
-            use std::process::{Command, Stdio};
-            use std::io::Write;
-            let mut child = Command::new(fzf_path)
-                .args(["--ansi", "--header", "ainish-rag Codebase Search | Press Enter to select, ESC to exit", "--delimiter", "\t", "--with-nth", "1,2,3"])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()?;
-
-            if let Some(mut stdin) = child.stdin.take() {
-                for (i, h) in hits.iter().enumerate() {
-                    let first_line = h.content.lines().next().unwrap_or("").trim();
-                    let line_text = format!("[{}] {:.4}\t{}:L{}-L{}\t{}\t{}\n", i + 1, h.score, h.path, h.start_line, h.end_line, h.title, first_line);
-                    let _ = stdin.write_all(line_text.as_bytes());
-                }
-            }
-
-            let output = child.wait_with_output()?;
-            if output.status.success() {
-                let selected = String::from_utf8_lossy(&output.stdout);
-                println!("\nSelected Chunk:\n{}", selected.trim());
-            }
-            return Ok(());
-        }
-    }
-
-    // Terminal fallback interactive browser
-    println!("\nFound {} candidate chunks for query: '{}'", hits.len(), query_str);
-    for (i, hit) in hits.iter().enumerate() {
-        println!("\x1b[1;36m[{}]\x1b[0m \x1b[32m{:.4}\x1b[0m \x1b[1m{}\x1b[0m ({}:L{}-L{})", 
-            i + 1, hit.score, hit.title, hit.path, hit.start_line, hit.end_line);
-        let preview = hit.content.lines().take(2).collect::<Vec<_>>().join(" ");
-        let truncated_preview = if preview.len() > 90 { format!("{}...", &preview[..90]) } else { preview };
-        println!("     {}", truncated_preview);
-    }
-    println!("\n  [Tip: Install fzf for interactive terminal fuzzy-filtering with live preview]");
-    Ok(())
-}
-
-async fn run_service_command(
-    config: &RagConfig,
-    repo_root: &std::path::Path,
-    cmd: ServiceCommands,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ainish-rag"));
-    let port = config.server_port;
-
-    match cmd {
-        ServiceCommands::Generate { port: p_opt, out } => {
-            let p = p_opt.unwrap_or(port);
-            let systemd_content = format!(
-                "[Unit]\nDescription=ainish-rag Multimodal Embedding Service\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={}\nExecStart={} serve --port {}\nRestart=always\nRestartSec=5\nLimitNOFILE=65536\nEnvironment=AINISH_RAG_PORT={}\n\n[Install]\nWantedBy=multi-user.target\n",
-                repo_root.display(),
-                exe.display(),
-                p,
-                p
-            );
-
-            let ps1_content = format!(
-                "# ainish-rag Windows Background Service Runner\n$Binary = \"{}\"\n$WorkDir = \"{}\"\n$Port = {}\nStart-Process -FilePath $Binary -ArgumentList \"serve --port $Port\" -WorkingDirectory $WorkDir -WindowStyle Hidden\n",
-                exe.display(),
-                repo_root.display(),
-                p
-            );
-
-            let out_file = out.unwrap_or_else(|| {
-                if cfg!(windows) {
-                    repo_root.join("ainish-rag-service.ps1")
-                } else {
-                    repo_root.join("ainish-rag.service")
-                }
-            });
-
-            if cfg!(windows) {
-                std::fs::write(&out_file, ps1_content)?;
-            } else {
-                std::fs::write(&out_file, systemd_content)?;
-            }
-            println!("  \x1b[32m[rag:service]\x1b[0m Generated service configuration at: {}", out_file.display());
-        }
-        ServiceCommands::Install { port: p_opt } => {
-            let p = p_opt.unwrap_or(port);
-            println!("=== Installing ainish-rag Background Service (Port: {}) ===", p);
-            if cfg!(target_os = "linux") {
-                let unit_path = std::path::Path::new("/etc/systemd/system/ainish-rag.service");
-                let unit = format!(
-                    "[Unit]\nDescription=ainish-rag Service\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory={}\nExecStart={} serve --port {}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n",
-                    repo_root.display(),
-                    exe.display(),
-                    p
-                );
-                if std::fs::write(unit_path, unit).is_ok() {
-                    let _ = std::process::Command::new("systemctl").args(["daemon-reload"]).output();
-                    let _ = std::process::Command::new("systemctl").args(["enable", "--now", "ainish-rag"]).output();
-                    println!("  \x1b[32m[rag:service]\x1b[0m Installed and enabled systemd unit: /etc/systemd/system/ainish-rag.service");
-                } else {
-                    println!("  \x1b[33m[rag:service]\x1b[0m Root permissions required to write /etc/systemd/system/ainish-rag.service.");
-                    println!("  Run: sudo ainish-rag service install");
-                }
-            } else if cfg!(windows) {
-                let ps1_script = repo_root.join(".agents").join("rag").join("service-runner.ps1");
-                let _ = std::fs::create_dir_all(ps1_script.parent().unwrap());
-                let script_body = format!(
-                    "Start-Process -FilePath '{}' -ArgumentList 'serve --port {}' -WorkingDirectory '{}' -WindowStyle Hidden\n",
-                    exe.display(), p, repo_root.display()
-                );
-                let _ = std::fs::write(&ps1_script, script_body);
-
-                let schtasks = std::process::Command::new("schtasks")
-                    .args([
-                        "/Create", "/SC", "ONSTART",
-                        "/TN", "ainish-rag",
-                        "/TR", &format!("powershell -ExecutionPolicy Bypass -File \"{}\"", ps1_script.display()),
-                        "/F", "/RL", "HIGHEST"
-                    ])
-                    .output();
-
-                match schtasks {
-                    Ok(out) if out.status.success() => {
-                        println!("  \x1b[32m[rag:service]\x1b[0m Successfully registered Windows Scheduled Task 'ainish-rag' on startup.");
-                    }
-                    _ => {
-                        println!("  \x1b[33m[rag:service]\x1b[0m Scheduled task registered in local runner: {}", ps1_script.display());
-                        println!("  To install globally with admin privileges: schtasks /Create /SC ONSTART /TN ainish-rag /TR powershell -File \"{}\"", ps1_script.display());
-                    }
-                }
-            } else {
-                println!("  \x1b[33m[rag:service]\x1b[0m Automatic service install for this OS is manual. Use 'ainish-rag service generate'.");
-            }
-        }
-        ServiceCommands::Status { warm } => {
-            if warm {
-                LlamaServer::ensure_running(config, repo_root).await?;
-            }
-            let t0 = std::time::Instant::now();
-            let is_running = LlamaServer::is_running(&config.server_url, config.psk.as_deref()).await;
-            let mut rtt_ms = t0.elapsed().as_millis();
-            let mut adaptive_batch = 16usize;
-            if is_running && warm {
-                let embed_client = EmbedClient::with_config(&config, None);
-                let t_warm = std::time::Instant::now();
-                let _ = embed_client.embed_one("warmup probe").await;
-                rtt_ms = t_warm.elapsed().as_millis();
-                adaptive_batch = embed_client.record_rtt_and_scale_batch(rtt_ms);
-            }
-            let worktrees = LlamaServer::detect_active_worktrees(repo_root);
-            let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-            let allocated_threads = config.threads.unwrap_or_else(|| (cpus / worktrees.max(1)).max(2));
-            let profile = serde_json::json!({
-                "worktree_count": worktrees,
-                "allocated_threads": allocated_threads,
-                "reader_pool_active": true,
-                "adaptive_batch_size": adaptive_batch,
-                "last_warm_rtt_ms": rtt_ms,
-                "updated_at": chrono::Utc::now().to_rfc3339(),
-            });
-            let rag_dir = repo_root.join(".agents").join("rag");
-            let _ = std::fs::create_dir_all(&rag_dir);
-            let _ = std::fs::write(rag_dir.join("runtime-profile.json"), serde_json::to_string_pretty(&profile).unwrap_or_default());
-
-            println!("=== ainish-rag Background Service & Runtime Profile ===");
-            println!("  Port:              {}", config.server_port);
-            println!("  Status:            {}", if is_running { "\x1b[32mRUNNING\x1b[0m" } else { "\x1b[31mSTOPPED\x1b[0m" });
-            if is_running {
-                let thermal = if rtt_ms <= 50 { "\x1b[32mWARM (sub-50ms ready)\x1b[0m" } else { "\x1b[32mWARM & ACTIVE\x1b[0m" };
-                println!("  Warm Probe RTT:    {} ms ({})", rtt_ms, thermal);
-            }
-            println!("  Worktree Scaling:  {} active worktree(s) -> {} compute threads", worktrees, allocated_threads);
-            println!("  LanceDB Pool:      \x1b[32mACTIVE (shared memory-mapped reader pool)\x1b[0m");
-            println!("  Adaptive Batch:    {} chunks/batch", adaptive_batch);
-            println!("  Endpoint:          {}", config.server_url);
-        }
-        ServiceCommands::Uninstall => {
-            println!("=== Uninstalling ainish-rag Background Service ===");
-            if cfg!(target_os = "linux") {
-                let _ = std::process::Command::new("systemctl").args(["stop", "ainish-rag"]).output();
-                let _ = std::process::Command::new("systemctl").args(["disable", "ainish-rag"]).output();
-                let _ = std::fs::remove_file("/etc/systemd/system/ainish-rag.service");
-                let _ = std::process::Command::new("systemctl").args(["daemon-reload"]).output();
-                println!("  \x1b[32m[rag:service]\x1b[0m Removed /etc/systemd/system/ainish-rag.service");
-            } else if cfg!(windows) {
-                let _ = std::process::Command::new("schtasks").args(["/Delete", "/TN", "ainish-rag", "/F"]).output();
-                let runner = repo_root.join(".agents").join("rag").join("service-runner.ps1");
-                let _ = std::fs::remove_file(runner);
-                println!("  \x1b[32m[rag:service]\x1b[0m Unregistered scheduled task 'ainish-rag'");
-            }
-        }
-    }
-    Ok(())
 }
 
 fn print_completion(shell: &str) {

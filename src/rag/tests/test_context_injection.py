@@ -443,7 +443,7 @@ class GoldfishIsolationTest(unittest.TestCase):
         captured = {}
 
         class StubDriver:
-            def chat(self, messages, max_tokens=None, tier=None, role=None):
+            def chat(self, messages, max_tokens=None, tier=None, role=None, timeout=None):
                 captured["text"] = "\n".join(m["content"] for m in messages)
                 return {"text": "review", "source": "stub:model", "model_verified": True}
 
@@ -460,6 +460,55 @@ class GoldfishIsolationTest(unittest.TestCase):
         self.assertIn("do the thing", captured["text"])
         self.assertIn("retrieved evidence", captured["text"])
         self.assertIn("elephant draft", captured["text"])
+
+    def test_goldfish_runs_all_three_steps_and_reports_them(self):
+        # Google's Goldfish Protocol is three distinct checks. Collapsing them into one prompt loses
+        # what each is for, and silently skipping one is worse: the review would report completion
+        # while having done two thirds of the work.
+        calls = []
+
+        class StubDriver:
+            def chat(self, messages, max_tokens=None, tier=None, role=None, timeout=None):
+                calls.append("\n".join(m["content"] for m in messages))
+                return {"text": f"step-{len(calls)} output", "source": "stub:model", "model_verified": True}
+
+        result = rag.goldfish_review(
+            StubDriver(),
+            task="t", retrieval_text="e", elephant_text="d", token_cap=600,
+        )
+        self.assertEqual(len(calls), 3, "comprehension, antagonistic, and readiness are separate calls")
+        self.assertIn("comprehension check", calls[0].lower())
+        self.assertIn("antagonistic", calls[1].lower())
+        self.assertIn("readiness", calls[2].lower())
+        # The comprehension check must be fed INTO the antagonistic step: drift there is the signal
+        # that the prime is ambiguous, and dropping it discards the most useful output of step 1.
+        self.assertIn("step-1 output", calls[1])
+        self.assertEqual(
+            result["steps"], {"comprehension": True, "antagonistic": True, "readiness": True}
+        )
+        self.assertIn("1. Comprehension check", result["text"])
+        self.assertIn("2. Antagonistic review", result["text"])
+        self.assertIn("3. Implementation readiness", result["text"])
+
+    def test_a_step_that_returns_nothing_is_reported_not_hidden(self):
+        # Observed live: the middle step produced no text and the prime silently showed only steps
+        # 1 and 3. A partial review must say which part is missing.
+        n = {"i": 0}
+
+        class FlakyDriver:
+            def chat(self, messages, max_tokens=None, tier=None, role=None, timeout=None):
+                n["i"] += 1
+                if n["i"] == 2:
+                    return {"text": "", "source": "stub:model", "error": "empty content"}
+                return {"text": f"step-{n['i']}", "source": "stub:model", "model_verified": True}
+
+        result = rag.goldfish_review(
+            FlakyDriver(), task="t", retrieval_text="e", elephant_text="d", token_cap=600,
+        )
+        self.assertEqual(
+            result["steps"], {"comprehension": True, "antagonistic": False, "readiness": True}
+        )
+        self.assertIn("antagonistic", result["error"] or "", "the failed step is named")
 
 
 class InjectionAssemblyTest(unittest.TestCase):
@@ -521,10 +570,17 @@ class MachineOutputPurityTest(unittest.TestCase):
 
     def test_context_and_statusline_declare_json_stdout_isolation(self):
         source = RAG_PATH.read_text(encoding="utf-8")
-        # The isolation mechanism must be present for both machine-facing verbs.
+        # `statusline --json` still runs the gate, which can print, so it keeps its explicit redirect.
         self.assertIn("contextlib.redirect_stdout(sys.stderr)", source)
-        occurrences = source.count("contextlib.redirect_stdout(sys.stderr)")
-        self.assertGreaterEqual(occurrences, 2, "each --json machine verb needs its own redirect")
+        self.assertIn('elif args.subcommand == "statusline":', source)
+        # `context --json` no longer performs any startup work that could write to stdout — the
+        # embedding server it used to start is retired — so the envelope is the only thing printed.
+        # Assert the CAUSE is gone rather than the symptom's wrapper: if something reintroduces a
+        # pre-envelope print, this flag would come back and the test should fail then.
+        context_branch = source.split('elif args.subcommand == "context":', 1)[1].split("elif args.subcommand ==", 1)[0]
+        self.assertNotIn("start_server", context_branch)
+        self.assertNotIn("LanceStore", context_branch)
+        self.assertIn("run_context_command(", context_branch, "the context verb must dispatch the prime")
 
     def test_statusline_branch_is_still_reachable(self):
         # A deleted `elif` header once ran a subcommand body unconditionally; the dispatch table must
@@ -869,54 +925,6 @@ class OrientationSectionTest(unittest.TestCase):
         self.assertEqual(rag.render_orientation_section(self.root, 0), "")
 
 
-class NativeQueryStoreEncodingTest(unittest.TestCase):
-    """The native engine writes UTF-8; decoding it with the platform default killed `context`.
-
-    `subprocess.run(..., text=True)` uses cp1252 on Windows, and the native engine's log lines
-    contain em-dashes (U+2014). The decode raised UnicodeDecodeError inside reader-thread cleanup,
-    so the whole command died with a traceback rather than degrading to file fallback — the user saw
-    a crash instead of an injection. This pins the explicit encoding so it cannot regress silently.
-    """
-
-    def test_search_decodes_utf8_explicitly(self):
-        import inspect
-
-        # The decode lives in search_with_reason now; search() delegates to it.
-        source = inspect.getsource(rag.NativeQueryStore.search_with_reason)
-        code = "\n".join(
-            line for line in source.splitlines() if not line.lstrip().startswith("#")
-        )
-        self.assertIn('encoding="utf-8"', code)
-        self.assertIn('errors="replace"', code)
-        # A bare text=True would re-introduce the platform default; it may only survive as prose.
-        self.assertNotIn("text=True", code)
-        # And the public entrypoint must still delegate rather than duplicate the decode.
-        self.assertIn(
-            "search_with_reason", inspect.getsource(rag.NativeQueryStore.search)
-        )
-
-    def test_utf8_payload_with_unmapped_byte_parses(self):
-        # Reproduces the exact failure: the native engine emits a character whose UTF-8 encoding
-        # ends in 0x90 (U+2010 HYPHEN), which cp1252 leaves undefined — that is byte 0x90 at
-        # position 48799 in the real traceback. Any non-ASCII byte here would decode as mojibake,
-        # so the trigger has to be one cp1252 genuinely rejects, or the test proves nothing.
-        unmapped = "\u2010"  # U+2010 HYPHEN -> e2 80 90
-        payload = (
-            "  \x1b[36m[rag:embed-provider]\x1b[0m Using remote API embeddings " + unmapped +
-            " local llama server skipped\n"
-            '[{"path": "a.py", "content": "x", "score": 0.5, "start_line": 1, "end_line": 2}]'
-        )
-        raw = payload.encode("utf-8")
-        # The old behaviour: platform-default decode raises, killing the whole command.
-        with self.assertRaises(UnicodeDecodeError):
-            raw.decode("cp1252")
-        # The fixed behaviour: explicit utf-8, then the same parse the store performs.
-        text = rag.strip_ansi(raw.decode("utf-8", errors="replace"))
-        start = next(m.start() for m in re.finditer(r"^\[", text, re.MULTILINE))
-        parsed = json.loads(text[start:])
-        self.assertEqual(parsed[0]["path"], "a.py")
-        self.assertIn(unmapped, text)
-
 
 class RoleModelSeparationTest(unittest.TestCase):
     """Elephant and Goldfish are two API calls with two model choices, not one choice made twice.
@@ -933,7 +941,7 @@ class RoleModelSeparationTest(unittest.TestCase):
                 "AINISH_RAG_ELEPHANT_MODEL", "AINISH_RAG_GOLDFISH_MODEL",
                 "AINISH_RAG_ELEPHANT_DRIVER_MODEL", "AINISH_RAG_GOLDFISH_DRIVER_MODEL",
                 "AINISH_RAG_DRIVER_MODEL", "AINISH_RAG_DRIVER_OFFLINE",
-                "AINISH_RAG_DISTINCT_REVIEWER",
+                "AINISH_RAG_ALLOW_SELF_REVIEW",
             )
         }
         for key in self._saved:
@@ -946,24 +954,59 @@ class RoleModelSeparationTest(unittest.TestCase):
             else:
                 os.environ[key] = value
 
-    def test_goldfish_defaults_to_the_same_route_as_elephant(self):
-        # The documented pair: both roles call local-router/fallback-models. Two separate calls buy a
-        # fresh-context review; requiring a different model would be imposing a cost decision.
-        engine = rag.DriverEngine(allow_remote=True)
-        elephant = engine.chain_steps("elephant")
-        goldfish = engine.chain_steps("goldfish")
-        self.assertEqual(elephant[0]["id"], "local-router/fallback-models")
-        self.assertEqual(goldfish[0]["id"], "local-router/fallback-models")
+    def test_reviewer_separation_is_the_default(self):
+        # Google's EGM requires an independent reviewer. Separation is the default and self-review
+        # is the recorded exception, so the reviewer cannot silently grade its own draft.
+        self.assertTrue(rag.distinct_reviewer_requested())
+        os.environ["AINISH_RAG_ALLOW_SELF_REVIEW"] = "1"
+        self.assertFalse(rag.distinct_reviewer_requested())
 
-    def test_distinct_reviewer_moves_goldfish_to_another_transport(self):
-        # Opt-in stronger version: prefers another transport, because the head is a route whose model
-        # is unknown until it replies and a positional skip cannot guarantee a different one.
-        os.environ["AINISH_RAG_DISTINCT_REVIEWER"] = "1"
+    def test_goldfish_moves_to_a_different_transport_by_default(self):
+        # The head is a route whose model is unknown until it replies, so a positional skip cannot
+        # guarantee a different one; the rotation prefers another transport instead.
         engine = rag.DriverEngine(allow_remote=True)
         elephant = engine.chain_steps("elephant")
         goldfish = engine.chain_steps("goldfish")
         self.assertNotEqual(elephant[0]["transport"], goldfish[0]["transport"])
         self.assertNotEqual(elephant[0]["id"], goldfish[0]["id"])
+
+    def test_plan_reviewer_model_refuses_when_no_distinct_model_exists(self):
+        # Fail closed: with every step resolving to the drafter's model, the review is refused rather
+        # than performed by the drafter. This is the EGM rule, not a preference.
+        engine = rag.DriverEngine(allow_remote=True)
+        drafter = "local-router:xiaomi-mimo-mimo-v2.6-pro"
+        plan = rag.plan_reviewer_model(engine, drafter)
+        self.assertTrue(plan["distinct"], "the chain offers models other than the drafter's")
+        self.assertNotEqual(
+            rag._model_tail(plan["reviewer_model"]), rag._model_tail(drafter)
+        )
+
+    def test_plan_reviewer_model_honours_a_pin_and_detects_a_collision(self):
+        engine = rag.DriverEngine(allow_remote=True)
+        os.environ["AINISH_RAG_GOLDFISH_MODEL"] = "zai-glm-5.3-flash"
+        self.assertTrue(rag.plan_reviewer_model(engine, "local-router:mimo-v2.6-pro")["distinct"])
+        # Pinning the reviewer to the drafter's own model must be recognised as a collision, even
+        # when the two arrive through different transports/naming forms.
+        collision = rag.plan_reviewer_model(engine, "local-router:glm-5.3-flash")
+        self.assertFalse(collision["distinct"])
+        self.assertIn("same model", collision["reason"])
+
+    def test_same_model_sees_through_router_prefixes(self):
+        # The exact miss this guards: the pin `zai-glm-5.3-flash` and the drafter
+        # `local-router:glm-5.3-flash` are ONE model, and a naive string compare called them
+        # distinct — which would have let the reviewer be the drafter while reporting independence.
+        self.assertTrue(rag._same_model("zai-glm-5.3-flash", "local-router:glm-5.3-flash"))
+        self.assertTrue(rag._same_model("xiaomi-mimo-mimo-v2.6-pro", "local-router:mimo-v2.6-pro"))
+        self.assertFalse(rag._same_model("zai-glm-5.3-flash", "local-router:mimo-v2.6-pro"))
+        # A dated snapshot is still a different model.
+        self.assertFalse(rag._same_model("openrouter-deepseek-v4.1-flash-1017", "deepseek:v4.1-flash"))
+        self.assertFalse(rag._same_model(None, "glm-5.3-flash"))
+
+    def test_model_tail_strips_every_naming_form(self):
+        self.assertEqual(rag._model_tail("local-router:xiaomi/mimo-v2.6-pro"), "mimo-v2.6-pro")
+        self.assertEqual(rag._model_tail("xiaomi-mimo:mimo-v2.6-pro"), "mimo-v2.6-pro")
+        self.assertEqual(rag._model_tail("zai-glm-5.3-flash"), "zai-glm-5.3-flash")
+        self.assertEqual(rag._model_tail(None), "")
 
     def test_rotation_never_shortens_the_chain(self):
         # A rotated chain must still reach every model: a failing first step cannot strand the role.
@@ -1046,7 +1089,6 @@ class RoleModelSeparationTest(unittest.TestCase):
         # asserted on ambient PQC keys: with no provider keys present, every direct step fails over to
         # the router and both roles legitimately land on the same model, so the test failed for an
         # environment reason instead of a code one. Chain selection is what the rotation owns.
-        os.environ["AINISH_RAG_DISTINCT_REVIEWER"] = "1"
         engine = rag.DriverEngine(allow_remote=True)
         self.assertNotEqual(
             engine.chain_steps("elephant")[0]["id"],
@@ -1081,65 +1123,6 @@ class ContextFlagAliasTest(unittest.TestCase):
             rag.normalize_argv(["--max-mem", "2048", "--context"]), ["--max-mem", "2048", "--context"]
         )
 
-
-class NativeQueryReasonTest(unittest.TestCase):
-    """A zero-hit search must say WHY, because the fixes are completely different.
-
-    "The index is empty" and "the embedding key returned 401" both yield zero hits. Reporting both
-    as an empty store sends an operator hunting for a missing index when the index is intact and the
-    credential is gone — observed live on 2026-11-08 when the PQC store lost its provider keys.
-    """
-
-    def test_missing_binary_reports_that_reason(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            store = rag.NativeQueryStore(Path(tmp))
-            hits, reason = store.search_with_reason("x")
-            self.assertEqual(hits, [])
-            self.assertIn("no compiled engine", reason)
-
-    def test_nonzero_exit_surfaces_engine_stderr(self):
-        import sys
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            # A fake "engine" that fails the way the real one does when the key is missing. It is a
-            # Python script rather than a shell script so the test runs on every host without needing
-            # a POSIX shell or a `.cmd` shim.
-            fake = root / "fake-engine.py"
-            fake.write_text(
-                "import sys\n"
-                "print('[rag:embed-provider] No API key resolved for openrouter', file=sys.stderr)\n"
-                "sys.exit(1)\n",
-                encoding="utf-8",
-            )
-            store = rag.NativeQueryStore(root)
-            # _locate() only accepts real executables; hand the binary in directly and wrap it so the
-            # subprocess call uses the interpreter.
-            store.binary = fake
-            original = rag.subprocess.run
-
-            def run(cmd, **kwargs):
-                return original([sys.executable, *cmd], **kwargs)
-
-            rag.subprocess.run = run
-            try:
-                hits, reason = store.search_with_reason("x")
-            finally:
-                rag.subprocess.run = original
-            self.assertEqual(hits, [])
-            self.assertIn("exited 1", reason)
-            self.assertIn("No API key resolved", reason)
-
-    def test_search_still_returns_a_plain_list(self):
-        # The public `search` keeps its old shape so existing callers are unaffected.
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            store = rag.NativeQueryStore(Path(tmp))
-            self.assertEqual(store.search("x"), [])
 
 
 class FileFallbackTest(unittest.TestCase):

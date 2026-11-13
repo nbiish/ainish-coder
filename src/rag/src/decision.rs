@@ -4,6 +4,26 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+/// One retrievable unit handed to the decision reranker.
+///
+/// This used to be `store::SearchHit`, a LanceDB row. The vector store is retired (2026-11-12) and
+/// the reranker now scores graph-retrieved sections instead, but the shape is unchanged because it is
+/// the contract between retrieval and reranking, not a storage detail.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchHit {
+    pub id: String,
+    pub repo: String,
+    pub path: String,
+    pub doc_type: String,
+    pub modality: String,
+    pub title: String,
+    pub content: String,
+    pub symbols: String,
+    pub start_line: i32,
+    pub end_line: i32,
+    pub score: f32,
+}
+
 /// Latest TypeSafe Jev decision model exposed by OpenRouter's Decisions API.
 ///
 /// The engine always targets the latest decision model automatically; it never downgrades to an
@@ -437,7 +457,7 @@ pub struct RelevanceDecision {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RerankResult {
-    pub chunk: crate::store::SearchHit,
+    pub chunk: SearchHit,
     pub original_score: f32,
     pub decision_score: f32,
     pub rerank_score: f32,
@@ -491,7 +511,7 @@ pub fn evaluate_context_sufficiency(results: &[RerankResult]) -> &'static str {
 /// second-stage CRAG corrective retrieval query when the initial pass is `partial_unsettled` or `insufficient`.
 pub fn extract_corrective_expansion_terms(
     query: &str,
-    candidates: &[crate::store::SearchHit],
+    candidates: &[SearchHit],
 ) -> Vec<String> {
     let q_lower = query.to_lowercase();
     let mut terms: Vec<String> = Vec::new();
@@ -1201,7 +1221,7 @@ impl DecisionEngine {
     pub async fn rerank(
         &self,
         query: &str,
-        candidates: Vec<crate::store::SearchHit>,
+        candidates: Vec<SearchHit>,
         min_relevance: f32,
     ) -> Vec<RerankResult> {
         if candidates.is_empty() {
@@ -1221,10 +1241,10 @@ impl DecisionEngine {
     async fn rerank_via_jev(
         &self,
         query: &str,
-        candidates: &[crate::store::SearchHit],
+        candidates: &[SearchHit],
         min_relevance: f32,
     ) -> Result<Vec<RerankResult>, Box<dyn std::error::Error + Send + Sync>> {
-        let capped: Vec<&crate::store::SearchHit> = candidates.iter().take(12).collect();
+        let capped: Vec<&SearchHit> = candidates.iter().take(12).collect();
         if capped.is_empty() {
             return Ok(Vec::new());
         }
@@ -1378,7 +1398,7 @@ impl DecisionEngine {
     pub fn rerank_local(
         &self,
         query: &str,
-        candidates: Vec<crate::store::SearchHit>,
+        candidates: Vec<SearchHit>,
         min_relevance: f32,
     ) -> Vec<RerankResult> {
         let q_lower = query.to_lowercase();
@@ -1457,7 +1477,7 @@ impl DecisionEngine {
     pub async fn filter_chunks(
         &self,
         query: &str,
-        chunks: &[crate::store::SearchHit],
+        chunks: &[SearchHit],
         min_relevance: f32,
     ) -> Vec<RelevanceDecision> {
         let mut results = Vec::new();
@@ -1788,7 +1808,7 @@ mod tests {
     #[test]
     fn test_context_sufficiency_classifies_crag_bands() {
         let make = |prob: f32, utility: f32, score: f32, role: &str| RerankResult {
-            chunk: crate::store::SearchHit {
+            chunk: SearchHit {
                 id: "test".into(),
                 repo: "ainish-coder".into(),
                 path: "src/lib.rs".into(),
@@ -1841,7 +1861,7 @@ mod tests {
 
     #[test]
     fn test_corrective_expansion_terms_prefer_new_symbols() {
-        let hits = vec![crate::store::SearchHit {
+        let hits = vec![SearchHit {
             id: "test".into(),
             repo: "ainish-coder".into(),
             path: "src/rag/src/provider.rs".into(),

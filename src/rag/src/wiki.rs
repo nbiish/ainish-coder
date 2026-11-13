@@ -229,7 +229,7 @@ impl WikiGenerator {
 
         for entry in WalkDir::new(&self.repo_root).follow_links(false).into_iter().flatten() {
             let path = entry.path();
-            if crate::ingest::is_ignored_path(path) {
+            if crate::scrub::is_ignored_path(path) {
                 continue;
             }
 
@@ -564,7 +564,7 @@ The following actionable items and markers were identified across the codebase:
         let path = self.wiki_dir.join("ledger.md");
         match fs::read_to_string(&path) {
             Ok(text) if !text.trim().is_empty() => {
-                let scrubbed = crate::ingest::scrub_sensitive_content(&text);
+                let scrubbed = crate::scrub::scrub_sensitive_content(&text);
                 let redacted = self.redact_local_user_paths(&scrubbed);
                 let cross_linked = self.cross_link_resolved_memories(&redacted);
                 cross_linked.trim_end().to_string() + "\n"
@@ -715,7 +715,7 @@ The following actionable items and markers were identified across the codebase:
         let today = Utc::now().format("%Y-%m-%d").to_string();
         let head_sha = self.current_head_short_sha();
         let no_ctrl = Self::sanitize_note_input(note);
-        let clean_note = crate::ingest::scrub_sensitive_content(&no_ctrl);
+        let clean_note = crate::scrub::scrub_sensitive_content(&no_ctrl);
         let clean_note = self.redact_local_user_paths(&clean_note);
         let entry_line = format!("- {} ({}) {}\n", today, head_sha, clean_note);
 
@@ -868,7 +868,7 @@ The following actionable items and markers were identified across the codebase:
             synth_token
         );
         let step1 = Self::sanitize_note_input(&probe);
-        let step2 = crate::ingest::scrub_sensitive_content(&step1);
+        let step2 = crate::scrub::scrub_sensitive_content(&step1);
         let step3 = self.redact_local_user_paths(&step2);
 
         for forbidden in [
@@ -916,7 +916,7 @@ The following actionable items and markers were identified across the codebase:
                 continue;
             }
             let p = entry.path();
-            if crate::ingest::is_ignored_path(p) {
+            if crate::scrub::is_ignored_path(p) {
                 continue;
             }
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
