@@ -3,29 +3,30 @@ title: Improvements & Technical Debt
 aliases: ["improvements", "debt", "todo", "refactors"]
 tags: [ainish/wiki/improvements, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-11T18:50:47.612135+00:00
-source_commit: 275bbff
+generated: 2026-11-13T01:02:49.068950+00:00
+source_commit: 2225493
 decision_source: structural
 ---
 
-# 04. Improvements & Technical Debt — repo
+# 04. Improvements & Technical Debt — ainish-coder
 
 ## 1. In-Flight Debt & Code Hotspots
 The following actionable items and markers were identified across the codebase:
 - **`bin/egm-check.sh:53`**: if grep -nE '(^|[^[:alnum:]])TODO([^[:alnum:]]|$)|<short name>|<path>' "$design" >/dev/null 2>&1; then
 - **`bin/egm-check.sh:54`**: echo 'FAIL: unresolved placeholder or TODO'
+- **`scripts/commit-identity-guard.sh:63`**: msg_file="$(mktemp "${TMPDIR:-/tmp}/identity-guard.XXXXXX")"
 - **`scripts/test-machine-sync.sh:25`**: WORK="$(mktemp -d "${TMPDIR:-/tmp}/machine-sync-test.XXXXXX")"
 - **`scripts/test-pqc-dist.sh:33`**: WORK="$(mktemp -d "${TMPDIR:-/tmp}/pqc-dist-test.XXXXXX")"
-- **`src/deploy_rules_sync.sh:376`**: tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-pack.XXXXXX" 2>/dev/null)" || return 1
-- **`src/pqc_dist.sh:41`**: tmp="$(mktemp "${TMPDIR:-/tmp}/pqc-pack.XXXXXX" 2>/dev/null)" || return 1
-- **`src/machine_sync.sh:189`**: idx="$(mktemp "${TMPDIR:-/tmp}/ainish-ms-idx.XXXXXX" 2>/dev/null)" || return 1
-- **`src/machine_sync.sh:675`**: bundle="$(mktemp "${TMPDIR:-/tmp}/ainish-ms-bundle.XXXXXX" 2>/dev/null)" || { _ms_err "mktemp failed"; return 1; }
-- **`src/verify_skills.sh:529`**: ing_root="$(mktemp -d "$skills_source/.ainish-ingest.XXXXXX")"
+- **`src/deploy_rules_sync.sh:382`**: tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-pack.XXXXXX" 2>/dev/null)" || return 1
+- **`src/pqc_dist.sh:52`**: tmp="$(mktemp "${TMPDIR:-/tmp}/pqc-pack.XXXXXX" 2>/dev/null)" || return 1
+- **`src/machine_sync.sh:254`**: idx="$(mktemp "${TMPDIR:-/tmp}/ainish-ms-idx.XXXXXX" 2>/dev/null)" || return 1
+- **`src/machine_sync.sh:744`**: bundle="$(mktemp "${TMPDIR:-/tmp}/ainish-ms-bundle.XXXXXX" 2>/dev/null)" || { _ms_err "mktemp failed"; return 1; }
+- **`src/verify_skills.sh:543`**: ing_root="$(mktemp -d "$skills_source/.ainish-ingest.XXXXXX")"
 - **`src/file_operations.sh:11`**: if tmp="$(mktemp "${dest}.XXXXXX" 2>/dev/null)"; then
-- **`src/rag/rag.py:3361`**: ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
-- **`src/rag/src/decision.rs:1034`**: ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
-- **`src/rag/src/wiki.rs:223`**: if line.contains("TODO") || line.contains("FIXME") || line.contains("XXX") {
-- **`src/rag/src/wiki.rs:473`**: todo_list.push_str("- No explicit TODO/FIXME markers discovered in codebase.\n");
+- **`src/rag/rag.py:3410`**: ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
+- **`src/rag/src/decision.rs:1043`**: ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
+- **`src/rag/src/wiki.rs:263`**: if line.contains("TODO") || line.contains("FIXME") || line.contains("XXX") {
+- **`src/rag/src/wiki.rs:513`**: todo_list.push_str("- No explicit TODO/FIXME markers discovered in codebase.\n");
 
 
 ## 2. Recommended Architectural Refactors

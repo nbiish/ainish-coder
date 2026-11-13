@@ -107,5 +107,76 @@ class WikiGraphTest(unittest.TestCase):
             shutil.rmtree(empty, ignore_errors=True)
 
 
+class WikiVaultPreservationTest(unittest.TestCase):
+    """The reachable engine must never silently downgrade an Obsidian vault.
+
+    The vault renderer lives only in the Rust crate (`wiki.rs`). `rag.py` writes plain
+    markdown, so an unguarded `ainish-rag wiki` here replaces frontmatter, aliases, tags and
+    every `[[wikilink]]` with plain pages — deleting the Obsidian graph and the explicit
+    retrieval edges built from it, while still reporting success. A downgrade that looks like
+    a successful run is the failure mode the contract forbids, so generation must refuse.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name)
+        self.wiki = self.repo / ".agents" / "wiki"
+        self.wiki.mkdir(parents=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _vault_page(self, name="01-architecture.md"):
+        self.wiki.joinpath(name).write_text(
+            "---\n"
+            "title: System Architecture\n"
+            "aliases: [\"architecture\"]\n"
+            "tags: [ainish/wiki/architecture, ainish/wiki/generated]\n"
+            "up: \"[[README]]\"\n"
+            "---\n\n"
+            "# 01. System Architecture\n\n## Sync\nbody\n\n## Related\n- [[README|Vault index]]\n",
+            encoding="utf-8",
+        )
+
+    def test_vault_pages_are_detected(self):
+        self._vault_page()
+        self.wiki.joinpath("README.md").write_text(
+            "---\ntags: [ainish/wiki/index]\n---\n\n# index\n", encoding="utf-8")
+        detected = rag._vault_pages(self.wiki)
+        self.assertEqual(len(detected), 2, "both tagged pages must be recognised as vault pages")
+
+    def test_plain_pages_are_not_vault_pages(self):
+        self.wiki.joinpath("legacy.md").write_text("# plain\n\nbody\n", encoding="utf-8")
+        self.assertEqual(rag._vault_pages(self.wiki), [],
+                         "pages without the tag are legacy output and may be regenerated")
+
+    def test_generation_refuses_to_clobber_a_vault(self):
+        self._vault_page()
+        before = {p.name: p.read_text(encoding="utf-8") for p in self.wiki.glob("*.md")}
+        with self.assertRaises(SystemExit) as ctx:
+            rag.generate_wiki(self.repo)
+        message = str(ctx.exception)
+        self.assertIn("refusing to overwrite an Obsidian vault", message)
+        self.assertIn("ainish/wiki", message, "the refusal must name the tag it detected")
+        self.assertIn("native engine", message, "the refusal must name what CAN do it")
+        after = {p.name: p.read_text(encoding="utf-8") for p in self.wiki.glob("*.md")}
+        self.assertEqual(before, after, "a refused run must leave every page byte-identical")
+
+    def test_generation_still_works_without_a_vault(self):
+        pages = rag.generate_wiki(self.repo)
+        self.assertTrue(pages, "a non-vault repo must still generate")
+        self.assertTrue(self.wiki.joinpath("README.md").is_file())
+
+    def test_wikilinks_survive_a_refused_run(self):
+        self._vault_page("README.md")
+        links_before = rag._vault_pages(self.wiki)[0].read_text(encoding="utf-8").count("[[")
+        self.assertGreater(links_before, 0)
+        with self.assertRaises(SystemExit):
+            rag.generate_wiki(self.repo)
+        links_after = self.wiki.joinpath("README.md").read_text(encoding="utf-8").count("[[")
+        self.assertEqual(links_before, links_after,
+                         "the Obsidian graph edges are what this guard exists to protect")
+
+
 if __name__ == "__main__":
     unittest.main()

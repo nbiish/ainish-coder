@@ -3,15 +3,15 @@ title: Codebase Connections & Symbols
 aliases: ["connections", "call-graph", "symbols"]
 tags: [ainish/wiki/connections, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-11T18:50:47.591171+00:00
-source_commit: 275bbff
+generated: 2026-11-13T01:02:49.043627+00:00
+source_commit: 2225493
 decision_source: structural
 ---
 
-# 02. Codebase Connections & Symbols — repo
+# 02. Codebase Connections & Symbols — ainish-coder
 
 ## 1. Component Linkage & Call Graph
-Codebase components in `repo` communicate across well-defined interfaces and CLI surfaces.
+Codebase components in `ainish-coder` communicate across well-defined interfaces and CLI surfaces.
 
 ## 2. External Dependencies & Subsystems
 - Zero external heavy dependencies; platform standard library oriented.

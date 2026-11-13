@@ -65,9 +65,10 @@ done
 echo '--- plan_state ---'
 # Parity with the RAG orientation section: without this, the non-RAG fallback would be the one path
 # that cannot see the plan of record. Newest by mtime — a plan touched during implementation is more
-# current than one merely dated later.
+# current than one merely dated later. Both naming schemes are live: `{date}-{slug}.plan.md` is
+# grandfathered, `{date}-{HH}-{slug}.md` is current, and `.agents/plans/llms.txt` is the index.
 found=0
-for plan_file in $(ls -1t .agents/plans/*.plan.md 2>/dev/null | head -3); do
+for plan_file in $(ls -1t .agents/plans/*.md 2>/dev/null | grep -v '/llms\.txt$' | head -3); do
   [ -f "$plan_file" ] || continue
   found=1
   printf '%s: ' "$plan_file"
@@ -110,7 +111,8 @@ else
 fi
 
 echo '--- recent_memory ---'
-memory=$(ls -1 .agents/memories/*-memory.txt 2>/dev/null | sort | tail -1 || true)
+# Both memory suffixes are live; newest by mtime, because a name sort prefers the grandfather file.
+memory=$(ls -1t .agents/memories/*-memory.md .agents/memories/*-memory.txt 2>/dev/null | head -1 || true)
 if [ -n "$memory" ]; then
   printf '%s\n' "$memory"
   grep '^- ' "$memory" 2>/dev/null | tail -5 || true

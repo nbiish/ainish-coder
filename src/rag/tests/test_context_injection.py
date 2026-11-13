@@ -18,6 +18,7 @@ Run with:  py -m unittest discover -s src/rag/tests -p "test_*.py"
 import importlib.util
 import json
 import os
+import time
 import re
 import tempfile
 import textwrap
@@ -728,6 +729,94 @@ class OrientationSectionTest(unittest.TestCase):
         body = rag.render_orientation_section(self.root, 800)
         self.assertIn("status: designing", body)
         self.assertNotIn("mostly-done", body)
+
+    def test_hour_stamped_plan_is_discovered_alongside_grandfathered_plans(self):
+        # The cutover drops the `.plan.md` suffix. If discovery only globs `*.plan.md`, every new
+        # plan becomes invisible and orientation reports no plan of record — which is worse than the
+        # collision the cutover fixes.
+        today = __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+        new_plan = self.root / ".agents" / "plans" / f"{today}-09-hourstamped.md"
+        new_plan.write_text(
+            "---\nstatus: ready\nbranch: fix/hourstamped\n---\n\n- [ ] T1 new-scheme todo\n",
+            encoding="utf-8")
+        future = time.time() + 60
+        os.utime(new_plan, (future, future))
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn(f"{today}-09-hourstamped.md", body)
+        self.assertIn("status: ready", body)
+        self.assertIn("todos: 0 done, 1 open", body)
+
+    def test_llms_index_is_not_mistaken_for_a_plan(self):
+        # `.agents/plans/llms.txt` lives in the same directory. Once discovery widens past
+        # `*.plan.md`, a naive `*.md` glob would report the index as the plan of record.
+        (self.root / ".agents" / "plans" / "llms.txt").write_text(
+            "# plans of record\nnot a plan\n", encoding="utf-8")
+        future = time.time() + 600
+        os.utime(self.root / ".agents" / "plans" / "llms.txt", (future, future))
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertNotIn("newest plan: `llms.txt`", body)
+        self.assertIn("orientation.plan.md", body)
+
+    def test_newest_memory_is_chosen_by_mtime_across_both_schemes(self):
+        # The defect grandfathering creates: `{date}-09-memory.md` collates BEFORE
+        # `{date}-memory.txt` ('0' < 'm'), so a name-sorted `[-1]` returns the grandfather file as
+        # "newest". Both schemes coexist for a UTC day, so this is the cutover-day behaviour.
+        today = __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+        mem_dir = self.root / ".agents" / "memories"
+        mem_dir.mkdir(parents=True)
+        (self.root / ".agents" / "wiki").mkdir(parents=True)
+        (self.root / ".agents" / "wiki" / "01-architecture.md").write_text(
+            "# arch\n## section\nbody text\n", encoding="utf-8")
+
+        grandfather = mem_dir / f"{today}-memory.txt"
+        grandfather.write_text("- grandfather-marker stale bullet\n", encoding="utf-8")
+        current = mem_dir / f"{today}-09-memory.md"
+        current.write_text("- current-marker fresh bullet\n", encoding="utf-8")
+        future = time.time() + 60
+        os.utime(current, (future, future))
+
+        # Predicates accept both schemes and reject the directory index.
+        self.assertTrue(rag._memory_files(mem_dir))
+        self.assertEqual(rag._memory_files(mem_dir)[0].name, current.name)
+        self.assertNotIn(
+            "llms.txt", [p.name for p in rag._memory_files(mem_dir)])
+
+        # The consumer that renders memory notes must read the newer file, not the grandfather.
+        section = rag.render_file_fallback_section(self.root, "current marker", 4000)
+        self.assertIn("current-marker", section)
+        self.assertNotIn("grandfather-marker", section)
+
+    def test_task_discovery_reads_both_schemes_newest_by_mtime(self):
+        today = __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+        tasks = self.root / ".agents" / "tasks"
+        grand = tasks / f"{today}-old-task.md"
+        grand.write_text("# old\n- status: done\n- objective: stale objective\n", encoding="utf-8")
+        new = tasks / f"{today}-10-newtask.md"
+        new.write_text("# new\n- status: implementing\n- objective: fresh objective\n", encoding="utf-8")
+        future = time.time() + 60
+        os.utime(new, (future, future))
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("fresh objective", body)
+        self.assertNotIn("stale objective", body)
+
+    def test_comms_discovery_accepts_both_suffixes_and_skips_the_live_board(self):
+        today = __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+        comms_dir = self.root / ".agents" / "comms"
+        md = comms_dir / f"{today}-team.md"
+        md.write_text("### [10:00Z] feat | branch:main\n- objective: md ledger objective\n",
+                      encoding="utf-8")
+        (comms_dir / f"{today}-team.txt").unlink()
+        (comms_dir / f"{today}-team.live.md").write_text("live board, not the ledger\n",
+                                                         encoding="utf-8")
+        names = [p.name for p in rag._comms_files(comms_dir)]
+        self.assertIn(f"{today}-team.md", names)
+        self.assertNotIn(f"{today}-team.live.md", names)
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("md ledger objective", body)
 
     def test_git_state_comes_from_the_current_directory_not_the_canonical_root(self):
         # `repo_root` is the canonical checkout (for shared index/session state); the branch an agent

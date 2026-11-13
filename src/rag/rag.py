@@ -2363,19 +2363,18 @@ def redact_local_user_paths(text: str, repo_root: Path) -> str:
 
 
 def cross_link_resolved_memories(ledger_text: str, repo_root: Path) -> str:
-    """Cross-links `.agents/wiki/ledger.md` entries with `.agents/memories/{date}-memory.txt` so resolved items automatically mark `[RESOLVED]`."""
+    """Cross-links `.agents/wiki/ledger.md` entries with `.agents/memories/` entries so resolved items automatically mark `[RESOLVED]`. Reads both naming schemes."""
     memories_dir = repo_root / ".agents" / "memories"
     resolved_tokens: List[str] = []
-    if memories_dir.exists():
-        for m_file in memories_dir.glob("*-memory.txt"):
-            try:
-                for line in m_file.read_text(encoding="utf-8", errors="replace").splitlines():
-                    if "[RESOLVED]" in line:
-                        for w in re.findall(r"[A-Za-z0-9_-]+", line):
-                            if len(w) >= 6 and w.upper() != "RESOLVED":
-                                resolved_tokens.append(w.lower())
-            except Exception:
-                pass
+    for m_file in _memory_files(memories_dir):
+        try:
+            for line in m_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                if "[RESOLVED]" in line:
+                    for w in re.findall(r"[A-Za-z0-9_-]+", line):
+                        if len(w) >= 6 and w.upper() != "RESOLVED":
+                            resolved_tokens.append(w.lower())
+        except Exception:
+            pass
     out_lines = []
     for line in ledger_text.splitlines():
         trimmed = line.strip()
@@ -2462,10 +2461,19 @@ def resolve_wiki_note(repo_root: Path, keyword: str) -> int:
 
     mem_dir = repo_root / ".agents" / "memories"
     mem_dir.mkdir(parents=True, exist_ok=True)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    hhmm = datetime.now(timezone.utc).strftime("%H:%M")
-    mem_path = mem_dir / f"{today}-memory.txt"
-    mem_text = mem_path.read_text(encoding="utf-8", errors="replace") if mem_path.exists() else f"# memory — {today} (UTC)\n# Pairs with ../comms/{today}-team.txt. Format law: AGENTS.md <REPO_MEMORY>.\n\n"
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    hh = now.strftime("%H")
+    hhmm = now.strftime("%H:%M")
+    # Append to today's newest memory file in either scheme; only create one when the day has none.
+    # Creating a fresh `{date}-{HH}-memory.md` per call would scatter one day across many files and
+    # split the "newest memory" contract that orientation depends on.
+    todays_memory = [p for p in _memory_files(mem_dir) if p.name.startswith(today)]
+    if todays_memory:
+        mem_path = todays_memory[0]
+    else:
+        mem_path = mem_dir / f"{today}-{hh}-memory.md"
+    mem_text = mem_path.read_text(encoding="utf-8", errors="replace") if mem_path.exists() else f"# memory — {today} (UTC)\n# Pairs with ../comms/{today}-team.md. Format law: AGENTS.md <REPO_MEMORY>.\n\n"
     if mem_text and not mem_text.endswith("\n"):
         mem_text += "\n"
     if not matched_lines:
@@ -2498,10 +2506,50 @@ def list_wiki_notes(repo_root: Path) -> List[str]:
     return [l.strip() for l in rendered.splitlines() if l.strip().startswith("- ")]
 
 
+VAULT_TAG = "ainish/wiki"
+
+
+def _vault_pages(wiki_dir: Path) -> List[Path]:
+    """Existing pages that are Obsidian-vault pages (carry the `ainish/wiki` tag).
+
+    The vault renderer lives in the Rust crate (`src/rag/src/wiki.rs`); this Python engine
+    only ever wrote plain markdown. Both engines claim `ainish-rag`, but `bin/ainish-rag`
+    routes plain invocations to Python, so the reachable `wiki` command here would overwrite
+    a vault with non-vault pages — stripping frontmatter, aliases, and every `[[wikilink]]`,
+    which silently deletes the Obsidian graph and the explicit retrieval edges built on it.
+    A downgrade that looks like a successful run is exactly what the contract forbids, so
+    this refuses instead of guessing.
+    """
+    if not wiki_dir.is_dir():
+        return []
+    vault: List[Path] = []
+    for page in wiki_dir.glob("*.md"):
+        try:
+            head = page.read_text(encoding="utf-8", errors="replace")[:600]
+        except OSError:
+            continue
+        if VAULT_TAG in head:
+            vault.append(page)
+    return vault
+
+
 def generate_wiki(repo_root: Path) -> List[Path]:
     wiki_dir = repo_root / ".agents" / "wiki"
     wiki_dir.mkdir(parents=True, exist_ok=True)
     repo_name = repo_root.name
+
+    existing_vault = _vault_pages(wiki_dir)
+    if existing_vault:
+        raise SystemExit(
+            "ainish-rag wiki: refusing to overwrite an Obsidian vault with plain markdown.\n"
+            f"  {len(existing_vault)} vault page(s) carry the '{VAULT_TAG}' tag "
+            f"(e.g. {existing_vault[0].name}).\n"
+            "  The vault renderer is the native engine: run the compiled binary\n"
+            "  (`src/rag/target/release/ainish-rag wiki`) or `ainish-coder --rag wiki`\n"
+            "  on a host where it is on PATH. Overwriting here would drop frontmatter,\n"
+            "  aliases, tags, and every [[wikilink]] — the Obsidian graph and the\n"
+            "  retrieval edges built from it."
+        )
 
     files = [p for p in repo_root.rglob("*") if p.is_file() and not is_ignored_path(p)]
     code_files = [p for p in files if p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go", ".sh", ".c", ".cpp"}]
@@ -2518,7 +2566,7 @@ Generated on: {now_utc}
 Repository: `{repo_name}`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is automatically indexed into the local LanceDB multimodal RAG store for semantic vector search and LLM context augmentation.
+This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-rag --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
 
 ## Wiki Table of Contents
 1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.
@@ -2544,7 +2592,8 @@ This wiki provides a living architectural map, codebase connectivity graph, secu
 
 ## 3. Communication & State
 - Operations are isolated on task worktrees (`feat/*`, `fix/*`, `chore/*`).
-- Inter-agent coordination is recorded in dated ledgers (`.agents/comms/{{date}}-team.txt`).
+- Inter-agent coordination is recorded in dated ledgers (`.agents/comms/{{date}}-team.md`), and
+  durable memory in hour-stamped files (`.agents/memories/{{date}}-{{HH}}-memory.md`).
 """,
         "02-codebase-connections.md": f"""# 02. Codebase Connections & Symbols — {repo_name}
 
@@ -3967,22 +4016,21 @@ def _extract_orient_task_summary_py(repo_root: Path, query: Optional[str]) -> st
     if query and query.strip():
         return query.strip()
     tasks_dir = repo_root / ".agents" / "tasks"
-    if tasks_dir.exists():
-        t_files = sorted(tasks_dir.glob("*.md"))
-        if t_files:
-            try:
-                t_text = t_files[-1].read_text(encoding="utf-8", errors="replace")
-                picked = []
-                for line in reversed(t_text.splitlines()):
-                    if line.startswith(("- objective:", "- scope:", "## ")):
-                        picked.append(line.strip())
-                        if len(picked) >= 3:
-                            break
-                if picked:
-                    picked.reverse()
-                    return " | ".join(picked)
-            except Exception:
-                pass
+    t_files = _task_files(tasks_dir)
+    if t_files:
+        try:
+            t_text = t_files[0].read_text(encoding="utf-8", errors="replace")
+            picked = []
+            for line in reversed(t_text.splitlines()):
+                if line.startswith(("- objective:", "- scope:", "## ")):
+                    picked.append(line.strip())
+                    if len(picked) >= 3:
+                        break
+            if picked:
+                picked.reverse()
+                return " | ".join(picked)
+        except Exception:
+            pass
     return "orient repository architecture, symbols, security governance, and active worktree state"
 
 
@@ -5560,17 +5608,16 @@ def render_file_fallback_section(repo_root: Path, task: str, token_cap: int) -> 
         )
 
     memories_dir = repo_root / ".agents" / "memories"
-    if memories_dir.is_dir():
-        files = sorted(memories_dir.glob("*-memory.txt"))
-        if files:
-            try:
-                text = files[-1].read_text(encoding="utf-8", errors="replace")
-                bullets = [l for l in sanitize_orient_content(text)[0].splitlines() if l.strip().startswith("- ")]
-                relevant = [b for b in bullets if any(term in b.lower() for term in terms)] or bullets[-4:]
-                if relevant:
-                    parts.append("### Recent durable memories\n" + "\n".join(relevant[-6:]))
-            except OSError:
-                pass
+    files = _memory_files(memories_dir)
+    if files:
+        try:
+            text = files[0].read_text(encoding="utf-8", errors="replace")
+            bullets = [l for l in sanitize_orient_content(text)[0].splitlines() if l.strip().startswith("- ")]
+            relevant = [b for b in bullets if any(term in b.lower() for term in terms)] or bullets[-4:]
+            if relevant:
+                parts.append("### Recent durable memories\n" + "\n".join(relevant[-6:]))
+        except OSError:
+            pass
 
     body = "\n\n".join(parts)
     if estimate_tokens(body) > token_cap:
@@ -5739,7 +5786,10 @@ PLAN_STATUS_VALUES = ("designing", "ready", "implementing", "done", "abandoned")
 
 
 def read_plan_frontmatter(path: Path) -> Dict[str, str]:
-    """Reads the `key: value` frontmatter block of a `.plan.md` file.
+    """Reads the `key: value` frontmatter block of a plan file.
+
+    Plans arrive in two naming schemes (grandfathered `{date}-{slug}.plan.md` and current
+    `{date}-{HH}-{slug}.md`), so nothing here may depend on the filename.
 
     Deliberately line-based rather than YAML: the engine is stdlib-only, the plan contract fixes the
     keys, and a parser that accepts arbitrary YAML would silently tolerate a plan whose frontmatter
@@ -5842,8 +5892,11 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
 
     # Today's COMMS ledger: the last entry's objective is the cheapest "what was happening" signal.
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    comms = repo_root / ".agents" / "comms" / f"{today}-team.txt"
-    if comms.is_file():
+    todays_comms = [
+        p for p in _comms_files(repo_root / ".agents" / "comms") if p.name.startswith(today)
+    ]
+    comms = todays_comms[0] if todays_comms else None
+    if comms is not None:
         try:
             text = comms.read_text(encoding="utf-8", errors="replace")
             blocks = [b for b in text.split("\n### ") if b.strip()]
@@ -5868,33 +5921,25 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
 
     # Newest task record: scope and acceptance are what a fresh agent most needs.
     tasks_dir = repo_root / ".agents" / "tasks"
-    if tasks_dir.is_dir():
-        records = sorted(tasks_dir.glob("*.md"))
-        if records:
-            try:
-                text = records[-1].read_text(encoding="utf-8", errors="replace")
-                parts.append(f"- newest task record: `{records[-1].name}`")
-                for line in text.splitlines():
-                    stripped = line.strip()
-                    if stripped.startswith(("- status:", "- scope:", "- objective:")):
-                        parts.append(f"  - {stripped.lstrip('- ')[:200]}")
-            except OSError:
-                pass
+    records = _task_files(tasks_dir)
+    if records:
+        try:
+            text = records[0].read_text(encoding="utf-8", errors="replace")
+            parts.append(f"- newest task record: `{records[0].name}`")
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.startswith(("- status:", "- scope:", "- objective:")):
+                    parts.append(f"  - {stripped.lstrip('- ')[:200]}")
+        except OSError:
+            pass
 
     # Newest plan of record: `question-me` writes these, and the implementing agent's next action is
     # usually the top unchecked box. Reported by mtime, not filename: a plan touched during
-    # implementation is more current than one merely dated later.
+    # implementation is more current than one merely dated later. Both naming schemes are live
+    # (`.plan.md` grandfathered, `{date}-{HH}-{slug}.md` current), so neither suffix may be assumed.
     plans_dir = repo_root / ".agents" / "plans"
     if plans_dir.is_dir():
-        def _plan_mtime(path: Path) -> float:
-            # A plan removed between glob and stat must not take the whole orientation down; it
-            # sorts last and the next one is reported instead.
-            try:
-                return path.stat().st_mtime
-            except OSError:
-                return 0.0
-
-        plans = sorted(plans_dir.glob("*.plan.md"), key=_plan_mtime, reverse=True)
+        plans = _plan_files(plans_dir)
         if plans:
             newest = plans[0]
             fields = read_plan_frontmatter(newest)
@@ -6317,17 +6362,16 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
 
     memories_dir = repo_root / ".agents" / "memories"
     memory_notes = []
-    if memories_dir.exists():
-        m_files = sorted(memories_dir.glob("*-memory.txt"))
-        if m_files:
-            try:
-                m_text = m_files[-1].read_text(encoding="utf-8", errors="replace")
-                clean_m, san_cnt = sanitize_orient_content(m_text)
-                total_sanitized += san_cnt
-                bullet_lines = [l for l in clean_m.splitlines() if l.strip().startswith("- ")]
-                memory_notes = bullet_lines[-max_items:]
-            except Exception:
-                pass
+    m_files = _memory_files(memories_dir)
+    if m_files:
+        try:
+            m_text = m_files[0].read_text(encoding="utf-8", errors="replace")
+            clean_m, san_cnt = sanitize_orient_content(m_text)
+            total_sanitized += san_cnt
+            bullet_lines = [l for l in clean_m.splitlines() if l.strip().startswith("- ")]
+            memory_notes = bullet_lines[-max_items:]
+        except Exception:
+            pass
     if memory_notes:
         primer_content.append("### Recent Durable Memories & Resolved Constraints (`.agents/memories/`)")
         for note in memory_notes:
@@ -7144,14 +7188,13 @@ def trigger_desktop_notification(title: str, message: str) -> None:
 def check_comms_harness_agnostic(repo_root: Path) -> List[str]:
     comms_dir = repo_root / ".agents" / "comms"
     violations = []
-    if comms_dir.is_dir():
-        for p in sorted(comms_dir.glob("*-team.txt")):
-            try:
-                for idx, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-                    if line.startswith("### [") and "| agent:" in line:
-                        violations.append(f"{p.name}:L{idx}")
-            except Exception:
-                pass
+    for p in _comms_files(comms_dir):
+        try:
+            for idx, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if line.startswith("### [") and "| agent:" in line:
+                    violations.append(f"{p.name}:L{idx}")
+        except Exception:
+            pass
     return violations
 
 
@@ -7253,12 +7296,85 @@ def _today_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
-def _read_today_task_record(repo_root: Path) -> str:
-    path = repo_root / ".agents" / "tasks" / f"{_today_utc()}-task.md"
+# ── Coordination-record naming (2026-11-12 hour-stamp cutover) ───────────────
+#
+# Two schemes are live at once and both must resolve. Grandfathered names stay put forever; new
+# records carry a UTC hour segment and drop the type suffix, because the type is already in the
+# frontmatter:
+#
+#   comms        {date}-team.txt        ->  {date}-team.md          (one per UTC date, never hourly)
+#   memories     {date}-memory.txt      ->  {date}-{HH}-memory.md
+#   plans        {date}-{slug}.plan.md  ->  {date}-{HH}-{slug}.md
+#   suggestions  {date}-{slug}.txt      ->  {date}-{HH}-{slug}.md
+#   tasks        {date}-{slug}-task.md  ->  {date}-{HH}-{slug}.md
+#
+# The reason this is a shared helper and not nine local globs: "newest" must mean *newest by
+# mtime*, never newest by filename. Under mixed naming the two disagree — `{date}-09-memory.md`
+# collates BEFORE `{date}-memory.txt` ('0' < 'm'), so a name-sorted `[-1]` returns the grandfather
+# file on exactly the cutover days where the distinction matters. One resolver, one rule.
+
+def _coordination_files(directory: Path, *suffixes: str, exclude: Tuple[str, ...] = ()) -> List[Path]:
+    """Files in `directory` matching any of `suffixes`, newest first by mtime.
+
+    A file that disappears between listdir and stat keeps its place at the end instead of taking
+    the caller down; orientation is advisory and must not hard-fail on a concurrent edit.
+    """
+    if not directory.is_dir():
+        return []
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        names = list(directory.iterdir())
     except OSError:
-        return ""
+        return []
+    files = [
+        p for p in names
+        if p.is_file() and p.name.endswith(suffixes) and p.name not in exclude
+    ]
+
+    def _mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    files.sort(key=_mtime, reverse=True)
+    return files
+
+
+def _memory_files(directory: Path) -> List[Path]:
+    """Memory ledgers, both schemes, newest first."""
+    return _coordination_files(directory, "-memory.txt", "-memory.md")
+
+
+def _task_files(directory: Path) -> List[Path]:
+    """Task records, both schemes, newest first."""
+    return _coordination_files(directory, "-task.md", ".md")
+
+
+def _plan_files(directory: Path) -> List[Path]:
+    """Plans of record, both schemes, newest first. `llms.txt` is the index, not a plan."""
+    return _coordination_files(directory, ".md", exclude=("llms.txt",))
+
+
+def _comms_files(directory: Path) -> List[Path]:
+    """COMMS ledgers, both schemes. The live board is a working file, not the ledger."""
+    files = _coordination_files(directory, "-team.txt", "-team.md")
+    return [p for p in files if not p.name.endswith(".live.md") and not p.name.endswith(".live.txt")]
+
+
+def _today_task_files(repo_root: Path) -> List[Path]:
+    """Today's task records (UTC), both schemes, newest first."""
+    return [p for p in _task_files(repo_root / ".agents" / "tasks") if p.name.startswith(_today_utc())]
+
+
+def _read_today_task_record(repo_root: Path) -> str:
+    # Was `.agents/tasks/{date}-task.md`, a name the record scheme never produced, so this always
+    # returned "". Read the newest of today's real records instead, in either scheme.
+    for path in _today_task_files(repo_root):
+        try:
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return ""
 
 
 def find_declaration(text: str, key: str) -> Optional[str]:

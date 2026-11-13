@@ -6,10 +6,13 @@ Parent law: root `AGENTS.md` `<REPO_MEMORY>` (entry format, retirement, hygiene)
 
 | Path | What |
 |---|---|
-| `{date}-memory.txt` | One UTC day of durable knowledge — facts, decisions, gotchas, one bullet per entry |
-| older `{date}-memory.txt` | The archive; read only when a current entry points back |
+| `{date}-{HH}-memory.md` | One UTC day of durable knowledge — facts, decisions, gotchas, one bullet per entry |
+| older `{date}-{HH}-memory.md` | The archive; read only when a current entry points back |
+| `{date}-memory.txt` | Grandfathered (pre-2026-11-12) memory ledger; still read, never newly written |
 
-Files roll per UTC date and pair with `../comms/{date}-team.txt` — read both at orientation.
+Files roll per UTC date and pair with `../comms/{date}-team.md` — read both at orientation. Readers
+accept both memory suffixes and pick the newest by mtime: under mixed naming a name sort returns the
+grandfather file (`{date}-09-memory.md` collates before `{date}-memory.txt`).
 
 ## Rules
 

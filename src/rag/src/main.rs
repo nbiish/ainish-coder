@@ -167,8 +167,13 @@ enum Commands {
         /// Target repository path (default: current directory)
         #[arg(short, long)]
         path: Option<PathBuf>,
-        /// Also index the generated wiki into LanceDB vector store (default: true)
-        #[arg(long, default_value_t = true)]
+        /// Also index the generated wiki into the LEGACY LanceDB vector store (retired path;
+        /// opt in explicitly). The wiki itself is generated from the filesystem and needs no
+        /// embedding model, which is why this is off by default: the old
+        /// `default_value_t = true` produced a flag that could only ever be true, so every
+        /// `ainish-rag wiki` run hard-required the EmbeddingGemma GGUF even though retrieval
+        /// has been graph-first since 2026-11-11.
+        #[arg(long)]
         index: bool,
         /// Append a UTC-dated bullet note to .agents/wiki/ledger.md (pass '-' to read from stdin), sign with ML-DSA-65, and re-render page 04
         #[arg(short, long)]
@@ -3346,14 +3351,32 @@ pub fn select_prioritized_ledger_notes(clean_ledger: &str) -> Vec<String> {
     open_take.into_iter().chain(res_take.into_iter()).collect()
 }
 
-/// Verifies that `.agents/comms/{date}-team.txt` files contain no legacy `| agent:` tags.
+/// Coordination-record naming (2026-11-12 hour-stamp cutover). Both schemes are live at once:
+/// grandfathered `{date}-memory.txt` / `{date}-team.txt` / `{date}-{slug}.plan.md` and current
+/// `{date}-{HH}-{slug}.md`. Every "newest wins" consumer must compare **mtime**, never filename:
+/// under mixed naming `{date}-09-memory.md` collates before `{date}-memory.txt`, so a name sort
+/// silently returns the grandfather file on the cutover days that matter most.
+/// A COMMS ledger in either scheme. The live board is a working file, not the ledger.
+fn is_comms_ledger(path: &std::path::Path) -> bool {
+    match path.file_name() {
+        Some(n) => {
+            let name = n.to_string_lossy();
+            (name.ends_with("-team.txt") || name.ends_with("-team.md"))
+                && !name.ends_with(".live.txt")
+                && !name.ends_with(".live.md")
+        }
+        None => false,
+    }
+}
+
+/// Verifies that COMMS ledgers contain no legacy `| agent:` tags.
 pub fn check_comms_harness_agnostic(repo_root: &std::path::Path) -> Vec<String> {
     let comms_dir = repo_root.join(".agents").join("comms");
     let mut violations = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&comms_dir) {
         for e in entries.flatten() {
             let p = e.path();
-            if p.file_name().map_or(false, |n| n.to_string_lossy().ends_with("-team.txt")) {
+            if is_comms_ledger(&p) {
                 if let Ok(text) = std::fs::read_to_string(&p) {
                     for (line_no, line) in text.lines().enumerate() {
                         if line.starts_with("### [") && line.contains("| agent:") {
@@ -3629,15 +3652,18 @@ fn build_orient_report_with_route(
         primer_lines.push("*No architectural wiki found in .agents/wiki/. Generate with `ainish-rag wiki`.*".to_string());
     }
 
-    // Include recent .agents/memories/{date}-memory.txt entries & resolved constraints inside <ORIENT_PRIMER>
+    // Include recent memory-ledger entries & resolved constraints inside <ORIENT_PRIMER>.
+    // Both naming schemes are live: `{date}-memory.txt` (grandfathered) and `{date}-{HH}-memory.md`.
+    // Ordered by mtime, never by filename — under mixed naming a name sort returns the grandfather
+    // file as "newest", because `{date}-09-memory.md` collates before `{date}-memory.txt`.
     let memories_dir = repo_root.join(".agents").join("memories");
     let mut memory_notes = Vec::new();
     if let Ok(m_entries) = std::fs::read_dir(&memories_dir) {
         let mut m_files: Vec<PathBuf> = m_entries.flatten()
             .map(|e| e.path())
-            .filter(|p| p.file_name().map_or(false, |n| n.to_string_lossy().ends_with("-memory.txt")))
+            .filter(|p| wiki::is_memory_ledger(p))
             .collect();
-        m_files.sort();
+        m_files.sort_by_key(|p| p.metadata().and_then(|m| m.modified()).ok());
         if let Some(latest_mem) = m_files.last() {
             if let Ok(m_text) = std::fs::read_to_string(latest_mem) {
                 let (clean_mem, san_cnt) = sanitize_orient_content(&m_text);
@@ -5179,9 +5205,65 @@ mod tests {
         assert_eq!(compact_notes.len(), 3);
     }
 
+    /// The hour-stamp cutover makes two naming schemes live at once. A name sort picks the
+    /// grandfather file (`{date}-memory.txt` sorts after `{date}-09-memory.md`), so every
+    /// "newest wins" consumer must order by mtime. This pins the predicates and the ordering rule.
     #[test]
-    fn test_orient_respects_max_lines_and_symbol_toggle() {
-        let tmp = std::env::temp_dir().join(format!("ainish-orient-maxlines-{}", std::process::id()));
+    fn test_mixed_naming_schemes_resolve_to_newest_by_mtime() {
+        let tmp = std::env::temp_dir().join(format!("ainish-mixed-naming-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let mem_dir = tmp.join(".agents").join("memories");
+        let comms_dir = tmp.join(".agents").join("comms");
+        std::fs::create_dir_all(&mem_dir).unwrap();
+        std::fs::create_dir_all(&comms_dir).unwrap();
+
+        // Both schemes exist for the same day; the hour-stamped one is written second (newer).
+        let grandfather = mem_dir.join("2026-11-12-memory.txt");
+        let current = mem_dir.join("2026-11-12-09-memory.md");
+        std::fs::write(&grandfather, "- grandfather ledger bullet\n").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(&current, "- current ledger bullet\n").unwrap();
+
+        assert!(wiki::is_memory_ledger(&grandfather), "grandfathered memory name must be recognised");
+        assert!(wiki::is_memory_ledger(&current), "hour-stamped memory name must be recognised");
+        assert!(!wiki::is_memory_ledger(&mem_dir.join("llms.txt")), "the directory index is not a ledger");
+
+        // The defect this guards: name ordering returns the grandfather file as "newest".
+        let mut by_name: Vec<_> = std::fs::read_dir(&mem_dir).unwrap().flatten()
+            .map(|e| e.path())
+            .filter(|p| wiki::is_memory_ledger(p))
+            .collect();
+        by_name.sort();
+        assert!(by_name.last().unwrap().ends_with("2026-11-12-memory.txt"),
+            "precondition: name ordering prefers the grandfather file, which is why mtime is required");
+
+        let mut by_mtime: Vec<_> = std::fs::read_dir(&mem_dir).unwrap().flatten()
+            .map(|e| e.path())
+            .filter(|p| wiki::is_memory_ledger(p))
+            .collect();
+        by_mtime.sort_by_key(|p| p.metadata().and_then(|m| m.modified()).ok());
+        assert!(by_mtime.last().unwrap().ends_with("2026-11-12-09-memory.md"),
+            "mtime ordering must return the hour-stamped file it was written after");
+
+        // COMMS: both ledger suffixes count, the live board never does.
+        std::fs::write(comms_dir.join("2026-11-12-team.md"), "# team\n").unwrap();
+        std::fs::write(comms_dir.join("2026-11-12-team.txt"), "# team\n").unwrap();
+        std::fs::write(comms_dir.join("2026-11-12-team.live.md"), "live\n").unwrap();
+        let comms_violations = check_comms_harness_agnostic(&tmp);
+        assert!(comms_violations.is_empty(), "clean ledgers in both schemes produce no violations");
+
+        // The discipline check must still see a legacy tag in EITHER scheme, or it silently stops
+        // enforcing anything on the day the naming changes.
+        std::fs::write(comms_dir.join("2026-11-12-team.md"), "### [10:00] x | agent: cursor\n").unwrap();
+        let bad_new = check_comms_harness_agnostic(&tmp);
+        assert_eq!(bad_new.len(), 1, "legacy '| agent:' tag is caught in the new scheme too");
+        assert!(bad_new[0].starts_with("2026-11-12-team.md:"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_orient_respects_max_lines_and_symbol_toggle() {        let tmp = std::env::temp_dir().join(format!("ainish-orient-maxlines-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let wiki_dir = tmp.join(".agents").join("wiki");
         let mem_dir = tmp.join(".agents").join("memories");

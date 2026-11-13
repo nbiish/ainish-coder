@@ -2,9 +2,10 @@
 # MOLECULE: Plan-first gate
 #
 # AGENTS.md non-negotiable #1 says no branch is cut until a plan exists at
-# `.agents/plans/{date}-{slug}.plan.md`, and that work is verified in a worktree and merged
-# back rather than left dangling. Prose alone does not enforce that — it is advisory, and an
-# agent under time pressure skips it. This module is the deterministic half.
+# `.agents/plans/{date}-{HH}-{slug}.md` (grandfathered: `{date}-{slug}.plan.md`), and that work is
+# verified in a worktree and merged back rather than left dangling. Prose alone does not enforce
+# that — it is advisory, and an agent under time pressure skips it. This module is the
+# deterministic half.
 #
 # Three surfaces, one rule:
 #   plan_check <dir>          operator/CI verb (`ainish-coder --plan-check [dir] [--json]`)
@@ -54,13 +55,17 @@ plan_check_status() {
     fi
 
     if [[ -d "$plans_dir" ]]; then
+        # Both plan-naming schemes are live: grandfathered `{date}-{slug}.plan.md` and the current
+        # `{date}-{HH}-{slug}.md`. Every plan file in this directory carries a `branch:` key, so the
+        # match is on content, not on a suffix that the newer scheme deliberately dropped. The
+        # directory index is the one file that is not a plan.
         while IFS= read -r candidate; do
             [[ -n "$candidate" ]] || continue
             if grep -qE "^[[:space:]]*branch:[[:space:]]*[\"']?${branch}[\"']?[[:space:]]*$" "$candidate" 2>/dev/null; then
                 plan_file="$candidate"
                 break
             fi
-        done < <(find "$plans_dir" -maxdepth 1 -name '*.plan.md' -type f 2>/dev/null | sort)
+        done < <(find "$plans_dir" -maxdepth 1 -type f -name '*.md' ! -name 'llms.txt' 2>/dev/null | sort)
     fi
 
     if [[ -z "$plan_file" ]]; then
@@ -101,7 +106,7 @@ plan_check() {
                 echo -e "  Set ${BRIGHT_WHITE}status: ready${RESET} once the clarifications are resolved." ;;
             plan-missing)
                 echo -e "${BRIGHT_RED}✗ No plan of record for branch '$(_plan_check_current_branch "$repo_root")'.${RESET}"
-                echo -e "  Write ${BRIGHT_WHITE}.agents/plans/$(date -u +%Y-%m-%d)-{slug}.plan.md${RESET} first;"
+                echo -e "  Write ${BRIGHT_WHITE}.agents/plans/$(date -u +%Y-%m-%d)-$(date -u +%H)-{slug}.md${RESET} first;"
                 echo -e "  the plan template's ${BRIGHT_WHITE}branch:${RESET} key is what ties it to this branch."
                 echo -e "  Reference: ${BRIGHT_WHITE}.agents/templates/plan.md${RESET}" ;;
             not-a-repo)
@@ -135,7 +140,7 @@ plan_check_precommit() {
             echo "" >&2
             echo "[ainish-coder] Commit refused: no plan of record for this branch." >&2
             echo "  Branch: $(_plan_check_current_branch "$repo_root")" >&2
-            echo "  Write .agents/plans/{date}-{slug}.plan.md with a matching 'branch:' key." >&2
+            echo "  Write .agents/plans/{date}-{HH}-{slug}.md with a matching 'branch:' key." >&2
             echo "  Template: .agents/templates/plan.md" >&2
             echo "  Bypass (recorded): AINISH_SKIP_PLAN_CHECK=1 git commit ..." >&2
             echo "" >&2

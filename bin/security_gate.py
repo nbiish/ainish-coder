@@ -105,7 +105,10 @@ def verify_shell_lf_and_comms_hygiene(directory: str = ".") -> bool:
     comms_dir = os.path.join(directory, ".agents", "comms")
     if os.path.isdir(comms_dir):
         for f in os.listdir(comms_dir):
-            if f.endswith("-team.txt"):
+            # Both naming schemes are live (`-team.txt` grandfathered, `-team.md` current); the
+            # live board is a working file. If this predicate stops matching, the check silently
+            # stops enforcing anything rather than failing.
+            if f.endswith(("-team.txt", "-team.md")) and not f.endswith((".live.txt", ".live.md")):
                 p = os.path.join(comms_dir, f)
                 try:
                     with open(p, "r", encoding="utf-8", errors="ignore") as fp:
