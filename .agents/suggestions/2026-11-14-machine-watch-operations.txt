@@ -1,0 +1,25 @@
+# Suggestions — background sync after the transport fix
+
+1. **`ssh localhost` is now a load-bearing dependency of background sync.** The watcher uses it to
+   reach repos macOS TCC will not let a launchd agent read. It works because the operator's key is
+   authorized for loopback, but nothing verifies that on an ongoing basis: if the key is rotated or
+   `sshd` is disabled, every cycle fails with a permission error that looks like a repo problem. The
+   install-time probe catches it once; a periodic re-probe (or a clearer failure message naming
+   `ssh-copy-id localhost`) would catch it later.
+
+2. **Two binaries can serve the same plist.** The launchd agent records an absolute path to
+   `bin/ainish-coder` at install time. Installing from a worktree writes the worktree's path, and
+   removing the worktree silently breaks the daemon — observed live, where the log filled with
+   `no such file or directory: .../watch-ssh-transport/bin/ainish-coder`. The installer should
+   detect that the CLI it is about to record lives inside a git worktree (`git rev-parse
+   --git-common-dir` differing from `--git-dir`) and refuse, or prefer a stable installed path.
+
+3. **`--auto-commit` commits with a `wip(<machine>)` message, so the history fills with them.** Fine
+   for machine-to-machine freshness, but if the operator later publishes this repo the history is
+   noisy. A follow-up could squash `wip(...)` commits on push, or honour a `commit.template`. Not
+   urgent — the operator chose main-only publishing on GitHub.
+
+4. **The watcher syncs on a timer, not on real file events.** No `fswatch`/`inotifywait` on this host,
+   so a save is noticed within the poll interval (2s) plus the debounce (2s). If the operator installs
+   `fswatch`, a small adapter could subscribe to FSEvents and cut the latency; the current design does
+   not need it to be correct, only to be fast.
