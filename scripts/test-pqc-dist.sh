@@ -588,7 +588,24 @@ check "contract names the owner as sole author" "$coauthor_ok" "1"
 # agent tokens for information it cannot act on.
 contract_model_refs=$(grep -cE 'local-router|openrouter|zenmux|nous-portal|nebius|zai|xiaomi-mimo|deepseek|glm-|mimo-|fallback-models' "${REPO}/AGENTS.md" || true)
 check "contract names no model or provider" "$contract_model_refs" "0"
-contains "prd carries the driver chain instead" "$(cat "${REPO}/llms.txt")" 'zai-glm-5.3-flash'
+# The driver chain is an operator-specified order (2026-11-13): local router, then three DIRECT
+# provider calls. Assert the order AND the direct transports, because the failure this fixed was
+# steps that looked right by name but were router routes pointed at a vendor the operator did not
+# choose. A chain that regresses to routes still contains all four strings, so the transport pairing
+# is what must be pinned.
+contains "prd documents the operator's chain order" "$(cat "${REPO}/llms.txt")" 'local-router/fallback-models` at `localhost:11434'
+contains "prd documents the direct steps" "$(cat "${REPO}/llms.txt")" 'direct transports, not router routes'
+contains "engine sends the literal route id to the router" \
+    "$(cat "${REPO}/src/rag/rag.py")" '"id": "local-router/fallback-models"'
+check "chain step 2 is a direct zai call" \
+    "$(grep -A 3 '"id": "glm-5.3-flash"' "${REPO}/src/rag/rag.py" | grep -c '"transport": "zai"')" "1"
+check "chain step 3 is a direct xiaomi call" \
+    "$(grep -A 3 '"id": "mimo-v2.6-pro"' "${REPO}/src/rag/rag.py" | grep -c '"transport": "xiaomi-mimo"')" "1"
+check "chain step 4 is a direct openrouter call" \
+    "$(grep -A 3 '"id": "deepseek/deepseek-v4.1-flash-1017"' "${REPO}/src/rag/rag.py" | grep -c '"transport": "openrouter"')" "1"
+contains "z.ai endpoint is the operator's URL" "$(cat "${REPO}/src/rag/rag.py")" 'https://api.z.ai/api/coding/paas/v4'
+contains "xiaomi endpoint is the operator's URL" "$(cat "${REPO}/src/rag/rag.py")" 'https://token-plan-sgp.xiaomimimo.com/v1'
+contains "openrouter endpoint is the operator's URL" "$(cat "${REPO}/src/rag/rag.py")" 'https://openrouter.ai/api/v1'
 # A mandatory pack must be invisible to the selector and still be deployed. Both halves are pinned:
 # hiding it alone would let --rules silently ship nothing, and deploying it alone would put a
 # non-choice in front of the operator.

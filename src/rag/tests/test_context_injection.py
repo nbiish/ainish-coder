@@ -53,21 +53,50 @@ class DriverOrderTest(unittest.TestCase):
                 os.environ[key] = value
 
     def test_default_chain_is_the_requested_order(self):
-        ids = [step["id"] for step in rag.DriverEngine().chain_steps()]
+        # The operator specified these four steps verbatim on 2026-11-13. The order is the contract:
+        # step 1 is the local router, and steps 2-4 are DIRECT calls to the named endpoints, because
+        # while they were router routes a router whose upstream was down failed all three against the
+        # same dead route and the real fallbacks sat behind vendors nobody asked for.
+        steps = rag.DriverEngine().chain_steps()
         self.assertEqual(
-            ids[:4],
+            [(s["transport"], s["id"]) for s in steps],
             [
-                "local-router/fallback-models",
-                "zai-glm-5.3-flash",
-                "xiaomi-mimo-mimo-v2.6-pro",
-                "openrouter-deepseek-v4.1-flash-1017",
+                ("local-router", "local-router/fallback-models"),
+                ("zai", "glm-5.3-flash"),
+                ("xiaomi-mimo", "mimo-v2.6-pro"),
+                ("openrouter", "deepseek/deepseek-v4.1-flash-1017"),
             ],
-            "the operator's four router steps must lead the chain",
+            "the default chain must be exactly the operator's four steps, in order",
         )
-        # Direct-provider steps exist so a dead router degrades to a real provider.
-        transports = [step["transport"] for step in rag.DriverEngine().chain_steps()]
-        for direct in ("nous-portal", "nebius", "openrouter", "zenmux", "zai", "xiaomi-mimo"):
-            self.assertIn(direct, transports)
+
+    def test_each_direct_step_calls_the_endpoint_the_operator_named(self):
+        # Assert the ENDPOINT, not just that a transport exists: the whole point of the change is that
+        # these are direct calls to these three URLs.
+        expected = {
+            # The router base carries no version segment, so `_chat_url` supplies `/v1`.
+            "local-router": ("http://127.0.0.1:11434", "http://127.0.0.1:11434/v1/chat/completions"),
+            "zai": ("https://api.z.ai/api/coding/paas/v4", "https://api.z.ai/api/coding/paas/v4/chat/completions"),
+            "xiaomi-mimo": ("https://token-plan-sgp.xiaomimimo.com/v1", "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions"),
+            "openrouter": ("https://openrouter.ai/api/v1", "https://openrouter.ai/api/v1/chat/completions"),
+        }
+        for step in rag.DriverEngine().chain_steps():
+            transport = step["transport"]
+            self.assertIn(transport, expected, f"unexpected transport in the default chain: {transport}")
+            base, chat_url = expected[transport]
+            _var, default = rag.DRIVER_REMOTE_BASES[transport]
+            self.assertEqual(default, base)
+            self.assertEqual(
+                rag._chat_url(base),
+                chat_url,
+                "the chat URL must be built from the named endpoint without doubling a version segment",
+            )
+
+    def test_unrequested_vendors_are_not_in_the_default_chain(self):
+        # Dropped rather than demoted: leaving them between step 1 and the operator's fallbacks is the
+        # ordering problem this change fixes. They stay reachable by explicit pin.
+        transports = {s["transport"] for s in rag.DriverEngine().chain_steps()}
+        for vendor in ("nous-portal", "nebius", "zenmux"):
+            self.assertNotIn(vendor, transports, f"{vendor} was not requested and must not sit in the chain")
 
     def test_chain_head_is_the_local_router_generic_chain(self):
         first = rag.DriverEngine().chain_steps()[0]
@@ -224,9 +253,13 @@ class DriverChatTest(unittest.TestCase):
         # The chain is walked in order, each failure recorded with its own label.
         self.assertEqual([c[1] for c in calls][0], "local-router/fallback-models")
         self.assertEqual(result["source"], "unavailable")
-        self.assertTrue(any("generic fallback chain" in a for a in result["attempts"]))
-        self.assertTrue(any("GLM 5.3 Flash" in a for a in result["attempts"]))
-        self.assertTrue(any("MiMo 2.6 Pro" in a for a in result["attempts"]))
+        self.assertTrue(any("local-router/fallback-models" in a for a in result["attempts"]))
+        # Steps 2-4 are direct transports, and the vault is locked in this environment, so each is
+        # skipped for its own recorded reason. A missing key must never be a silent substitution.
+        self.assertTrue(
+            any("no API key resolved" in a for a in result["attempts"]),
+            f"a direct step with no key must say so: {result['attempts']}",
+        )
 
     def test_first_working_step_wins_and_later_steps_are_not_called(self):
         calls = []
@@ -237,7 +270,7 @@ class DriverChatTest(unittest.TestCase):
 
         self.engine._post_chat = fake_post
         result = self.engine.chat([{"role": "user", "content": "hi"}])
-        self.assertEqual(result["step"], "local-router generic fallback chain")
+        self.assertEqual(result["step"], "local-router/fallback-models @ http://127.0.0.1:11434")
         self.assertEqual(calls, ["local-router/fallback-models"])
         self.assertEqual(result["attempts"], [])
         self.assertTrue(result["model_verified"], "the generic chain accepts whatever it picks")
@@ -252,9 +285,17 @@ class DriverChatTest(unittest.TestCase):
             return {"text": "answer", "model": "glm-5.3-flash", "usage": {}}
 
         self.engine._post_chat = fake_post
-        result = self.engine.chat([{"role": "user", "content": "hi"}])
-        self.assertEqual(calls, ["local-router/fallback-models", "zai-glm-5.3-flash"])
-        self.assertEqual(result["step"], "Z.AI GLM 5.3 Flash")
+        # Steps 2-4 are direct transports, so failover into step 2 requires a resolvable key. Stub the
+        # resolver rather than setting an env var: this asserts the CHAIN behaviour, and the real key
+        # path is covered by the tier-skip test above.
+        original = rag.resolve_driver_key
+        rag.resolve_driver_key = lambda transport: "test-key" if transport in ("zai", "xiaomi-mimo", "openrouter") else None
+        try:
+            result = self.engine.chat([{"role": "user", "content": "hi"}])
+        finally:
+            rag.resolve_driver_key = original
+        self.assertEqual(calls, ["local-router/fallback-models", "glm-5.3-flash"])
+        self.assertEqual(result["step"], "Z.AI GLM 5.3 Flash (direct @ https://api.z.ai/api/coding/paas/v4)")
         self.assertTrue(result["model_verified"])
         self.assertFalse(result["degraded"])
         self.assertEqual(len(result["attempts"]), 1)
