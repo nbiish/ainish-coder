@@ -2564,36 +2564,32 @@ def _extract_orient_task_summary_py(repo_root: Path, query: Optional[str]) -> st
 
 
 # ---------------------------------------------------------------------------
-# Driver transport (generative) — explicit chain, local-router head, local-model floor
+# Driver transport (generative) — the operator's four steps, then the local-model floor
 #
-# The decision layer answers calibrated typed questions; the driver layer writes prose. The driver
-# order is this engine's own and is NOT a re-ordering of local-router's `fallback-models` chain: that
-# chain is shared with VS Code, Claude Code, Cline and every other client on the machine, so
-# repointing it here would reroute the whole fleet to suit one tool. This engine carries its order as
-# explicit model ids, and `local-router/fallback-models` is simply one step in it.
+# The decision layer answers calibrated typed questions; the driver layer writes prose. The order
+# below is the operator's, stated explicitly (2026-11-13): the local router first, then three DIRECT
+# provider calls in descending preference. It is deliberately NOT a re-ordering of local-router's own
+# `fallback-models` chain — that chain is shared with VS Code, Claude Code, Cline and every other
+# client on the machine, so repointing it here would reroute the whole fleet to suit one tool.
+#
+# Why steps 2-4 are direct transports rather than router routes: while they were routes, a router that
+# was up but whose upstream for one vendor was down failed all three against the same dead route, and
+# the operator's real fallbacks sat behind vendors nobody asked for. A direct call to the endpoint the
+# operator named is the behaviour they asked for.
 # ---------------------------------------------------------------------------
 
 DRIVER_TIERS: Tuple[str, ...] = (
     "local-router",
-    "nous-portal",
-    "nebius",
-    "openrouter",
-    "zenmux",
     "zai",
     "xiaomi-mimo",
+    "openrouter",
     "local-model",
 )
 
-# The requested order (operator decision, 2026-11-07), then direct-provider fallbacks. Every id
-# below was verified live on this machine: each answered DRIVER_OK. There is NO working `latest`
-# alias — an unknown id resolves through the generic fallback chain and still answers HTTP 200, so a
-# typo silently changes the model. `model` is the id the provider reports back, used to prove the
-# request was honoured.
-#
-# Structure: the four router steps are the operator's order and always run first. The direct steps
-# after them exist only so a dead or misconfigured router degrades to a real provider instead of to
-# nothing. They are ordered by measured latency, and each carries its own key requirement, so a host
-# with only one provider key still gets a working driver.
+# The operator's order (2026-11-13). Every id is the one the provider is expected to report back,
+# which is what proves the request was honoured rather than silently substituted: an unknown id
+# resolves through the router's generic chain and still answers HTTP 200, so a typo would change the
+# model without changing the status code.
 DRIVER_CHAIN: Tuple[Dict[str, Any], ...] = (
     {
         "id": "local-router/fallback-models",
@@ -2601,75 +2597,32 @@ DRIVER_CHAIN: Tuple[Dict[str, Any], ...] = (
         # This step's whole purpose is the shared generic chain, so whatever it selects is correct.
         # Without this flag every call here would report a false "routed to a different model".
         "expect_any": True,
-        "label": "local-router generic fallback chain",
+        "label": "local-router/fallback-models @ http://127.0.0.1:11434",
     },
     {
-        "id": "zai-glm-5.3-flash",
-        "transport": "local-router",
-        "model": "glm-5.3-flash",
-        "label": "Z.AI GLM 5.3 Flash",
-    },
-    {
-        "id": "xiaomi-mimo-mimo-v2.6-pro",
-        "transport": "local-router",
-        "model": "mimo-v2.6-pro",
-        "label": "Xiaomi MiMo 2.6 Pro",
-    },
-    {
-        "id": "openrouter-deepseek-v4.1-flash-1017",
-        "transport": "local-router",
-        "model": "deepseek/deepseek-v4.1-flash-1017",
-        "label": "DeepSeek V4.1 Flash 1017 (router → OpenRouter)",
-        # A reasoning model: max_tokens must cover reasoning *plus* answer.
-        "reasoning": True,
-    },
-    # ── Direct-provider fallbacks: router unreachable, or its steps all rejected ---------------
-    {
-        "id": "deepseek/deepseek-v4.1-flash-1017",
-        "transport": "nous-portal",
-        "model": "deepseek/deepseek-v4.1-flash-1017",
-        "label": "DeepSeek V4.1 Flash 1017 (direct Nous Portal)",
-        "reasoning": True,
-    },
-    {
-        "id": "deepseek-ai/DeepSeek-V4.1-Flash",
-        "transport": "nebius",
-        "model": "DeepSeek-V4.1-Flash",
-        "label": "DeepSeek V4.1 Flash (direct Nebius)",
-        "reasoning": True,
-    },
-    {
-        "id": "deepseek/deepseek-v4.1-flash-1017",
-        "transport": "openrouter",
-        "model": "deepseek/deepseek-v4.1-flash-1017",
-        "label": "DeepSeek V4.1 Flash 1017 (direct OpenRouter)",
-        "reasoning": True,
-    },
-    {
-        "id": "deepseek/deepseek-v4.1-flash",
-        "transport": "zenmux",
-        "model": "deepseek/deepseek-v4.1-flash",
-        "label": "DeepSeek V4.1 Flash (direct ZenMux)",
-        "reasoning": True,
-    },
-    {
-        # Z.AI answers with the served model name and silently substitutes on an unknown id
-        # (measured: requesting glm-4.6 returned glm-5.3-flash). The identity check reports that as
-        # degraded rather than pretending the request was honoured.
         "id": "glm-5.3-flash",
         "transport": "zai",
         "model": "glm-5.3-flash",
-        "label": "GLM 5.3 Flash (direct Z.AI)",
+        "label": "Z.AI GLM 5.3 Flash (direct @ https://api.z.ai/api/coding/paas/v4)",
+        # A reasoning model: max_tokens must cover reasoning *plus* answer.
         "reasoning": True,
     },
     {
         "id": "mimo-v2.6-pro",
         "transport": "xiaomi-mimo",
         "model": "mimo-v2.6-pro",
-        "label": "Xiaomi MiMo 2.6 Pro (direct)",
+        "label": "Xiaomi MiMo 2.6 Pro (direct @ https://token-plan-sgp.xiaomimimo.com/v1)",
+        "reasoning": True,
+    },
+    {
+        "id": "deepseek/deepseek-v4.1-flash-1017",
+        "transport": "openrouter",
+        "model": "deepseek/deepseek-v4.1-flash-1017",
+        "label": "DeepSeek V4.1 Flash 1017 (direct @ https://openrouter.ai/api/v1)",
         "reasoning": True,
     },
 )
+
 
 # Per-transport ids advertised for the tier table. The authoritative order is DRIVER_CHAIN; this map
 # only reports what each transport would be asked for.
