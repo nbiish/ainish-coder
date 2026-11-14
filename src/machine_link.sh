@@ -288,6 +288,7 @@ machine_link() {
             --links-file)  AINISH_LINKS_FILE="${2:-}"; shift 2 ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
             --watch)       watch=true;       shift ;;
+            --transport)   _MW_TRANSPORT="${2:-auto}"; shift 2 ;;
             -h|--help)     _ml_usage; return 0 ;;
             -*)            _ml_err "unknown option: $1 (try --machine-link --help)"; return 1 ;;
             *)             [[ -z "$repo" ]] && repo="$1"; shift ;;

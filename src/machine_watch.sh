@@ -56,6 +56,10 @@ OPTIONS:
                            saves becomes one commit, not twenty.
     --once                 Run a single cycle and exit. Useful in CI and for testing.
     --foreground           Run in the foreground even when a service is installed.
+    --transport MODE       auto (default) | direct | ssh. Auto probes whether this process can read
+                           the repository and, when macOS TCC denies it, runs the whole cycle over
+                           `ssh localhost` (which executes under sshd's authority). Needed for repos
+                           on external volumes; requires passwordless loopback ssh.
     --verbose              Print every cycle, not only the ones that did something.
     --json                 Machine-readable status on stdout.
     -h, --help             This text.
@@ -78,6 +82,76 @@ INSTALLED AS
 
 EXIT: 0 ok · 1 failure (a cycle that failed, or a service that would not install)
 EOF
+}
+
+# ── transport ───────────────────────────────────────────────────────────────
+#
+# macOS TCC refuses a launchd-spawned process read access to an external volume: the repo stats fine
+# but every read returns "Operation not permitted". The same user's terminal has access, which is why
+# a foreground loop works and a daemon does not — and the Full Disk Access picker will not navigate to
+# /bin/bash, while copying bash elsewhere is killed by code signing (exit 137).
+#
+# The way through is that `ssh localhost` runs under sshd's authority, not the agent's. Verified with a
+# probe agent that failed a direct read and succeeded over loopback ssh in the same process, seconds
+# apart.
+#
+# Because a denied agent cannot read the repo AT ALL, the fallback is not a per-command shim: the whole
+# cycle — detection, debounce, sync — runs on the far side of the ssh. The agent's only job then is to
+# invoke it on an interval and surface the result. That keeps one implementation of the cycle instead
+# of two that could drift.
+
+_MW_TRANSPORT="${AINISH_WATCH_TRANSPORT:-auto}"
+
+# _mw_can_read <repo> — can THIS process read the repo directly?
+_mw_can_read() { # repo
+    local repo="$1"
+    ( cd "$repo" 2>/dev/null && git rev-parse --git-dir >/dev/null 2>&1 )
+}
+
+# _mw_can_read_via_ssh <repo> — can the same user, through loopback ssh, read it?
+_mw_can_read_via_ssh() { # repo
+    ssh -o BatchMode=yes -o ConnectTimeout=5 localhost \
+        "git -C '$1' rev-parse --git-dir" >/dev/null 2>&1
+}
+
+# Decide this machine's transport once and record it. Echoes: direct | ssh | none
+_mw_detect_transport() {
+    local repo="$1"
+    case "$_MW_TRANSPORT" in
+        direct) _mw_can_read "$repo" && { printf 'direct\n'; return 0; }; printf 'none\n'; return 0 ;;
+        ssh)    _mw_can_read_via_ssh "$repo" && { printf 'ssh\n'; return 0; }; printf 'none\n'; return 0 ;;
+    esac
+    _mw_can_read "$repo" && { printf 'direct\n'; return 0; }
+    if _mw_can_read_via_ssh "$repo"; then
+        _mw_log "transport: TCC denies direct reads here; delegating the cycle to loopback ssh"
+        printf 'ssh\n'
+        return 0
+    fi
+    printf 'none\n'
+}
+
+# Run the whole cycle through ssh. Used only when this process cannot read the repo itself.
+# The inner invocation is the SAME command, guarded against re-entering the ssh branch.
+_mw_cycle_via_ssh() { # cli interval debounce verbose
+    local cli="$1" interval="$2" debounce="$3" verbose="$4"
+    local -a extra=()
+    [[ -n "${AINISH_MACHINES_FILE:-}" ]] && extra+=(--machines-file "$AINISH_MACHINES_FILE")
+    [[ -n "${AINISH_LINKS_FILE:-}" ]] && extra+=(--links-file "$AINISH_LINKS_FILE")
+    [[ "$verbose" == "true" ]] && extra+=(--verbose)
+
+    local q_cli
+    printf -v q_cli "'%s'" "$(printf '%s' "$cli" | sed "s/'/'\\\\''/g")"
+    local argstr=""
+    local x
+    for x in "${extra[@]:-}"; do
+        [[ -z "$x" ]] && continue
+        argstr="${argstr} $(printf "'%s'" "$(printf '%s' "$x" | sed "s/'/'\\\\''/g")")"
+    done
+
+    # AINISH_WATCH_TRANSPORT=direct on the far side forces the direct path there: sshd has the access,
+    # so the inner process must not rediscover the same denial and try ssh again (an infinite fork).
+    ssh -o BatchMode=yes -o ConnectTimeout=5 localhost \
+        "AINISH_WATCH_TRANSPORT=direct ${q_cli} --machine-watch --once --interval ${interval} --debounce ${debounce}${argstr}" 2>&1
 }
 
 # ── change detection ────────────────────────────────────────────────────────
@@ -234,8 +308,15 @@ _mw_in_backoff() {
 
 _mw_write_state() { # seen changed failed
     mkdir -p "$_MW_STATE_DIR" 2>/dev/null
-    printf 'last_cycle=%s\nrepos=%s\nchanged=%s\nfailed=%s\npid=%s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" "$$" > "$_MW_STATE_FILE" 2>/dev/null || true
+    local transport="direct"
+    [[ -f "${_MW_STATE_DIR}/transport" ]] && transport="$(cat "${_MW_STATE_DIR}/transport" 2>/dev/null)"
+    printf 'last_cycle=%s\nrepos=%s\nchanged=%s\nfailed=%s\npid=%s\ntransport=%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" "$$" "${transport:-direct}" > "$_MW_STATE_FILE" 2>/dev/null || true
+}
+
+_mw_write_transport() { # direct|ssh|none
+    mkdir -p "$_MW_STATE_DIR" 2>/dev/null
+    printf '%s\n' "$1" > "${_MW_STATE_DIR}/transport" 2>/dev/null || true
 }
 
 # ── lock ────────────────────────────────────────────────────────────────────
@@ -332,24 +413,33 @@ _mw_verify_macos() {
         return 1
     fi
 
-    # Give the first cycle a chance, then read what it recorded. A cycle writes watch.state within one
-    # interval; if the log shows a permission failure we say so instead of claiming success.
-    sleep 3
-    local blocked
-    blocked="$(grep -c 'Operation not permitted\|not a git repository' "$_MW_LOG" 2>/dev/null | tr -d ' ')"
-    blocked="${blocked:-0}"
-    if (( blocked > 0 )) && [[ -n "$(tail -20 "$_MW_LOG" 2>/dev/null | grep -c 'Operation not permitted')" ]]; then
-        _mw_err "the watcher cannot read a linked repository from this background context."
-        _mw_err "macOS TCC blocks launchd agents from external/removable volumes unless the program is granted Full Disk Access."
-        _mw_err ""
-        _mw_err "Fix one of these, then re-run --machine-watch --install:"
-        _mw_err "  a) System Settings -> Privacy & Security -> Full Disk Access -> add:"
-        _mw_err "       $(command -v bash 2>/dev/null || echo /bin/bash)"
-        _mw_err "  b) move the repository onto the internal disk, or"
-        _mw_err "  c) run 'ainish-coder --machine-watch --foreground' from a terminal that already has access"
-        return 1
-    fi
-    _mw_say "verified: agent running${state:+ ($state)}"
+    # Give the first cycle time to probe the transport and write state.
+    sleep 6
+    local transport
+    transport="$(cat "${_MW_STATE_DIR}/transport" 2>/dev/null || printf '')"
+    case "$transport" in
+        direct)
+            _mw_say "verified: agent running, reading repositories directly" ;;
+        ssh)
+            _mw_say "verified: agent running, reaching repositories over loopback ssh"
+            _mw_say "  (macOS TCC blocks direct reads from launchd on external volumes; sshd has access)" ;;
+        *)
+            # No transport recorded: the agent is up but has not managed to read any repo. Say why.
+            if tail -30 "$_MW_LOG" 2>/dev/null | grep -q 'Operation not permitted'; then
+                _mw_err "the watcher cannot read a linked repository from this background context."
+                _mw_err "macOS TCC denies launchd read access to external volumes, and loopback ssh did not work either."
+                _mw_err ""
+                _mw_err "Fix one of these, then re-run --machine-watch --install:"
+                _mw_err "  a) make sure 'ssh localhost' works without a password:"
+                _mw_err "       ssh-copy-id localhost"
+                _mw_err "  b) move the repository onto the internal disk, or"
+                _mw_err "  c) run 'ainish-coder --machine-watch --foreground' from a terminal with access"
+                _mw_info_uninstall_hint
+                return 1
+            fi
+            _mw_say "verified: agent running (transport not yet recorded)"
+            ;;
+    esac
     return 0
 }
 
@@ -432,19 +522,28 @@ _mw_status() { # json
             systemctl --user is-active --quiet ainish-machine-watch.service 2>/dev/null && running=true
             ;;
     esac
-    local last="never" repos=0 changed=0 failed=0
+    local last="never" repos=0 changed=0 failed=0 transport="unknown"
+    # The transport file is the authority: it is written when the loop decides how to reach the repos,
+    # and it survives a cycle that could not read them (which is exactly when the operator needs to
+    # see why). watch.state mirrors it for convenience but is only rewritten by a completed cycle.
+    [[ -f "${_MW_STATE_DIR}/transport" ]] && \
+        transport="$(tr -d '\r\n' < "${_MW_STATE_DIR}/transport" 2>/dev/null)"
     if [[ -f "$_MW_STATE_FILE" ]]; then
         last="$(sed -n 's/^last_cycle=//p' "$_MW_STATE_FILE" 2>/dev/null)"
         repos="$(sed -n 's/^repos=//p' "$_MW_STATE_FILE" 2>/dev/null)"
         changed="$(sed -n 's/^changed=//p' "$_MW_STATE_FILE" 2>/dev/null)"
         failed="$(sed -n 's/^failed=//p' "$_MW_STATE_FILE" 2>/dev/null)"
+        if [[ "$transport" == "unknown" ]]; then
+            transport="$(sed -n 's/^transport=//p' "$_MW_STATE_FILE" 2>/dev/null)"
+            transport="${transport:-unknown}"
+        fi
     fi
     local linked
     linked="$(_mw_linked_repos | wc -l | tr -d ' ')"
 
     if [[ "$json" == "true" ]]; then
-        printf '{"format":"ainish-coder/machine-watch/v1","installed":%s,"running":%s,"linked_repos":%s,"last_cycle":"%s","last_repos":%s,"last_changed":%s,"last_failed":%s}\n' \
-            "$installed" "$running" "${linked:-0}" "${last:-never}" "${repos:-0}" "${changed:-0}" "${failed:-0}"
+        printf '{"format":"ainish-coder/machine-watch/v1","installed":%s,"running":%s,"transport":"%s","linked_repos":%s,"last_cycle":"%s","last_repos":%s,"last_changed":%s,"last_failed":%s}\n' \
+            "$installed" "$running" "${transport}" "${linked:-0}" "${last:-never}" "${repos:-0}" "${changed:-0}" "${failed:-0}"
         return 0
     fi
 
@@ -452,6 +551,13 @@ _mw_status() { # json
     printf '  service:   %s\n' "$( [[ "$installed" == "true" ]] && echo installed || echo "NOT installed" )"
     printf '  running:   %s\n' "$( [[ "$running" == "true" ]] && echo yes || echo no )"
     printf '  linked:    %s repo(s)\n' "${linked:-0}"
+    local transport_desc
+    case "$transport" in
+        ssh)    transport_desc="loopback ssh (this context cannot read the repos directly)" ;;
+        direct) transport_desc="direct" ;;
+        *)      transport_desc="unknown — run --machine-watch --foreground once" ;;
+    esac
+    printf '  transport: %s\n' "$transport_desc"
     printf '  last sync: %s  (%s repo(s), %s changed, %s failed)\n' "${last:-never}" "${repos:-0}" "${changed:-0}" "${failed:-0}"
     [[ -s "$_MW_LOG" ]] && { printf '  recent log:\n'; tail -5 "$_MW_LOG" 2>/dev/null | sed 's/^/    /'; }
     return 0
@@ -475,6 +581,9 @@ machine_watch() {
             --status)     status=true;                   shift ;;
             --uninstall)  uninstall=true;                shift ;;
             --install)    install=true;                  shift ;;
+            --transport)  _MW_TRANSPORT="${2:-auto}";    shift 2 ;;
+            --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
+            --links-file)    AINISH_LINKS_FILE="${2:-}";    shift 2 ;;
             -h|--help)    _mw_usage; return 0 ;;
             -*)           _mw_err "unknown option: $1 (try --machine-watch --help)"; return 1 ;;
             *)            shift ;;
@@ -515,14 +624,42 @@ machine_watch() {
 
     # Foreground loop. Under a service manager this IS the background process; run interactively it
     # prints each cycle so the operator can see it working.
+    local first_repo transport
+    first_repo="$(_mw_linked_repos | head -1)"
+    transport="$(_mw_detect_transport "$first_repo")"
+    _mw_write_transport "$transport"
+
+    if [[ "$transport" == "none" ]]; then
+        _mw_err "cannot read any linked repository from this context, directly or over loopback ssh."
+        _mw_err "  direct:  denied (macOS TCC blocks launchd from external volumes)"
+        _mw_err "  ssh:     $(ssh -o BatchMode=yes -o ConnectTimeout=5 localhost 'echo ok' 2>&1 | tail -1)"
+        _mw_err "Check that 'ssh localhost' works without a password (ssh-copy-id to yourself)."
+        return 1
+    fi
+
+    if [[ "$transport" == "ssh" ]]; then
+        _mw_say "transport: loopback ssh (this context cannot read the repo directly)"
+        _mw_log "transport: ssh"
+    else
+        _mw_log "transport: direct"
+    fi
+
     _mw_say "watching $(_mw_linked_repos | wc -l | tr -d ' ') linked repo(s) — every ${interval}s, debounce ${debounce}s"
     _mw_say "Ctrl+C to stop. State: $_MW_STATE_FILE"
     local stopping=false
     trap 'stopping=true' INT TERM
     while [[ "$stopping" != "true" ]]; do
-        if _mw_lock; then
-            _mw_cycle "$verbose" || true
-            _mw_unlock
+        if [[ "$transport" == "ssh" ]]; then
+            # The whole cycle runs under sshd's authority, because this process cannot read the repos
+            # at all. Delegate rather than duplicate: one implementation of the cycle, in one place.
+            local out rc=0
+            out="$(_mw_cycle_via_ssh "$(_mw_cli)" "$interval" "$debounce" "$verbose")" || rc=$?
+            (( rc == 0 )) || { _mw_log "ssh cycle failed"; printf '%s\n' "$out" >&2; }
+        else
+            if _mw_lock; then
+                _mw_cycle "$verbose" || true
+                _mw_unlock
+            fi
         fi
         # Sleep in one-second slices so a signal is handled promptly rather than after a full interval.
         local i=0

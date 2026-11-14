@@ -189,6 +189,36 @@ AINISH_LINKS_FILE="$SCOPED" AINISH_MACHINES_FILE="${WORK}/machines-f.txt" "$CLI"
 check "the pending save is retried and arrives after recovery" "work that must eventually arrive" \
     "$(cat "$F/pending.txt" 2>/dev/null)"
 
+echo "== 9. transport detection picks direct when readable, and reports 'none' when neither works =="
+# This process can read the fixture repos, so detection must say 'direct'. The 'ssh' branch is proven
+# live on the operator's external volume (a 1s loopback-ssh probe, verified by the installer); it is
+# not asserted here because a hermetic fixture cannot reproduce macOS TCC, and faking it would be a
+# test that passes for the wrong reason.
+TD="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_TRANSPORT=auto; _mw_detect_transport "'"$A"'"' 2>/dev/null)"
+check "a readable repo is synced directly" "direct" "$TD"
+# A repo that does not exist must report 'none' rather than silently choosing something.
+TN="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_TRANSPORT=auto; _mw_detect_transport "/nonexistent/repo"' 2>/dev/null)"
+check "an unreadable repo reports no transport" "none" "$TN"
+# --transport direct must not silently fall back to ssh when the repo is unreadable.
+TDF="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_TRANSPORT=direct; _mw_detect_transport "/nonexistent/repo"' 2>/dev/null)"
+check "--transport direct respects the pin" "none" "$TDF"
+
+echo "== 10. --status names the transport in use =="
+printf 'ssh\n' > "${HOME}/.config/ainish-coder/transport" 2>/dev/null || {
+    mkdir -p "${HOME}/.config/ainish-coder"; printf 'ssh\n' > "${HOME}/.config/ainish-coder/transport"; }
+STT="$("$CLI" --machine-watch --status 2>&1)"
+if printf '%s' "$STT" | grep -q 'loopback ssh'; then
+    ok "--status reports the loopback-ssh transport"
+else
+    bad "--status did not report the transport"; printf '%s\n' "$STT" | sed 's/^/    | /'
+fi
+JS2="$("$CLI" --machine-watch --status --json 2>/dev/null)"
+if printf '%s' "$JS2" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["transport"]=="ssh"' 2>/dev/null; then
+    ok "--status --json carries the transport"
+else
+    bad "--status --json lacks the transport"; printf '%s\n' "$JS2" | sed 's/^/    | /'
+fi
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1
