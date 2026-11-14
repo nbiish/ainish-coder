@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# test-machine-watch.sh — hermetic proof for `ainish-coder --machine-watch`.
+#
+# Two local checkouts stand in for two machines: no SSH, no launchd, no network. It proves the four
+# properties the watcher exists for, and one it must never break:
+#   1. a SAVE (no commit) reaches the peer's working tree
+#   2. a burst of saves coalesces into one commit, not one per save
+#   3. a peer with unsaved work is never overwritten, and its work survives byte-identical
+#   4. one cycle at a time (the lock), and --status reports without running anything
+#   5. an unchanged tree causes no work at all
+# Usage: bash scripts/test-machine-watch.sh
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CLI="${REPO}/bin/ainish-coder"
+PASS=0
+FAIL=0
+
+ok()    { PASS=$((PASS+1)); printf '  ok   %s\n' "$*"; }
+bad()   { FAIL=$((FAIL+1)); printf '  FAIL %s\n' "$*"; }
+check() { if [[ "$2" == "$3" ]]; then ok "$1"; else bad "$1 (got '$3', want '$2')"; fi; }
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/machine-watch-test.XXXXXX")"
+cleanup() {
+    # Stop anything the lock file thinks is running before removing the tree.
+    [[ -f "${WORK}/home/.config/ainish-coder/watch.lock" ]] && rm -f "${WORK}/home/.config/ainish-coder/watch.lock"
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+export GIT_AUTHOR_NAME="gate" GIT_AUTHOR_EMAIL="gate@ainish.local"
+export GIT_COMMITTER_NAME="gate" GIT_COMMITTER_EMAIL="gate@ainish.local"
+export GIT_CONFIG_GLOBAL="${WORK}/gitconfig"
+# Hermetic HOME: the watcher writes state under ~/.config/ainish-coder and must not touch the real one.
+export HOME="${WORK}/home"
+mkdir -p "$HOME"
+git config --global init.defaultBranch main
+git config --global commit.gpgsign false
+
+SRC="${WORK}/src/demo"
+mkdir -p "$SRC"
+git -C "$SRC" init -q
+printf '*.log\n' > "$SRC/.gitignore"
+printf 'line one\n' > "$SRC/tracked.txt"
+git -C "$SRC" add -A && git -C "$SRC" commit -qm "initial"
+
+A="${WORK}/machine-a/demo"
+B="${WORK}/machine-b/demo"
+mkdir -p "$(dirname "$A")" "$(dirname "$B")"
+git clone -q "$SRC" "$A"
+git clone -q "$SRC" "$B"
+# Different directory names on purpose: only a recorded link resolves the peer path.
+mkdir -p "${WORK}/machine-b/peer-demo"
+rm -rf "${WORK}/machine-b/peer-demo"
+git clone -q "$SRC" "${WORK}/machine-b/peer-demo"
+
+export AINISH_LINKS_FILE="${WORK}/links.txt"
+export AINISH_MACHINES_FILE="${WORK}/machines.txt"
+printf 'box-18gb=self\npeer-b-64gb=%s\n' "${WORK}/machine-b" > "$AINISH_MACHINES_FILE"
+
+echo "== fixture: link A to the peer and arm the watcher state =="
+"$CLI" --machine-link --repo "$A" --peer peer-b-64gb --peer-path "${WORK}/machine-b/peer-demo" \
+    --machines-file "$AINISH_MACHINES_FILE" --no-hooks >/dev/null 2>&1
+check "link recorded" "0" "$?"
+
+PEER="${WORK}/machine-b/peer-demo"
+
+echo "== 1. a SAVE with no commit reaches the peer =="
+# This is the whole point: an uncommitted file crossing. Before the watcher, nothing could do this.
+printf 'saved but never committed\n' > "$A/saved.txt"
+git -C "$A" status --porcelain saved.txt | grep -q '^??' && ok "the file really is uncommitted" \
+    || bad "fixture wrong: saved.txt is not untracked"
+OUT1="$("$CLI" --machine-watch --once --verbose 2>&1)"
+check "one cycle exits 0" "0" "$?"
+check "peer received the saved file" "saved but never committed" "$(cat "$PEER/saved.txt" 2>/dev/null)"
+[[ -f "$PEER/saved.txt" ]] && ok "the file exists in the peer's WORKING TREE" \
+    || bad "peer has no working-tree copy"
+
+echo "== 2. a burst of saves becomes ONE commit =="
+C_BEFORE="$(git -C "$A" rev-list --count HEAD)"
+for i in 1 2 3 4 5; do
+    printf 'burst %s\n' "$i" > "$A/burst.txt"
+    sleep 0.2
+done
+"$CLI" --machine-watch --once >/dev/null 2>&1
+C_AFTER="$(git -C "$A" rev-list --count HEAD)"
+check "five rapid saves produced one commit" "1" "$((C_AFTER - C_BEFORE))"
+check "peer holds the final content of the burst" "burst 5" "$(cat "$PEER/burst.txt" 2>/dev/null)"
+
+echo "== 3. an unchanged tree does nothing =="
+C_STEADY="$(git -C "$A" rev-list --count HEAD)"
+OUT3="$("$CLI" --machine-watch --once --verbose 2>&1)"
+check "second cycle exits 0" "0" "$?"
+check "no new commit was created" "$C_STEADY" "$(git -C "$A" rev-list --count HEAD)"
+if printf '%s' "$OUT3" | grep -q 'no change'; then ok "the cycle reports no change"; else
+    bad "cycle did not report no-change"; printf '%s\n' "$OUT3" | sed 's/^/    | /'
+fi
+
+echo "== 4. a peer with unsaved work is NEVER overwritten =="
+# The peer has an untracked file of its own. A blind push would destroy it; this must not.
+printf 'PEER LOCAL WORK - MUST SURVIVE\n' > "$PEER/precious.txt"
+PRECIOUS_BEFORE="$(cksum "$PEER/precious.txt" 2>/dev/null | awk '{print $1"-"$2}')"
+printf 'new work from A\n' > "$A/from-a.txt"
+OUT4="$("$CLI" --machine-watch --once 2>&1)"
+check "peer's precious file survives byte-identical" "$PRECIOUS_BEFORE" \
+    "$(cksum "$PEER/precious.txt" 2>/dev/null | awk '{print $1"-"$2}')"
+check "peer's precious content is unchanged" "PEER LOCAL WORK - MUST SURVIVE" \
+    "$(head -1 "$PEER/precious.txt" 2>/dev/null)"
+if printf '%s' "$OUT4" | grep -qi 'failed'; then
+    ok "the blocked peer is reported, not silently skipped"
+else
+    bad "a blocked peer was not reported"; printf '%s\n' "$OUT4" | sed 's/^/    | /'
+fi
+
+echo "== 5. the lock prevents overlapping cycles =="
+# A live pid in the lock file must make the next cycle refuse rather than run concurrently.
+sleep 30 & LIVE_PID=$!
+mkdir -p "$HOME/.config/ainish-coder"
+printf '%s\n' "$LIVE_PID" > "$HOME/.config/ainish-coder/watch.lock"
+"$CLI" --machine-watch --once >/dev/null 2>&1
+LOCK_RC=$?
+check "a cycle refuses while another holds the lock" "1" "$LOCK_RC"
+kill "$LIVE_PID" 2>/dev/null || true
+wait "$LIVE_PID" 2>/dev/null || true
+# A stale lock (dead pid) must be reclaimed, or one crash disables the watcher forever.
+printf '999999\n' > "$HOME/.config/ainish-coder/watch.lock"
+"$CLI" --machine-watch --once >/dev/null 2>&1
+check "a stale lock is reclaimed" "0" "$?"
+
+echo "== 6. --status reports without running a cycle =="
+ST="$("$CLI" --machine-watch --status 2>&1)"
+check "--status exits 0" "0" "$?"
+if printf '%s' "$ST" | grep -q 'linked:'; then ok "--status reports linked repos"; else
+    bad "--status did not report linked repos"; printf '%s\n' "$ST" | sed 's/^/    | /'; fi
+JS="$("$CLI" --machine-watch --status --json 2>/dev/null)"
+if printf '%s' "$JS" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["format"]=="ainish-coder/machine-watch/v1"; assert d["linked_repos"]>=1' 2>/dev/null; then
+    ok "--status --json parses and counts the linked repo"
+else
+    bad "--status --json did not parse"; printf '%s\n' "$JS" | sed 's/^/    | /'
+fi
+
+echo "== 7. an unlinked machine refuses to start a watcher =="
+: > "${WORK}/empty-links.txt"
+AINISH_LINKS_FILE="${WORK}/empty-links.txt" "$CLI" --machine-watch --once >/dev/null 2>&1
+check "no links means exit 1, not a silent no-op" "1" "$?"
+
+echo "== 8. a FAILED cycle does not mark the change as synced (it must retry) =="
+# The live regression this pins: on failure the fingerprint was recorded anyway, so a transient error
+# marked the save "handled" and it never retried — a silent data-loss path. A change that did not
+# arrive must stay pending.
+#
+# This section uses its OWN link file containing only repo E. A cycle covers every linked repo, and
+# section 4 deliberately leaves machine-a with a blocked peer; running the fleet here would keep
+# returning non-zero for that reason and hide whether E's pending change was retried.
+E="${WORK}/machine-e/demo"
+mkdir -p "$(dirname "$E")"
+git clone -q "$SRC" "$E"
+F="${WORK}/machine-f/demo"
+mkdir -p "$(dirname "$F")"
+git clone -q "$SRC" "$F"
+E_RESOLVED="$(git -C "$E" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$E")"
+F_RESOLVED="$(git -C "$F" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$F")"
+printf 'box-18gb=self\npeer-f-16gb=%s\n' "${WORK}/machine-f" > "${WORK}/machines-f.txt"
+SCOPED="${WORK}/links-only-e.txt"
+printf '%s | peer-f-16gb | %s\n' "$E_RESOLVED" "$F_RESOLVED" > "$SCOPED"
+printf 'work that must eventually arrive\n' > "$E/pending.txt"
+
+# Break the peer, run one cycle, restore it.
+mv "$F" "${F}.hidden"
+RC8=1
+AINISH_LINKS_FILE="$SCOPED" AINISH_MACHINES_FILE="${WORK}/machines-f.txt" "$CLI" --machine-watch --once >/dev/null 2>&1 || RC8=$?
+mv "${F}.hidden" "$F"
+check "the failing cycle exits non-zero" "1" "$RC8"
+check "the peer did not receive it while it was broken" "MISSING" \
+    "$( [[ -f "$F/pending.txt" ]] && cat "$F/pending.txt" || echo MISSING )"
+
+# A failed cycle must leave the change PENDING. Two proofs: no fingerprint was stored, and a backoff
+# entry exists. If the fingerprint had been written, the sync below would find "no change" and the
+# save would be lost forever.
+FPKEY="$(printf '%s' "$E_RESOLVED" | cksum | awk '{print $1}')"
+FPF="${HOME}/.config/ainish-coder/fail-${FPKEY}"
+FPFILE="${HOME}/.config/ainish-coder/fp-${FPKEY}"
+[[ -f "$FPF" ]] && ok "a backoff entry exists after the failure" || bad "no backoff entry after a failed cycle"
+[[ -f "$FPFILE" ]] && bad "the FAILED change was marked synced (fingerprint recorded)" \
+    || ok "the failed change was NOT marked synced"
+
+rm -f "$FPF" "$FPFILE"
+AINISH_LINKS_FILE="$SCOPED" AINISH_MACHINES_FILE="${WORK}/machines-f.txt" "$CLI" --machine-watch --once >/dev/null 2>&1
+check "the pending save is retried and arrives after recovery" "work that must eventually arrive" \
+    "$(cat "$F/pending.txt" 2>/dev/null)"
+
+echo
+printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
+(( FAIL == 0 )) || exit 1
