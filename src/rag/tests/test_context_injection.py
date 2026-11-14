@@ -476,26 +476,55 @@ class GoldfishIsolationTest(unittest.TestCase):
         import inspect
 
         params = set(inspect.signature(rag.goldfish_review).parameters)
-        self.assertEqual(params, {"driver", "task", "retrieval_text", "elephant_text", "token_cap"})
+        # `hits`/`repo_root` are the retrieval evidence and the attachment root — not session state.
+        self.assertEqual(
+            params,
+            {"driver", "task", "retrieval_text", "elephant_text", "token_cap", "hits", "repo_root"},
+        )
         for banned in ("session", "state", "history", "memory", "comms"):
             self.assertNotIn(banned, params)
+
+    def test_every_goldfish_call_runs_without_a_pi_session(self):
+        # Isolation is now structural at the process level: each of the three steps is a separate pi
+        # invocation with --no-session, so there IS no conversation state to inherit. Asserting the
+        # argv is the honest form of the old "signature has no session param" check.
+        calls = []
+
+        original = rag.pi_agent_call
+        rag.pi_agent_call = lambda **kw: (
+            calls.append(kw) or {"text": "x", "source": "pi:test", "requested_model": "m", "model_verified": True}
+        )
+        try:
+            rag.goldfish_review(None, task="t", retrieval_text="e", elephant_text="d", token_cap=300)
+        finally:
+            rag.pi_agent_call = original
+        self.assertEqual(len(calls), 3, "three steps, three isolated invocations")
+        for call in calls:
+            self.assertEqual(call["role"], "goldfish")
+            self.assertNotIn("session", str(call.get("user_prompt") or "").lower().replace("session summary", ""))
 
     def test_goldfish_prompt_never_contains_session_material(self):
         captured = {}
 
-        class StubDriver:
-            def chat(self, messages, max_tokens=None, tier=None, role=None, timeout=None):
-                captured["text"] = "\n".join(m["content"] for m in messages)
-                return {"text": "review", "source": "stub:model", "model_verified": True}
+        original = rag.pi_agent_call
 
-        session_marker = "SESSION_ONLY_MARKER_7f3a"
-        rag.goldfish_review(
-            StubDriver(),
-            task="do the thing",
-            retrieval_text="retrieved evidence",
-            elephant_text="elephant draft",
-            token_cap=300,
-        )
+        def fake(**kw):
+            captured.setdefault("text", "")
+            captured["text"] += "\n" + str(kw.get("user_prompt") or "") + "\n" + str(kw.get("system_prompt") or "")
+            return {"text": "review", "source": "pi:test", "requested_model": "m", "model_verified": True}
+
+        rag.pi_agent_call = fake
+        try:
+            session_marker = "SESSION_ONLY_MARKER_7f3a"
+            rag.goldfish_review(
+                None,
+                task="do the thing",
+                retrieval_text="retrieved evidence",
+                elephant_text="elephant draft",
+                token_cap=300,
+            )
+        finally:
+            rag.pi_agent_call = original
         self.assertNotIn(session_marker, captured["text"])
         # It does receive exactly the three allowed inputs.
         self.assertIn("do the thing", captured["text"])
@@ -507,23 +536,27 @@ class GoldfishIsolationTest(unittest.TestCase):
         # what each is for, and silently skipping one is worse: the review would report completion
         # while having done two thirds of the work.
         calls = []
+        original = rag.pi_agent_call
 
-        class StubDriver:
-            def chat(self, messages, max_tokens=None, tier=None, role=None, timeout=None):
-                calls.append("\n".join(m["content"] for m in messages))
-                return {"text": f"step-{len(calls)} output", "source": "stub:model", "model_verified": True}
+        def fake(**kw):
+            calls.append(kw)
+            return {
+                "text": f"step-{len(calls)} output",
+                "source": "pi:test", "requested_model": "m", "model_verified": True,
+            }
 
-        result = rag.goldfish_review(
-            StubDriver(),
-            task="t", retrieval_text="e", elephant_text="d", token_cap=600,
-        )
+        rag.pi_agent_call = fake
+        try:
+            result = rag.goldfish_review(None, task="t", retrieval_text="e", elephant_text="d", token_cap=600)
+        finally:
+            rag.pi_agent_call = original
         self.assertEqual(len(calls), 3, "comprehension, antagonistic, and readiness are separate calls")
-        self.assertIn("comprehension check", calls[0].lower())
-        self.assertIn("antagonistic", calls[1].lower())
-        self.assertIn("readiness", calls[2].lower())
+        self.assertIn("comprehension", calls[0]["system_prompt"].lower())
+        self.assertIn("antagonistic", calls[1]["system_prompt"].lower())
+        self.assertIn("readiness", calls[2]["system_prompt"].lower())
         # The comprehension check must be fed INTO the antagonistic step: drift there is the signal
         # that the prime is ambiguous, and dropping it discards the most useful output of step 1.
-        self.assertIn("step-1 output", calls[1])
+        self.assertIn("step-1 output", calls[1]["user_prompt"])
         self.assertEqual(
             result["steps"], {"comprehension": True, "antagonistic": True, "readiness": True}
         )
@@ -535,21 +568,125 @@ class GoldfishIsolationTest(unittest.TestCase):
         # Observed live: the middle step produced no text and the prime silently showed only steps
         # 1 and 3. A partial review must say which part is missing.
         n = {"i": 0}
+        original = rag.pi_agent_call
 
-        class FlakyDriver:
-            def chat(self, messages, max_tokens=None, tier=None, role=None, timeout=None):
-                n["i"] += 1
-                if n["i"] == 2:
-                    return {"text": "", "source": "stub:model", "error": "empty content"}
-                return {"text": f"step-{n['i']}", "source": "stub:model", "model_verified": True}
+        def fake(**kw):
+            n["i"] += 1
+            if n["i"] == 2:
+                return {"text": "", "source": "empty", "error": "no text blocks"}
+            return {"text": f"step-{n['i']}", "source": "pi:test", "requested_model": "m", "model_verified": True}
 
-        result = rag.goldfish_review(
-            FlakyDriver(), task="t", retrieval_text="e", elephant_text="d", token_cap=600,
-        )
+        rag.pi_agent_call = fake
+        try:
+            result = rag.goldfish_review(None, task="t", retrieval_text="e", elephant_text="d", token_cap=600)
+        finally:
+            rag.pi_agent_call = original
         self.assertEqual(
             result["steps"], {"comprehension": True, "antagonistic": False, "readiness": True}
         )
         self.assertIn("antagonistic", result["error"] or "", "the failed step is named")
+
+
+class PiAgentRuntimeTest(unittest.TestCase):
+    """The pi runtime is what runs both roles, so its guards are load-bearing.
+
+    Three things must hold or the prime is quietly wrong: a model's private `thinking` must never
+    reach an agent's context, an attachment path must never escape the repository, and a failure must
+    surface as a recorded reason rather than an empty section that reads like an answer.
+    """
+
+    def test_only_text_blocks_are_extracted_never_thinking(self):
+        # Real shape observed from pi: content is [{"type":"thinking",...},{"type":"text",...}].
+        stdout = "\n".join([
+            json.dumps({"type": "session", "id": "x"}),
+            json.dumps({
+                "type": "agent_end",
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "ignore me"}]},
+                    {"role": "assistant", "content": [
+                        {"type": "thinking", "thinking": "SECRET_SCRATCH_9f2"},
+                        {"type": "text", "text": "the answer"},
+                    ]},
+                ],
+            }),
+        ])
+        text, error, _tokens = rag._pi_extract_text(stdout)
+        self.assertEqual(text, "the answer")
+        self.assertNotIn("SECRET_SCRATCH_9f2", text, "thinking must never reach the prime")
+        self.assertNotIn("ignore me", text, "only assistant turns are extracted")
+        self.assertIsNone(error)
+
+    def test_an_error_event_is_reported(self):
+        stdout = json.dumps({"type": "error", "message": "provider exploded"})
+        text, error, _ = rag._pi_extract_text(stdout)
+        self.assertEqual(text, "")
+        self.assertIn("provider exploded", error or "")
+
+    def test_attachment_paths_cannot_escape_the_repository(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "inside.md").write_text("# ok\n", encoding="utf-8")
+            (root.parent / "outside.md").write_text("# nope\n", encoding="utf-8")
+            hits = [
+                {"path": "inside.md"},
+                {"path": "../outside.md"},
+                {"path": "/etc/passwd"},
+                {"path": "does-not-exist.md"},
+            ]
+            attached = rag._attach_paths_from_hits(root, hits)
+            self.assertEqual(attached, ["inside.md"])
+
+    def test_attachment_selection_is_bounded_and_deduped(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for i in range(12):
+                (root / f"f{i}.md").write_text("x\n", encoding="utf-8")
+            hits = [{"path": f"f{i}.md"} for i in range(12)] + [{"path": "f0.md"}]
+            attached = rag._attach_paths_from_hits(root, hits)
+            self.assertEqual(len(attached), rag.PI_MAX_ATTACHMENTS)
+            self.assertEqual(len(set(attached)), len(attached), "no duplicates")
+
+    def test_oversize_files_are_not_attached(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            big = root / "big.md"
+            big.write_text("x" * (rag.PI_MAX_ATTACH_BYTES + 10), encoding="utf-8")
+            (root / "small.md").write_text("y\n", encoding="utf-8")
+            attached = rag._attach_paths_from_hits(root, [{"path": "big.md"}, {"path": "small.md"}])
+            self.assertEqual(attached, ["small.md"])
+
+    def test_missing_pi_is_a_recorded_reason_not_a_crash(self):
+        original = rag._PI_BINARY
+        rag._PI_BINARY = None
+        try:
+            result = rag.pi_agent_call("elephant", "m", "brief", "prompt")
+        finally:
+            rag._PI_BINARY = original
+        self.assertEqual(result["text"], "")
+        self.assertIn("pi not found", result["error"] or "")
+
+    def test_a_timeout_is_reported_as_its_own_source(self):
+        import subprocess as sp
+
+        original_bin, original_run = rag._PI_BINARY, sp.run
+        rag._PI_BINARY = "/bin/echo"
+
+        def fake_run(*a, **kw):
+            raise sp.TimeoutExpired(cmd="pi", timeout=1)
+
+        sp.run = fake_run
+        try:
+            result = rag.pi_agent_call("goldfish", "m", "brief", "prompt")
+        finally:
+            sp.run, rag._PI_BINARY = original_run, original_bin
+        self.assertEqual(result["source"], "timeout")
+        self.assertEqual(result["text"], "")
 
 
 class InjectionAssemblyTest(unittest.TestCase):

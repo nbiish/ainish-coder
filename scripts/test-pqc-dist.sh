@@ -1029,6 +1029,33 @@ contains "reviews get their own timeout" \
 contains "context can refresh the vault before retrieval" \
     "$(cat "${REPO}/src/rag/rag.py")" '"--refresh-wiki"'
 
+echo "== EGM roles run as pi agents =="
+# The roles moved from an in-process chat call to pi subprocesses. The guards that make that safe are
+# what this pins: no session (freshness), no tools (authority), thinking discarded (cost + honesty),
+# attachments confined to the repo, and a missing pi degrading rather than crashing.
+contains "roles call the pi agent runtime" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'def pi_agent_call('
+contains "pi runs without a session so reviews are genuinely fresh" \
+    "$(cat "${REPO}/src/rag/rag.py")" '"--no-session"'
+contains "pi runs without tools so a context call cannot act" \
+    "$(cat "${REPO}/src/rag/rag.py")" '"--no-tools"'
+contains "thinking blocks are filtered out of the prime" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'block.get("type") == "text"'
+contains "attachment paths are confined to the repo" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'candidate.relative_to(root)'
+contains "attachments are size-capped" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'PI_MAX_ATTACH_BYTES'
+contains "a missing pi degrades with a reason" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'pi not found'
+contains "role briefs are full operating instructions" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'HARD RULES'
+contains "the reviewer gets its own output ceiling" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'REVIEW_MAX_TOKENS'
+contains "prd documents the pi-backed roles" \
+    "$(cat "${REPO}/llms.txt")" 'run as `pi` agents'
+check "the contract still names no engine internals" \
+    "$(grep -cE '\bpi\b|local-router|openrouter' "${REPO}/AGENTS.md")" "0"
+
 echo "== wiki vault is Obsidian-native =="
 # The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows
 # orphan files, and without a wikilink-aware reader `--context` loses every explicit edge.
