@@ -235,10 +235,39 @@ bundle carries commits, not a directory tree, so `bin/*.exe`, vector indexes, si
 files stay on the machine that produced them. If the peer's tree is clean, no snapshot is created and
 any stale one is dropped.
 
-By default the far side gets refs and decides when to move. `--ff-peers` is the explicit exception:
-after a successful push it fast-forwards a peer that has the same branch checked out **and** a clean
-working tree, so `main` lands on both machines in one command. A dirty or differently-checked-out peer
-is left alone, and says so.
+A peer's checkout moves by default, but only on evidence: after a successful push, a peer that has the
+**same branch** checked out **and** a clean working tree is fast-forwarded, so `main` lands on both
+machines in one command. A dirty, differently-checked-out, or diverged peer is left alone and says so.
+`--no-ff-peers` opts out for a run.
+
+### Linking a repository once (`--machine-link`)
+
+`--machine-sync` addresses a peer's copy as `<peer code root>/<repo name>`, which is only right when
+every machine keeps every repo under one root with the same directory name. Real machines do not:
+one may hold a repo at `D:/Code/repo` and another at `~/code-external/repo`. `--machine-link` records
+the real path once and remembers it:
+
+```bash
+ainish-coder --machine-link . --peer windows-128gb --peer-path D:/Code/repo
+ainish-coder --machine-link --list                     # what is linked here
+ainish-coder --machine-sync --all                      # every linked repo, one command
+ainish-coder --machine-link . --peer windows-128gb --remove   # unlink + drop the hook
+```
+
+Links live in `~/.config/ainish-coder/links.txt`, one `repo | peer | peer path` line each. Peer path
+precedence in `--machine-sync` is: explicit `--peer-path`, then the recorded link, then the
+name-based guess — and the resolved path is printed, so a guess is never silent.
+
+Recording a link also arms a `post-commit`/`post-merge` hook in that repository. Commit here and the
+linked machines receive it immediately; the next command you run there is already on the new state.
+That removes the "remember to run the sync command on the other machine" step, which is the step that
+gets skipped.
+
+The hook **sends only**. Receiving moves *this* machine's branch, and doing that unattended from
+inside a commit hook is how a machine ends up half-merged with nobody watching — `--pull` and
+`--both` stay explicit. The hook is also scoped `--linked-only`, so a commit in one repo never pushes
+it to every machine in the registry, and every probe is bounded so a peer that is off cannot block a
+commit.
 
 ---
 

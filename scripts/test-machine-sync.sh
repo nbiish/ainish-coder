@@ -163,6 +163,114 @@ printf 'box-18gb=self\npeer-b-64gb=%s/nonexistent-root\n' "${WORK}" >> "${WORK}/
 RC3=$?
 check "unreachable peer exits 1" "1" "$RC3"
 
+# ── links: a peer path recorded once, used without flags ─────────────────────
+#
+# The failure this covers is the one that made the verb unusable in practice: peer paths were guessed
+# as `<peer-root>/<repo-name>`, so a repo kept under different trees on two machines was addressed at
+# a path that did not exist. A link is the fix, and these assertions are what keep it working.
+echo "== 10. --machine-link records a peer path that --machine-sync then uses =="
+LINKS="${WORK}/links.txt"
+export AINISH_LINKS_FILE="$LINKS"
+# Deliberately give the peer a DIFFERENT directory name, so the name-based guess cannot succeed and
+# only the recorded link can resolve the path.
+C="${WORK}/peer-c/renamed-demo"
+mkdir -p "$(dirname "$C")"
+git clone -q "$SRC" "$C"
+printf 'box-18gb=self\npeer-c-32gb=%s\n' "$(dirname "$C")" > "${WORK}/machines-c.txt"
+LK="$("$CLI" --machine-link --repo "$A" --peer peer-c-32gb \
+        --peer-path "$C" --machines-file "${WORK}/machines-c.txt" 2>&1)"
+check "--machine-link exits 0" "0" "$?"
+[[ -f "$LINKS" ]] && ok "links registry written" || bad "links registry missing"
+grep -qF "peer-c-32gb | $C" "$LINKS" 2>/dev/null && ok "registry records the peer path" \
+    || bad "registry does not record the peer path"
+# The name-based guess would look for <peer root>/demo, which does not exist.
+SY="$("$CLI" --machine-sync --repo "$A" --machines-file "${WORK}/machines-c.txt" \
+        --machine peer-c-32gb --direction-push 2>/dev/null || true)"
+SY="$("$CLI" --machine-sync --repo "$A" --machines-file "${WORK}/machines-c.txt" \
+        --machine peer-c-32gb --push 2>&1)"
+check "sync through the link exits 0" "0" "$?"
+if printf '%s' "$SY" | grep -q 'path from link'; then
+    ok "sync reports the path came from the link"
+else
+    bad "sync did not report a linked path"; printf '%s\n' "$SY" | sed 's/^/    | /'
+fi
+
+echo "== 11. --machine-link installed a working post-commit hook =="
+[[ -f "$A/.git/hooks/post-commit" ]] && ok "post-commit hook installed" || bad "no post-commit hook"
+grep -qF "AINISH-CODER MACHINE SYNC START" "$A/.git/hooks/post-commit" 2>/dev/null \
+    && ok "hook carries the managed block" || bad "hook block missing"
+# The hook must send, never receive: receiving moves this machine's branch unattended.
+grep -qF -- "--push" "$A/.git/hooks/post-commit" 2>/dev/null && ok "hook is push-only" \
+    || bad "hook is not push-only"
+grep -qF -- "--linked-only" "$A/.git/hooks/post-commit" 2>/dev/null \
+    && ok "hook is scoped to linked peers" || bad "hook would push to every peer"
+
+echo "== 11b. a commit propagates to the linked peer with no command =="
+# The peer must be on the SAME branch for a fast-forward to be legitimate — a peer on a different
+# branch is deliberately left alone (asserted in 4c). A is on feature/a here, so put C there too.
+git -C "$C" checkout -q -B feature/a 2>/dev/null || git -C "$C" checkout -q feature/a
+C_BEFORE="$(git -C "$C" rev-parse HEAD)"
+printf 'linked edit\n' > "$A/linked-edit.txt"
+git -C "$A" add linked-edit.txt
+git -C "$A" commit -qm "linked edit"
+A_AFTER="$(git -C "$A" rev-parse HEAD)"
+C_AFTER="$(git -C "$C" rev-parse HEAD)"
+check "peer advanced to the new commit automatically" "$A_AFTER" "$C_AFTER"
+[[ "$C_BEFORE" != "$C_AFTER" ]] && ok "peer HEAD moved off its old commit" || bad "peer HEAD never moved"
+
+echo "== 11c. the hook is idempotent and removable =="
+HOOK_SUM_BEFORE="$(cksum "$A/.git/hooks/post-commit" 2>/dev/null)"
+"$CLI" --machine-link --repo "$A" --peer peer-c-32gb --peer-path "$C" \
+    --machines-file "${WORK}/machines-c.txt" >/dev/null 2>&1
+HOOK_SUM_AFTER="$(cksum "$A/.git/hooks/post-commit" 2>/dev/null)"
+check "re-linking does not stack hook blocks" "$HOOK_SUM_BEFORE" "$HOOK_SUM_AFTER"
+check "re-linking keeps one registry row" "1" "$(grep -cF "peer-c-32gb | $C" "$LINKS" 2>/dev/null)"
+"$CLI" --machine-link --repo "$A" --peer peer-c-32gb --remove \
+    --machines-file "${WORK}/machines-c.txt" >/dev/null 2>&1
+check "--remove exits 0" "0" "$?"
+grep -qF "peer-c-32gb" "$LINKS" 2>/dev/null && bad "link survived --remove" || ok "link removed"
+[[ -f "$A/.git/hooks/post-commit" ]] && bad "hook survived --remove" || ok "hook removed with the link"
+
+echo "== 12. --all runs every linked repo, and fails closed when nothing is linked =="
+# Re-link both A and a second clone, then sync both in one command.
+D="${WORK}/peer-c/renamed-two"
+git clone -q "$SRC" "$D"
+"$CLI" --machine-link --repo "$A" --peer peer-c-32gb --peer-path "$C" \
+    --machines-file "${WORK}/machines-c.txt" --no-hooks >/dev/null 2>&1
+ALL="$("$CLI" --machine-sync --all --machines-file "${WORK}/machines-c.txt" 2>&1)"
+check "--all exits 0" "0" "$?"
+if printf '%s' "$ALL" | grep -q 'renamed-demo'; then ok "--all visited the linked repo"; else
+    bad "--all did not visit the linked repo"; printf '%s\n' "$ALL" | sed 's/^/    | /'
+fi
+EMPTY="${WORK}/links-empty.txt"
+: > "$EMPTY"
+AINISH_LINKS_FILE="$EMPTY" "$CLI" --machine-sync --all --machines-file "${WORK}/machines-c.txt" >/dev/null 2>&1
+check "--all with no links exits 1 (nothing linked is not success)" "1" "$?"
+
+echo "== 13. --quiet is silent, and errors still reach stderr =="
+QUIET_OUT="$("$CLI" --machine-sync --repo "$A" --machines-file "${WORK}/machines-c.txt" \
+    --machine peer-c-32gb --push --linked-only --quiet 2>/dev/null)"
+check "--quiet prints nothing on stdout" "" "$QUIET_OUT"
+
+echo "== 14. --dry-run survives a peer that has never synced from here =="
+# The regression: an unguarded `rev-list` against a missing peer ref aborted the whole run under
+# `set -e`, printing a truncated header and exiting 1. A fresh checkout has no such ref.
+# The checkout must share the repo's directory name in its OWN root, or the peer resolves to a path
+# that does not exist and the dry run reports "unreachable" instead of forecasting.
+E_ROOT="${WORK}/peer-fresh"
+E="${E_ROOT}/demo"
+mkdir -p "$E_ROOT"
+git clone -q "$SRC" "$E"
+printf 'box-18gb=self\nfresh-8gb=%s\n' "$E_ROOT" > "${WORK}/machines-fresh.txt"
+DRY="$("$CLI" --machine-sync --repo "$A" --machines-file "${WORK}/machines-fresh.txt" \
+    --machine fresh-8gb --dry-run 2>&1)"
+check "--dry-run on a never-synced peer exits 0" "0" "$?"
+if printf '%s' "$DRY" | grep -qi 'never synced'; then
+    ok "--dry-run explains that the peer has no ref yet"
+else
+    bad "--dry-run gave no forecast for an unsynced peer"; printf '%s\n' "$DRY" | sed 's/^/    | /'
+fi
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1

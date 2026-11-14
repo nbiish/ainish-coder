@@ -58,6 +58,7 @@ source "${SRC_DIR}/deploy_llms_txt.sh"
 source "${SRC_DIR}/embed_config.sh"
 source "${SRC_DIR}/pqc_dist.sh"
 source "${SRC_DIR}/machine_sync.sh"
+source "${SRC_DIR}/machine_link.sh"
 source "${SRC_DIR}/plan_gate.sh"
 
 # Main function
@@ -434,6 +435,10 @@ main() {
 
         --machine-sync)
             machine_sync "$@"
+            ;;
+
+        --machine-link)
+            machine_link "$@"
             ;;
 
         --rules-watch)

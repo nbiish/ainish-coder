@@ -43,12 +43,16 @@ _MS_JSON=false
 _MS_FF_PEERS=true
 _MS_PEER_REF=""
 _MS_PEER_BRANCH=""
+_MS_QUIET=false
 
+# Output helpers. `--quiet` exists for the git-hook path, where a commit must not spew sync output
+# into the terminal; errors still go to stderr because a silent failure is worse than a noisy one.
+_ms_quiet() { [[ "$_MS_QUIET" == "true" || "$_MS_JSON" == "true" ]]; }
 _ms_err()  { printf 'machine-sync: %s\n' "$*" >&2; }
-_ms_ok()   { [[ "$_MS_JSON" == "true" ]] || printf '  %b✓%b %s\n' "${GREEN:-}" "${RESET:-}" "$*"; }
-_ms_skip() { [[ "$_MS_JSON" == "true" ]] || printf '  %b·%b %s\n' "${YELLOW:-}" "${RESET:-}" "$*"; }
-_ms_head() { [[ "$_MS_JSON" == "true" ]] || printf '%b%s%b\n' "${BRIGHT_BLUE:-}" "$*" "${RESET:-}"; }
-_ms_info() { [[ "$_MS_JSON" == "true" ]] || printf '  %s\n' "$*"; }
+_ms_ok()   { _ms_quiet || printf '  %b✓%b %s\n' "${GREEN:-}" "${RESET:-}" "$*"; }
+_ms_skip() { _ms_quiet || printf '  %b·%b %s\n' "${YELLOW:-}" "${RESET:-}" "$*"; }
+_ms_head() { _ms_quiet || printf '%b%s%b\n' "${BRIGHT_BLUE:-}" "$*" "${RESET:-}"; }
+_ms_info() { _ms_quiet || printf '  %s\n' "$*"; }
 
 # _ms_checkout_id <host> <path> — a stable identity for the checkout at host:path.
 #
@@ -62,7 +66,7 @@ _ms_checkout_id() {
     # `git -C` rather than `cd && git`: the peer's login shell may be POSIX sh or PowerShell,
     # and `&&` / `>/dev/null` are invalid PowerShell. This is the same constraint the snapshot
     # plumbing already documents at _ms_snap_cmd.
-    top="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n')"
+    top="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n' || true)"
     [[ -n "$top" ]] || top="$path"
     # Normalize the two spellings of one NTFS path. A Windows peer reports `D:/Code/x` and its
     # WSL view reports `/mnt/d/Code/x`; comparing raw strings therefore never matches, and the
@@ -90,18 +94,37 @@ _ms_peer_forecast() {
     local host="$1" path="$2" branch="$3"
     [[ -n "$branch" ]] || return 0
 
-    local ahead behind dirty
+    local ahead behind dirty has_ref
     # `git -C` on the peer, POSIX shell only: the Windows peer reaches git through its own shell.
-    ahead="$(_ms_remote "$host" "git -C '$path' rev-list --count 'refs/remotes/$(_ms_self_name)/$branch'..'$branch'" 2>/dev/null | tr -d '\r\n')"
-    behind="$(_ms_remote "$host" "git -C '$path' rev-list --count '$branch'..'refs/remotes/$(_ms_self_name)/$branch'" 2>/dev/null | tr -d '\r\n')"
-    [[ "$ahead" =~ ^[0-9]+$ ]] || ahead=0
-    [[ "$behind" =~ ^[0-9]+$ ]] || behind=0
+    #
+    # Every one of these can legitimately fail: a peer that has never synced has no
+    # `refs/remotes/<self>/<branch>`, and `git rev-list` rejects the range outright. The caller runs
+    # under `set -e`, so an unguarded assignment aborted the whole dry run at exit 1 with no
+    # explanation — the failure mode this branch first hit on the real repo. Ask whether the ref
+    # exists first, and report "never synced" as the forecast instead of dying.
+    has_ref="$(_ms_remote "$host" "git -C '$path' rev-parse -q --verify 'refs/remotes/$(_ms_self_name)/$branch'" 2>/dev/null | tr -d '\r\n' || true)"
+    if [[ -z "$has_ref" ]]; then
+        _ms_info "forecast: peer has no refs/remotes/$(_ms_self_name)/$branch yet — never synced from this machine"
+        _ms_info "forecast: this run would deliver it; the peer can fast-forward only if its '$branch' is an ancestor"
+    else
+        ahead="$(_ms_remote "$host" "git -C '$path' rev-list --count 'refs/remotes/$(_ms_self_name)/$branch'..'$branch'" 2>/dev/null | tr -d '\r\n' || true)"
+        behind="$(_ms_remote "$host" "git -C '$path' rev-list --count '$branch'..'refs/remotes/$(_ms_self_name)/$branch'" 2>/dev/null | tr -d '\r\n' || true)"
+        [[ "$ahead" =~ ^[0-9]+$ ]] || ahead=0
+        [[ "$behind" =~ ^[0-9]+$ ]] || behind=0
 
-    _ms_info "forecast: $branch is $ahead ahead / $behind behind refs/remotes/$(_ms_self_name)/$branch on this peer"
+        _ms_info "forecast: $branch is $ahead ahead / $behind behind refs/remotes/$(_ms_self_name)/$branch on this peer"
+
+        # A peer whose own commits are not in our history can never fast-forward onto us, however
+        # clean its tree. Saying so is the difference between a forecast and a hope.
+        if (( ahead > 0 )); then
+            _ms_info "forecast: the peer holds $ahead commit(s) this machine lacks — fast-forward is impossible"
+            _ms_info "forecast: that is a diverged lane; merge it by hand or preserve it as a branch"
+        fi
+    fi
 
     # The blocking condition is a non-clean tree. Name the paths, because "local changes" sends the
     # operator hunting and a single stray file is the usual cause.
-    dirty="$(_ms_remote "$host" "git -C '$path' status --porcelain" 2>/dev/null | tr -d '\r')"
+    dirty="$(_ms_remote "$host" "git -C '$path' status --porcelain" 2>/dev/null | tr -d '\r' || true)"
     if [[ -z "$dirty" ]]; then
         _ms_info "forecast: peer tree is clean — the checkout would fast-forward"
     else
@@ -121,13 +144,18 @@ ainish-coder --machine-sync — federate this repository with its peer machines
 
 USAGE:
     ainish-coder --machine-sync [DIR] [OPTIONS]
+    ainish-coder --machine-sync --all [OPTIONS]
 
 OPTIONS:
     --machine NAME         Sync with NAME only (repeatable). Default: every peer in the registry.
     --min-ram GB           Only peers whose capacity name is at least GB (mac-18gb -> 18).
     --kind KIND            Only peers of this kind (mac | windows | wsl | cloud | linux).
     --as NAME              This machine's name in the registry (default: the line marked `self`).
-    --peer-path NAME=PATH  Override where NAME keeps this repository (default: <root>/<repo name>).
+    --peer-path NAME=PATH  Override where NAME keeps this repository. Precedence: this flag, then a
+                           path recorded by --machine-link, then <peer code root>/<repo name>.
+    --all                  Run every repository linked on this machine (see --machine-link).
+    --linked-only          Sync only with peers this repository is linked to. The git hook uses it.
+    --quiet                No output on stdout; errors still go to stderr. For hooks and scripts.
     --push                 Send only: our branches and uncommitted work to the peers.
     --pull                 Receive only: peer branches and their uncommitted work to here.
     --both                 Send and receive (default).
@@ -135,12 +163,12 @@ OPTIONS:
     --auto-commit          Commit any working-tree edits on this machine before sending, so an
                            edit made here is a normal commit the peer fast-forwards onto. The
                            snapshot ref is still taken. This is the fire-and-forget path.
-    --no-ff-peers          Leave the peer's checkout where it is. By default a peer that has the
+    --no-ff-peers          Leave the peer's checkout where it is. ON BY DEFAULT a peer that has the
                            same branch checked out and a clean tree is fast-forwarded, so the next
-                           command run there sees the new commits.
-    --ff-peers             Explicitly fast-forward a peer's checkout onto what was
-                           sent — only when that peer has the same branch checked out and a clean
-                           working tree. Off by default: a peer's branch is not ours to move.
+                           command run there sees the new commits. Use this to opt out per run.
+    --ff-peers             Re-assert the default (fast-forward a clean peer on the same branch).
+                           The peer's branch is only ever moved when it is on the SAME branch and
+                           its tree is clean; anything else is reported and left alone.
     --dry-run              Print the plan and exit without moving anything.
     --json                 Machine-readable summary on stdout.
     --machines-file PATH   Registry to read (default: ~/.config/ainish-coder/machines.txt).
@@ -310,8 +338,20 @@ _ms_fetch_refspecs() { # machine
         "+refs/tags/*:refs/tags/*"
 }
 
+# _ms_remote <host> <command> — run a command on a peer, or here when the peer is local.
+#
+# An empty host means the peer is another checkout on this machine (a registry line like
+# `/abs/root`). Passing that to ssh runs `ssh "" …`, which fails with "Could not resolve
+# hostname" and — under the caller's `set -e` — kills the whole run at exit 255. Every local-peer
+# sync died there. Running it through a shell instead keeps one code path for both transports and
+# matches what the peer would see over ssh: a POSIX shell.
 _ms_remote() { # host command
-    ssh -o BatchMode=yes -o ConnectTimeout=10 "$1" "$2"
+    local host="$1" cmd="$2"
+    if [[ -z "$host" ]]; then
+        bash -c "$cmd"
+    else
+        ssh -o BatchMode=yes -o ConnectTimeout=10 "$host" "$cmd"
+    fi
 }
 
 _ms_rm_cmd() { # path -> a remote-shell command that deletes it
@@ -336,8 +376,8 @@ _ms_fast_forward_peer() { # host path branch
         peer_branch="$(git -C "$path" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
         dirty="$(git -C "$path" status --porcelain 2>/dev/null || true)"
     else
-        peer_branch="$(_ms_remote "$host" "git -C '${path}' rev-parse --abbrev-ref HEAD" 2>/dev/null | tr -d '\r')"
-        dirty="$(_ms_remote "$host" "git -C '${path}' status --porcelain" 2>/dev/null | tr -d '\r')"
+        peer_branch="$(_ms_remote "$host" "git -C '${path}' rev-parse --abbrev-ref HEAD" 2>/dev/null | tr -d '\r' || true)"
+        dirty="$(_ms_remote "$host" "git -C '${path}' status --porcelain" 2>/dev/null | tr -d '\r' || true)"
     fi
     if [[ "$peer_branch" != "$branch" ]]; then
         _ms_skip "peer has '${peer_branch}' checked out, not '${branch}' — ref delivered, checkout untouched"
@@ -600,7 +640,7 @@ _ms_pull() { # repo host peer_path peer_name bundle
 _ms_report_peer() { # repo peer
     local repo="$1" peer="$2" n=0 s sha subject ahead
     n="$(git -C "$repo" for-each-ref --format='%(refname)' "refs/remotes/${peer}/" 2>/dev/null | wc -l | tr -d ' ')"
-    [[ "$_MS_JSON" == "true" ]] && return 0
+    _ms_quiet && return 0
     printf '  %b%s%b — %s branch ref(s)\n' "${BRIGHT_CYAN:-}" "$peer" "${RESET:-}" "$n"
     while IFS=$'\t' read -r sha subject; do
         [[ -n "$sha" ]] || continue
@@ -618,7 +658,7 @@ _ms_json_str() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; printf '"%s
 # ── entry point ──────────────────────────────────────────────────────────────
 
 machine_sync() {
-    local repo="" json=false dry=false status=false min_ram=0 kind_filter=""
+    local repo="" json=false dry=false status=false min_ram=0 kind_filter="" all_linked=false linked_only=false
     local -a explicit=() overrides=()
     local a
 
@@ -641,6 +681,10 @@ machine_sync() {
             --status)      status=true;           shift ;;
             --dry-run)     dry=true;              shift ;;
             --json)        json=true;             shift ;;
+            --quiet)       _MS_QUIET=true;        shift ;;
+            --all)         all_linked=true;       shift ;;
+            --linked-only) linked_only=true;      shift ;;
+            --links-file)  AINISH_LINKS_FILE="${2:-}"; shift 2 ;;
             -h|--help)     _ms_usage; return 0 ;;
             -*)            _ms_err "unknown option: $1 (try --machine-sync --help)"; return 1 ;;
             *)             [[ -z "$repo" ]] && repo="$1"; shift ;;
@@ -648,6 +692,45 @@ machine_sync() {
     done
 
     _MS_JSON="$json"
+
+    # `--all` fans out over every repo linked on this machine. It runs each repo in a subshell so one
+    # unreachable peer or one broken repo cannot abort the rest, and it refuses to guess a repo when
+    # the links file is empty — "nothing linked" must not read as "everything synced".
+    if [[ "$all_linked" == "true" ]]; then
+        local links_file="${AINISH_LINKS_FILE:-$HOME/.config/ainish-coder/links.txt}"
+        if [[ ! -f "$links_file" ]] || ! grep -qv '^[[:space:]]*\(#\|$\)' "$links_file" 2>/dev/null; then
+            _ms_err "no links recorded in $links_file (create one with --machine-link)"
+            return 1
+        fi
+        local -a linked_repos=()
+        local ln lr
+        while IFS= read -r ln || [[ -n "$ln" ]]; do
+            [[ "$ln" != \#* && "$ln" == *"|"* ]] || continue
+            lr="${ln%%|*}"
+            lr="$(printf '%s' "$lr" | sed 's/[[:space:]]*$//')"
+            [[ -d "$lr" ]] || { _ms_err "linked repo is gone: $lr"; continue; }
+            _ms_in_list "$lr" ${linked_repos[@]+"${linked_repos[@]}"} || linked_repos+=("$lr")
+        done < "$links_file"
+        if (( ${#linked_repos[@]} == 0 )); then
+            _ms_err "no usable linked repos in $links_file"
+            return 1
+        fi
+        local failed=0 lrepo
+        for lrepo in "${linked_repos[@]}"; do
+            # Recurse without --all/--quiet: each repo reports itself, and the per-repo call reads the
+            # same links file to resolve the peer path.
+            local -a sub=(--repo "$lrepo")
+            [[ "$json" == "true" ]] && sub+=(--json)
+            [[ "$status" == "true" ]] && sub+=(--status)
+            [[ "$dry" == "true" ]] && sub+=(--dry-run)
+            sub+=(--"$_MS_DIRECTION")
+            [[ "$_MS_FF_PEERS" == "true" ]] && sub+=(--ff-peers) || sub+=(--no-ff-peers)
+            (( ${#explicit[@]} > 0 )) && { local e0; for e0 in "${explicit[@]}"; do sub+=(--machine "$e0"); done; }
+            machine_sync "${sub[@]}" || failed=$((failed + 1))
+        done
+        (( failed == 0 )) || { _ms_err "$failed linked repo(s) failed"; return 1; }
+        return 0
+    fi
 
     [[ -n "$repo" ]] || repo="$(pwd)"
     if ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
@@ -685,6 +768,12 @@ machine_sync() {
             [[ "$want" == "true" ]] || continue
         fi
         if [[ -n "$kind_filter" && "${name%%-*}" != "$kind_filter" ]]; then continue; fi
+        # --linked-only restricts the run to peers this repo is actually linked to. The git hook uses
+        # it: a commit in one repo must not push that repo to every machine in the registry, only to
+        # the machines the operator linked it to.
+        if [[ "$linked_only" == "true" ]]; then
+            [[ -n "$(_ms_linked_path "$repo" "$name")" ]] || continue
+        fi
         local ram
         ram="$(_ms_name_ram "$name")"
         if (( min_ram > 0 )); then
@@ -699,7 +788,7 @@ machine_sync() {
         return 1
     fi
 
-    if [[ "$json" != "true" ]]; then
+    if ! _ms_quiet; then
         _ms_head "machine-sync — $repo_name on $_MS_SELF"
         printf '  repo:     %s\n' "$repo"
         printf '  peers:    %s\n' "${peer_names[*]}"
@@ -733,7 +822,7 @@ machine_sync() {
             3) wip_state="clean" ;;
             *) wip_state="snapshot FAILED"; _ms_err "could not snapshot the working tree; nothing leaves this machine" ;;
         esac
-        if [[ "$json" != "true" ]]; then
+        if ! _ms_quiet; then
             printf '  wip:      %s\n' "$wip_state"
         fi
         [[ "$rc" == "1" ]] && return 1
@@ -745,7 +834,7 @@ machine_sync() {
     rm -f "$bundle"
 
     if [[ "$status" != "true" && "$dry" != "true" && "$_MS_DIRECTION" != "pull" ]]; then
-        if [[ "$json" != "true" ]]; then printf '  bundling…\n'; fi
+        if ! _ms_quiet; then printf '  bundling…\n'; fi
         local brc=0
         _ms_bundle_create "$repo" "$bundle" || brc=$?
         case "$brc" in
@@ -771,13 +860,25 @@ machine_sync() {
             _ms_skip "$name — self entry with no root; nothing to sync"
             continue
         fi
-        # An explicit --peer-path wins; otherwise the peer keeps this repo under its code root.
+        # An explicit --peer-path wins; then a recorded link; last, the name-based guess. The links
+        # file is what makes "link this repo to that machine" a one-time statement — without it the
+        # guess is `<peer code root>/<repo name>`, wrong whenever two machines keep the repo in
+        # different trees.
         path="$(_ms_override_for "$name")"
-        if [[ -z "$path" ]]; then path="${_P_ROOT%/}/${repo_name}"; fi
+        local path_from=""
+        if [[ -z "$path" ]]; then
+            path="$(_ms_linked_path "$repo" "$name")"
+            [[ -n "$path" ]] && path_from="link"
+        fi
+        if [[ -z "$path" ]]; then
+            path="${_P_ROOT%/}/${repo_name}"
+            path_from="code root"
+        fi
 
-        if [[ "$json" != "true" ]]; then
+        if [[ "$json" != "true" && "$_MS_QUIET" != "true" ]]; then
             printf '\n%b%s%b  (%s%s)\n' "${BRIGHT_CYAN:-}" "$name" "${RESET:-}" \
                 "$([[ -n "$host" ]] && echo "ssh $host" || echo local):$path"
+            [[ -n "$path_from" && "$path_from" != "code root" ]] && _ms_info "path from $path_from"
         fi
 
         # De-duplicate by checkout identity, not by name. Only meaningful for peers that answer;
@@ -843,7 +944,7 @@ machine_sync() {
         fi
 
         if [[ "$sent" == "true" && "$recv" == "true" ]]; then
-            [[ "$json" != "true" ]] && _ms_ok "$name synced"
+            _ms_ok "$name synced"
             _ms_report_peer "$repo" "$name"
             _ms_smoke_peer "$host" "$path" "$name"
         else
@@ -887,7 +988,7 @@ _ms_smoke_peer() {
     local host="$1" path="$2" name="$3"
 
     local root
-    root="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n')"
+    root="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n' || true)"
     [[ -n "$root" ]] || { _ms_info "smoke: $name — no checkout found (unverified)"; return 0; }
 
     # Pick the launcher the PEER can actually execute. `bin/ainish-coder` is a bash script, so on a
@@ -905,8 +1006,11 @@ _ms_smoke_peer() {
     esac
 
     local version="" rules=""
-    version="$(_ms_remote "$host" "$cli --version" 2>/dev/null | tr -d '\r' | head -1)"
-    rules="$(_ms_remote "$host" "$cli --rules-status --json" 2>/dev/null | tr -d '\r' | head -c 120)"
+    # `|| true` on every probe: the caller runs under `set -e`, and a peer whose launcher is missing
+    # (exit 127), not executable, or absent must read as "unverified" — which is what this function
+    # promises — rather than aborting a sync that already delivered its refs.
+    version="$(_ms_remote "$host" "$cli --version" 2>/dev/null | tr -d '\r' | head -1 || true)"
+    rules="$(_ms_remote "$host" "$cli --rules-status --json" 2>/dev/null | tr -d '\r' | head -c 120 || true)"
 
     # --plan-check is only meaningful inside a git repo with a plan; a non-zero rc is a real answer,
     # not a transport failure, so the probe reports the code rather than judging it. The exit status
@@ -941,4 +1045,27 @@ _ms_in_list() { # needle haystack...
     local x
     for x in "$@"; do [[ "$x" == "$needle" ]] && return 0; done
     return 1
+}
+
+# _ms_linked_path <repo> <peer> — the peer path recorded by `--machine-link`, empty when unlinked.
+#
+# Reads the links registry directly rather than calling into machine_link.sh: sync must work on a
+# machine whose links file was copied over, and on one where only this file is loaded.
+_ms_linked_path() {
+    local repo="$1" peer="$2"
+    local links_file="${AINISH_LINKS_FILE:-$HOME/.config/ainish-coder/links.txt}"
+    [[ -f "$links_file" ]] || return 0
+    local line r p path
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" != \#* && "$line" == *"|"* ]] || continue
+        IFS='|' read -r r p path <<< "$line"
+        r="$(printf '%s' "$r" | sed 's/[[:space:]]*$//')"
+        p="$(printf '%s' "$p" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        path="$(printf '%s' "$path" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        if [[ "$r" == "$repo" && "$p" == "$peer" ]]; then
+            printf '%s\n' "$path"
+            return 0
+        fi
+    done < "$links_file"
+    return 0
 }
