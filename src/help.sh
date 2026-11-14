@@ -107,7 +107,27 @@ CORE COMMANDS:
                               never cross. Peers come from ~/.config/ainish-coder/
                               machines.txt and are named by capacity
                               (<kind>-<ram>gb), so --min-ram 64 picks the big box.
-                              --push | --pull | --both, --status, --dry-run, --json.
+                              --push | --pull | --both, --status, --dry-run, --json,
+                              --quiet (hooks), --linked-only, and --all (every repo
+                              linked here). A clean peer on the same branch is
+                              fast-forwarded; --no-ff-peers leaves it alone.
+                              Peer path precedence: --peer-path, then a path recorded
+                              by --machine-link, then <peer code root>/<repo name>.
+    --machine-link [DIR] --peer NAME [--peer-path PATH]
+                              Record that this repository is the SAME repository on
+                              another machine, so --machine-sync addresses it correctly
+                              without a flag every time. Writes
+                              ~/.config/ainish-coder/links.txt and installs a
+                              post-commit/post-merge hook that SENDS to the linked peers
+                              on every commit — the other machine is current before you
+                              next sit down at it. The hook never receives: moving this
+                              machine's branch stays an explicit --pull/--both.
+                              --all-peers (link every registry peer), --no-hooks,
+                              --list, --remove, --json, --links-file PATH.
+                              Example:
+                                ainish-coder --machine-link ~/code-external/repo \
+                                    --peer windows-128gb \
+                                    --peer-path D:/Code/repo
     --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]
                               Use a remote OpenAI-compatible embedding model and
                               skip the local llama server entirely (saves GBs of
@@ -460,6 +480,12 @@ EXAMPLES:
     ainish-coder --machine-sync .            # Peers with a clean tree on the same branch fast-forward
     ainish-coder --machine-sync . --no-ff-peers # Leave the peers' checkouts alone
     ainish-coder --machine-sync . --dry-run # Print the plan, move nothing
+    ainish-coder --machine-sync --all       # Every repository linked on this machine
+
+    # Link a repo to its copy on another machine: recorded once, then sent on every commit
+    ainish-coder --machine-link . --peer windows-128gb --peer-path D:/Code/myrepo
+    ainish-coder --machine-link --list      # What is linked on this machine
+    ainish-coder --machine-link . --peer windows-128gb --remove  # Unlink + remove the hook
     ainish-coder --embed-config --provider api --api-base https://api.openai.com/v1 --model text-embedding-3-small
                                             # Use a remote API embedding model; skip the local llama server
     ainish-coder --embed-config --status    # Show the active embedding provider and whether llama runs
