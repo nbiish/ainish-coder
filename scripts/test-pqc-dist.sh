@@ -1056,6 +1056,23 @@ contains "prd documents the pi-backed roles" \
 check "the contract still names no engine internals" \
     "$(grep -cE '\bpi\b|local-router|openrouter' "${REPO}/AGENTS.md")" "0"
 
+echo "== both EGM roles run on the local router =="
+# Operator direction 2026-11-14: one model, two fresh contexts. What matters is that a same-model
+# review is REPORTED as fresh-context rather than dressed up as independent-model, that a pin can
+# still buy genuine independence, and that the served model is recorded when the request was a route.
+contains "the default role model is the local router" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'PI_DEFAULT_MODEL = "local-router/fallback-models"'
+contains "role resolution ignores the per-role rotation" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'deliberately NOT consulted here'
+contains "same-model review is labelled fresh-context" \
+    "$(cat "${REPO}/src/rag/rag.py")" '"fresh-context"'
+contains "the router path runs with thinking off" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'PI_THINKING_IN_ROUTER'
+contains "the served model is recorded, not assumed" \
+    "$(cat "${REPO}/src/rag/rag.py")" '"served_model": served_model or model'
+contains "the pair line names who actually served the review" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'served by'
+
 echo "== wiki vault is Obsidian-native =="
 # The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows
 # orphan files, and without a wikilink-aware reader `--context` loses every explicit edge.

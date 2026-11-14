@@ -610,15 +610,29 @@ class PiAgentRuntimeTest(unittest.TestCase):
                 ],
             }),
         ])
-        text, error, _tokens = rag._pi_extract_text(stdout)
+        text, error, _tokens, _served = rag._pi_extract_text(stdout)
         self.assertEqual(text, "the answer")
         self.assertNotIn("SECRET_SCRATCH_9f2", text, "thinking must never reach the prime")
         self.assertNotIn("ignore me", text, "only assistant turns are extracted")
         self.assertIsNone(error)
 
+    def test_the_served_model_is_captured_not_just_the_requested_one(self):
+        # `local-router/fallback-models` is a ROUTE: the model that answers is only known afterwards.
+        # Recording it is the difference between a checkable claim and a reassuring one.
+        stdout = json.dumps({
+            "type": "agent_end",
+            "messages": [{
+                "role": "assistant",
+                "responseModel": "deepseek/deepseek-v4-pro",
+                "content": [{"type": "text", "text": "reviewed"}],
+            }],
+        })
+        _text, _err, _tok, served = rag._pi_extract_text(stdout)
+        self.assertEqual(served, "deepseek/deepseek-v4-pro")
+
     def test_an_error_event_is_reported(self):
         stdout = json.dumps({"type": "error", "message": "provider exploded"})
-        text, error, _ = rag._pi_extract_text(stdout)
+        text, error, _, _served = rag._pi_extract_text(stdout)
         self.assertEqual(text, "")
         self.assertIn("provider exploded", error or "")
 
