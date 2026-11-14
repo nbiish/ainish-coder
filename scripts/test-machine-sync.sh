@@ -271,6 +271,87 @@ else
     bad "--dry-run gave no forecast for an unsynced peer"; printf '%s\n' "$DRY" | sed 's/^/    | /'
 fi
 
+# ── branch materialisation and --latest ─────────────────────────────────────
+#
+# A delivered refs/remotes/<machine>/<branch> is not a branch you can work on. These assertions pin the
+# two properties that make "sync all branches" true: absent branches are created, and an existing
+# branch that disagrees is never moved.
+echo "== 15. --branches materialises every branch on the peer =="
+M="${WORK}/peer-m/src-demo"
+N="${WORK}/peer-m/dst-demo"
+mkdir -p "$(dirname "$M")" "$(dirname "$N")"
+git clone -q "$SRC" "$M"
+git clone -q "$SRC" "$N"
+# Give M two branches that N does not have.
+git -C "$M" checkout -q -b feat/alpha && git -C "$M" -c user.email=g@a -c user.name=g commit -q --allow-empty -m alpha
+git -C "$M" checkout -q -b feat/beta  && git -C "$M" -c user.email=g@a -c user.name=g commit -q --allow-empty -m beta
+git -C "$M" checkout -q main
+printf 'box-18gb=self\npeer-m-16gb=%s\n' "$(dirname "$N")" > "${WORK}/machines-m.txt"
+# The peer directory is deliberately named differently from this repo, so only a recorded link can
+# resolve it — the same situation as D:/Code/x on Windows versus a remote code root on the Mac.
+"$CLI" --machine-link --repo "$M" --peer peer-m-16gb --peer-path "$N" \
+    --machines-file "${WORK}/machines-m.txt" --no-hooks >/dev/null 2>&1
+check "peer starts with only main" "main" "$(git -C "$N" branch --format='%(refname:short)' | tr '\n' ' ' | sed 's/ $//')"
+MB="$("$CLI" --machine-sync --repo "$M" --machines-file "${WORK}/machines-m.txt" \
+    --machine peer-m-16gb --push --branches 2>&1)"
+check "--branches exits 0" "0" "$?"
+N_BRANCHES="$(git -C "$N" branch --format='%(refname:short)' | sort | tr '\n' ' ')"
+if printf '%s' "$N_BRANCHES" | grep -q 'feat/alpha' && printf '%s' "$N_BRANCHES" | grep -q 'feat/beta'; then
+    ok "peer gained feat/alpha and feat/beta as local branches"
+else
+    bad "peer did not gain the branches (has: $N_BRANCHES)"; printf '%s\n' "$MB" | sed 's/^/    | /'
+fi
+# A created branch must point at the sender's tip, not merely exist.
+check "created branch points at the sender's tip" \
+    "$(git -C "$M" rev-parse feat/alpha)" "$(git -C "$N" rev-parse feat/alpha)"
+
+echo "== 16. a diverged branch is never moved =="
+# Both sides get their own commit on the same branch name, with no common tip.
+git -C "$N" checkout -q -b feat/diverged
+git -C "$N" -c user.email=g@a -c user.name=g commit -q --allow-empty -m "N-only work"
+N_DIV_TIP="$(git -C "$N" rev-parse feat/diverged)"
+git -C "$M" checkout -q -b feat/diverged
+git -C "$M" -c user.email=g@a -c user.name=g commit -q --allow-empty -m "M-only work"
+git -C "$M" checkout -q main
+DV="$("$CLI" --machine-sync --repo "$M" --machines-file "${WORK}/machines-m.txt" \
+    --machine peer-m-16gb --push --branches 2>&1)"
+check "--branches exits 0 when a branch diverges" "0" "$?"
+check "the peer's diverged branch is byte-identical afterwards" "$N_DIV_TIP" "$(git -C "$N" rev-parse feat/diverged)"
+if printf '%s' "$DV" | grep -qi 'DIVERGED'; then
+    ok "the divergence is reported, not hidden"
+else
+    bad "divergence was not reported"; printf '%s\n' "$DV" | sed 's/^/    | /'
+fi
+
+echo "== 17. --latest names the newest machine per branch =="
+LT="$("$CLI" --machine-sync --repo "$M" --machines-file "${WORK}/machines-m.txt" \
+    --machine peer-m-16gb --latest 2>&1)"
+check "--latest exits 0" "0" "$?"
+if printf '%s' "$LT" | grep -q 'feat/alpha'; then
+    ok "--latest reports every branch"
+else
+    bad "--latest did not list branches"; printf '%s\n' "$LT" | sed 's/^/    | /'
+fi
+if printf '%s' "$LT" | grep -q 'NEWEST ON'; then ok "--latest has a where column"; else bad "--latest lacks the machine column"; fi
+LJ="$("$CLI" --machine-sync --repo "$M" --machines-file "${WORK}/machines-m.txt" \
+    --machine peer-m-16gb --latest --json 2>/dev/null)"
+if printf '%s' "$LJ" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["format"]=="ainish-coder/machine-latest/v1"; assert len(d["branches"])>=3' 2>/dev/null; then
+    ok "--latest --json parses and carries branches"
+else
+    bad "--latest --json did not parse"; printf '%s\n' "$LJ" | sed 's/^/    | /'
+fi
+# The newest commit on feat/alpha is M's, so M must be named as the holder.
+if printf '%s' "$LJ" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+row=[b for b in d["branches"] if b["branch"]=="feat/alpha"][0]
+assert row["newest_machine"].split("+")[0].split("~")[0]=="box-18gb", row
+' 2>/dev/null; then
+    ok "--latest attributes feat/alpha to the machine that holds it"
+else
+    bad "--latest misattributed feat/alpha"
+fi
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1

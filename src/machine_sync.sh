@@ -44,6 +44,14 @@ _MS_FF_PEERS=true
 _MS_PEER_REF=""
 _MS_PEER_BRANCH=""
 _MS_QUIET=false
+_MS_MAT_CREATED=""
+_MS_MAT_DIVERGED=""
+_MS_MAT_SAME=""
+# Peers selected for the current run, published for helpers that need them without threading arrays
+# through every call (`_ms_latest` asks each peer what it has).
+_MS_PEER_SELECTED=()
+_MS_PEER_SELECTED_SPECS=()
+_MS_OVERRIDES=()
 
 # Output helpers. `--quiet` exists for the git-hook path, where a commit must not spew sync output
 # into the terminal; errors still go to stderr because a silent failure is worse than a noisy one.
@@ -138,6 +146,258 @@ _ms_peer_forecast() {
     return 0
 }
 
+# ── branch materialisation ──────────────────────────────────────────────────
+#
+# A delivered `refs/remotes/<machine>/<branch>` is not a branch you can work on: `git checkout` it and
+# you get a detached HEAD, and `git branch` never lists it. So a machine that has "synced" is still not
+# a machine you can sit down at. Materialisation turns those refs into real local branches.
+#
+# ADDITIVE, ALWAYS. A branch is created only when the name is absent. When it exists, the two tips are
+# compared and the result is reported — `same`, `behind`, `ahead`, or `diverged` — and the local branch
+# is never moved. Moving one would discard this machine's history to make a status report look tidy,
+# which is the exact failure the whole tool exists to prevent: on this repo `main` exists independently
+# on two machines with no common ancestor, so any force would delete a real line of work.
+#
+# The peer side uses plain `git branch` over ssh rather than the peer's `ainish-coder`, because a peer
+# that has not been updated in weeks is precisely the peer most in need of having its branches created.
+
+# Echo one line per branch of the named ref namespace on a host:
+#   <branch>\t<sha>\t<committerdate-epoch>
+#
+# The prefix is removed with a literal replacement rather than `%(refname:lstrip=N)`: that option counts
+# slash-separated components, so passing it a path (`refs/heads/`) strips nothing and every branch came
+# back with an empty name — which made materialisation silently create nothing.
+_ms_list_branches() { # host path refprefix
+    local host="$1" path="$2" prefix="$3"
+    local esc="${prefix//\//\\/}"
+    local fmt="%(refname)%09%(objectname)%09%(committerdate:unix)"
+    local out
+    if [[ -z "$host" ]]; then
+        out="$(git -C "$path" for-each-ref --format="$fmt" "$prefix" 2>/dev/null || true)"
+    else
+        # One bounded call, not one per branch: an unreachable peer must cost one timeout, not N.
+        out="$(_ms_remote "$host" "git -C '$path' for-each-ref --format='$fmt' '$prefix'" 2>/dev/null | tr -d '\r' || true)"
+    fi
+    printf '%s\n' "$out" | while IFS=$'\t' read -r ref sha date; do
+        [[ -n "$ref" ]] || continue
+        printf '%s\t%s\t%s\n' "${ref#"$prefix"}" "$sha" "$date"
+    done
+}
+
+# Classify an existing local branch against an incoming tip.
+# Echoes: same | behind | ahead | diverged
+_ms_branch_relation() { # repo local_sha incoming_sha
+    local repo="$1" local_sha="$2" incoming="$3"
+    [[ "$local_sha" == "$incoming" ]] && { printf 'same\n'; return 0; }
+    if git -C "$repo" merge-base --is-ancestor "$local_sha" "$incoming" 2>/dev/null; then
+        printf 'behind\n'; return 0
+    fi
+    if git -C "$repo" merge-base --is-ancestor "$incoming" "$local_sha" 2>/dev/null; then
+        printf 'ahead\n'; return 0
+    fi
+    printf 'diverged\n'
+}
+
+# _ms_materialize_branches <repo> <host> <path> <peer-name>
+#
+# Creates, on the host at <path>, a local branch for every branch this machine has that the host lacks.
+# Never moves or deletes anything. Sets _MS_MAT_CREATED / _MS_MAT_DIVERGED / _MS_MAT_SAME for the caller.
+#
+# Plain arrays, not `declare -A`: bash 3.2 on macOS has no associative arrays, and this script ships to
+# macOS, Linux, and Windows. A feature that works only where bash is new is not portable tooling.
+_ms_materialize_branches() { # repo host path peer
+    local repo="$1" host="$2" path="$3" peer="$4"
+    _MS_MAT_CREATED=""
+    _MS_MAT_DIVERGED=""
+    _MS_MAT_SAME=""
+
+    # What this machine has, and what the far side already has, as parallel name/sha lists.
+    local mine_names="" mine_shas=""
+    local name sha _rest
+    while IFS=$'\t' read -r name sha _rest; do
+        [[ -n "$name" ]] || continue
+        mine_names="${mine_names}${name}"$'\n'
+        mine_shas="${mine_shas}${sha}"$'\n'
+    done < <(_ms_list_branches "" "$repo" refs/heads/)
+
+    local their_names="" their_shas=""
+    while IFS=$'\t' read -r name sha _rest; do
+        [[ -n "$name" ]] || continue
+        their_names="${their_names}${name}"$'\n'
+        their_shas="${their_shas}${sha}"$'\n'
+    done < <(_ms_list_branches "$host" "$path" refs/heads/)
+
+    local -a mine_arr=() mine_sha_arr=() their_arr=() their_sha_arr=()
+    local line
+    while IFS= read -r line; do [[ -n "$line" ]] && mine_arr+=("$line"); done <<< "$mine_names"
+    while IFS= read -r line; do [[ -n "$line" ]] && mine_sha_arr+=("$line"); done <<< "$mine_shas"
+    while IFS= read -r line; do [[ -n "$line" ]] && their_arr+=("$line"); done <<< "$their_names"
+    while IFS= read -r line; do [[ -n "$line" ]] && their_sha_arr+=("$line"); done <<< "$their_shas"
+
+    local i j their_sha rel
+    for i in "${!mine_arr[@]}"; do
+        name="${mine_arr[$i]}"; sha="${mine_sha_arr[$i]}"
+        their_sha=""
+        for j in "${!their_arr[@]}"; do
+            [[ "${their_arr[$j]}" == "$name" ]] && { their_sha="${their_sha_arr[$j]}"; break; }
+        done
+
+        if [[ -z "$their_sha" ]]; then
+            # Absent: create it at exactly our tip. `git branch` refuses an existing name, which is the
+            # safety property we want — no force flag appears anywhere on this path.
+            if [[ -z "$host" ]]; then
+                git -C "$path" branch "$name" "$sha" >/dev/null 2>&1
+            else
+                _ms_remote "$host" "git -C '$path' branch '$name' '$sha'" >/dev/null 2>&1
+            fi
+            if _ms_ref_exists "$host" "$path" "refs/heads/$name"; then
+                _MS_MAT_CREATED="${_MS_MAT_CREATED}${name}"$'\n'
+                _ms_info "  branch $name: created on $peer at ${sha:0:8}"
+            else
+                _ms_err "$peer — could not create branch '$name'"
+            fi
+            continue
+        fi
+
+        if [[ "$their_sha" == "$sha" ]]; then
+            _MS_MAT_SAME="${_MS_MAT_SAME}${name}"$'\n'
+            continue
+        fi
+
+        # Present but different. Report the relationship; this is the case that must never be forced.
+        rel="$(_ms_branch_relation "$repo" "$their_sha" "$sha")"
+        case "$rel" in
+            behind)
+                # The peer's tip is an ancestor of ours, so advancing it cannot lose its work. Done with
+                # an explicit `branch -f` onto our tip, and only ever in this direction.
+                if [[ -z "$host" ]]; then
+                    git -C "$path" branch -f "$name" "$sha" >/dev/null 2>&1
+                else
+                    _ms_remote "$host" "git -C '$path' branch -f '$name' '$sha'" >/dev/null 2>&1
+                fi
+                _MS_MAT_CREATED="${_MS_MAT_CREATED}${name}"$'\n'
+                _ms_info "  branch $name: advanced on $peer ${their_sha:0:8} -> ${sha:0:8} (fast-forward)"
+                ;;
+            ahead)
+                # The peer has commits we lack: leave it, our ref catches up on the next pull.
+                _MS_MAT_SAME="${_MS_MAT_SAME}${name}"$'\n'
+                _ms_info "  branch $name: $peer is ahead (${their_sha:0:8}), left alone"
+                ;;
+            *)
+                _MS_MAT_DIVERGED="${_MS_MAT_DIVERGED}${name} ${their_sha:0:8} ${sha:0:8}"$'\n'
+                _ms_skip "branch $name: DIVERGED — $peer has ${their_sha:0:8}, this machine has ${sha:0:8}; not touched"
+                ;;
+        esac
+    done
+    return 0
+}
+
+_ms_ref_exists() { # host path ref
+    local host="$1" path="$2" ref="$3"
+    if [[ -z "$host" ]]; then
+        git -C "$path" rev-parse -q --verify "$ref" >/dev/null 2>&1
+    else
+        _ms_remote "$host" "git -C '$path' rev-parse -q --verify '$ref'" >/dev/null 2>&1
+    fi
+}
+
+# ── latest ──────────────────────────────────────────────────────────────────
+#
+# "Which copy is the latest?" is the question that decides where to sit down, and it cannot be answered
+# from cached refs — those are stale by definition. This asks every peer, in one bounded call each, and
+# reports per branch which machine holds the newest commit. Read-only: nothing is fetched or moved.
+
+# _ms_latest <repo>
+#
+# Reports, per branch, which machine holds the newest commit. Parallel arrays rather than `declare -A`
+# for the same reason as materialisation: bash 3.2 on macOS has no associative arrays and this script
+# ships to macOS, Linux, and Windows.
+_ms_latest() { # repo
+    local repo="$1"
+    local _self_name="$_MS_SELF" repo_name
+    repo_name="$(basename "$repo")"
+    local -a peer_names=(${_MS_PEER_SELECTED[@]+"${_MS_PEER_SELECTED[@]}"})
+    local -a peer_specs=(${_MS_PEER_SELECTED_SPECS[@]+"${_MS_PEER_SELECTED_SPECS[@]}"})
+
+    # Per branch: name, newest sha, newest committerdate, and who holds it. Indexed by position in
+    # `order`; `_ms_latest_idx` finds the slot for a branch name.
+    local -a order=() best_sha=() best_date=() holders=()
+
+    local name sha date
+    while IFS=$'\t' read -r name sha date; do
+        [[ -n "$name" ]] || continue
+        order+=("$name"); best_sha+=("$sha"); best_date+=("$date"); holders+=("$_self_name")
+    done < <(_ms_list_branches "" "$repo" refs/heads/)
+
+    local k peer spec host path pname psha pdate idx
+    for k in "${!peer_names[@]}"; do
+        peer="${peer_names[$k]}"; spec="${peer_specs[$k]}"
+        _ms_parse_spec "$spec" || continue
+        host="$_P_HOST"
+        path="$(_ms_override_for "$peer")"
+        [[ -n "$path" ]] || path="$(_ms_linked_path "$repo" "$peer")"
+        [[ -n "$path" ]] || path="${_P_ROOT%/}/${repo_name}"
+        if ! _ms_ref_exists "$host" "$path" HEAD; then
+            _ms_skip "$peer — unreachable, latest unknown there"
+            continue
+        fi
+        while IFS=$'\t' read -r pname psha pdate; do
+            [[ -n "$pname" && -n "$pdate" ]] || continue
+            idx="$(_ms_latest_idx "$pname" ${order[@]+"${order[@]}"})"
+            if [[ -z "$idx" ]]; then
+                order+=("$pname"); best_sha+=("$psha"); best_date+=("$pdate"); holders+=("$peer")
+                continue
+            fi
+            if (( pdate > ${best_date[$idx]:-0} )); then
+                best_sha[$idx]="$psha"; best_date[$idx]="$pdate"; holders[$idx]="$peer"
+            elif (( pdate == ${best_date[$idx]:-0} )) && [[ "${best_sha[$idx]}" != "$psha" ]]; then
+                # Same second, different commit: neither is newer, so name both instead of picking.
+                holders[$idx]="${holders[$idx]}~$peer"
+            elif (( pdate == ${best_date[$idx]:-0} )); then
+                holders[$idx]="${holders[$idx]}+$peer"
+            fi
+        done < <(_ms_list_branches "$host" "$path" refs/heads/)
+    done
+
+    if [[ "$_MS_JSON" == "true" ]]; then
+        local first=true n
+        printf '{"format":"ainish-coder/machine-latest/v1","self":"%s","branches":[' "$_self_name"
+        for n in "${!order[@]}"; do
+            [[ "$first" == "true" ]] || printf ','
+            first=false
+            printf '{"branch":"%s","newest_sha":"%s","committerdate":%s,"newest_machine":"%s"}' \
+                "${order[$n]}" "${best_sha[$n]}" "${best_date[$n]:-0}" "${holders[$n]}"
+        done
+        printf ']}\n'
+        return 0
+    fi
+
+    _ms_head "latest — $repo_name"
+    printf '  %-42s %-10s %-18s %s\n' "BRANCH" "NEWEST" "WHEN (UTC)" "NEWEST ON"
+    local n when h mark
+    for n in "${!order[@]}"; do
+        when="$(date -r "${best_date[$n]:-0}" -u +%Y-%m-%dT%H:%M 2>/dev/null || printf '%s' "${best_date[$n]:-}")"
+        h="${holders[$n]}"; mark=""
+        case "$h" in
+            *"+"*) mark=" (+same tip elsewhere)"; h="${h%%+*}" ;;
+            *"~"*) mark=" (TIE: ${h%%~*} and ${h##*~} differ at the same second)"; h="${h%%~*}" ;;
+        esac
+        printf '  %-42s %-10s %-18s %s%s\n' "${order[$n]}" "${best_sha[$n]:0:8}" "$when" "$h" "$mark"
+    done
+    return 0
+}
+
+# Echo the index of <needle> in the remaining args, or nothing.
+_ms_latest_idx() {
+    local needle="$1"; shift
+    local i=0 x
+    for x in "$@"; do
+        [[ "$x" == "$needle" ]] && { printf '%s\n' "$i"; return 0; }
+        i=$((i + 1))
+    done
+    return 0
+}
+
 _ms_usage() {
     cat <<'EOF'
 ainish-coder --machine-sync — federate this repository with its peer machines
@@ -155,6 +415,14 @@ OPTIONS:
                            path recorded by --machine-link, then <peer code root>/<repo name>.
     --all                  Run every repository linked on this machine (see --machine-link).
     --linked-only          Sync only with peers this repository is linked to. The git hook uses it.
+    --branches             Materialise every branch on the peer as a real LOCAL branch, so switching
+                           machines means switching to a branch and not to a remote-tracking ref.
+                           Additive: a missing branch is created; an existing branch that agrees is
+                           left alone; one that is behind is fast-forwarded; one that has diverged is
+                           reported with both tips and never moved.
+    --latest               Read-only report: per branch, the newest commit and which machine holds it.
+                           Asks every peer directly (bounded), because cached refs are stale by
+                           definition — this is the "what is newest to work from" answer.
     --quiet                No output on stdout; errors still go to stderr. For hooks and scripts.
     --push                 Send only: our branches and uncommitted work to the peers.
     --pull                 Receive only: peer branches and their uncommitted work to here.
@@ -659,6 +927,7 @@ _ms_json_str() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; printf '"%s
 
 machine_sync() {
     local repo="" json=false dry=false status=false min_ram=0 kind_filter="" all_linked=false linked_only=false
+    local make_branches=false do_latest=false
     local -a explicit=() overrides=()
     local a
 
@@ -684,6 +953,8 @@ machine_sync() {
             --quiet)       _MS_QUIET=true;        shift ;;
             --all)         all_linked=true;       shift ;;
             --linked-only) linked_only=true;      shift ;;
+            --branches)    make_branches=true;    shift ;;
+            --latest)      do_latest=true;        shift ;;
             --links-file)  AINISH_LINKS_FILE="${2:-}"; shift 2 ;;
             -h|--help)     _ms_usage; return 0 ;;
             -*)            _ms_err "unknown option: $1 (try --machine-sync --help)"; return 1 ;;
@@ -786,6 +1057,19 @@ machine_sync() {
     if (( ${#peer_names[@]} == 0 )); then
         _ms_err "no peers selected (registry: $AINISH_MACHINES_FILE)"
         return 1
+    fi
+
+    # Publish what the helpers need. `_ms_latest` asks peers directly, so it must see the same
+    # selection and overrides this run resolved rather than re-deriving them.
+    _MS_PEER_SELECTED=("${peer_names[@]}")
+    _MS_PEER_SELECTED_SPECS=("${peer_specs[@]}")
+    _MS_OVERRIDES=(${overrides[@]+"${overrides[@]}"})
+
+    # `--latest` is a read-only report and answers a question about every peer, so it runs before any
+    # snapshot, bundle, or peer mutation.
+    if [[ "$do_latest" == "true" ]]; then
+        _ms_latest "$repo"
+        return $?
     fi
 
     if ! _ms_quiet; then
@@ -943,8 +1227,24 @@ machine_sync() {
             _ms_fast_forward_peer "$host" "$path" "$branch"
         fi
 
+        # Turn delivered refs into real branches on the peer, so switching machines means switching to
+        # a branch rather than to a remote-tracking ref. Additive: absent branches are created, an
+        # existing branch is compared and reported, never moved onto an unrelated tip.
+        if [[ "$make_branches" == "true" && "$sent" == "true" ]]; then
+            _ms_materialize_branches "$repo" "$host" "$path" "$name"
+        fi
+
         if [[ "$sent" == "true" && "$recv" == "true" ]]; then
             _ms_ok "$name synced"
+            if [[ "$make_branches" == "true" && -n "$_MS_MAT_CREATED" ]]; then
+                local _mb
+                while IFS= read -r _mb; do
+                    [[ -n "$_mb" ]] && _ms_info "  branch created on $name: $_mb"
+                done <<< "$_MS_MAT_CREATED"
+            fi
+            if [[ "$make_branches" == "true" && -n "$_MS_MAT_DIVERGED" ]]; then
+                _ms_skip "$name — diverged branches left untouched (see above); merge them by hand"
+            fi
             _ms_report_peer "$repo" "$name"
             _ms_smoke_peer "$host" "$path" "$name"
         else
@@ -1034,7 +1334,10 @@ _ms_smoke_peer() {
 
 _ms_override_for() { # name -> the override value, empty when absent
     local n="$1" ov
-    for ov in "${overrides[@]:-}"; do
+    # _MS_OVERRIDES mirrors the caller's local `overrides` so helpers (notably _ms_latest) can resolve
+    # a peer path without every one of them taking the array as a parameter.
+    for ov in "${_MS_OVERRIDES[@]:-}" ${overrides[@]+"${overrides[@]}"}; do
+        [[ -z "$ov" ]] && continue
         [[ "${ov%%=*}" == "$n" ]] && { printf '%s\n' "${ov#*=}"; return 0; }
     done
     printf '\n'

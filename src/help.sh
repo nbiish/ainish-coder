@@ -108,8 +108,10 @@ CORE COMMANDS:
                               machines.txt and are named by capacity
                               (<kind>-<ram>gb), so --min-ram 64 picks the big box.
                               --push | --pull | --both, --status, --dry-run, --json,
-                              --quiet (hooks), --linked-only, and --all (every repo
-                              linked here). A clean peer on the same branch is
+                              --quiet (hooks), --linked-only, --all (every repo
+                              linked here), --branches (materialise branches on the
+                              peer), and --latest (which machine holds the newest
+                              commit, per branch). A clean peer on the same branch is
                               fast-forwarded; --no-ff-peers leaves it alone.
                               Peer path precedence: --peer-path, then a path recorded
                               by --machine-link, then <peer code root>/<repo name>.
@@ -481,6 +483,8 @@ EXAMPLES:
     ainish-coder --machine-sync . --no-ff-peers # Leave the peers' checkouts alone
     ainish-coder --machine-sync . --dry-run # Print the plan, move nothing
     ainish-coder --machine-sync --all       # Every repository linked on this machine
+    ainish-coder --machine-sync . --branches # Make every branch a local branch on the peer too
+    ainish-coder --machine-sync . --latest   # Which machine holds the newest commit, per branch
 
     # Link a repo to its copy on another machine: recorded once, then sent on every commit
     ainish-coder --machine-link . --peer windows-128gb --peer-path D:/Code/myrepo

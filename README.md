@@ -269,6 +269,43 @@ inside a commit hook is how a machine ends up half-merged with nobody watching �
 it to every machine in the registry, and every probe is bounded so a peer that is off cannot block a
 commit.
 
+### Every branch on every machine (`--branches`)
+
+Delivered refs land as `refs/remotes/<machine>/*`, which is not a branch you can check out — `git
+checkout` on one gives a detached HEAD and `git branch` never lists it. So "synced" and "workable" are
+different states, and a machine can hold every commit yet still have only `main` as a branch.
+
+`--branches` closes that gap: every branch this machine has that the peer lacks is created there as a
+real local branch. It is strictly additive —
+
+| Peer's branch | Result |
+|---|---|
+| absent | created at this machine's tip |
+| same tip | left alone |
+| behind (an ancestor of ours) | fast-forwarded to our tip |
+| ahead | left alone; our ref catches up on the next pull |
+| **diverged** | **reported with both tips, never moved** |
+
+The diverged case is why nothing here forces anything. Two machines can hold a branch of the same name
+with no common ancestor, and overwriting either one deletes real work to make a report look clean.
+`--machine-link`'s hook passes `--branches`, so a linked repo keeps every branch current on every
+commit.
+
+### Which copy is newest (`--latest`)
+
+```bash
+ainish-coder --machine-sync . --latest        # human table
+ainish-coder --machine-sync --all --latest --json
+```
+
+Per branch: the newest commit, its timestamp, and which machine holds it. It asks every peer directly
+in one bounded call each — cached refs are stale by definition, and the question "which copy should I
+work from" is exactly the one a cache cannot answer. When two machines hold the same tip the report
+says so; when they hold different commits at the same second it names both rather than picking one.
+
+Ties and disagreements are labelled rather than resolved: `(+same tip elsewhere)` and
+`(TIE: … differ at the same second)`.
+
 ---
 
 ## 🔄 OSA Framework (YOLO Mode)

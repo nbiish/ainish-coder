@@ -240,7 +240,7 @@ _ml_hook_block() {
 $_ML_HOOK_START
 # Send this repository's commits to its linked machines. Sends only — receiving is explicit.
 if [ "\${AINISH_MACHINE_SYNC_ACTIVE:-0}" != "1" ] && [ -x ${q_cli} ]; then
-    AINISH_MACHINE_SYNC_ACTIVE=1 ${q_cli} --machine-sync ${q_repo} --push --linked-only --quiet${q_args} >/dev/null 2>&1 || true
+    AINISH_MACHINE_SYNC_ACTIVE=1 ${q_cli} --machine-sync ${q_repo} --push --branches --linked-only --quiet${q_args} >/dev/null 2>&1 || true
 fi
 $_ML_HOOK_END
 HOOK_BLOCK
