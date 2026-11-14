@@ -269,6 +269,51 @@ inside a commit hook is how a machine ends up half-merged with nobody watching �
 it to every machine in the registry, and every probe is bounded so a peer that is off cannot block a
 commit.
 
+### Sync on save, not just on commit (`--watch`)
+
+Hooks fire on commits, but people work in saves. Add `--watch` to the link command and a per-user
+background service takes over:
+
+```bash
+ainish-coder --machine-link ~/code-external/repo --peer windows-128gb --peer-path D:/Code/repo --watch
+ainish-coder --machine-watch --status      # installed? running? last cycle?
+ainish-coder --machine-watch --uninstall   # stop it (links stay)
+```
+
+It runs the same proven sync path the hooks use, so every safety property is unchanged:
+
+- an uncommitted **save** is committed with an honest `wip(<machine>)` message and delivered;
+- a burst of saves becomes **one** commit (default 2s poll, 2s debounce);
+- a peer whose tree is **dirty is never overwritten** — it is reported and skipped, because that
+  peer has unsaved work and this tool must never be the reason it disappears;
+- **divergence is reported, never auto-merged** — two lanes that meet are a human decision.
+
+Installed as a launchd agent on macOS (`~/Library/LaunchAgents/`) or a systemd user unit on Linux,
+both `RunAtLoad`/`Restart=always`, so it survives reboot and needs no sudo. State and a rolling log
+live in `~/.config/ainish-coder/watch.state` and `watch.log`.
+
+**On "instantaneous":** this host has neither `fswatch` nor `inotifywait`, and adding a
+platform-specific dependency to a portable script is a worse trade than polling. A change is noticed
+within the poll interval and acted on after the debounce settles — **seconds**, not milliseconds.
+That is stated plainly rather than advertised as instant.
+
+#### macOS: external-volume repositories need Full Disk Access
+
+If a linked repository lives on an external or removable volume (e.g. a path under the external-volume mount point),
+macOS TCC **blocks a launchd-spawned process from reading it**. The symptom is subtle: `.git` is
+stat-able, but every cycle fails with `Operation not permitted` / `not a git repository`, so the
+watcher looks installed and syncs nothing. The installer now detects this and refuses to report
+success, naming the fix. Choose one:
+
+1. **Grant Full Disk Access** — System Settings → Privacy & Security → Full Disk Access → add the
+   shell the agent runs under (`/bin/bash`), then re-run `--machine-watch --install`.
+2. **Move the repo to the internal disk** — simplest, and what the test above verified works.
+3. **Run in the foreground** — `ainish-coder --machine-watch --foreground` from a terminal that
+   already has access; works immediately, but only while that terminal is open.
+
+This is a macOS privacy control, not a limitation of the sync itself. The same repositories sync
+correctly from a terminal, over SSH, and in the foreground.
+
 ### Every branch on every machine (`--branches`)
 
 Delivered refs land as `refs/remotes/<machine>/*`, which is not a branch you can check out — `git

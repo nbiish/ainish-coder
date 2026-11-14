@@ -115,21 +115,35 @@ CORE COMMANDS:
                               fast-forwarded; --no-ff-peers leaves it alone.
                               Peer path precedence: --peer-path, then a path recorded
                               by --machine-link, then <peer code root>/<repo name>.
-    --machine-link [DIR] --peer NAME [--peer-path PATH]
+    --machine-link [DIR] --peer NAME [--peer-path PATH] [--watch]
                               Record that this repository is the SAME repository on
                               another machine, so --machine-sync addresses it correctly
                               without a flag every time. Writes
                               ~/.config/ainish-coder/links.txt and installs a
                               post-commit/post-merge hook that SENDS to the linked peers
-                              on every commit — the other machine is current before you
-                              next sit down at it. The hook never receives: moving this
-                              machine's branch stays an explicit --pull/--both.
+                              on every commit. Add --watch to ALSO install a background
+                              watcher, so a save — not just a commit — reaches the other
+                              machines: run the command once and stop thinking about it.
+                              The hook never receives: moving this machine's branch stays
+                              an explicit --pull/--both.
                               --all-peers (link every registry peer), --no-hooks,
                               --list, --remove, --json, --links-file PATH.
                               Example:
                                 ainish-coder --machine-link ~/code-external/repo \
                                     --peer windows-128gb \
-                                    --peer-path D:/Code/repo
+                                    --peer-path D:/Code/repo --watch
+    --machine-watch [--interval N] [--debounce N] [--once] [--foreground] [--verbose]
+                              Run the background sync loop, or manage the service:
+                              --status (installed? running? last cycle?), --install,
+                              --uninstall. For every linked repo, when the working tree
+                              has changed and stopped changing, it runs
+                              --machine-sync --both --branches --auto-commit
+                              --linked-only — so an uncommitted save becomes a commit
+                              with an honest wip(<machine>) message and lands on the
+                              peers. Polls (no fswatch/inotifywait on macOS); default
+                              interval 2s, debounce 2s, so a burst of saves is ONE commit.
+                              A peer with unsaved work is NEVER overwritten — reported
+                              and skipped. Divergence is reported, never merged.
     --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]
                               Use a remote OpenAI-compatible embedding model and
                               skip the local llama server entirely (saves GBs of
@@ -488,6 +502,11 @@ EXAMPLES:
 
     # Link a repo to its copy on another machine: recorded once, then sent on every commit
     ainish-coder --machine-link . --peer windows-128gb --peer-path D:/Code/myrepo
+    ainish-coder --machine-link . --peer windows-128gb --peer-path D:/Code/myrepo --watch
+                                            # ...and sync on every SAVE, in the background
+    ainish-coder --machine-watch --status   # installed? running? what did the last cycle do?
+    ainish-coder --machine-watch --uninstall  # stop the watcher (links stay)
+    ainish-coder --machine-watch --once     # one cycle now, no daemon
     ainish-coder --machine-link --list      # What is linked on this machine
     ainish-coder --machine-link . --peer windows-128gb --remove  # Unlink + remove the hook
     ainish-coder --embed-config --provider api --api-base https://api.openai.com/v1 --model text-embedding-3-small

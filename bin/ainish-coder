@@ -59,6 +59,7 @@ source "${SRC_DIR}/embed_config.sh"
 source "${SRC_DIR}/pqc_dist.sh"
 source "${SRC_DIR}/machine_sync.sh"
 source "${SRC_DIR}/machine_link.sh"
+source "${SRC_DIR}/machine_watch.sh"
 source "${SRC_DIR}/plan_gate.sh"
 
 # Main function
@@ -439,6 +440,10 @@ main() {
 
         --machine-link)
             machine_link "$@"
+            ;;
+
+        --machine-watch)
+            machine_watch "$@"
             ;;
 
         --rules-watch)

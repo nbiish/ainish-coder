@@ -271,7 +271,7 @@ _ml_remove_hooks() {
 # ── entry point ─────────────────────────────────────────────────────────────
 
 machine_link() {
-    local repo="" json=false list=false remove=false no_hooks=false all_peers=false
+    local repo="" json=false list=false remove=false no_hooks=false all_peers=false watch=false
     local -a peers=() overrides=()
     local a
 
@@ -287,6 +287,7 @@ machine_link() {
             --json)        json=true;            shift ;;
             --links-file)  AINISH_LINKS_FILE="${2:-}"; shift 2 ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
+            --watch)       watch=true;       shift ;;
             -h|--help)     _ml_usage; return 0 ;;
             -*)            _ml_err "unknown option: $1 (try --machine-link --help)"; return 1 ;;
             *)             [[ -z "$repo" ]] && repo="$1"; shift ;;
@@ -417,6 +418,19 @@ machine_link() {
             _ml_ok_link "$json" "linked $repo -> $peer:$path (hook armed)"
         fi
     done
+
+    # `--watch` is the "set it once and forget it" path the operator asked for: the link is recorded,
+    # and a background watcher is installed so a SAVE — not just a commit — reaches the other
+    # machines. Installed after linking, so the watcher has something to read on its first cycle.
+    if [[ "$watch" == "true" && "$remove" != "true" && "$list" != "true" ]]; then
+        if (( rc != 0 )); then
+            _ml_err "not installing the watcher because linking failed"
+        elif machine_watch --install; then
+            _ml_ok_link "$json" "watcher installed — linked repositories sync in the background"
+        else
+            rc=1
+        fi
+    fi
     return $rc
 }
 
