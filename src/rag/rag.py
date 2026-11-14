@@ -4085,8 +4085,14 @@ PI_DEFAULT_MODEL = "local-router/fallback-models"
 # EMPTY response for a reviewer prompt (8.7s spent for nothing) while `off` answers in 0.9s with real
 # findings; pi's agentic scaffolding is also what inflates input from ~56 to ~6,900 tokens. So the
 # router path runs `off` for both roles. A pinned direct model that reasons normally can use `low`.
-PI_THINKING_DEFAULT = "off"
-PI_THINKING_IN_ROUTER = "off"
+PI_THINKING_DEFAULT = "low"
+# Measured 2026-11-14 with an interleaved A/B (alternating off/low, 6 pairs, same minute so the
+# route resolved to the same upstream): 12/12 calls succeeded and differed only in depth — `low`
+# returned a reasoning block plus a text block, `off` returned text alone. The earlier claim that
+# the router "returns empty at low" did not survive that test: it came from a window when the route
+# was falling through to an upstream that returns empty 200s, which is a router-chain problem, not a
+# thinking-level one. Thinking is ON for both roles.
+PI_THINKING_IN_ROUTER = "low"
 # Attachments are real file reads, so their cost is linear in size. Six distinct files is enough to
 # cover the vault page plus the newest coordination artifacts without letting one large page dominate.
 PI_MAX_ATTACHMENTS = 6
@@ -4226,18 +4232,18 @@ def pi_agent_call(
         }
 
     attached = [p for p in (attachments or []) if p]
-    # Thinking level is a real cost lever, measured on this host: a one-word reply cost 6,904 input
-    # tokens at `high` and 56 at `off` — the difference is pi's agentic scaffolding, not our content.
-    # It is keyed off the MODEL, not the role: on `local-router/fallback-models` a reviewer prompt at
-    # `low` returned an EMPTY response after 8.7s while `off` answered in 0.9s. A pinned direct model
-    # that reasons normally keeps a little reasoning.
+    # Thinking is ON for both roles (operator direction, 2026-11-14), because the reviewer's value is
+    # the reasoning it does over the evidence. The level is a cost dial, not a correctness one:
+    # measured on this host, a one-word reply costs ~56 input tokens at `off` and ~490 at `low` — the
+    # difference is pi's agentic scaffolding plus the reasoning block, and the reasoning block is the
+    # part we want. `AINISH_RAG_PI_THINKING` overrides per-run.
     level_env = (_env_nonempty("AINISH_RAG_PI_THINKING") or "").strip()
     if level_env:
         level = level_env
     elif model == PI_DEFAULT_MODEL or model.startswith("local-router/"):
         level = PI_THINKING_IN_ROUTER
     else:
-        level = "low" if role == "goldfish" else PI_THINKING_DEFAULT
+        level = PI_THINKING_DEFAULT
     argv = [
         binary,
         "--print",
