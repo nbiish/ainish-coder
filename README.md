@@ -297,22 +297,32 @@ platform-specific dependency to a portable script is a worse trade than polling.
 within the poll interval and acted on after the debounce settles — **seconds**, not milliseconds.
 That is stated plainly rather than advertised as instant.
 
-#### macOS: external-volume repositories need Full Disk Access
+#### macOS: external-volume repositories work out of the box
 
-If a linked repository lives on an external or removable volume (e.g. a path under the external-volume mount point),
-macOS TCC **blocks a launchd-spawned process from reading it**. The symptom is subtle: `.git` is
-stat-able, but every cycle fails with `Operation not permitted` / `not a git repository`, so the
-watcher looks installed and syncs nothing. The installer now detects this and refuses to report
-success, naming the fix. Choose one:
+If a linked repository lives on an external or removable volume, macOS TCC **blocks a launchd-spawned
+process from reading it**. The symptom is subtle: `.git` is stat-able, but every cycle fails with
+`Operation not permitted`, so the watcher looks installed and syncs nothing.
 
-1. **Grant Full Disk Access** — System Settings → Privacy & Security → Full Disk Access → add the
-   shell the agent runs under (`/bin/bash`), then re-run `--machine-watch --install`.
-2. **Move the repo to the internal disk** — simplest, and what the test above verified works.
-3. **Run in the foreground** — `ainish-coder --machine-watch --foreground` from a terminal that
-   already has access; works immediately, but only while that terminal is open.
+You do **not** need to grant anything. The watcher detects this and uses a transport that already has
+access:
 
-This is a macOS privacy control, not a limitation of the sync itself. The same repositories sync
-correctly from a terminal, over SSH, and in the foreground.
+| Transport | When it is used |
+|---|---|
+| `direct` | this process can read the repo (the normal case) |
+| `ssh` | TCC denies direct reads here, so the whole cycle runs over `ssh localhost`, under sshd's authority |
+
+Detection happens automatically (`--transport auto`, the default); `--transport direct|ssh` pins it.
+`--machine-watch --status` reports which one is in use. The only prerequisite for the `ssh` transport
+is that loopback ssh works without a password:
+
+```bash
+ssh-copy-id localhost      # once, if `ssh localhost` still asks
+```
+
+Three things are deliberately *not* suggested, because they do not work: granting Full Disk Access to
+your terminal (TCC is per-process, and a launchd agent is not a descendant of your terminal); adding
+`/bin/bash` in the FDA picker (the panel will not navigate there); and copying `/bin/bash` elsewhere
+(code signing kills the copy, `SIGKILL`/exit 137).
 
 ### Every branch on every machine (`--branches`)
 
