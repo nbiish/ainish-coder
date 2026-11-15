@@ -282,11 +282,18 @@ ainish-coder --machine-watch --uninstall   # stop it (links stay)
 
 It runs the same proven sync path the hooks use, so every safety property is unchanged:
 
-- an uncommitted **save** is committed with an honest `wip(<machine>)` message and delivered;
+- an uncommitted **save** is committed with an honest `wip(<machine>)` subject whose body lists the
+  changed paths, so `git log` stays readable instead of repeating a bare marker;
 - a burst of saves becomes **one** commit (default 2s poll, 2s debounce);
 - a peer whose tree is **dirty is never overwritten** — it is reported and skipped, because that
   peer has unsaved work and this tool must never be the reason it disappears;
 - **divergence is reported, never auto-merged** — two lanes that meet are a human decision.
+
+Why `wip(...)` commits are not squashed on push: every fast-forward decision uses
+`merge-base --is-ancestor` on SHAs, and `--latest` attributes branches by SHA. Rewriting a commit that
+a peer has already received would leave that peer holding a tip that no longer exists in its own
+history — the exact divergence this tool exists to prevent. The fix for noisy history is a better
+message, not a rewrite.
 
 Installed as a launchd agent on macOS (`~/Library/LaunchAgents/`) or a systemd user unit on Linux,
 both `RunAtLoad`/`Restart=always`, so it survives reboot and needs no sudo. State and a rolling log
@@ -296,6 +303,11 @@ live in `~/.config/ainish-coder/watch.state` and `watch.log`.
 platform-specific dependency to a portable script is a worse trade than polling. A change is noticed
 within the poll interval and acted on after the debounce settles — **seconds**, not milliseconds.
 That is stated plainly rather than advertised as instant.
+
+If you *do* install `fswatch` (or `brew install fswatch`), the watcher uses it automatically:
+`--event-watch` subscribes to real file events, cutting the poll latency, and `--poll` forces the old
+behaviour. Missing `fswatch` never breaks anything — it only means you wait for the timer. The mode in
+use is shown by `--machine-watch --status`.
 
 #### macOS: external-volume repositories work out of the box
 
@@ -318,6 +330,12 @@ is that loopback ssh works without a password:
 ```bash
 ssh-copy-id localhost      # once, if `ssh localhost` still asks
 ```
+
+If that prerequisite later breaks — a rotated key, a stopped sshd — the watcher no longer reports a
+bare "sync failed". On the first failing cycle it probes loopback ssh once and tells you what broke
+and how to fix it, distinguishing a permission denial (`ssh-copy-id localhost`) from a changed host
+key (`ssh-keyscan`) from sshd being off (enable Remote Login). The result is recorded, so
+`--machine-watch --status` shows `ssh: ok` or `ssh: BROKEN`.
 
 Three things are deliberately *not* suggested, because they do not work: granting Full Disk Access to
 your terminal (TCC is per-process, and a launchd agent is not a descendant of your terminal); adding

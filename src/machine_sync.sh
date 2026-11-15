@@ -1093,8 +1093,21 @@ machine_sync() {
         # the work a normal commit the peer fast-forwards onto; the snapshot below stays as the
         # safety net for anyone who does not want history touched.
         if [[ "$_MS_AUTO_COMMIT" == "true" ]] && [[ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ]]; then
+            # The message names what changed. A bare "wip(<machine>)" repeated a dozen times is
+            # unreadable in `git log`, and this history is published: the subject stays scannable and
+            # the body carries the paths. The commit is still ONE commit per synced burst.
+            #
+            # Squashing these later is deliberately refused: `merge-base --is-ancestor` decides every
+            # fast-forward and `--latest` attributes branches by SHA, so rewriting a delivered commit
+            # would leave each peer with a tip that no longer exists in its own history.
+            local _ac_paths _ac_count
+            _ac_paths="$(git -C "$repo" status --porcelain 2>/dev/null | awk '{print $2}' | head -10)"
+            _ac_count="$(git -C "$repo" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+            local _ac_msg
+            _ac_msg="wip($(hostname -s 2>/dev/null || echo machine)): synced by --auto-commit"$'\n\n'"changed ${_ac_count} path(s):"$'\n'"${_ac_paths}"
+            (( _ac_count > 10 )) && _ac_msg="${_ac_msg}"$'\n'"... and $((_ac_count - 10)) more"
             if git -C "$repo" add -A 2>/dev/null && \
-               git -C "$repo" commit -q -m "wip($(hostname -s 2>/dev/null || echo machine)): synced by --auto-commit" 2>/dev/null; then
+               git -C "$repo" commit -q -m "$_ac_msg" 2>/dev/null; then
                 _ms_ok "committed working-tree edits on $(git -C "$repo" rev-parse --abbrev-ref HEAD)"
             else
                 _ms_err "auto-commit failed; the snapshot below still carries the work"
