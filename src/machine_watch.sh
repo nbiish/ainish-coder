@@ -60,6 +60,9 @@ OPTIONS:
                            the repository and, when macOS TCC denies it, runs the whole cycle over
                            `ssh localhost` (which executes under sshd's authority). Needed for repos
                            on external volumes; requires passwordless loopback ssh.
+    --event-watch          Use fswatch file events instead of polling. Optional: if fswatch is not
+                           installed this falls back to polling rather than failing.
+    --poll                 Force polling (the portable default).
     --verbose              Print every cycle, not only the ones that did something.
     --json                 Machine-readable status on stdout.
     -h, --help             This text.
@@ -197,14 +200,129 @@ _mw_sync_repo() { # repo
     AINISH_MACHINE_SYNC_ACTIVE=1 "$cli" "${args[@]}" 2>&1
 }
 
-_mw_cli() {
-    local self_dir
+# _mw_resolve_stable_cli — a launcher path that survives the way this repo is developed.
+#
+# AGENTS.md mandates a worktree per task, so `ainish-coder` is usually run from
+# `<worktree>/bin/ainish-coder`. Recording that path in a login item is a time bomb: the worktree is
+# removed when the task merges, and the daemon then fails every cycle with
+# `no such file or directory: .../<worktree>/bin/ainish-coder`. That happened live.
+#
+# A worktree reports its own `--git-dir` but a shared `--git-common-dir`; when those differ, the
+# checkout is disposable and the durable path is the one owning the common dir. Resolve to that, and
+# say so, rather than silently recording something that will vanish.
+_mw_resolve_stable_cli() {
+    local self_dir candidate common gitdir main_checkout
     self_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || return 1
-    if [[ -x "${self_dir}/../bin/ainish-coder" ]]; then
-        ( cd -P "${self_dir}/../bin" && printf '%s/ainish-coder\n' "$(pwd)" )
+    candidate="${self_dir}/../bin/ainish-coder"
+    if [[ ! -x "$candidate" ]]; then
+        command -v ainish-coder 2>/dev/null || return 1
         return 0
     fi
-    command -v ainish-coder 2>/dev/null || return 1
+    candidate="$( cd -P "$(dirname "$candidate")" 2>/dev/null && printf '%s/%s\n' "$(pwd)" "$(basename "$candidate")" )"
+
+    local repo_root
+    repo_root="$( cd -P "${self_dir}/.." 2>/dev/null && pwd )" || { printf '%s\n' "$candidate"; return 0; }
+    gitdir="$(git -C "$repo_root" rev-parse --git-dir 2>/dev/null || true)"
+    common="$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null || true)"
+
+    if [[ -n "$gitdir" && -n "$common" ]]; then
+        local gd cd_abs
+        gd="$( cd -P "$repo_root" 2>/dev/null && cd "$gitdir" 2>/dev/null && pwd )" || gd=""
+        cd_abs="$( cd -P "$repo_root" 2>/dev/null && cd "$common" 2>/dev/null && pwd )" || cd_abs=""
+        if [[ -n "$gd" && -n "$cd_abs" && "$gd" != "$cd_abs" ]]; then
+            # This is a worktree. The main checkout is the parent of the common git dir.
+            main_checkout="$(dirname "$cd_abs")"
+            if [[ -x "${main_checkout}/bin/ainish-coder" ]]; then
+                _mw_log "install path: resolved worktree ${repo_root} -> main checkout ${main_checkout}"
+                printf '%s/bin/ainish-coder\n' "$main_checkout"
+                return 0
+            fi
+            _mw_err "this is a worktree and the main checkout has no bin/ainish-coder;"
+            _mw_err "recording ${candidate}, which will break when the worktree is removed."
+        fi
+    fi
+    printf '%s\n' "$candidate"
+}
+
+_mw_cli() {
+    _mw_resolve_stable_cli
+}
+
+# _mw_ssh_health — is loopback ssh usable right now? Echoes ok | broken | unknown.
+#
+# Only called when a delegated cycle FAILS. Probing every cycle would add a round trip to a loop whose
+# cost is already dominated by ssh; probing never would leave the operator reading "sync failed" and
+# hunting a repo problem when the actual cause is an expired key or a stopped sshd.
+_mw_ssh_health() {
+    local out rc=0
+    out="$(ssh -o BatchMode=yes -o ConnectTimeout=5 localhost 'echo MW_OK' 2>&1)" || rc=$?
+    if (( rc == 0 )) && printf '%s' "$out" | grep -q 'MW_OK'; then
+        printf 'ok\n'
+        return 0
+    fi
+    _MW_SSH_ERROR="$out"
+    printf 'broken\n'
+}
+
+# Explain a broken loopback ssh in terms the operator can act on. The raw error is kept because a
+# host-key change and a permission denial need different fixes, and guessing between them would send
+# the operator down the wrong path.
+_mw_explain_ssh_failure() {
+    local detail="${_MW_SSH_ERROR:-no output}"
+    _mw_err "background sync could not reach this machine over loopback ssh."
+    _mw_err "This is NOT a problem with the repository — it is the transport the watcher uses because"
+    _mw_err "macOS TCC will not let a launchd agent read an external volume directly."
+    _mw_err ""
+    case "$detail" in
+        *"Permission denied"*|*"publickey"*)
+            _mw_err "Cause: this machine cannot ssh to itself without a password."
+            _mw_err "Fix:   ssh-copy-id localhost      (then re-run --machine-watch --install)" ;;
+        *"Host key verification failed"*)
+            _mw_err "Cause: localhost's host key changed or is not trusted."
+            _mw_err "Fix:   ssh-keyscan localhost >> ~/.ssh/known_hosts" ;;
+        *"Connection refused"*|*"Operation timed out"*|*"Could not resolve"*)
+            _mw_err "Cause: sshd is not reachable on localhost."
+            _mw_err "Fix:   enable Remote Login in System Settings -> General -> Sharing" ;;
+        *)
+            _mw_err "Cause: ${detail}" ;;
+    esac
+    _mw_err ""
+    _mw_err "Verify with: ssh -o BatchMode=yes localhost 'echo ok'"
+}
+
+# _mw_watch_mode — how should the loop wait for a change?
+#
+# Polling is the portable default and stays the fallback. Where `fswatch` exists it is strictly better:
+# the loop wakes on the event instead of on a timer, so the debounce is the only latency. It is never
+# REQUIRED — a missing `fswatch` must not change behaviour, only speed.
+_mw_watch_mode() {
+    case "${_MW_WATCH_MODE:-auto}" in
+        poll)  printf 'poll\n'; return 0 ;;
+        event) command -v fswatch >/dev/null 2>&1 && { printf 'event\n'; return 0; }
+               _mw_err "--event-watch requested but fswatch is not installed; polling instead"
+               printf 'poll\n'; return 0 ;;
+    esac
+    command -v fswatch >/dev/null 2>&1 && { printf 'event\n'; return 0; }
+    printf 'poll\n'
+}
+
+# Wait for something to change, then return. <interval> bounds the poll; <repos...> are watched.
+#
+# With fswatch the wait ends on a real file event, so the caller's debounce controls latency. Without
+# it, the wait is a plain sleep — identical behaviour to before this function existed.
+_mw_wait_for_change() { # mode interval repos...
+    local mode="$1" interval="$2"; shift 2
+    case "$mode" in
+        event)
+            # -1: one event then exit (we re-arm each cycle); -r: recurse; -l 2: 2s latency ceiling so
+            # a missed event still resolves. Bounded by the caller's signal handling.
+            if [[ $# -gt 0 ]]; then
+                fswatch -1 -r -l 2 "$@" >/dev/null 2>&1 || sleep "$interval"
+            else
+                sleep "$interval"
+            fi ;;
+        *)  sleep "$interval" ;;
+    esac
 }
 
 # Run one pass over every linked repo. Echoes nothing; logs outcomes.
@@ -317,6 +435,15 @@ _mw_write_state() { # seen changed failed
 _mw_write_transport() { # direct|ssh|none
     mkdir -p "$_MW_STATE_DIR" 2>/dev/null
     printf '%s\n' "$1" > "${_MW_STATE_DIR}/transport" 2>/dev/null || true
+}
+
+_mw_write_ssh_health() { # ok|broken|unknown
+    mkdir -p "$_MW_STATE_DIR" 2>/dev/null
+    printf '%s\n' "$1" > "${_MW_STATE_DIR}/ssh-health" 2>/dev/null || true
+}
+_mw_read_ssh_health() {
+    local f="${_MW_STATE_DIR}/ssh-health"
+    [[ -f "$f" ]] && tr -d '\r\n' < "$f" 2>/dev/null || printf 'unknown'
 }
 
 # ── lock ────────────────────────────────────────────────────────────────────
@@ -558,6 +685,16 @@ _mw_status() { # json
         *)      transport_desc="unknown — run --machine-watch --foreground once" ;;
     esac
     printf '  transport: %s\n' "$transport_desc"
+    if [[ "$transport" == "ssh" ]]; then
+        local sshh; sshh="$(_mw_read_ssh_health)"
+        case "$sshh" in
+            ok)     printf '  ssh:       ok (loopback reachable)\n' ;;
+            broken) printf '  ssh:       BROKEN — run: ssh-copy-id localhost\n' ;;
+            *)      printf '  ssh:       not yet probed\n' ;;
+        esac
+    fi
+    printf '  cli:       %s\n' "$(_mw_resolve_stable_cli 2>/dev/null || echo unknown)"
+    printf '  mode:      %s\n' "$(_mw_watch_mode 2>/dev/null || echo poll)"
     printf '  last sync: %s  (%s repo(s), %s changed, %s failed)\n' "${last:-never}" "${repos:-0}" "${changed:-0}" "${failed:-0}"
     [[ -s "$_MW_LOG" ]] && { printf '  recent log:\n'; tail -5 "$_MW_LOG" 2>/dev/null | sed 's/^/    /'; }
     return 0
@@ -582,6 +719,8 @@ machine_watch() {
             --uninstall)  uninstall=true;                shift ;;
             --install)    install=true;                  shift ;;
             --transport)  _MW_TRANSPORT="${2:-auto}";    shift 2 ;;
+            --event-watch) _MW_WATCH_MODE="event";       shift ;;
+            --poll)        _MW_WATCH_MODE="poll";        shift ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
             --links-file)    AINISH_LINKS_FILE="${2:-}";    shift 2 ;;
             -h|--help)    _mw_usage; return 0 ;;
@@ -645,8 +784,16 @@ machine_watch() {
     fi
 
     _mw_say "watching $(_mw_linked_repos | wc -l | tr -d ' ') linked repo(s) — every ${interval}s, debounce ${debounce}s"
+    local watch_mode
+    watch_mode="$(_mw_watch_mode)"
+    if [[ "$watch_mode" == "event" ]]; then
+        _mw_say "mode: file events (fswatch)"
+    else
+        _mw_say "mode: polling every ${interval}s (install fswatch for event-driven latency)"
+    fi
+    _mw_write_state "$(_mw_linked_repos | wc -l | tr -d ' ')" 0 0
     _mw_say "Ctrl+C to stop. State: $_MW_STATE_FILE"
-    local stopping=false
+    local stopping=false ssh_reported=false
     trap 'stopping=true' INT TERM
     while [[ "$stopping" != "true" ]]; do
         if [[ "$transport" == "ssh" ]]; then
@@ -654,7 +801,23 @@ machine_watch() {
             # at all. Delegate rather than duplicate: one implementation of the cycle, in one place.
             local out rc=0
             out="$(_mw_cycle_via_ssh "$(_mw_cli)" "$interval" "$debounce" "$verbose")" || rc=$?
-            (( rc == 0 )) || { _mw_log "ssh cycle failed"; printf '%s\n' "$out" >&2; }
+            if (( rc != 0 )); then
+                _mw_log "ssh cycle failed"
+                printf '%s\n' "$out" >&2
+                # Diagnose the transport once, then stop spamming: a broken key would otherwise print
+                # the same paragraph every interval forever.
+                if [[ "$ssh_reported" != "true" ]]; then
+                    if [[ "$(_mw_ssh_health)" == "broken" ]]; then
+                        _mw_write_ssh_health "broken"
+                        _mw_explain_ssh_failure
+                        _mw_err "(this message is shown once; the watcher keeps retrying)"
+                        ssh_reported=true
+                    fi
+                fi
+            else
+                ssh_reported=false
+                _mw_write_ssh_health "ok"
+            fi
         else
             if _mw_lock; then
                 _mw_cycle "$verbose" || true
@@ -662,11 +825,21 @@ machine_watch() {
             fi
         fi
         # Sleep in one-second slices so a signal is handled promptly rather than after a full interval.
-        local i=0
-        while (( i < interval )) && [[ "$stopping" != "true" ]]; do
-            sleep 1
-            i=$((i + 1))
-        done
+        # Wait for the next change. In event mode a real file event ends the wait immediately, so the
+        # debounce is the only latency; in poll mode this is the same one-second-sliced sleep as before,
+        # which keeps a signal handled promptly.
+        if [[ "$watch_mode" == "event" ]]; then
+            local -a _wrepos=()
+            local _r
+            while IFS= read -r _r; do [[ -n "$_r" ]] && _wrepos+=("$_r"); done < <(_mw_linked_repos)
+            _mw_wait_for_change event "$interval" ${_wrepos[@]+"${_wrepos[@]}"}
+        else
+            local i=0
+            while (( i < interval )) && [[ "$stopping" != "true" ]]; do
+                sleep 1
+                i=$((i + 1))
+            done
+        fi
     done
     _mw_unlock
     _mw_say "stopped"

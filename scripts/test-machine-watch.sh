@@ -219,6 +219,89 @@ else
     bad "--status --json lacks the transport"; printf '%s\n' "$JS2" | sed 's/^/    | /'
 fi
 
+echo "== 11. the installer records a path that survives a worktree being removed =="
+# The live failure: installing from a worktree wrote the worktree's bin/ainish-coder into the plist, and
+# removing the worktree left the daemon failing every cycle with "no such file or directory".
+WT_RESOLVED="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _mw_resolve_stable_cli' 2>/dev/null)"
+if [[ "$WT_RESOLVED" == *"/bin/ainish-coder" ]]; then
+    ok "resolved CLI ends in bin/ainish-coder"
+else
+    bad "resolved CLI looks wrong: $WT_RESOLVED"
+fi
+if [[ -x "$WT_RESOLVED" ]]; then
+    ok "the recorded CLI actually exists and is executable"
+else
+    bad "the recorded CLI is not executable: $WT_RESOLVED"
+fi
+# It must NOT point into a disposable worktree when a main checkout is available.
+MAIN_CHECKOUT="$(cd "$REPO" && git rev-parse --git-common-dir 2>/dev/null | xargs -I{} dirname {} 2>/dev/null || true)"
+case "$WT_RESOLVED" in
+    *"/watch-suggestions/"*|*"/watch-ssh-transport/"*|*"/machine-watch-daemon/"*)
+        bad "the CLI path points into a disposable worktree: $WT_RESOLVED" ;;
+    *)  ok "the CLI path is not a disposable worktree" ;;
+esac
+
+echo "== 12. ssh health is reported and a broken transport is explained =="
+SHH="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _mw_ssh_health' 2>/dev/null)"
+case "$SHH" in
+    ok|broken) ok "ssh health returns a known state ($SHH)" ;;
+    *) bad "ssh health returned '$SHH'" ;;
+esac
+# The explanation must name the fix, or the operator is told a problem exists with no way out.
+EXPL="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_SSH_ERROR="Permission denied (publickey)."; _mw_explain_ssh_failure' 2>&1)"
+if printf '%s' "$EXPL" | grep -q 'ssh-copy-id localhost'; then
+    ok "a publickey failure names ssh-copy-id as the fix"
+else
+    bad "the ssh failure explanation does not name the fix"; printf '%s\n' "$EXPL" | sed 's/^/    | /'
+fi
+if printf '%s' "$EXPL" | grep -qi 'not a problem with the repository'; then
+    ok "the explanation rules out the repository as the cause"
+else
+    bad "the explanation does not distinguish transport from repository"
+fi
+
+echo "== 13. watch mode degrades to poll when fswatch is absent =="
+WM="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_WATCH_MODE=auto; _mw_watch_mode' 2>/dev/null)"
+if command -v fswatch >/dev/null 2>&1; then
+    check "auto picks event mode when fswatch exists" "event" "$WM"
+else
+    check "auto picks poll when fswatch is absent" "poll" "$WM"
+fi
+WMP="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_WATCH_MODE=poll; _mw_watch_mode' 2>/dev/null)"
+check "--poll always means poll" "poll" "$WMP"
+
+echo "== 14. --auto-commit names the changed paths in the commit body =="
+# A bare wip(<machine>) repeated is unreadable; the body must say what changed. Squashing is refused
+# because SHAs are load-bearing (merge-base --is-ancestor, --latest attribution).
+AP="${WORK}/peer-automsg/src-demo"
+mkdir -p "$(dirname "$AP")"
+git clone -q "$SRC" "$AP"
+AP_MSG_DIR="${WORK}/peer-automsg/msg-demo"
+git clone -q "$SRC" "$AP_MSG_DIR"
+AP_RESOLVED="$(git -C "$AP" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$AP")"
+AP_MSG_RESOLVED="$(git -C "$AP_MSG_DIR" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$AP_MSG_DIR")"
+printf 'box-18gb=self\nauto-16gb=%s\n' "${WORK}/peer-automsg" > "${WORK}/machines-auto.txt"
+# The links file must use the RESOLVED toplevel: --linked-only matches on it, and on macOS /var and
+# /private/var are different strings for the same directory.
+printf '%s | auto-16gb | %s\n' "$AP_RESOLVED" "$AP_MSG_RESOLVED" > "${WORK}/links-auto.txt"
+printf 'one\n' > "$AP_RESOLVED/alpha.txt"
+printf 'two\n' > "$AP_RESOLVED/beta.txt"
+AINISH_MACHINES_FILE="${WORK}/machines-auto.txt" AINISH_LINKS_FILE="${WORK}/links-auto.txt" \
+    "$CLI" --machine-sync "$AP_RESOLVED" --push --auto-commit --linked-only --quiet \
+    --machines-file "${WORK}/machines-auto.txt" --links-file "${WORK}/links-auto.txt" >/dev/null 2>&1
+BODY="$(git -C "$AP_RESOLVED" log -1 --format='%s%n%b' 2>/dev/null)"
+if printf '%s' "$BODY" | grep -q 'alpha.txt' && printf '%s' "$BODY" | grep -q 'beta.txt'; then
+    ok "the wip commit body lists the changed paths"
+else
+    bad "the wip commit body does not list changed paths"; printf '%s\n' "$BODY" | sed 's/^/    | /'
+fi
+if printf '%s' "$BODY" | grep -q 'changed 2 path(s)'; then
+    ok "the body states how many paths changed"
+else
+    bad "the body does not state the change count"
+fi
+check "the commit subject stays a scannable one-liner" "1" "$(printf '%s' "$BODY" | head -1 | grep -c '^wip(')"
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1
