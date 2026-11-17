@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: watch-suggestions
 date: 2026-11-15
-status: implementing
+status: done
 branch: feat/watch-suggestions
 worktree: /Users/nbiish/code/watch-suggestions
 task_record: .agents/tasks/2026-11-15-09-watch-suggestions.md

@@ -2,7 +2,7 @@
 
 - lane: now
 - branch: `feat/watch-suggestions`
-- status: implementing
+- status: done (merged e08333a)
 - plan: `.agents/plans/2026-11-15-09-watch-suggestions.md`
 - scope: `src/machine_watch.sh`, `src/machine_sync.sh`, `src/help.sh`, `README.md`, `llms.txt`,
   `scripts/test-machine-watch.sh`

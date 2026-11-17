@@ -13,8 +13,8 @@ cross-agent history and context engineering already are.
 1. **Call `ainish-rag --context --task "<the user's request or your current step>"` once**, before you
    start work and again only when the task genuinely changes direction.
 2. It returns orientation, the retrieved corpus, and two reviews in one labelled block. Read it, then
-   open the files your task actually needs.
-3. Do the work. Record it as you go (see *Close* below).
+   open the files your task needs.
+3. Do the work. Record it as you go (see *Close*).
 
 ## The context call
 
@@ -105,22 +105,21 @@ is wrong.
 ## Destructive commands
 
 On 2026-11-08 a cleanup ran `Remove-Item '~' -Recurse -Force`; PowerShell expanded `~` to `C:\Users\kenwa`
-and 26 dot-directories, `.ssh` and `.aws` among them, were destroyed. These rules exist because of that.
+and destroyed 26 dot-directories, `.ssh` and `.aws` among them. Hence these rules:
 
 1. **Print the resolved absolute path first**; if it is not what you were asked to clean, stop.
 2. **Never pass `~`, `.`, `..`, `$HOME`, `%USERPROFILE%`, a glob, or an unvalidated variable** to a delete.
 3. **Literal paths only:** `Remove-Item -LiteralPath '<abs>' -Recurse`, `cmd /c rd /s /q "<abs>"`.
 4. **Deletes stay inside your worktree.** Home, `AppData`, `/etc`, drive roots are out of scope.
 5. **Dry run first** (`-WhatIf`, `git clean -n`); inside a repo use git — `git rm`, `git clean -f`, worktrees over `rm -rf`.
-
-An ambiguous path is a stop-and-ask: a refused cleanup costs a message, a wrong one costs a machine.
+6. **An ambiguous path is a stop-and-ask**: a refused cleanup costs a message, a wrong one costs a machine.
 
 ## Worktrees
 
 A worktree is a task's surface, not a shelf: merge it, prove it landed (`git log main..<branch>` empty or
 every commit accounted for, a diffstat matching the task record, edits dated after the branch point), then
-remove it; stale work rebases on `main` first. Merge oldest-first, journal branch/dates/diffstat/merge commit,
-then `git worktree remove` + `git branch -d` (a refusal means unmerged): `templates/worktree-merge.md`.
+remove it; stale work rebases on `main` first. Merge oldest-first, journal branch/dates/diffstat/merge
+commit, then `git worktree remove` + `git branch -d` (a refusal means unmerged): `templates/worktree-merge.md`.
 
 ## Close
 
@@ -142,6 +141,7 @@ Do not read ahead. Open these only when your task needs them:
 | Secret storage and signing operations | [`.agents/skills/pqc-secrets/SKILL.md`](./.agents/skills/pqc-secrets/SKILL.md) |
 | Cross-agent history: tasks, COMMS, memory, suggestions | [`.agents/comms/`](./.agents/comms/), [`.agents/tasks/`](./.agents/tasks/), [`.agents/memories/`](./.agents/memories/) |
 | The plan being followed, with its clarifications and todos | [`.agents/plans/`](./.agents/plans/), [`.agents/templates/plan.md`](./.agents/templates/plan.md) |
+| Reason a peer machine is stale, or you need its work | `ainish-coder --machine-sync DIR --latest` (see *Cross-machine federation* in `README.md`) |
 | Reasoning lenses for a hard decision | [`.agents/templates/masters.md`](./.agents/templates/masters.md) |
 
 `.agents/{rag,audit,canonical}/` are **generated**: read the context call, never hand-edit signed
