@@ -862,6 +862,18 @@ contains "checkout identity normalizes the WSL path form" "$MS" '/mnt/[a-z]/*'
 contains "checkout identity normalizes the Windows drive form" "$MS" '[A-Za-z]:/*'
 
 contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Plan first'
+# Discoverability is a capability, and an ungated claim decays back to zero. The federation verbs
+# exist, are tested, and are useless to a future agent that never learns they are there. These pin
+# the two surfaces an agent actually reads before acting: the contract, and `ainish-rag --help`.
+contains "contract points at the federation tooling" "$(cat "${REPO}/AGENTS.md")" 'machine-sync'
+# --help is rendered from rag.py's argparse description; grep the source so the assertion does not
+# depend on a built binary or a slow subprocess.
+contains "rag help teaches the machine-link setup command" \
+    "$(sed -n '6700,6760p' "${REPO}/src/rag/rag.py")" 'machine-link'
+contains "rag help teaches the newest-copy query" \
+    "$(sed -n '6700,6760p' "${REPO}/src/rag/rag.py")" 'machine-sync DIR --latest'
+contains "rag help says how to check the background watcher" \
+    "$(sed -n '6700,6760p' "${REPO}/src/rag/rag.py")" 'machine-watch --status'
 contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{HH}-{slug}.md'
 check "AGENTS.md stays within the 160-line gate" \
     "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 160 ]] && echo yes || echo no)" "yes"
