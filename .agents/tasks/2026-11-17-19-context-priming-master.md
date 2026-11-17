@@ -3,7 +3,7 @@
 
 - lane: next
 - branch: `feat/context-priming-master`
-- status: ready
+- status: done (merged 4979302; 331 assertions pass)
 - plan: `.agents/plans/2026-11-17-19-context-priming-master.md`
 - scope: `src/rag/rag.py`, `bin/ainish-coder`, `src/skills_selection.sh`, `src/deploy_skills.sh`,
   `scripts/test-pqc-dist.sh`, `.agents/context-harness/`, `research/context-priming-master/`
