@@ -308,6 +308,24 @@ main() {
             _TRACK_DETAIL="${_TRACK_DETAIL}+embed-provider"
         fi
 
+        # ── Context harness, generation 0 ───────────────────────────────
+        # A per-repo context harness needs a FROZEN baseline before it can ever improve: every later
+        # generation is compared against this one, and a learner with no reference is a regression
+        # generator (Harness^2 Figure 7, 73.4 -> 63.2). Seeding is measurement only — no model call,
+        # no network — and is idempotent, so a re-run never overwrites a repo's own tuning.
+        if [[ "${AINISH_SEED_CONTEXT_HARNESS:-on}" != "off" ]] && [[ -d "${target_dir}/.git" ]]; then
+            # `ainish-rag` resolves its repo root from the CURRENT directory, so the seed must run
+            # from inside the target. Running it from the caller's cwd would seed the wrong repo —
+            # silently, and into a tracked path.
+            if ( cd "$target_dir" && "${SCRIPT_DIR}/ainish-rag" context-seed >/dev/null 2>&1 ); then
+                _TRACK_DETAIL="${_TRACK_DETAIL}+context-harness"
+            else
+                # A target without a wiki yet cannot be calibrated; that is reported, never faked
+                # with a zeroed profile.
+                print_warning "Context harness seed skipped (run 'ainish-rag context-seed' in the target once its wiki exists)"
+            fi
+        fi
+
         # Arm continuous auto-sync (manifest + refresher + git hooks + fleet registry)
         if ! deploy_rules_sync "$target_dir"; then
             print_error "Auto-sync deployment failed; refusing to report an unsigned or unverifiable rules deployment"

@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: context-priming-master
 date: 2026-11-17
-status: ready
+status: implementing
 branch: feat/context-priming-master
 worktree: /Users/nbiish/code/context-priming-master
 task_record: .agents/tasks/2026-11-17-19-context-priming-master.md
@@ -220,35 +220,35 @@ Two tiers for skills, because `.agents/skills/` is standing prompt surface:
 
 ## 5. Todos
 
-- [ ] **T1** Run Phase 0: render retrieval for 8 real tasks under base/wide/narrow profiles and compute all five signals.
+- [x] **T1** Run Phase 0: render retrieval for 8 real tasks under base/wide/narrow profiles and compute all five signals.
   - from: §4.4 | done when: a table of 24 cells exists and the separation question is answered in writing | verify: `python3 research/context-priming-master/phase0.py`
-- [ ] **T2** Decide gate on Phase 0 outcome: proceed, or stop and record the finding in `.agents/suggestions/`.
+- [x] **T2** Decide gate on Phase 0 outcome: proceed, or stop and record the finding in `.agents/suggestions/`.
   - from: §4.4 | done when: either Phases 1+ are greenlit with numbers, or a suggestion file explains why not | verify: `ls .agents/suggestions/*context-priming*`
-- [ ] **T3** Add `PRIME_PROFILE_FORMAT`, `HARNESS_FORMAT`, `PRIME_BOUNDS`, and `validate_prime_profile` to `src/rag/rag.py`.
+- [x] **T3** Add `PRIME_PROFILE_FORMAT`, `HARNESS_FORMAT`, `PRIME_BOUNDS`, and `validate_prime_profile` to `src/rag/rag.py`.
   - from: §3 Interfaces | done when: a profile with any out-of-bounds field returns named errors | verify: `python3 -c "import sys; sys.path.insert(0,'src/rag'); import rag; print(rag.validate_prime_profile({...}))"`
-- [ ] **T4** Add `load_prime_profile` + `resolve_settings`, and route `graph_retrieve`/`render_retrieval_section`/`assemble_injection` through `settings`.
+- [x] **T4** Add `load_prime_profile` + `resolve_settings`, and route `graph_retrieve`/`render_retrieval_section`/`assemble_injection` through `settings`.
   - from: §3 Constraints | done when: `--context` with no profile is byte-identical to pre-change output | verify: golden-file diff in `scripts/test-pqc-dist.sh`
-- [ ] **T5** Add `provenance.harness` on every context call, reporting generation/source/tuning.
+- [x] **T5** Add `provenance.harness` on every context call, reporting generation/source/tuning.
   - from: §3 Interfaces | done when: `--context --json` carries the block with `source: "absent"` when no profile exists | verify: `./bin/ainish-rag --context --task test --json | python3 -c "import json,sys; print(json.load(sys.stdin)['provenance']['harness'])"`
-- [ ] **T6** Add `--context-seed` (generation 0, idempotent, refused if present) with calibration measurements.
+- [x] **T6** Add `--context-seed` (generation 0, idempotent, refused if present) with calibration measurements.
   - from: §3 | done when: running it twice leaves the profile byte-identical | verify: `scripts/test-pqc-dist.sh` seed assertion
-- [ ] **T7** Hook seeding into `deploy_rules_bundle` behind `AINISH_SEED_CONTEXT_HARNESS`.
+- [x] **T7** Hook seeding into `deploy_rules_bundle` behind `AINISH_SEED_CONTEXT_HARNESS`.
   - from: §3 | done when: `--rules` on a scratch repo writes generation 0, and `AINISH_SEED_CONTEXT_HARNESS=off` does not | verify: `scripts/test-pqc-dist.sh` rules-seed assertion
-- [ ] **T8** Add `validate_harness_tree` implementing every check in `05b` §3.2, including the static network/secret/import checks.
+- [x] **T8** Add `validate_harness_tree` implementing every check in `05b` §3.2, including the static network/secret/import checks.
   - from: §3 | done when: a skill with a bad frontmatter name, a missing script, an uncompilable helper, or a URL each returns a named error | verify: `scripts/test-pqc-dist.sh` validator assertions
-- [ ] **T9** Add `assert_no_acceptance_leakage` and wire it into both the profile and tree validators.
+- [x] **T9** Add `assert_no_acceptance_leakage` and wire it into both the profile and tree validators.
   - from: §3 Risks R3 | done when: a `domain_prior` term or skill body naming an acceptance signal is refused | verify: `scripts/test-pqc-dist.sh` leakage assertion
-- [ ] **T10** Implement the five signal functions as pure functions of `(hits, task, settings)`.
+- [x] **T10** Implement the five signal functions as pure functions of `(hits, task, settings)`.
   - from: §3 Interfaces | done when: they reproduce Phase 0's numbers exactly on the same inputs | verify: comparison against the Phase 0 table
-- [ ] **T11** Implement `--context-learn`: lock, sample, probe, propose, gate, store, with `--dry-run`.
+- [x] **T11** Implement `--context-learn`: lock, sample, probe, propose, gate, store, with `--dry-run`.
   - from: §3 | done when: `--dry-run` prints candidate + signal table and writes nothing; a real run either advances the generation or writes a `rejected/` entry | verify: `scripts/test-pqc-dist.sh` learner assertions
-- [ ] **T12** Implement `--context-status`, `--context-rollback <gen>`, and `--context-promote <name>`.
+- [x] **T12** Implement `--context-status`, `--context-rollback <gen>`, and `--context-promote <name>`.
   - from: §3 | done when: rollback to generation 0 restores byte-identical output; promote copies a staged skill to `.agents/skills/learned-<name>/` and refuses a non-staged name | verify: `scripts/test-pqc-dist.sh` lifecycle assertions
-- [ ] **T13** Add `_skill_learned` and consult it in the `deploy_skills.sh` sweep so learned packs are never swept or overwritten.
+- [x] **T13** Add `_skill_learned` and consult it in the `deploy_skills.sh` sweep so learned packs are never swept or overwritten.
   - from: §3 Risks R13 | done when: `--rules` over a repo with a promoted `learned-*` pack leaves it intact and warns on a source name collision | verify: `scripts/test-pqc-dist.sh` sweep assertion
-- [ ] **T14** Implement `domain_prior` expiry after M unsupported generations, surfaced in `EXPERIENCE.md`.
+- [x] **T14** Implement `domain_prior` expiry after M unsupported generations, surfaced in `EXPERIENCE.md`.
   - from: §3 Risks R8 | done when: a hint unsupported for M generations is dropped and the drop is recorded | verify: `scripts/test-pqc-dist.sh` expiry assertion
-- [ ] **T15** Advertise: one paragraph in `ainish-rag --help` (paid for by trimming the retired-vector paragraph), an `llms.txt` section, and a `scripts/test-pqc-dist.sh` grep assertion.
+- [x] **T15** Advertise: one paragraph in `ainish-rag --help` (paid for by trimming the retired-vector paragraph), an `llms.txt` section, and a `scripts/test-pqc-dist.sh` grep assertion.
   - from: §3 | done when: `ainish-rag --help | grep -c context-learn` ≥ 1 and `wc -l AGENTS.md` is still 160 | verify: `./bin/ainish-rag --help | grep -c context-learn; wc -l < AGENTS.md`
 
 ## 6. Verification

@@ -867,13 +867,14 @@ contains "contract states the plan-first rule" "$(cat "${REPO}/AGENTS.md")" 'Pla
 # the two surfaces an agent actually reads before acting: the contract, and `ainish-rag --help`.
 contains "contract points at the federation tooling" "$(cat "${REPO}/AGENTS.md")" 'machine-sync'
 # --help is rendered from rag.py's argparse description; grep the source so the assertion does not
-# depend on a built binary or a slow subprocess.
-contains "rag help teaches the machine-link setup command" \
-    "$(sed -n '6700,6760p' "${REPO}/src/rag/rag.py")" 'machine-link'
-contains "rag help teaches the newest-copy query" \
-    "$(sed -n '6700,6760p' "${REPO}/src/rag/rag.py")" 'machine-sync DIR --latest'
-contains "rag help says how to check the background watcher" \
-    "$(sed -n '6700,6760p' "${REPO}/src/rag/rag.py")" 'machine-watch --status'
+# depend on a built binary or a slow subprocess. The range is anchored on the description's own
+# opening line rather than a fixed line number: a hardcoded window silently stopped covering the
+# help text the moment an unrelated paragraph was added above it, which reported three real verbs
+# as missing. Anchor on content, not on an offset.
+RAG_HELP_SRC="$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/rag/rag.py" | head -1 | cut -d: -f1),+95p" "${REPO}/src/rag/rag.py")"
+contains "rag help teaches the machine-link setup command" "$RAG_HELP_SRC" 'machine-link'
+contains "rag help teaches the newest-copy query" "$RAG_HELP_SRC" 'machine-sync DIR --latest'
+contains "rag help says how to check the background watcher" "$RAG_HELP_SRC" 'machine-watch --status'
 contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{HH}-{slug}.md'
 check "AGENTS.md stays within the 160-line gate" \
     "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 160 ]] && echo yes || echo no)" "yes"
@@ -1134,6 +1135,145 @@ if grep -qE 'chflags|write_anchor' <(echo "$(cat "$RULES_SYNC")"); then
 else
     ok "the mismatch report never rotates the anchor"
 fi
+
+# ── the per-repo context harness ────────────────────────────────────────────
+# Learning machinery is the easiest thing in this repository to let rot: it is opt-in, so nothing
+# fails loudly when it stops working. These pin the properties the design turns on.
+CH_MOD="${REPO}/src/rag/context_harness.py"
+CH_TEST_REPO="${WORK}/context-harness-repo"
+mkdir -p "${CH_TEST_REPO}/.agents/tasks" "${CH_TEST_REPO}/.agents/wiki"
+git -C "${CH_TEST_REPO}" init -q 2>/dev/null
+printf -- '- objective: make the parser read the sixteen byte header\n' \
+    > "${CH_TEST_REPO}/.agents/tasks/2026-01-01-seed.md"
+printf -- '# W\n\n## Parser header\nThe header holds the magic number.\n' \
+    > "${CH_TEST_REPO}/.agents/wiki/01-a.md"
+
+contains "harness bounds are declared as data" "$(cat "$CH_MOD")" 'BOUNDS: Dict[str, Tuple[float, float]]'
+contains "harness state lives in a tracked path" "$(cat "$CH_MOD")" '"context-harness"'
+# The tracked-path claim is only true if git agrees; `.agents/rag/` is ignored and would silently
+# lose every learned generation on clone.
+check "harness state is not gitignored" \
+    "$(git -C "${REPO}" check-ignore -q .agents/context-harness/prime-profile.json && echo ignored || echo tracked)" \
+    "tracked"
+# A learned pack must never be swept by the rules deploy: it is absent from source BY DESIGN.
+contains "the deploy sweep knows about learned packs" "$(cat "${REPO}/src/deploy_skills.sh")" '_skill_learned'
+contains "the learned predicate matches the writing prefix" \
+    "$(cat "${REPO}/src/skills_selection.sh")" 'learned-*'
+# Skill authoring: the improver's skills arrive as literal text in <skill> blocks, never inside
+# JSON. Requiring a model to escape newlines correctly inside a JSON string failed on every attempt,
+# so the delimiter is part of the contract and is pinned here.
+contains "skill bodies arrive as literal text blocks" "$(cat "${REPO}/src/rag/rag.py")" '<skill\s+name='
+contains "a skill naming a measurement is refused" "$(cat "$CH_MOD")" 'names the measurement'
+check "the skill cap is enforced in code" \
+    "$(grep -c 'MAX_LIVE_SKILLS' "$CH_MOD")" "3"
+check "learned scripts are restricted to an import allowlist" \
+    "$(python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print("yes" if m.SCRIPT_ALLOWED_IMPORTS and "subprocess" not in m.SCRIPT_ALLOWED_IMPORTS
+      and "socket" not in m.SCRIPT_ALLOWED_IMPORTS else "no")' "$CH_MOD" 2>/dev/null)" \
+    "yes"
+
+seed_out=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context-seed --json 2>/dev/null )
+check "context-seed reports success" \
+    "$(printf '%s' "$seed_out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("seeded"))' 2>/dev/null)" \
+    "True"
+# Idempotency: a re-run must not overwrite a repository's own tuning.
+seed_before=$(sha256sum "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json" 2>/dev/null | cut -d' ' -f1)
+( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context-seed >/dev/null 2>&1 )
+seed_after=$(sha256sum "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json" 2>/dev/null | cut -d' ' -f1)
+check "context-seed is idempotent" "$([[ -n "$seed_before" && "$seed_before" == "$seed_after" ]] && echo yes || echo no)" "yes"
+
+# The gate that makes rollout safe: with no profile, `--context` must be byte-identical to the
+# shipped behaviour. Any added field except `provenance.harness` is a behaviour change to every repo.
+cp "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json" "${WORK}/profile.bak" 2>/dev/null
+rm -f "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json"
+cp_before=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
+cp_after=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
+check "a repo with no profile reports source absent" \
+    "$(printf '%s' "$cp_after" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["source"])' 2>/dev/null)" \
+    "absent"
+check "the harness block is additive only" \
+    "$(printf '%s' "$cp_after" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+p=d["provenance"]; p.pop("harness",None)
+print(sorted(p))' 2>/dev/null | tr -d ' ')" \
+    "$(printf '%s' "$cp_before" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+p=d["provenance"]; p.pop("harness",None)
+print(sorted(p))' 2>/dev/null | tr -d ' ')"
+
+# An out-of-bounds profile must be REFUSED and reported, never silently accepted.
+python3 - "${CH_TEST_REPO}" <<'PYEOF' 2>/dev/null
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1]) / ".agents" / "context-harness" / "prime-profile.json"
+p.parent.mkdir(parents=True, exist_ok=True)
+d = {"format": "ainish-rag/prime-profile/v1", "generation": 0,
+     "graph": {"max_wiki_pages": 999, "max_artifacts": 2, "chapter_chars": 1400,
+               "hop_bonus": 5.0, "recency_floor": 0.55, "shared_term_threshold": 3}}
+p.write_text(json.dumps(d))
+PYEOF
+bad_out=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
+check "an out-of-bounds profile is refused" \
+    "$(printf '%s' "$bad_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["source"])' 2>/dev/null)" \
+    "invalid: failed validation"
+check "an invalid profile degrades the call, it does not fail it" \
+    "$(printf '%s' "$bad_out" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["sections"]) > 0)' 2>/dev/null)" \
+    "True"
+check "an invalid profile falls back to the shipped tuning" \
+    "$(printf '%s' "$bad_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["tuning"]["max_wiki_pages"])' 2>/dev/null)" \
+    "8"
+
+# Criterion leakage: a learned artefact naming the measurement must be refused. This is the
+# practitioner video's round-3 failure, and the reason the improver is never told the signals.
+contains "the leakage guard names the markers" "$(cat "$CH_MOD")" 'ACCEPTANCE_MARKERS'
+check "a profile hint naming a measurement is refused" \
+    "$(python3 -c '
+import sys, importlib.util, pathlib
+spec = importlib.util.spec_from_file_location("ch", "'"${CH_MOD}"'")
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+prof = {"format": m.PROFILE_FORMAT, "generation": 1,
+        "graph": {"max_wiki_pages": 8, "max_artifacts": 2, "chapter_chars": 1400,
+                  "hop_bonus": 0.35, "recency_floor": 0.55, "shared_term_threshold": 3},
+        "domain_prior": {"codebase_symbols": ["coverage"]}}
+print("refused" if m.validate_profile(prof) else "accepted")' 2>/dev/null)" \
+    "refused"
+check "a skill body naming a measurement is refused" \
+    "$(python3 -c '
+import sys, importlib.util, pathlib
+spec = importlib.util.spec_from_file_location("ch", "'"${CH_MOD}"'")
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print("refused" if m._contains_acceptance_marker("raise the coverage number") else "accepted")' 2>/dev/null)" \
+    "refused"
+
+# The non-circular gate. Phase 0 proved prime-derived statistics are monotone in the knobs that
+# produce them, so acceptance must consult an OUTCOME. If this function disappears, the loop has
+# silently reverted to the circular design.
+contains "acceptance consults an outcome signal" "$(cat "$CH_MOD")" 'def outcome_signal'
+check "stale hints expire after enough unsupported generations" \
+    "$(python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+aged = m.age_hints(
+    {"domain_prior": {"codebase_symbols": ["stale", "live"]},
+     "hint_age": {"codebase_symbols": {"stale": 4, "live": 0}}},
+    {"domain_prior": {"codebase_symbols": ["stale", "live"]}, "hint_age": {}})
+out, dropped = m.expire_unsupported(aged, max_unsupported=5)
+print("yes" if dropped and "stale" not in (out["domain_prior"]["codebase_symbols"]) else "no")' "$CH_MOD" 2>/dev/null)" \
+    "yes"
+contains "the learner refuses without an outcome signal" "$(cat "${REPO}/src/rag/rag.py")" 'no outcome signal available for this task'
+# A malformed improver reply is an unusable answer, never a considered no-op.
+contains "a malformed reply is not a KEEP_BASE" "$(cat "${REPO}/src/rag/rag.py")" 'followed neither protocol tag'
+
+contains "rag help advertises the harness verbs" \
+    "$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/rag/rag.py" | head -1 | cut -d: -f1),+130p" "${REPO}/src/rag/rag.py")" \
+    'context-learn'
+check "the context-harness docs exist" \
+    "$([[ -f "${REPO}/research/context-priming-master/08-phase0-findings.md" ]] && echo yes || echo no)" "yes"
 
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
