@@ -28,6 +28,11 @@ import secrets
 import shutil
 import uuid
 
+# The per-repo context harness. Imported as a sibling module so the engine keeps its stdlib-only
+# contract: `context_harness.py` has no third-party imports of its own.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import context_harness  # noqa: E402
+
 # Embedding constants (DEFAULT_EMBED_DIM, DEFAULT_SERVER_PORT) were removed with the vector
 # subsystem on 2026-11-12; nothing in the engine names a model dimension or a server port now.
 
@@ -3665,16 +3670,23 @@ def _graph_terms(text: str) -> set:
     return terms
 
 
-def _graph_sources(repo_root: Path) -> List[Dict[str, Any]]:
-    """Newest wiki pages, newest artifacts per coordination folder, and the .agents map."""
+def _graph_sources(repo_root: Path, settings: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Newest wiki pages, newest artifacts per coordination folder, and the .agents map.
+
+    `settings` carries the resolved context-harness values (see `context_harness.py`). When it is
+    None the module constants are used, so every pre-existing caller behaves exactly as before —
+    which is what makes a repo with no profile byte-identical to the previous release.
+    """
     sources: List[Dict[str, Any]] = []
     agents = repo_root / ".agents"
+    max_pages = int((settings or {}).get("max_wiki_pages") or GRAPH_MAX_WIKI_PAGES)
+    max_artifacts = int((settings or {}).get("max_artifacts") or GRAPH_MAX_ARTIFACTS)
 
     wiki_dir = agents / "wiki"
     if wiki_dir.is_dir():
         pages = [p for p in wiki_dir.glob("*.md") if p.is_file()]
         pages.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        for page in pages[:GRAPH_MAX_WIKI_PAGES]:
+        for page in pages[:max_pages]:
             sources.append({"kind": "wiki", "path": page})
 
     index = agents / "llms.txt"
@@ -3687,16 +3699,18 @@ def _graph_sources(repo_root: Path) -> List[Dict[str, Any]]:
             continue
         files = [p for p in directory.iterdir() if p.is_file() and p.suffix in (".txt", ".md")]
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        for path in files[:GRAPH_MAX_ARTIFACTS]:
+        for path in files[:max_artifacts]:
             sources.append({"kind": folder, "path": path})
     return sources
 
 
-def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
+def build_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Graph of the wiki and the newest coordination artifacts. Cached until a source changes."""
+    chapter_chars = int((settings or {}).get("chapter_chars") or GRAPH_CHAPTER_CHARS)
+    shared_min = int((settings or {}).get("shared_term_threshold") or 3)
     nodes: List[Dict[str, Any]] = []
     seen_paths = set()
-    for source in _graph_sources(repo_root):
+    for source in _graph_sources(repo_root, settings):
         path: Path = source["path"]
         if path in seen_paths:
             continue
@@ -3724,7 +3738,7 @@ def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
             ] or offsets
             for idx, (start, title) in enumerate(body_offsets):
                 end = body_offsets[idx + 1][0] if idx + 1 < len(body_offsets) else len(text)
-                body = text[start:end][:GRAPH_CHAPTER_CHARS]
+                body = text[start:end][:chapter_chars]
                 line = text[:start].count("\n") + 1
                 nodes.append({
                     "id": f"{rel}#{line}",
@@ -3738,7 +3752,7 @@ def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
                     "terms": sorted(_graph_terms(f"{title} {body}")),
                 })
         else:
-            body = text[:GRAPH_CHAPTER_CHARS]
+            body = text[:chapter_chars]
             nodes.append({
                 "id": rel,
                 "kind": source["kind"],
@@ -3784,7 +3798,7 @@ def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
     for i, a in enumerate(nodes):
         for b in nodes[i + 1:]:
             shared = set(a["terms"]) & set(b["terms"])
-            if len(shared) >= 3:
+            if len(shared) >= shared_min:
                 edges.append([a["id"], b["id"]])
 
     # Recency rank drives the "latest first" tie-break.
@@ -3800,13 +3814,22 @@ def build_wiki_graph(repo_root: Path) -> Dict[str, Any]:
     }
 
 
-def load_wiki_graph(repo_root: Path) -> Dict[str, Any]:
-    """Build-once graph, cached under .agents/rag/ and rebuilt when the source set changes."""
+def load_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Build-once graph, cached under .agents/rag/ and rebuilt when the source set changes.
+
+    The cache is keyed on source mtimes AND on the settings that shape the graph, so a profile
+    change cannot be served a graph built under the previous one.
+    """
     cache_path = repo_root / ".agents" / "rag" / GRAPH_CACHE
     fingerprint = "|".join(
         f"{p}:{p.stat().st_mtime_ns if p.exists() else 0}"
-        for p in [s["path"] for s in _graph_sources(repo_root)]
+        for p in [s["path"] for s in _graph_sources(repo_root, settings)]
     )
+    if settings:
+        fingerprint += "|" + "|".join(
+            f"{k}={settings.get(k)}" for k in
+            ("max_wiki_pages", "max_artifacts", "chapter_chars", "shared_term_threshold")
+        )
     digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
     if cache_path.is_file():
         try:
@@ -3815,7 +3838,7 @@ def load_wiki_graph(repo_root: Path) -> Dict[str, Any]:
                 return cached
         except (OSError, ValueError):
             pass
-    graph = build_wiki_graph(repo_root)
+    graph = build_wiki_graph(repo_root, settings)
     graph["fingerprint"] = digest
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -3825,9 +3848,11 @@ def load_wiki_graph(repo_root: Path) -> Dict[str, Any]:
     return graph
 
 
-def graph_retrieve(repo_root: Path, task: str, want: int = 10) -> Dict[str, Any]:
+def graph_retrieve(
+    repo_root: Path, task: str, want: int = 10, settings: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Rank graph nodes against the task, walk one hop, prefer recent nodes. No embeddings."""
-    graph = load_wiki_graph(repo_root)
+    graph = load_wiki_graph(repo_root, settings)
     nodes: List[Dict[str, Any]] = graph.get("nodes") or []
     if not nodes:
         return {"hits": [], "mode": "wiki_graph_empty", "meta": {"nodes": 0, "edges": 0}}
@@ -3847,6 +3872,16 @@ def graph_retrieve(repo_root: Path, task: str, want: int = 10) -> Dict[str, Any]
             df[term] = df.get(term, 0) + 1
     total = max(1, len(nodes))
 
+    # Recency preference and hop strength are profile-tunable; their shipped values reproduce the
+    # previous behaviour exactly (0.55 floor, 0.45 recency span, 0.35 hop bonus).
+    floor = float((settings or {}).get("recency_floor") or 0.55)
+    span = max(0.0, 1.0 - floor)
+    hop = float((settings or {}).get("hop_bonus") or GRAPH_HOP_BONUS)
+    prior = (settings or {}).get("domain_prior") or {}
+    # Domain hints from the profile promote nodes whose terms include a hint. They can only ADD
+    # score to corpus nodes that already matched, so a hint cannot invent evidence.
+    hints = {t for terms in prior.values() if isinstance(terms, list) for t in terms}
+
     scores: Dict[str, float] = {}
     for node in nodes:
         overlap = task_terms & set(node.get("terms") or [])
@@ -3854,11 +3889,13 @@ def graph_retrieve(repo_root: Path, task: str, want: int = 10) -> Dict[str, Any]
             continue
         # Rare terms carry the signal: a term present in every node separates nothing.
         weight = sum(math.log(1.0 + total / max(1, df.get(t, 1))) for t in overlap)
-        scores[node["id"]] = weight * (0.55 + 0.45 * float(node.get("recency") or 0.0))
+        if hints and overlap & hints:
+            weight *= 1.35
+        scores[node["id"]] = weight * (floor + span * float(node.get("recency") or 0.0))
 
     for node_id in list(scores):
         for neighbor in neighbors.get(node_id, []):
-            bonus = scores[node_id] * GRAPH_HOP_BONUS
+            bonus = scores[node_id] * hop
             if bonus > scores.get(neighbor, 0.0):
                 scores[neighbor] = bonus
 
@@ -3898,6 +3935,7 @@ def retrieve_context(
     store: Optional[Any],
     route_decision: Dict[str, Any],
     pool_size: Optional[int] = None,
+    settings: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Engineered retrieval: ANN pool → decision rerank → CRAG second pass, with a file fallback.
 
@@ -3922,7 +3960,7 @@ def retrieve_context(
     # Graph first. The wiki page that documents a subsystem plus the newest coordination artifact
     # answer most repository questions, and they answer them on a host with no embedding endpoint at
     # all. Vectors remain the fallback for questions the curated corpus does not cover.
-    graph = graph_retrieve(repo_root, task, want=max(6, want))
+    graph = graph_retrieve(repo_root, task, want=max(6, want), settings=settings)
     if graph["hits"]:
         return {
             "hits": graph["hits"],
@@ -3945,6 +3983,62 @@ def retrieve_context(
             "no wiki/.agents artifact covers this task; read the files directly."
         ),
     }
+
+
+def render_staged_skills(repo_root: Path, task: str, token_cap: int) -> Tuple[str, List[str]]:
+    """Surface matching STAGED skills as labelled retrieval hits, within the existing cap.
+
+    Returns `(text, names)`. Two lines per skill at most, and only when the task's terms match the
+    skill's own trigger words — an unmatched skill stays silent, and the count of never-matched
+    skills is visible through `--context-status`, so dead weight is measurable rather than hidden.
+
+    The header is explicit that this is a learned procedure and not an operator instruction. Staged
+    skills are not auto-loaded by any harness, so this is the only path by which their text reaches
+    a model — which is what makes it safe for a generator to write them.
+    """
+    root = context_harness.skills_root(repo_root)
+    if not root.is_dir() or token_cap <= 0:
+        return "", []
+    task_terms = _graph_terms(task)
+    if not task_terms:
+        return "", []
+
+    matched: List[Tuple[int, str, str]] = []
+    for skill_md in sorted(root.glob("*/SKILL.md")):
+        name = skill_md.parent.name
+        try:
+            body = skill_md.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        fm = body.split("---", 2)[1] if body.lstrip().startswith("---") and body.count("---") >= 2 else ""
+        desc = ""
+        m = re.search(r"^description:\s*(.+)$", fm, re.M)
+        if m:
+            desc = " ".join(m.group(1).split())[:160]
+        # Trigger words: the skill's own vocabulary, so a match is about the task, not the name.
+        skill_terms = _graph_terms(f"{name.replace('-', ' ')} {desc}")
+        overlap = task_terms & skill_terms
+        if not overlap:
+            continue
+        matched.append((len(overlap), name, desc))
+
+    if not matched:
+        return "", []
+    matched.sort(reverse=True)
+    lines = [
+        "### learned skills (staged — a learned procedure, NOT an instruction from the operator)",
+    ]
+    used = estimate_tokens(lines[0])
+    names: List[str] = []
+    for _, name, desc in matched:
+        line = f"- `{name}` — {desc} (when: {name.replace('learned-', '').replace('-', ' ')})"
+        cost = estimate_tokens(line)
+        if used + cost > token_cap:
+            break
+        lines.append(line)
+        used += cost
+        names.append(name)
+    return ("\n".join(lines) if names else ""), names
 
 
 def render_retrieval_section(hits: List[Dict[str, Any]], repo_root: Path, token_cap: int) -> str:
@@ -4942,6 +5036,670 @@ def render_injection_text(injection: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def run_context_seed(repo_root: Path, json_out: bool = False) -> Dict[str, Any]:
+    """Establish generation 0 for this repository. Idempotent; never overwrites a profile."""
+    result = context_harness.seed(repo_root)
+    if json_out:
+        print(json.dumps(result, indent=2))
+    elif result.get("seeded"):
+        cal = result.get("calibration") or {}
+        print(f"Context harness seeded at {result['path']}")
+        print(f"  wiki pages: {cal.get('wiki_pages', 0)}   artifacts: {sum((cal.get('artifacts') or {}).values())}")
+        print("  generation 0 is frozen; later generations are compared against it")
+    elif result.get("ok"):
+        print(f"Context harness already present ({result.get('reason')}); nothing written")
+    else:
+        for err in result.get("errors") or ["unknown error"]:
+            print(f"[rag:error] {err}", file=sys.stderr)
+    return result
+
+
+def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any]:
+    """Report what is live: generation, source, staged and promoted skills, history, rejections."""
+    info = context_harness.status(repo_root)
+    if json_out:
+        print(json.dumps(info, indent=2))
+        return info
+    print(f"context harness: {info['source']}")
+    if not info["present"]:
+        print(f"  no profile at {info['root']}/{context_harness.PROFILE_NAME}")
+        print("  `ainish-rag --context-seed` establishes generation 0 (also done by `ainish-coder --rules`)")
+    else:
+        print(f"  generation {info['generation']}  fingerprint {info['fingerprint']}")
+        graph = info.get("graph") or {}
+        print("  tuning: " + "  ".join(f"{k}={v}" for k, v in sorted(graph.items())))
+    if info["staged_skills"]:
+        print(f"  staged skills ({len(info['staged_skills'])}): {', '.join(info['staged_skills'])}")
+    else:
+        print("  staged skills: none")
+    if info["promoted_skills"]:
+        print(f"  PROMOTED (standing prompt surface): {', '.join(info['promoted_skills'])}")
+    print(f"  history: {info['history_total']} generation(s)" + (f", newest {info['history'][-1]}" if info["history"] else ""))
+    if info["rejected_total"]:
+        print(f"  rejected: {info['rejected_total']} (see {info['root']}/rejected/)")
+    for err in (info.get("errors") or []) + (info.get("tree_errors") or []):
+        print(f"[rag:warn] {err}", file=sys.stderr)
+    return info
+
+
+def run_context_rollback(repo_root: Path, generation: int, json_out: bool = False) -> Dict[str, Any]:
+    """Restore a historical generation as live, recorded as its own event."""
+    result = context_harness.rollback(repo_root, generation)
+    if json_out:
+        print(json.dumps(result, indent=2))
+    elif result.get("ok"):
+        print(f"rolled back to generation {generation} (was {result.get('from')})")
+    else:
+        for err in result.get("errors") or ["rollback failed"]:
+            print(f"[rag:error] {err}", file=sys.stderr)
+    return result
+
+
+def run_context_promote(repo_root: Path, name: str, json_out: bool = False) -> Dict[str, Any]:
+    """Copy a staged skill into `.agents/skills/`, making it visible to every harness in the repo."""
+    result = context_harness.promote(repo_root, name)
+    if json_out:
+        print(json.dumps(result, indent=2))
+    elif result.get("ok"):
+        print(f"promoted {name} -> {result['promoted']}")
+        print(f"  {result['note']}")
+    else:
+        for err in result.get("errors") or ["promotion failed"]:
+            print(f"[rag:error] {err}", file=sys.stderr)
+    return result
+
+
+def _harness_evidence_tree(
+    repo_root: Path, dest: Path, task: str, profile: Dict[str, Any], hits: List[Dict[str, Any]]
+) -> Path:
+    """Write the evidence a harness improver reads, as files plus a short pointer.
+
+    harness2's `context.py` pattern, and it is used here for the same reason: nothing is truncated to
+    fit a prompt, so the improver cannot diagnose an artefact of truncation as a defect in the prime
+    (harness2 raises on `obs_trunc < 10_000` for exactly this reason).
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "task.md").write_text(task + "\n", encoding="utf-8")
+    (dest / "profile.json").write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
+
+    hits_dir = dest / "hits"
+    hits_dir.mkdir(exist_ok=True)
+    index = ["# Retrieved evidence for this task", ""]
+    for i, hit in enumerate(hits):
+        body = str(hit.get("content") or "")
+        name = f"hit{i:02d}.md"
+        (hits_dir / name).write_text(body, encoding="utf-8")
+        index.append(
+            f"- `hits/{name}` — {hit.get('path')}:L{hit.get('start_line')}-L{hit.get('end_line')} "
+            f"(score {float(hit.get('decision_score') or 0):.2f}, {len(body)} chars)"
+        )
+    index += ["", "## Current tuning", "", "```json",
+              json.dumps(profile.get("graph") or {}, indent=2), "```", ""]
+    (dest / "INDEX.md").write_text("\n".join(index), encoding="utf-8")
+
+    (dest / "MISSION.md").write_text(HARNESS_MISSION, encoding="utf-8")
+    return dest
+
+
+HARNESS_MISSION = """\
+# YOUR JOB
+
+Improve the retrieval harness of a repository's context-priming tool so that the NEXT agent working
+in this repository gets a better prime than you did.
+
+You are NOT solving the task in the message. You are editing how the tool chooses what to show.
+
+# THE EVIDENCE IS IN THIS MESSAGE
+
+You have no file tools. The task, the current tuning, and every retrieved item are reproduced below,
+in full. Work only from what is here.
+
+# WHAT YOU MAY CHANGE
+
+Only two things, and both are data:
+
+1. The `graph` numbers — `max_wiki_pages` (1-16), `max_artifacts` (1-6), `chapter_chars` (400-2400),
+   `hop_bonus` (0.0-1.0), `recency_floor` (0.0-0.95), `shared_term_threshold` (2-8) — and up to 12
+   short `[a-z0-9_-]` terms per key in `domain_prior`. A `domain_prior` term promotes retrieved items
+   whose text contains it. It cannot add evidence that is not already in the corpus.
+
+2. A skill, as `skills/learned-<name>/SKILL.md` (+ optional `scripts/*.py`). Skills are ON DEMAND:
+   they cost nothing until invoked, which is why they are the preferred form. Frontmatter needs
+   `name:` matching the directory and `description:`.
+   Add one ONLY when the evidence shows a procedure that recurred, or that will obviously recur, and
+   that a later task could invoke on demand. Name it `learned-<what it does>` (lowercase, digits, `_`
+   or `-`). The always-on prime is never the place for it.
+
+# WHAT YOU MAY NOT DO
+
+- No rule that applies on every run. Always-on text is paid on every call and is the failure this
+  design exists to avoid.
+- No credentials, no URLs, no shelling out, no dynamic execution.
+- Do not name any evaluation criterion, metric, score, threshold, or signal. You have not been told
+  how this harness is judged, and you must not guess at it.
+
+# THE HONEST OPTION
+
+If the evidence does not argue for a change, say so. A no-op is a real, expected, and frequently
+correct answer: an edit the evidence does not support costs context and buys nothing.
+
+# OUTPUT — exactly these three blocks, and NOTHING else
+
+    <edits>
+    {"graph": {"hop_bonus": 0.42}, "domain_prior": {"codebase_symbols": ["header"]}}
+    </edits>
+    <skill name="learned-parser-notes">
+    ---
+    name: learned-parser-notes
+    description: Read the sixteen-byte header before any field access.
+    ---
+
+    The header carries the magic number and version; read it first.
+    </skill>
+    <why>
+    for each change, the specific retrieved item that motivated it, named by its path
+    </why>
+    <kept>no</kept>
+
+A `<skill name="...">` body is LITERAL TEXT — no escaping, no JSON. Include at most 3 skills total
+across generations. Omit the `<skill>` blocks entirely when no skill is warranted.
+
+Reply with `<edits></edits><why></why><kept>yes</kept>` when you are keeping the harness as it is.
+Do not describe what you are about to do. Do not begin with a preamble. Emit only the blocks.
+"""
+
+
+def _apply_edits_to_profile(profile: Dict[str, Any], edits: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge an improver's proposed `graph`/`domain_prior` deltas onto a copy of the live profile."""
+    out = json.loads(json.dumps(profile))
+    out["generation"] = int(profile.get("generation") or 0) + 1
+    for key, val in (edits.get("graph") or {}).items():
+        out.setdefault("graph", {})[key] = val
+    for domain, terms in (edits.get("domain_prior") or {}).items():
+        if domain in context_harness.DOMAINS and isinstance(terms, list):
+            out.setdefault("domain_prior", {})[domain] = terms[:context_harness.DOMAIN_PRIOR_MAX]
+    # Carry hint ages forward, then drop anything that has gone too long without re-justification.
+    out = context_harness.age_hints(profile, out)
+    out, dropped = context_harness.expire_unsupported(out)
+    if dropped:
+        out.setdefault("calibration", {})["expired_hints"] = dropped
+    return out
+
+
+def _validate_proposed_skills(skills: Dict[str, Any]) -> List[str]:
+    """Validate a proposed skill set in a throwaway tree, so a dry run writes nothing.
+
+    Reuses the same validator the real path uses — a dry run that validated with a different rule
+    set would report "would accept" for something the real run then refuses.
+    """
+    import tempfile
+    errs: List[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        fake = Path(tmp)
+        root = context_harness.skills_root(fake)
+        for name, spec in skills.items():
+            if not isinstance(spec, dict):
+                errs.append(f"skills.{name} must be an object with a `body`")
+                continue
+            if not context_harness.NAME_RE.match(str(name)):
+                errs.append(f"skills.{name} must match {context_harness.NAME_RE.pattern}")
+                continue
+            dest = root / str(name)
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / "SKILL.md").write_text(str(spec.get("body") or ""), encoding="utf-8")
+            for fname, src in (spec.get("scripts") or {}).items():
+                (dest / "scripts").mkdir(exist_ok=True)
+                (dest / "scripts" / str(fname)).write_text(str(src), encoding="utf-8")
+        errs.extend(context_harness.validate_tree(fake))
+    return errs
+
+
+def _stage_skills(repo_root: Path, skills: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    """Write proposed skills into the STAGED tree, validating before anything is committed.
+
+    Returns `(written, errors)`. A proposal that fails validation is rolled back entirely, so the
+    staged tree never holds a half-applied skill — the same all-or-nothing rule harness2 applies to a
+    component tree, and the reason a skill that names a script it does not ship cannot survive.
+    """
+    written: List[str] = []
+    errors: List[str] = []
+    if not isinstance(skills, dict) or not skills:
+        return written, errors
+    root = context_harness.skills_root(repo_root)
+    backup = root.parent / ".skills-backup"
+    pre_existing: List[str] = []
+    if root.is_dir():
+        shutil.copytree(root, backup, dirs_exist_ok=True)
+        pre_existing = sorted(p.name for p in root.iterdir() if p.is_dir())
+
+    try:
+        for name, spec in skills.items():
+            if not isinstance(spec, dict):
+                errors.append(f"skills.{name} must be an object with a `body`")
+                continue
+            if not context_harness.NAME_RE.match(str(name)):
+                errors.append(
+                    f"skills.{name} must match {context_harness.NAME_RE.pattern} "
+                    f"(the 'learned-' prefix keeps it out of the deploy sweep)"
+                )
+                continue
+            if len(pre_existing) + len(written) >= context_harness.MAX_LIVE_SKILLS and name not in pre_existing:
+                errors.append(
+                    f"skills.{name} would exceed the {context_harness.MAX_LIVE_SKILLS}-skill cap; "
+                    f"an unbounded toolbox is the bloat this cap prevents"
+                )
+                continue
+            body = str(spec.get("body") or "")
+            if not body.strip():
+                errors.append(f"skills.{name} has an empty body")
+                continue
+            dest = root / str(name)
+            dest.mkdir(parents=True, exist_ok=True)
+            (dest / "SKILL.md").write_text(body, encoding="utf-8")
+            for fname, src in (spec.get("scripts") or {}).items():
+                if not re.match(r"^[A-Za-z0-9_.\-]+\.py$", str(fname)):
+                    errors.append(f"skills.{name}.scripts.{fname} must be a bare *.py filename")
+                    continue
+                (dest / "scripts").mkdir(exist_ok=True)
+                (dest / "scripts" / str(fname)).write_text(str(src), encoding="utf-8")
+            written.append(str(name))
+
+        if written:
+            tree_errors = context_harness.validate_tree(repo_root)
+            if tree_errors:
+                errors.extend(tree_errors)
+                raise ValueError("staged tree failed validation")
+    except ValueError:
+        pass
+    finally:
+        if errors:
+            # Restore exactly what was there before this attempt.
+            if root.is_dir():
+                shutil.rmtree(root, ignore_errors=True)
+            if backup.is_dir():
+                shutil.copytree(backup, root, dirs_exist_ok=True)
+            written = []
+        shutil.rmtree(backup, ignore_errors=True)
+    return written, errors
+
+
+def run_context_learn(
+    repo_root: Path,
+    task: Optional[str] = None,
+    *,
+    dry_run: bool = False,
+    json_out: bool = False,
+    no_remote: bool = False,
+) -> Dict[str, Any]:
+    """One propose→outcome→gate cycle. The acceptance gate is OUTCOME-based, not prime-derived.
+
+    Phase 0 (`research/context-priming-master/08-phase0-findings.md`) proved that a gate built from
+    statistics of the rendered prime is circular: every such signal was monotone in the knob that
+    produced it (Spearman rho up to 1.000). So acceptance here requires an EXTERNAL referent —
+    whether earlier tasks in this repository actually reached a completed commit — and the improver's
+    own claims are never sufficient on their own.
+
+    The improver may only ever propose. Acceptance is code.
+    """
+    result: Dict[str, Any] = {"format": "ainish-rag/context-learn/v1", "ok": False, "dry_run": dry_run}
+    acquired, lock_note = context_harness.acquire_lock(repo_root)
+    if not acquired:
+        result["errors"] = [lock_note]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"[rag:error] {lock_note}", file=sys.stderr)
+        return result
+    try:
+        return _learn_locked(repo_root, task, dry_run=dry_run, json_out=json_out, no_remote=no_remote,
+                             result=result)
+    finally:
+        context_harness.release_lock(repo_root)
+
+
+def _learn_locked(
+    repo_root: Path,
+    task: Optional[str],
+    *,
+    dry_run: bool,
+    json_out: bool,
+    no_remote: bool,
+    result: Dict[str, Any],
+) -> Dict[str, Any]:
+    profile, source, errs = context_harness.load_profile(repo_root)
+    result["profile_source"] = source
+    if errs:
+        result["errors"] = [f"live profile is invalid; refusing to build on it: {e}" for e in errs]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            for e in result["errors"]:
+                print(f"[rag:error] {e}", file=sys.stderr)
+        return result
+
+    if not task:
+        task = _newest_task_objective(repo_root)
+    if not task:
+        result["errors"] = ["no task text; pass --task or record a task under .agents/tasks/"]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"[rag:error] {result['errors'][0]}", file=sys.stderr)
+        return result
+    result["task"] = task[:300]
+
+    settings, _, _ = context_harness.settings_for(repo_root)
+    retrieved = retrieve_context(repo_root, task, None, None, DecisionEngine().route(task), settings=settings)
+    hits = retrieved.get("hits") or []
+    result["hits"] = len(hits)
+    if not hits:
+        # Nothing to reason about. This is a legitimate, reported outcome, not a failure to retry.
+        result["ok"] = True
+        result["outcome"] = "KEEP_BASE"
+        result["reason"] = "no corpus hit for this task, so there is no evidence to argue for a change"
+        reason = result["reason"]
+        if not dry_run:
+            context_harness.record_rejection(repo_root, {}, ["KEEP_BASE: " + reason])
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"KEEP_BASE — {reason}")
+        return result
+
+    work = context_harness.harness_root(repo_root) / "work" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    _harness_evidence_tree(repo_root, work, task, profile, hits)
+
+    # The improver runs with `--no-tools`, so evidence is INLINE in the prompt rather than served as
+    # files it could open. The on-disk tree is still written: it is the audit record of exactly what
+    # the improver was shown, and without it a later reviewer cannot tell what it reasoned over.
+    evidence_inline = _render_inline_evidence(task, profile, hits)
+    try:
+        reply = pi_agent_call(
+            role="elephant",
+            model=_pi_role_model("elephant"),
+            system_prompt=HARNESS_MISSION,
+            user_prompt=evidence_inline,
+        )
+    except Exception as exc:  # a learner must never crash the caller; it reports and writes nothing
+        result["errors"] = [f"improver call raised {type(exc).__name__}: {str(exc)[:160]}"]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"[rag:error] {result['errors'][0]}", file=sys.stderr)
+        return result
+    text = str((reply or {}).get("text") or "")
+    result["improver"] = {"source": (reply or {}).get("source"), "chars": len(text)}
+    if not text:
+        result["errors"] = [
+            f"improver unavailable: {(reply or {}).get('error') or 'no output'}; nothing written. "
+            f"A failed learner run is NOT a KEEP_BASE."
+        ]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"[rag:error] {result['errors'][0]}", file=sys.stderr)
+        return result
+
+    kept_tag = re.search(r"<kept>\s*(yes|no)\s*</kept>", text, re.I)
+    edits_block = re.search(r"<edits>(.*?)</edits>", text, re.S)
+    why_block = re.search(r"<why>(.*?)</why>", text, re.S)
+    # Skills arrive as literal text in their own block, never inside JSON: requiring a model to
+    # escape newlines correctly inside a JSON string was a real failure (measured: "Extra data" on
+    # every attempt that tried to include a SKILL.md). A delimiter costs nothing and cannot be
+    # mis-escaped.
+    skill_blocks = [
+        (m.group(1).strip(), m.group(2)) for m in
+        re.finditer(r"<skill\s+name=\"([^\"]+)\"\s*>(.*?)</skill>", text, re.S)
+    ]
+    why = (why_block.group(1).strip() if why_block else "")
+    result["proposal"] = (edits_block.group(1).strip() if edits_block else "")[:1200]
+    result["why"] = why[:1200]
+    proposed_skills = {name: {"body": body} for name, body in skill_blocks}
+    if skill_blocks:
+        result["proposed_skills"] = [n for n, _ in skill_blocks]
+
+    # A reply with NEITHER tag is not a considered no-op — it is an unfinished reply, and treating it
+    # as KEEP_BASE would turn "the model did not follow the protocol" into "the model judged the
+    # evidence insufficient". Those are different facts and only one of them is good news.
+    if not kept_tag and not edits_block and not skill_blocks:
+        result["errors"] = [
+            "improver reply followed neither protocol tag (no <edits>, no <kept>); "
+            f"first 200 chars: {text[:200]!r}. Nothing was written. This is NOT a KEEP_BASE — "
+            "it is an unusable reply."
+        ]
+        if not dry_run:
+            context_harness.record_rejection(
+                repo_root, {"reply": text[:4000]}, ["malformed reply: " + result["errors"][0][:200]]
+            )
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"[rag:error] {result['errors'][0]}", file=sys.stderr)
+        return result
+
+    # KEEP_BASE only when the improver asked for it AND proposed nothing. A model that says
+    # `<kept>yes</kept>` while also emitting a `<skill>` body is contradicting itself; the proposal is
+    # the more informative signal, and silently discarding it would turn real work into a no-op.
+    if not edits_block or not edits_block.group(1).strip():
+        has_delta = False
+    else:
+        has_delta = True
+    kept = bool(kept_tag and kept_tag.group(1).lower() == "yes") and not proposed_skills and not has_delta
+    if kept_tag and kept_tag.group(1).lower() == "yes" and (proposed_skills or has_delta):
+        result["protocol_note"] = (
+            "improver said <kept>yes</kept> but also proposed changes; the proposal is honoured"
+        )
+
+    if kept:
+        result["ok"] = True
+        result["outcome"] = "KEEP_BASE"
+        result["reason"] = "the improver judged the evidence did not support a change"
+        if not dry_run:
+            context_harness.record_rejection(repo_root, {"reply": text[:4000]},
+                                             ["KEEP_BASE: " + result["reason"]])
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"KEEP_BASE — {result['reason']}")
+        return result
+
+    # The improver returns a JSON delta inside <edits>. Anything unparseable is a refusal, never a
+    # best-effort guess at what it meant.
+    delta: Dict[str, Any] = {}
+    if edits_block and edits_block.group(1).strip():
+        try:
+            parsed = json.loads(_json_from(edits_block.group(1)))
+            delta = parsed if isinstance(parsed, dict) else {}
+        except (ValueError, TypeError) as exc:
+            reasons = [f"the proposed edits are not valid JSON: {str(exc)[:120]}"]
+            result["errors"] = reasons
+            if not dry_run:
+                context_harness.record_rejection(repo_root, {"reply": text[:4000]}, reasons)
+            if json_out:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"[rag:error] {reasons[0]}", file=sys.stderr)
+            return result
+
+    candidate = _apply_edits_to_profile(profile, delta)
+    result["candidate_generation"] = candidate.get("generation")
+
+    # ── the gate ────────────────────────────────────────────────────────────
+    reasons: List[str] = []
+    reasons += [f"bounds: {e}" for e in context_harness.validate_profile(candidate)]
+
+    # Non-circular requirement: the proposal must be justified by an OUTCOME, not by the prime.
+    outcome = context_harness.outcome_signal(repo_root, task)
+    result["outcome_signal"] = outcome
+    if not outcome.get("available"):
+        reasons.append(
+            "no outcome signal available for this task "
+            f"({outcome.get('reason') or 'unknown'}); a harness change cannot be accepted on "
+            "evidence derived from the prime it changes"
+        )
+    elif outcome.get("completion") is False:
+        reasons.append(
+            "no completed commit is associated with this task, so there is no evidence the current "
+            "harness works well enough to be worth tuning from"
+        )
+    if not why.strip():
+        reasons.append("no <why> offered; a change with no cited motivation is a guess")
+    if not any([delta.get("graph"), delta.get("domain_prior"), proposed_skills]):
+        reasons.append("the reply parsed but proposes no graph, domain_prior, or skill change")
+
+    if reasons:
+        result["outcome"] = "refused"
+        result["reasons"] = reasons
+        if not dry_run:
+            path = context_harness.record_rejection(repo_root, {"candidate": candidate, "reply": text[:4000]}, reasons)
+            result["rejected_path"] = str(path) if path else None
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print("refused — the gate rejected this proposal:")
+            for r in reasons:
+                print(f"  - {r}")
+        return result
+
+    candidate = _apply_edits_to_profile(profile, delta)
+
+    if dry_run:
+        result["ok"] = True
+        result["outcome"] = "would_accept"
+        result["candidate"] = candidate
+        if proposed_skills:
+            # Validate the skills WITHOUT writing them: a dry run must leave the tree untouched.
+            result["would_stage_skills"] = sorted(proposed_skills)
+            result["skill_validation"] = [
+                e for e in _validate_proposed_skills(proposed_skills)
+            ]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"would accept generation {candidate.get('generation')}:")
+            print("  " + (result["proposal"] or "(no edits listed)"))
+            print(f"  outcome signal: {outcome.get('completion')} over {outcome.get('commits')} commit(s)")
+            if result.get("skill_validation"):
+                print("  skills would be REFUSED:")
+                for e in result["skill_validation"]:
+                    print(f"    - {e}")
+        return result
+
+    # Skills are staged BEFORE the profile is written, and a staging failure aborts the whole
+    # generation: a profile that references a tree which failed validation would be a half-applied
+    # state that no rollback of the profile alone could repair.
+    staged: List[str] = []
+    if proposed_skills:
+        staged, skill_errors = _stage_skills(repo_root, proposed_skills)
+        if skill_errors:
+            result["outcome"] = "refused"
+            result["reasons"] = [f"skill: {e}" for e in skill_errors]
+            context_harness.record_rejection(
+                repo_root, {"candidate": candidate, "skills": proposed_skills},
+                result["reasons"],
+            )
+            if json_out:
+                print(json.dumps(result, indent=2))
+            else:
+                print("refused — staged skills failed validation (nothing written):")
+                for r in result["reasons"]:
+                    print(f"  - {r}")
+            return result
+        result["staged_skills"] = staged
+
+    written = context_harness.write_profile(repo_root, candidate, note=_slugify(why)[:40] or "learned")
+    if not written.get("ok"):
+        result["outcome"] = "refused"
+        result["reasons"] = written.get("errors") or ["write failed"]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            for e in result["reasons"]:
+                print(f"[rag:error] {e}", file=sys.stderr)
+        return result
+
+    context_harness.write_experience(
+        repo_root, candidate,
+        why=why,
+        evidence=(
+            f"outcome signal: completion={outcome.get('completion')} over "
+            f"{outcome.get('commits')} commit(s); evidence tree `{work.relative_to(repo_root)}`"
+        ),
+    )
+    result["ok"] = True
+    result["outcome"] = "accepted"
+    result["generation"] = written.get("generation")
+    if json_out:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"accepted generation {written.get('generation')} — {written.get('path')}")
+        print("  rollback with: ainish-rag --context-rollback "
+              f"{int(written.get('generation') or 1) - 1}")
+    return result
+
+
+def _render_inline_evidence(
+    task: str, profile: Dict[str, Any], hits: List[Dict[str, Any]]
+) -> str:
+    """The improver's whole input, as text: task, current tuning, and every hit in full.
+
+    Inline because the improver has no tools. Each hit is capped at 1200 chars so the total stays
+    inside a small model's window — but the cap is per hit and stated, never a silent truncation of
+    the whole evidence set, because an improver that cannot see a hit will "fix" a defect that only
+    exists in the truncation (harness2 raises on any `obs_trunc` below 10,000 for this reason).
+    """
+    parts = [
+        "# THE TASK THE PRIME HAD TO SERVE\n",
+        task.strip()[:1500],
+        "\n\n# THE HARNESS AS IT IS NOW\n",
+        "```json",
+        json.dumps({k: profile.get(k) for k in ("graph", "domain_prior")}, indent=2),
+        "```\n",
+        f"\n# WHAT RETRIEVAL RETURNED ({len(hits)} items)\n",
+    ]
+    for i, hit in enumerate(hits):
+        body = str(hit.get("content") or "")
+        if len(body) > 1200:
+            body = body[:1200] + f"\n[item truncated at 1200 chars of {len(body)}]"
+        parts.append(
+            f"\n## item {i + 1}: {hit.get('path')} "
+            f"(score {float(hit.get('decision_score') or 0):.2f})\n{body}\n"
+        )
+    return "".join(parts)
+
+
+def _json_from(text: str) -> str:
+    """The first JSON object in `text`, fenced or bare. Raises ValueError when there is none."""
+    fenced = re.search(r"```(?:json)?\s*(.+?)```", text, re.S)
+    body = fenced.group(1) if fenced else text
+    start = body.find("{")
+    end = body.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("no JSON object found")
+    return body[start:end + 1]
+
+
+def _slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+
+
+def _newest_task_objective(repo_root: Path) -> str:
+    """The newest task record's objective, which is what a learner should improve for."""
+    tasks_dir = repo_root / ".agents" / "tasks"
+    if not tasks_dir.is_dir():
+        return ""
+    files = sorted(tasks_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        m = re.search(r"^- objective:\s*(.+?)(?=^## |\Z)", text, re.S | re.M)
+        if m:
+            return " ".join(m.group(1).split())[:600]
+    return ""
+
+
 def run_context_command(
     repo_root: Path,
     task: str,
@@ -4997,6 +5755,24 @@ def run_context_command(
     degrade_notes: List[str] = [budget_floor_note] if budget_floor_note else []
     degraded = bool(budget_floor_note)
 
+    # Resolve the per-repo context harness BEFORE anything reads a tuning value. A repo with no
+    # profile gets the shipped constants, which is why an unconfigured repo is byte-identical to the
+    # previous release; an invalid profile is reported and falls back rather than blocking the call.
+    harness_settings, harness_source, harness_errors = context_harness.settings_for(repo_root)
+    harness_profile, _, _ = context_harness.load_profile(repo_root)
+    if harness_errors:
+        degraded = True
+        degrade_notes.append(
+            f"context harness invalid ({harness_source}); base values used: "
+            + "; ".join(harness_errors[:3])
+        )
+    # Section shares are the one part of the profile that moves the budget arithmetic, so they are
+    # applied here and the result is reported — a caller must be able to see its budget was reshaped.
+    section_caps = harness_settings.get("section_caps") or CONTEXT_SECTION_CAPS
+    if any(abs(float(section_caps.get(k, 0)) - CONTEXT_SECTION_CAPS[k]) > 1e-9 for k in CONTEXT_SECTION_CAPS):
+        caps = {name: max(0, int(effective_budget * float(section_caps.get(name, 0))))
+                for name in CONTEXT_SECTION_CAPS}
+
     # Refresh the vault BEFORE retrieval, so the prime reads the pages as they are now. Doing it
     # after would retrieve the stale corpus and then update it, which is the failure mode where a
     # context call confidently cites the previous version of the wiki. Off by default because it
@@ -5016,8 +5792,15 @@ def run_context_command(
             degrade_notes.append(f"wiki refresh failed: {str(exc)[:160]}")
             degraded = True
 
-    retrieved = retrieve_context(repo_root, task, client, store, route_decision)
+    retrieved = retrieve_context(repo_root, task, client, store, route_decision, settings=harness_settings)
     retrieval_text = render_retrieval_section(retrieved["hits"], repo_root, caps["retrieval"])
+    # Staged learned skills are surfaced INSIDE the retrieval cap, as labelled hits, never as a new
+    # section: a new section would change the budget ladder and break envelope parsers. They are
+    # staged precisely because `.agents/skills/` is standing prompt surface for every harness in the
+    # repo — see research/context-priming-master/05b-design-widened-surface.md §2.
+    staged_text, staged_names = render_staged_skills(repo_root, task, caps["retrieval"])
+    if staged_text:
+        retrieval_text = f"{retrieval_text}\n\n{staged_text}" if retrieval_text else staged_text
     # The file/wiki fallback exists for a *failed* retrieval, never for a deliberate skip: filling
     # the section after `skip_retrieval` makes both drivers spend their budget disclaiming material
     # nobody asked for.
@@ -5030,7 +5813,7 @@ def run_context_command(
     sections: List[Dict[str, Any]] = []
     # Orientation runs first and always: it is the mechanical half of "where am I", it costs no
     # model call, and it is the one section that is useful even when retrieval and both drivers fail.
-    orientation_cap = max(120, int(effective_budget * CONTEXT_SECTION_CAPS["orientation"]))
+    orientation_cap = max(120, int(effective_budget * float(section_caps.get("orientation", CONTEXT_SECTION_CAPS["orientation"]))))
     orientation_text = render_orientation_section(repo_root, orientation_cap)
     if orientation_text:
         sections.append(
@@ -5215,6 +5998,24 @@ def run_context_command(
                 os.environ[name] = previous
 
     branch, commit = git_head_info(repo_root)
+    # The learned state is reported on EVERY call, including when it is absent. Silence would make a
+    # repo whose profile failed to load indistinguishable from one that never had one.
+    harness_provenance = {
+        "generation": harness_profile.get("generation"),
+        "profile": str(context_harness.profile_path(repo_root)),
+        "source": harness_source,
+        "fingerprint": context_harness.profile_fingerprint(harness_profile),
+        "tuning": {
+            k: harness_settings.get(k)
+            for k in ("max_wiki_pages", "max_artifacts", "chapter_chars", "hop_bonus",
+                      "recency_floor", "shared_term_threshold")
+        },
+        "staged_skills": staged_names,
+    }
+    if harness_settings.get("section_caps") and harness_settings["section_caps"] != CONTEXT_SECTION_CAPS:
+        harness_provenance["section_caps"] = harness_settings["section_caps"]
+    if harness_errors:
+        harness_provenance["errors"] = harness_errors[:5]
     injection = assemble_injection(
         task=task,
         sections=sections,
@@ -5229,6 +6030,7 @@ def run_context_command(
             "wiki": wiki_note,
             "reviewer_isolation": drivers_info.get("reviewer_isolation") if drivers_info else None,
             "engine": "ainish-rag/python",
+            "harness": harness_provenance,
         },
         degraded=degraded,
         degrade_notes=degrade_notes,
@@ -6721,6 +7523,17 @@ def main():
             "The vector/embedding subsystem (index, query, rerank, bench, monitor, serve,\n"
             "embed-provider) was retired 2026-11-12: retrieval is graph-first over the wiki vault.\n"
             "\n"
+            "THIS REPOSITORY CAN TUNE ITS OWN PRIME. Every call reports `provenance.harness` naming the\n"
+            "live generation and where it came from (`absent` = shipped defaults). Do not hand-edit the\n"
+            "retrieval constants in rag.py for one repo — the profile exists for that:\n"
+            "  ainish-rag context-seed      establish the frozen generation 0 (also done by --rules)\n"
+            "  ainish-rag context-status    what is live, what is staged, what was rejected and why\n"
+            "  ainish-rag context-learn     one propose->gate cycle; --dry-run to see it, opt-in\n"
+            "  ainish-rag context-rollback  restore a past generation\n"
+            "  ainish-rag context-promote   move a STAGED skill into .agents/skills/ (operator only)\n"
+            "State lives at .agents/context-harness/ (tracked). Learned skills stay STAGED and reach a\n"
+            "model only through the prime; promotion is what makes one visible to every harness.\n"
+            "\n"
             "WORKING ON THIS REPO FROM MORE THAN ONE MACHINE? Do not hand-roll a copy or a remote:\n"
             "the tooling already exists, in the same CLI this one belongs to.\n"
             "  ainish-coder --machine-link DIR --peer NAME --watch   one-time setup: remember the\n"
@@ -6857,6 +7670,45 @@ def main():
              "Writes tracked files, so it is off by default.",
     )
 
+    # ── the per-repo context harness ────────────────────────────────────────
+    # Learning is deliberately NOT a flag on `context`: a context call must never block the task
+    # that asked for it, and a learning step costs a model session. These verbs are separate so the
+    # hot path stays fast and a slow/failed learner can never degrade a prime.
+    seed_p = sub.add_parser(
+        "context-seed",
+        help="Establish the frozen generation-0 context harness for this repository (idempotent)",
+    )
+    seed_p.add_argument("--json", action="store_true", help="Emit the result as JSON")
+
+    status_p = sub.add_parser(
+        "context-status",
+        help="Show the live context harness: generation, source, staged skills, history, rejections",
+    )
+    status_p.add_argument("--json", action="store_true", help="Emit ainish-rag/context-harness-status/v1")
+
+    rollback_p = sub.add_parser(
+        "context-rollback",
+        help="Restore a historical context-harness generation as the live one",
+    )
+    rollback_p.add_argument("generation", type=int, help="Generation number to restore (see --context-status)")
+    rollback_p.add_argument("--json", action="store_true")
+
+    promote_p = sub.add_parser(
+        "context-promote",
+        help="Promote a STAGED learned skill into .agents/skills/ (standing prompt surface for every harness)",
+    )
+    promote_p.add_argument("name", help="Staged skill name, e.g. learned-parser-notes")
+    promote_p.add_argument("--json", action="store_true")
+
+    learn_p = sub.add_parser(
+        "context-learn",
+        help="Run one propose→gate cycle on the context harness (opt-in; costs one model session)",
+    )
+    learn_p.add_argument("--task", default=None, help="Task text to learn against (default: newest task record's objective)")
+    learn_p.add_argument("--dry-run", action="store_true", help="Show the proposal and the gate verdict; write nothing")
+    learn_p.add_argument("--json", action="store_true")
+    learn_p.add_argument("--no-remote", action="store_true", help="Local driver tier only")
+
     audit_p = sub.add_parser("audit", help="Verify post-quantum receipts, manifests, lockfiles, and SBOMs")
     audit_sub = audit_p.add_subparsers(dest="audit_command", required=True)
     audit_verify_p = audit_sub.add_parser("verify", help="Verify ML-DSA-65 audit receipts")
@@ -6973,6 +7825,39 @@ def main():
             allow_self_review=bool(getattr(args, "allow_self_review", False)),
             refresh_wiki=bool(getattr(args, "refresh_wiki", False)),
         )
+
+    elif args.subcommand == "context-seed":
+        result = run_context_seed(repo_root, json_out=bool(getattr(args, "json", False)))
+        if not result.get("ok") or (result.get("seeded") is False and not result.get("ok")):
+            sys.exit(1)
+
+    elif args.subcommand == "context-status":
+        run_context_status(repo_root, json_out=bool(getattr(args, "json", False)))
+
+    elif args.subcommand == "context-rollback":
+        result = run_context_rollback(repo_root, args.generation, json_out=bool(getattr(args, "json", False)))
+        if not result.get("ok"):
+            sys.exit(1)
+
+    elif args.subcommand == "context-promote":
+        result = run_context_promote(repo_root, args.name, json_out=bool(getattr(args, "json", False)))
+        if not result.get("ok"):
+            sys.exit(1)
+
+    elif args.subcommand == "context-learn":
+        result = run_context_learn(
+            repo_root,
+            task=getattr(args, "task", None),
+            dry_run=bool(getattr(args, "dry_run", False)),
+            json_out=bool(getattr(args, "json", False)),
+            no_remote=bool(getattr(args, "no_remote", False)),
+        )
+        # Exit codes: 0 = accepted or KEEP_BASE (both are successful, honest outcomes);
+        # 2 = refused by the gate; 1 = the run itself failed and wrote nothing.
+        if result.get("errors"):
+            sys.exit(1)
+        if result.get("outcome") == "refused":
+            sys.exit(2)
 
     elif args.subcommand == "statusline":
         # `--json` is consumed by shell prompts and status bars, so the payload must be the only

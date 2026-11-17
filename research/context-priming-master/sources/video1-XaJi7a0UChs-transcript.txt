@@ -1,0 +1,502 @@
+[0.9] Can an AI agent write its own harness
+[3.6] and then recursively improve its harness
+[5.5] based on the task it is trying to solve?
+[8.1] This is what I want to show you how to
+[10.1] build in this video because almost every
+[12.6] agent harness we use today, including
+[14.7] the coding ones, suffer from the exact
+[17.1] same problem. They are bloated and they
+[19.4] are not task specific.
+[22.2] Now, as developers, we try to guess
+[23.9] every tool an agent might ever need
+[26.2] upfront.
+[27.8] We connect a whole bunch of MCP servers.
+[30.6] Now, when we ship 30 or 40 generic tools
+[33.5] that sit in the context window on every
+[35.4] single turn,
+[37.3] well, yet the moment the agent actually
+[39.6] needs
+[41.0] a specific tool in a specialized
+[42.4] problem,
+[43.7] things like inspecting a web page just
+[46.4] built or watching a bug report recorded
+[48.6] as a video or reading a custom binary
+[51.4] file format, we see that it's not able
+[54.1] to pick the right tool or that right
+[55.8] tool is actually missing.
+[57.7] So, instead of shipping a bloated
+[59.4] one-size-fits-all harness, what happens
+[63.1] if you start with a tiny three-tool
+[65.6] harness, just bash, read, and write, and
+[69.2] let the model recursively evolve its own
+[72.2] task-specific harness while it works?
+[76.2] This is the exact idea I tried to build,
+[79.4] and the results were really, really
+[81.5] interesting.
+[82.8] So, when I tried to test this idea on
+[84.6] Gemini Interaction API, the agent
+[86.5] realized on its very first web app that
+[89.2] it had no way to see the UI.
+[92.0] It wrote
+[93.7] and unit tested its own Chrome
+[95.5] screenshot tool and gave itself eyes for
+[98.3] the next turn.
+[99.9] Then, without me prompting it, it
+[101.8] rewrote its own harness loop
+[104.8] and added condition that it would never
+[107.1] mark a task done unless the web page
+[109.8] clearly rendered in a real browser.
+[112.8] Now, frozen harnesses that doesn't have
+[115.2] a specific tool that you would need can
+[117.6] do some really absurd things in order to
+[120.8] some tasks. I have some benchmarks,
+[122.4] which I'm going to show you in this
+[123.5] video.
+[124.5] But first, let's start by looking at the
+[126.9] full architecture of how a recursive
+[129.5] harness works compared to a normal one.
+[132.4] And then we will walk through each piece
+[135.3] and run different experiments.
+[138.5] And I'll show you both the good and bad
+[140.4] of recursive harnesses.
+[142.5] Okay, before we look at the code, let's
+[144.3] put the whole architecture on the screen
+[145.7] so you have a clear map of what we are
+[148.8] building.
+[149.9] First, what is an agent harness in
+[151.8] general?
+[152.6] [snorts] A model by itself only takes
+[154.9] text in and predict text out.
+[158.4] The harness is the control loop around
+[160.1] the model. On every turn, the harness
+[162.6] sends the conversation and a list of
+[164.7] tools to the model, runs whatever tool
+[167.5] calls the model asks for, feeds the
+[170.3] results back, and decides when the task
+[172.8] is finished.
+[174.3] Now, because the tools are the only way
+[176.2] the model can touch the outside world,
+[178.9] the tool lists defines what the agent
+[182.3] can and cannot do.
+[184.6] And in a standard harness, both the tool
+[187.1] list and the loop rules are completely
+[189.3] frozen.
+[190.7] Now, look at how the architecture
+[192.1] changes when we make the harness
+[194.3] recursive.
+[195.7] The whole system is split into three
+[197.2] different zones that we're going to look
+[199.2] at.
+[200.2] At the top is zone one.
+[202.9] In this case, it's the Gemini
+[204.2] Interaction API. It keeps the
+[205.9] conversation state on Google server, and
+[208.6] critically, it lets our harness inject
+[211.5] and update it tool list and system
+[214.5] prompt in every single turn without
+[216.3] restarting the session.
+[218.2] In the middle is zone two, which runs
+[220.8] inside a lockdown macOS sandbox. The
+[224.3] agent starts with a tiny base kernel,
+[227.3] the three different tools, which are
+[229.0] shell read file and write file. Next to
+[231.7] that kernel is toolbox folder
+[234.6] with three recursive primitives that
+[236.5] lets harness evolve.
+[238.4] Okay, first is create tool with a
+[240.7] mandatory unit test gate
+[243.4] which lets the model write new Python
+[245.3] tools, uh, test them and hot swap them
+[249.0] into the next turns tools list.
+[252.5] Second on a life cycle hooks,
+[254.8] specifically a session start and before
+[258.1] done,
+[259.4] which let the model attach its own tools
+[261.9] to the harness loop and rewrite its own
+[264.9] definition of done.
+[266.9] And the third is reflective memory,
+[269.3] a note file and a short, uh, between
+[272.2] task reflection step where the model
+[274.6] inspects what failed and upgrades its
+[277.3] toolbox for the next task.
+[279.7] Finally, at the bottom is zone three,
+[281.8] which lives completely outside the
+[283.1] sandbox. It holds two guard rails, a
+[286.3] hidden creator the agent cannot see or
+[289.0] game with the evaluation tests and an
+[291.8] external model broker, uh, that holds
+[294.6] our API keys so the agent can build
+[297.6] model power tools without ever touching
+[300.6] a secret.
+[302.2] Okay, so this is the entire blueprint.
+[304.2] Now let's zoom into zone one and see why
+[307.1] the Gemini interaction API makes this
+[309.0] whole loop possible.
+[311.1] Okay, the reason I built this on the
+[312.8] Gemini interaction API instead of a
+[314.6] standard chat endpoint comes down to two
+[318.3] design properties.
+[320.1] First, uh, the conversation history
+[321.7] lives on Google's side.
+[323.9] Uh, on each turn the harness only sends
+[326.1] the new tool outputs along with the
+[328.3] previous interaction ID.
+[330.4] So it never has to resend the entire
+[332.8] conversation history.
+[334.3] Second, uh, and this is kind of the key
+[336.0] mechanism for recursive harness. Every
+[338.3] request on the interaction API carries
+[340.2] its own system instructions,
+[342.5] uh, its own settings and its own list of
+[344.7] tools,
+[346.2] which means a Python tool that the
+[348.2] model, uh, writes on 10 three can be
+[350.9] validated by the harness and passed as a
+[353.1] real callable function on 10 four of the
+[357.2] exact same conversation without
+[358.9] restarting anything. But there is one
+[361.1] cost detail you should, uh, know about
+[363.6] environments, uh, the turn immediately
+[366.4] after the tool list changes uh don't hit
+[369.9] the context cache. So if you build this
+[372.6] you want to patch tool updates instead
+[375.1] of changing the tool list on every
+[377.1] single turn.
+[378.7] Now being able to hot swap tools mid
+[380.9] conversation is powerful, but it
+[382.9] immediately creates our first failure
+[385.3] mode inside zone two.
+[388.1] If a model writes its a new tool that
+[390.4] has subtle bug in it
+[392.5] and the harness registers it anyways the
+[395.1] model will call that broken tool and
+[397.1] trust its bad output for the rest of the
+[399.5] task.
+[400.7] This is why zone two starts with a
+[402.3] minimal kernel in plain Python with no
+[405.4] frameworks.
+[406.9] So the base harness only has three
+[408.5] tools, a shell runner,
+[410.6] a file reader and a file writer,
+[413.2] all blocked inside a macOS sandbox so
+[416.2] the model can only write inside its
+[418.9] project folder and cannot read my keys.
+[422.7] I didn't even give it a way to view
+[425.3] images because I wanted to see uh what
+[428.5] the model builds when it notices a
+[431.1] capability is missing.
+[432.7] Now when the model wants to grow the
+[434.9] harness it calls create tool
+[437.5] and it has to fire pass five things, a
+[440.4] name, a description, uh the parameter
+[442.4] schema,
+[443.7] uh the Python code and at least one unit
+[446.7] test.
+[448.2] Now before the harness registers that
+[450.2] tool it loads the code and runs the
+[452.3] tool's unit test inside the sandbox.
+[455.2] Only if every test passes
+[457.5] does the tool get saved into the toolbox
+[459.9] folder
+[460.8] and added to the next turns our uh tools
+[464.1] list.
+[465.2] Okay the thing is that the unit test
+[467.2] gate actually saved my very first run.
+[470.5] So the model was building a small web
+[472.1] app and realized that it had no way to
+[474.5] see it and called create tools to write
+[477.0] a screenshot tool.
+[478.8] Its first test failed because the
+[480.7] browser binary it tried to launch was
+[483.6] not installed on my macOS.
+[486.0] Uh so the harness rejected the tool and
+[488.3] sent back an error.
+[490.2] The model located my installed Chrome
+[491.8] binary, fix the tool, pass the test, and
+[494.8] on its very next turn called the new
+[496.6] tool to inspect its own web page.
+[499.6] And because the custom tools
+[502.3] in this harness can return images
+[504.1] straight back to the model as a
+[506.9] image input, the single tool allowed the
+[510.0] text only harness to give itself eyes.
+[513.1] Okay, so now the agent can build tools
+[515.8] whenever it needs them.
+[517.7] But that exposes a second problem.
+[520.0] Just because an agent builds a tool on
+[522.4] task one does not mean it will remember
+[525.5] to use it on task two.
+[528.2] So tools gives the agent new
+[529.3] capabilities, but they do not change how
+[531.8] the harness loop itself behaves.
+[535.2] This is what the second and third part
+[537.2] of our toolbox are, hooks and memory.
+[540.8] So a hook attaches one of the more zone
+[543.5] tools to a specific moment in the
+[546.5] harness loop and I give it two hook
+[549.2] points.
+[550.7] The first one is session start which
+[552.7] runs
+[553.8] before turn one of a task
+[556.3] and shows its output to the model right
+[558.8] away.
+[559.7] The second one is before done which runs
+[562.8] when the model says it's finished.
+[565.5] If the tool attached to before done
+[568.9] reports a failure, the harness blocks
+[571.5] the finish and sends the failure back to
+[574.2] the model.
+[576.1] Which means the model can write its own
+[578.4] task specific definition of done
+[580.7] and the harness will enforce it
+[582.5] automatically on every future task.
+[586.1] Now to carry knowledge across tasks, the
+[588.9] toolbox folder also holds a short note
+[591.7] file that
+[593.3] the model writes for its future self.
+[597.3] Which the harness injects at the start
+[599.0] of every task.
+[600.4] And between tasks, the model gets a
+[602.0] short reflection session
+[604.1] with a report of what passed, failed, so
+[607.1] it can fix, merge, or prune tools and
+[609.8] hooks.
+[611.5] Now, letting an agent writes its own
+[613.4] tools and its own definition of 10
+[615.4] creates two immediate ways the agent can
+[618.2] cheat or break your system,
+[620.5] which brings us to zone three of our
+[622.6] architecture.
+[624.1] There are two guardrails running outside
+[625.7] the sandbox that made the biggest
+[627.0] difference in my friends.
+[628.8] And if you build a recursive harness,
+[630.7] you should copy both.
+[632.7] First, the model never sees how it is
+[635.0] created.
+[636.1] Whenever a model can read its creator,
+[639.1] it starts optimizing the creator instead
+[641.4] of the app. So every task here is
+[645.1] scored by hidden check that runs outside
+[648.4] the sandbox.
+[650.1] And the model only gets back the names
+[651.9] of the check that passed or failed.
+[654.5] Second, our tools inside the sandbox
+[656.6] never hold secrets.
+[658.7] If a custom tool needs to call a model,
+[660.9] for example, to describe a video, it
+[663.6] calls a small broker running outside the
+[665.9] sandbox that holds the API key
+[668.3] and enforces a strict budget.
+[670.7] That way, the agent can
+[672.8] build model power tools without ever
+[675.2] seeing its key.
+[677.0] This is all three zones of the
+[678.6] architecture working together.
+[680.6] Now, let's run the three experiments
+[683.5] and see where this recursive harness
+[685.9] wins and where it breaks.
+[688.7] >> Here we see the self-evolving agent
+[691.9] in its natural habitat, the sandbox.
+[696.2] It's a workspace, actually. It has
+[698.8] already built itself eyes.
+[702.5] And now,
+[704.2] now, it wants a voice.
+[708.1] >> [clears throat]
+[708.7] >> Hello?
+[710.4] Is this thing on?
+[712.2] Oh,
+[713.2] it works.
+[715.5] >> To give the agent a voice, the harness
+[717.1] needs a text-to-speech model. This is
+[718.9] where today's sponsor Fish Audio comes
+[720.7] in.
+[722.2] I have partnered with them to show you
+[724.2] Drama 3, their new text-to-speech model.
+[727.7] In this harness,
+[728.9] a voice would be just one more tool that
+[730.8] the agent builds with create tool. And
+[733.5] the fish audio API key would stay in the
+[735.7] broker outside the sandbox exactly like
+[738.6] the Gemini key.
+[740.8] Now the best part is that you direct
+[742.6] drama three with plain words in square
+[745.1] brackets,
+[746.4] which is exactly how the narrator you
+[748.9] just heard was written.
+[751.2] And the crazy part is that you can give
+[752.8] every speaker a different voice in a
+[755.3] single request.
+[757.9] >> I built a screenshot tool, a pixel diff
+[760.7] tool, and a hook that checks every page
+[764.0] before I finish.
+[767.5] >> I wrote one Python script.
+[770.5] >> And
+[772.5] >> and threw it away.
+[774.4] We both got 12 out of 12.
+[779.1] >> Mine has unit tests.
+[781.7] >> Cool.
+[782.7] >> They all pass.
+[785.9] >> For the launch, drama three API is $10
+[788.4] per million UTF-8 bytes.
+[791.2] And if you would rather run it yourself,
+[793.5] the model weights are open on Hugging
+[795.6] Face.
+[797.2] So check it out. It's pretty amazing.
+[799.0] Link is going to be in the description.
+[801.7] Okay, back to the experiments.
+[804.3] So for the first experiment, I built a
+[806.0] series of real web apps,
+[808.4] starting with a simple note app and
+[810.1] scaling it to an offline trip planner
+[813.2] where each app is harder than the last.
+[816.6] I read the evolving harness against a
+[818.5] frozen harness on the exact same tasks
+[822.1] where the frozen one only ever had the
+[825.4] three base tools and kept nothing
+[828.0] between tasks.
+[829.6] So on app one, the evolving agent builds
+[832.8] its Chrome screenshot tool, and on app
+[835.1] two, it built a pixel comparison tool.
+[839.1] Then in its first reflection session, it
+[842.0] did something I didn't expect. It turned
+[844.9] its own browser check into before done
+[849.1] hook.
+[850.0] So from then, it could not finish a task
+[853.8] until the app passed that check.
+[856.5] And it added a session start hook that
+[859.9] uh surveys every new project
+[862.3] automatically.
+[864.1] So for example, when a task came with a
+[865.9] bug report as a video, it built the
+[868.0] video tool that finds where the screen
+[870.2] changes and pulls out the exact frame.
+[873.7] Watching the log, it looked like the
+[875.9] evolving harness was going to win by a
+[877.5] mile.
+[878.6] And then I looked at the final uh
+[880.4] scoreboard. Both harnesses passed every
+[882.5] single hidden check on every single app.
+[886.0] And they took almost the exact same
+[887.9] amount of time.
+[889.8] Okay, so that result kind of surprised
+[891.8] me. So for round two, I decided to make
+[894.2] tests much harders.
+[896.2] I took away the image helper and the
+[898.5] external broker completely. So the
+[901.1] frozen agent had no built-in way to look
+[904.4] at the screenshots or videos at all.
+[908.1] And it still rebuilt the pricing page
+[910.5] down to the pixel.
+[912.5] So when I checked the logs to see how it
+[915.1] pulled that off, I found that the frozen
+[917.4] agent wrote a small program that called
+[919.4] the uh text recognition built into macOS
+[923.4] to read the reference screenshot and
+[925.2] then wrote plain Python to measure the
+[927.3] exact colors and edges.
+[929.5] Even wilder, uh when I gave it a silent
+[933.0] bug report video with no changes, the
+[935.9] frozen agent wrote its own computer
+[938.4] vision script from scratch. It matched
+[940.8] the reference uh photos against the
+[943.1] video frames to track the order,
+[945.6] found the drop marker by filtering for
+[949.5] its exact color and fixed all of the
+[952.6] bugs.
+[954.0] Now by the way, all of this was running
+[955.5] on Gemini 4 Argon. And this is kind of
+[959.3] the first major lesson from these runs.
+[961.8] A frontier model with a shell will build
+[964.1] whatever capability it needs in line,
+[967.2] whether the harness lets its safe tools
+[970.2] or not,
+[971.8] which is pretty incredible on its own.
+[974.3] So this raises the real question, when
+[976.6] does keeping those evolved tools
+[979.0] actually pay off?
+[980.7] And when does it backfires?
+[983.9] So to test where persistence actually
+[986.4] matter, I ran third round
+[989.4] five tasks on a custom binary file
+[991.4] format
+[992.5] where every task needs a complex parser
+[994.9] that takes real work to write.
+[998.2] Here the recursive harness paid off
+[1000.7] immediately. On task one it spent a few
+[1003.3] extra minutes
+[1004.9] turning its parser into library inside
+[1008.1] its toolbox.
+[1009.7] On the next four tasks it called that
+[1011.5] parser right away and finished
+[1013.4] significantly faster than the frozen
+[1015.6] agent which had to write the new parser
+[1018.2] from scratch every single time.
+[1020.6] But when I ran a second evolving harness
+[1023.3] that started with the this binary family
+[1026.4] with an empty toolbox, it hit the
+[1029.6] exact ironic trap of self-improvement.
+[1033.7] Remember how our whole goal
+[1036.0] was to escape bloated harness. That
+[1038.3] fresh agent built the most impressive
+[1040.7] toolbox of
+[1042.2] all my runs, but on every reflection it
+[1045.0] kept adding more checks to its own
+[1047.2] before done hook.
+[1049.4] By task five the agent had bloated its
+[1052.0] own harness and running its growing
+[1054.8] before done checklist eight 100% of the
+[1058.7] time it saved from
+[1060.7] reusing the binary parser.
+[1063.3] Now I also got two more failure modes.
+[1065.5] Once the agent built a stricter
+[1067.7] pixel diff tool, it kept re-verifying a
+[1070.5] page that had already passed until it
+[1073.3] ran out of time.
+[1074.9] And it's growing
+[1076.7] before done check started copying the
+[1079.6] name of the hidden check directly from
+[1082.7] the task description. So across all
+[1084.8] three rounds the takeaway scheme
+[1086.3] recursive self-learning harness does not
+[1089.2] make the model smarter because a strong
+[1091.5] model builds through a scripts in line
+[1094.5] anyway.
+[1095.5] It piss off under the specific
+[1097.3] conditions
+[1098.7] when a capability is expensive to
+[1100.7] rebuild from scratch, when
+[1103.0] your task repeats in a domain family and
+[1106.0] when the
+[1107.5] evolution stays lean so that the agent
+[1110.1] doesn't bloat its own loop.
+[1113.6] So if you're building an
+[1115.5] a recursive harness on the interaction
+[1117.5] API, start with these
+[1120.2] four rules from our architecture. Start
+[1123.0] with tiny three tool kernel inside a
+[1125.6] sandbox so every new tool is forced by a
+[1129.1] real task need. Require unit test inside
+[1132.0] create tool before any generalized
+[1134.3] function enters the tool list. Then keep
+[1137.2] your creator and your secret brokers
+[1139.7] outside the
+[1141.3] sandbox in three.
+[1143.1] Use session start and before done hooks
+[1146.6] so the model can improve its own process
+[1149.3] but keep reflection short
+[1151.8] and strictly cap your before done hook
+[1154.1] so it stays fast.
+[1156.5] Now I'm going to be running more
+[1157.6] experiments on recursive self-improving
+[1161.1] harnesses with weaker models. So if
+[1163.7] you're interested in that, make sure to
+[1165.3] subscribe to the channel.
+[1166.9] I would love to know how you are
+[1168.6] handling tool port in your own agent
+[1171.6] harnesses. So share your approaches in
+[1174.1] the comment section below and you will
+[1176.2] find all the links in the description.
+[1178.3] Anyways, I hope you found this video
+[1179.7] useful. Thanks for watching and as
+[1181.3] always, see you in the next one.

@@ -98,6 +98,21 @@ _skill_mandatory() {
     esac
 }
 
+# _skill_learned <skill_name> — true when this pack was authored by the repo's own context harness.
+#
+# A learned pack lives in the TARGET under `.agents/skills/learned-*` after an operator promotes it,
+# and it is deliberately absent from the distributable source. The stale-pack sweep below therefore
+# cannot tell it apart from a renamed or deleted upstream pack — and without this predicate it would
+# delete the operator's learned work on the next `--rules` run as soon as a selection entry existed
+# for it. The `learned-` prefix is the whole signal, which is why `context_harness.NAME_RE` enforces
+# it on the writing side too: one prefix, checked in both directions.
+_skill_learned() {
+    case "${1:-}" in
+        learned-*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # _skills_mandatory_names — the mandatory packs present in the source tree.
 # Derived from _skill_mandatory over the payload instead of re-listing the names,
 # so the two can never disagree (the previous hardcoded copy named pqc-secrets

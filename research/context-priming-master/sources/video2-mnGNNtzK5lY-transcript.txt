@@ -1,0 +1,198 @@
+[0.3] It has been about six months since
+[2.0] people started talking about terms like
+[4.4] harness and harness engineering.
+[7.2] In February 2026, Mitchell Hashimoto and
+[10.7] others shared a new way to improve AI
+[12.9] agents. Instead of changing the prompt
+[15.3] every time an AI makes a mistake,
+[17.3] developers fix the agent's environment
+[19.6] and tools so the same mistake does not
+[22.1] happen again. This helped make the term
+[24.4] harness engineering popular. Most
+[26.7] engineers can explain that a harness is
+[28.8] the system built around an AI agent. It
+[31.7] includes memory, tools, and guard rails.
+[34.8] If someone says harness is important in
+[37.8] a meeting, most people will probably
+[39.8] agree. You don't want to look like
+[41.8] someone who doesn't know the term, but
+[43.8] what if someone asks, are traces part of
+[46.2] the harness? What about the improvement
+[48.3] loop and validation? Would you still
+[50.6] know how to answer or am I the only one?
+[53.2] I believe there are quite a few people
+[54.8] like that. I myself was one of them. In
+[57.3] fact, until very recently, I thought
+[59.7] that tracing an improvement were the
+[61.8] work of observability, not harness.
+[64.4] However, after comparing different
+[66.4] papers, I can't say whether that feeling
+[68.8] is right or wrong. The line between what
+[71.0] constitutes harness is drawn differently
+[73.4] from paper to paper and from person to
+[75.8] person discussing it. In October 2026,
+[79.5] Google Research released an open source
+[81.4] project called Harness 2. Harness 2 is a
+[84.9] framework for automatically improving
+[87.5] the execution environment of AI agents.
+[90.5] However, even after hearing the term
+[93.2] harness framework, it was difficult for
+[95.4] me to imagine what it was or how to use
+[97.9] it. A harness is a peripheral system
+[100.7] that allows a large language model to
+[103.0] perform tasks. This is a system where an
+[105.9] AI agent understands the project's
+[108.0] design rules, loads the necessary files,
+[111.0] and runs the tools. Normally, humans
+[113.7] improve the harness themselves. For
+[115.8] example, if an AI agent finishes a task
+[118.7] without running the tests, an engineer
+[120.9] has to update its skills or system
+[122.9] prompt to improve its behavior. Harness
+[125.4] two is a framework that allows AI to
+[127.7] handle this improvement process itself.
+[130.2] This research is a collaboration between
+[132.3] Google Cloud AI Research and
+[134.3] Northwestern University. Instead of
+[136.6] training a new model every time it
+[138.3] fails, the system analyzes agent
+[140.6] execution, validates changes to the
+[143.0] harness, and maintains evidence of which
+[145.4] changes were helpful. The authors report
+[147.9] that in the open code environment, a
+[150.0] single improvement step increased the
+[152.1] average work buddy bench score for GLM
+[154.6] five from 64.2
+[157.1] to 75.7.
+[159.2] This represents an 11.5 point
+[161.7] improvement in a specific evaluation and
+[164.8] is not a guaranteed improvement for all
+[166.9] models and applications. The core of
+[169.5] Harness two lies in its introduction of
+[171.9] dual level recursion where two
+[174.0] interconnected levels of recursion are
+[176.1] used. The system first records a
+[178.3] baseline run using the initial harness.
+[181.5] It then uses that execution trace to
+[183.7] identify vulnerabilities and verify
+[186.2] possible fixes.
+[188.2] The improvement process consists of
+[190.2] three stages.
+[191.7] Suggestion. The editor proposes general
+[194.5] fixes and domain specific changes.
+[197.5] General fixes address recurring tool
+[199.5] errors and poor context management while
+[202.4] domain specific changes target the
+[204.4] constraints of the current task.
+[206.5] Verification. The system runs the
+[208.8] candidate on the same task and compares
+[211.2] its behavior with the baseline trace to
+[213.5] determine whether the intended
+[215.1] weaknesses have been improved and
+[217.2] whether any new problems have arisen.
+[219.4] Synthesis. The synthesizer combines the
+[221.9] execution proven modifications into the
+[224.1] final harness. Performance comparison is
+[226.7] an alternative when feedback from ground
+[228.8] truth data is unavailable during
+[231.4] adaptation. However, it does not provide
+[234.3] a complete guarantee of the correctness
+[236.9] of the final product. Evaluation using
+[239.6] external benchmarks remains important
+[242.2] when measuring whether the method works.
+[244.5] This method can explore a wider range of
+[246.8] possibilities through parallel recursion
+[249.8] or perform continuous modifications
+[252.5] through sequential recursion.
+[255.0] K in the case of parallel processing it
+[257.8] validates K one general purpose
+[260.6] candidates and one domain candidate and
+[263.2] then generates one composite result. As
+[265.6] the number of candidates increases the
+[267.9] computational complexity required also
+[270.3] increases. The results of harness two
+[273.0] provide extremely practical guidance for
+[275.4] engineers and product managers building
+[277.8] LLM systems and business agents within
+[280.7] companies.
+[281.8] Cramming all instructions into a single
+[284.0] prompt has its limitations. Instead we
+[287.3] need an architecture that separates
+[289.1] responsibilities into eight distinct
+[291.5] layers. Each layer has a specific role.
+[294.6] Constraints act as guard rails.
+[296.8] Procedures are organized into skills.
+[299.4] Verification is handled by execution
+[301.8] scripts and loop control is managed
+[304.4] through middleware. The key idea is to
+[307.4] move away from one giant prompt toward a
+[310.6] modular architecture where each
+[312.8] component has a clearly defined
+[314.7] responsibility. Even when a task has no
+[317.6] perfect ground truth data system
+[320.0] reliability can improve significantly by
+[322.4] testing multiple approaches in parallel
+[325.2] and using their behavioral differences
+[327.2] to identify, extract and combine safe
+[330.2] and effective components. Simply keeping
+[332.9] error logs is not enough. The system
+[335.3] should analyze execution history to
+[337.3] understand why a failure occurred and
+[339.8] which modules needed to be changed to
+[341.6] prevent it. This knowledge should then
+[343.8] be extracted and fed back into a
+[345.8] knowledge base for future use. This is
+[348.0] the key to building an agent
+[349.5] infrastructure that continuously learns,
+[352.3] adapts and evolves with an organization
+[354.7] the more it is used. Each round of
+[356.8] modifications to harness squared
+[359.3] requires additional candidate
+[360.9] generation, execution and editing
+[363.6] sessions. Therefore as the recursive
+[366.1] budget increases, the inference cost
+[368.5] continues to rise. Parallel execution
+[371.6] can reduce waiting time, but does not
+[373.7] reduce the total computational cost. The
+[376.3] paper only analyzes the relationship
+[378.5] between performance and computational
+[380.4] cost within a limited budget and does
+[383.1] not provide a uniformly applicable
+[385.1] recursive budget. The current improved
+[387.5] experience space is just a simple index
+[389.9] structure. As experience increases,
+[392.5] merging overlapping components, updating
+[394.9] expired experience, optimizing
+[397.0] retrieval, and dynamically allocating
+[399.3] recursive budgets based on task
+[401.3] difficulty and existing experience are
+[403.5] all listed as future work by the
+[405.6] authors.
+[407.2] AI learning isn't just about updating
+[409.4] model weights. This fact, demonstrated
+[412.0] by Harness 2, fundamentally redefines
+[414.7] the nature of autonomous systems in open
+[417.1] world environments. Even with a fixed
+[419.1] intelligence, if it can update its
+[421.2] thinking environment and toolbox through
+[423.5] trial and error, its adaptability far
+[426.0] surpasses that of conventional static
+[428.1] systems. What does the AI system you are
+[430.7] developing and operating learn from its
+[432.7] daily execution and how does it evolve
+[435.7] from simply waiting for the model to
+[437.5] evolve to designing the self-evolving
+[439.7] harness surrounding the model? Next
+[442.0] generation AI agent development has
+[444.5] already entered a new stage. Definitely
+[447.3] stay tuned throughout the end of this
+[449.5] video. If you guys haven't followed me,
+[451.8] I highly recommend that you do so so you
+[454.5] can stay up to date with the latest AI
+[456.9] news. Lastly, make sure you guys
+[459.3] subscribe, turn the notification bell,
+[462.1] like this video, and check out previous
+[464.0] videos because there is a lot of content
+[466.3] that you will definitely benefit from.
+[468.6] So that thought, let's get right back
+[470.8] into the video.

@@ -189,6 +189,13 @@ deploy_skills() {
                 print_warning "Mandatory pack $sweep_name is missing from source — kept the deployed copy"
                 continue
             fi
+            # A LEARNED pack is never swept either. It was never in source by design: the context
+            # harness staged it and an operator promoted it. Deleting it would discard work this
+            # repository produced for itself, which no upstream rename can justify.
+            if _skill_learned "$sweep_name"; then
+                print_warning "Learned pack $sweep_name is not upstream — kept (delete it yourself to revoke)"
+                continue
+            fi
             if skills_selection_has_entry "$target_dir" "$sweep_name"; then
                 rm -rf "$sweep_dir" || true
                 echo -e "${YELLOW}⊘ Stale (renamed/deleted at source) — removed: $sweep_name${RESET}"
