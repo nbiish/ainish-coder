@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: context-harness-state
 date: 2026-11-18
-status: implementing
+status: done
 branch: fix/context-harness-state
 worktree: /Users/nbiish/code/context-harness-state
 task_record: .agents/tasks/2026-11-18-14-context-harness-state.md

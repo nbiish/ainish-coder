@@ -3,7 +3,7 @@
 
 - lane: now
 - branch: `fix/context-harness-state`
-- status: implementing
+- status: done
 - plan: `.agents/plans/2026-11-18-14-context-harness-state.md`
 - scope: `src/rag/context_harness.py`, `src/rag/rag.py`, `.agents/context-harness/.gitignore`,
   `scripts/test-pqc-dist.sh`

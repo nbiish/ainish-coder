@@ -3,7 +3,7 @@
 
 - lane: now
 - branch: `fix/comms-block-parsing`
-- status: implementing
+- status: done
 - plan: `.agents/plans/2026-11-18-15-comms-block-parsing.md`
 - scope: `src/rag/rag.py`, `scripts/test-pqc-dist.sh`
 - objective: Orientation's "today's COMMS, last entry" line must report the actual newest entry's status

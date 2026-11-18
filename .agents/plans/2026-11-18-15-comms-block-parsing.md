@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: comms-block-parsing
 date: 2026-11-18
-status: implementing
+status: done
 branch: fix/comms-block-parsing
 worktree: /Users/nbiish/code/comms-block-parsing
 task_record: .agents/tasks/2026-11-18-15-comms-block-parsing.md
