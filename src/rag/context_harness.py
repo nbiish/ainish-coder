@@ -691,6 +691,26 @@ def record_rejection(repo_root: Path, proposal: Dict[str, Any], reasons: List[st
         return None
 
 
+def prune_work(root: Path, *, keep: int = 10) -> int:
+    """Keep only the newest `keep` evidence trees; return how many were removed.
+
+    Every learning pass writes its evidence under `work/<stamp>/`, and a background process that runs
+    for months would otherwise accumulate them forever — the exact unbounded-growth failure this
+    whole design exists to avoid (findings R2). The trees are audit records, not state: the newest few
+    are enough to reconstruct recent reasoning, and anything that produced an accepted generation is
+    already archived under `history/`.
+    """
+    work = Path(root) / "work"
+    if not work.is_dir():
+        return 0
+    dirs = sorted((p for p in work.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True)
+    removed = 0
+    for stale in dirs[keep:]:
+        shutil.rmtree(stale, ignore_errors=True)
+        removed += 1
+    return removed
+
+
 def write_experience(repo_root: Path, profile: Dict[str, Any], *, why: str, evidence: str) -> None:
     """The human-readable record of why the live profile is what it is.
 
