@@ -5451,6 +5451,7 @@ def _learn_locked(
 
     work = context_harness.harness_root(repo_root) / "work" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     _harness_evidence_tree(repo_root, work, task, profile, hits)
+    context_harness.prune_work(context_harness.harness_root(repo_root))
 
     # The improver runs with `--no-tools`, so evidence is INLINE in the prompt rather than served as
     # files it could open. The on-disk tree is still written: it is the audit record of exactly what
