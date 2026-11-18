@@ -28,6 +28,7 @@ import json
 import re
 import shutil
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -142,6 +143,76 @@ def experience_path(repo_root: Path) -> Path:
 
 def lock_path(repo_root: Path) -> Path:
     return harness_root(repo_root) / ".learn.lock"
+
+
+def learn_state_path(repo_root: Path) -> Path:
+    """Throttle state for the automatic learning pass.
+    Inside `.agents/rag/` (gitignored) because it is machine-local bookkeeping, not learned state:
+    each machine should be able to run its own pass without arguing about a committed timestamp.
+    """
+    return Path(repo_root) / ".agents" / "rag" / "context-harness-autolearn.json"
+
+
+LEARN_MIN_INTERVAL_S = 6 * 3600      # at most one automatic pass per six hours
+LEARN_MIN_NEW_COMMITS = 1            # and only when something actually happened since the last one
+
+
+def should_autolearn(repo_root: Path, *, now: Optional[float] = None) -> Tuple[bool, str]:
+    """Whether this call should spawn a learning pass, and the reason either way.
+
+    Two conditions, both deliberately cheap to check: enough wall time has passed, and at least one
+    commit landed since the last pass. The second is what makes the loop *continuous* rather than
+    periodic — a repo nobody is touching does not need re-tuning, and a repo under active work
+    accumulates the outcomes the gate needs.
+    """
+    path = learn_state_path(repo_root)
+    state: Dict[str, Any] = {}
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            state = loaded if isinstance(loaded, dict) else {}
+        except (OSError, ValueError):
+            state = {}
+    now = time.time() if now is None else now
+    last = float(state.get("last_run_epoch") or 0.0)
+    if last and (now - last) < LEARN_MIN_INTERVAL_S:
+        remaining = int((LEARN_MIN_INTERVAL_S - (now - last)) / 60)
+        return False, f"last pass {int((now - last) / 60)}m ago; next eligible in {remaining}m"
+    commits = _commit_count(repo_root)
+    if commits is None:
+        return False, "not a git repository; the outcome signal needs commit history"
+    last_commits = state.get("commit_count")
+    if last_commits is not None and commits - int(last_commits) < LEARN_MIN_NEW_COMMITS:
+        return False, f"no new commits since the last pass ({commits} total)"
+    return True, f"{commits} commit(s), last pass {'never' if not last else f'{int((now - last) / 3600)}h ago'}"
+
+
+def record_autolearn(repo_root: Path) -> None:
+    path = learn_state_path(repo_root)
+    payload = {
+        "format": "ainish-rag/context-harness-autolearn/v1",
+        "last_run_epoch": time.time(),
+        "last_run_at": datetime.now(timezone.utc).isoformat(),
+        "commit_count": _commit_count(repo_root) or 0,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _commit_count(repo_root: Path) -> Optional[int]:
+    try:
+        res = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"], cwd=str(repo_root), capture_output=True,
+            text=True, timeout=5, stdin=subprocess.DEVNULL,
+        )
+        if res.returncode != 0:
+            return None
+        return int((res.stdout or "0").strip() or 0)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
 
 
 # ── validation ──────────────────────────────────────────────────────────────
