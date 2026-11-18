@@ -1382,6 +1382,33 @@ with tempfile.TemporaryDirectory() as t:
 contains "harness operational traces are gitignored" \
     "$(cat "${REPO}/.agents/context-harness/.gitignore" 2>/dev/null)" 'work/'
 
+# ── commit identity: the operator is the only author ────────────────────────
+# Two real failures on 2026-11-18, both in the guard itself:
+#   * `ainish-coder bot` matched none of the harness names, so six merges kept a tool as their author.
+#   * the guard's amend omitted `-S`, so it stripped the signature off every commit it repaired —
+#     15 of 16 commits that day were unsigned, and the guard's own fix destroyed the evidence.
+GUARD="${REPO}/scripts/commit-identity-guard.sh"
+contains "the guard recognises our own tool as a harness" "$(cat "$GUARD")" 'ainish-coder'
+contains "the guard re-signs the commit it rewrites" "$(cat "$GUARD")" 'sign_flag="-S"'
+contains "a tool-shaped author is caught without a known name" "$(cat "$GUARD")" 'bot_email_pattern'
+
+# Behavioural proof, not a grep: a repo authored by a tool must come out as the operator AND signed.
+IDTEST="${WORK}/identity-guard-test"
+rm -rf "$IDTEST"; mkdir -p "$IDTEST/scripts"; cd "$IDTEST" || exit 1
+git init -q
+git config user.name "ainish-coder bot"; git config user.email "bot@local"
+git config commit.gpgsign false   # CI has no signing key; the re-author must still happen
+cp "$GUARD" scripts/
+printf '#!/bin/bash\nexec "$(git rev-parse --show-toplevel)/scripts/commit-identity-guard.sh"\n' > .git/hooks/post-commit
+chmod +x .git/hooks/post-commit scripts/commit-identity-guard.sh
+git add -A >/dev/null 2>&1
+git commit -qm "tool-authored" >/dev/null 2>&1
+check "a tool-authored commit is re-authored as the operator" \
+    "$(git log -1 --format='%an')" "Nanoboozhoo - embodied by cursor"
+check "an already-correct commit is left alone (no amend loop)" \
+    "$(git commit --allow-empty -qm second >/dev/null 2>&1; git rev-list --count HEAD)" "2"
+cd "$REPO" || exit 1
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1

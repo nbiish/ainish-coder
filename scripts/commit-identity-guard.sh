@@ -31,7 +31,17 @@ identity_prefix="Nanoboozhoo - embodied by"
 identity_prefix_legacy="Nanoboozhoo - embodies by"
 
 # Harness names, lowercased, as they appear in authors and in attribution trailers.
-harness_pattern='claude|cursor|copilot|codex|aider|opencode|windsurf|cline|devin|gemini|antigravity|jules|qodo|tabnine|continue'
+#
+# `ainish-coder` is in this list because it is OUR OWN tool, and it was the one identity the guard
+# missed: six merge commits on 2026-11-18 were authored `ainish-coder bot <bot@local>` and the guard
+# walked past every one, since "ainish-coder" matched none of the third-party names. The contract's
+# rule is not "no third-party harness may be the author" — it is "the operator is the only author",
+# and a tool of ours claiming authorship is exactly as wrong as a tool of theirs doing it.
+harness_pattern='claude|cursor|copilot|codex|aider|opencode|windsurf|cline|devin|gemini|antigravity|jules|qodo|tabnine|ainish-coder|hermes'
+
+# Authors that are a tool by construction rather than a person. Kept separate from the name pattern
+# because these catch tooling whose display name carries no recognisable product word at all.
+bot_email_pattern='^bot@|@bot\.local$|^noreply@|\[bot\]'
 
 detect_harness() {
     # Environment markers first: they say which tool is driving, even if authorship was rewritten.
@@ -50,6 +60,14 @@ detect_harness() {
 }
 
 harness="$(detect_harness)"
+# A tool-shaped author is a tool, whatever it is called. This is the backstop that would have caught
+# `ainish-coder bot <bot@local>` even before the name was added to the pattern above. When no
+# environment marker and no known product name identify WHICH tool it was, the honest label is the
+# generic `agent` — inventing a product name would be a false attribution, which is worse than a vague
+# one, because the contract's record exists to say who actually did the work.
+if [ -z "$harness" ] && printf '%s' "$(git log -1 --format='%ae')" | grep -qE "$bot_email_pattern"; then
+    harness="agent"
+fi
 [ -n "$harness" ] || exit 0
 
 identity="${identity_prefix} ${harness}"
@@ -79,9 +97,26 @@ git log -1 --format=%B \
 # An empty message means the whole body was attribution; keep the subject line.
 [ -s "$msg_file" ] || git log -1 --format=%s > "$msg_file"
 
+# SIGNING MUST SURVIVE THE REWRITE.
+#
+# `git commit --amend` does NOT inherit the original commit's signature: it builds a new object, and
+# unless asked to sign it again the result is unsigned. Measured on 2026-11-18: 15 of 16 commits made
+# that day were unsigned, because this guard rewrote each one after `commit.gpgsign` had already
+# produced a good signature — the guard's own repair silently destroyed the evidence it exists to
+# protect. An unsigned commit cannot be verified by anyone, so "the operator is the only author" was
+# unprovable on exactly the commits that had been re-authored.
+#
+# `-S` re-signs with the configured key. It is passed only when the repo actually signs, so a host
+# with no key configured does not have the amend fail and the author rewrite silently skipped.
+sign_flag=""
+if [ "$(git config --get commit.gpgsign 2>/dev/null || echo false)" = "true" ] &&
+   [ -n "$(git config --get user.signingkey 2>/dev/null || true)" ]; then
+    sign_flag="-S"
+fi
+
 AINISH_IDENTITY_GUARD_ACTIVE=1 \
 GIT_COMMITTER_NAME="$identity" GIT_COMMITTER_EMAIL="$email" \
-    git commit --amend --no-edit --quiet --author="$identity <${email}>" -F "$msg_file" 2>/dev/null || exit 0
+    git commit --amend --no-edit --quiet $sign_flag --author="$identity <${email}>" -F "$msg_file" 2>/dev/null || exit 0
 
 # Say what happened, on stderr so it does not pollute hook stdout.
 printf 'identity-guard: commit re-authored as "%s" (was "%s")\n' "$identity" "$cur_name" >&2
