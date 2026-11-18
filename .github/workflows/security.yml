@@ -46,7 +46,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Install cargo-audit
-        run: cargo install cargo-audit --version 0.21.2 --locked
+        # Pinned, but not to a version that cannot read its own database. 0.21.2 (pinned since this
+        # workflow was written) fails on the CURRENT RustSec advisory DB with "TOML parse error" on
+        # RUSTSEC-2026-0480 and RUSTSEC-2026-0211 — two separate malformed upstream files. The audit
+        # never ran; the job failed on the tool's inability to load its data. 0.23.0 parses both and
+        # reports the real result, which is why the failure moved from "always red" to
+        # "correctly green" only after the bump.
+        run: cargo install cargo-audit --version 0.23.0 --locked
       # cargo-audit fails with exit 1 BOTH for "a dependency has a vulnerability" and for
       # "the advisory database could not be parsed". Those are opposite findings and must not share
       # an exit code: on 2026-11-16 this job failed 14 times in a row because an upstream advisory
@@ -54,9 +60,16 @@ jobs:
       # that cannot tell "your code is unsafe" from "the tool's own data is broken" will be switched
       # off by the first person it annoys, so the two are separated explicitly below.
       - name: Refresh advisory database
+        # `--depth 1` on the default branch is the whole DB; the point is to avoid a stale local copy
+        # making the audit look clean. A clone failure must be visible rather than silently leaving
+        # whatever was cached, which would audit against unknown data.
         run: |
           rm -rf ~/.cargo/advisory-db
-          git clone --quiet --depth 1 https://github.com/RustSec/advisory-db ~/.cargo/advisory-db
+          if ! git clone --depth 1 https://github.com/RustSec/advisory-db ~/.cargo/advisory-db; then
+            echo "::error::could not clone the RustSec advisory database; an audit against stale or absent data is not meaningful"
+            exit 1
+          fi
+          echo "advisory DB at $(git -C ~/.cargo/advisory-db rev-parse --short HEAD)"
       - name: Audit locked dependencies
         id: audit
         working-directory: ${{ matrix.project }}
