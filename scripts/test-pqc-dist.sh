@@ -1308,18 +1308,25 @@ check "the spawned child cannot pollute the prime" \
 check "a failed background pass still records its attempt" \
     "$(grep -c 'context_harness.record_autolearn(repo_root)' "${REPO}/src/rag/rag.py")" "2"
 contains "no evidence means no learning pass" "$(cat "${REPO}/src/rag/rag.py")" 'no retrieved evidence to learn from'
-check "evidence trees are pruned, not accumulated" \
+check "evidence and refusals are pruned, not accumulated" \
     "$(python3 -c '
 import importlib.util, sys, tempfile, pathlib
 spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 with tempfile.TemporaryDirectory() as t:
     root = pathlib.Path(t)
+    work = root / "work"
+    rej = root / "rejected"
+    work.mkdir(); rej.mkdir()
     for i in range(14):
-        (root / "work" / f"{i:04d}").mkdir(parents=True)
-    m.prune_work(root, keep=10)
-    print(len(list((root / "work").iterdir())))' "$CH_MOD" 2>/dev/null)" \
-    "10"
+        (work / f"{i:04d}").mkdir()
+    for i in range(60):
+        (rej / f"{i:04d}.md").write_text("x")
+    m.prune_work(root, keep=10, keep_rejected=50)
+    print(len(list(work.iterdir())), len(list(rej.iterdir())))' "$CH_MOD" 2>/dev/null)" \
+    "10 50"
+contains "harness operational traces are gitignored" \
+    "$(cat "${REPO}/.agents/context-harness/.gitignore" 2>/dev/null)" 'work/'
 
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"

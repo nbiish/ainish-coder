@@ -691,23 +691,31 @@ def record_rejection(repo_root: Path, proposal: Dict[str, Any], reasons: List[st
         return None
 
 
-def prune_work(root: Path, *, keep: int = 10) -> int:
-    """Keep only the newest `keep` evidence trees; return how many were removed.
+def prune_work(root: Path, *, keep: int = 10, keep_rejected: int = 50) -> int:
+    """Keep only the newest `keep` evidence trees and `keep_rejected` refusals; return removals.
 
-    Every learning pass writes its evidence under `work/<stamp>/`, and a background process that runs
-    for months would otherwise accumulate them forever — the exact unbounded-growth failure this
-    whole design exists to avoid (findings R2). The trees are audit records, not state: the newest few
-    are enough to reconstruct recent reasoning, and anything that produced an accepted generation is
-    already archived under `history/`.
+    Every learning pass writes its evidence under `work/<stamp>/`, and every refusal writes to
+    `rejected/`. A background process that runs for months would otherwise accumulate both forever —
+    the exact unbounded-growth failure this whole design exists to avoid (findings R2). `work/` is
+    per-machine operational detail; `rejected/` is committed and so is capped more generously, because
+    a refusal record is the audit trail for why the harness did NOT change.
     """
-    work = Path(root) / "work"
-    if not work.is_dir():
-        return 0
-    dirs = sorted((p for p in work.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True)
     removed = 0
-    for stale in dirs[keep:]:
-        shutil.rmtree(stale, ignore_errors=True)
-        removed += 1
+    work = Path(root) / "work"
+    if work.is_dir():
+        dirs = sorted((p for p in work.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True)
+        for stale in dirs[keep:]:
+            shutil.rmtree(stale, ignore_errors=True)
+            removed += 1
+    rej = Path(root) / "rejected"
+    if rej.is_dir():
+        files = sorted((p for p in rej.iterdir() if p.is_file()), key=lambda p: p.name, reverse=True)
+        for stale in files[keep_rejected:]:
+            try:
+                stale.unlink()
+                removed += 1
+            except OSError:
+                pass
     return removed
 
 

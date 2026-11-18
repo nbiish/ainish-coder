@@ -5410,6 +5410,9 @@ def _learn_locked(
     result: Dict[str, Any],
 ) -> Dict[str, Any]:
     profile, source, errs = context_harness.load_profile(repo_root)
+    # Prune before this pass writes anything, so the cap bounds the directory even across repeated
+    # runs and the newest evidence this pass produces can never be the thing that gets removed.
+    context_harness.prune_work(context_harness.harness_root(repo_root))
     result["profile_source"] = source
     if errs:
         result["errors"] = [f"live profile is invalid; refusing to build on it: {e}" for e in errs]
@@ -5451,7 +5454,6 @@ def _learn_locked(
 
     work = context_harness.harness_root(repo_root) / "work" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     _harness_evidence_tree(repo_root, work, task, profile, hits)
-    context_harness.prune_work(context_harness.harness_root(repo_root))
 
     # The improver runs with `--no-tools`, so evidence is INLINE in the prompt rather than served as
     # files it could open. The on-disk tree is still written: it is the audit record of exactly what
