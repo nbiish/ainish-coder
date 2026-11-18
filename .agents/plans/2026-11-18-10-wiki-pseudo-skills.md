@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: wiki-pseudo-skills
 date: 2026-11-18
-status: implementing
+status: done
 branch: feat/wiki-pseudo-skills
 worktree: /Users/nbiish/code/wiki-pseudo-skills
 task_record: .agents/tasks/2026-11-18-10-wiki-pseudo-skills.md
@@ -171,21 +171,21 @@ the prime, and it is graded by the same deterministic gate as the rest of the ha
 
 ## 5. Todos
 
-- [ ] **T1** Negate the root wiki dir in `.gitignore` and assert a written pseudo-skill is trackable.
+- [x] **T1** Negate the root wiki dir in `.gitignore` and assert a written pseudo-skill is trackable.
   - from: §3 | done when: `git check-ignore .agents/wiki/skills/x.md` returns nothing, nested still ignored | verify: assertion
-- [ ] **T2** Widen `_graph_sources`: all coordination files, `templates/`, `research/`, `wiki/skills/`.
+- [x] **T2** Widen `_graph_sources`: all coordination files, `templates/`, `research/`, `wiki/skills/`.
   - from: §3 | done when: node count exceeds 600 on this repo | verify: graph census
-- [ ] **T3** Add `KIND_WEIGHTS` and apply them in `graph_retrieve` scoring.
+- [x] **T3** Add `KIND_WEIGHTS` and apply them in `graph_retrieve` scoring.
   - from: §3 | done when: a wiki section outranks a comms line at equal term overlap | verify: synthetic test
-- [ ] **T4** Key the graph cache on the corpus definition so a widened source set invalidates it.
+- [x] **T4** Key the graph cache on the corpus definition so a widened source set invalidates it.
   - from: §3 | done when: adding a file changes the fingerprint | verify: assertion
-- [ ] **T5** Add pseudo-skill frontmatter validation (`title`, `tags`, `trigger`, `evidence`).
+- [x] **T5** Add pseudo-skill frontmatter validation (`title`, `tags`, `trigger`, `evidence`).
   - from: §3 | done when: a page missing `evidence` is refused | verify: validator test
-- [ ] **T6** Abstract at least four pseudo-skills from the four sources into `.agents/wiki/skills/`.
+- [x] **T6** Abstract at least four pseudo-skills from the four sources into `.agents/wiki/skills/`.
   - from: §3 | done when: each cites its source in `evidence` | verify: files exist and validate
-- [ ] **T7** Measure retrieval quality before/after on a fixed probe set; keep the change only if it holds.
+- [x] **T7** Measure retrieval quality before/after on a fixed probe set; keep the change only if it holds.
   - from: §3 Risks | done when: a table of probes × top-hit exists | verify: probe script
-- [ ] **T8** Assertions + suite green above the 344 baseline.
+- [x] **T8** Assertions + suite green above the 344 baseline.
 
 ## 6. Verification
 

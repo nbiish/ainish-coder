@@ -3,7 +3,7 @@
 
 - lane: now
 - branch: `feat/wiki-pseudo-skills`
-- status: implementing
+- status: done (merged 748cb8a; 354 assertions pass)
 - plan: `.agents/plans/2026-11-18-10-wiki-pseudo-skills.md`
 - scope: `src/rag/rag.py`, `src/rag/context_harness.py`, `.gitignore`,
   `scripts/test-pqc-dist.sh`, `.agents/wiki/skills/`
