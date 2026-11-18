@@ -3,7 +3,7 @@
 
 - lane: now
 - branch: `feat/single-command-context`
-- status: implementing
+- status: done (merged 8321849; 342 assertions pass)
 - plan: `.agents/plans/2026-11-18-14-single-command-context.md`
 - scope: `src/rag/rag.py`, `src/rag/context_harness.py`, `AGENTS.md`,
   `scripts/test-pqc-dist.sh`, `research/context-priming-master/10-single-command.md`

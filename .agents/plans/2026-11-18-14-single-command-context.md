@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: single-command-context
 date: 2026-11-18
-status: implementing
+status: done
 branch: feat/single-command-context
 worktree: /Users/nbiish/code/single-command-context
 task_record: .agents/tasks/2026-11-18-14-single-command-context.md
