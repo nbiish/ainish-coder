@@ -1308,6 +1308,26 @@ check "the spawned child cannot pollute the prime" \
 check "a failed background pass still records its attempt" \
     "$(grep -c 'context_harness.record_autolearn(repo_root)' "${REPO}/src/rag/rag.py")" "2"
 contains "no evidence means no learning pass" "$(cat "${REPO}/src/rag/rag.py")" 'no retrieved evidence to learn from'
+
+# COMMS entries come in two delimiter styles, and orientation only understood one. A `---`-delimited
+# ledger made it report its own frontmatter fence as "last entry", which is worse than silence: an
+# agent reading that learns nothing about what just happened.
+check "orientation parses both COMMS entry delimiters" \
+    "$(python3 -c '
+import sys, importlib.util, tempfile, pathlib
+spec = importlib.util.spec_from_file_location("rag", sys.argv[1])
+m = importlib.util.module_from_spec(spec); sys.modules["rag"] = m; spec.loader.exec_module(m)
+with tempfile.TemporaryDirectory() as t:
+    root = pathlib.Path(t)
+    (root / ".agents" / "comms").mkdir(parents=True)
+    from datetime import datetime, timezone
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    (root / ".agents" / "comms" / f"{day}-team.md").write_text(
+        "---\nagent: x\n---\n- objective: do the thing\n- status: done\n")
+    out = m.render_orientation_section(root, 2000)
+    print("yes" if "status: done" in out and "objective: do the thing" in out else "no")' \
+      "${REPO}/src/rag/rag.py" 2>/dev/null)" \
+    "yes"
 check "evidence and refusals are pruned, not accumulated" \
     "$(python3 -c '
 import importlib.util, sys, tempfile, pathlib

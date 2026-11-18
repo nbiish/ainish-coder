@@ -4958,7 +4958,10 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
     if comms is not None:
         try:
             text = comms.read_text(encoding="utf-8", errors="replace")
-            blocks = [b for b in text.split("\n### ") if b.strip()]
+            # Two entry delimiters are live: `### ` headings (older ledgers) and `---` frontmatter
+            # blocks (the current format). Only handling the first meant a `---` ledger reported its
+            # own frontmatter fence as "last entry", which is worse than reporting nothing.
+            blocks = [b for b in re.split(r"(?m)^(?:### |---\s*$)", text) if b.strip()]
             if blocks:
                 last = blocks[-1]
                 objective = next(
@@ -4969,8 +4972,15 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
                     (l[len("- status:"):].strip() for l in last.splitlines() if l.startswith("- status:")),
                     "",
                 )
-                header = last.splitlines()[0][:120]
-                parts.append(f"- today's COMMS, last entry: {header}")
+                # The header is the first MEANINGFUL line, not the first line: a block can begin with
+                # blank space or a bare label.
+                header = next((l.strip() for l in last.splitlines() if l.strip()), "")[:120]
+                if not header or header in ("---",):
+                    header = ""
+                if status or objective:
+                    parts.append("- today's COMMS, last entry:")
+                elif header:
+                    parts.append(f"- today's COMMS, last entry: {header}")
                 if objective:
                     parts.append(f"  - objective: {objective[:200]}")
                 if status:
