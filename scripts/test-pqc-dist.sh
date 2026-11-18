@@ -1409,6 +1409,35 @@ check "an already-correct commit is left alone (no amend loop)" \
     "$(git commit --allow-empty -qm second >/dev/null 2>&1; git rev-list --count HEAD)" "2"
 cd "$REPO" || exit 1
 
+# ── the audit checker fails CLOSED ──────────────────────────────────────────
+# The first version of this check was an indented heredoc inside the YAML `run:` block. YAML indents
+# every line, so Python raised IndentationError, printed nothing, and the shell read that as
+# "unparseable" — then exited 0. It passed a run while cargo-audit was reporting RUSTSEC-2026-0385 in
+# a cryptography crate. Every branch is pinned here, because the failure mode is invisible.
+CHECKER="${REPO}/.github/scripts/check_cargo_audit.py"
+tmp_audit="${WORK}/audit-probe.json"
+
+printf '%s' '{"database":{"advisory-count":1},"lockfile":{"dependency-count":5},"vulnerabilities":{"found":false,"count":0,"list":[]}}' > "$tmp_audit"
+check "audit checker passes a clean tree" \
+    "$(python3 "$CHECKER" "$tmp_audit" >/dev/null 2>&1; echo $?)" "0"
+
+printf '%s' '{"database":{"advisory-count":1},"lockfile":{"dependency-count":5},"vulnerabilities":{"found":true,"count":1,"list":[{"advisory":{"id":"RUSTSEC-0000-0001"},"package":{"name":"badcrate","version":"1.0.0"}}]}}' > "$tmp_audit"
+check "audit checker FAILS a vulnerable tree" \
+    "$(python3 "$CHECKER" "$tmp_audit" >/dev/null 2>&1; echo $?)" "1"
+
+: > "$tmp_audit"
+check "audit checker fails closed on empty output" \
+    "$(python3 "$CHECKER" "$tmp_audit" >/dev/null 2>&1; echo $?)" "2"
+
+printf '%s' 'not json at all' > "$tmp_audit"
+check "audit checker fails closed on unparseable output" \
+    "$(python3 "$CHECKER" "$tmp_audit" >/dev/null 2>&1; echo $?)" "2"
+
+contains "the audit decision is a real script, not a YAML heredoc" \
+    "$(cat "${REPO}/.github/workflows/security.yml")" 'check_cargo_audit.py'
+check "no python heredoc remains in the workflow" \
+    "$(grep -cE '^[[:space:]]*python3 - <<' "${REPO}/.github/workflows/security.yml")" "0"
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1

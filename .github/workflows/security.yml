@@ -63,44 +63,18 @@ jobs:
         shell: bash
         run: |
           set +e
-          out=$(cargo audit --json 2>&1)
+          cargo audit --json > audit-raw.json 2>audit-err.txt
           rc=$?
           set -e
-          echo "$out" > audit-raw.json
-          # A parse/DB failure surfaces as an error string with no vulnerability list. Distinguish it
-          # from a genuine finding before deciding anything.
-          if grep -qiE 'error loading advisory database|parse error|could not be parsed' <<<"$out"; then
-            echo "::warning::cargo-audit could not read the advisory database (upstream data problem, not a finding in this repository)"
-            echo "status=tool-error" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          vulns=$(python3 - <<'PY'
-          import json, sys
-          try:
-              d = json.load(open("audit-raw.json"))
-          except Exception:
-              print("unparseable"); sys.exit(0)
-          v = d.get("vulnerabilities") or {}
-          found = v.get("found")
-          if found is None:
-              print("unparseable")
-          else:
-              print(int(found.get("count", 0)) if isinstance(found, dict) else int(found))
-          PY
-          )
-          case "$vulns" in
-            unparseable)
-              echo "::warning::cargo-audit emitted output this job could not parse; inspected manually below"
-              echo "status=tool-error" >> "$GITHUB_OUTPUT"
-              exit 0 ;;
-            0)
-              echo "status=clean" >> "$GITHUB_OUTPUT"
-              exit 0 ;;
-            *)
-              echo "::error::cargo-audit reports ${vulns} vulnerable dependency/ies in ${{ matrix.project }}"
-              echo "status=vulnerable" >> "$GITHUB_OUTPUT"
-              exit 1 ;;
-          esac
+          cat audit-err.txt >&2 || true
+          # The decision lives in a real script, NOT an inline heredoc. The first version of this
+          # check was a `python3 - <<'PY'` heredoc inside this YAML block; YAML indents every line of
+          # the script, so Python raised IndentationError on line 1, printed nothing, and the shell
+          # read that as "unparseable" — which then exited 0. It passed a run while cargo-audit was
+          # reporting RUSTSEC-2026-0385 in a cryptography crate. A gate that fails open on its own
+          # bugs is worse than no gate.
+          python3 "${{ github.workspace }}/.github/scripts/check_cargo_audit.py" audit-raw.json
+
       - name: Report audit outcome
         if: always()
         run: |
