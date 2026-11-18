@@ -6094,12 +6094,18 @@ def run_context_command(
     # already built, so it can never delay or modify the answer the agent is about to read. What it
     # does is read this same call's evidence and propose a harness change for the NEXT call.
     autolearn: Dict[str, Any] = {"spawned": False, "reason": "skipped"}
-    if not retrieval_only:
+    if retrieval_only:
+        autolearn = {"spawned": False, "reason": "--retrieval-only makes no model calls"}
+    elif route_skipped or not (retrieved.get("hits") or []):
+        # Nothing was retrieved, so a learning pass would have no evidence to reason over and could
+        # only produce a KEEP_BASE. Observed for real on this repo: a route-skipped task spawned a
+        # session that immediately recorded "no corpus hit for this task". Not spawning is both
+        # cheaper and more honest than spending a call to conclude nothing.
+        autolearn = {"spawned": False, "reason": "no retrieved evidence to learn from on this task"}
+    else:
         # Not gated on --json: the child's stdout is DEVNULL, so it cannot corrupt the envelope, and
         # a machine-read call deserves the same continuous improvement as an interactive one.
         autolearn = spawn_autolearn(repo_root, task)
-    else:
-        autolearn = {"spawned": False, "reason": "--retrieval-only makes no model calls"}
     # The learned state is reported on EVERY call, including when it is absent. Silence would make a
     # repo whose profile failed to load indistinguishable from one that never had one.
     harness_provenance = {
