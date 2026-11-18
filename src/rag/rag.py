@@ -3597,6 +3597,13 @@ GRAPH_MAX_ARTIFACTS = 2      # newest files per coordination folder
 GRAPH_MAX_WIKI_PAGES = 8
 GRAPH_CHAPTER_CHARS = 1400
 GRAPH_HOP_BONUS = 0.35
+
+# The contract and the per-repo PRD are corpus too. They were NOT before 2026-11-18, which meant the
+# one command an agent is told to call could not answer "what are the rules here?" — it returned
+# branch state and coordination artefacts and left the contract to be read separately. Splitting them
+# at `##` headings (like wiki pages) makes each section its own retrievable node, so "what does the
+# contract say about worktrees" can hit "## Worktrees" instead of retrieving nothing.
+GRAPH_CONTRACT_FILES = ("AGENTS.md", "llms.txt")
 GRAPH_CACHE = "wiki-graph.json"
 
 # ── Obsidian wikilinks ───────────────────────────────────────────────────────
@@ -3693,6 +3700,13 @@ def _graph_sources(repo_root: Path, settings: Optional[Dict[str, Any]] = None) -
     if index.is_file():
         sources.append({"kind": "map", "path": index})
 
+    # The contract and the PRD, as section-split corpus. Without these the single command an agent
+    # is told to call can report the branch but not the rules that govern it.
+    for name in GRAPH_CONTRACT_FILES:
+        root_file = repo_root / name
+        if root_file.is_file():
+            sources.append({"kind": "contract", "path": root_file})
+
     for folder in GRAPH_ARTIFACT_DIRS:
         directory = agents / folder
         if not directory.is_dir():
@@ -3725,7 +3739,7 @@ def build_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None)
             mtime = 0.0
         rel = str(path.relative_to(repo_root)) if str(path).startswith(str(repo_root)) else str(path)
 
-        if source["kind"] == "wiki":
+        if source["kind"] in ("wiki", "contract"):
             # One node per second-level section: a hit should be a section, not a 400-line page.
             # Navigation-only headings are section boundaries but not nodes — they hold the
             # cross-links the vault emits to build its graph, and treating them as content would
@@ -3742,7 +3756,7 @@ def build_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None)
                 line = text[:start].count("\n") + 1
                 nodes.append({
                     "id": f"{rel}#{line}",
-                    "kind": "wiki",
+                    "kind": source["kind"],
                     "path": rel,
                     "title": title,
                     "start_line": line,
@@ -4887,6 +4901,35 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
     top = _git("rev-parse", "--show-toplevel")
     dirty = _git("status", "--porcelain")
     dirty_count = len([l for l in dirty.splitlines() if l.strip()])
+
+    # THE RULES, in the one section that is never skipped. Retrieval can be routed to
+    # `skip_retrieval` (a self-contained question needs no corpus), but an agent must always be told
+    # which contract governs it and whether the repo's own gate last passed — that is the difference
+    # between "here is context" and "here are the rules you are operating under". Costs no model call.
+    contract = repo_root / "AGENTS.md"
+    if contract.is_file():
+        try:
+            digest = hashlib.sha256(contract.read_bytes()).hexdigest()[:12]
+        except OSError:
+            digest = "unreadable"
+        parts.append(f"- rules: `AGENTS.md` @ {digest} (the contract this session is bound by)")
+    else:
+        parts.append("- rules: **no `AGENTS.md` at the repo root** — deploy it with "
+                     "`ainish-coder --rules`; until then this session has no shipped contract")
+    gate = repo_root / ".agents" / "rag" / "gate-status.json"
+    if gate.is_file():
+        try:
+            gs = json.loads(gate.read_text(encoding="utf-8"))
+            status = str(gs.get("status") or "?")
+            anchor = gs.get("anchor_pct")
+            commit_match = gs.get("commit")
+            if status.upper() == "GREEN" and commit_match and commit_match != _git("rev-parse", "--short", "HEAD"):
+                parts.append(f"- gate: {status} but for commit {commit_match}, not HEAD (stale verdict)")
+            else:
+                parts.append(f"- gate: {status}" + (f" (anchor {anchor}%)" if anchor is not None else ""))
+        except (OSError, ValueError):
+            parts.append("- gate: status file unreadable")
+
     parts.append(f"- branch: `{branch}`")
     if top:
         parts.append(f"- worktree: `{top}`")
@@ -5700,6 +5743,55 @@ def _newest_task_objective(repo_root: Path) -> str:
     return ""
 
 
+def spawn_autolearn(repo_root: Path, task: str) -> Dict[str, Any]:
+    """Start one learning pass in the BACKGROUND so the prime is never delayed by it.
+
+    The single-command requirement means `--context` must both answer and improve. Answering is
+    synchronous; improving is not. A detached child is the only shape that satisfies both — a
+    synchronous learn would add a model session to every call, and the contract says a context call
+    must never block the task that asked for it.
+
+    The child inherits no secrets beyond the environment it was given, writes only under
+    `.agents/context-harness/`, and is guarded by the same exclusive lock, so a concurrent manual
+    `context-learn` cannot be clobbered.
+    """
+    info: Dict[str, Any] = {"spawned": False, "reason": ""}
+    eligible, why = context_harness.should_autolearn(repo_root)
+    if not eligible:
+        info["reason"] = why
+        return info
+    # A lock already held means another pass is running; do not pile on.
+    lock = context_harness.lock_path(repo_root)
+    if lock.is_file():
+        try:
+            holder = json.loads(lock.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            holder = {}
+        info["reason"] = f"another pass holds the lock (pid {holder.get('pid', '?')})"
+        return info
+
+    engine = Path(__file__).resolve()
+    argv = [sys.executable, str(engine), "context-learn", "--task", task[:600], "--background"]
+    try:
+        popen_kw: Dict[str, Any] = {
+            "cwd": str(repo_root),
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,   # never pollute the caller's stdout: it is the prime
+            "stderr": subprocess.DEVNULL,
+            "close_fds": True,
+        }
+        if os.name == "nt":
+            popen_kw["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0) | 0x00000008
+        else:
+            popen_kw["start_new_session"] = True
+        subprocess.Popen(argv, **popen_kw)
+        context_harness.record_autolearn(repo_root)
+        info.update({"spawned": True, "reason": why})
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        info["reason"] = f"could not start the background pass: {str(exc)[:120]}"
+    return info
+
+
 def run_context_command(
     repo_root: Path,
     task: str,
@@ -5998,6 +6090,16 @@ def run_context_command(
                 os.environ[name] = previous
 
     branch, commit = git_head_info(repo_root)
+    # CONTINUOUS IMPROVEMENT, FROM THE ONE COMMAND. A detached pass starts here, after the prime is
+    # already built, so it can never delay or modify the answer the agent is about to read. What it
+    # does is read this same call's evidence and propose a harness change for the NEXT call.
+    autolearn: Dict[str, Any] = {"spawned": False, "reason": "skipped"}
+    if not retrieval_only:
+        # Not gated on --json: the child's stdout is DEVNULL, so it cannot corrupt the envelope, and
+        # a machine-read call deserves the same continuous improvement as an interactive one.
+        autolearn = spawn_autolearn(repo_root, task)
+    else:
+        autolearn = {"spawned": False, "reason": "--retrieval-only makes no model calls"}
     # The learned state is reported on EVERY call, including when it is absent. Silence would make a
     # repo whose profile failed to load indistinguishable from one that never had one.
     harness_provenance = {
@@ -6011,6 +6113,7 @@ def run_context_command(
                       "recency_floor", "shared_term_threshold")
         },
         "staged_skills": staged_names,
+        "autolearn": autolearn,
     }
     if harness_settings.get("section_caps") and harness_settings["section_caps"] != CONTEXT_SECTION_CAPS:
         harness_provenance["section_caps"] = harness_settings["section_caps"]
@@ -7523,9 +7626,11 @@ def main():
             "The vector/embedding subsystem (index, query, rerank, bench, monitor, serve,\n"
             "embed-provider) was retired 2026-11-12: retrieval is graph-first over the wiki vault.\n"
             "\n"
-            "THIS REPOSITORY CAN TUNE ITS OWN PRIME. Every call reports `provenance.harness` naming the\n"
-            "live generation and where it came from (`absent` = shipped defaults). Do not hand-edit the\n"
-            "retrieval constants in rag.py for one repo — the profile exists for that:\n"
+            "THIS REPOSITORY CAN TUNE ITS OWN PRIME. A `--context` call already does it: it reads\n"
+            "`AGENTS.md` and `llms.txt` as corpus, reports the contract digest and gate verdict in\n"
+            "`orientation` (never skipped), and afterwards starts a throttled background pass that\n"
+            "tunes this repo's retrieval from its own history. Never hand-edit the retrieval constants\n"
+            "in rag.py for one repo — the profile exists for that, and provenance.harness reports it:\n"
             "  ainish-rag context-seed      establish the frozen generation 0 (also done by --rules)\n"
             "  ainish-rag context-status    what is live, what is staged, what was rejected and why\n"
             "  ainish-rag context-learn     one propose->gate cycle; --dry-run to see it, opt-in\n"
@@ -7708,6 +7813,10 @@ def main():
     learn_p.add_argument("--dry-run", action="store_true", help="Show the proposal and the gate verdict; write nothing")
     learn_p.add_argument("--json", action="store_true")
     learn_p.add_argument("--no-remote", action="store_true", help="Local driver tier only")
+    learn_p.add_argument(
+        "--background", action="store_true",
+        help="Internal: set by the detached child that `--context` spawns. Silences all output.",
+    )
 
     audit_p = sub.add_parser("audit", help="Verify post-quantum receipts, manifests, lockfiles, and SBOMs")
     audit_sub = audit_p.add_subparsers(dest="audit_command", required=True)
@@ -7845,15 +7954,25 @@ def main():
             sys.exit(1)
 
     elif args.subcommand == "context-learn":
-        result = run_context_learn(
-            repo_root,
-            task=getattr(args, "task", None),
-            dry_run=bool(getattr(args, "dry_run", False)),
-            json_out=bool(getattr(args, "json", False)),
-            no_remote=bool(getattr(args, "no_remote", False)),
-        )
+        background = bool(getattr(args, "background", False))
+        try:
+            result = run_context_learn(
+                repo_root,
+                task=getattr(args, "task", None),
+                dry_run=bool(getattr(args, "dry_run", False)),
+                json_out=bool(getattr(args, "json", False)) and not background,
+                no_remote=bool(getattr(args, "no_remote", False)),
+            )
+        finally:
+            # The detached child has no terminal. Record the attempt either way, so the throttle
+            # measures real runs rather than successful ones — otherwise a consistently failing
+            # learner would re-spawn a model session on every single context call.
+            if background:
+                context_harness.record_autolearn(repo_root)
         # Exit codes: 0 = accepted or KEEP_BASE (both are successful, honest outcomes);
         # 2 = refused by the gate; 1 = the run itself failed and wrote nothing.
+        if background:
+            sys.exit(0)
         if result.get("errors"):
             sys.exit(1)
         if result.get("outcome") == "refused":

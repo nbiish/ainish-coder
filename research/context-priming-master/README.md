@@ -20,6 +20,9 @@ target repo by `ainish-coder --rules`.
 | [`05b-design-widened-surface.md`](05b-design-widened-surface.md) | **Supersedes §4 of `05`.** The operator chose harness²-style skill files and scripts over numbers-only, so this restates the threat model for the wider blast radius |
 | [`06-risk-register.md`](06-risk-register.md) | Every way this can fail, including the ones that would be worse than doing nothing |
 | [`07-implementation-plan.md`](07-implementation-plan.md) | Phased plan with gates, smallest-first |
+| [`08-phase0-findings.md`](08-phase0-findings.md) | **Read this before trusting the loop.** Phase 0 measured the proposed gate and found it circular |
+| [`09-as-built.md`](09-as-built.md) | What shipped, and the three bugs found while building it |
+| [`10-single-command.md`](10-single-command.md) | The contract as corpus, and learning on the hot path — reverses two decisions in `09` |
 
 The plan of record is `.agents/plans/2026-11-17-19-context-priming-master.md`; this dossier is its
 evidence base.

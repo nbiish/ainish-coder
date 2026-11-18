@@ -1275,6 +1275,39 @@ contains "rag help advertises the harness verbs" \
 check "the context-harness docs exist" \
     "$([[ -f "${REPO}/research/context-priming-master/08-phase0-findings.md" ]] && echo yes || echo no)" "yes"
 
+# ── ONE COMMAND, and it improves itself ─────────────────────────────────────
+# The contract tells an agent to call exactly one command. That command must therefore (a) surface the
+# rules, and (b) keep the harness improving without a second invocation. Both are pinned here because
+# either one silently regressing makes the single-command promise false.
+contains "the contract is retrieval corpus" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_CONTRACT_FILES'
+check "AGENTS.md sections are retrievable as nodes" \
+    "$(python3 -c '
+import sys, importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("rag", sys.argv[1])
+m = importlib.util.module_from_spec(spec); sys.modules["rag"] = m; spec.loader.exec_module(m)
+g = m.build_wiki_graph(Path(sys.argv[2]))
+print("yes" if any(n["kind"] == "contract" and "AGENTS.md" in n["path"] for n in g["nodes"]) else "no")' \
+      "${REPO}/src/rag/rag.py" "${REPO}" 2>/dev/null)" \
+    "yes"
+contains "the contract states one command is the whole system" \
+    "$(cat "${REPO}/AGENTS.md")" 'one command is the whole context system'
+contains "the contract forbids a second priming command" \
+    "$(cat "${REPO}/AGENTS.md")" 'Never call a second command to prime yourself'
+contains "a context call spawns the learning pass" "$(cat "${REPO}/src/rag/rag.py")" 'def spawn_autolearn'
+contains "the learning pass is detached, never awaited" "$(cat "${REPO}/src/rag/rag.py")" 'start_new_session'
+check "the learning pass is throttled" \
+    "$(python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print("yes" if m.LEARN_MIN_INTERVAL_S > 0 and m.LEARN_MIN_NEW_COMMITS > 0 else "no")' "$CH_MOD" 2>/dev/null)" \
+    "yes"
+check "the spawned child cannot pollute the prime" \
+    "$(grep -c '"stdout": subprocess.DEVNULL' "${REPO}/src/rag/rag.py")" "1"
+check "a failed background pass still records its attempt" \
+    "$(grep -c 'context_harness.record_autolearn(repo_root)' "${REPO}/src/rag/rag.py")" "2"
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1
