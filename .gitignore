@@ -187,6 +187,14 @@ audit.log.*
 /**/.agents/rag/
 /**/.agents/audit/
 /**/.agents/wiki/
+# ...EXCEPT the root repository's own wiki vault. The rule above exists to keep a nested
+# `src/rag/.agents/` (which once carried a private ML-DSA-65 key) out of git. The root wiki is
+# different: it is this repository's curated corpus, and from 2026-11-18 it is also where the context
+# harness writes learned pseudo-skills. Without this negation every such page is silently untracked and
+# dies on clone — learned behaviour that does not survive a checkout is worse than none. Negating the
+# root DIRECTORY (not a file pattern under it) is what makes git descend at all; the nested paths above
+# stay ignored because this exception names the root exactly.
+!/.agents/wiki/
 
 # Rules auto-sync runtime artifacts (manifest and sync script ARE committed)
 .agents/ainish-sync.log

@@ -46,12 +46,14 @@ TERM_MAX = 32
 TERM_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 NAME_RE = re.compile(r"^" + re.escape(SKILL_PREFIX) + r"[a-z0-9][a-z0-9_-]*$")
 
-# Markers of the measurement itself. A learned artefact naming one of these could optimise the gate
-# rather than the prime — the practitioner video's criterion-leakage failure. The improver never
-# sees these strings; this is the code-level backstop.
+# Markers of the measurement itself: the names of the acceptance signals this system computes. A learned
+# artefact naming one of these could optimise the gate rather than the thing being gated. The list is
+# deliberately narrow — it is signal NAMES, not words like "threshold" or "acceptance", which a lesson
+# ABOUT guarding a gate legitimately uses (and which an earlier, broader list wrongly rejected).
+# The improver is never shown these strings; this is the code-level backstop.
 ACCEPTANCE_MARKERS = (
-    "coverage", "concentration", "freshness", "redundancy", "acceptance", "gate",
-    "win_rate", "winrate", "signal", "tolerance", "threshold", "metric",
+    "coverage", "concentration", "freshness", "redundancy",
+    "win_rate", "winrate", "noul", "decision_score",
 )
 
 # Import allowlist for learned helper scripts. No networking, no subprocess, no sockets: a learned
@@ -227,6 +229,15 @@ def _get(doc: Dict[str, Any], dotted: str) -> Any:
 
 
 def _contains_acceptance_marker(text: str) -> Optional[str]:
+    """The measurement vocabulary this text names, or None.
+
+    Deliberately narrow. It fires on the names of the *acceptance signals this system computes*
+    (`coverage`, `win_rate`, …) because a learned artefact naming those can raise the number without
+    improving the thing. It does NOT fire on general words like `acceptance` or `threshold`, which
+    appear when a page is *about* guarding a gate — refusing those would delete exactly the lessons
+    worth keeping. Measured: an earlier, broader list rejected two correct pseudo-skills for using
+    the word "acceptance" in its ordinary sense.
+    """
     low = (text or "").lower()
     for marker in ACCEPTANCE_MARKERS:
         if marker in low:
@@ -930,6 +941,118 @@ def age_hints(previous: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, 
     return out
 
 
+def pseudo_skills_root(repo_root: Path) -> Path:
+    """Where learned pseudo-skills live: INSIDE the wiki, as markdown pages.
+
+    A subdirectory of `.agents/wiki/` rather than a top-level folder, because the operator's design is
+    that the wiki is both the corpus the prime reads and the place improvement accumulates. This
+    position is also functionally necessary: `generate_wiki` owns exactly seven root-level filenames and
+    globs non-recursively, so nothing the generator does can ever overwrite a page written here.
+
+    These pages are NOT `.agents/skills/` packs. Nothing auto-loads them; they reach a model only
+    through the prime, which is what makes it safe for a learner to write them.
+    """
+    return Path(repo_root) / ".agents" / "wiki" / "skills"
+
+
+PSEUDO_REQUIRED = ("title", "tags", "trigger", "evidence", "source")
+
+
+def validate_pseudo_skill(text: str, name: str) -> List[str]:
+    """Problems with one pseudo-skill page. Empty list means valid.
+
+    The frontmatter contract exists so a page is *retrievable as a skill* rather than as an essay:
+    `trigger` is the vocabulary the retrieval graph matches on, and `evidence` is what stops an
+    invented lesson from entering the corpus — the rule that a lesson with no cited support is not
+    stored at all (harness2's `has_experience` gate, and Phase 0's warning that a self-measured
+    improvement is circular).
+    """
+    errs: List[str] = []
+    if not text.lstrip().startswith("---"):
+        return [f"{name} needs YAML-ish frontmatter (--- ... ---); without it the page has no trigger "
+                f"and cannot be matched as a skill"]
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return [f"{name} frontmatter is unterminated"]
+    fm = parts[1]
+    present = {m.group(1) for m in re.finditer(r"(?m)^([A-Za-z_]+):", fm)}
+    for key in PSEUDO_REQUIRED:
+        if key not in present:
+            errs.append(
+                f"{name} is missing `{key}:` in its frontmatter "
+                f"(required: {', '.join(PSEUDO_REQUIRED)})"
+                + ("; without `evidence` it is an unsupported claim" if key == "evidence" else "")
+                + ("; without `trigger` it can never be matched" if key == "trigger" else "")
+            )
+    m_tags = re.search(r"(?m)^tags:\s*\[([^\]]*)\]", fm)
+    if m_tags and "ainish/wiki/skill" not in m_tags.group(1):
+        errs.append(f"{name} tags must include `ainish/wiki/skill` so the vault and the graph agree")
+    m_ev = re.search(r"(?m)^evidence:\s*(.+)$", fm)
+    if m_ev and not m_ev.group(1).strip().strip('"\''):
+        errs.append(f"{name} has an empty `evidence:`; a lesson with no cited support is not stored")
+    body = parts[2] if len(parts) > 2 else ""
+    if len(body.strip()) < 80:
+        errs.append(f"{name} body is {len(body.strip())} chars; a pseudo-skill is a procedure, not a title")
+    hit = _contains_acceptance_marker(body)
+    if hit:
+        errs.append(f"{name} names the measurement ({hit!r}); a learned procedure that names its own "
+                    f"scoring optimises the score")
+    return errs
+
+
+def validate_pseudo_skill_tree(repo_root: Path) -> List[str]:
+    """Every problem across the pseudo-skill directory."""
+    root = pseudo_skills_root(repo_root)
+    if not root.is_dir():
+        return []
+    errs: List[str] = []
+    for page in sorted(root.rglob("*.md")):
+        try:
+            text = page.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            errs.append(f"{page.name} is unreadable")
+            continue
+        errs.extend(validate_pseudo_skill(text, str(page.relative_to(root))))
+    return errs
+
+
+def write_pseudo_skill(
+    repo_root: Path, name: str, *, title: str, trigger: List[str], source: str, evidence: str, body: str
+) -> Dict[str, Any]:
+    """Write one pseudo-skill page into the wiki. Validated before and after the write."""
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60]
+    if not slug:
+        return {"ok": False, "errors": ["a pseudo-skill needs a name"]}
+    tags = "[ainish/wiki/skill, ainish/learned]"
+    text = (
+        "---\n"
+        f"title: {title.strip()}\n"
+        f"aliases: []\n"
+        f"tags: {tags}\n"
+        f"trigger: [{', '.join(t.strip() for t in trigger if t.strip())}]\n"
+        f"source: \"{source.strip()}\"\n"
+        f"evidence: \"{evidence.strip()}\"\n"
+        "confidence: medium\n"
+        "---\n\n"
+        f"{body.strip()}\n"
+    )
+    errs = validate_pseudo_skill(text, f"{slug}.md")
+    if errs:
+        return {"ok": False, "errors": errs}
+    root = pseudo_skills_root(repo_root)
+    root.mkdir(parents=True, exist_ok=True)
+    dest = root / f"{slug}.md"
+    try:
+        if dest.is_file():
+            return {"ok": False, "errors": [
+                f"{dest.relative_to(repo_root)} already exists; refusing to overwrite a learned page"
+            ]}
+        dest.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        return {"ok": False, "errors": [f"could not write {slug}.md: {str(exc)[:120]}"]}
+    return {"ok": True, "path": str(dest), "slug": slug}
+
+
 def status(repo_root: Path) -> Dict[str, Any]:
     """What is live, where it came from, how old each hint is, and what was recently refused."""
     profile, source, errs = load_profile(repo_root)
@@ -937,6 +1060,8 @@ def status(repo_root: Path) -> Dict[str, Any]:
     hist = sorted(p.name for p in history_root(repo_root).glob("*.json")) if history_root(repo_root).is_dir() else []
     rej = sorted(p.name for p in rejected_root(repo_root).glob("*.md")) if rejected_root(repo_root).is_dir() else []
     staged = sorted(p.name for p in skills_root(repo_root).iterdir() if p.is_dir()) if skills_root(repo_root).is_dir() else []
+    pseudo_root = pseudo_skills_root(repo_root)
+    pseudo = sorted(p.name for p in pseudo_root.glob("*.md")) if pseudo_root.is_dir() else []
     promoted = sorted(p.name for p in (Path(repo_root) / ".agents" / "skills").iterdir()
                       if p.is_dir() and p.name.startswith(SKILL_PREFIX)) \
         if (Path(repo_root) / ".agents" / "skills").is_dir() else []
@@ -950,6 +1075,8 @@ def status(repo_root: Path) -> Dict[str, Any]:
         "graph": profile.get("graph"),
         "staged_skills": staged,
         "promoted_skills": promoted,
+        "pseudo_skills": pseudo,
+        "pseudo_skill_errors": validate_pseudo_skill_tree(repo_root) if pseudo_root.is_dir() else [],
         "history": hist[-10:],
         "history_total": len(hist),
         "rejected": rej[-10:],
