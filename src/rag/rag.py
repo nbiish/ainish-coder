@@ -3593,10 +3593,44 @@ def save_elephant_session(repo_root: Path, state: Dict[str, Any]) -> Optional[Pa
 # terms, walks one hop, and prefers recent nodes: "latest wiki + latest artifacts" is the contract.
 
 GRAPH_ARTIFACT_DIRS = ("comms", "memories", "plans", "suggestions", "tasks")
-GRAPH_MAX_ARTIFACTS = 2      # newest files per coordination folder
-GRAPH_MAX_WIKI_PAGES = 8
+# 0 means UNLIMITED. The corpus used to be capped at the newest 2 files per folder, which on this
+# repository meant 10 of 115 coordination files were readable and 105 were invisible — the system
+# could not learn from its own history. The whole point of a per-repo context harness is that it reads
+# what this repository actually knows. Cost is bounded by the graph cache (rebuilt when the corpus
+# changes, not per query) and measured at ~41ms for a 658-node graph.
+GRAPH_MAX_ARTIFACTS = 0
+GRAPH_MAX_WIKI_PAGES = 0
 GRAPH_CHAPTER_CHARS = 1400
 GRAPH_HOP_BONUS = 0.35
+
+# Extra corpus roots beyond the coordination folders and the wiki. Each is (kind, path relative to the
+# repo root, recursive). `.agents/wiki/skills/` is where the learner writes markdown PSEUDO-SKILLS:
+# a subdirectory the wiki generator never touches (it owns exactly seven root-level filenames and
+# globs non-recursively), so learned pages and generated pages cannot collide.
+GRAPH_EXTRA_SOURCES = (
+    ("templates", ".agents/templates", True),
+    ("research", "research", True),
+    ("pseudoskill", ".agents/wiki/skills", True),
+)
+
+# Relative retrieval weight per node kind. A wider corpus is only an improvement if ranking stays sane:
+# without this, a month-old comms line competes on equal terms with the contract and the wiki, and the
+# prime gets worse as the corpus grows — the opposite of the goal. Wiki and contract are the curated
+# layer; coordination is current-events; research is deep background; pseudo-skills are learned
+# procedure and sit just under the curated layer so the system's own abstractions are actually used.
+GRAPH_KIND_WEIGHTS = {
+    "contract": 1.35,
+    "wiki": 1.25,
+    "pseudoskill": 1.15,
+    "map": 1.10,
+    "templates": 1.00,
+    "memories": 0.95,
+    "plans": 0.95,
+    "suggestions": 0.90,
+    "tasks": 0.90,
+    "comms": 0.85,
+    "research": 0.80,
+}
 
 # The contract and the per-repo PRD are corpus too. They were NOT before 2026-11-18, which meant the
 # one command an agent is told to call could not answer "what are the rules here?" — it returned
@@ -3663,6 +3697,19 @@ _GRAPH_STOPWORDS = {
     "would", "should", "could", "all", "any", "how", "what", "when", "which", "who", "why",
     "use", "used", "using", "one", "two", "also", "than", "then", "them", "they", "there",
     "here", "more", "most", "some", "such", "only", "just", "like", "make", "made", "get",
+    # The list above was written for a corpus of CODE, where these words barely appear. Widening the
+    # corpus to prose (research, plans, the contract) made them common and therefore useless as
+    # discriminators — worse, they act as noise that lets an off-topic node out-score the right one.
+    # Measured: "what does the contract require before cutting a branch" produced the task terms
+    # {before, branch, contract, cutting, does, require}, of which three were filler, so the AGENTS.md
+    # section that actually answers it scored on 2 real terms and fell out of the top 10.
+    "does", "did", "done", "doing", "require", "requires", "required", "before", "after",
+    "need", "needs", "needed", "want", "wants", "should", "must", "may", "might", "shall",
+    "say", "says", "said", "mean", "means", "meant", "about", "over", "under", "between",
+    "where", "while", "during", "because", "since", "however", "therefore", "thus", "each",
+    "other", "another", "same", "different", "new", "old", "first", "last", "next", "per",
+    "via", "etc", "e.g", "i.e", "let", "lets", "way", "ways", "thing", "things", "part",
+    "parts", "case", "cases", "given", "take", "takes", "keep", "keeps", "work", "works",
 }
 
 
@@ -3686,14 +3733,14 @@ def _graph_sources(repo_root: Path, settings: Optional[Dict[str, Any]] = None) -
     """
     sources: List[Dict[str, Any]] = []
     agents = repo_root / ".agents"
-    max_pages = int((settings or {}).get("max_wiki_pages") or GRAPH_MAX_WIKI_PAGES)
-    max_artifacts = int((settings or {}).get("max_artifacts") or GRAPH_MAX_ARTIFACTS)
+    max_pages = int((settings or {}).get("max_wiki_pages", GRAPH_MAX_WIKI_PAGES) or 0)
+    max_artifacts = int((settings or {}).get("max_artifacts", GRAPH_MAX_ARTIFACTS) or 0)
 
     wiki_dir = agents / "wiki"
     if wiki_dir.is_dir():
         pages = [p for p in wiki_dir.glob("*.md") if p.is_file()]
         pages.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        for page in pages[:max_pages]:
+        for page in (pages[:max_pages] if max_pages > 0 else pages):
             sources.append({"kind": "wiki", "path": page})
 
     index = agents / "llms.txt"
@@ -3713,8 +3760,23 @@ def _graph_sources(repo_root: Path, settings: Optional[Dict[str, Any]] = None) -
             continue
         files = [p for p in directory.iterdir() if p.is_file() and p.suffix in (".txt", ".md")]
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        for path in files[:max_artifacts]:
+        chosen = files[:max_artifacts] if max_artifacts > 0 else files
+        for path in chosen:
             sources.append({"kind": folder, "path": path})
+
+    # Templates, deep research, and the learner's own pseudo-skills. Recursive where declared, so a
+    # research subdirectory (e.g. `research/context-priming-master/sources/`) is corpus too. The
+    # sources/ transcripts and the arXiv HTML are deliberately included: "continuously improve from
+    # the sources provided" is impossible if the sources are not retrievable.
+    for kind, rel, recursive in GRAPH_EXTRA_SOURCES:
+        root = repo_root / rel
+        if not root.is_dir():
+            continue
+        files = [p for p in (root.rglob("*") if recursive else root.glob("*"))
+                 if p.is_file() and p.suffix in (".md", ".txt")]
+        files.sort(key=lambda p: str(p))
+        for path in files:
+            sources.append({"kind": kind, "path": path})
     return sources
 
 
@@ -3739,7 +3801,11 @@ def build_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None)
             mtime = 0.0
         rel = str(path.relative_to(repo_root)) if str(path).startswith(str(repo_root)) else str(path)
 
-        if source["kind"] in ("wiki", "contract"):
+        # Section-split every prose corpus, not just wiki pages: a research file's `## 2.2` section is
+        # as retrievable as a wiki `## Worktrees`, and a pseudo-skill is nothing BUT a section. Only
+        # the flat coordination artifacts stay whole-file, because they are append-only records whose
+        # unit is the entry, not the heading.
+        if source["kind"] in ("wiki", "contract", "research", "pseudoskill", "templates", "map"):
             # One node per second-level section: a hit should be a section, not a 400-line page.
             # Navigation-only headings are section boundaries but not nodes — they hold the
             # cross-links the vault emits to build its graph, and treating them as content would
@@ -3815,10 +3881,28 @@ def build_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None)
             if len(shared) >= shared_min:
                 edges.append([a["id"], b["id"]])
 
-    # Recency rank drives the "latest first" tie-break.
+    # Recency rank drives the "latest first" tie-break — computed WITHIN each kind, then blended.
+    #
+    # A single global rank is a corpus-size bug once the corpus has more than one layer: this repo's
+    # `research/` tree is both the largest group (197 of 389 nodes) and the most recently written, so a
+    # global rank gave it mean recency 0.748 against the wiki's 0.416 and comms' 0.022. Research then
+    # won probes that had nothing to do with research — measured 5 of 7 — because recency multiplied
+    # every one of its nodes and kind weighting is applied to the term score, not to recency.
+    #
+    # Per-kind rank asks the question that actually matters ("is this the newest thing of ITS kind?")
+    # and the small global component keeps "written five minutes ago" better than "written last year".
+    by_kind: Dict[str, List[Dict[str, Any]]] = {}
+    for node in nodes:
+        by_kind.setdefault(str(node.get("kind") or ""), []).append(node)
+    for group in by_kind.values():
+        group.sort(key=lambda n: n["mtime"], reverse=True)
+        for rank, node in enumerate(group):
+            node["recency_kind"] = 1.0 - (rank / max(1, len(group)))
     ordered = sorted(nodes, key=lambda n: n["mtime"], reverse=True)
     for rank, node in enumerate(ordered):
-        node["recency"] = 1.0 - (rank / max(1, len(ordered)))
+        node["recency_global"] = 1.0 - (rank / max(1, len(ordered)))
+        # 0.75 within-kind, 0.25 global: recency should be a tie-break, never a trump card.
+        node["recency"] = 0.75 * float(node.get("recency_kind") or 0.0) + 0.25 * node["recency_global"]
 
     return {
         "format": "ainish-rag/wiki-graph/v1",
@@ -3844,6 +3928,13 @@ def load_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None) 
             f"{k}={settings.get(k)}" for k in
             ("max_wiki_pages", "max_artifacts", "chapter_chars", "shared_term_threshold")
         )
+    # The corpus DEFINITION is part of the identity, not just its contents. Widening the source set
+    # (new folders, unlimited caps, kind weights) while every existing file's mtime is unchanged would
+    # otherwise serve a graph built for the old definition — the failure mode is a cache that looks
+    # fresh and answers from a corpus that no longer exists.
+    fingerprint += "|corpus:" + ",".join(sorted(GRAPH_ARTIFACT_DIRS))
+    fingerprint += "|extra:" + ",".join(f"{k}:{r}:{int(rec)}" for k, r, rec in GRAPH_EXTRA_SOURCES)
+    fingerprint += "|kinds:" + ",".join(f"{k}={v}" for k, v in sorted(GRAPH_KIND_WEIGHTS.items()))
     digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
     if cache_path.is_file():
         try:
@@ -3905,6 +3996,10 @@ def graph_retrieve(
         weight = sum(math.log(1.0 + total / max(1, df.get(t, 1))) for t in overlap)
         if hints and overlap & hints:
             weight *= 1.35
+        # Kind weighting keeps a wider corpus an improvement rather than a dilution: on equal term
+        # overlap the contract and the wiki must outrank a month-old comms line, or growing the corpus
+        # would steadily push the curated layer out of the prime.
+        weight *= float(GRAPH_KIND_WEIGHTS.get(str(node.get("kind") or ""), 1.0))
         scores[node["id"]] = weight * (floor + span * float(node.get("recency") or 0.0))
 
     for node_id in list(scores):
@@ -3925,6 +4020,7 @@ def graph_retrieve(
         normalised = min(1.0, scores[node["id"]] / top)
         hits.append({
             "id": node["id"],
+            "kind": node.get("kind"),
             "path": node["path"],
             "start_line": node.get("start_line") or 1,
             "end_line": node.get("end_line") or 1,
@@ -5125,14 +5221,57 @@ def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any
         print(f"  staged skills ({len(info['staged_skills'])}): {', '.join(info['staged_skills'])}")
     else:
         print("  staged skills: none")
+    if info.get("pseudo_skills"):
+        print(f"  wiki pseudo-skills ({len(info['pseudo_skills'])}): {', '.join(info['pseudo_skills'])}")
+    else:
+        print("  wiki pseudo-skills: none (author one with `ainish-rag context-skill`)")
     if info["promoted_skills"]:
         print(f"  PROMOTED (standing prompt surface): {', '.join(info['promoted_skills'])}")
     print(f"  history: {info['history_total']} generation(s)" + (f", newest {info['history'][-1]}" if info["history"] else ""))
     if info["rejected_total"]:
         print(f"  rejected: {info['rejected_total']} (see {info['root']}/rejected/)")
-    for err in (info.get("errors") or []) + (info.get("tree_errors") or []):
+    for err in (info.get("errors") or []) + (info.get("tree_errors") or []) + (info.get("pseudo_skill_errors") or []):
         print(f"[rag:warn] {err}", file=sys.stderr)
     return info
+
+
+def run_context_skill(
+    repo_root: Path,
+    name: str,
+    *,
+    title: str = "",
+    trigger: str = "",
+    source: str = "",
+    evidence: str = "",
+    body: str = "",
+    json_out: bool = False,
+) -> Dict[str, Any]:
+    """Author one wiki pseudo-skill. This is how a lesson becomes part of the corpus."""
+    if not body and evidence and Path(evidence).is_file():
+        # Default the body to the cited evidence's own opening, so a skill can never be an assertion
+        # with no text behind it.
+        try:
+            body = Path(evidence).read_text(encoding="utf-8", errors="replace")[:1200]
+        except OSError:
+            body = ""
+    result = context_harness.write_pseudo_skill(
+        repo_root,
+        name,
+        title=title or name.replace("-", " ").title(),
+        trigger=[t.strip() for t in trigger.split(",") if t.strip()],
+        source=source,
+        evidence=evidence,
+        body=body,
+    )
+    if json_out:
+        print(json.dumps(result, indent=2))
+    elif result.get("ok"):
+        print(f"wrote pseudo-skill {result['path']}")
+        print("  it is wiki corpus now: the next --context call can retrieve it")
+    else:
+        for err in result.get("errors") or ["could not write the pseudo-skill"]:
+            print(f"[rag:error] {err}", file=sys.stderr)
+    return result
 
 
 def run_context_rollback(repo_root: Path, generation: int, json_out: bool = False) -> Dict[str, Any]:
@@ -7824,6 +7963,18 @@ def main():
     promote_p.add_argument("name", help="Staged skill name, e.g. learned-parser-notes")
     promote_p.add_argument("--json", action="store_true")
 
+    skill_p = sub.add_parser(
+        "context-skill",
+        help="Author one wiki pseudo-skill (markdown page under .agents/wiki/skills/) from cited evidence",
+    )
+    skill_p.add_argument("name", help="Slug for the page, e.g. cap-growth-in-the-unit")
+    skill_p.add_argument("--title", default="", help="Human title (default: derived from the slug)")
+    skill_p.add_argument("--trigger", default="", help="Comma-separated trigger vocabulary for retrieval")
+    skill_p.add_argument("--source", default="", help="Where the lesson comes from (a URL or doc)")
+    skill_p.add_argument("--evidence", default="", help="Path to the file that supports it (required)")
+    skill_p.add_argument("--body", default="", help="Procedure text; defaults to the cited evidence's opening")
+    skill_p.add_argument("--json", action="store_true")
+
     learn_p = sub.add_parser(
         "context-learn",
         help="Run one propose→gate cycle on the context harness (opt-in; costs one model session)",
@@ -7969,6 +8120,20 @@ def main():
 
     elif args.subcommand == "context-promote":
         result = run_context_promote(repo_root, args.name, json_out=bool(getattr(args, "json", False)))
+        if not result.get("ok"):
+            sys.exit(1)
+
+    elif args.subcommand == "context-skill":
+        result = run_context_skill(
+            repo_root,
+            args.name,
+            title=getattr(args, "title", "") or "",
+            trigger=getattr(args, "trigger", "") or "",
+            source=getattr(args, "source", "") or "",
+            evidence=getattr(args, "evidence", "") or "",
+            body=getattr(args, "body", "") or "",
+            json_out=bool(getattr(args, "json", False)),
+        )
         if not result.get("ok"):
             sys.exit(1)
 

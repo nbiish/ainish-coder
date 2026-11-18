@@ -1275,6 +1275,40 @@ contains "rag help advertises the harness verbs" \
 check "the context-harness docs exist" \
     "$([[ -f "${REPO}/research/context-priming-master/08-phase0-findings.md" ]] && echo yes || echo no)" "yes"
 
+# ── the whole corpus, and wiki pseudo-skills ────────────────────────────────
+# The prime used to read 10 of 115 .agents files. These pin the coverage, the tracking that makes
+# learned pages survive a clone, and the ranking that keeps a bigger corpus an improvement.
+contains "the corpus includes the whole coordination history" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_MAX_ARTIFACTS = 0'
+contains "the corpus includes research and templates" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_EXTRA_SOURCES'
+contains "pseudo-skills live inside the wiki" "$(cat "$CH_MOD")" '.agents" / "wiki" / "skills'
+contains "kinds are weighted so a wider corpus does not dilute" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_KIND_WEIGHTS'
+contains "recency is ranked per kind, not globally" "$(cat "${REPO}/src/rag/rag.py")" 'recency_kind'
+# The gitignore rule that used to swallow every learned wiki page. If this negation disappears, a
+# learner's work is silently untracked and dies on clone.
+check "the root wiki is trackable" \
+    "$(git -C "${REPO}" check-ignore -q .agents/wiki/skills/cheap-form-first.md && echo ignored || echo tracked)" \
+    "tracked"
+check "a nested wiki stays ignored" \
+    "$(mkdir -p "${REPO}/src/rag/.agents/wiki" && touch "${REPO}/src/rag/.agents/wiki/probe.md" && \
+       git -C "${REPO}" check-ignore -q src/rag/.agents/wiki/probe.md && echo ignored || echo tracked; \
+       rm -rf "${REPO}/src/rag/.agents")" \
+    "ignored"
+check "every pseudo-skill validates" \
+    "$(python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+errs = m.validate_pseudo_skill_tree(Path(sys.argv[2]))
+print("clean" if not errs else f"{len(errs)} error(s): {errs[0][:80]}")' "$CH_MOD" "${REPO}" 2>/dev/null)" \
+    "clean"
+check "at least six pseudo-skills abstracted from the sources" \
+    "$(ls "${REPO}/.agents/wiki/skills"/*.md 2>/dev/null | wc -l | tr -d ' ')" \
+    "6"
+check "the corpus answers research questions it could not before" \
+    "$(python3 "${REPO}/research/context-priming-master/probe_answer.py" 2>/dev/null | tail -1 | grep -c 'net +')" \
+    "1"
+
 # ── ONE COMMAND, and it improves itself ─────────────────────────────────────
 # The contract tells an agent to call exactly one command. That command must therefore (a) surface the
 # rules, and (b) keep the harness improving without a second invocation. Both are pinned here because
