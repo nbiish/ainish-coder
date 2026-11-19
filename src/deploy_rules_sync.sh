@@ -119,14 +119,16 @@ _ainish_rules_cli() {
 # deployment. That reasoning is obsolete: the compiled engine was deleted 2026-11-19 and the launcher
 # runs a short Python command, not a deploy. With no binary to find, every `--rules` manifest would go
 # out UNSIGNED — a supply-chain regression introduced by a rename.
+#
+# Deliberately does NOT fall back to `command -v`: REPO_DIR is the installation doing the deploying,
+# and signing with some OTHER installation's engine would stamp a manifest with a key this install
+# does not own. If this install has no engine, that is the fact to report.
 _ainish_context_bin() {
     if [[ -x "${REPO_DIR}/bin/ainish-context" ]]; then
         printf '%s\n' "${REPO_DIR}/bin/ainish-context"
-    elif command -v ainish-context 2>/dev/null; then
-        command -v ainish-context
-    else
-        return 1
+        return 0
     fi
+    return 1
 }
 _ainish_rules_host_path() {
     local path="$1"
