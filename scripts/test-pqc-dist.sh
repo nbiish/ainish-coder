@@ -1520,8 +1520,19 @@ with tempfile.TemporaryDirectory() as t:
     m.prune_work(root, keep=10, keep_rejected=50)
     print(len(list(work.iterdir())), len(list(rej.iterdir())))' "$CH_MOD" 2>/dev/null)" \
     "10 50"
-contains "harness operational traces are gitignored" \
+# The ignore RULE existing is not the same as it applying: `git add -A` tracks a path once, and the
+# rule is powerless against a tracked file. Measured 2026-11-19 — 16 operational-trace files were
+# committed while this assertion passed, because it only read the rule's text. Both halves are pinned.
+contains "harness operational traces declare an ignore rule" \
     "$(cat "${REPO}/.agents/context-harness/.gitignore" 2>/dev/null)" 'work/'
+check "harness operational traces are actually untracked" \
+    "$(git -C "${REPO}" ls-files .agents/context-harness/work | wc -l | tr -d ' ')" "0"
+check "the ignore rule applies to the work directory" \
+    "$(mkdir -p "${REPO}/.agents/context-harness/work/probe" && \
+       touch "${REPO}/.agents/context-harness/work/probe/x.md" && \
+       git -C "${REPO}" check-ignore -q .agents/context-harness/work/probe/x.md && echo ignored || echo tracked; \
+       rm -rf "${REPO}/.agents/context-harness/work/probe")" \
+    "ignored"
 
 # ── commit identity: the operator is the only author ────────────────────────
 # Two real failures on 2026-11-18, both in the guard itself:
