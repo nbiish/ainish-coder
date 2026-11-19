@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# ainish-rag — Cross-platform platform dispatch wrapper for Multimodal Codebase RAG & Wiki Engine
+# ainish-rag — Cross-platform dispatch wrapper for the ainish-coder context engine.
 # Supports Windows (Git Bash/MSYS2), WSL (Windows Subsystem for Linux), native Linux, and macOS (Darwin)
-# Uses EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector database
+#
+# The agent-facing command is `ainish-coder --context "<task>"`; this launcher remains as the engine
+# entry point for the subcommands that have no friendlier name (context-seed, context-status,
+# context-learn, context-rollback, context-promote, context-skill, wiki, gate, audit, ...).
+#
+# The embedding/vector path (EmbeddingGemma-2 GGUF 768-d + LanceDB) was DELETED on 2026-11-12.
+# Retrieval is graph-first over the wiki vault and the .agents/ context folders: no embedding model,
+# no vector store, no llama-server. Any comment below that still mentions them is describing a
+# retirement, not a dependency.
 set -euo pipefail
 
 SOURCE="${BASH_SOURCE[0]}"
@@ -74,6 +82,13 @@ for a in "$@"; do
         *)  FIRST_ARG="$a"; break ;;
     esac
 done
+
+# One deprecation line, on stderr so it can never corrupt a prime on stdout, and only when this
+# launcher was invoked directly. `ainish-coder --context` sets AINISH_CONTEXT_FORWARDED=1 before
+# calling, because a notice printed for the command we now advertise would be noise, not help.
+if [ "$FIRST_ARG" = "context" ] && [ "${AINISH_CONTEXT_FORWARDED:-0}" != "1" ]; then
+    echo "ainish-rag: the documented command is now: ainish-coder --context \"<your current task>\"" >&2
+fi
 if [ -n "$NATIVE_BIN" ] && [ -x "$NATIVE_BIN" ] && ! is_self "$NATIVE_BIN"; then
     native_ok=1
     if [ -n "$FIRST_ARG" ]; then

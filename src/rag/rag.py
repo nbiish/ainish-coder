@@ -3602,6 +3602,10 @@ GRAPH_MAX_ARTIFACTS = 0
 GRAPH_MAX_WIKI_PAGES = 0
 GRAPH_CHAPTER_CHARS = 1400
 GRAPH_HOP_BONUS = 0.35
+# Shared-vocabulary edges, bounded per node. Unbounded, full-corpus indexing produced 102 edges per
+# node — at that density one hop reaches nearly the whole graph and ranking stops discriminating.
+# Explicit markdown/wikilink edges are curation and are never capped by this.
+GRAPH_MAX_EDGES_PER_NODE = 24
 
 # Extra corpus roots beyond the coordination folders and the wiki. Each is (kind, path relative to the
 # repo root, recursive). `.agents/wiki/skills/` is where the learner writes markdown PSEUDO-SKILLS:
@@ -3631,6 +3635,59 @@ GRAPH_KIND_WEIGHTS = {
     "comms": 0.85,
     "research": 0.80,
 }
+
+# Explicit kind intent: when the task NAMES a kind, that kind is what the caller is asking for.
+#
+# Measured failure this fixes: "what does the contract say about worktrees and merging back" ranked a
+# `research/` transcript first at 1.00 and the contract sections third and fourth. The arithmetic was
+# not broken — the research node matched all four query terms while `AGENTS.md ## Worktrees` matched
+# three, and summed IDF means "matched more terms" always wins. But "the contract" is not a synonym
+# for a corpus keyword there, it is the SUBJECT: the caller named the layer they want.
+#
+# Triggers are deliberately UNAMBIGUOUS ARTIFACT NOUNS only. Words that appear in almost every
+# request — "task", "skill", "code", "file", "work" — are excluded on purpose: boosting `tasks`
+# whenever someone writes "my current task" is a systematic bias toward one layer, which is the same
+# class of defect as the recency bug this table's neighbours fix. A trigger must mean the layer.
+# Applied as a multiplicative boost that cannot invent a hit (only re-ranks nodes that already
+# matched). No model call, deterministic, testable — see probe_corpus.py.
+KIND_INTENT: Tuple[Tuple[str, str, float], ...] = (
+    # (trigger word, kind it names, boost)
+    ("contract", "contract", 2.6),
+    ("agents.md", "contract", 2.6),
+    ("llms.txt", "contract", 1.6),
+    ("wiki", "wiki", 2.0),
+    ("architecture", "wiki", 1.5),
+    ("plan", "plans", 2.4),
+    ("plans", "plans", 2.4),
+    ("comms", "comms", 2.6),
+    ("ledger", "comms", 2.8),
+    ("memory", "memories", 2.0),
+    ("memories", "memories", 2.0),
+    ("suggestion", "suggestions", 2.2),
+    ("suggestions", "suggestions", 2.2),
+    ("template", "templates", 2.0),
+    ("templates", "templates", 2.0),
+    ("paper", "research", 1.8),
+    ("transcript", "research", 2.0),
+)
+
+
+def _kind_intent_boosts(task: str) -> Dict[str, float]:
+    """The kind boosts a task's own wording asks for. Highest boost per kind wins.
+
+    Whole-word matching on a normalised task string, so "contracts" does not fire the `contract`
+    trigger and a substring inside a word cannot select a layer by accident.
+    """
+    words = set(re.findall(r"[a-z0-9_.-]+", (task or "").lower()))
+    boosts: Dict[str, float] = {}
+    for trigger, kind, boost in KIND_INTENT:
+        hit = trigger in words
+        if not hit and "." in trigger:
+            # `AGENTS.md` / `llms.txt` survive the word split, but normalise a trailing dot too.
+            hit = trigger.rstrip(".") in words
+        if hit:
+            boosts[kind] = max(boosts.get(kind, 1.0), boost)
+    return boosts
 
 # The contract and the per-repo PRD are corpus too. They were NOT before 2026-11-18, which meant the
 # one command an agent is told to call could not answer "what are the rules here?" — it returned
@@ -3875,11 +3932,32 @@ def build_wiki_graph(repo_root: Path, settings: Optional[Dict[str, Any]] = None)
                 if other["id"] != node["id"]:
                     edges.append([node["id"], other["id"]])
                     break
+    # Unbounded shared-vocabulary edges, kept but BOUNDED per node. The all-pairs rule is O(n^2)
+    # comparisons and produced 42,216 edges over 411 nodes (102 per node) once the corpus was fully
+    # indexed — a one-hop expansion from any seed then reaches nearly everything, so the "graph"
+    # stops discriminating and the prime is filled by whatever happened to share three words.
+    #
+    # Bound: each node keeps only its strongest `GRAPH_MAX_EDGES_PER_NODE` shared-vocabulary
+    # neighbours, ranked by |shared| then by the neighbour being more recent (a tie-break that
+    # favours the live artifact over an old one). Explicit markdown/wikilink edges above are
+    # curation and are never dropped.
+    candidates: List[Tuple[int, float, str, str]] = []
     for i, a in enumerate(nodes):
         for b in nodes[i + 1:]:
             shared = set(a["terms"]) & set(b["terms"])
             if len(shared) >= shared_min:
-                edges.append([a["id"], b["id"]])
+                recency = max(float(b.get("recency") or 0.0), float(a.get("recency") or 0.0))
+                candidates.append((len(shared), recency, a["id"], b["id"]))
+    candidates.sort(key=lambda c: (c[0], c[1]), reverse=True)
+    per_node: Dict[str, int] = {}
+    for _, _, a_id, b_id in candidates:
+        if per_node.get(a_id, 0) >= GRAPH_MAX_EDGES_PER_NODE:
+            continue
+        if per_node.get(b_id, 0) >= GRAPH_MAX_EDGES_PER_NODE:
+            continue
+        edges.append([a_id, b_id])
+        per_node[a_id] = per_node.get(a_id, 0) + 1
+        per_node[b_id] = per_node.get(b_id, 0) + 1
 
     # Recency rank drives the "latest first" tie-break — computed WITHIN each kind, then blended.
     #
@@ -3979,13 +4057,29 @@ def graph_retrieve(
 
     # Recency preference and hop strength are profile-tunable; their shipped values reproduce the
     # previous behaviour exactly (0.55 floor, 0.45 recency span, 0.35 hop bonus).
-    floor = float((settings or {}).get("recency_floor") or 0.55)
+    #
+    # `or` is wrong here and was a real bug: 0.0 is a legal, validated value for both knobs, and
+    # `float(0.0 or 0.55)` silently returns 0.55 — so a learner could propose "no recency preference"
+    # or "no hop expansion", have it accepted, and be ignored. Presence is the test, not truthiness.
+    settings = settings or {}
+    floor = float(settings["recency_floor"]) if "recency_floor" in settings else 0.55
     span = max(0.0, 1.0 - floor)
-    hop = float((settings or {}).get("hop_bonus") or GRAPH_HOP_BONUS)
-    prior = (settings or {}).get("domain_prior") or {}
+    hop = float(settings["hop_bonus"]) if "hop_bonus" in settings else GRAPH_HOP_BONUS
+    # Per-kind weights, so a profile can say "plans outrank research in this repo". The shipped
+    # `weights` block was validated, reported in provenance, and never read — a knob that reports
+    # itself must act, or an operator tunes a number that changes nothing.
+    kind_weights = dict(GRAPH_KIND_WEIGHTS)
+    for _kind, _w in (settings.get("weights") or {}).items():
+        try:
+            kind_weights[_kind] = float(_w)
+        except (TypeError, ValueError):
+            continue
+    prior = settings.get("domain_prior") or {}
     # Domain hints from the profile promote nodes whose terms include a hint. They can only ADD
     # score to corpus nodes that already matched, so a hint cannot invent evidence.
     hints = {t for terms in prior.values() if isinstance(terms, list) for t in terms}
+    # What layer the caller's own wording asks for. Re-ranks only; cannot create a hit.
+    intent = _kind_intent_boosts(task)
 
     scores: Dict[str, float] = {}
     for node in nodes:
@@ -3999,7 +4093,10 @@ def graph_retrieve(
         # Kind weighting keeps a wider corpus an improvement rather than a dilution: on equal term
         # overlap the contract and the wiki must outrank a month-old comms line, or growing the corpus
         # would steadily push the curated layer out of the prime.
-        weight *= float(GRAPH_KIND_WEIGHTS.get(str(node.get("kind") or ""), 1.0))
+        weight *= float(kind_weights.get(str(node.get("kind") or ""), 1.0))
+        # The caller named this layer, so it answers the question rather than merely sharing words.
+        if intent:
+            weight *= float(intent.get(str(node.get("kind") or ""), 1.0))
         scores[node["id"]] = weight * (floor + span * float(node.get("recency") or 0.0))
 
     for node_id in list(scores):

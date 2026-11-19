@@ -20,6 +20,13 @@ done
 SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 SRC_DIR="${SCRIPT_DIR}/../src"
 
+# A bin directory that cannot be reassigned. Some sourced components (`src/deploy_commands.sh`)
+# set `SCRIPT_DIR` to their OWN directory at source time, which silently pointed every later
+# `"${SCRIPT_DIR}/ainish-rag"` at `src/` and made `--rag` fail with "No such file or directory".
+# Anything this CLI execs from its own bin/ uses AINISH_BIN_DIR, never SCRIPT_DIR.
+AINISH_BIN_DIR="${SCRIPT_DIR}"
+readonly AINISH_BIN_DIR
+
 # Load shared shell components
 source "${SRC_DIR}/colors.sh"
 source "${SRC_DIR}/paths.sh"
@@ -317,7 +324,7 @@ main() {
             # `ainish-rag` resolves its repo root from the CURRENT directory, so the seed must run
             # from inside the target. Running it from the caller's cwd would seed the wrong repo —
             # silently, and into a tracked path.
-            if ( cd "$target_dir" && "${SCRIPT_DIR}/ainish-rag" context-seed >/dev/null 2>&1 ); then
+            if ( cd "$target_dir" && "${AINISH_BIN_DIR}/ainish-rag" context-seed >/dev/null 2>&1 ); then
                 _TRACK_DETAIL="${_TRACK_DETAIL}+context-harness"
             else
                 # A target without a wiki yet cannot be calibrated; that is reported, never faked
@@ -993,7 +1000,67 @@ main() {
             ;;
 
         --rag)            _TRACK_DETAIL="rag"
-            "${SCRIPT_DIR}/ainish-rag" "$@"
+            "${AINISH_BIN_DIR}/ainish-rag" "$@"
+            ;;
+
+        # The one context command. An agent reading AGENTS.md calls this, gets its prime, and the
+        # repo's harness keeps improving from there. Two shapes are accepted, because both are
+        # natural to reach for:
+        #   ainish-coder --context "what I am doing right now"
+        #   ainish-coder --context --task "what I am doing right now" [--json] [--retrieval-only]
+        # The task is passed through verbatim: summarizing the request away is what produces a
+        # vague prime, so this wrapper does not touch the text.
+        --context|--context=*)
+            # One pass, three accepted shapes, everything else forwarded untouched:
+            #   --context=<task> | --context --task <task> | --context <task> [flags]
+            local _ctx_task="" _ctx_args=() _ctx_a="" _ctx_n=0 _ctx_i=0 _ctx_pos=0
+            if [[ "$command" == --context=* ]]; then
+                _ctx_task="${command#--context=}"
+            fi
+            _ctx_n=$#
+            while [[ $_ctx_i -lt $_ctx_n ]]; do
+                _ctx_pos=$((_ctx_i + 1))
+                _ctx_a="${!_ctx_pos}"
+                _ctx_i=$((_ctx_i + 1))
+                case "$_ctx_a" in
+                    --task=*)
+                        _ctx_task="${_ctx_a#--task=}"
+                        ;;
+                    --task)
+                        # The next argument is the value; consume it as one unit.
+                        if [[ $_ctx_i -lt $_ctx_n ]]; then
+                            _ctx_pos=$((_ctx_i + 1))
+                            _ctx_task="${!_ctx_pos}"
+                            _ctx_i=$((_ctx_i + 1))
+                        fi
+                        ;;
+                    -*)
+                        _ctx_args+=("$_ctx_a")
+                        ;;
+                    *)
+                        # A bare argument is the task the first time; anything after it is not
+                        # ours to interpret, so it is forwarded.
+                        if [[ -z "$_ctx_task" ]]; then
+                            _ctx_task="$_ctx_a"
+                        else
+                            _ctx_args+=("$_ctx_a")
+                        fi
+                        ;;
+                esac
+            done
+            if [[ -z "$_ctx_task" ]]; then
+                print_error "Missing context input for --context"
+                echo "Usage: ainish-coder --context \"<your current task, step, or question>\"" >&2
+                echo "   or: ainish-coder --context --task \"<...>\" [--json] [--retrieval-only]" >&2
+                echo "The request is the signal: pass it verbatim." >&2
+                exit 1
+            fi
+            _TRACK_DETAIL="context"
+            # `--task=` is the unambiguous form; it survives spaces, dashes, and newlines intact.
+            # The forwarded-with flag suppresses the launcher's deprecation line: we ARE the documented
+            # command, so telling the caller to use it would be noise on top of every prime.
+            AINISH_CONTEXT_FORWARDED=1 \
+                "${AINISH_BIN_DIR}/ainish-rag" context "--task=${_ctx_task}" "${_ctx_args[@]+"${_ctx_args[@]}"}"
             ;;
 
         *)

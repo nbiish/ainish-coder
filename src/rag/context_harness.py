@@ -77,8 +77,12 @@ NETWORK_PATTERNS = (re.compile(r"https?://", re.I), re.compile(r"\b(curl|wget|nc
 
 # Bounds. Each is (min, max) or a validation callable; a value outside is refused with a named error.
 BOUNDS: Dict[str, Tuple[float, float]] = {
-    "graph.max_wiki_pages": (1, 16),
-    "graph.max_artifacts": (1, 6),
+    # 0 means "index everything" for both caps, which is what the engine constants say and what the
+    # 2026-11-18 finding requires: capping at 2 per folder left 105 of 115 coordination files unread,
+    # so the system could not learn from its own history. The upper bound is a sanity ceiling, not a
+    # recommendation — a corpus that big would be a different problem.
+    "graph.max_wiki_pages": (0, 64),
+    "graph.max_artifacts": (0, 64),
     "graph.chapter_chars": (400, 2400),
     "graph.hop_bonus": (0.0, 1.0),
     "graph.recency_floor": (0.0, 0.95),
@@ -88,7 +92,8 @@ INT_FIELDS = frozenset({
     "graph.max_wiki_pages", "graph.max_artifacts", "graph.chapter_chars",
     "graph.shared_term_threshold",
 })
-WEIGHT_KEYS = ("wiki", "comms", "memories", "plans", "suggestions", "tasks", "map")
+WEIGHT_KEYS = ("contract", "wiki", "pseudoskill", "map", "templates", "memories",
+               "plans", "suggestions", "tasks", "comms", "research")
 WEIGHT_BOUNDS = (0.25, 4.0)
 CAP_KEYS = ("orientation", "retrieval", "elephant", "goldfish")
 CAP_FLOOR = 0.02
@@ -101,14 +106,19 @@ BASE_PROFILE: Dict[str, Any] = {
     "generation": 0,
     "source": "baseline",
     "graph": {
-        "max_wiki_pages": 8,
-        "max_artifacts": 2,
+        # 0 = index every wiki page / every coordination artifact. These MUST match the engine
+        # constants in `rag.py` (GRAPH_MAX_WIKI_PAGES / GRAPH_MAX_ARTIFACTS): a profile is always
+        # folded over these values, so a smaller number here silently overrides the engine and
+        # hides most of the corpus. That divergence shipped on 2026-11-18 and left 107 of 167 files
+        # unreachable on every call.
+        "max_wiki_pages": 0,
+        "max_artifacts": 0,
         "chapter_chars": 1400,
         "hop_bonus": 0.35,
         "recency_floor": 0.55,
         "shared_term_threshold": 3,
     },
-    "weights": {k: 1.0 for k in WEIGHT_KEYS},
+    "weights": {},
     "section_caps": {"orientation": 0.12, "retrieval": 0.54, "elephant": 0.20, "goldfish": 0.14},
     "domain_prior": {d: [] for d in DOMAINS},
     "calibration": {},
@@ -287,8 +297,14 @@ def validate_profile(profile: Dict[str, Any]) -> List[str]:
     if not isinstance(weights, dict):
         errs.append("weights must be an object")
         weights = {}
-    for key in WEIGHT_KEYS:
-        val = weights.get(key, 1.0)
+    # Only keys the profile actually names are checked and applied. An ABSENT key inherits the
+    # engine's per-kind default (`GRAPH_KIND_WEIGHTS`), so the shipped profile must not pre-fill
+    # every key with 1.0 — that would flatten the curated contract/wiki preference the ranking
+    # depends on. A profile that wants uniform weighting names every key explicitly.
+    for key, val in weights.items():
+        if key not in WEIGHT_KEYS:
+            errs.append(f"weights.{key} is not a known kind ({', '.join(WEIGHT_KEYS)})")
+            continue
         if not isinstance(val, (int, float)) or isinstance(val, bool):
             errs.append(f"weights.{key} must be a number")
         elif not (WEIGHT_BOUNDS[0] <= float(val) <= WEIGHT_BOUNDS[1]):
@@ -491,10 +507,22 @@ def apply_to_settings(profile: Dict[str, Any], settings: Dict[str, Any]) -> Dict
 
 
 def base_settings() -> Dict[str, Any]:
-    """The resolved settings a fresh repo gets: the shipped constants, named once."""
+    """The resolved settings a fresh repo gets.
+
+    Derived FROM `BASE_PROFILE` rather than restating its numbers. The previous version repeated
+    every graph literal here, so `BASE_PROFILE` and these defaults could disagree — and they did:
+    the profile said 2 artifacts while the engine constant said unlimited, and because
+    `apply_to_settings` always folds a profile over this dict, the smaller number won. One literal
+    per value, in one place, is the only version of this that stays true.
+    """
+    graph = dict(BASE_PROFILE["graph"])
     return apply_to_settings(BASE_PROFILE, {
-        "max_wiki_pages": 8, "max_artifacts": 2, "chapter_chars": 1400, "hop_bonus": 0.35,
-        "recency_floor": 0.55, "shared_term_threshold": 3,
+        "max_wiki_pages": graph["max_wiki_pages"],
+        "max_artifacts": graph["max_artifacts"],
+        "chapter_chars": graph["chapter_chars"],
+        "hop_bonus": graph["hop_bonus"],
+        "recency_floor": graph["recency_floor"],
+        "shared_term_threshold": graph["shared_term_threshold"],
         "weights": {}, "section_caps": {}, "domain_prior": {},
     })
 

@@ -10,7 +10,7 @@ cross-agent history and context engineering already are.
 
 ## Start here
 
-1. **Call `ainish-rag --context --task "<the user's request or your current step>"` once**, before you
+1. **Call `ainish-coder --context "<the user's request or your current step>"` once**, before you
    start work and again only when the task genuinely changes direction. It returns the rules, orientation,
    the retrieved corpus, and two reviews in one labelled block; read it, then open the files you need.
 2. Do the work. Record it as you go (see *Close*).
@@ -18,7 +18,7 @@ cross-agent history and context engineering already are.
 ## The context call
 
 ```
-ainish-rag --context --task "<user request, verbatim, or this step's concrete context>"
+ainish-coder --context "<user request, verbatim, or this step's concrete context>"
 ```
 
 Pass the request as given, or mid-task the concrete step (file, error, goal). The block is a four-part
