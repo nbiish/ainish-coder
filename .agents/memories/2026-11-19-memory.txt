@@ -1,0 +1,9 @@
+15:20 UTC -- context-agent correctness (feat/context-agent-correctness)
+- `ainish-coder --context "<input>"` is the documented entry point; `ainish-rag` forwards with a deprecation line. The envelope header says `ainish-coder context`.
+- `BASE_PROFILE` graph caps are 0 (= index everything) and `base_settings()` derives from `BASE_PROFILE`; a duplicated literal there is what silently disabled the whole-corpus fix for a day.
+- `.agents/context-harness/skills/` is the ONE learned-skill surface: the graph indexes it and `render_staged_skills` surfaces it from the same walk.
+- Acceptance referent order: `--outcome` override > `.agents/tasks/*.md` at `status: done` > commit-subject overlap. `status: done` is accepted without landing corroboration because every historical record names a rebased-away sha; the generation reports `corroborated: false`.
+- A generation is profile + `.skills` snapshot; `archive_live_generation` must run BEFORE staging or the snapshot captures the new tree.
+- `resolve_canonical_repo_root` maps a worktree to the MAIN checkout — correct for caches, wrong for tracked learned state, hence `_learned_root` / `resolve_worktree_root`.
+- `AINISH_BIN_DIR` (readonly, set before sourcing) exists because `src/deploy_commands.sh` reassigns `SCRIPT_DIR` to its own directory.
+- Retrieval: `KIND_INTENT` boosts the layer a task names; a naming task forces retrieval past `skip_retrieval`; `GRAPH_MAX_EDGES_PER_NODE = 24` bounds vocabulary edges.
