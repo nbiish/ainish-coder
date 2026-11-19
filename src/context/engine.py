@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import base64
 import contextlib
 import hashlib
 import json
@@ -7097,45 +7098,106 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
     }
 
 
+def _mldsa_sign_bytes(data: bytes, seed: bytes) -> bytes:
+    """ML-DSA-65 sign with a 32-byte seed, via `cryptography` (FIPS 204).
+
+    Raises RuntimeError when the library is absent, so the caller can report a missing dependency
+    rather than silently emit an unsigned file.
+    """
+    try:
+        from cryptography.hazmat.primitives.asymmetric import mldsa
+    except ImportError as exc:  # pragma: no cover - depends on the host
+        raise RuntimeError(
+            "python 'cryptography' with ML-DSA support is required to sign; "
+            "install it or skip signing deliberately"
+        ) from exc
+    sk = mldsa.MLDSA65PrivateKey.from_seed_bytes(seed)
+    return sk.sign(data)
+
+
+def mldsa_seed(repo_root: Path, priv_key_path: Optional[Path] = None) -> Optional[bytes]:
+    """The 32-byte ML-DSA-65 seed for this repo, in the order the Rust signer used.
+
+    Environment first (so a CI secret wins), then an explicit --priv-key, then the tracked-adjacent
+    `.agents/audit/signer.mldsa65.priv` that the compiled engine used to create. Absent means the
+    host has no identity yet; the caller reports that rather than inventing one, because a signature
+    from a key nobody trusts is worse than none.
+    """
+    raw = (_env_nonempty("AINISH_MLDSA65_SEED") or "").strip()
+    for candidate in ([Path(priv_key_path)] if priv_key_path else []) + [
+        Path(repo_root) / ".agents" / "audit" / "signer.mldsa65.priv",
+    ]:
+        if raw:
+            break
+        try:
+            if candidate.is_file():
+                raw = candidate.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+    if not raw:
+        return None
+    try:
+        seed = bytes.fromhex(raw)
+    except ValueError:
+        return None
+    return seed if len(seed) == 32 else None
+
+
 def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> bool:
+    """Sign `target_file` with ML-DSA-65 and write its detached envelope beside it.
+
+    This used to shell out to the compiled Rust engine, which meant signing worked only on a host
+    that had built a binary — and when that binary was deleted, signing silently stopped being
+    possible while the code still looked functional. It is now done in Python with the same seed and
+    the same envelope shape (`ainish-rag/mldsa65-envelope/v1`), so an existing trust anchor and its
+    verifier keep working unchanged.
+    """
     if not target_file.exists():
         print(f"  [rag:error] Target file not found: {target_file}", file=sys.stderr)
         return False
-
-    candidates = [
-        repo_root / "bin" / "ainish-rag.exe",
-        repo_root / "bin" / "ainish-rag-linux",
-        repo_root / "bin" / "ainish-rag-darwin",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
-    ]
-    for rust_bin in candidates:
-        if rust_bin.is_file() and os.access(rust_bin, os.X_OK):
-            try:
-                # Never recurse into the shell/Python launcher at bin/ainish-rag.
-                if rust_bin.read_bytes()[:2] == b"#!":
-                    continue
-            except OSError:
-                continue
-        else:
-            continue
-        args = [str(rust_bin), "audit", "sign", str(target_file)]
-        if priv_key_path:
-            args.extend(["--priv-key", str(priv_key_path)])
-        try:
-            res = subprocess.run(args, capture_output=True, text=True, timeout=20)
-        except subprocess.TimeoutExpired:
-            print("  [rag:error] ML-DSA signer timed out after 20 seconds", file=sys.stderr)
-            return False
-        if res.returncode == 0:
-            return True
-        print(f"  [rag:error] ML-DSA signer failed: {res.stderr.strip()}", file=sys.stderr)
+    seed = mldsa_seed(repo_root, priv_key_path)
+    if seed is None:
+        print(
+            "  [rag:error] No ML-DSA-65 seed available; refusing to write an unsigned artefact.\n"
+            "    Provide .agents/audit/signer.mldsa65.priv or AINISH_MLDSA65_SEED.",
+            file=sys.stderr,
+        )
+        return False
+    try:
+        data = target_file.read_bytes()
+    except OSError as exc:
+        print(f"  [rag:error] Could not read {target_file.name}: {str(exc)[:100]}", file=sys.stderr)
+        return False
+    try:
+        signature = _mldsa_sign_bytes(data, seed)
+    except RuntimeError as exc:
+        print(f"  [rag:error] {exc}", file=sys.stderr)
+        return False
+    except Exception as exc:  # a signing failure must never be reported as success
+        print(f"  [rag:error] ML-DSA-65 signing failed: {str(exc)[:120]}", file=sys.stderr)
         return False
 
-    print("  [rag:error] No compiled ML-DSA-65 signer is available; refusing hash-only fallback", file=sys.stderr)
-    return False
+    from cryptography.hazmat.primitives.asymmetric import mldsa as _mldsa
+
+    pub_raw = _mldsa.MLDSA65PrivateKey.from_seed_bytes(seed).public_key().public_bytes_raw()
+    envelope = {
+        "alg": "ML-DSA-65",
+        "context": "ainish-rag/audit/v1",
+        "format": "ainish-rag/mldsa65-envelope/v1",
+        "public_key_fingerprint": hashlib.sha256(pub_raw).hexdigest()[:32],
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "signature": base64.b64encode(signature).decode("ascii"),
+        "signed_at": datetime.now(timezone.utc).isoformat(),
+        "standard": "FIPS 204",
+        "target": target_file.name,
+    }
+    sig_path = target_file.with_suffix(target_file.suffix + ".sig")
+    try:
+        sig_path.write_text(json.dumps(envelope, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(f"  [rag:error] Could not write {sig_path.name}: {str(exc)[:100]}", file=sys.stderr)
+        return False
+    return True
 
 
 def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]]:
@@ -8300,10 +8362,11 @@ def main():
         help="Deprecated no-op; retained so older invocations do not fail.",
     )
     sub = parser.add_subparsers(dest="subcommand", required=True)
-    # Retired subcommands still parse, so they can explain themselves. argparse's default for an
-    # unknown verb is "invalid choice", which reads as "you typed it wrong" rather than "this was
-    # removed on purpose and here is what replaced it". Each of these existed only to serve the
-    # LanceDB/embedding store retired 2026-11-12.
+    # Retired subcommands still PARSE so a live cron job or an operator's muscle memory gets an
+    # explanation instead of argparse's "invalid choice" (which reads as "you typed it wrong" rather
+    # than "this was removed on purpose"). They are HIDDEN from `--help`: nine tombstones listed in
+    # the help output are exactly what taught every agent reading this repo that an embedding model
+    # and a vector store were running here. They are not, and have not been since 2026-11-12.
     _RETIRED = {
         "serve": "the local embedding server", "stop": "the local embedding server",
         "index": "the vector index", "query": "vector search",
@@ -8312,6 +8375,9 @@ def main():
         "service": "the background embedding daemon",
     }
     for _name in _RETIRED:
+        # `help=argparse.SUPPRESS` does NOT hide a subparser — it literally prints "==SUPPRESS==".
+        # Subparsers are hidden by keeping them out of the metavar, which is what the usage line and
+        # the `{...}` verb list are actually built from.
         _p = sub.add_parser(_name, help=f"RETIRED — {_RETIRED[_name]} was removed 2026-11-12")
         _p.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
 
@@ -8519,6 +8585,12 @@ def main():
     comp_p = sub.add_parser("completion", help="Generate shell completions")
     comp_p.add_argument("shell", choices=["bash", "zsh", "fish", "pwsh"])
 
+    # Every subparser is registered by now, so the visible verb list can be narrowed. This runs at
+    # the END of the build because a metavar set earlier is replaced when the next subparser is added.
+    # The retired verbs still PARSE (with an explanation) but no longer appear in --help, which is
+    # where nine tombstones used to advertise an embedding system that has not existed since 2026-11-12.
+    sub.metavar = "{" + ",".join(n for n in sub.choices if n not in _RETIRED) + "}"
+
     args = parser.parse_args(normalize_argv(sys.argv[1:]))
     _RETIRED_REASONS = _RETIRED
     repo_root = resolve_canonical_repo_root()
@@ -8538,7 +8610,7 @@ def main():
             f"{_RETIRED_REASONS[args.subcommand]}.\n"
             "  Retrieval is now graph-first over the Obsidian wiki vault and the .agents/ context\n"
             "  folders, with no embedding model and no vector store.\n"
-            "  Use:  ainish-rag --context --task \"<request>\"",
+            "  Use:  ainish-coder --context \"<request>\"",
             file=sys.stderr,
         )
         sys.exit(1)
