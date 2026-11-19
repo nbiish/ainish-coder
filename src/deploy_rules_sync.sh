@@ -113,25 +113,21 @@ _ainish_rules_cli() {
     fi
 }
 
-# Resolves a compiled ainish-rag binary for ML-DSA-65 signing/verification.
-# The shell/Python launcher is intentionally excluded: invoking it here can
-# recursively rebuild or re-enter deployment and stall rules bootstrap.
-_ainish_rag_bin() {
-    if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
-        printf '%s\n' "${REPO_DIR}/bin/ainish-rag.exe"
-    elif [[ -x "${REPO_DIR}/src/rag/target/release/ainish-rag.exe" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/release/ainish-rag.exe"
-    elif [[ -x "${REPO_DIR}/src/rag/target/release/ainish-rag" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/release/ainish-rag"
-    elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe"
-    elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag"
+# Resolves the context engine for ML-DSA-65 signing and verification.
+#
+# This looked for a COMPILED binary and deliberately excluded the launcher, to avoid re-entering
+# deployment. That reasoning is obsolete: the compiled engine was deleted 2026-11-19 and the launcher
+# runs a short Python command, not a deploy. With no binary to find, every `--rules` manifest would go
+# out UNSIGNED — a supply-chain regression introduced by a rename.
+_ainish_context_bin() {
+    if [[ -x "${REPO_DIR}/bin/ainish-context" ]]; then
+        printf '%s\n' "${REPO_DIR}/bin/ainish-context"
+    elif command -v ainish-context 2>/dev/null; then
+        command -v ainish-context
     else
         return 1
     fi
 }
-
 _ainish_rules_host_path() {
     local path="$1"
     if command -v wslpath >/dev/null 2>&1; then
@@ -164,8 +160,8 @@ _ainish_rules_sign_arg() {
 _ainish_rules_sign_manifest() {
     local manifest="$1"
     local rag
-    rag="$(_ainish_rag_bin)" || {
-        printf 'ainish-rag is required to sign %s\n' "$manifest" >&2
+    rag="$(_ainish_context_bin)" || {
+        printf 'ainish-context is required to sign %s\n' "$manifest" >&2
         return 1
     }
     local sign_target
@@ -204,7 +200,7 @@ _ainish_rules_verify_manifest_sig() {
     [[ -f "$manifest" ]] || { printf 'MISSING_MANIFEST\n'; return 1; }
     [[ -f "$sig" ]] || { printf 'MISSING_SIG\n'; return 1; }
     local rag python
-    rag="$(_ainish_rag_bin)" || { printf 'NO_VERIFIER\n'; return 1; }
+    rag="$(_ainish_context_bin)" || { printf 'NO_VERIFIER\n'; return 1; }
     # Verify the MANIFEST, not its directory. This used to pass `$(dirname "$manifest")`,
     # so `audit verify` swept every receipt in .agents/ and any unrelated stale or
     # differently-keyed receipt failed the whole rules deploy. At a home directory (where
@@ -556,23 +552,24 @@ GUARD_BLOCK
 # must be a deliberate, reviewed act, not a side effect of `--rules`.
 _ainish_rules_anchor_mismatch() {
     local rag
-    rag="$(_ainish_rag_bin)" || return 0
+    rag="$(_ainish_context_bin)" || return 0
     # The engine resolves its anchor relative to the repo it runs in, so run it in REPO_DIR.
     ( cd "${REPO_DIR}" 2>/dev/null && "$rag" audit anchor-check 2>/dev/null ) || return 0
 }
 
 _ainish_rules_require_signer() {
     local rag
-    if rag="$(_ainish_rag_bin)"; then
+    if rag="$(_ainish_context_bin)"; then
         printf '%s\n' "$rag"
         return 0
     fi
-    print_error "No compiled ainish-rag engine — deploy provenance cannot be signed."
+    print_error "No context engine found — deploy provenance cannot be signed."
     echo "  Rules content deploys fine, but this run would leave an UNSIGNED manifest," >&2
-    echo "  so it is refused rather than half-applied. Build or install the engine:" >&2
+    echo "  so it is refused rather than half-applied. The engine is Python and ships with" >&2
+    echo "  this repository; what is missing is a usable interpreter or the launcher:" >&2
     echo "" >&2
-    echo "    cd ${REPO_DIR}/src/rag && cargo build --release" >&2
-    echo "    cp target/release/ainish-rag* ${REPO_DIR}/bin/" >&2
+    echo "    ls -l ${REPO_DIR}/bin/ainish-context" >&2
+    echo "    command -v uv || python3 --version" >&2
     echo "" >&2
     echo "  Then re-run 'ainish-coder --rules <dir>' and verify with: ainish-coder --rules-status" >&2
     return 1

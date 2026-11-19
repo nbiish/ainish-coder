@@ -93,7 +93,7 @@ def verify_shell_lf_and_comms_hygiene(directory: str = ".") -> bool:
             if "target" in root.split(os.sep):
                 continue
             for f in files:
-                if f.endswith(".sh") or (root.endswith("bin") and f in ("ainish-coder", "ainish-rag", "pqc-secrets", "auto-thinking-classify")):
+                if f.endswith(".sh") or (root.endswith("bin") and f in ("ainish-coder", "ainish-context", "pqc-secrets", "auto-thinking-classify")):
                     p = os.path.join(root, f)
                     try:
                         with open(p, "rb") as fp:

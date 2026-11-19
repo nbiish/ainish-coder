@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
-  "serialNumber": "urn:uuid:25670d49-f777-44d4-89d5-c7f64b9297bc",
+  "serialNumber": "urn:uuid:a89e6ea4-ba8c-4641-b120-ddfb4b6f4aee",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-19T15:38:50.932633+00:00",
+    "timestamp": "2026-11-19T16:00:05.352960+00:00",
     "component": {
       "type": "application",
       "name": "retire-rag",
@@ -14,7 +14,7 @@
       "components": [
         {
           "type": "application",
-          "name": "ainish-rag",
+          "name": "ainish-context",
           "version": "0.1.0"
         }
       ]
@@ -52,11 +52,11 @@
     {
       "type": "file",
       "name": ".gitattributes",
-      "version": "e082447445df",
+      "version": "80dec44a20cf",
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+          "content": "80dec44a20cf577e006a61667d0c72f4582c9cccb99da47f34eef016a3d564c7"
         }
       ]
     }

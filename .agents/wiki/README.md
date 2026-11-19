@@ -17,7 +17,7 @@ Repository: `ainish-coder`
 This vault is the repository's living architectural map, connectivity graph, security governance
 framework, improvements ledger, and research foundation. Pages are plain markdown with YAML
 frontmatter and double-bracket hyperlinks, so they open directly in Obsidian with a working graph,
-backlinks, and tag search — and the same pages are parsed by `ainish-rag` for agent retrieval.
+backlinks, and tag search — and the same pages are parsed by `ainish-context` for agent retrieval.
 
 ## Contents
 - [[01-architecture|01. System Architecture]] — Core components, subsystem boundaries, data flow, and directory taxonomy.
@@ -29,7 +29,7 @@ backlinks, and tag search — and the same pages are parsed by `ainish-rag` for 
 
 ## How to read this vault
 - **In Obsidian:** open `.agents/wiki/` as a vault; the graph view shows the six domain pages wired to this index.
-- **As an agent:** `ainish-rag --context` retrieves whole sections from these pages, so keep headings meaningful.
+- **As an agent:** `ainish-coder --context` retrieves whole sections from these pages, so keep headings meaningful.
 - **Operator notes:** `[[ledger]]` is hand-maintained and never regenerated — append one dated line per cycle.
 
 

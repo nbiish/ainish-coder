@@ -6,7 +6,7 @@ Skills are progressive-loaded procedures. Discovery metadata stays short; detail
 
 ## Selection
 
-- Context, planning, checkpoints, and handoffs are handled by `ainish-rag context` (see `AGENTS.md` `<CONTEXT_INJECTION>`) rather than by a skill: the `orientation` section gathers branch, worktree, tree state, COMMS, and the task record in code, and the `goldfish` section is the stateless reviewer. The former `context-orchestration` skill is retired.
+- Context, planning, checkpoints, and handoffs are handled by `ainish-context context` (see `AGENTS.md` `<CONTEXT_INJECTION>`) rather than by a skill: the `orientation` section gathers branch, worktree, tree state, COMMS, and the task record in code, and the `goldfish` section is the stateless reviewer. The former `context-orchestration` skill is retired.
 - Use the built-in `ainish-security` context for security, prompt-injection, tool, RAG, and production controls. It is mandatory and deployed by `--rules`.
 - Use `typesafe-jev` for calibrated routing, reranking, faithfulness, and retrieval decisions.
 - Use `pqc-secrets` for secret storage and signing operations; security policy is already compiled into `ainish-security`. It is mandatory and deployed by `--rules`.

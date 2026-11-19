@@ -15,4 +15,4 @@ history entry `0000-items-1-2-7-9-and-11-are-all-agents-plan.json`; no staged sk
 ## Rollback
 
 Copy any `history/*.json` back to `prime-profile.json` and delete `generation` from nothing —
-the file is self-describing. Or run `ainish-rag --context-rollback <generation>`.
+the file is self-describing. Or run `ainish-coder --context-rollback <generation>`.

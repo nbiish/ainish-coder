@@ -500,7 +500,10 @@ if grep -qxF "$NOSIGNER" "${HOME_DIR}/.config/ainish-coder/targets.txt" 2>/dev/n
 else
     ok "refused target is not enrolled"
 fi
-contains "refusal names the engine build step" "$(cat "${WORK}/signerless.log")" "cargo build --release"
+# A refused deploy must tell the operator what is actually missing. It used to say `cargo build
+# --release`, which is advice that cannot be followed: the compiled engine was deleted 2026-11-19.
+# What is missing now is a launcher or an interpreter, so the message names those.
+contains "refusal names what is actually missing" "$(cat "${WORK}/signerless.log")" "ainish-context"
 
 echo "== advisory masters are defined and reachable =="
 # The nine niches are a reasoning device, not a rules-file obligation: their definitions live in

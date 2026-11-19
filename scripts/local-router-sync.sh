@@ -3,7 +3,7 @@
 #
 # WHY
 # ---
-# `ainish-rag`'s driver chain head is `local-router/fallback-models`, i.e. a route whose contents live
+# `ainish-context`'s driver chain head is `local-router/fallback-models`, i.e. a route whose contents live
 # in the router's own config, not in the repo. So the rules were synced across machines while the
 # model chain they depend on was not: the Windows box ended up with `fallback-models: []` — a route
 # that resolves to nothing — and its embedding order reversed against the Mac's. The agent pair then

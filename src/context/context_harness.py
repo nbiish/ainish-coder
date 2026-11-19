@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Context harness: per-repo learned configuration for `ainish-rag --context`.
+"""Context harness: per-repo learned configuration for `ainish-coder --context`.
 
 The design and its evidence base are in `research/context-priming-master/`. This module is the
 whole implementation of that design, kept separate from `rag.py` because the engine is stdlib-only
@@ -1126,7 +1126,7 @@ def write_experience(repo_root: Path, profile: Dict[str, Any], *, why: str, evid
         "## Rollback",
         "",
         f"Copy any `history/*.json` back to `{PROFILE_NAME}` and delete `generation` from nothing —",
-        "the file is self-describing. Or run `ainish-rag --context-rollback <generation>`.",
+        "the file is self-describing. Or run `ainish-coder --context-rollback <generation>`.",
         "",
     ]
     try:
@@ -1493,7 +1493,7 @@ def status(repo_root: Path) -> Dict[str, Any]:
 
 SEED_README = """# `.agents/context-harness/` — the per-repo context harness
 
-Written by `ainish-coder --rules` at generation 0, and by `ainish-rag --context-learn` thereafter.
+Written by `ainish-coder --rules` at generation 0, and by `ainish-coder --context-learn` thereafter.
 
 | File | What it is |
 |---|---|
@@ -1506,8 +1506,8 @@ Written by `ainish-coder --rules` at generation 0, and by `ainish-rag --context-
 ## Rollback in three lines
 
     ls .agents/context-harness/history/
-    ainish-rag --context-rollback <generation>
-    ainish-rag --context-status
+    ainish-coder --context-rollback <generation>
+    ainish-coder --context-status
 
 ## Revoking a promoted skill
 

@@ -121,15 +121,15 @@ else
 fi
 
 echo '--- route ---'
-if command -v ainish-rag >/dev/null 2>&1; then
+if command -v ainish-context >/dev/null 2>&1; then
   if command -v timeout >/dev/null 2>&1; then
-    route_output=$(timeout 20s ainish-rag route "$task" --json 2>/dev/null) || route_output='route_unavailable'
+    route_output=$(timeout 20s ainish-context route "$task" --json 2>/dev/null) || route_output='route_unavailable'
   else
     route_output='route_unavailable:no_timeout_command'
   fi
   printf '%s\n' "$route_output" | sed -n '1,80p'
 else
-  echo 'ainish-rag unavailable'
+  echo 'ainish-context unavailable'
 fi
 
 echo '=== END CONTEXT PACKET ==='
