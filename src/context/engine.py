@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-ainish-rag — Cross-platform Multimodal Codebase RAG & Wiki Engine
+ainish-context — the ainish-coder context engine
+Graph-first retrieval over the wiki vault and the .agents/ context folders. No embedding model,
+no vector store: the corpus is small enough that a large-context model reads what it needs, and
+the graph's job is to choose what fits a bounded prime.
 Pairs with ainish-coder distributed coding standards and rules.
 Uses Google DeepMind EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector store.
 """
@@ -109,108 +112,31 @@ def _learned_root(canonical_root: Path) -> Path:
     return worktree if worktree else canonical_root
 
 
-def native_renderer() -> Optional[List[str]]:
-    """The argv that runs the vault renderer, or None when this host has no compiled build.
-
-    The Obsidian vault format (frontmatter, aliases, [[wikilinks]], the ledger splice) is owned by
-    the Rust engine. The Python `generate_wiki` deliberately REFUSES to overwrite a vault it cannot
-    reproduce, which is the right guard — but until now that refusal was also the only outcome on
-    every real repository, so `--refresh-wiki` could never refresh anything. The context agent is
-    supposed to edit the corpus it learns from; a refresh path that always refuses means it cannot.
-
-    Resolution order, each verified by asking the binary for its own `wiki` verb:
-      1. `AINISH_VAULT_RENDERER`, an explicit override (a path or a command on PATH).
-      2. `ainish-rag` on PATH, when it is the compiled binary rather than our own launcher.
-      3. `src/rag/target/release/ainish-rag` beside this engine (a local `cargo build --release`).
-    """
-    def _advertises_wiki(exe: str) -> bool:
-        # A shell launcher FORWARDS to the Python engine, which also advertises `wiki --path`, so its
-        # help text cannot tell us apart — dispatching to it re-enters this process. A compiled
-        # renderer is a native executable, so a shebang means "wrapper" and is refused outright.
-        try:
-            with open(exe, "rb") as fh:
-                if fh.read(2) == b"#!":
-                    return False
-        except OSError:
-            return False
-        try:
-            res = subprocess.run([exe, "wiki", "--help"], capture_output=True, text=True,
-                                 timeout=20, stdin=subprocess.DEVNULL)
-        except (OSError, subprocess.SubprocessError):
-            return False
-        text = (res.stdout or "") + (res.stderr or "")
-        return res.returncode == 0 and "--path" in text
-
-    override = (_env_nonempty("AINISH_VAULT_RENDERER") or "").strip()
-    if override:
-        if Path(override).is_file() and os.access(override, os.X_OK):
-            return [override] if _advertises_wiki(override) else None
-        which = shutil.which(override)
-        return [which] if which and _advertises_wiki(which) else None
-
-    here = Path(__file__).resolve().parent
-    candidates = [
-        here / "target" / "release" / "ainish-rag",
-        here / "target" / "release" / "ainish-rag.exe",
-    ]
-    # A worktree shares the repository but not the gitignored build directory, and the compiled
-    # renderer is a gitignored artifact — so a worktree has no binary of its own even when the main
-    # checkout has one. Looking beside the canonical root is the difference between "refresh works"
-    # and "refresh refuses" for anyone working in a worktree, which is everyone this contract binds.
-    try:
-        canonical = resolve_canonical_repo_root()
-        for base in (canonical, Path.cwd()):
-            candidates.append(base / "src" / "rag" / "target" / "release" / "ainish-rag")
-    except (OSError, ValueError):
-        pass
-    on_path = shutil.which("ainish-rag")
-    if on_path:
-        candidates.append(Path(on_path))
-    for cand in candidates:
-        try:
-            if not cand.is_file() or not os.access(cand, os.X_OK):
-                continue
-        except OSError:
-            continue
-        if _advertises_wiki(str(cand)):
-            return [str(cand)]
-    return None
-
-
 def refresh_vault(repo_root: Path) -> Tuple[str, bool]:
     """Regenerate the wiki vault. Returns `(note, ok)`.
 
-    Dispatches to the native renderer when one is available, because the vault format is its to own.
-    Falls back to the Python generator for a plain-markdown wiki directory, where there is no vault
-    to damage. The refusal that used to be the only outcome is now the LAST resort and says why.
-    """
-    renderer = native_renderer()
-    if renderer:
-        argv = [*renderer, "wiki", "--path", str(repo_root)]
-        try:
-            res = subprocess.run(argv, cwd=str(repo_root), capture_output=True, text=True,
-                                 timeout=300, stdin=subprocess.DEVNULL)
-        except (OSError, subprocess.SubprocessError) as exc:
-            return f"native renderer failed to run: {str(exc)[:120]}", False
-        if res.returncode == 0:
-            pages = len(list((repo_root / ".agents" / "wiki").glob("*.md")))
-            return f"refreshed ({pages} pages, native renderer)", True
-        detail = ((res.stderr or res.stdout or "").strip().splitlines() or ["no output"])[0]
-        return f"native renderer exited {res.returncode}: {detail[:160]}", False
+    This is the ONLY renderer. It used to look for a compiled binary first and fall back here, which
+    meant the vault format had two implementations and a stale build could answer for the Python code
+    — measured 2026-11-19, when a stale binary silently regenerated all six pages and overwrote
+    hand-corrected content. That crate is gone, so there is nothing to discover and nothing to fall
+    back to.
 
+    The generator emits the vault format itself (frontmatter, aliases, tags, `up` link, wikilinks), so
+    it can refresh a real vault. What it still refuses is a vault whose `ledger.md` is SIGNED, because
+    that ledger is the operator's signed governance history and regenerating the page around it from a
+    template would drop it while reporting success.
+    """
     try:
         pages = generate_wiki(repo_root)
-        return f"refreshed ({len(pages)} pages, python generator)", True
+        return f"refreshed ({len(pages)} pages)", True
     except SystemExit as exc:
         first = str(exc).splitlines()[0] if str(exc) else "vault guard"
-        return (f"skipped: {first}. This directory holds an Obsidian vault and no compiled renderer "
-                f"was found — build one with `cargo build --release` in src/rag, or point "
-                f"AINISH_VAULT_RENDERER at it. Nothing was modified"), False
+        return f"skipped: {first}. Nothing was modified.", False
     except Exception as exc:
         return f"failed: {str(exc)[:160]}", False
 
 
-
+def _luhn_valid(num_str: str) -> bool:
     digits = [int(c) for c in num_str if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
         return False
@@ -1025,7 +951,7 @@ def contains_bidi_override(text: str) -> bool:
 def sanitize_redaction_text(text: str) -> str:
     """Strips ANSI escape sequences, non-printable control characters, and Trojan Source
     bidirectional overrides from multi-line text while preserving line structure and indentation.
-    Used by `ainish-rag audit privacy --redact-check` dry-runs."""
+    Used by `ainish-context audit privacy --redact-check` dry-runs."""
     bidi_chars = {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
     out_lines = []
     for line in text.split("\n"):
@@ -1215,7 +1141,7 @@ def append_wiki_note_and_sign(repo_root: Path, note: str) -> Tuple[Path, Path]:
     else:
         content = (
             "# Operator ledger\n\n"
-            "`ainish-rag wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. "
+            "`ainish-context wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. "
             "Append one dated line per cycle. The generator splices this file into `04-improvements-and-debt.md`.\n\n"
         )
     if content and not content.endswith("\n"):
@@ -1270,7 +1196,7 @@ def resolve_wiki_note(repo_root: Path, keyword: str) -> int:
     if mem_text and not mem_text.endswith("\n"):
         mem_text += "\n"
     if not matched_lines:
-        mem_text += f"- {hhmm} [RESOLVED] {kw_clean} — resolved via ainish-rag wiki --resolve\n"
+        mem_text += f"- {hhmm} [RESOLVED] {kw_clean} — resolved via ainish-context wiki --resolve\n"
     else:
         for m in matched_lines:
             mem_text += f"- {hhmm} [RESOLVED] {m} — resolved in wiki ledger\n"
@@ -1372,7 +1298,7 @@ def _vault_pages(wiki_dir: Path) -> List[Path]:
     """Existing pages that are Obsidian-vault pages (carry the `ainish/wiki` tag).
 
     The vault renderer lives in the Rust crate (`src/rag/src/wiki.rs`); this Python engine
-    only ever wrote plain markdown. Both engines claim `ainish-rag`, but `bin/ainish-rag`
+    only ever wrote plain markdown. Both engines claim `ainish-context`, but `bin/ainish-context`
     routes plain invocations to Python, so the reachable `wiki` command here would overwrite
     a vault with non-vault pages — stripping frontmatter, aliases, and every `[[wikilink]]`,
     which silently deletes the Obsidian graph and the explicit retrieval edges built on it.
@@ -1407,7 +1333,7 @@ def generate_wiki(repo_root: Path) -> List[Path]:
     ledger_note = wiki_dir / "ledger.md"
     if existing_vault and ledger_note.is_file() and (wiki_dir / "ledger.sig").is_file():
         raise SystemExit(
-            "ainish-rag wiki: this vault carries a SIGNED operator ledger (ledger.md + ledger.sig).\n"
+            "ainish-context wiki: this vault carries a SIGNED operator ledger (ledger.md + ledger.sig).\n"
             f"  {len(existing_vault)} page(s) carry the '{VAULT_TAG}' tag.\n"
             "  The compiled renderer splices and signs that ledger; regenerating page 04 here would\n"
             "  drop the signed history. Run the compiled binary (`cargo build --release` in src/rag,\n"
@@ -1429,7 +1355,7 @@ Generated on: {now_utc}
 Repository: `{repo_name}`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-rag --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
+This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-context --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
 
 ## Wiki Table of Contents
 1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.
@@ -1490,7 +1416,7 @@ Codebase components in `{repo_name}` communicate across well-defined interfaces 
 3. **Zero-Stale Memory Scrubbing:** Retire resolved constraints in `.agents/memories/` using `[RESOLVED]` entries.
 
 ## 3. Operator ledger
-`ainish-rag wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
+`ainish-context wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
 
 {operator_ledger}""",
         "05-research-and-intelligence.md": f"""# 05. Research & Intelligence — {repo_name}
@@ -1962,7 +1888,7 @@ def _discover_local_router() -> Optional[Dict[str, Any]]:
 
 
 def inspect_jev() -> Dict[str, Any]:
-    """Decision-transport report for `ainish-rag secrets`."""
+    """Decision-transport report for `ainish-context secrets`."""
     key = resolve_api_key()
     return {
         "model": resolve_jev_model(),
@@ -2071,7 +1997,7 @@ class DecisionEngine:
         headers = {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-            "X-Title": "ainish-rag-decisions",
+            "X-Title": "ainish-context-decisions",
         }
         if key:
             headers["Authorization"] = f"Bearer {key}"
@@ -2154,7 +2080,7 @@ class DecisionEngine:
         raise RuntimeError("; ".join(errors) if errors else "Jev request failed")
 
     def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
-        """Typed decision primitive used by `ainish-rag decide --questions`."""
+        """Typed decision primitive used by `ainish-context decide --questions`."""
         model, answers, usage, transport = self._ask(state, questions)
         return {
             "model": model,
@@ -2527,130 +2453,74 @@ class DecisionEngine:
 
 
 def print_completion(shell: str):
-    if shell == "bash":
-        print("""# ainish-rag bash completion
-_ainish_rag() {
-    local cur prev words cword
-    _init_completion || return
-    local commands="serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient context bench monitor audit service completion"
-    local global_opts="--threads --max-mem --psk-ttl --numa --cpu-affinity --json --help"
-    if [[ $cword -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "${commands}" -- "$cur") )
-        return 0
-    fi
-    local sub="${COMP_WORDS[1]}"
-    local opts=""
-    case "$sub" in
-        status)       opts="--tui --json --help" ;;
-        orient)       opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --sync-rules --json --help" ;;
-        context)      opts="--task --budget --json --no-remote --retrieval-only --session --unload --elephant-model --goldfish-model --help" ;;
-        audit)        opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --max-files --exclude --verify-history --threshold --hardware-seal --json --help" ;;
-        gate)         opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
-        query)        opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
-        wiki)         opts="--path --no-index --note --resolve --sync-resolved --list-notes --json --help" ;;
-        index)        opts="--path --truncate --watch --anonymize-symbols --symbol-salt --dp-noise --dp-epsilon --dp-max-budget --help" ;;
-        cleanup)      opts="--compact --prune-days --prune-worktrees --delete-merged --dry-run --help" ;;
-        bench)        opts="--iterations --custom --regression --save-baseline --drift-injection --chaos --json --help" ;;
-        monitor)      opts="--interval --once --json --help" ;;
-        service)      opts="status install generate uninstall --warm --port --out --help" ;;
-        statusline)   opts="--json --help" ;;
-        completion)   opts="bash zsh fish pwsh --help" ;;
-        *)            opts="${global_opts}" ;;
-    esac
-    if [[ ${cur} == -* ]] ; then
-        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-        return 0
-    fi
-    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-    return 0
-}
-complete -F _ainish_rag ainish-rag
-ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
-""")
-    elif shell == "zsh":
-        print("""#compdef ainish-rag
-_ainish_rag() {
-    local -a commands
-    commands=(
-        'serve:Start the local llama-server embedding process'
-        'stop:Stop the running llama-server embedding process'
-        'status:Show status of models, vector index, and server'
-        'secrets:Inspect PQC vault status and OpenRouter API key'
-        'index:Index repository files and symbols into LanceDB'
-        'wiki:Generate the 6-part living architecture wiki'
-        'query:Search indexed codebase and wiki with decision reranking'
-        'rerank:Rerank candidates using decision-model scoring'
-        'route:Route a task to the appropriate domain'
-        'decide:Execute a calibrated decision on system state'
-        'eval:Evaluate faithfulness or patch diff coverage'
-        'gate:Unified pre-merge verification gate'
-        'statusline:Emit one-line compact gate status for PS1/Cursor/tmux'
-        'cleanup:Run database compaction and WAL version pruning'
-        'orient:Subagent context injection primer from architectural wiki'
-        'context:One-shot labelled context injection (retrieval + Elephant + Goldfish)'
-        'bench:Run synthetic query regression benchmark'
-        'monitor:Run continuous vector drift and recall monitor'
-        'audit:Verify post-quantum receipts, manifests, lockfiles, and SBOMs'
-        'service:Background embedding service management'
-        'completion:Generate shell tab completion script'
-    )
-    if [[ "$words[CURRENT]" == -* ]]; then
-        compadd -- --redact-check --fail-on-leak --max-files --exclude --include-symbols --sync-rules --sections --json --tui --patch --strict --help
-        return
-    fi
-    _describe 'command' commands
-}
-_ainish_rag "$@"
-ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
-""")
-    elif shell == "fish":
-        print("""complete -c ainish-rag -f
-complete -c ainish-rag -n "__fish_use_subcommand" -a serve -d "Start local llama-server"
-complete -c ainish-rag -n "__fish_use_subcommand" -a stop -d "Stop llama-server"
-complete -c ainish-rag -n "__fish_use_subcommand" -a status -d "Show RAG status"
-complete -c ainish-rag -n "__fish_use_subcommand" -a index -d "Index repository files into LanceDB"
-complete -c ainish-rag -n "__fish_use_subcommand" -a gate -d "Run unified pre-merge gate"
-complete -c ainish-rag -n "__fish_use_subcommand" -a statusline -d "Emit compact gate statusline"
-complete -c ainish-rag -n "__fish_use_subcommand" -a cleanup -d "Run database compaction"
-complete -c ainish-rag -n "__fish_use_subcommand" -a orient -d "Subagent context injection"
-complete -c ainish-rag -n "__fish_use_subcommand" -a context -d "One-shot labelled context injection (retrieval + Elephant + Goldfish)"
-complete -c ainish-rag -n "__fish_use_subcommand" -a monitor -d "Run drift monitor"
-complete -c ainish-rag -n "__fish_use_subcommand" -a bench -d "Run regression benchmark"
-complete -c ainish-rag -n "__fish_use_subcommand" -a audit -d "Verify post-quantum audit receipts"
-complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage background embedding service"
-complete -c ainish-rag -l redact-check -r -d "Dry-run redaction on a file without mutating it"
-complete -c ainish-rag -l fail-on-leak -d "Exit non-zero when redaction dry-run detects leaks"
-complete -c ainish-rag -l include-symbols -d "Include symbol anchors in orient primer"
-complete -c ainish-rag -l sync-rules -d "Run deployed rules refresher when gate_ready is false"
-complete -c ainish-rag -l sections -x -d "Maximum wiki sections to inject"
-complete -c ainish-rag -l max-lines -x -d "Per-section line truncation override"
-complete -c ainish-rag -l task -x -d "Task or question for a context injection"
-complete -c ainish-rag -l budget -x -d "Token cap for the whole context injection"
-complete -c ainish-rag -l no-remote -d "Driver local tiers only"
-complete -c ainish-rag -l retrieval-only -d "Skip driver calls in a context injection"
-complete -c ainish-rag -l json -d "Structured JSON output"
-complete -c ainish-rag -l tui -d "Interactive status dashboard"
-function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
-""")
-    elif shell == "pwsh":
-        print("""Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
-    param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','context','bench','monitor','audit','service','completion')
-    $options = @('--redact-check','--fail-on-leak','--max-files','--exclude','--include-symbols','--sync-rules','--sections','--max-lines','--task','--budget','--no-remote','--retrieval-only','--elephant-model','--goldfish-model','--json','--tui','--patch','--strict','--help')
-    if ($wordToComplete -like '-*') {
-        $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
-        return
-    }
-    $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-    }
-}
-function Invoke-AinishRagStatusLine { ainish-rag statusline 2>$null }
-""")
+    """Shell completion for the LIVE verb list.
 
+    These used to be hand-written lists that still offered `serve`, `index`, `query`, `bench` and
+    `monitor` with descriptions naming llama-server and LanceDB. A completion menu is documentation an
+    agent reads while typing, so it was teaching a system that was deleted in 2026-11-12 — and offering
+    verbs that now exit with "was retired". Generated from the same table `--help` uses, so it cannot
+    drift.
+    """
+    verbs = (
+        ("context", "One labelled context prime: retrieval + Elephant + Goldfish"),
+        ("context-seed", "Establish the frozen generation 0 for this repo"),
+        ("context-status", "What is live, staged, or recently refused"),
+        ("context-learn", "One propose->gate cycle (opt-in; costs a model session)"),
+        ("context-rollback", "Restore a past harness generation"),
+        ("context-promote", "Move a staged skill into .agents/skills/ (operator only)"),
+        ("context-skill", "Author one learned skill from cited evidence"),
+        ("wiki", "Generate the architecture wiki vault"),
+        ("route", "Routing, domain, and context-freshness decision"),
+        ("decide", "Typed Jev decision"),
+        ("eval", "Faithfulness gate or retrieval-augmented patch evaluation"),
+        ("orient", "Subagent context primer"),
+        ("gate", "Unified pre-merge verification gate"),
+        ("statusline", "Compact gate status for a prompt or status bar"),
+        ("cleanup", "Worktree and branch hygiene"),
+        ("audit", "Verify post-quantum receipts, manifests, and SBOMs"),
+        ("status", "Health and runtime profile"),
+        ("secrets", "PQC vault and provider status"),
+        ("completion", "Emit shell completion"),
+    )
+    names = " ".join(v for v, _ in verbs)
+    if shell == "bash":
+        print("# ainish-context bash completion")
+        print("_ainish_context() {")
+        print("    local cur")
+        print("    cur=\"${COMP_WORDS[COMP_CWORD]}\"")
+        print(f"    local commands=\"{names}\"")
+        print("    if [[ $COMP_CWORD -eq 1 ]]; then")
+        print("        COMPREPLY=( $(compgen -W \"$commands\" -- \"$cur\") )")
+        print("    fi")
+        print("}")
+        print("complete -F _ainish_context ainish-context")
+        print("complete -F _ainish_context ainish-coder")
+    elif shell == "zsh":
+        print("#compdef ainish-context")
+        print("_ainish_context() {")
+        print(f"    local -a commands")
+        print("    commands=(")
+        for v, d in verbs:
+            print(f"        '{v}:{d}'")
+        print("    )")
+        print("    _describe 'command' commands")
+        print("}")
+        print("_ainish_context")
+    elif shell == "fish":
+        for v, d in verbs:
+            print(f"complete -c ainish-context -f -n \"__fish_use_subcommand\" -a {v} -d \"{d}\"")
+        for v, d in verbs:
+            print(f"complete -c ainish-coder -f -n \"__fish_use_subcommand\" -a {v} -d \"{d}\"")
+    else:
+        print("# PowerShell completion")
+        print("Register-ArgumentCompleter -CommandName ainish-context,ainish-coder -ScriptBlock {")
+        print("    param($commandName, $wordToComplete, $cursorPosition)")
+        print(f"    '{names}'.Split(' ') | Where-Object {{ $_ -like \"$wordToComplete*\" }} |")
+        print("        ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }")
+        print("}")
 
 def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7, prune_worktrees: bool = True, delete_merged: bool = False, dry_run: bool = False) -> None:
-    print("=== ainish-rag Database Maintenance & Worktree Hygiene ===")
+    print("=== ainish-context Database Maintenance & Worktree Hygiene ===")
     rag_dir = repo_root / ".agents" / "rag"
     cleaned_files = 0
     if rag_dir.exists():
@@ -3408,7 +3278,7 @@ class DriverEngine:
         headers = {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-            "X-Title": "ainish-rag-driver",
+            "X-Title": "ainish-context-driver",
         }
         if key:
             headers["Authorization"] = f"Bearer {key}"
@@ -3619,7 +3489,7 @@ class DriverEngine:
 
 
 def inspect_drivers() -> Dict[str, Any]:
-    """Driver report for `ainish-rag secrets`: the ordered chain, reachability, key presence.
+    """Driver report for `ainish-context secrets`: the ordered chain, reachability, key presence.
 
     Reports the chain the engine will actually walk rather than a tier table, because the operator's
     question is "which model answers next", not "which hosts exist".
@@ -5300,7 +5170,7 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
 
     Deliberately *not* included: the skill's design-review procedure (draft a document, have a
     stateless reviewer approve it). That is a workflow an agent follows with judgement, not state a
-    tool can gather — and `ainish-rag context` already carries the reviewer half as the `goldfish`
+    tool can gather — and `ainish-coder --context` already carries the reviewer half as the `goldfish`
     section.
     """
     if token_cap <= 0:
@@ -5552,7 +5422,7 @@ def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any
     print(f"context harness: {info['source']}")
     if not info["present"]:
         print(f"  no profile at {info['root']}/{context_harness.PROFILE_NAME}")
-        print("  `ainish-rag --context-seed` establishes generation 0 (also done by `ainish-coder --rules`)")
+        print("  `ainish-context --context-seed` establishes generation 0 (also done by `ainish-coder --rules`)")
     else:
         print(f"  generation {info['generation']}  fingerprint {info['fingerprint']}")
         graph = info.get("graph") or {}
@@ -5563,7 +5433,7 @@ def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any
         # lists now would suggest two places to look when there is one.
         print(f"  learned skills ({len(info['staged_skills'])}): {', '.join(info['staged_skills'])}")
     else:
-        print("  learned skills: none (author one with `ainish-rag context-skill`)")
+        print("  learned skills: none (author one with `ainish-coder --context-skill`)")
     if info["promoted_skills"]:
         print(f"  PROMOTED (standing prompt surface): {', '.join(info['promoted_skills'])}")
     print(f"  history: {info['history_total']} generation(s)" + (f", newest {info['history'][-1]}" if info["history"] else ""))
@@ -5607,7 +5477,7 @@ def run_context_skill(
     elif result.get("ok"):
         print(f"wrote learned skill {result['path']}")
         print("  it is corpus now: the next --context call indexes and can surface it")
-        print("  promote it to standing prompt surface with `ainish-rag context-promote <name>`")
+        print("  promote it to standing prompt surface with `ainish-coder --context-promote <name>`")
     else:
         for err in result.get("errors") or ["could not write the pseudo-skill"]:
             print(f"[rag:error] {err}", file=sys.stderr)
@@ -6248,7 +6118,7 @@ def _learn_locked(
         print(json.dumps(result, indent=2))
     else:
         print(f"accepted generation {written.get('generation')} — {written.get('path')}")
-        print("  rollback with: ainish-rag --context-rollback "
+        print("  rollback with: ainish-context --context-rollback "
               f"{int(written.get('generation') or 1) - 1}")
     return result
 
@@ -6765,7 +6635,7 @@ def run_context_command(
             "drivers": drivers_info,
             "wiki": wiki_note,
             "reviewer_isolation": drivers_info.get("reviewer_isolation") if drivers_info else None,
-            "engine": "ainish-rag/python",
+            "engine": "ainish-context/python",
             "harness": harness_provenance,
         },
         degraded=degraded,
@@ -6870,7 +6740,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
     primer_content = [
         "<ORIENT_PRIMER>",
         "## Grounded Architectural Context",
-        f"<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {git_branch} | commit: {git_sha} -->",
+        f"<!-- Auto-injected by ainish-context orient --inject for subagent primer | branch: {git_branch} | commit: {git_sha} -->",
         "",
         f"### Decision-Model Routing Hint (`{route_decision.get('source', 'local-calibrated')}`)",
         (
@@ -6894,7 +6764,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
     total_sanitized = 0
 
     if not wiki_files:
-        primer_content.append("No pre-indexed wiki documents found in `.agents/wiki/`. Generate with `ainish-rag wiki`.")
+        primer_content.append("No pre-indexed wiki documents found in `.agents/wiki/`. Generate with `ainish-context wiki`.")
     else:
         for p in wiki_files[:section_limit]:
             content = p.read_text(encoding="utf-8", errors="replace").strip()
@@ -7295,7 +7165,7 @@ def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]
 
 
 def run_audit_lock(repo_root: Path, update: bool = False) -> None:
-    print("=== ainish-rag Supply Chain Lockfile Verification ===")
+    print("=== ainish-context Supply Chain Lockfile Verification ===")
     res = check_lockfiles(repo_root)
     audit_dir = repo_root / ".agents" / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -7348,7 +7218,7 @@ def run_audit_lock(repo_root: Path, update: bool = False) -> None:
     if cdx_sbom.with_suffix(".sig").is_file() and intoto_sbom.with_suffix(".sig").is_file():
         print("  [PASS] Verified detached FIPS 204 ML-DSA-65 signatures on CycloneDX 1.6 and in-toto v1.0 SBOMs.\n")
     else:
-        print("  [WARN] Detached SBOM signature verification incomplete (run 'ainish-rag audit lock --update').\n")
+        print("  [WARN] Detached SBOM signature verification incomplete (run 'ainish-context audit lock --update').\n")
 
 
 def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
@@ -7421,12 +7291,12 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
         doc = {
             "_type": "link",
             "name": "build/provenance",
-            "command": ["ainish-rag", "audit", "sbom", "--format", "intoto"],
+            "command": ["ainish-context", "audit", "sbom", "--format", "intoto"],
             "materials": materials,
             "products": products,
             "environment": {
                 "name": repo_name,
-                "tool": "ainish-rag 0.1.0",
+                "tool": "ainish-context 0.1.0",
                 "target_os": sys.platform,
                 "signature_alg": "ML-DSA-65 (FIPS 204)",
                 "timestamp": now_iso,
@@ -7461,7 +7331,7 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
                 "tools": {
                     "components": [{
                         "type": "application",
-                        "name": "ainish-rag",
+                        "name": "ainish-context",
                         "version": "0.1.0",
                     }]
                 }
@@ -7487,7 +7357,7 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
             "name": f"{repo_name}-sbom",
             "documentNamespace": f"https://ainish.dev/spdx/{repo_name}-{uuid.uuid4()}",
             "creationInfo": {
-                "creators": ["Tool: ainish-rag-0.1.0"],
+                "creators": ["Tool: ainish-context-0.1.0"],
                 "created": now_iso,
             },
             "packages": packages,
@@ -7496,7 +7366,7 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
 
 
 def run_audit_sbom(repo_root: Path, format_type: str = "cyclonedx", out_path: Optional[Path] = None) -> None:
-    print(f"=== ainish-rag Cryptographic SBOM Generator ({format_type.upper()}) ===")
+    print(f"=== ainish-context Cryptographic SBOM Generator ({format_type.upper()}) ===")
     content = generate_sbom(repo_root, format_type)
     audit_dir = repo_root / ".agents" / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -7590,7 +7460,7 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
                 "transitions": entries_list,
             }, indent=2))
             return
-        print("=== ainish-rag Canonical Contract Governance History ===")
+        print("=== ainish-context Canonical Contract Governance History ===")
         print(f"  History Log: {history_file}")
         sig_color = {"VERIFIED": "32", "UNSIGNED": "33", "INVALID": "31"}.get(signature_status, "33")
         print(f"  ML-DSA-65 Sig: \033[{sig_color}m{signature_status}\033[0m (contract-history.sig)")
@@ -7669,7 +7539,7 @@ def trigger_desktop_notification(title: str, message: str) -> None:
                 f"if ($textNodes.Count -gt 0) {{ $textNodes.Item(0).AppendChild($template.CreateTextNode('{t_esc}')) > $null; }} "
                 f"if ($textNodes.Count -gt 1) {{ $textNodes.Item(1).AppendChild($template.CreateTextNode('{m_esc}')) > $null; }} "
                 "$toast = [Windows.UI.Notifications.ToastNotification]::new($template); "
-                "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ainish-rag').Show($toast);"
+                "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ainish-context').Show($toast);"
             )
             subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif sys.platform == "darwin":
@@ -8271,7 +8141,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
             }, indent=2))
         else:
             print("\n┌────────────────────────────────────────────────────────────────────────┐")
-            print("│                    ainish-rag Pre-Merge Gate Card                      │")
+            print("│                    ainish-context Pre-Merge Gate Card                      │")
             print("├────────────────────────────────────────────────────────────────────────┤")
             patch_status = "\033[32mPASS (docs/coordination-only patch — anchor exempt)\033[0m" if docs_only_patch else (f"\033[32mPASS ({patch_eval.get('composite_score', 0)*100:.1f}% - {patch_eval.get('status')})\033[0m" if patch_pass else f"\033[31mFAIL ({patch_eval.get('status')})\033[0m")
             print(f"  Patch Anchoring:        {patch_status}")
@@ -8334,7 +8204,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
 
         if notify or os.environ.get("AINISH_GATE_NOTIFY", "").lower() in ("1", "true"):
             trigger_desktop_notification(
-                "ainish-rag gate",
+                "ainish-context gate",
                 "Gate Passed: GREEN (Autonomous Merge Authorized)" if overall_pass else "Gate Failed: RED (Merge Blocked)",
             )
 
@@ -8359,7 +8229,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
 def normalize_argv(argv: List[str]) -> List[str]:
     """Accepts `--context` as an alias for the `context` subcommand.
 
-    `AGENTS.md` and muscle memory both reach for `ainish-rag --context --task "..."`, and argparse
+    `AGENTS.md` and muscle memory both reach for `ainish-context --context --task "..."`, and argparse
     rejects a flag where it expects a subcommand. Rather than document a spelling that does not work,
     the flag is rewritten to the subcommand before parsing so both forms are the same command.
 
@@ -8405,9 +8275,9 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "ainish-rag — repository context for coding agents, without an embedding dependency.\n"
+            "ainish-context — repository context for coding agents, without an embedding dependency.\n"
             "\n"
-            "The command agents call is:  ainish-rag --context --task \"<request or current step>\"\n"
+            "The command agents call is:  ainish-context --context --task \"<request or current step>\"\n"
             "It returns one labelled <CONTEXT_INJECTION> block, composed as a Google-EGM prime:\n"
             "  orientation  branch, worktree, tree state, today's COMMS, newest task record and plan\n"
             "  retrieval    a wiki knowledge graph over the newest .agents/wiki pages and the newest\n"
@@ -8429,11 +8299,11 @@ def main():
             "`orientation` (never skipped), and afterwards starts a throttled background pass that\n"
             "tunes this repo's retrieval from its own history. Never hand-edit the retrieval constants\n"
             "in rag.py for one repo — the profile exists for that, and provenance.harness reports it:\n"
-            "  ainish-rag context-seed      establish the frozen generation 0 (also done by --rules)\n"
-            "  ainish-rag context-status    what is live, what is staged, what was rejected and why\n"
-            "  ainish-rag context-learn     one propose->gate cycle; --dry-run to see it, opt-in\n"
-            "  ainish-rag context-rollback  restore a past generation\n"
-            "  ainish-rag context-promote   move a STAGED skill into .agents/skills/ (operator only)\n"
+            "  ainish-coder --context-seed      establish the frozen generation 0 (also done by --rules)\n"
+            "  ainish-coder --context-status    what is live, what is staged, what was rejected and why\n"
+            "  ainish-coder --context-learn     one propose->gate cycle; --dry-run to see it, opt-in\n"
+            "  ainish-coder --context-rollback  restore a past generation\n"
+            "  ainish-coder --context-promote   move a STAGED skill into .agents/skills/ (operator only)\n"
             "State lives at .agents/context-harness/ (tracked). Learned skills stay STAGED and reach a\n"
             "model only through the prime; promotion is what makes one visible to every harness.\n"
             "\n"
@@ -8879,7 +8749,7 @@ def main():
             print(json.dumps(report, indent=2))
             return
 
-        print("=== ainish-rag Context Engine Status ===")
+        print("=== ainish-context Context Engine Status ===")
         print("Engine:             graph-first (no embedding model, no vector store)")
         print(f"Wiki Path:          {wiki_dir}")
         print(f"Wiki Pages:         {len(wiki_pages)} ({len(vault_pages)} Obsidian vault pages)")
@@ -8895,7 +8765,7 @@ def main():
     elif args.subcommand == "secrets":
         sec = inspect_secrets()
         jev = inspect_jev()
-        print("=== ainish-rag PQC Secrets & Decision Engine Status ===")
+        print("=== ainish-context PQC Secrets & Decision Engine Status ===")
         print(f"PQC Vault Path:     {sec['pqc_bundle_path']}")
         print(f"PQC Vault Exists:   {sec['pqc_vault_exists']}")
         print(f"Key Resolved:       {sec['api_key_resolved']}")
@@ -8980,7 +8850,7 @@ def main():
                 res_cnt = len(items) - open_cnt
                 print(json.dumps({"total": len(items), "open": open_cnt, "resolved": res_cnt, "notes": items}, indent=2))
             else:
-                print("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===")
+                print("=== ainish-context Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===")
                 if not notes:
                     print("  (No operator ledger entries recorded yet)")
                 else:
@@ -9269,7 +9139,7 @@ def run_audit_privacy(repo_root: Path, max_b: float, reset: bool, out_p: Optiona
     if json_out:
         print(json.dumps(report_payload, indent=2))
     else:
-        print("=== ainish-rag Differential Privacy & Redaction Audit ===")
+        print("=== ainish-context Differential Privacy & Redaction Audit ===")
         print(f"  Ledger File:      {ledger_p}")
         print("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)")
         print(f"  Protected Vecs:   {vec_cnt}")
@@ -9429,7 +9299,7 @@ def run_audit_privacy_redact_check(
         if json_out:
             print(json.dumps(agg, indent=2))
         else:
-            print("=== ainish-rag Redaction Dry-Run — Directory (No File Mutation) ===")
+            print("=== ainish-context Redaction Dry-Run — Directory (No File Mutation) ===")
             print(f"  Directory:        {path}")
             print(f"  Files Scanned:    {len(per_file)}")
             print(f"  Files w/ Leaks:   {files_with_leaks}")
@@ -9474,7 +9344,7 @@ def run_audit_privacy_redact_check(
     if json_out:
         print(json.dumps(full_report, indent=2))
     else:
-        print("=== ainish-rag Redaction Dry-Run (No File Mutation) ===")
+        print("=== ainish-context Redaction Dry-Run (No File Mutation) ===")
         print(f"  File:             {path}")
         print(f"  Size:             {report['bytes']} bytes / {report['lines']} lines")
         print(f"  Changed Lines:    {len(changed_line_numbers)}")
@@ -9495,7 +9365,7 @@ def run_audit_privacy_redact_check(
 
 def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
     audit_dir = target_path if target_path else (repo_root / ".agents" / "audit")
-    print("=== ainish-rag Post-Quantum Cryptographic Audit Verification ===")
+    print("=== ainish-context Post-Quantum Cryptographic Audit Verification ===")
     print(f"Audit Directory: {audit_dir}")
     if not audit_dir.exists():
         print("  [rag:audit] Audit directory does not exist yet. No receipts to verify.")
@@ -9685,7 +9555,7 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
 
 def run_audit_manifest(repo_root: Path, manifest_path: Optional[Path]) -> None:
     mpath = manifest_path if manifest_path else (repo_root / ".agents" / "audit" / "model-manifest.json")
-    print("=== ainish-rag Model Manifest Verification ===")
+    print("=== ainish-context Model Manifest Verification ===")
     print(f"Manifest File: {mpath}")
     if not mpath.exists():
         print(f"  \033[33m[rag:warn]\033[0m Model manifest file not found at {mpath}")
