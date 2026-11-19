@@ -5495,9 +5495,14 @@ def render_injection_text(injection: Dict[str, Any]) -> str:
         elif isolation == "fresh-context":
             served = drivers.get("goldfish_served_models") or []
             served_note = f", served by {', '.join(served)}" if served else ""
-            verdict = f"fresh-context reviewer (separate --no-session session{served_note})"
+            # PROVISIONAL is the honest word: the context is fresh but the weights are shared, so
+            # the reviewer inherits the drafter's blind spots. Reporting this as a plain review is
+            # what the old hardcoded "distinct-model" did, and why this says what it says.
+            verdict = f"PROVISIONAL review (fresh --no-session context, same model{served_note})"
         elif isolation == "self-review-allowed":
             verdict = "SELF-REVIEW (operator opted in — not an independent opinion)"
+        elif isolation == "refused":
+            verdict = "review REFUSED (no distinct reviewer; the reviewer calls were not spent)"
         else:
             verdict = "review unavailable"
         note = drivers.get("reviewer_note")
@@ -6371,6 +6376,16 @@ def spawn_autolearn(repo_root: Path, task: str) -> Dict[str, Any]:
     return info
 
 
+def _driver_for_review() -> "DriverEngine":
+    """A driver used only to read the chain when deciding reviewer separation.
+
+    Constructed on demand and never used to send a request: `plan_reviewer_model` calls
+    `chain_steps()` and nothing else. Built leniently so a host with no remote tier still resolves
+    the local chain rather than raising into the context call.
+    """
+    return DriverEngine(allow_remote=None)
+
+
 def run_context_command(
     repo_root: Path,
     task: str,
@@ -6562,34 +6577,60 @@ def run_context_command(
                 degrade_notes.append(f"elephant unavailable: {elephant.get('error') or elephant.get('reason') or 'no output'}")
             # Goldfish sees ONLY task + retrieval + elephant draft (see its signature).
             #
-            # Google's EGM requires a genuinely fresh reviewer and STOPS the review rather than
-            # substituting the drafter. Enforce that before spending three calls: if both roles
-            # resolve to the same model, the "review" is one model agreeing with itself wearing a
-            # critic's label, which is worse than no review because it reports confidence it has not
-            # earned. `AINISH_RAG_ALLOW_SELF_REVIEW=1` is the explicit, recorded downgrade.
+            # Three outcomes, decided BEFORE spending reviewer calls, and each reported as a fact:
+            #
+            #   distinct-model    an explicitly pinned reviewer resolves to a DIFFERENT model.
+            #                     A genuinely independent second opinion.
+            #   fresh-context     the reviewer is the same model in a separate --no-session context.
+            #                     A legitimate EGM configuration, but the verdict is marked
+            #                     PROVISIONAL because shared weights mean shared blind spots.
+            #   refused           a pin was given and it collides with the drafter's model. Honouring
+            #                     it would report self-agreement as independent review, so the call
+            #                     is not spent and the section says why.
+            #
+            # `plan_reviewer_model` is the arbiter for the pinned case — it was written for this and
+            # had no caller, while this block hardcoded "distinct-model" and then quietly downgraded
+            # itself, so provenance could claim independence it had not established.
             reviewer_separation = "distinct-model"
             separation_reason = ""
+            provisional = False
             goldfish: Dict[str, Any]
             # Compare the models the two roles will ACTUALLY be given.
-            #
-            # Same model is now the DEFAULT and is not a refusal: EGM requires a fresh reviewer
-            # *context*, which `--no-session` guarantees, not a distinct model. What must not happen
-            # is a same-model review being REPORTED as an independent one, so the provenance states
-            # `fresh-context` plainly. A distinct model is still what `--allow-self-review` used to
-            # gate; it is now achieved by pinning one, which is the honest shape for an optional
-            # strengthening rather than a mandatory cost.
             eleph_model = str(elephant.get("requested_model") or _pi_role_model("elephant") or "")
             fish_model = str(_pi_role_model("goldfish") or "")
-            if _same_model(eleph_model, fish_model):
+            pinned_reviewer = role_pinned_model("goldfish")
+            plan: Dict[str, Any] = {}
+            if pinned_reviewer and not distinct_reviewer_requested():
+                # The operator opted into self-review; the pin is not a collision in that case.
+                reviewer_separation = "self-review-allowed"
+                separation_reason = (
+                    "AINISH_RAG_ALLOW_SELF_REVIEW is set, so the drafter may review itself; "
+                    "this is not an independent opinion"
+                )
+                provisional = True
+            elif pinned_reviewer:
+                plan = plan_reviewer_model(_driver_for_review(), eleph_model)
+                if not plan.get("distinct"):
+                    reviewer_separation = "refused"
+                    separation_reason = str(plan.get("reason") or "no distinct reviewer resolvable")
+            if not pinned_reviewer and _same_model(eleph_model, fish_model):
                 reviewer_separation = "fresh-context"
                 separation_reason = (
                     f"same model ({fish_model or 'unknown'}) in a separate --no-session context; "
                     "pin AINISH_RAG_GOLDFISH_MODEL for distinct-model independence"
                 )
-            goldfish = goldfish_review(
-                driver, task, retrieval_text, elephant.get("text") or "", caps["goldfish"],
-                hits=hits, repo_root=repo_root,
-            )
+                provisional = True
+            if reviewer_separation == "refused":
+                # Do not spend the reviewer calls. A pinned reviewer that collides with the drafter
+                # cannot produce independence, and running it would put a confident-looking review
+                # in the block that is the drafter agreeing with itself.
+                goldfish = {"text": "", "source": None, "steps": {},
+                            "error": separation_reason or "review refused"}
+            else:
+                goldfish = goldfish_review(
+                    driver, task, retrieval_text, elephant.get("text") or "", caps["goldfish"],
+                    hits=hits, repo_root=repo_root,
+                )
             steps_done = goldfish.get("steps") or {}
             if goldfish.get("text"):
                 done = [k for k, v in steps_done.items() if v]
