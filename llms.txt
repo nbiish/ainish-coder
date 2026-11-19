@@ -218,51 +218,32 @@ Universal architecture and knowledge retrieval for the codebase. Graph-first ret
 
 
 
-- **Model Specification & Cross-Platform Cache Hierarchy:**
-  - Operates cross-platform across native Windows, WSL (Windows Subsystem for Linux), native Linux, and macOS (Darwin).
-  - Uses `unsloth/embeddinggemma-2-GGUF` (`embeddinggemma-2-BF16.gguf` + `mmproj-F16.gguf`).
-  - Auto-resolves model files following the Hugging Face cache location hierarchy:
-    1. `$HF_HUB_CACHE` / `$HUGGINGFACE_HUB_CACHE` (explicit hub cache root)
-    2. `$HF_HOME/hub` (base Hugging Face directory)
-    3. `$XDG_CACHE_HOME/huggingface/hub` (POSIX standard)
-    4. Explicit overrides: `$AINISH_RAG_MODEL` and `$AINISH_RAG_MMPROJ`
-    5. Native OS caches: `~/.cache/huggingface/hub` (Linux/WSL), `~/Library/Caches/huggingface/hub` (macOS), `%USERPROFILE%\.cache\huggingface\hub` (Windows)
-    6. External drive roots & mounts: `/mnt/d/AI/huggingface/hub` (WSL mount), `/Volumes/*/AI/huggingface/hub` (macOS volumes), `D:\AI\huggingface\hub` (Windows external drive).
-  - Embedding dimension: 768 float32. Critical rule: never evaluate with FP16 due to NaN instability; BF16 or FP32 is required.
+- **Embedding model, vector store, and llama-server: RETIRED 2026-11-12.**
+  Everything in this area is DELETED, not disabled: the `unsloth/embeddinggemma-2-GGUF` model and its
+  multimodal projector, the 768-d embedding space, the `llama`/`llama-server` daemon on
+  `http://127.0.0.1:8080` and its PID file, the Hugging Face cache hierarchy it resolved, the
+  asymmetric task prefixes (`task: search result | query:`), Matryoshka truncation, and the
+  `serve` / `stop` / `index` / `query` / `rerank` / `bench` / `monitor` / `embed-provider`
+  subcommands that existed only to serve them. Any older note describing them in the present tense
+  is stale.
 
-- **Server Lifecycle & Cross-Platform Daemon Management:**
-  - Local embedding inference runs via `llama` / `llama-server` on loopback `http://127.0.0.1:8080`.
-  - Binary discovery auto-locates:
-    - `$LLAMA_SERVER_BIN` / `$LLAMA_BIN`
-    - Homebrew paths (`/opt/homebrew/bin/llama-server`, `/usr/local/bin/llama-server`) on macOS
-    - POSIX paths (`/usr/local/bin`, `~/.local/bin`, `/usr/bin`) on Linux
-    - WindowsApps WinGet (`%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`) on Windows
-    - WSL interop bridging (`/mnt/c/Users/*/AppData/Local/Microsoft/WindowsApps/llama.exe`) on WSL
-  - Managed via `ainish-rag serve`, `ainish-rag stop`, and `ainish-rag status` with detached process group management and PID tracking at `.agents/rag/llama-server.pid`.
-
-- **Embedding Protocol:**
-
-  - Code & text retrieval uses asymmetric task prefixes: `task: search result | query: <q>` and `task: code retrieval | query: <q>` for queries; `title: <filename> | text: <chunk>` for stored records.
-
-  - Multimodal inputs (images, diagrams, video keyframes) utilize `<|image|>` placeholder tokens passed through the multimodal projector (`mmproj-F16.gguf`).
-
-  - Matryoshka dimension truncation must re-normalize with L2 norm before scoring.
+  What replaced it: graph-first retrieval over the Obsidian wiki vault and the `.agents/` context
+  folders (see *Retrieval is graph-first* below). No model, no endpoint, no cache directory, and no
+  key is involved, so `--context` works on a host with nothing installed.
 
 - **Vector Database:** *Retired 2026-11-12.* LanceDB, the Arrow 53 schema, and the 768-d embedding space were deleted with the rest of the vector subsystem. There is no index to build, no dimension to configure, and no model to download; `.agents/rag/lancedb/` is no longer created.
 
 - **Living Architectural Wiki:** Six-part markdown architecture in `.agents/wiki/`:
 
-  1. `01-architecture-and-system-design.md`: Core system philosophy, modular boundaries, cross-platform architecture.
-
-  2. `02-call-graph-and-codebase-connections.md`: AST symbol relationships, dispatchers, CLI workflows.
-
+  1. `01-architecture.md`: system philosophy, modular boundaries, cross-platform architecture.
+  2. `02-codebase-connections.md`: symbol relationships, dispatchers, CLI workflows.
   3. `03-security-and-governance.md`: Zero-Trust, FIPS 203/204/205 PQC mandate, CI security gates.
+  4. `04-improvements-and-debt.md`: code smells, test coverage gaps, performance targets.
+  5. `05-research-and-intelligence.md`: post-quantum cryptography, Canadian Aboriginal Syllabics, research sources.
+  6. `06-marketing-and-positioning.md`: developer onboarding, command cheat sheets, value propositions.
 
-  4. `04-technical-debt-and-improvement-roadmap.md`: Code smells, test coverage gaps, performance targets.
-
-  5. `05-deep-research-and-domain-knowledge.md`: Post-quantum cryptography, Canadian Aboriginal Syllabics, multimodal embedding principles.
-
-  6. `06-developer-experience-and-marketing.md`: Developer onboarding, command cheat sheets, value propositions.
+  Filenames are the ones on disk; an older note listing `01-architecture-and-system-design.md` and
+  friends describes a previous layout. Regenerate with `--refresh-wiki` after a structural change.
 
 - **Decision Layer — TypeSafe Jev (System One) & Local Calibrated Router:**
   - Primary path: TypeSafe Jev **latest** (`typesafe/jev-1.14`) on OpenRouter's Decisions API (`https://openrouter.ai/api/alpha/decisions`). There is no automatic downgrade to older Jev ids; `JEV_DECISION_MODEL` is a diagnostic pin surfaced by `ainish-rag secrets`, and a retired id fails with its reason before the command falls back to the calibrated local router. Every output carries `source` (`openrouter:<dated-model>`, `local-router:<url>:<model>`, or `local-calibrated`) so callers never mistake a fallback for a live judgment.
@@ -326,7 +307,7 @@ Direct children of the root contract. Walk root -> child -> target path before e
 
 | `docs/` | this row | Forward-looking design and plan documents. Currently: `rag-context-system-plan.md` — the phased plan making `ainish-rag` the context-engineering system for deployed agents (audit findings, phases, evidence gate). Documents here are proposals, not contracts; a plan an agent is actually executing lives in `.agents/plans/`, and executed work is recorded in `.agents/tasks/`. |
 
-| `src/` | `src/README.md` | Flat shell deployment utilities (`deploy_*.sh`, `*.sh` helpers), `templates/` (distributed `llms.txt`, `AGENTS.COMMS.md`), `rag/` (graph-first wiki + retrieval engine: Rust crate for the Obsidian vault renderer and the Python engine that serves `context`; the LanceDB/EmbeddingGemma vector path is retired and opt-in only), `pqc-secrets/` (Rust engine), `cmd-tracker/` (Rust tracker) |
+| `src/` | `src/README.md` | Flat shell deployment utilities (`deploy_*.sh`, `*.sh` helpers), `templates/` (distributed `llms.txt`, `AGENTS.COMMS.md`), `rag/` (graph-first wiki + retrieval engine: Rust crate for the Obsidian vault renderer and the Python engine that serves `context`; the LanceDB/EmbeddingGemma vector path is DELETED, with no opt-in and no fallback), `pqc-secrets/` (Rust engine), `cmd-tracker/` (Rust tracker) |
 | `skills-to-distribute/skills/` | [`skills-to-distribute/skills/llms.txt`](./skills-to-distribute/skills/llms.txt) | The distributable skill payload: every pack `--rules`, `--skills-sync`, `--scrolls`, and `--unlock` can install into a consumer repo's `.agents/skills/`. Kept out of `.agents/` on purpose — agent harnesses auto-discover `**/.agents/skills`, so a payload parked there becomes standing context in every session. Index it, don't load it. |
 
 | `.agents/` | [`.agents/llms.txt`](./.agents/llms.txt) | Durable agent system: canonical contract, skills, context packets, wiki, audit, RAG, coordination, plans, tasks, suggestions, and memory | (curated, operator-selected packs via `--skills-sync`), `mcp-settings.json`, `plans/` (per-task plan of record), `tasks/` (per-task chain-of-draft history), `rag/` (local LanceDB vector index & PID), `wiki/` (living 6-part architectural wiki) |

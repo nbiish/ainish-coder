@@ -19,7 +19,7 @@ Codebase components in `ainish-coder` communicate across well-defined interfaces
 
 ## 3. Cross-Cutting Concerns
 - **PQC Secrets Decoupling:** Cryptographic operations are isolated from application logic through FIPS 203/204/205 tools.
-- **RAG & Knowledge Retrieval:** Codebase symbols and documentation chunks are vectorized using EmbeddingGemma-2 (768-d) and queried via LanceDB hybrid search.
+- **Knowledge Retrieval:** graph-first over the wiki vault and `.agents/` context folders — markdown sections as nodes, wikilinks and bounded shared vocabulary as edges. The EmbeddingGemma-2 / LanceDB vector path was DELETED 2026-11-12.
 - **Rules Synchronization:** Rules and agent contracts propagate outward from `ainish-coder` to target repositories via `--rules` deployment.
 
 

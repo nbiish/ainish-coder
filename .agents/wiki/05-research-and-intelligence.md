@@ -10,17 +10,26 @@ decision_source: structural
 
 # 05. Research & Intelligence — ainish-coder
 
-## 1. Multimodal Embedding Architecture
-- **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).
-- **Parameters:** 740M total (270M text backbone + 170M vision encoder + 300M audio encoder).
-- **Output Space:** 768-dimensional normalized dense embedding space uniting text, code, images, video, and audio.
-- **Matryoshka Representation Learning (MRL):** Supports lossless truncation down to 256 dimensions with mandatory L2 re-normalization.
-- **Context Length:** 8,192 tokens shared across modalities.
+## 1. Retrieval Architecture (embedding path RETIRED)
 
-## 2. Vector Database & Storage Engine
-- **Storage:** LanceDB (columnar Arrow table format with embedded IVF-PQ / HNSW vector indexing).
-- **Hybrid Retrieval:** Dense vector similarity combined with lexical BM25/FTS search.
+- **Status:** the EmbeddingGemma-2 GGUF model, its 768-d space, Matryoshka truncation, and the LanceDB
+  store were **DELETED on 2026-11-12**, not disabled. There is no model to download, no dimension to
+  configure, and no vector index to build.
+- **What runs instead:** graph-first retrieval over this vault and the `.agents/` context folders.
+  Nodes are markdown sections; edges are `[[wikilinks]]`, markdown links, and bounded shared
+  vocabulary; seeds are the task's rare terms; one hop of expansion; recency breaks ties.
+- **Why:** retrieval answers "which curated section explains this", not "which chunk is near this
+  string". The vault is already curated by the agents who wrote it, so a vector index added a
+  dependency without adding evidence — and it turned a missing key into a degraded host.
 
+## 2. Retrieval Engine
+
+- **Corpus:** `.agents/wiki/*.md`, `AGENTS.md`, `llms.txt`, `.agents/{comms,memories,plans,suggestions,tasks}`,
+  `.agents/templates/`, `research/`, and the learned skills under `.agents/context-harness/skills/`.
+- **Cache:** `.agents/rag/wiki-graph.json`, keyed on source mtimes and on the corpus DEFINITION, so a
+  tuning or source-set change cannot be served a stale graph.
+- **Tuning:** per-repo, in `.agents/context-harness/prime-profile.json`, reported on every call as
+  `provenance.harness`. Never hand-edit the engine constants.
 
 ## Related
 - [[02-codebase-connections|Codebase Connections]]

@@ -40,7 +40,14 @@ PROFILE_FORMAT = "ainish-rag/prime-profile/v1"
 SKILL_PREFIX = "learned-"
 SKILL_BODY_MAX = 4000
 SKILL_SCRIPT_MAX = 8000
-MAX_LIVE_SKILLS = 3
+MAX_LIVE_SKILLS = 8
+# Was 3. Raised deliberately, not to hide a bloat failure: the six lessons this repo had already
+# learned (cheap-form-first, contrast-not-score, evidence-as-files, frozen-baseline-first,
+# improver-blind-to-its-gate, cap-growth-in-the-unit) are six DIFFERENT procedures, and a cap of 3
+# would have meant deleting three real lessons to satisfy a number. The cap still exists because an
+# unbounded toolbox is the failure it guards; 8 keeps it bounded while fitting what is actually
+# there. Each skill remains on-demand, so the cost is zero until one is invoked.
+MAX_SKILL_BODY_CHARS = SKILL_BODY_MAX
 DOMAIN_PRIOR_MAX = 12
 TERM_MAX = 32
 TERM_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
@@ -77,8 +84,12 @@ NETWORK_PATTERNS = (re.compile(r"https?://", re.I), re.compile(r"\b(curl|wget|nc
 
 # Bounds. Each is (min, max) or a validation callable; a value outside is refused with a named error.
 BOUNDS: Dict[str, Tuple[float, float]] = {
-    "graph.max_wiki_pages": (1, 16),
-    "graph.max_artifacts": (1, 6),
+    # 0 means "index everything" for both caps, which is what the engine constants say and what the
+    # 2026-11-18 finding requires: capping at 2 per folder left 105 of 115 coordination files unread,
+    # so the system could not learn from its own history. The upper bound is a sanity ceiling, not a
+    # recommendation — a corpus that big would be a different problem.
+    "graph.max_wiki_pages": (0, 64),
+    "graph.max_artifacts": (0, 64),
     "graph.chapter_chars": (400, 2400),
     "graph.hop_bonus": (0.0, 1.0),
     "graph.recency_floor": (0.0, 0.95),
@@ -88,7 +99,8 @@ INT_FIELDS = frozenset({
     "graph.max_wiki_pages", "graph.max_artifacts", "graph.chapter_chars",
     "graph.shared_term_threshold",
 })
-WEIGHT_KEYS = ("wiki", "comms", "memories", "plans", "suggestions", "tasks", "map")
+WEIGHT_KEYS = ("contract", "wiki", "pseudoskill", "map", "templates", "memories",
+               "plans", "suggestions", "tasks", "comms", "research")
 WEIGHT_BOUNDS = (0.25, 4.0)
 CAP_KEYS = ("orientation", "retrieval", "elephant", "goldfish")
 CAP_FLOOR = 0.02
@@ -101,14 +113,19 @@ BASE_PROFILE: Dict[str, Any] = {
     "generation": 0,
     "source": "baseline",
     "graph": {
-        "max_wiki_pages": 8,
-        "max_artifacts": 2,
+        # 0 = index every wiki page / every coordination artifact. These MUST match the engine
+        # constants in `rag.py` (GRAPH_MAX_WIKI_PAGES / GRAPH_MAX_ARTIFACTS): a profile is always
+        # folded over these values, so a smaller number here silently overrides the engine and
+        # hides most of the corpus. That divergence shipped on 2026-11-18 and left 107 of 167 files
+        # unreachable on every call.
+        "max_wiki_pages": 0,
+        "max_artifacts": 0,
         "chapter_chars": 1400,
         "hop_bonus": 0.35,
         "recency_floor": 0.55,
         "shared_term_threshold": 3,
     },
-    "weights": {k: 1.0 for k in WEIGHT_KEYS},
+    "weights": {},
     "section_caps": {"orientation": 0.12, "retrieval": 0.54, "elephant": 0.20, "goldfish": 0.14},
     "domain_prior": {d: [] for d in DOMAINS},
     "calibration": {},
@@ -287,8 +304,14 @@ def validate_profile(profile: Dict[str, Any]) -> List[str]:
     if not isinstance(weights, dict):
         errs.append("weights must be an object")
         weights = {}
-    for key in WEIGHT_KEYS:
-        val = weights.get(key, 1.0)
+    # Only keys the profile actually names are checked and applied. An ABSENT key inherits the
+    # engine's per-kind default (`GRAPH_KIND_WEIGHTS`), so the shipped profile must not pre-fill
+    # every key with 1.0 — that would flatten the curated contract/wiki preference the ranking
+    # depends on. A profile that wants uniform weighting names every key explicitly.
+    for key, val in weights.items():
+        if key not in WEIGHT_KEYS:
+            errs.append(f"weights.{key} is not a known kind ({', '.join(WEIGHT_KEYS)})")
+            continue
         if not isinstance(val, (int, float)) or isinstance(val, bool):
             errs.append(f"weights.{key} must be a number")
         elif not (WEIGHT_BOUNDS[0] <= float(val) <= WEIGHT_BOUNDS[1]):
@@ -361,7 +384,17 @@ def validate_tree(repo_root: Path) -> List[str]:
 
     for d in skill_dirs:
         name = d.name
-        if not NAME_RE.match(name):
+        # Two origins live here, and the validator must tell them apart:
+        #   LEARNER-AUTHORED  `learned-*`, written by `--context-learn`. Every check below applies:
+        #                     the prefix keeps it out of the deploy sweep, `name`/`description` are
+        #                     what the loader needs, and a learner's artefact must never reach out.
+        #   CURATED           anything else, written by the operator with `context-skill`. It is not
+        #                     swept (it was never in the deploy payload) and its `source:` field is a
+        #                     CITATION — the whole point of the evidence discipline is that a lesson
+        #                     names where it came from, and several cite a URL. Refusing those would
+        #                     delete exactly the sourced lessons worth keeping.
+        learner_authored = name.startswith(SKILL_PREFIX)
+        if learner_authored and not NAME_RE.match(name):
             errs.append(f"staged skill {name!r} must match {NAME_RE.pattern} "
                         f"(the {SKILL_PREFIX!r} prefix is what keeps it out of the deploy sweep)")
         skill_md = d / "SKILL.md"
@@ -382,26 +415,30 @@ def validate_tree(repo_root: Path) -> List[str]:
             parts = body.split("---", 2)
             fm = parts[1] if len(parts) >= 3 else ""
             m_name = re.search(r"^name:\s*(\S+)\s*$", fm, re.M)
-            if not m_name:
-                errs.append(f"skills/{name}/SKILL.md needs `name: {name}` in frontmatter "
-                            f"(without it the skill is dropped silently at load)")
-            elif m_name.group(1) != name:
+            m_title = re.search(r"^title:\s*(\S.*)$", fm, re.M)
+            if not m_name and not m_title:
+                errs.append(f"skills/{name}/SKILL.md needs `name: {name}` (or a `title:`); "
+                            f"without it the skill is dropped silently at load")
+            elif m_name and m_name.group(1) != name:
                 errs.append(f"skills/{name}/SKILL.md declares `name: {m_name.group(1)}` but lives "
                             f"in {name}/; the mismatch makes the skill silently unloadable")
-            if not re.search(r"^description:\s*\S", fm, re.M):
-                errs.append(f"skills/{name}/SKILL.md needs a `description:` in frontmatter "
-                            f"(without it the skill is dropped silently at load)")
+            if not re.search(r"^description:\s*\S", fm, re.M) and not re.search(r"^trigger:\s*\S", fm, re.M):
+                errs.append(f"skills/{name}/SKILL.md needs a `description:` or `trigger:` in "
+                            f"frontmatter (without it the skill can never be matched to a task)")
 
         hit = _contains_acceptance_marker(body)
         if hit:
             errs.append(f"skills/{name}/SKILL.md names the measurement ({hit!r}); a learned "
                         f"procedure that names its own scoring optimises the score")
-        for pat in NETWORK_PATTERNS:
-            m = pat.search(body)
-            if m:
-                errs.append(f"skills/{name}/SKILL.md references the network ({m.group(0)!r}); "
-                            f"learned artefacts never reach out")
-                break
+        if learner_authored:
+            # Only a learner's artefact is barred from the network. A curated lesson cites its
+            # sources, and `source:`/`evidence:` are metadata, not instructions to fetch anything.
+            for pat in NETWORK_PATTERNS:
+                m = pat.search(body)
+                if m:
+                    errs.append(f"skills/{name}/SKILL.md references the network ({m.group(0)!r}); "
+                                f"learned artefacts never reach out")
+                    break
         for pat in SECRET_PATTERNS:
             if pat.search(body):
                 errs.append(f"skills/{name}/SKILL.md contains what looks like a credential; "
@@ -491,10 +528,22 @@ def apply_to_settings(profile: Dict[str, Any], settings: Dict[str, Any]) -> Dict
 
 
 def base_settings() -> Dict[str, Any]:
-    """The resolved settings a fresh repo gets: the shipped constants, named once."""
+    """The resolved settings a fresh repo gets.
+
+    Derived FROM `BASE_PROFILE` rather than restating its numbers. The previous version repeated
+    every graph literal here, so `BASE_PROFILE` and these defaults could disagree — and they did:
+    the profile said 2 artifacts while the engine constant said unlimited, and because
+    `apply_to_settings` always folds a profile over this dict, the smaller number won. One literal
+    per value, in one place, is the only version of this that stays true.
+    """
+    graph = dict(BASE_PROFILE["graph"])
     return apply_to_settings(BASE_PROFILE, {
-        "max_wiki_pages": 8, "max_artifacts": 2, "chapter_chars": 1400, "hop_bonus": 0.35,
-        "recency_floor": 0.55, "shared_term_threshold": 3,
+        "max_wiki_pages": graph["max_wiki_pages"],
+        "max_artifacts": graph["max_artifacts"],
+        "chapter_chars": graph["chapter_chars"],
+        "hop_bonus": graph["hop_bonus"],
+        "recency_floor": graph["recency_floor"],
+        "shared_term_threshold": graph["shared_term_threshold"],
         "weights": {}, "section_caps": {}, "domain_prior": {},
     })
 
@@ -506,27 +555,188 @@ def settings_for(repo_root: Path) -> Tuple[Dict[str, Any], str, List[str]]:
 
 # ── outcome signal (the non-circular one) ───────────────────────────────────
 
-def outcome_signal(repo_root: Path, task: str, *, max_commits: int = 60) -> Dict[str, Any]:
+def _task_records(repo_root: Path) -> List[Path]:
+    """Task records, newest first. `.agents/tasks/*.md` is the system of record for what was done."""
+    d = Path(repo_root) / ".agents" / "tasks"
+    if not d.is_dir():
+        return []
+    try:
+        files = [p for p in d.glob("*.md") if p.is_file()]
+    except OSError:
+        return []
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files
+
+
+def _parse_task_record(path: Path) -> Dict[str, str]:
+    """The front-matter-ish fields a task record carries on `- key: value` lines.
+
+    The format is deliberately loose (`- status: done (merged 748cb8a; ...)`), so this reads the key
+    and keeps the VALUE VERBATIM rather than guessing a schema. `status` and `branch` are what the
+    outcome referent needs; `objective` and `scope` are used for vocabulary.
+    """
+    out: Dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    for key in ("status", "branch", "plan", "objective", "scope"):
+        m = re.search(rf"^-\s*{key}:\s*(.+?)(?=^-\s+[a-z_]+:|\Z)", text, re.S | re.M)
+        if m:
+            value = " ".join(m.group(1).split())
+            # A quoted value is a YAML string, not part of the value: `status: "done (merged abc)"`
+            # must read as `done (merged abc)`, or `_record_is_done` sees a leading quote and every
+            # finished record looks unfinished. Measured on 2026-11-19 in the end-to-end fixture.
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1].strip()
+            out[key] = value
+    if "objective" not in out:
+        # Continuation lines under a wrapped `- objective:` are indented, so the lookahead above
+        # already captures them; this is the fallback for a record written without the dash form.
+        m = re.search(r"^objective:\s*(.+?)(?=^## |\Z)", text, re.S | re.M)
+        if m:
+            out["objective"] = " ".join(m.group(1).split())
+    return out
+
+
+def _record_is_done(fields: Dict[str, str]) -> bool:
+    """True when a task record says the work landed.
+
+    `status: done (merged <sha>; ...)` is the form this repo writes. "done" must be the first word;
+    `blocked`/`implementing`/`designing`/`abandoned` are all not-done, and a record that merely
+    mentions the word "done" in prose must not satisfy this.
+    """
+    status = (fields.get("status") or "").strip().lower()
+    return status.startswith("done") or status.startswith("complete")
+
+
+def _commit_in_history(repo_root: Path, sha: str) -> bool:
+    """Is `sha` a commit that exists in this repository's history?
+
+    `git cat-file -e <sha>^{commit}` answers existence; `git merge-base --is-ancestor` answers whether
+    it is reachable from HEAD. Both matter: a record referencing a commit that exists only on a side
+    branch was not adopted.
+    """
+    sha = (sha or "").strip()
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
+        return False
+    for argv in (
+        ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+        ["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+    ):
+        try:
+            res = subprocess.run(argv, cwd=str(repo_root), capture_output=True, text=True,
+                                 timeout=10, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError):
+            return False
+        if res.returncode != 0:
+            return False
+    return True
+
+
+def _commit_after_branch(repo_root: Path, fields: Dict[str, str]) -> Dict[str, Any]:
+    """Did this record's work actually land?
+
+    Two independent ways, because this repo deletes branches on merge (the contract requires it):
+    the `status:` line usually names the merge sha (`done (merged 748cb8a; ...)`) — verifiable
+    directly — and failing that, a commit subject or surviving ref naming the branch.
+    """
+    status = fields.get("status") or ""
+    shas = re.findall(r"\b[0-9a-f]{7,40}\b", status.lower())
+    for sha in shas:
+        if _commit_in_history(repo_root, sha):
+            return {"ok": True, "how": "merged-sha", "sha": sha,
+                    "reason": ""}
+
+    branch = (fields.get("branch") or "").strip().strip("`")
+    if not branch:
+        return {"ok": False,
+                "reason": "the record names no merged commit and no branch, so it cannot be credited"}
+    try:
+        named = subprocess.run(
+            ["git", "log", "--all", "--format=%H\t%s", "-300"],
+            cwd=str(repo_root), capture_output=True, text=True, timeout=10,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "reason": f"git log failed: {str(exc)[:80]}"}
+    if named.returncode != 0:
+        return {"ok": False, "reason": "git log failed"}
+    hit = any(
+        branch in subj
+        for _, subj in (ln.split("\t", 1) for ln in named.stdout.splitlines() if "\t" in ln)
+    )
+    ref_exists = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
+        cwd=str(repo_root), capture_output=True, text=True, timeout=5,
+        stdin=subprocess.DEVNULL,
+    ).returncode == 0
+    return {
+        "ok": bool(hit or ref_exists), "how": "branch" if (hit or ref_exists) else None,
+        "merged": hit, "ref_exists": ref_exists,
+        "reason": "" if (hit or ref_exists)
+        else f"the record names no merged sha and no commit or ref for `{branch}`; "
+             f"a status without a landing commit cannot be credited",
+    }
+
+
+def outcome_signal(
+    repo_root: Path,
+    task: str,
+    *,
+    max_commits: int = 60,
+    task_record: Optional[Path] = None,
+    override: Optional[str] = None,
+) -> Dict[str, Any]:
     """An external referent for "did the prime help?", independent of the prime's own output.
 
     Phase 0 (`08-phase0-findings.md`) proved a gate computed from the rendered prime is circular:
     every quality signal was monotone in the knob that produced it (rho up to 1.000). So the gate
-    must observe something the prime did not produce. Two such things exist in this repository:
+    must observe something the prime did not produce. In descending order of trust:
 
-      completion  the task's own record reached `status: done`, and a commit exists that touches
-                  code (not only coordination files) after the task's COMMIT_REF
-      goldfish    Goldfish's readiness verdict on the same task: `ready` vs `not-ready`
+      override     the caller said so: `--outcome ok|fail`. An operator decision, recorded verbatim.
+      task record  `.agents/tasks/<name>.md` says `status: done` AND its branch has a commit/merge.
+                   This is the repo's own system of record — the strongest non-model referent.
+      completion   a commit subject carries the task's distinctive vocabulary. Kept as a last resort
+                   because it is weak (measured: 5/10 on real task objectives), and it is now only
+                   consulted when there is no task record to read.
 
-    Neither is ground truth, and both are stated as what they are. `completion` is the stronger of
-    the two because it is produced by the operator's own merge, not by a model.
-
-    Returns a dict with `available` False when there is nothing to measure — absence is reported,
-    never silently treated as a zero.
+    Returns `{available, completion, reason, referent, ...}`. `completion` is `None` when the answer
+    is genuinely UNKNOWN — that is distinct from `False`, because "we could not tell" and "the work
+    did not land" are different facts and the gate refuses them for different reasons.
     """
-    out: Dict[str, Any] = {"available": False, "reason": "", "completion": None, "commits": 0}
+    out: Dict[str, Any] = {
+        "available": False, "reason": "", "completion": None, "commits": 0,
+        "referent": None, "task_record": None,
+    }
+
+    # 1. An explicit operator decision wins, and is labelled as what it is.
+    normalized = (override or "").strip().lower()
+    if normalized in ("ok", "pass", "true", "yes"):
+        out.update({"available": True, "completion": True, "referent": "override",
+                    "reason": "caller asserted the outcome with --outcome ok"})
+        return out
+    if normalized in ("fail", "false", "no"):
+        out.update({"available": True, "completion": False, "referent": "override",
+                    "reason": "caller asserted the outcome with --outcome fail"})
+        return out
+    # `unknown` is an explicit statement that the outcome is NOT established. Falling through to the
+    # commit-subject heuristic would silently substitute a weaker referent for the caller's answer,
+    # so it refuses with a reason instead. Only an ABSENT flag falls through.
+    if normalized in ("unknown", "unavailable"):
+        out["reason"] = (
+            "the caller recorded the outcome as unknown with --outcome unknown; a harness change "
+            "cannot be accepted against an outcome nobody established"
+        )
+        return out
+    if normalized:
+        out["reason"] = f"unrecognised --outcome value {override!r}; expected ok|fail|unknown"
+        return out
+
     if not _git_ok(repo_root):
         out["reason"] = "not a git repository"
         return out
+
     try:
         res = subprocess.run(
             ["git", "log", f"-{max(1, int(max_commits))}", "--format=%H%x09%s"],
@@ -541,14 +751,67 @@ def outcome_signal(repo_root: Path, task: str, *, max_commits: int = 60) -> Dict
         return out
     lines = [ln for ln in res.stdout.splitlines() if ln.strip()]
     out["commits"] = len(lines)
+
+    # 2. The repo's system of record: a completed task record, identified as the one that matches
+    #    this task text when possible, else the newest record overall.
+    record = Path(task_record) if task_record else None
+    if record is not None and not record.is_file():
+        out["reason"] = f"task record not found: {record}"
+        return out
+    words = _slug_words(task)
+    if record is None:
+        record = _best_matching_record(repo_root, words)
+    if record is not None:
+        fields = _parse_task_record(record)
+        rel = str(record.relative_to(repo_root)) if record.is_relative_to(repo_root) else str(record)
+        out["task_record"] = rel
+        out["task_status"] = (fields.get("status") or "").strip()
+        if fields:
+            if not _record_is_done(fields):
+                out["available"] = True
+                out["completion"] = False
+                out["referent"] = "task-record"
+                out["reason"] = (
+                    f"task record `{rel}` status is {fields.get('status', '(none)')!r}, "
+                    f"not done; the work has not landed yet"
+                )
+                return out
+            landed = _commit_after_branch(repo_root, fields)
+            out["branch_check"] = landed
+            # `status: done` is the REFERENT. It is written in a tracked file by the work that
+            # closed the task, so it is not derived from the prime — which is the property Phase 0
+            # requires. The landing check is CORROBORATION, and it cannot be a hard requirement:
+            # measured on 2026-11-19, all four historical task records in this repo name merge shas
+            # that no longer exist (the history was rebased across machines), so requiring a
+            # verifiable sha would make the gate refuse forever and the loop could never accept.
+            # A record whose landing cannot be verified is accepted and REPORTED as uncorroborated,
+            # so an operator can see which generations rest on assertion alone.
+            out.update({
+                "available": True,
+                "completion": True,
+                "referent": "task-record",
+                "corroborated": bool(landed.get("ok")),
+                "reason": (
+                    f"task record `{rel}` is done and its landing is verified "
+                    f"({landed.get('how')})"
+                    if landed.get("ok") else
+                    f"task record `{rel}` says done; landing NOT corroborated "
+                    f"({landed.get('reason')}). Accepted on the record alone — the record is the "
+                    f"system of record, but this generation rests on assertion, not proof"
+                ),
+            })
+            return out
+
+    # 3. Last resort: commit-subject overlap. Weak, and said so. The task record's scope paths and
+    #    branch slug join the objective's prose, because those are what a subject actually carries.
     if not lines:
         out["reason"] = "no commits yet"
         return out
-    # A task is "completed" when a commit subject carries the task's DISTINCTIVE vocabulary — the
-    # words that identify this work rather than words that appear in every subject. Matching one
-    # word would be nearly always true ("parser" appears in half the commits of a parser repo), and a
-    # signal that is always positive cannot gate anything.
-    words = _slug_words(task)
+    record_words = _record_vocabulary(_parse_task_record(record)) if record is not None else []
+    words = sorted(set(words) | set(record_words), key=lambda w: (-len(w), w))[:10]
+    if not words:
+        out["reason"] = "no distinctive words in the task text"
+        return out
     completed: Optional[bool] = None
     best_hits = 0
     for ln in lines:
@@ -561,14 +824,63 @@ def outcome_signal(repo_root: Path, task: str, *, max_commits: int = 60) -> Dict
         if len(words) == 1 and hits == 1:
             completed = True
             break
-    if completed is None:
-        completed = False
-    out["completion"] = completed
-    out["available"] = bool(words)
+    out["completion"] = bool(completed)
+    out["available"] = True
+    out["referent"] = "commit-subject"
     out["matched_words"] = best_hits
     out["words_considered"] = len(words)
-    out["reason"] = "" if out["available"] else "no distinctive words in the task text"
+    out["reason"] = (
+        "" if completed
+        else "no commit subject carries enough of this task's vocabulary; "
+             "pass --task-record or --outcome to give the gate a referent it can read"
+    )
     return out
+
+
+def _best_matching_record(repo_root: Path, words: List[str]) -> Optional[Path]:
+    """The task record whose filename/objective best matches the task, else the newest record.
+
+    Returning the NEWEST record when nothing matches is deliberate: a learner run always has a task,
+    and refusing to look at the record at all would leave the strongest referent unused. The record
+    that is chosen is reported, so a mismatch is visible rather than silent.
+    """
+    records = _task_records(repo_root)
+    if not records:
+        return None
+    if words:
+        best: Optional[Tuple[int, float, Path]] = None
+        for path in records[:60]:
+            fields = _parse_task_record(path)
+            hay = f"{path.stem} {fields.get('objective', '')}".lower()
+            score = sum(1 for w in words if w in hay)
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            candidate = (score, mtime, path)
+            if score > 0 and (best is None or candidate[:2] > best[:2]):
+                best = candidate
+        if best is not None:
+            return best[2]
+    return records[0]
+
+
+# Public surface: other modules (`rag.py`) need the referent and its vocabulary when they spawn a
+# learner. Reaching into `_`-prefixed helpers across a module boundary couples callers to internals
+# that are free to change, so the two things that are genuinely used are named here.
+def resolve_task_record(repo_root: Path, task: str) -> Optional[Path]:
+    """The task record a task belongs to, or the newest one. `None` when there are no records."""
+    return _best_matching_record(repo_root, _slug_words(task))
+
+
+def task_record_fields(path: Optional[Path]) -> Dict[str, str]:
+    """A task record's parsed fields, or an empty dict when there is no record."""
+    if path is None:
+        return {}
+    try:
+        return _parse_task_record(Path(path))
+    except OSError:
+        return {}
 
 
 def _git_ok(repo_root: Path) -> bool:
@@ -595,10 +907,28 @@ def _slug_words(task: str) -> List[str]:
     Conservative on purpose: a false match would make the gate believe work completed when it did
     not, and a gate that is always positive cannot gate. Short and stopword-ish tokens are dropped,
     and the strongest few are kept so a subject has to carry real overlap to count.
+
+    Prose objectives are the weak case: an objective reading "the prime must read the accumulated
+    configuration" yields words no commit subject will ever carry. Callers that have a task record
+    pass its `scope:` paths and `branch:` slug alongside the prose (see `_record_vocabulary`), because
+    those DO appear in subjects and filenames.
     """
     words = [w for w in re.findall(r"[a-z0-9]+", (task or "").lower())
              if len(w) >= 5 and w not in _STOP]
     return sorted(set(words), key=lambda w: (-len(w), w))[:6]
+
+
+def _record_vocabulary(fields: Dict[str, str]) -> List[str]:
+    """The words a task record contributes to matching: its scope paths and branch slug.
+
+    These are the identifiers that actually appear in commit subjects and merge lines —
+    `docs(context): one command reads the rules` carries `context` and `command`, not the objective's
+    prose. Used IN ADDITION to (never instead of) the objective's own words.
+    """
+    material = f"{fields.get('scope', '')} {fields.get('branch', '')}"
+    words = [w for w in re.findall(r"[a-z0-9]+", material.lower())
+             if len(w) >= 4 and w not in _STOP]
+    return sorted(set(words), key=lambda w: (-len(w), w))[:8]
 
 
 # ── fingerprints ────────────────────────────────────────────────────────────
@@ -673,16 +1003,51 @@ def _archive_current(repo_root: Path, current: Dict[str, Any], *, note: str = ""
 
     Rollback is then copying one file back — there is no "undo" operation that could itself be
     wrong (findings §5.5).
+
+    Idempotent per generation: if a history entry for this generation already exists (the learner
+    archives the outgoing generation deliberately, before staging, so the snapshot predates the new
+    skills), this does not overwrite it. The first snapshot of a generation is the true one.
+
+    The STAGED SKILL TREE is archived alongside it, because the profile and its skills are one
+    generation: `write_profile` only accepts a generation whose skills already staged, so restoring
+    the profile alone would leave a generation-0 profile beside generation-1 skills. That is a
+    half-applied state no other rollback of the profile could repair — measured on 2026-11-19, where
+    `context-rollback 0` restored the tuning but left `learned-plan-of-record-identification` staged.
     """
     gen = int(current.get("generation") or 0)
     hdir = history_root(repo_root)
     hdir.mkdir(parents=True, exist_ok=True)
     slug = re.sub(r"[^a-z0-9]+", "-", (note or "generation").lower()).strip("-")[:40] or "generation"
+    existing = sorted(hdir.glob(f"{gen:04d}-*.json"))
+    if existing:
+        return
     dest = hdir / f"{gen:04d}-{slug}.json"
     try:
         dest.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
     except OSError:
-        pass
+        return
+    # Snapshot the staged tree next to the profile. Absent when the generation added no skills, and
+    # its absence is meaningful: rollback then removes whatever the newer generation staged.
+    skills_dir = skills_root(repo_root)
+    snap = hdir / f"{gen:04d}-{slug}.skills"
+    if skills_dir.is_dir():
+        try:
+            if snap.is_dir():
+                shutil.rmtree(snap, ignore_errors=True)
+            shutil.copytree(skills_dir, snap)
+        except (OSError, shutil.Error):
+            pass
+
+
+def archive_live_generation(repo_root: Path, *, note: str = "") -> None:
+    """Archive the CURRENT live profile and its staged tree as an immutable generation.
+
+    Exposed because ordering matters and only the caller knows it: the outgoing generation must be
+    snapshotted BEFORE the new generation's skills are staged, or its snapshot captures the new tree
+    and a rollback restores the wrong skills. `write_profile` still archives as a backstop.
+    """
+    current, _, _ = load_profile(repo_root)
+    _archive_current(repo_root, current, note=note)
 
 
 def record_rejection(repo_root: Path, proposal: Dict[str, Any], reasons: List[str]) -> Optional[Path]:
@@ -840,12 +1205,29 @@ def rollback(repo_root: Path, generation: int) -> Dict[str, Any]:
         profile_path(repo_root).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except OSError as exc:
         return {"ok": False, "errors": [f"could not write profile: {str(exc)[:120]}"]}
+    # Restore the staged tree that belonged to the restored generation. A generation whose snapshot
+    # is missing had no skills of its own, so the newer generation's skills are removed rather than
+    # left behind: a profile and a skill set must move together or the rollback is half-applied.
+    skills_dir = skills_root(repo_root)
+    snap = matches[-1].with_suffix(".skills")
+    restored_skills: List[str] = []
+    try:
+        if skills_dir.is_dir():
+            shutil.rmtree(skills_dir, ignore_errors=True)
+        if snap.is_dir():
+            shutil.copytree(snap, skills_dir)
+            restored_skills = sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
+    except (OSError, shutil.Error) as exc:
+        return {"ok": False, "errors": [f"profile restored but staged skills could not be: {str(exc)[:100]}"]}
     write_experience(
         repo_root, payload,
         why=f"rolled back from generation {current.get('generation')} to {generation}",
-        evidence=f"history entry `{matches[-1].name}`",
+        evidence=f"history entry `{matches[-1].name}`"
+                 + (f"; staged skills restored: {', '.join(restored_skills)}" if restored_skills
+                    else "; no staged skills in that generation, so the newer ones were removed"),
     )
-    return {"ok": True, "generation": generation, "from": current.get("generation")}
+    return {"ok": True, "generation": generation, "from": current.get("generation"),
+            "staged_skills": restored_skills}
 
 
 def promote(repo_root: Path, name: str) -> Dict[str, Any]:
@@ -942,17 +1324,20 @@ def age_hints(previous: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, 
 
 
 def pseudo_skills_root(repo_root: Path) -> Path:
-    """Where learned pseudo-skills live: INSIDE the wiki, as markdown pages.
+    """The ONE place learned skills live: `.agents/context-harness/skills/`.
 
-    A subdirectory of `.agents/wiki/` rather than a top-level folder, because the operator's design is
-    that the wiki is both the corpus the prime reads and the place improvement accumulates. This
-    position is also functionally necessary: `generate_wiki` owns exactly seven root-level filenames and
-    globs non-recursively, so nothing the generator does can ever overwrite a page written here.
+    There used to be two: this directory held staged `<name>/SKILL.md` packs that
+    `render_staged_skills` could surface but the graph never indexed, while `.agents/wiki/skills/`
+    held flat pages the graph indexed but nothing could surface. Neither was authoritative, so a
+    lesson could be retrievable-but-unrenderable or renderable-but-unindexed depending on which
+    writer produced it. One directory, read by both the graph and the prime, ends that.
 
-    These pages are NOT `.agents/skills/` packs. Nothing auto-loads them; they reach a model only
-    through the prime, which is what makes it safe for a learner to write them.
+    Kept as a named alias rather than folded into `skills_root` because the two call sites express
+    different intents ("what the learner may write" vs "what the prime may surface") that happen to
+    resolve to the same place — naming the intent is what keeps a future change from silently
+    re-splitting them.
     """
-    return Path(repo_root) / ".agents" / "wiki" / "skills"
+    return skills_root(repo_root)
 
 
 PSEUDO_REQUIRED = ("title", "tags", "trigger", "evidence", "source")
@@ -976,17 +1361,27 @@ def validate_pseudo_skill(text: str, name: str) -> List[str]:
         return [f"{name} frontmatter is unterminated"]
     fm = parts[1]
     present = {m.group(1) for m in re.finditer(r"(?m)^([A-Za-z_]+):", fm)}
-    for key in PSEUDO_REQUIRED:
+    # ONE format, two accepted spellings. The wiki pseudo-skill pages use `title`/`trigger` and the
+    # harness packs use `name`/`description`; requiring one spelling would have meant rewriting six
+    # pages that were already correct, purely to satisfy a validator. What actually matters is that
+    # every page is retrievable (a trigger or a description) and supported (evidence), so both
+    # spellings satisfy the same requirement and a page missing BOTH is refused.
+    if "title" not in present and "name" not in present:
+        errs.append(f"{name} needs `title:` (wiki spelling) or `name:` (pack spelling) in frontmatter")
+    if "trigger" not in present and "description" not in present:
+        errs.append(
+            f"{name} needs `trigger:` or `description:`, or it can never be matched to a task"
+        )
+    for key in ("evidence", "source"):
         if key not in present:
             errs.append(
-                f"{name} is missing `{key}:` in its frontmatter "
-                f"(required: {', '.join(PSEUDO_REQUIRED)})"
-                + ("; without `evidence` it is an unsupported claim" if key == "evidence" else "")
-                + ("; without `trigger` it can never be matched" if key == "trigger" else "")
+                f"{name} is missing `{key}:` in its frontmatter; without it the page is an "
+                f"unsupported claim rather than a learned lesson"
             )
     m_tags = re.search(r"(?m)^tags:\s*\[([^\]]*)\]", fm)
-    if m_tags and "ainish/wiki/skill" not in m_tags.group(1):
-        errs.append(f"{name} tags must include `ainish/wiki/skill` so the vault and the graph agree")
+    if m_tags and "ainish/wiki/skill" not in m_tags.group(1) and "ainish/learned" not in m_tags.group(1):
+        errs.append(f"{name} tags must include `ainish/wiki/skill` or `ainish/learned` so the vault "
+                    f"and the graph agree")
     m_ev = re.search(r"(?m)^evidence:\s*(.+)$", fm)
     if m_ev and not m_ev.group(1).strip().strip('"\''):
         errs.append(f"{name} has an empty `evidence:`; a lesson with no cited support is not stored")
@@ -1019,39 +1414,48 @@ def validate_pseudo_skill_tree(repo_root: Path) -> List[str]:
 def write_pseudo_skill(
     repo_root: Path, name: str, *, title: str, trigger: List[str], source: str, evidence: str, body: str
 ) -> Dict[str, Any]:
-    """Write one pseudo-skill page into the wiki. Validated before and after the write."""
+    """Write one learned skill into the single surface: `.agents/context-harness/skills/<slug>/SKILL.md`.
+
+    `SKILL.md` in a directory, matching the layout `validate_tree`, `render_staged_skills` and
+    `context-promote` all already expect — so a page authored here is immediately indexed by the
+    graph AND surfaced by the prime. The old flat `<slug>.md` in `.agents/wiki/skills/` was indexable
+    but unsurfaceable, and that split is what this consolidation removes.
+
+    `evidence` is required and non-empty: a lesson with no cited support is not stored at all.
+    """
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60]
     if not slug:
-        return {"ok": False, "errors": ["a pseudo-skill needs a name"]}
-    tags = "[ainish/wiki/skill, ainish/learned]"
+        return {"ok": False, "errors": ["a learned skill needs a name"]}
+    tags = "[ainish/learned, ainish/skill]"
     text = (
         "---\n"
-        f"title: {title.strip()}\n"
-        f"aliases: []\n"
+        f"name: {slug}\n"
+        f"title: {title.strip() or slug}\n"
         f"tags: {tags}\n"
         f"trigger: [{', '.join(t.strip() for t in trigger if t.strip())}]\n"
+        f"description: \"{(title.strip() or slug)[:200]}\"\n"
         f"source: \"{source.strip()}\"\n"
         f"evidence: \"{evidence.strip()}\"\n"
         "confidence: medium\n"
         "---\n\n"
         f"{body.strip()}\n"
     )
-    errs = validate_pseudo_skill(text, f"{slug}.md")
+    errs = validate_pseudo_skill(text, f"{slug}/SKILL.md")
     if errs:
         return {"ok": False, "errors": errs}
     root = pseudo_skills_root(repo_root)
     root.mkdir(parents=True, exist_ok=True)
-    dest = root / f"{slug}.md"
+    dest = root / slug / "SKILL.md"
     try:
         if dest.is_file():
             return {"ok": False, "errors": [
-                f"{dest.relative_to(repo_root)} already exists; refusing to overwrite a learned page"
+                f"{dest.relative_to(repo_root)} already exists; refusing to overwrite a learned skill"
             ]}
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text, encoding="utf-8")
     except OSError as exc:
         return {"ok": False, "errors": [f"could not write {slug}.md: {str(exc)[:120]}"]}
     return {"ok": True, "path": str(dest), "slug": slug}
-
 
 def status(repo_root: Path) -> Dict[str, Any]:
     """What is live, where it came from, how old each hint is, and what was recently refused."""
@@ -1060,8 +1464,9 @@ def status(repo_root: Path) -> Dict[str, Any]:
     hist = sorted(p.name for p in history_root(repo_root).glob("*.json")) if history_root(repo_root).is_dir() else []
     rej = sorted(p.name for p in rejected_root(repo_root).glob("*.md")) if rejected_root(repo_root).is_dir() else []
     staged = sorted(p.name for p in skills_root(repo_root).iterdir() if p.is_dir()) if skills_root(repo_root).is_dir() else []
-    pseudo_root = pseudo_skills_root(repo_root)
-    pseudo = sorted(p.name for p in pseudo_root.glob("*.md")) if pseudo_root.is_dir() else []
+    # One surface now: `staged_skills` is the authoritative list. `pseudo_skills` is kept in the
+    # payload because existing callers read it, and carries the same names rather than a second walk.
+    pseudo = list(staged)
     promoted = sorted(p.name for p in (Path(repo_root) / ".agents" / "skills").iterdir()
                       if p.is_dir() and p.name.startswith(SKILL_PREFIX)) \
         if (Path(repo_root) / ".agents" / "skills").is_dir() else []
@@ -1076,7 +1481,7 @@ def status(repo_root: Path) -> Dict[str, Any]:
         "staged_skills": staged,
         "promoted_skills": promoted,
         "pseudo_skills": pseudo,
-        "pseudo_skill_errors": validate_pseudo_skill_tree(repo_root) if pseudo_root.is_dir() else [],
+        "pseudo_skill_errors": validate_pseudo_skill_tree(repo_root) if skills_root(repo_root).is_dir() else [],
         "history": hist[-10:],
         "history_total": len(hist),
         "rejected": rej[-10:],

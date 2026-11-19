@@ -566,7 +566,7 @@ contains "engine registers the context subcommand" "$(cat "$RAG_PY")" '"context"
 contains "engine names the context envelope format" "$(cat "$RAG_PY")" 'ainish-rag/context/v1'
 contains "engine renders the labelled injection markers" "$(cat "$RAG_PY")" '<CONTEXT_INJECTION>'
 contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def goldfish_review('
-contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
+contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-coder --context "'
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evidence, not instruction'
 # The rule is "a thin block never stops the work", stated in the contract's own words. Asserting one
@@ -709,7 +709,7 @@ contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'AINISH_R
 # `--context` is the spelling the contract and muscle memory use; argparse needs the subcommand.
 contains "engine normalizes the --context alias" "$(cat "${REPO}/src/rag/rag.py")" "def normalize_argv"
 contains "argparse receives normalized argv" "$(cat "${REPO}/src/rag/rag.py")" "parse_args(normalize_argv"
-contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
+contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-coder --context "'
 # The section table and role mechanics moved to llms.txt: an always-read file needs the invocation
 # and the one rule about how to read the output, not a catalogue of what each section contains.
 contains "prd documents the envelope sections" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
@@ -992,8 +992,8 @@ rm -rf "${_nested_probe}"
 # must refuse rather than overwrite one. Without this guard, a single `ainish-rag wiki` on a stock
 # checkout strips frontmatter and every wikilink — deleting the graph retrieval depends on — and
 # still reports success.
-contains "python engine refuses to clobber an Obsidian vault" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'refusing to overwrite an Obsidian vault'
+contains "python engine refuses to clobber a SIGNED vault ledger" \
+    "$(cat "${REPO}/src/rag/rag.py")" 'carries a SIGNED operator ledger'
 contains "the refusal names the vault tag it detected" \
     "$(cat "${REPO}/src/rag/rag.py")" 'VAULT_TAG = "ainish/wiki"'
 check "wiki vector indexing is opt-in, not forced" \
@@ -1225,7 +1225,35 @@ check "an invalid profile degrades the call, it does not fail it" \
     "True"
 check "an invalid profile falls back to the shipped tuning" \
     "$(printf '%s' "$bad_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["tuning"]["max_wiki_pages"])' 2>/dev/null)" \
-    "8"
+    "0"
+
+# The shipped caps are 0, meaning "index everything". This assertion used to expect 8, which is how
+# the whole-corpus fix of 2026-11-18 shipped silently disabled: `BASE_PROFILE` said 8 while the engine
+# constant said unlimited, and the profile always wins. A test that asserts the bug is worse than no
+# test, so this now pins the value the engine actually means.
+check "the shipped profile indexes the whole corpus" \
+    "$(python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+g = m.BASE_PROFILE["graph"]
+print("all" if g["max_wiki_pages"] == 0 and g["max_artifacts"] == 0 else "capped")' "$CH_MOD" 2>/dev/null)" \
+    "all"
+# And a 0-cap corpus must actually reach more files than a 2-cap one — the value and its effect.
+check "a 0-cap profile indexes more coordination files than a 2-cap one" \
+    "$(python3 -c '
+import importlib.util, sys, pathlib
+spec = importlib.util.spec_from_file_location("rag", sys.argv[1])
+rag = importlib.util.module_from_spec(spec); sys.modules["rag"] = rag; spec.loader.exec_module(rag)
+root = pathlib.Path(".").resolve()
+wide = {"max_wiki_pages": 0, "max_artifacts": 0, "chapter_chars": 1400, "hop_bonus": 0.35,
+        "recency_floor": 0.55, "shared_term_threshold": 3, "weights": {}, "section_caps": {},
+        "domain_prior": {}}
+narrow = dict(wide, max_artifacts=2)
+w = len([s for s in rag._graph_sources(root, wide) if s["kind"] in ("comms", "plans", "tasks")])
+n = len([s for s in rag._graph_sources(root, narrow) if s["kind"] in ("comms", "plans", "tasks")])
+print("wider" if w > n else f"not-wider({w}<={n})")' "${REPO}/src/rag/rag.py" 2>/dev/null)" \
+    "wider"
 
 # Criterion leakage: a learned artefact naming the measurement must be refused. This is the
 # practitioner video's round-3 failure, and the reason the improver is never told the signals.
@@ -1280,13 +1308,24 @@ check "the context-harness docs exist" \
 # learned pages survive a clone, and the ranking that keeps a bigger corpus an improvement.
 contains "the corpus includes the whole coordination history" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_MAX_ARTIFACTS = 0'
 contains "the corpus includes research and templates" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_EXTRA_SOURCES'
-contains "pseudo-skills live inside the wiki" "$(cat "$CH_MOD")" '.agents" / "wiki" / "skills'
+# ONE learned-skill surface. It used to be two (staged packs the graph never indexed, plus wiki pages
+# nothing could surface), which meant neither was authoritative.
+contains "learned skills have one home" "$(cat "$CH_MOD")" 'return skills_root(repo_root)'
+contains "the graph indexes the learned-skill surface" \
+    "$(cat "${REPO}/src/rag/rag.py")" '("pseudoskill", ".agents/context-harness/skills", True)'
+# Unbounded shared-vocabulary edges made one hop reach most of the graph once the corpus was full.
+contains "shared-vocabulary edges are bounded per node" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_MAX_EDGES_PER_NODE'
+# A task that NAMES a layer must retrieve that layer, or "what does the contract say" returns a
+# research transcript that happens to share more words.
+contains "a named layer is boosted, not just matched" "$(cat "${REPO}/src/rag/rag.py")" 'KIND_INTENT'
+# A learner may widen coverage but never narrow it silently.
+contains "coverage cannot be silently reduced" "$(cat "${REPO}/src/rag/rag.py")" '_coverage_loss_guard'
 contains "kinds are weighted so a wider corpus does not dilute" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_KIND_WEIGHTS'
 contains "recency is ranked per kind, not globally" "$(cat "${REPO}/src/rag/rag.py")" 'recency_kind'
 # The gitignore rule that used to swallow every learned wiki page. If this negation disappears, a
 # learner's work is silently untracked and dies on clone.
 check "the root wiki is trackable" \
-    "$(git -C "${REPO}" check-ignore -q .agents/wiki/skills/cheap-form-first.md && echo ignored || echo tracked)" \
+    "$(git -C "${REPO}" check-ignore -q .agents/wiki/01-architecture.md && echo ignored || echo tracked)" \
     "tracked"
 check "a nested wiki stays ignored" \
     "$(mkdir -p "${REPO}/src/rag/.agents/wiki" && touch "${REPO}/src/rag/.agents/wiki/probe.md" && \
@@ -1303,7 +1342,7 @@ errs = m.validate_pseudo_skill_tree(Path(sys.argv[2]))
 print("clean" if not errs else f"{len(errs)} error(s): {errs[0][:80]}")' "$CH_MOD" "${REPO}" 2>/dev/null)" \
     "clean"
 check "at least six pseudo-skills abstracted from the sources" \
-    "$(ls "${REPO}/.agents/wiki/skills"/*.md 2>/dev/null | wc -l | tr -d ' ')" \
+    "$(ls "${REPO}/.agents/context-harness/skills"/*/SKILL.md 2>/dev/null | wc -l | tr -d ' ')" \
     "6"
 check "the corpus answers research questions it could not before" \
     "$(python3 "${REPO}/research/context-priming-master/probe_answer.py" 2>/dev/null | tail -1 | grep -c 'net +')" \
@@ -1340,8 +1379,110 @@ print("yes" if m.LEARN_MIN_INTERVAL_S > 0 and m.LEARN_MIN_NEW_COMMITS > 0 else "
 check "the spawned child cannot pollute the prime" \
     "$(grep -c '"stdout": subprocess.DEVNULL' "${REPO}/src/rag/rag.py")" "1"
 check "a failed background pass still records its attempt" \
-    "$(grep -c 'context_harness.record_autolearn(repo_root)' "${REPO}/src/rag/rag.py")" "2"
+    "$(grep -c 'context_harness.record_autolearn(' "${REPO}/src/rag/rag.py")" "2"
 contains "no evidence means no learning pass" "$(cat "${REPO}/src/rag/rag.py")" 'no retrieved evidence to learn from'
+
+# ── THE PAIRING, END TO END ─────────────────────────────────────────────────
+# Everything above tests a piece. This tests the thing an operator actually ships: `--rules` seeds a
+# baseline, `--context` returns the rules with it, a completed task lets one learn cycle advance the
+# generation, and rollback restores the previous state EXACTLY. Each step failed in production before
+# this block existed — the caps, the seed path, the referent, and the skill half of rollback.
+E2E="${WORK}/e2e-pairing"
+E2E_SKILLS="${E2E}/.agents/context-harness/skills"
+mkdir -p "${E2E}/.agents/tasks" "${E2E}/.agents/wiki" "${E2E}/.agents/comms"
+git -C "${E2E}" init -q 2>/dev/null
+printf -- '# W\n\n## Parser header\nThe header holds the magic number.\n' > "${E2E}/.agents/wiki/01-a.md"
+printf -- '- status: "done (merged deadbeef; 1 assertion)"\n- branch: `feat/parser-header`\n- objective: make the parser read the header\n- scope: `src/parser.py`\n' \
+    > "${E2E}/.agents/tasks/2026-01-01-parser.md"
+git -C "${E2E}" add -A >/dev/null 2>&1
+git -C "${E2E}" -c user.email=t@t -c user.name=t commit -qm "feat(parser): make the parser read the header" >/dev/null 2>&1
+
+# 1. `--rules` seeds generation 0 (the deploy path; the harness is useless without a baseline).
+( cd "${E2E}" && AINISH_SEED_CONTEXT_HARNESS=on python3 "${REPO}/src/rag/rag.py" context-seed >/dev/null 2>&1 )
+check "the deploy seeds generation 0" \
+    "$([[ -f "${E2E}/.agents/context-harness/prime-profile.json" ]] && echo yes || echo no)" "yes"
+
+# 2. One `--context` call returns the rules, the gate line, and at least one contract node.
+E2E_CTX=$( cd "${REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "what does the contract say about worktrees" --retrieval-only 2>/dev/null )
+# The scratch repo has no contract of its own, so this assertion runs against the real one: the point
+# is that a single call returns the rules line at all, which it did not before the contract joined the
+# corpus and orientation.
+check "one context call names the rules" \
+    "$(printf '%s' "$E2E_CTX" | grep -c 'rules: .AGENTS.md.')" "1"
+check "one context call carries contract sections" \
+    "$(printf '%s' "$E2E_CTX" | python3 -c 'import sys; n=sum(1 for l in sys.stdin if "Non-negotiables" in l or "The context call" in l or "Worktrees" in l); print("yes" if n else "no")')" \
+    "yes"
+
+# 3. A COMPLETED task record is an acceptance referent the repo can satisfy.
+cat > "${WORK}/e2e_referent.py" <<'PYEOF'
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+r = m.outcome_signal(Path("."), "make the parser read the header",
+                     task_record=Path(".agents/tasks/2026-01-01-parser.md"))
+print("{}:{}".format(r.get("referent"), r.get("completion")))
+PYEOF
+check "a done task record is a usable referent" \
+    "$( cd "${E2E}" && python3 "${WORK}/e2e_referent.py" "${CH_MOD}" 2>/dev/null )" \
+    "task-record:True"
+# An UNFINISHED record must not be one, or the gate accepts work that never landed.
+printf -- '- status: implementing\n- branch: `feat/other`\n- objective: something else\n' \
+    > "${E2E}/.agents/tasks/2026-01-02-open.md"
+check "an unfinished task record is refused" \
+    "$( cd "${E2E}" && python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+r = m.outcome_signal(Path("."), "something else",
+                     task_record=Path(".agents/tasks/2026-01-02-open.md"))
+print("refused" if r.get("completion") is False else "accepted")' "${CH_MOD}" 2>/dev/null )" \
+    "refused"
+# `--outcome unknown` is a refusal, never a pass.
+# KEEP_BASE and refused are both honest: neither advances a generation. What must never happen is
+# `accepted`, and never an error that looks like a considered no-op.
+check "an unknown outcome never advances a generation" \
+    "$( cd "${E2E}" && python3 "${REPO}/src/rag/rag.py" context-learn --dry-run --task "x" --outcome unknown --json 2>/dev/null \
+        | python3 -c 'import json,sys; d=json.load(sys.stdin); o=d.get("outcome"); print("advanced" if o in ("accepted", "would_accept") else "held")' 2>/dev/null )" \
+    "held"
+
+# 4. ACCEPT, then ROLL BACK — the loop's two directions. `--outcome ok` supplies the referent so the
+#    test never depends on a model's proposal surviving the gate's coverage rule.
+GEN0_FP=$( python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+p, _, _ = m.load_profile(Path(sys.argv[2]))
+print(m.profile_fingerprint(p))' "${CH_MOD}" "${E2E}" 2>/dev/null )
+E2E_LEARN=$( cd "${E2E}" && python3 "${REPO}/src/rag/rag.py" context-learn --task "make the parser read the header" --outcome ok --json 2>/dev/null )
+E2E_OUTCOME=$( printf '%s' "$E2E_LEARN" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("outcome"))' 2>/dev/null )
+# accepted | KEEP_BASE | would_accept | refused-by-gate are all honest outcomes; an ERROR is not.
+E2E_HONEST="error"
+case "$E2E_OUTCOME" in
+    accepted|would_accept|refused|KEEP_BASE) E2E_HONEST="honest" ;;
+    "") E2E_HONEST="error" ;;
+    *) E2E_HONEST="honest" ;;
+esac
+check "one learn cycle reaches an honest outcome" "$E2E_HONEST" "honest"
+( cd "${E2E}" && python3 "${REPO}/src/rag/rag.py" context-rollback 0 >/dev/null 2>&1 )
+GEN0_FP_AFTER=$( python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+p, _, _ = m.load_profile(Path(sys.argv[2]))
+print(m.profile_fingerprint(p))' "${CH_MOD}" "${E2E}" 2>/dev/null )
+check "rollback restores the generation-0 fingerprint" "$GEN0_FP_AFTER" "$GEN0_FP"
+# Rollback must move the SKILLS too. A generation is a profile AND its tree; restoring one without the
+# other leaves a state no future rollback can repair.
+check "rollback restores the staged skill tree with the profile" \
+    "$( cd "${E2E}" && python3 "${REPO}/src/rag/rag.py" context-status --json 2>/dev/null \
+        | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("staged_skills") or []))' 2>/dev/null )" \
+    "0"
+
 
 # COMMS entries come in two delimiter styles, and orientation only understood one. A `---`-delimited
 # ledger made it report its own frontmatter fence as "last entry", which is worse than silence: an

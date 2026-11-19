@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: context-agent-correctness
 date: 2026-11-19
-status: ready
+status: done
 branch: feat/context-agent-correctness
 worktree: /Users/nbiish/code/context-agent-correctness
 task_record: .agents/tasks/2026-11-19-14-context-agent-correctness.md
@@ -187,23 +187,23 @@ context-learn
 
 ## 5. Todos
 
-- [ ] **T1** Add `--context` to `bin/ainish-coder`, deprecation notice to `bin/ainish-rag`, and update the two `AGENTS.md` references.
+- [x] **T1** Add `--context` to `bin/ainish-coder`, deprecation notice to `bin/ainish-rag`, and update the two `AGENTS.md` references.
   - from: §4.1 | done when: `ainish-coder --context "probe"` returns a prime and `wc -l AGENTS.md` is 160 | verify: `./bin/ainish-coder --context "probe" --retrieval-only | head -3; wc -l < AGENTS.md`
-- [ ] **T2** Align `BASE_PROFILE` and `BOUNDS` with the engine, fix the falsy-zero `or`, and wire `weights` into `graph_retrieve`.
+- [x] **T2** Align `BASE_PROFILE` and `BOUNDS` with the engine, fix the falsy-zero `or`, and wire `weights` into `graph_retrieve`.
   - from: §3 | done when: a 0-cap profile indexes every coordination file and `recency_floor: 0.0` resolves to 0.0 | verify: census + replay
-- [ ] **T3** Give `outcome_signal` a task-record referent and `run_context_learn` the `--task-record` / `--outcome` flags; seed generation 0 here.
+- [x] **T3** Give `outcome_signal` a task-record referent and `run_context_learn` the `--task-record` / `--outcome` flags; seed generation 0 here.
   - from: §4.3 | done when: a learn cycle on a completed task record reaches `accepted` or `KEEP_BASE`, never `error` | verify: `context-learn --dry-run --task-record ...`
-- [ ] **T4** Dispatch `--refresh-wiki` to the native renderer and add `context-wiki-edit`.
+- [x] **T4** Dispatch `--refresh-wiki` to the native renderer and add `context-wiki-edit`.
   - from: §3 | done when: `--refresh-wiki` reports `refreshed`, not `refused` | verify: `./bin/ainish-rag context --task probe --retrieval-only --refresh-wiki`
-- [ ] **T5** Point `GRAPH_EXTRA_SOURCES` at the harness skills directory, migrate the six pages, retire `.agents/wiki/skills/`.
+- [x] **T5** Point `GRAPH_EXTRA_SOURCES` at the harness skills directory, migrate the six pages, retire `.agents/wiki/skills/`.
   - from: §4.2 | done when: `context-status` lists the six under one heading and the graph has `pseudoskill` nodes there | verify: `context-status` + graph census
-- [ ] **T6** Wire `plan_reviewer_model` and implement the three-way reviewer ladder; correct the `AGENTS.md` sentence.
+- [x] **T6** Wire `plan_reviewer_model` and implement the three-way reviewer ladder; correct the `AGENTS.md` sentence.
   - from: §4.4 | done when: provenance reports one of three states and a pinned collision refuses | verify: `--json` provenance
-- [ ] **T7** Purge present-tense embedding text from `llms.txt`, the launcher header, and wiki 02/05/06; fix wiki filenames.
+- [x] **T7** Purge present-tense embedding text from `llms.txt`, the launcher header, and wiki 02/05/06; fix wiki filenames.
   - from: §3 | done when: no present-tense `llama-server`/LanceDB claim survives in corpus | verify: grep
-- [ ] **T8** Extend `probe_corpus.py` with plan/task/comms probes and bound out-edges per node.
+- [x] **T8** Extend `probe_corpus.py` with plan/task/comms probes and bound out-edges per node.
   - from: §3 | done when: the probe table improves on coordination probes and no contract probe regresses | verify: `python3 research/context-priming-master/probe_corpus.py`
-- [ ] **T9** Add the end-to-end deployment assertions to `scripts/test-pqc-dist.sh`.
+- [x] **T9** Add the end-to-end deployment assertions to `scripts/test-pqc-dist.sh`.
   - from: §6 | done when: seed → context → accepted → rollback is one passing block | verify: `scripts/test-pqc-dist.sh`
 
 ## 6. Verification

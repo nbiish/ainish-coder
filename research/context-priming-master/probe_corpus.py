@@ -28,6 +28,11 @@ def load_rag():
 
 
 # (probe, expected kind, why this is the right kind)
+#
+# The last four exist because they were MEASURED FAILURES: a "what did we just decide / what was the
+# last task" question is the most common thing an agent asks this tool, and before the corpus fix the
+# answer was invisible — plans, tasks and comms were capped at 2 files each, so the newest one was
+# often not the one being asked about.
 PROBES = [
     ("what does the contract say about worktrees and merging back",
      "contract", "the rules governing a worktree"),
@@ -43,6 +48,14 @@ PROBES = [
      "plans", "a plan records the decision"),
     ("what skills does this repo ship for security",
      "templates", "the skills index"),
+    ("why did the single-command context change reverse the separate-verb decision",
+     "plans", "the plan of record explains the reversal"),
+    ("what did the comms ledger record for the single command context task",
+     "comms", "the daily ledger line"),
+    ("what was the objective of the wiki pseudo skills task",
+     "tasks", "the task record states the objective"),
+    ("what did we learn about comms block parsing delimiters",
+     "plans", "the plan carries the finding"),
 ]
 
 
@@ -67,36 +80,75 @@ def main() -> int:
     wide = dict(narrow)
     wide.update({"max_wiki_pages": 0, "max_artifacts": 0})
 
-    # graph_retrieve reads settings for caps; the extra sources are module-level, so simulate "narrow"
-    # by temporarily disabling them and restoring afterwards.
+    # Three states, because "widened" and "widened but bounded" are different corpora:
+    #   narrow    2 artifacts / 8 wiki pages, no extras        (the pre-2026-11-18 corpus)
+    #   wide      everything, unbounded shared-vocabulary edges (what the fix shipped as)
+    #   bounded   everything, <=GRAPH_MAX_EDGES_PER_NODE edges  (what is proposed)
+    # graph_retrieve reads the caps from settings; the extra sources and the edge bound are
+    # module-level, so each state swaps them temporarily and restores afterwards.
     saved_extra = rag.GRAPH_EXTRA_SOURCES
+    saved_bound = rag.GRAPH_MAX_EDGES_PER_NODE
+    states = {}
     try:
         rag.GRAPH_EXTRA_SOURCES = ()
-        narrow_res = top_kinds(rag, narrow)
+        rag.GRAPH_MAX_EDGES_PER_NODE = saved_bound
+        states["narrow"] = top_kinds(rag, narrow)
     finally:
         rag.GRAPH_EXTRA_SOURCES = saved_extra
-    wide_res = top_kinds(rag, wide)
+    try:
+        rag.GRAPH_MAX_EDGES_PER_NODE = 10 ** 9
+        states["wide"] = top_kinds(rag, wide)
+    finally:
+        rag.GRAPH_MAX_EDGES_PER_NODE = saved_bound
+    states["bounded"] = top_kinds(rag, wide)
 
-    print(f"{'probe':<62}{'expect':>9}   narrow top-1 / wide top-1")
-    print("-" * 108)
-    hit_narrow = hit_wide = 0
+    labels = ("narrow", "wide", "bounded")
+    print(f"{'probe':<58}{'expect':>10}   " + " / ".join(f"{l:>9}" for l in labels))
+    print("-" * 116)
+    hits = {l: 0 for l in labels}
     for probe, expected, _ in PROBES:
-        n1 = (narrow_res[probe]["kinds"] or [""])[0]
-        w1 = (wide_res[probe]["kinds"] or [""])[0]
-        hit_narrow += n1 == expected
-        hit_wide += w1 == expected
-        mark = "OK " if w1 == expected else "   "
-        print(f"{probe[:60]:<62}{expected:>9}   {n1 or '-':>10} / {mark}{w1 or '-'}")
-    print("-" * 108)
-    print(f"top-1 kind correct:  narrow {hit_narrow}/{len(PROBES)}   wide {hit_wide}/{len(PROBES)}")
-    if hit_wide < hit_narrow:
-        print("\nREGRESSION: the wider corpus put the right kind on top less often.")
+        cells = []
+        for label in labels:
+            k1 = (states[label][probe]["kinds"] or [""])[0]
+            hits[label] += k1 == expected
+            cells.append(("OK " if k1 == expected else "   ") + (k1 or "-"))
+        print(f"{probe[:56]:<58}{expected:>10}   " + " / ".join(f"{c:>9}" for c in cells))
+    print("-" * 116)
+    print("top-1 kind correct:  " + "   ".join(f"{l} {hits[l]}/{len(PROBES)}" for l in labels))
+
+    # Top-1 is a harsh metric for a tool that feeds a 12-slot prime: the question that matters to a
+    # reader is whether the right KIND is present at all, since the block shows several hits.
+    print()
+    for label in labels:
+        row = []
+        for depth in (1, 3, 5):
+            got = 0
+            for probe, expected, _ in PROBES:
+                if expected in (states[label][probe]["kinds"] or [])[:depth]:
+                    got += 1
+            row.append(f"top-{depth} {got}/{len(PROBES)}")
+        print(f"expected kind present ({label:<8}): " + "   ".join(row))
+
+    # The verdict weighs the bounded corpus, because that is what would ship. Widening without the
+    # bound is measured but not recommended: at 102 edges per node one hop reaches most of the graph.
+    # Acceptance is on REACH (right kind present in the prime), not on top-1: the prime is a labelled
+    # multi-hit block, and forcing one kind to rank first would mean tuning against eleven probes.
+    reach_ok = 0
+    reach_narrow = 0
+    for probe, expected, _ in PROBES:
+        if expected in (states["bounded"][probe]["kinds"] or [])[:5]:
+            reach_ok += 1
+        if expected in (states["narrow"][probe]["kinds"] or [])[:5]:
+            reach_narrow += 1
+    if reach_ok < reach_narrow:
+        print("\nREGRESSION: the widened+bounded corpus loses the right kind from the top five.")
         return 1
-    if hit_wide == hit_narrow:
-        print("\nNo change in top-1 accuracy. The wider corpus adds reach without displacing the "
-              "curated layer — acceptable, but it is not evidence of improvement.")
+    if reach_ok == reach_narrow:
+        print("\nNo change in reach against the narrow corpus. Acceptable, but not evidence of "
+              "improvement — the wider corpus must earn its cost.")
         return 0
-    print("\nThe wider corpus surfaces the right kind more often than the sample did.")
+    print(f"\nThe widened+bounded corpus surfaces the right kind more often within five hits "
+          f"({reach_ok - reach_narrow} more).")
     return 0
 
 
