@@ -177,20 +177,21 @@ audit.log.*
 # measured against (Phase 0 of docs/rag-context-system-plan.md). It holds no secrets or vectors.
 !.agents/rag/bench-baseline.json
 
-# A nested `.agents/` created by running `ainish-rag wiki --path <subdir>` from a subdirectory.
-# The rules above are root-anchored, so these were NOT covered: it showed up under `src/rag/.agents/`
-# carrying `audit/signer.mldsa65.priv` (a private ML-DSA-65 key) and `rag/session.psk`. Nested state
-# is never a source artifact — it is engine output written to the wrong tree — so it is ignored
+# A nested `.agents/` created by running `ainish-context wiki --path <subdir>` from a subdirectory.
+# The rules above are root-anchored, so these are NOT covered: one showed up under the context
+# engine's former `src/rag/.agents/`
+# carrying `audit/signer.mldsa65.priv` (a private ML-DSA-65 key) and a session PSK. Nested state is
+# never a source artifact — it is engine output written to the wrong tree — so it is ignored
 # wholesale, and running the engine from a subdirectory stays safe. The root `.agents/` stays tracked.
-/src/rag/.agents/
+/src/context/.agents/
 /skills-to-distribute/**/.agents/
 /**/.agents/rag/
 /**/.agents/audit/
 /**/.agents/wiki/
 # ...EXCEPT the root repository's own wiki vault. The rule above exists to keep a nested
-# `src/rag/.agents/` (which once carried a private ML-DSA-65 key) out of git. The root wiki is
+# `src/context/.agents/` (which once carried a private ML-DSA-65 key) out of git. The root wiki is
 # different: it is this repository's curated corpus, and from 2026-11-18 it is also where the context
-# harness writes learned pseudo-skills. Without this negation every such page is silently untracked and
+# harness writes learned skills. Without this negation every such page is silently untracked and
 # dies on clone — learned behaviour that does not survive a checkout is worse than none. Negating the
 # root DIRECTORY (not a file pattern under it) is what makes git descend at all; the nested paths above
 # stay ignored because this exception names the root exactly.
@@ -203,13 +204,14 @@ audit.log.*
 # Compiled native binaries (built locally via cargo or distributed wrappers)
 *.exe
 
-# Locally-built RAG engine (~127 MB). The distributed wrappers (bin/ainish-rag,
-# bin/ainish-rag.cmd) are tracked; the platform binaries are build products and are
-# produced per host with `cargo build --release`. Committing one would bloat history
-# for every clone and still be the wrong architecture on the next machine.
+# Platform binaries for the retired compiled context engine. The engine is Python-only now
+# (src/context/engine.py), so these are never produced — kept ignored so a stale build left on an
+# older host cannot be committed into a tree that has no use for it.
 bin/ainish-rag-darwin
 bin/ainish-rag-linux
 bin/ainish-rag-windows.exe
+bin/ainish-rag.exe
+bin/ainish-rag.native.exe
 
 # Deployment smoke sandbox (created by 'ainish-coder --rules test'); never tracked.
 /test/

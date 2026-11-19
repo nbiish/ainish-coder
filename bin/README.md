@@ -8,8 +8,8 @@ This directory contains the main **command-line interface** entry point for the 
 bin/
 ├── ainish-coder        # Main CLI executable (POSIX shell)
 ├── ainish-coder.cmd    # Native Windows launcher (resolves bash, forwards argv)
-├── ainish-rag          # RAG engine wrapper (POSIX shell)
-├── ainish-rag.cmd      # Native Windows launcher for the RAG engine
+├── ainish-context          # RAG engine wrapper (POSIX shell)
+├── ainish-context.cmd      # Native Windows launcher for the RAG engine
 ├── pqc-secrets         # FIPS 203 secrets manager — platform-dispatch wrapper (see llms.txt)
 ├── pqc-secrets.darwin-arm64  # Native Rust backend binary (keygen/pack/export) for darwin/arm64
 ├── lib/                # Shared utilities and libraries

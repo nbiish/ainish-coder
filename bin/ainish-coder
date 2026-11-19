@@ -22,7 +22,7 @@ SRC_DIR="${SCRIPT_DIR}/../src"
 
 # A bin directory that cannot be reassigned. Some sourced components (`src/deploy_commands.sh`)
 # set `SCRIPT_DIR` to their OWN directory at source time, which silently pointed every later
-# `"${SCRIPT_DIR}/ainish-rag"` at `src/` and made `--rag` fail with "No such file or directory".
+# a component pointed `"${SCRIPT_DIR}/ainish-context"` at `src/` and broke every dispatch.
 # Anything this CLI execs from its own bin/ uses AINISH_BIN_DIR, never SCRIPT_DIR.
 AINISH_BIN_DIR="${SCRIPT_DIR}"
 readonly AINISH_BIN_DIR
@@ -62,7 +62,7 @@ source "${SRC_DIR}/scroll_integrity.sh"
 source "${SRC_DIR}/deploy_license.sh"
 source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
-source "${SRC_DIR}/embed_config.sh"
+# embed_config.sh is gone: there is no embedding provider to configure.
 source "${SRC_DIR}/pqc_dist.sh"
 source "${SRC_DIR}/machine_sync.sh"
 source "${SRC_DIR}/machine_link.sh"
@@ -321,15 +321,15 @@ main() {
         # generator (Harness^2 Figure 7, 73.4 -> 63.2). Seeding is measurement only — no model call,
         # no network — and is idempotent, so a re-run never overwrites a repo's own tuning.
         if [[ "${AINISH_SEED_CONTEXT_HARNESS:-on}" != "off" ]] && [[ -d "${target_dir}/.git" ]]; then
-            # `ainish-rag` resolves its repo root from the CURRENT directory, so the seed must run
+            # `ainish-context` resolves its repo root from the CURRENT directory, so the seed must run
             # from inside the target. Running it from the caller's cwd would seed the wrong repo —
             # silently, and into a tracked path.
-            if ( cd "$target_dir" && "${AINISH_BIN_DIR}/ainish-rag" context-seed >/dev/null 2>&1 ); then
+            if ( cd "$target_dir" && "${AINISH_BIN_DIR}/ainish-context" context-seed >/dev/null 2>&1 ); then
                 _TRACK_DETAIL="${_TRACK_DETAIL}+context-harness"
             else
                 # A target without a wiki yet cannot be calibrated; that is reported, never faked
                 # with a zeroed profile.
-                print_warning "Context harness seed skipped (run 'ainish-rag context-seed' in the target once its wiki exists)"
+                print_warning "Context harness seed skipped (run 'ainish-context context-seed' in the target once its wiki exists)"
             fi
         fi
 
@@ -412,8 +412,15 @@ main() {
             rules_history "$@"
             ;;
 
+        # `--embed-config` is gone with the embedding subsystem. It is answered rather than ignored:
+        # a silent "unknown command" tells an operator their flag was mistyped, when the truth is that
+        # the thing they are configuring was deleted on 2026-11-12. Neither is a success.
         --embed-config)
-            embed_config "$@"
+            print_error "--embed-config was removed with the embedding subsystem (2026-11-12)"
+            echo "  There is no embedding provider to configure: retrieval is graph-first over the" >&2
+            echo "  wiki vault and .agents/ context folders, with no model and no vector store." >&2
+            echo "  See: ainish-coder --context \"<task>\"  |  ainish-context --help" >&2
+            exit 1
             ;;
 
         --rules-unenroll)
@@ -999,8 +1006,18 @@ main() {
             pqc_sync_targets "$@"
             ;;
 
+        # `--rag` is kept because deployed rules copies and operator habit still use it, but there is
+        # no RAG engine behind it: it forwards to the context engine, which is the only engine there
+        # is. `--context` is the documented path and the one AGENTS.md names.
         --rag)            _TRACK_DETAIL="rag"
-            "${AINISH_BIN_DIR}/ainish-rag" "$@"
+            "${AINISH_BIN_DIR}/ainish-context" "$@"
+            ;;
+
+        # The engine by its accurate name, for scripts that want a verb rather than the agent-facing
+        # `--context` wrapper (context-seed, context-status, wiki, gate, audit, ...).
+        --rag-engine|--context-engine)
+            _TRACK_DETAIL="context-engine"
+            "${AINISH_BIN_DIR}/ainish-context" "$@"
             ;;
 
         # The one context command. An agent reading AGENTS.md calls this, gets its prime, and the
@@ -1060,7 +1077,7 @@ main() {
             # The forwarded-with flag suppresses the launcher's deprecation line: we ARE the documented
             # command, so telling the caller to use it would be noise on top of every prime.
             AINISH_CONTEXT_FORWARDED=1 \
-                "${AINISH_BIN_DIR}/ainish-rag" context "--task=${_ctx_task}" "${_ctx_args[@]+"${_ctx_args[@]}"}"
+                "${AINISH_BIN_DIR}/ainish-context" context "--task=${_ctx_task}" "${_ctx_args[@]+"${_ctx_args[@]}"}"
             ;;
 
         *)

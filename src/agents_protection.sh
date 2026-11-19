@@ -187,14 +187,20 @@ snapshot_canonical_contract() {
     cp "$source_file" "$dest_copy" || return 1
     echo "$hash_val" > "$dest_hash"
 
-    # Re-sign canonical contract with FIPS 204 ML-DSA-65 if ainish-rag is available.
-    # stdin is detached: under WSL the Windows .exe reads inherited stdin through
-    # /init, and a non-foreground process group gets SIGTTIN — the process stops
-    # instead of failing, which would stall the caller indefinitely.
-    if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
-        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag.exe" audit contract --threshold 1 </dev/null >/dev/null 2>&1) || true
-    elif [[ -x "${REPO_DIR}/bin/ainish-rag" ]]; then
-        (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-rag" audit contract --threshold 1 </dev/null >/dev/null 2>&1) || true
+    # Re-sign the canonical contract with FIPS 204 ML-DSA-65.
+    #
+    # This looked for a COMPILED engine and silently skipped signing when it was absent, so after the
+    # crate was deleted every contract sync would have left the canonical copy unsigned while
+    # reporting success. The engine is Python and always present; a failed signature is reported.
+    # stdin is detached: under WSL a Windows executable reads inherited stdin through /init, and a
+    # non-foreground process group gets SIGTTIN — the process stops instead of failing, stalling the
+    # caller indefinitely.
+    if [[ -x "${REPO_DIR}/bin/ainish-context" ]]; then
+        if ! (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-context" audit contract --threshold 1 </dev/null >/dev/null 2>&1); then
+            echo "  [warn] canonical AGENTS.md was copied but NOT re-signed (ainish-context audit contract failed)" >&2
+        fi
+    else
+        echo "  [warn] canonical AGENTS.md was copied but NOT re-signed (bin/ainish-context missing)" >&2
     fi
 
     lock_agents_contract "$dest_copy" 2>/dev/null || true

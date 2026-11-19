@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-ainish-rag — Cross-platform Multimodal Codebase RAG & Wiki Engine
+ainish-context — the ainish-coder context engine
+Graph-first retrieval over the wiki vault and the .agents/ context folders. No embedding model,
+no vector store: the corpus is small enough that a large-context model reads what it needs, and
+the graph's job is to choose what fits a bounded prime.
 Pairs with ainish-coder distributed coding standards and rules.
 Uses Google DeepMind EmbeddingGemma-2 GGUF (768-d) + LanceDB hybrid vector store.
 """
@@ -9,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import base64
 import contextlib
 import hashlib
 import json
@@ -108,108 +112,31 @@ def _learned_root(canonical_root: Path) -> Path:
     return worktree if worktree else canonical_root
 
 
-def native_renderer() -> Optional[List[str]]:
-    """The argv that runs the vault renderer, or None when this host has no compiled build.
-
-    The Obsidian vault format (frontmatter, aliases, [[wikilinks]], the ledger splice) is owned by
-    the Rust engine. The Python `generate_wiki` deliberately REFUSES to overwrite a vault it cannot
-    reproduce, which is the right guard — but until now that refusal was also the only outcome on
-    every real repository, so `--refresh-wiki` could never refresh anything. The context agent is
-    supposed to edit the corpus it learns from; a refresh path that always refuses means it cannot.
-
-    Resolution order, each verified by asking the binary for its own `wiki` verb:
-      1. `AINISH_VAULT_RENDERER`, an explicit override (a path or a command on PATH).
-      2. `ainish-rag` on PATH, when it is the compiled binary rather than our own launcher.
-      3. `src/rag/target/release/ainish-rag` beside this engine (a local `cargo build --release`).
-    """
-    def _advertises_wiki(exe: str) -> bool:
-        # A shell launcher FORWARDS to the Python engine, which also advertises `wiki --path`, so its
-        # help text cannot tell us apart — dispatching to it re-enters this process. A compiled
-        # renderer is a native executable, so a shebang means "wrapper" and is refused outright.
-        try:
-            with open(exe, "rb") as fh:
-                if fh.read(2) == b"#!":
-                    return False
-        except OSError:
-            return False
-        try:
-            res = subprocess.run([exe, "wiki", "--help"], capture_output=True, text=True,
-                                 timeout=20, stdin=subprocess.DEVNULL)
-        except (OSError, subprocess.SubprocessError):
-            return False
-        text = (res.stdout or "") + (res.stderr or "")
-        return res.returncode == 0 and "--path" in text
-
-    override = (_env_nonempty("AINISH_VAULT_RENDERER") or "").strip()
-    if override:
-        if Path(override).is_file() and os.access(override, os.X_OK):
-            return [override] if _advertises_wiki(override) else None
-        which = shutil.which(override)
-        return [which] if which and _advertises_wiki(which) else None
-
-    here = Path(__file__).resolve().parent
-    candidates = [
-        here / "target" / "release" / "ainish-rag",
-        here / "target" / "release" / "ainish-rag.exe",
-    ]
-    # A worktree shares the repository but not the gitignored build directory, and the compiled
-    # renderer is a gitignored artifact — so a worktree has no binary of its own even when the main
-    # checkout has one. Looking beside the canonical root is the difference between "refresh works"
-    # and "refresh refuses" for anyone working in a worktree, which is everyone this contract binds.
-    try:
-        canonical = resolve_canonical_repo_root()
-        for base in (canonical, Path.cwd()):
-            candidates.append(base / "src" / "rag" / "target" / "release" / "ainish-rag")
-    except (OSError, ValueError):
-        pass
-    on_path = shutil.which("ainish-rag")
-    if on_path:
-        candidates.append(Path(on_path))
-    for cand in candidates:
-        try:
-            if not cand.is_file() or not os.access(cand, os.X_OK):
-                continue
-        except OSError:
-            continue
-        if _advertises_wiki(str(cand)):
-            return [str(cand)]
-    return None
-
-
 def refresh_vault(repo_root: Path) -> Tuple[str, bool]:
     """Regenerate the wiki vault. Returns `(note, ok)`.
 
-    Dispatches to the native renderer when one is available, because the vault format is its to own.
-    Falls back to the Python generator for a plain-markdown wiki directory, where there is no vault
-    to damage. The refusal that used to be the only outcome is now the LAST resort and says why.
-    """
-    renderer = native_renderer()
-    if renderer:
-        argv = [*renderer, "wiki", "--path", str(repo_root)]
-        try:
-            res = subprocess.run(argv, cwd=str(repo_root), capture_output=True, text=True,
-                                 timeout=300, stdin=subprocess.DEVNULL)
-        except (OSError, subprocess.SubprocessError) as exc:
-            return f"native renderer failed to run: {str(exc)[:120]}", False
-        if res.returncode == 0:
-            pages = len(list((repo_root / ".agents" / "wiki").glob("*.md")))
-            return f"refreshed ({pages} pages, native renderer)", True
-        detail = ((res.stderr or res.stdout or "").strip().splitlines() or ["no output"])[0]
-        return f"native renderer exited {res.returncode}: {detail[:160]}", False
+    This is the ONLY renderer. It used to look for a compiled binary first and fall back here, which
+    meant the vault format had two implementations and a stale build could answer for the Python code
+    — measured 2026-11-19, when a stale binary silently regenerated all six pages and overwrote
+    hand-corrected content. That crate is gone, so there is nothing to discover and nothing to fall
+    back to.
 
+    The generator emits the vault format itself (frontmatter, aliases, tags, `up` link, wikilinks), so
+    it can refresh a real vault. What it still refuses is a vault whose `ledger.md` is SIGNED, because
+    that ledger is the operator's signed governance history and regenerating the page around it from a
+    template would drop it while reporting success.
+    """
     try:
         pages = generate_wiki(repo_root)
-        return f"refreshed ({len(pages)} pages, python generator)", True
+        return f"refreshed ({len(pages)} pages)", True
     except SystemExit as exc:
         first = str(exc).splitlines()[0] if str(exc) else "vault guard"
-        return (f"skipped: {first}. This directory holds an Obsidian vault and no compiled renderer "
-                f"was found — build one with `cargo build --release` in src/rag, or point "
-                f"AINISH_VAULT_RENDERER at it. Nothing was modified"), False
+        return f"skipped: {first}. Nothing was modified.", False
     except Exception as exc:
         return f"failed: {str(exc)[:160]}", False
 
 
-
+def _luhn_valid(num_str: str) -> bool:
     digits = [int(c) for c in num_str if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
         return False
@@ -1024,7 +951,7 @@ def contains_bidi_override(text: str) -> bool:
 def sanitize_redaction_text(text: str) -> str:
     """Strips ANSI escape sequences, non-printable control characters, and Trojan Source
     bidirectional overrides from multi-line text while preserving line structure and indentation.
-    Used by `ainish-rag audit privacy --redact-check` dry-runs."""
+    Used by `ainish-context audit privacy --redact-check` dry-runs."""
     bidi_chars = {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
     out_lines = []
     for line in text.split("\n"):
@@ -1214,7 +1141,7 @@ def append_wiki_note_and_sign(repo_root: Path, note: str) -> Tuple[Path, Path]:
     else:
         content = (
             "# Operator ledger\n\n"
-            "`ainish-rag wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. "
+            "`ainish-context wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. "
             "Append one dated line per cycle. The generator splices this file into `04-improvements-and-debt.md`.\n\n"
         )
     if content and not content.endswith("\n"):
@@ -1269,7 +1196,7 @@ def resolve_wiki_note(repo_root: Path, keyword: str) -> int:
     if mem_text and not mem_text.endswith("\n"):
         mem_text += "\n"
     if not matched_lines:
-        mem_text += f"- {hhmm} [RESOLVED] {kw_clean} — resolved via ainish-rag wiki --resolve\n"
+        mem_text += f"- {hhmm} [RESOLVED] {kw_clean} — resolved via ainish-context wiki --resolve\n"
     else:
         for m in matched_lines:
             mem_text += f"- {hhmm} [RESOLVED] {m} — resolved in wiki ledger\n"
@@ -1371,7 +1298,7 @@ def _vault_pages(wiki_dir: Path) -> List[Path]:
     """Existing pages that are Obsidian-vault pages (carry the `ainish/wiki` tag).
 
     The vault renderer lives in the Rust crate (`src/rag/src/wiki.rs`); this Python engine
-    only ever wrote plain markdown. Both engines claim `ainish-rag`, but `bin/ainish-rag`
+    only ever wrote plain markdown. Both engines claim `ainish-context`, but `bin/ainish-context`
     routes plain invocations to Python, so the reachable `wiki` command here would overwrite
     a vault with non-vault pages — stripping frontmatter, aliases, and every `[[wikilink]]`,
     which silently deletes the Obsidian graph and the explicit retrieval edges built on it.
@@ -1406,7 +1333,7 @@ def generate_wiki(repo_root: Path) -> List[Path]:
     ledger_note = wiki_dir / "ledger.md"
     if existing_vault and ledger_note.is_file() and (wiki_dir / "ledger.sig").is_file():
         raise SystemExit(
-            "ainish-rag wiki: this vault carries a SIGNED operator ledger (ledger.md + ledger.sig).\n"
+            "ainish-context wiki: this vault carries a SIGNED operator ledger (ledger.md + ledger.sig).\n"
             f"  {len(existing_vault)} page(s) carry the '{VAULT_TAG}' tag.\n"
             "  The compiled renderer splices and signs that ledger; regenerating page 04 here would\n"
             "  drop the signed history. Run the compiled binary (`cargo build --release` in src/rag,\n"
@@ -1428,7 +1355,7 @@ Generated on: {now_utc}
 Repository: `{repo_name}`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-rag --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
+This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-context --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
 
 ## Wiki Table of Contents
 1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.
@@ -1489,7 +1416,7 @@ Codebase components in `{repo_name}` communicate across well-defined interfaces 
 3. **Zero-Stale Memory Scrubbing:** Retire resolved constraints in `.agents/memories/` using `[RESOLVED]` entries.
 
 ## 3. Operator ledger
-`ainish-rag wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
+`ainish-context wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
 
 {operator_ledger}""",
         "05-research-and-intelligence.md": f"""# 05. Research & Intelligence — {repo_name}
@@ -1961,7 +1888,7 @@ def _discover_local_router() -> Optional[Dict[str, Any]]:
 
 
 def inspect_jev() -> Dict[str, Any]:
-    """Decision-transport report for `ainish-rag secrets`."""
+    """Decision-transport report for `ainish-context secrets`."""
     key = resolve_api_key()
     return {
         "model": resolve_jev_model(),
@@ -2070,7 +1997,7 @@ class DecisionEngine:
         headers = {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-            "X-Title": "ainish-rag-decisions",
+            "X-Title": "ainish-context-decisions",
         }
         if key:
             headers["Authorization"] = f"Bearer {key}"
@@ -2153,7 +2080,7 @@ class DecisionEngine:
         raise RuntimeError("; ".join(errors) if errors else "Jev request failed")
 
     def decide(self, state: str, questions: Dict[str, Any]) -> Dict[str, Any]:
-        """Typed decision primitive used by `ainish-rag decide --questions`."""
+        """Typed decision primitive used by `ainish-context decide --questions`."""
         model, answers, usage, transport = self._ask(state, questions)
         return {
             "model": model,
@@ -2526,130 +2453,74 @@ class DecisionEngine:
 
 
 def print_completion(shell: str):
-    if shell == "bash":
-        print("""# ainish-rag bash completion
-_ainish_rag() {
-    local cur prev words cword
-    _init_completion || return
-    local commands="serve stop status secrets index wiki query rerank route decide eval gate statusline cleanup orient context bench monitor audit service completion"
-    local global_opts="--threads --max-mem --psk-ttl --numa --cpu-affinity --json --help"
-    if [[ $cword -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "${commands}" -- "$cur") )
-        return 0
-    fi
-    local sub="${COMP_WORDS[1]}"
-    local opts=""
-    case "$sub" in
-        status)       opts="--tui --json --help" ;;
-        orient)       opts="--inject --task-conditioned --verify --compact --max-lines --sections --include-symbols --sync-rules --json --help" ;;
-        context)      opts="--task --budget --json --no-remote --retrieval-only --session --unload --elephant-model --goldfish-model --help" ;;
-        audit)        opts="verify lock privacy sbom manifest contract sign keygen --update --format --out --manifest --path --redact-check --fail-on-leak --max-files --exclude --verify-history --threshold --hardware-seal --json --help" ;;
-        gate)         opts="--patch --bell --notify --watch --summary --strict --json --help" ;;
-        query)        opts="--limit --type --code --fzf --no-rerank --min-relevance --json --help" ;;
-        wiki)         opts="--path --no-index --note --resolve --sync-resolved --list-notes --json --help" ;;
-        index)        opts="--path --truncate --watch --anonymize-symbols --symbol-salt --dp-noise --dp-epsilon --dp-max-budget --help" ;;
-        cleanup)      opts="--compact --prune-days --prune-worktrees --delete-merged --dry-run --help" ;;
-        bench)        opts="--iterations --custom --regression --save-baseline --drift-injection --chaos --json --help" ;;
-        monitor)      opts="--interval --once --json --help" ;;
-        service)      opts="status install generate uninstall --warm --port --out --help" ;;
-        statusline)   opts="--json --help" ;;
-        completion)   opts="bash zsh fish pwsh --help" ;;
-        *)            opts="${global_opts}" ;;
-    esac
-    if [[ ${cur} == -* ]] ; then
-        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-        return 0
-    fi
-    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-    return 0
-}
-complete -F _ainish_rag ainish-rag
-ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
-""")
-    elif shell == "zsh":
-        print("""#compdef ainish-rag
-_ainish_rag() {
-    local -a commands
-    commands=(
-        'serve:Start the local llama-server embedding process'
-        'stop:Stop the running llama-server embedding process'
-        'status:Show status of models, vector index, and server'
-        'secrets:Inspect PQC vault status and OpenRouter API key'
-        'index:Index repository files and symbols into LanceDB'
-        'wiki:Generate the 6-part living architecture wiki'
-        'query:Search indexed codebase and wiki with decision reranking'
-        'rerank:Rerank candidates using decision-model scoring'
-        'route:Route a task to the appropriate domain'
-        'decide:Execute a calibrated decision on system state'
-        'eval:Evaluate faithfulness or patch diff coverage'
-        'gate:Unified pre-merge verification gate'
-        'statusline:Emit one-line compact gate status for PS1/Cursor/tmux'
-        'cleanup:Run database compaction and WAL version pruning'
-        'orient:Subagent context injection primer from architectural wiki'
-        'context:One-shot labelled context injection (retrieval + Elephant + Goldfish)'
-        'bench:Run synthetic query regression benchmark'
-        'monitor:Run continuous vector drift and recall monitor'
-        'audit:Verify post-quantum receipts, manifests, lockfiles, and SBOMs'
-        'service:Background embedding service management'
-        'completion:Generate shell tab completion script'
-    )
-    if [[ "$words[CURRENT]" == -* ]]; then
-        compadd -- --redact-check --fail-on-leak --max-files --exclude --include-symbols --sync-rules --sections --json --tui --patch --strict --help
-        return
-    fi
-    _describe 'command' commands
-}
-_ainish_rag "$@"
-ainish_rag_statusline() { ainish-rag statusline 2>/dev/null; }
-""")
-    elif shell == "fish":
-        print("""complete -c ainish-rag -f
-complete -c ainish-rag -n "__fish_use_subcommand" -a serve -d "Start local llama-server"
-complete -c ainish-rag -n "__fish_use_subcommand" -a stop -d "Stop llama-server"
-complete -c ainish-rag -n "__fish_use_subcommand" -a status -d "Show RAG status"
-complete -c ainish-rag -n "__fish_use_subcommand" -a index -d "Index repository files into LanceDB"
-complete -c ainish-rag -n "__fish_use_subcommand" -a gate -d "Run unified pre-merge gate"
-complete -c ainish-rag -n "__fish_use_subcommand" -a statusline -d "Emit compact gate statusline"
-complete -c ainish-rag -n "__fish_use_subcommand" -a cleanup -d "Run database compaction"
-complete -c ainish-rag -n "__fish_use_subcommand" -a orient -d "Subagent context injection"
-complete -c ainish-rag -n "__fish_use_subcommand" -a context -d "One-shot labelled context injection (retrieval + Elephant + Goldfish)"
-complete -c ainish-rag -n "__fish_use_subcommand" -a monitor -d "Run drift monitor"
-complete -c ainish-rag -n "__fish_use_subcommand" -a bench -d "Run regression benchmark"
-complete -c ainish-rag -n "__fish_use_subcommand" -a audit -d "Verify post-quantum audit receipts"
-complete -c ainish-rag -n "__fish_use_subcommand" -a service -d "Manage background embedding service"
-complete -c ainish-rag -l redact-check -r -d "Dry-run redaction on a file without mutating it"
-complete -c ainish-rag -l fail-on-leak -d "Exit non-zero when redaction dry-run detects leaks"
-complete -c ainish-rag -l include-symbols -d "Include symbol anchors in orient primer"
-complete -c ainish-rag -l sync-rules -d "Run deployed rules refresher when gate_ready is false"
-complete -c ainish-rag -l sections -x -d "Maximum wiki sections to inject"
-complete -c ainish-rag -l max-lines -x -d "Per-section line truncation override"
-complete -c ainish-rag -l task -x -d "Task or question for a context injection"
-complete -c ainish-rag -l budget -x -d "Token cap for the whole context injection"
-complete -c ainish-rag -l no-remote -d "Driver local tiers only"
-complete -c ainish-rag -l retrieval-only -d "Skip driver calls in a context injection"
-complete -c ainish-rag -l json -d "Structured JSON output"
-complete -c ainish-rag -l tui -d "Interactive status dashboard"
-function ainish_rag_statusline; ainish-rag statusline 2>/dev/null; end
-""")
-    elif shell == "pwsh":
-        print("""Register-ArgumentCompleter -Native -CommandName ainish-rag -ScriptBlock {
-    param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('serve','stop','status','secrets','index','wiki','query','rerank','route','decide','eval','gate','statusline','cleanup','orient','context','bench','monitor','audit','service','completion')
-    $options = @('--redact-check','--fail-on-leak','--max-files','--exclude','--include-symbols','--sync-rules','--sections','--max-lines','--task','--budget','--no-remote','--retrieval-only','--elephant-model','--goldfish-model','--json','--tui','--patch','--strict','--help')
-    if ($wordToComplete -like '-*') {
-        $options | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
-        return
-    }
-    $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-    }
-}
-function Invoke-AinishRagStatusLine { ainish-rag statusline 2>$null }
-""")
+    """Shell completion for the LIVE verb list.
 
+    These used to be hand-written lists that still offered `serve`, `index`, `query`, `bench` and
+    `monitor` with descriptions naming llama-server and LanceDB. A completion menu is documentation an
+    agent reads while typing, so it was teaching a system that was deleted in 2026-11-12 — and offering
+    verbs that now exit with "was retired". Generated from the same table `--help` uses, so it cannot
+    drift.
+    """
+    verbs = (
+        ("context", "One labelled context prime: retrieval + Elephant + Goldfish"),
+        ("context-seed", "Establish the frozen generation 0 for this repo"),
+        ("context-status", "What is live, staged, or recently refused"),
+        ("context-learn", "One propose->gate cycle (opt-in; costs a model session)"),
+        ("context-rollback", "Restore a past harness generation"),
+        ("context-promote", "Move a staged skill into .agents/skills/ (operator only)"),
+        ("context-skill", "Author one learned skill from cited evidence"),
+        ("wiki", "Generate the architecture wiki vault"),
+        ("route", "Routing, domain, and context-freshness decision"),
+        ("decide", "Typed Jev decision"),
+        ("eval", "Faithfulness gate or retrieval-augmented patch evaluation"),
+        ("orient", "Subagent context primer"),
+        ("gate", "Unified pre-merge verification gate"),
+        ("statusline", "Compact gate status for a prompt or status bar"),
+        ("cleanup", "Worktree and branch hygiene"),
+        ("audit", "Verify post-quantum receipts, manifests, and SBOMs"),
+        ("status", "Health and runtime profile"),
+        ("secrets", "PQC vault and provider status"),
+        ("completion", "Emit shell completion"),
+    )
+    names = " ".join(v for v, _ in verbs)
+    if shell == "bash":
+        print("# ainish-context bash completion")
+        print("_ainish_context() {")
+        print("    local cur")
+        print("    cur=\"${COMP_WORDS[COMP_CWORD]}\"")
+        print(f"    local commands=\"{names}\"")
+        print("    if [[ $COMP_CWORD -eq 1 ]]; then")
+        print("        COMPREPLY=( $(compgen -W \"$commands\" -- \"$cur\") )")
+        print("    fi")
+        print("}")
+        print("complete -F _ainish_context ainish-context")
+        print("complete -F _ainish_context ainish-coder")
+    elif shell == "zsh":
+        print("#compdef ainish-context")
+        print("_ainish_context() {")
+        print(f"    local -a commands")
+        print("    commands=(")
+        for v, d in verbs:
+            print(f"        '{v}:{d}'")
+        print("    )")
+        print("    _describe 'command' commands")
+        print("}")
+        print("_ainish_context")
+    elif shell == "fish":
+        for v, d in verbs:
+            print(f"complete -c ainish-context -f -n \"__fish_use_subcommand\" -a {v} -d \"{d}\"")
+        for v, d in verbs:
+            print(f"complete -c ainish-coder -f -n \"__fish_use_subcommand\" -a {v} -d \"{d}\"")
+    else:
+        print("# PowerShell completion")
+        print("Register-ArgumentCompleter -CommandName ainish-context,ainish-coder -ScriptBlock {")
+        print("    param($commandName, $wordToComplete, $cursorPosition)")
+        print(f"    '{names}'.Split(' ') | Where-Object {{ $_ -like \"$wordToComplete*\" }} |")
+        print("        ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }")
+        print("}")
 
 def run_cleanup(repo_root: Path, compact: bool = False, prune_days: int = 7, prune_worktrees: bool = True, delete_merged: bool = False, dry_run: bool = False) -> None:
-    print("=== ainish-rag Database Maintenance & Worktree Hygiene ===")
+    print("=== ainish-context Database Maintenance & Worktree Hygiene ===")
     rag_dir = repo_root / ".agents" / "rag"
     cleaned_files = 0
     if rag_dir.exists():
@@ -3407,7 +3278,7 @@ class DriverEngine:
         headers = {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/nbiish/ainish-coder",
-            "X-Title": "ainish-rag-driver",
+            "X-Title": "ainish-context-driver",
         }
         if key:
             headers["Authorization"] = f"Bearer {key}"
@@ -3618,7 +3489,7 @@ class DriverEngine:
 
 
 def inspect_drivers() -> Dict[str, Any]:
-    """Driver report for `ainish-rag secrets`: the ordered chain, reachability, key presence.
+    """Driver report for `ainish-context secrets`: the ordered chain, reachability, key presence.
 
     Reports the chain the engine will actually walk rather than a tier table, because the operator's
     question is "which model answers next", not "which hosts exist".
@@ -5299,7 +5170,7 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
 
     Deliberately *not* included: the skill's design-review procedure (draft a document, have a
     stateless reviewer approve it). That is a workflow an agent follows with judgement, not state a
-    tool can gather — and `ainish-rag context` already carries the reviewer half as the `goldfish`
+    tool can gather — and `ainish-coder --context` already carries the reviewer half as the `goldfish`
     section.
     """
     if token_cap <= 0:
@@ -5551,7 +5422,7 @@ def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any
     print(f"context harness: {info['source']}")
     if not info["present"]:
         print(f"  no profile at {info['root']}/{context_harness.PROFILE_NAME}")
-        print("  `ainish-rag --context-seed` establishes generation 0 (also done by `ainish-coder --rules`)")
+        print("  `ainish-context --context-seed` establishes generation 0 (also done by `ainish-coder --rules`)")
     else:
         print(f"  generation {info['generation']}  fingerprint {info['fingerprint']}")
         graph = info.get("graph") or {}
@@ -5562,7 +5433,7 @@ def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any
         # lists now would suggest two places to look when there is one.
         print(f"  learned skills ({len(info['staged_skills'])}): {', '.join(info['staged_skills'])}")
     else:
-        print("  learned skills: none (author one with `ainish-rag context-skill`)")
+        print("  learned skills: none (author one with `ainish-coder --context-skill`)")
     if info["promoted_skills"]:
         print(f"  PROMOTED (standing prompt surface): {', '.join(info['promoted_skills'])}")
     print(f"  history: {info['history_total']} generation(s)" + (f", newest {info['history'][-1]}" if info["history"] else ""))
@@ -5606,7 +5477,7 @@ def run_context_skill(
     elif result.get("ok"):
         print(f"wrote learned skill {result['path']}")
         print("  it is corpus now: the next --context call indexes and can surface it")
-        print("  promote it to standing prompt surface with `ainish-rag context-promote <name>`")
+        print("  promote it to standing prompt surface with `ainish-coder --context-promote <name>`")
     else:
         for err in result.get("errors") or ["could not write the pseudo-skill"]:
             print(f"[rag:error] {err}", file=sys.stderr)
@@ -6247,7 +6118,7 @@ def _learn_locked(
         print(json.dumps(result, indent=2))
     else:
         print(f"accepted generation {written.get('generation')} — {written.get('path')}")
-        print("  rollback with: ainish-rag --context-rollback "
+        print("  rollback with: ainish-context --context-rollback "
               f"{int(written.get('generation') or 1) - 1}")
     return result
 
@@ -6764,7 +6635,7 @@ def run_context_command(
             "drivers": drivers_info,
             "wiki": wiki_note,
             "reviewer_isolation": drivers_info.get("reviewer_isolation") if drivers_info else None,
-            "engine": "ainish-rag/python",
+            "engine": "ainish-context/python",
             "harness": harness_provenance,
         },
         degraded=degraded,
@@ -6869,7 +6740,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
     primer_content = [
         "<ORIENT_PRIMER>",
         "## Grounded Architectural Context",
-        f"<!-- Auto-injected by ainish-rag orient --inject for subagent primer | branch: {git_branch} | commit: {git_sha} -->",
+        f"<!-- Auto-injected by ainish-context orient --inject for subagent primer | branch: {git_branch} | commit: {git_sha} -->",
         "",
         f"### Decision-Model Routing Hint (`{route_decision.get('source', 'local-calibrated')}`)",
         (
@@ -6893,7 +6764,7 @@ def run_orient_primer(repo_root: Path, inject: bool = False, query: Optional[str
     total_sanitized = 0
 
     if not wiki_files:
-        primer_content.append("No pre-indexed wiki documents found in `.agents/wiki/`. Generate with `ainish-rag wiki`.")
+        primer_content.append("No pre-indexed wiki documents found in `.agents/wiki/`. Generate with `ainish-context wiki`.")
     else:
         for p in wiki_files[:section_limit]:
             content = p.read_text(encoding="utf-8", errors="replace").strip()
@@ -7097,45 +6968,157 @@ def check_lockfiles(repo_root: Path) -> Dict[str, Any]:
     }
 
 
+def _mldsa_sign_bytes(data: bytes, seed: bytes) -> bytes:
+    """ML-DSA-65 sign with a 32-byte seed, via `cryptography` (FIPS 204).
+
+    Raises RuntimeError when the library is absent, so the caller can report a missing dependency
+    rather than silently emit an unsigned file.
+    """
+    try:
+        from cryptography.hazmat.primitives.asymmetric import mldsa
+    except ImportError as exc:  # pragma: no cover - depends on the host
+        raise RuntimeError(
+            "python 'cryptography' with ML-DSA support is required to sign; "
+            "install it or skip signing deliberately"
+        ) from exc
+    sk = mldsa.MLDSA65PrivateKey.from_seed_bytes(seed)
+    return sk.sign(data)
+
+
+def mldsa_seed(repo_root: Path, priv_key_path: Optional[Path] = None) -> Optional[bytes]:
+    """The 32-byte ML-DSA-65 seed for this repo, in the order the Rust signer used.
+
+    Environment first (so a CI secret wins), then an explicit --priv-key, then the tracked-adjacent
+    `.agents/audit/signer.mldsa65.priv` that the compiled engine used to create. Absent means the
+    host has no identity yet; the caller reports that rather than inventing one, because a signature
+    from a key nobody trusts is worse than none.
+    """
+    raw = (_env_nonempty("AINISH_MLDSA65_SEED") or "").strip()
+    candidates = [Path(priv_key_path)] if priv_key_path else []
+    candidates.append(Path(repo_root) / ".agents" / "audit" / "signer.mldsa65.priv")
+    # The signing seed is MACHINE-local and gitignored, so a worktree does not have one of its own
+    # even when the main checkout does — the same one-copy-per-machine rule the graph cache follows.
+    # Looking only at the worktree made every sign attempt fail there, and `audit lock` reported PASS
+    # anyway. The canonical checkout is the right fallback for a KEY; it is not right for receipts.
+    try:
+        canonical = resolve_canonical_repo_root()
+        if canonical != Path(repo_root):
+            candidates.append(canonical / ".agents" / "audit" / "signer.mldsa65.priv")
+    except (OSError, ValueError):
+        pass
+    for candidate in candidates:
+        if raw:
+            break
+        try:
+            if candidate and candidate.is_file():
+                raw = candidate.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+    if not raw:
+        return None
+    try:
+        seed = bytes.fromhex(raw)
+    except ValueError:
+        return None
+    return seed if len(seed) == 32 else None
+
+
+def verify_detached_digest(target_file: Path) -> Tuple[bool, str]:
+    """Does the `<file>.sig` envelope's `sha256` match `target_file`'s actual bytes?
+
+    Only the DIGEST is compared here, not the ML-DSA signature, because the digest is what detects
+    "the artefact changed after signing" — the failure this gate exists to catch. Full signature
+    verification needs the trust anchor and is done by `audit verify` and the CI signature gate.
+
+    Returns `(ok, note)` where `note` is written into the FAIL line, so an operator sees WHY it
+    failed rather than only that something is wrong.
+    """
+    # The envelope takes the target's name with `.sig` REPLACING the suffix: `ledger.md` -> `ledger.sig`,
+    # `lockfile-manifest.json` -> `lockfile-manifest.sig`. Appending instead produced
+    # `lockfile-manifest.json.sig`, which every reader and gate looks past — a signature nobody reads
+    # is worse than none, because a directory listing still makes the file look signed.
+    sig_path = target_file.with_suffix(".sig")
+    if sig_path == target_file:  # a target with no suffix at all
+        sig_path = target_file.with_name(target_file.name + ".sig")
+    if not sig_path.is_file():
+        return False, "no .sig envelope (unsigned artefact)"
+    try:
+        env = json.loads(sig_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return False, f"envelope unreadable ({str(exc)[:60]})"
+    recorded = str(env.get("sha256") or "").strip().lower()
+    if not recorded:
+        return False, "envelope carries no sha256"
+    try:
+        actual = hashlib.sha256(target_file.read_bytes()).hexdigest()
+    except OSError as exc:
+        return False, f"artefact unreadable ({str(exc)[:60]})"
+    if actual != recorded:
+        return False, f"digest MISMATCH — artefact changed after signing (signed {recorded[:12]}, now {actual[:12]})"
+    return True, ""
+
+
 def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> bool:
+    """Sign `target_file` with ML-DSA-65 and write its detached envelope beside it.
+
+    This used to shell out to the compiled Rust engine, which meant signing worked only on a host
+    that had built a binary — and when that binary was deleted, signing silently stopped being
+    possible while the code still looked functional. It is now done in Python with the same seed and
+    the same envelope shape (`ainish-rag/mldsa65-envelope/v1`), so an existing trust anchor and its
+    verifier keep working unchanged.
+    """
     if not target_file.exists():
         print(f"  [rag:error] Target file not found: {target_file}", file=sys.stderr)
         return False
-
-    candidates = [
-        repo_root / "bin" / "ainish-rag.exe",
-        repo_root / "bin" / "ainish-rag-linux",
-        repo_root / "bin" / "ainish-rag-darwin",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
-    ]
-    for rust_bin in candidates:
-        if rust_bin.is_file() and os.access(rust_bin, os.X_OK):
-            try:
-                # Never recurse into the shell/Python launcher at bin/ainish-rag.
-                if rust_bin.read_bytes()[:2] == b"#!":
-                    continue
-            except OSError:
-                continue
-        else:
-            continue
-        args = [str(rust_bin), "audit", "sign", str(target_file)]
-        if priv_key_path:
-            args.extend(["--priv-key", str(priv_key_path)])
-        try:
-            res = subprocess.run(args, capture_output=True, text=True, timeout=20)
-        except subprocess.TimeoutExpired:
-            print("  [rag:error] ML-DSA signer timed out after 20 seconds", file=sys.stderr)
-            return False
-        if res.returncode == 0:
-            return True
-        print(f"  [rag:error] ML-DSA signer failed: {res.stderr.strip()}", file=sys.stderr)
+    seed = mldsa_seed(repo_root, priv_key_path)
+    if seed is None:
+        print(
+            "  [rag:error] No ML-DSA-65 seed available; refusing to write an unsigned artefact.\n"
+            "    Provide .agents/audit/signer.mldsa65.priv or AINISH_MLDSA65_SEED.",
+            file=sys.stderr,
+        )
+        return False
+    try:
+        data = target_file.read_bytes()
+    except OSError as exc:
+        print(f"  [rag:error] Could not read {target_file.name}: {str(exc)[:100]}", file=sys.stderr)
+        return False
+    try:
+        signature = _mldsa_sign_bytes(data, seed)
+    except RuntimeError as exc:
+        print(f"  [rag:error] {exc}", file=sys.stderr)
+        return False
+    except Exception as exc:  # a signing failure must never be reported as success
+        print(f"  [rag:error] ML-DSA-65 signing failed: {str(exc)[:120]}", file=sys.stderr)
         return False
 
-    print("  [rag:error] No compiled ML-DSA-65 signer is available; refusing hash-only fallback", file=sys.stderr)
-    return False
+    from cryptography.hazmat.primitives.asymmetric import mldsa as _mldsa
+
+    pub_raw = _mldsa.MLDSA65PrivateKey.from_seed_bytes(seed).public_key().public_bytes_raw()
+    envelope = {
+        "alg": "ML-DSA-65",
+        "context": "ainish-rag/audit/v1",
+        "format": "ainish-rag/mldsa65-envelope/v1",
+        "public_key_fingerprint": hashlib.sha256(pub_raw).hexdigest()[:32],
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "signature": base64.b64encode(signature).decode("ascii"),
+        "signed_at": datetime.now(timezone.utc).isoformat(),
+        "standard": "FIPS 204",
+        "target": target_file.name,
+    }
+    # The envelope takes the target's name with `.sig` REPLACING the suffix: `ledger.md` -> `ledger.sig`,
+    # `lockfile-manifest.json` -> `lockfile-manifest.sig`. Appending instead produced
+    # `lockfile-manifest.json.sig`, which every reader and gate looks past — a signature nobody reads
+    # is worse than none, because a directory listing still makes the file look signed.
+    sig_path = target_file.with_suffix(".sig")
+    if sig_path == target_file:  # a target with no suffix at all
+        sig_path = target_file.with_name(target_file.name + ".sig")
+    try:
+        sig_path.write_text(json.dumps(envelope, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(f"  [rag:error] Could not write {sig_path.name}: {str(exc)[:100]}", file=sys.stderr)
+        return False
+    return True
 
 
 def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]]:
@@ -7182,7 +7165,7 @@ def verify_cargo_sparse_index_checksums(repo_root: Path) -> Tuple[int, List[str]
 
 
 def run_audit_lock(repo_root: Path, update: bool = False) -> None:
-    print("=== ainish-rag Supply Chain Lockfile Verification ===")
+    print("=== ainish-context Supply Chain Lockfile Verification ===")
     res = check_lockfiles(repo_root)
     audit_dir = repo_root / ".agents" / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -7190,16 +7173,31 @@ def run_audit_lock(repo_root: Path, update: bool = False) -> None:
 
     if update or not manifest_file.exists():
         manifest_file.write_text(json.dumps(res, indent=2), encoding="utf-8")
-        run_audit_sign(repo_root, manifest_file)
-        print(f"  [rag:lock] Snapshotted {res['lockfiles_found']} lockfiles to {manifest_file}")
         intoto_out = audit_dir / "ainish-coder-sbom.intoto.json"
         intoto_out.write_text(generate_sbom(repo_root, "intoto"), encoding="utf-8")
-        run_audit_sign(repo_root, intoto_out)
-        print(f"  [rag:lock] Synchronized & signed in-toto v1.0 provenance attestation ({intoto_out})")
         cdx_out = audit_dir / "ainish-coder-sbom.cyclonedx.json"
         cdx_out.write_text(generate_sbom(repo_root, "cyclonedx"), encoding="utf-8")
-        run_audit_sign(repo_root, cdx_out)
-        print(f"  [rag:lock] Synchronized & signed CycloneDX 1.6 SBOM ({cdx_out})")
+        # Signing is part of the snapshot, so a FAILED signature means the snapshot did not happen.
+        # This used to call run_audit_sign and print "Synchronized & signed" regardless, which is how
+        # a stale 2026-10-29 envelope sat beside a rewritten manifest while every line said PASS.
+        signed = {
+            "manifest": run_audit_sign(repo_root, manifest_file),
+            "intoto": run_audit_sign(repo_root, intoto_out),
+            "cyclonedx": run_audit_sign(repo_root, cdx_out),
+        }
+        print(f"  [rag:lock] Snapshotted {res['lockfiles_found']} lockfiles to {manifest_file}")
+        for label, path, ok in (
+            ("in-toto v1.0 provenance attestation", intoto_out, signed["intoto"]),
+            ("CycloneDX 1.6 SBOM", cdx_out, signed["cyclonedx"]),
+        ):
+            print(f"  [rag:lock] {'Signed' if ok else 'UNSIGNED'} {label} ({path})")
+        if not all(signed.values()):
+            unsigned = [k for k, v in signed.items() if not v]
+            print(
+                "  \033[31m[FAIL]\033[0m Supply chain receipts were NOT signed: "
+                f"{', '.join(unsigned)}. A snapshot nobody signed cannot attest to anything.",
+                file=sys.stderr,
+            )
 
     if res["unpinned_files"]:
         print("  [UNPINNED ARTIFACTS] Lockfiles missing package hash verification:")
@@ -7220,7 +7218,7 @@ def run_audit_lock(repo_root: Path, update: bool = False) -> None:
     if cdx_sbom.with_suffix(".sig").is_file() and intoto_sbom.with_suffix(".sig").is_file():
         print("  [PASS] Verified detached FIPS 204 ML-DSA-65 signatures on CycloneDX 1.6 and in-toto v1.0 SBOMs.\n")
     else:
-        print("  [WARN] Detached SBOM signature verification incomplete (run 'ainish-rag audit lock --update').\n")
+        print("  [WARN] Detached SBOM signature verification incomplete (run 'ainish-context audit lock --update').\n")
 
 
 def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
@@ -7293,12 +7291,12 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
         doc = {
             "_type": "link",
             "name": "build/provenance",
-            "command": ["ainish-rag", "audit", "sbom", "--format", "intoto"],
+            "command": ["ainish-context", "audit", "sbom", "--format", "intoto"],
             "materials": materials,
             "products": products,
             "environment": {
                 "name": repo_name,
-                "tool": "ainish-rag 0.1.0",
+                "tool": "ainish-context 0.1.0",
                 "target_os": sys.platform,
                 "signature_alg": "ML-DSA-65 (FIPS 204)",
                 "timestamp": now_iso,
@@ -7333,7 +7331,7 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
                 "tools": {
                     "components": [{
                         "type": "application",
-                        "name": "ainish-rag",
+                        "name": "ainish-context",
                         "version": "0.1.0",
                     }]
                 }
@@ -7359,7 +7357,7 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
             "name": f"{repo_name}-sbom",
             "documentNamespace": f"https://ainish.dev/spdx/{repo_name}-{uuid.uuid4()}",
             "creationInfo": {
-                "creators": ["Tool: ainish-rag-0.1.0"],
+                "creators": ["Tool: ainish-context-0.1.0"],
                 "created": now_iso,
             },
             "packages": packages,
@@ -7368,7 +7366,7 @@ def generate_sbom(repo_root: Path, format_type: str = "cyclonedx") -> str:
 
 
 def run_audit_sbom(repo_root: Path, format_type: str = "cyclonedx", out_path: Optional[Path] = None) -> None:
-    print(f"=== ainish-rag Cryptographic SBOM Generator ({format_type.upper()}) ===")
+    print(f"=== ainish-context Cryptographic SBOM Generator ({format_type.upper()}) ===")
     content = generate_sbom(repo_root, format_type)
     audit_dir = repo_root / ".agents" / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
@@ -7380,20 +7378,54 @@ def run_audit_sbom(repo_root: Path, format_type: str = "cyclonedx", out_path: Op
 
 
 def run_audit_keygen(repo_root: Path, out_dir: Optional[Path] = None) -> None:
+    """Create an ML-DSA-65 signing seed and its public anchor.
+
+    The seed is a 32-byte FIPS 204 seed, exactly what `MLDSA65PrivateKey.from_seed_bytes` consumes and
+    what the retired compiled engine wrote, so an existing anchor keeps working.
+
+    This used to fall back to `pub = sha256(priv)` when the compiled binary was absent — a hash, not a
+    public key. It looked like a keypair, verified against nothing, and would have produced a
+    trust anchor no verifier could ever accept. A wrong key is worse than a missing one because the
+    file's presence reassures.
+    """
     target_dir = out_dir if out_dir else (repo_root / ".agents" / "audit" / "keys")
     target_dir.mkdir(parents=True, exist_ok=True)
-    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
-    if rust_bin.exists():
-        res = subprocess.run([str(rust_bin), "audit", "keygen", "--out-dir", str(target_dir)], capture_output=True, text=True)
-        if res.returncode == 0:
-            print(res.stdout)
-            return
-
-    priv = secrets.token_hex(64)
-    pub = hashlib.sha256(priv.encode()).hexdigest()
-    (target_dir / "signer.mldsa65.priv").write_text(priv, encoding="utf-8")
-    (target_dir / "signer.mldsa65.pub").write_text(pub, encoding="utf-8")
-    print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 public key: {target_dir / 'signer.mldsa65.pub'}\n")
+    try:
+        from cryptography.hazmat.primitives.asymmetric import mldsa
+    except ImportError:
+        print(
+            "  [rag:error] python 'cryptography' with ML-DSA support is required to derive a key; "
+            "refusing to write a placeholder that cannot sign",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    seed = os.urandom(32)
+    sk = mldsa.MLDSA65PrivateKey.from_seed_bytes(seed)
+    pk_raw = sk.public_key().public_bytes_raw()
+    priv_path = target_dir / "signer.mldsa65.priv"
+    pub_path = target_dir / "signer.mldsa65.pub"
+    priv_path.write_text(seed.hex(), encoding="utf-8")
+    try:
+        os.chmod(priv_path, 0o600)
+    except OSError:
+        pass
+    pub_path.write_text(
+        json.dumps(
+            {
+                "alg": "ML-DSA-65",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "fingerprint": hashlib.sha256(pk_raw).hexdigest()[:32],
+                "format": "ainish-rag/mldsa65-public/v1",
+                "public_key": base64.b64encode(pk_raw).decode("ascii"),
+                "standard": "FIPS 204",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 keypair: {pub_path}")
+    print(f"  fingerprint: {hashlib.sha256(pk_raw).hexdigest()[:32]}")
 
 
 def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool = False, verify_history: bool = False, json_out: bool = False) -> None:
@@ -7428,7 +7460,7 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
                 "transitions": entries_list,
             }, indent=2))
             return
-        print("=== ainish-rag Canonical Contract Governance History ===")
+        print("=== ainish-context Canonical Contract Governance History ===")
         print(f"  History Log: {history_file}")
         sig_color = {"VERIFIED": "32", "UNSIGNED": "33", "INVALID": "31"}.get(signature_status, "33")
         print(f"  ML-DSA-65 Sig: \033[{sig_color}m{signature_status}\033[0m (contract-history.sig)")
@@ -7463,47 +7495,35 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
         except OSError:
             pass
 
-    rust_candidates = [
-        repo_root / "bin" / "ainish-rag.exe",
-        repo_root / "bin" / "ainish-rag-linux",
-        repo_root / "bin" / "ainish-rag-darwin",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
-    ]
-    for rust_bin in rust_candidates:
-        if not (rust_bin.is_file() and os.access(rust_bin, os.X_OK)):
-            continue
-        try:
-            if rust_bin.read_bytes()[:2] == b"#!":
-                continue
-        except OSError:
-            continue
-        cmd = [str(rust_bin), "audit", "contract", "--threshold", str(threshold)]
-        if hardware_seal:
-            cmd.append("--hardware-seal")
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-        except subprocess.TimeoutExpired:
-            print("  [rag:error] ML-DSA contract signer timed out after 20 seconds", file=sys.stderr)
-            raise SystemExit(1)
-        if res.returncode == 0:
-            print(res.stdout, end="")
-            return
-
-    # A rules edit must not turn into a blocked session because this host lacks the compiled signer:
-    # say what is unsigned, name the machine that can sign, and carry on. Strict mode restores the hard
-    # failure for release gates that genuinely require a signature.
-    message = (
-        "  [rag:warn] No compiled ML-DSA-65 contract signer on this host; AGENTS.md is updated but "
-        "unsigned. Sign it on a machine that has bin/ainish-rag-* (or build src/rag), or set "
-        "AINISH_CONTRACT_STRICT=1 to make this fatal."
-    )
-    if os.environ.get("AINISH_CONTRACT_STRICT") == "1":
-        print("  [rag:error] No compiled ML-DSA-65 contract signer is available; refusing synthetic signatures", file=sys.stderr)
+    # Sign the canonical contract with the Python signer. This used to shell out to the compiled
+    # engine and, when that binary was absent, print a warning and RETURN SUCCESS with AGENTS.md left
+    # unsigned — a deployment that reports "rules updated" while the thing that proves the rules were
+    # not tampered with is missing. Signing is not optional here: if it cannot happen, that is an
+    # error, and AINISH_CONTRACT_STRICT only decides how loud.
+    contract = repo_root / ".agents" / "canonical" / "AGENTS.md"
+    if not contract.is_file():
+        print(f"  [rag:error] no canonical contract at {contract}; nothing to sign", file=sys.stderr)
         raise SystemExit(1)
-    print(message, file=sys.stderr)
+    seed = mldsa_seed(repo_root)
+    if seed is None:
+        message = (
+            "  [rag:error] No ML-DSA-65 seed on this host, so AGENTS.md cannot be signed. "
+            "Provide .agents/audit/signer.mldsa65.priv (run `ainish-context audit keygen`) or "
+            "AINISH_MLDSA65_SEED."
+        )
+        if os.environ.get("AINISH_CONTRACT_STRICT") == "1":
+            print(message, file=sys.stderr)
+            raise SystemExit(1)
+        print(message, file=sys.stderr)
+        raise SystemExit(1)
+    if not run_audit_sign(repo_root, contract):
+        print("  [rag:error] ML-DSA-65 contract signing failed; the contract is NOT signed", file=sys.stderr)
+        raise SystemExit(1)
+    data = contract.read_bytes()
+    (repo_root / ".agents" / "canonical" / "AGENTS.md.sha256").write_text(
+        hashlib.sha256(data).hexdigest() + "  AGENTS.md\n", encoding="utf-8"
+    )
+    print(f"  \033[32m[PASS]\033[0m Signed canonical AGENTS.md (threshold {threshold}) with ML-DSA-65.")
     return
 
 
@@ -7519,7 +7539,7 @@ def trigger_desktop_notification(title: str, message: str) -> None:
                 f"if ($textNodes.Count -gt 0) {{ $textNodes.Item(0).AppendChild($template.CreateTextNode('{t_esc}')) > $null; }} "
                 f"if ($textNodes.Count -gt 1) {{ $textNodes.Item(1).AppendChild($template.CreateTextNode('{m_esc}')) > $null; }} "
                 "$toast = [Windows.UI.Notifications.ToastNotification]::new($template); "
-                "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ainish-rag').Show($toast);"
+                "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('ainish-context').Show($toast);"
             )
             subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif sys.platform == "darwin":
@@ -8121,7 +8141,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
             }, indent=2))
         else:
             print("\n┌────────────────────────────────────────────────────────────────────────┐")
-            print("│                    ainish-rag Pre-Merge Gate Card                      │")
+            print("│                    ainish-context Pre-Merge Gate Card                      │")
             print("├────────────────────────────────────────────────────────────────────────┤")
             patch_status = "\033[32mPASS (docs/coordination-only patch — anchor exempt)\033[0m" if docs_only_patch else (f"\033[32mPASS ({patch_eval.get('composite_score', 0)*100:.1f}% - {patch_eval.get('status')})\033[0m" if patch_pass else f"\033[31mFAIL ({patch_eval.get('status')})\033[0m")
             print(f"  Patch Anchoring:        {patch_status}")
@@ -8184,7 +8204,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
 
         if notify or os.environ.get("AINISH_GATE_NOTIFY", "").lower() in ("1", "true"):
             trigger_desktop_notification(
-                "ainish-rag gate",
+                "ainish-context gate",
                 "Gate Passed: GREEN (Autonomous Merge Authorized)" if overall_pass else "Gate Failed: RED (Merge Blocked)",
             )
 
@@ -8209,7 +8229,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
 def normalize_argv(argv: List[str]) -> List[str]:
     """Accepts `--context` as an alias for the `context` subcommand.
 
-    `AGENTS.md` and muscle memory both reach for `ainish-rag --context --task "..."`, and argparse
+    `AGENTS.md` and muscle memory both reach for `ainish-context --context --task "..."`, and argparse
     rejects a flag where it expects a subcommand. Rather than document a spelling that does not work,
     the flag is rewritten to the subcommand before parsing so both forms are the same command.
 
@@ -8228,6 +8248,22 @@ def normalize_argv(argv: List[str]) -> List[str]:
     return out
 
 
+def _first_retired_verb(argv: List[str], retired: Dict[str, str]) -> str:
+    """The first positional argument naming a retired verb, or "".
+
+    Checked BEFORE argparse so the message explains the RETIREMENT. argparse's own answer is
+    "invalid choice: 'serve' (choose from 'status', ...)", which reads as a typo and sends the reader
+    hunting for a spelling mistake in a command that was deliberately removed. These verbs are also
+    absent from the subparser table on purpose: nine tombstones in `--help` are what taught every
+    agent reading this repo that an embedding model and a vector store were running here.
+    """
+    for arg in argv:
+        if arg.startswith("-"):
+            continue
+        return arg if arg in retired else ""
+    return ""
+
+
 def main():
     global KEEP_SERVER
     if hasattr(sys.stdout, "reconfigure"):
@@ -8239,9 +8275,9 @@ def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "ainish-rag — repository context for coding agents, without an embedding dependency.\n"
+            "ainish-context — repository context for coding agents, without an embedding dependency.\n"
             "\n"
-            "The command agents call is:  ainish-rag --context --task \"<request or current step>\"\n"
+            "The command agents call is:  ainish-context --context --task \"<request or current step>\"\n"
             "It returns one labelled <CONTEXT_INJECTION> block, composed as a Google-EGM prime:\n"
             "  orientation  branch, worktree, tree state, today's COMMS, newest task record and plan\n"
             "  retrieval    a wiki knowledge graph over the newest .agents/wiki pages and the newest\n"
@@ -8263,11 +8299,11 @@ def main():
             "`orientation` (never skipped), and afterwards starts a throttled background pass that\n"
             "tunes this repo's retrieval from its own history. Never hand-edit the retrieval constants\n"
             "in rag.py for one repo — the profile exists for that, and provenance.harness reports it:\n"
-            "  ainish-rag context-seed      establish the frozen generation 0 (also done by --rules)\n"
-            "  ainish-rag context-status    what is live, what is staged, what was rejected and why\n"
-            "  ainish-rag context-learn     one propose->gate cycle; --dry-run to see it, opt-in\n"
-            "  ainish-rag context-rollback  restore a past generation\n"
-            "  ainish-rag context-promote   move a STAGED skill into .agents/skills/ (operator only)\n"
+            "  ainish-coder --context-seed      establish the frozen generation 0 (also done by --rules)\n"
+            "  ainish-coder --context-status    what is live, what is staged, what was rejected and why\n"
+            "  ainish-coder --context-learn     one propose->gate cycle; --dry-run to see it, opt-in\n"
+            "  ainish-coder --context-rollback  restore a past generation\n"
+            "  ainish-coder --context-promote   move a STAGED skill into .agents/skills/ (operator only)\n"
             "State lives at .agents/context-harness/ (tracked). Learned skills stay STAGED and reach a\n"
             "model only through the prime; promotion is what makes one visible to every harness.\n"
             "\n"
@@ -8300,10 +8336,11 @@ def main():
         help="Deprecated no-op; retained so older invocations do not fail.",
     )
     sub = parser.add_subparsers(dest="subcommand", required=True)
-    # Retired subcommands still parse, so they can explain themselves. argparse's default for an
-    # unknown verb is "invalid choice", which reads as "you typed it wrong" rather than "this was
-    # removed on purpose and here is what replaced it". Each of these existed only to serve the
-    # LanceDB/embedding store retired 2026-11-12.
+    # Retired subcommands still PARSE so a live cron job or an operator's muscle memory gets an
+    # explanation instead of argparse's "invalid choice" (which reads as "you typed it wrong" rather
+    # than "this was removed on purpose"). They are HIDDEN from `--help`: nine tombstones listed in
+    # the help output are exactly what taught every agent reading this repo that an embedding model
+    # and a vector store were running here. They are not, and have not been since 2026-11-12.
     _RETIRED = {
         "serve": "the local embedding server", "stop": "the local embedding server",
         "index": "the vector index", "query": "vector search",
@@ -8311,9 +8348,11 @@ def main():
         "monitor": "vector drift monitoring", "embed-provider": "embedding provider config",
         "service": "the background embedding daemon",
     }
-    for _name in _RETIRED:
-        _p = sub.add_parser(_name, help=f"RETIRED — {_RETIRED[_name]} was removed 2026-11-12")
-        _p.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+    # The retired verbs are NOT registered. Registering them put nine tombstones in `--help`, which is
+    # what taught every agent reading this repo that an embedding model and a vector store run here.
+    # Nothing has run them since 2026-11-12. They are intercepted before parsing instead (see
+    # `_retired_verb_message`), so a live cron job still gets an explanation rather than argparse's
+    # "invalid choice: 'serve' (choose from ...)", which reads as a typo.
 
 
     status_p = sub.add_parser("status")
@@ -8519,8 +8558,27 @@ def main():
     comp_p = sub.add_parser("completion", help="Generate shell completions")
     comp_p.add_argument("shell", choices=["bash", "zsh", "fish", "pwsh"])
 
-    args = parser.parse_args(normalize_argv(sys.argv[1:]))
-    _RETIRED_REASONS = _RETIRED
+    # Every subparser is registered by now, so the visible verb list can be narrowed. This runs at
+    # the END of the build because a metavar set earlier is replaced when the next subparser is added.
+    # The retired verbs still PARSE (with an explanation) but no longer appear in --help, which is
+    # where nine tombstones used to advertise an embedding system that has not existed since 2026-11-12.
+    sub.metavar = "{" + ",".join(n for n in sub.choices if n not in _RETIRED) + "}"
+
+    _argv = normalize_argv(sys.argv[1:])
+    _retired_hit = _first_retired_verb(_argv, _RETIRED)
+    if _retired_hit:
+        # Explained, then failed. A retired verb is a real error, not a silent success, or a cron job
+        # would keep "working" while doing nothing.
+        print(
+            f"ainish-context: `{_retired_hit}` was retired 2026-11-12 — it existed only to serve "
+            f"{_RETIRED[_retired_hit]}.\n"
+            "  Retrieval is graph-first over the wiki vault and the .agents/ context folders, with no\n"
+            "  embedding model and no vector store.\n"
+            '  Use:  ainish-coder --context "<request>"',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    args = parser.parse_args(_argv)
     repo_root = resolve_canonical_repo_root()
     client = None
     store = None
@@ -8530,18 +8588,6 @@ def main():
     cpu_affinity = getattr(args, "cpu_affinity", None)
     psk_ttl = getattr(args, "psk_ttl", 86400)
 
-    if args.subcommand in _RETIRED_REASONS:
-        # Say what was removed and what replaced it, then fail: a retired verb is a real error, not a
-        # silent success, or a cron job would keep "working" while doing nothing.
-        print(
-            f"ainish-rag: `{args.subcommand}` was retired 2026-11-12 — it existed only to serve "
-            f"{_RETIRED_REASONS[args.subcommand]}.\n"
-            "  Retrieval is now graph-first over the Obsidian wiki vault and the .agents/ context\n"
-            "  folders, with no embedding model and no vector store.\n"
-            "  Use:  ainish-rag --context --task \"<request>\"",
-            file=sys.stderr,
-        )
-        sys.exit(1)
 
     if args.subcommand == "cleanup":
         run_cleanup(
@@ -8703,7 +8749,7 @@ def main():
             print(json.dumps(report, indent=2))
             return
 
-        print("=== ainish-rag Context Engine Status ===")
+        print("=== ainish-context Context Engine Status ===")
         print("Engine:             graph-first (no embedding model, no vector store)")
         print(f"Wiki Path:          {wiki_dir}")
         print(f"Wiki Pages:         {len(wiki_pages)} ({len(vault_pages)} Obsidian vault pages)")
@@ -8719,7 +8765,7 @@ def main():
     elif args.subcommand == "secrets":
         sec = inspect_secrets()
         jev = inspect_jev()
-        print("=== ainish-rag PQC Secrets & Decision Engine Status ===")
+        print("=== ainish-context PQC Secrets & Decision Engine Status ===")
         print(f"PQC Vault Path:     {sec['pqc_bundle_path']}")
         print(f"PQC Vault Exists:   {sec['pqc_vault_exists']}")
         print(f"Key Resolved:       {sec['api_key_resolved']}")
@@ -8804,7 +8850,7 @@ def main():
                 res_cnt = len(items) - open_cnt
                 print(json.dumps({"total": len(items), "open": open_cnt, "resolved": res_cnt, "notes": items}, indent=2))
             else:
-                print("=== ainish-rag Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===")
+                print("=== ainish-context Operator Wiki Ledger Notes (.agents/wiki/ledger.md) ===")
                 if not notes:
                     print("  (No operator ledger entries recorded yet)")
                 else:
@@ -8992,22 +9038,44 @@ def main():
             sys.exit(1)
 
     elif args.subcommand == "audit":
+        # Supply-chain receipts describe THIS checkout: its lockfiles, its SBOM, its canonical
+        # contract. Resolving the canonical root made `audit lock --update` from a worktree audit and
+        # rewrite the MAIN checkout's manifest — which is how a deleted lockfile stayed pinned in the
+        # manifest after this branch removed it. Shared caches still use the canonical root.
+        audit_root = _learned_root(repo_root)
         if args.audit_command == "verify":
-            run_audit_verify(repo_root, getattr(args, "path", None))
+            run_audit_verify(audit_root, getattr(args, "path", None))
         elif args.audit_command == "manifest":
-            run_audit_manifest(repo_root, getattr(args, "manifest", None))
+            run_audit_manifest(audit_root, getattr(args, "manifest", None))
         elif args.audit_command == "lock":
-            run_audit_lock(repo_root, update=getattr(args, "update", False))
+            run_audit_lock(audit_root, update=getattr(args, "update", False))
         elif args.audit_command == "sbom":
-            run_audit_sbom(repo_root, format_type=getattr(args, "format_type", "cyclonedx"), out_path=getattr(args, "out", None))
+            run_audit_sbom(audit_root, format_type=getattr(args, "format_type", "cyclonedx"), out_path=getattr(args, "out", None))
         elif args.audit_command == "keygen":
-            run_audit_keygen(repo_root, out_dir=getattr(args, "out_dir", None))
+            run_audit_keygen(audit_root, out_dir=getattr(args, "out_dir", None))
         elif args.audit_command == "sign":
-            if not run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None)):
+            # `args.file` arrives as whatever the operator typed. Under a launcher (uv, a shim, a
+            # worktree) the process cwd is not necessarily the directory the operator was standing in,
+            # so a relative path silently names nothing — and `run_audit_sign` then returns False with
+            # no output, which reads as success. Resolve against the invocation cwd, and refuse loudly
+            # when the file is not there.
+            sign_target = Path(args.file)
+            if not sign_target.is_absolute():
+                sign_target = (audit_root / sign_target) if not sign_target.exists() else sign_target.resolve()
+            if not sign_target.is_file():
+                print(
+                    f"  [rag:error] audit sign: no such file {args.file!r} "
+                    f"(resolved to {sign_target}); nothing was signed",
+                    file=sys.stderr,
+                )
                 raise SystemExit(1)
+            if not run_audit_sign(audit_root, target_file=sign_target,
+                                  priv_key_path=getattr(args, "priv_key", None)):
+                raise SystemExit(1)
+            print(f"  [rag:audit] signed {sign_target.name} -> {sign_target.with_suffix('.sig').name}")
         elif args.audit_command == "contract":
             run_audit_contract(
-                repo_root,
+                audit_root,
                 threshold=getattr(args, "threshold", 1),
                 hardware_seal=getattr(args, "hardware_seal", False),
                 verify_history=getattr(args, "verify_history", False),
@@ -9017,7 +9085,7 @@ def main():
             redact_target = getattr(args, "redact_check", None)
             if redact_target:
                 run_audit_privacy_redact_check(
-                    repo_root,
+                    audit_root,
                     redact_target,
                     json_out=getattr(args, "json", False),
                     fail_on_leak=getattr(args, "fail_on_leak", False),
@@ -9026,7 +9094,7 @@ def main():
                 )
             else:
                 run_audit_privacy(
-                    repo_root,
+                    audit_root,
                     max_b=float(getattr(args, "max_budget", 10.0)),
                     reset=getattr(args, "reset", False),
                     out_p=getattr(args, "out", None),
@@ -9071,7 +9139,7 @@ def run_audit_privacy(repo_root: Path, max_b: float, reset: bool, out_p: Optiona
     if json_out:
         print(json.dumps(report_payload, indent=2))
     else:
-        print("=== ainish-rag Differential Privacy & Redaction Audit ===")
+        print("=== ainish-context Differential Privacy & Redaction Audit ===")
         print(f"  Ledger File:      {ledger_p}")
         print("  Mechanism:        Gaussian-DP-L2 (delta=1e-5, sensitivity=0.05)")
         print(f"  Protected Vecs:   {vec_cnt}")
@@ -9231,7 +9299,7 @@ def run_audit_privacy_redact_check(
         if json_out:
             print(json.dumps(agg, indent=2))
         else:
-            print("=== ainish-rag Redaction Dry-Run — Directory (No File Mutation) ===")
+            print("=== ainish-context Redaction Dry-Run — Directory (No File Mutation) ===")
             print(f"  Directory:        {path}")
             print(f"  Files Scanned:    {len(per_file)}")
             print(f"  Files w/ Leaks:   {files_with_leaks}")
@@ -9276,7 +9344,7 @@ def run_audit_privacy_redact_check(
     if json_out:
         print(json.dumps(full_report, indent=2))
     else:
-        print("=== ainish-rag Redaction Dry-Run (No File Mutation) ===")
+        print("=== ainish-context Redaction Dry-Run (No File Mutation) ===")
         print(f"  File:             {path}")
         print(f"  Size:             {report['bytes']} bytes / {report['lines']} lines")
         print(f"  Changed Lines:    {len(changed_line_numbers)}")
@@ -9297,7 +9365,7 @@ def run_audit_privacy_redact_check(
 
 def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
     audit_dir = target_path if target_path else (repo_root / ".agents" / "audit")
-    print("=== ainish-rag Post-Quantum Cryptographic Audit Verification ===")
+    print("=== ainish-context Post-Quantum Cryptographic Audit Verification ===")
     print(f"Audit Directory: {audit_dir}")
     if not audit_dir.exists():
         print("  [rag:audit] Audit directory does not exist yet. No receipts to verify.")
@@ -9389,12 +9457,17 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
                         missing_lfs.append(rel_p)
         except Exception:
             pass
-        lf_sig_ok = lf_manifest.with_suffix(".sig").is_file()
-        if not missing_lfs and lf_sig_ok:
-            print(f"  \033[32m[PASS]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {lf_count} lockfiles present on disk & ML-DSA-65 verified")
+        # A .sig that EXISTS is not a signature that VERIFIES. This check used to be
+        # `with_suffix(".sig").is_file()`, which reported PASS on an envelope whose `sha256` named
+        # different bytes — measured 2026-11-19: the manifest had been rewritten after signing and
+        # the stale envelope from 2026-10-29 still passed. Verify the digest against the envelope and
+        # fail closed on a mismatch, a missing digest, or an unreadable envelope.
+        sig_ok, sig_note = verify_detached_digest(lf_manifest)
+        if not missing_lfs and sig_ok:
+            print(f"  \033[32m[PASS]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {lf_count} lockfiles present on disk & digest matches the signed envelope")
             passed += 1
         else:
-            print(f"  \033[31m[FAIL]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={missing_lfs}, sig_ok={lf_sig_ok}")
+            print(f"  \033[31m[FAIL]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={missing_lfs}, {sig_note}")
             failed += 1
         receipts.append(lf_manifest)
 
@@ -9482,7 +9555,7 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
 
 def run_audit_manifest(repo_root: Path, manifest_path: Optional[Path]) -> None:
     mpath = manifest_path if manifest_path else (repo_root / ".agents" / "audit" / "model-manifest.json")
-    print("=== ainish-rag Model Manifest Verification ===")
+    print("=== ainish-context Model Manifest Verification ===")
     print(f"Manifest File: {mpath}")
     if not mpath.exists():
         print(f"  \033[33m[rag:warn]\033[0m Model manifest file not found at {mpath}")

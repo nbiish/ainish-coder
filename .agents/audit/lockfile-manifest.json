@@ -1,30 +1,27 @@
 {
-  "format": "ainish-rag/lockfile-manifest/v1",
-  "generated_at": "2026-10-29T17:07:50.990852800+00:00",
-  "lockfiles": [
+  "status": "FAIL_DRIFT",
+  "lockfiles_found": 3,
+  "unpinned_count": 0,
+  "unpinned_files": [],
+  "drift_files": [
+    ".gitattributes"
+  ],
+  "files": [
     {
-      "bytes": 783,
-      "hash_pinned": true,
-      "path": ".gitattributes",
-      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+      "file": "src/pqc-secrets/Cargo.lock",
+      "sha256": "d84f954c89d779457f32d4afcc473313a6a8b6e474dc20fa16d1333d5ebc47a9",
+      "pinned": true
     },
     {
-      "bytes": 155,
-      "hash_pinned": true,
-      "path": "src/cmd-tracker/Cargo.lock",
-      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+      "file": "src/cmd-tracker/Cargo.lock",
+      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06",
+      "pinned": true
     },
     {
-      "bytes": 31406,
-      "hash_pinned": true,
-      "path": "src/pqc-secrets/Cargo.lock",
-      "sha256": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
-    },
-    {
-      "bytes": 159467,
-      "hash_pinned": true,
-      "path": "src/rag/Cargo.lock",
-      "sha256": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+      "file": ".gitattributes",
+      "sha256": "80dec44a20cf577e006a61667d0c72f4582c9cccb99da47f34eef016a3d564c7",
+      "pinned": true
     }
-  ]
+  ],
+  "timestamp": "2026-11-19T16:00:05.326950+00:00"
 }

@@ -6,6 +6,7 @@
 # Shell scripts and POSIX entrypoints MUST always use LF
 *.sh text eol=lf
 bin/ainish-coder text eol=lf
+bin/ainish-context text eol=lf
 bin/ainish-rag text eol=lf
 bin/pqc-secrets text eol=lf
 bin/auto-thinking-classify text eol=lf

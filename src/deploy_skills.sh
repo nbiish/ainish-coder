@@ -60,7 +60,7 @@ deploy_skills() {
     # code-security / llm-security / production-security are gone from the source
     # tree entirely: they were consolidated into ainish-security, and a target that
     # still carries them is reading a stale contract that contradicts the current
-    # one. context-orchestration is retired into `ainish-rag context`.
+    # one. context-orchestration is retired into `ainish-context context`.
     # orchestrate-subagent-masters is retired. The has-entry guard means a
     # hand-authored pack of the same name survives.
     local retired_skill
@@ -90,7 +90,7 @@ deploy_skills() {
                 code-security|llm-security|production-security|context-orchestration|orchestrate-subagent-masters)
                     # Retired packs are not independently deployed. The security
                     # three were consolidated into ainish-security, and
-                    # context-orchestration into `ainish-rag context`.
+                    # context-orchestration into `ainish-context context`.
                     continue
                     ;;
             esac

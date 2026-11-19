@@ -1,6 +1,6 @@
 # `.agents/context-harness/` — the per-repo context harness
 
-Written by `ainish-coder --rules` at generation 0, and by `ainish-rag --context-learn` thereafter.
+Written by `ainish-coder --rules` at generation 0, and by `ainish-coder --context-learn` thereafter.
 
 | File | What it is |
 |---|---|
@@ -13,8 +13,8 @@ Written by `ainish-coder --rules` at generation 0, and by `ainish-rag --context-
 ## Rollback in three lines
 
     ls .agents/context-harness/history/
-    ainish-rag --context-rollback <generation>
-    ainish-rag --context-status
+    ainish-coder --context-rollback <generation>
+    ainish-coder --context-status
 
 ## Revoking a promoted skill
 

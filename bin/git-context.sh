@@ -204,7 +204,7 @@ if [ -d .agents/rag ] || [ -d .agents/wiki ]; then
       echo "  [ADVISORY]      ${advisory}"
     fi
   elif [ -d .agents/rag/lancedb ]; then
-    echo "  rag status:     initialized (run 'ainish-rag monitor' to evaluate drift)"
+    echo "  rag status:     initialized (run 'ainish-context monitor' to evaluate drift)"
   fi
   if [ -d .agents/audit ]; then
     receipt_count=$(find .agents/audit -maxdepth 1 -name '*-index-receipt.json' 2>/dev/null | wc -l | tr -d ' ')

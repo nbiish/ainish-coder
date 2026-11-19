@@ -10,7 +10,7 @@ decision_source: structural
 
 # 05. Research & Intelligence — ainish-coder
 
-## 1. Retrieval Architecture (embedding path RETIRED)
+## 1. Retrieval Architecture
 
 - **Status:** the EmbeddingGemma-2 GGUF model, its 768-d space, Matryoshka truncation, and the LanceDB
   store were **DELETED on 2026-11-12**, not disabled. There is no model to download, no dimension to

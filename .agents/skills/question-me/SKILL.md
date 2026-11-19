@@ -288,7 +288,7 @@ operator: question-me
 ---
 ```
 
-`status` is the one field every reader depends on: `ainish-rag` orientation reports it, and the
+`status` is the one field every reader depends on: `ainish-context` orientation reports it, and the
 implementing agent sets it. Treat an unknown value as `designing`.
 
 ### Section ownership

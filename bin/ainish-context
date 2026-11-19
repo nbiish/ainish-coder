@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# ainish-context — the ainish-coder context engine.
+# Supports Windows (Git Bash/MSYS2), WSL (Windows Subsystem for Linux), native Linux, and macOS.
+#
+# The agent-facing command is `ainish-coder --context "<task>"`. This launcher is the engine entry
+# point for the verbs that have no friendlier wrapper: context-seed, context-status, context-learn,
+# context-rollback, context-promote, context-skill, wiki, gate, audit, orient, route, decide.
+#
+# There is ONE engine and it is Python (`src/context/engine.py`). Earlier versions dispatched to a
+# compiled Rust binary when one was present; that crate is gone, and with it the whole class of bug
+# where a stale build silently answered for the Python code. There is nothing to fall back to, so a
+# missing interpreter is a hard error rather than a downgrade.
+#
+# Retrieval is graph-first over the wiki vault and the `.agents/` context folders. There is no
+# embedding model, no vector store, and no llama-server anywhere in this path, by design: the corpus
+# is small enough that a large-context model reads what it needs, and the graph's job is to choose
+# what goes into a bounded prime.
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SELF_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+PY_ENGINE="$SELF_DIR/../src/context/engine.py"
+
+if [ ! -f "$PY_ENGINE" ]; then
+    echo "ainish-context: engine not found at $PY_ENGINE" >&2
+    echo "  This launcher must ship beside src/context/ (it is part of the ainish-coder tree)." >&2
+    exit 1
+fi
+
+# --no-managed-python is a Windows workaround: uv's managed interpreter can sit on a mount Windows
+# marks untrusted, where every `uv run` dies with "untrusted mount point (os error 448)" before the
+# engine starts. Applying it everywhere breaks macOS/Linux hosts whose pinned Python is only
+# available as a uv-managed download, so it is conditional and overridable.
+UV_FLAGS=""
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) UV_FLAGS="--no-managed-python" ;;
+esac
+if [ "${AINISH_UV_NO_MANAGED_PYTHON:-0}" = "1" ]; then
+    UV_FLAGS="--no-managed-python"
+fi
+
+# `cryptography` provides ML-DSA-65 (FIPS 204), which the engine needs to SIGN things: the wiki
+# ledger, the lockfile manifest, the SBOMs, and the contract. Signing is the only place the engine
+# leaves the standard library, so it is requested per-run rather than made a hard dependency — the
+# `--context` hot path stays importable on a bare Python, and a signing command gets what it needs.
+# Same approach, and the same version floor, as `scripts/scrolls/scroll_manifest.py`.
+SIGN_DEP="cryptography>=47"
+
+if command -v uv >/dev/null 2>&1; then
+    exec uv run $UV_FLAGS --with "$SIGN_DEP" "$PY_ENGINE" "$@"
+elif [ -f "$HOME/.local/bin/uv" ]; then
+    exec "$HOME/.local/bin/uv" run $UV_FLAGS --with "$SIGN_DEP" "$PY_ENGINE" "$@"
+elif [ -f "$HOME/.cargo/bin/uv" ]; then
+    exec "$HOME/.cargo/bin/uv" run $UV_FLAGS "$PY_ENGINE" "$@"
+elif command -v python3 >/dev/null 2>&1; then
+    exec python3 "$PY_ENGINE" "$@"
+elif command -v python >/dev/null 2>&1; then
+    exec python "$PY_ENGINE" "$@"
+elif command -v py >/dev/null 2>&1; then
+    exec py "$PY_ENGINE" "$@"
+else
+    echo "ainish-context: no Python interpreter found (tried uv, python3, python, py)." >&2
+    echo "  The context engine is Python-only; there is no compiled fallback." >&2
+    exit 1
+fi
