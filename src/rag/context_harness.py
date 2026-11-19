@@ -583,7 +583,13 @@ def _parse_task_record(path: Path) -> Dict[str, str]:
     for key in ("status", "branch", "plan", "objective", "scope"):
         m = re.search(rf"^-\s*{key}:\s*(.+?)(?=^-\s+[a-z_]+:|\Z)", text, re.S | re.M)
         if m:
-            out[key] = " ".join(m.group(1).split())
+            value = " ".join(m.group(1).split())
+            # A quoted value is a YAML string, not part of the value: `status: "done (merged abc)"`
+            # must read as `done (merged abc)`, or `_record_is_done` sees a leading quote and every
+            # finished record looks unfinished. Measured on 2026-11-19 in the end-to-end fixture.
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1].strip()
+            out[key] = value
     if "objective" not in out:
         # Continuation lines under a wrapped `- objective:` are indented, so the lookahead above
         # already captures them; this is the fallback for a record written without the dash form.
@@ -714,9 +720,16 @@ def outcome_signal(
         out.update({"available": True, "completion": False, "referent": "override",
                     "reason": "caller asserted the outcome with --outcome fail"})
         return out
-    if normalized in ("unknown", "unavailable", ""):
-        pass
-    elif normalized:
+    # `unknown` is an explicit statement that the outcome is NOT established. Falling through to the
+    # commit-subject heuristic would silently substitute a weaker referent for the caller's answer,
+    # so it refuses with a reason instead. Only an ABSENT flag falls through.
+    if normalized in ("unknown", "unavailable"):
+        out["reason"] = (
+            "the caller recorded the outcome as unknown with --outcome unknown; a harness change "
+            "cannot be accepted against an outcome nobody established"
+        )
+        return out
+    if normalized:
         out["reason"] = f"unrecognised --outcome value {override!r}; expected ok|fail|unknown"
         return out
 

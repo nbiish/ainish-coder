@@ -6423,6 +6423,19 @@ def run_context_command(
     dec = DecisionEngine()
     route_decision = dec.route(task)
     strategy = str(route_decision.get("retrieval_strategy") or "hybrid_rerank")
+    # A task that NAMES a corpus layer must retrieve it, even when the router judged the question
+    # self-contained. Measured on 2026-11-19: "what does the contract say about worktrees" routed to
+    # `skip_retrieval`, so the one command the contract tells an agent to call answered a question
+    # about the rules with no rules in it — while the contract promises the rules are answerable from
+    # the prime. The router optimises for "does this need repo context"; naming the contract, the
+    # plans, the tasks or the comms IS that need, stated by the caller.
+    named_kinds = _kind_intent_boosts(task)
+    if strategy == "skip_retrieval" and named_kinds:
+        strategy = "forced_retrieval"
+        route_decision = dict(route_decision)
+        route_decision["retrieval_strategy"] = strategy
+        route_decision["forced_by"] = f"task names {', '.join(sorted(named_kinds))}"
+        route_decision["next_action"] = "retrieve: the task named a corpus layer"
     # An explicit --budget is honoured exactly; only the route-derived default carries a floor. A
     # caller that asks for 400 tokens and silently receives 600 cannot reason about its own context
     # window, and silently expanding a budget is the same class of bug as silently exceeding one.
