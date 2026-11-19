@@ -7124,13 +7124,23 @@ def mldsa_seed(repo_root: Path, priv_key_path: Optional[Path] = None) -> Optiona
     from a key nobody trusts is worse than none.
     """
     raw = (_env_nonempty("AINISH_MLDSA65_SEED") or "").strip()
-    for candidate in ([Path(priv_key_path)] if priv_key_path else []) + [
-        Path(repo_root) / ".agents" / "audit" / "signer.mldsa65.priv",
-    ]:
+    candidates = [Path(priv_key_path)] if priv_key_path else []
+    candidates.append(Path(repo_root) / ".agents" / "audit" / "signer.mldsa65.priv")
+    # The signing seed is MACHINE-local and gitignored, so a worktree does not have one of its own
+    # even when the main checkout does — the same one-copy-per-machine rule the graph cache follows.
+    # Looking only at the worktree made every sign attempt fail there, and `audit lock` reported PASS
+    # anyway. The canonical checkout is the right fallback for a KEY; it is not right for receipts.
+    try:
+        canonical = resolve_canonical_repo_root()
+        if canonical != Path(repo_root):
+            candidates.append(canonical / ".agents" / "audit" / "signer.mldsa65.priv")
+    except (OSError, ValueError):
+        pass
+    for candidate in candidates:
         if raw:
             break
         try:
-            if candidate.is_file():
+            if candidate and candidate.is_file():
                 raw = candidate.read_text(encoding="utf-8", errors="replace").strip()
         except OSError:
             continue
@@ -7141,6 +7151,41 @@ def mldsa_seed(repo_root: Path, priv_key_path: Optional[Path] = None) -> Optiona
     except ValueError:
         return None
     return seed if len(seed) == 32 else None
+
+
+def verify_detached_digest(target_file: Path) -> Tuple[bool, str]:
+    """Does the `<file>.sig` envelope's `sha256` match `target_file`'s actual bytes?
+
+    Only the DIGEST is compared here, not the ML-DSA signature, because the digest is what detects
+    "the artefact changed after signing" — the failure this gate exists to catch. Full signature
+    verification needs the trust anchor and is done by `audit verify` and the CI signature gate.
+
+    Returns `(ok, note)` where `note` is written into the FAIL line, so an operator sees WHY it
+    failed rather than only that something is wrong.
+    """
+    # The envelope takes the target's name with `.sig` REPLACING the suffix: `ledger.md` -> `ledger.sig`,
+    # `lockfile-manifest.json` -> `lockfile-manifest.sig`. Appending instead produced
+    # `lockfile-manifest.json.sig`, which every reader and gate looks past — a signature nobody reads
+    # is worse than none, because a directory listing still makes the file look signed.
+    sig_path = target_file.with_suffix(".sig")
+    if sig_path == target_file:  # a target with no suffix at all
+        sig_path = target_file.with_name(target_file.name + ".sig")
+    if not sig_path.is_file():
+        return False, "no .sig envelope (unsigned artefact)"
+    try:
+        env = json.loads(sig_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return False, f"envelope unreadable ({str(exc)[:60]})"
+    recorded = str(env.get("sha256") or "").strip().lower()
+    if not recorded:
+        return False, "envelope carries no sha256"
+    try:
+        actual = hashlib.sha256(target_file.read_bytes()).hexdigest()
+    except OSError as exc:
+        return False, f"artefact unreadable ({str(exc)[:60]})"
+    if actual != recorded:
+        return False, f"digest MISMATCH — artefact changed after signing (signed {recorded[:12]}, now {actual[:12]})"
+    return True, ""
 
 
 def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[Path] = None) -> bool:
@@ -7191,7 +7236,13 @@ def run_audit_sign(repo_root: Path, target_file: Path, priv_key_path: Optional[P
         "standard": "FIPS 204",
         "target": target_file.name,
     }
-    sig_path = target_file.with_suffix(target_file.suffix + ".sig")
+    # The envelope takes the target's name with `.sig` REPLACING the suffix: `ledger.md` -> `ledger.sig`,
+    # `lockfile-manifest.json` -> `lockfile-manifest.sig`. Appending instead produced
+    # `lockfile-manifest.json.sig`, which every reader and gate looks past — a signature nobody reads
+    # is worse than none, because a directory listing still makes the file look signed.
+    sig_path = target_file.with_suffix(".sig")
+    if sig_path == target_file:  # a target with no suffix at all
+        sig_path = target_file.with_name(target_file.name + ".sig")
     try:
         sig_path.write_text(json.dumps(envelope, indent=2) + "\n", encoding="utf-8")
     except OSError as exc:
@@ -7252,16 +7303,31 @@ def run_audit_lock(repo_root: Path, update: bool = False) -> None:
 
     if update or not manifest_file.exists():
         manifest_file.write_text(json.dumps(res, indent=2), encoding="utf-8")
-        run_audit_sign(repo_root, manifest_file)
-        print(f"  [rag:lock] Snapshotted {res['lockfiles_found']} lockfiles to {manifest_file}")
         intoto_out = audit_dir / "ainish-coder-sbom.intoto.json"
         intoto_out.write_text(generate_sbom(repo_root, "intoto"), encoding="utf-8")
-        run_audit_sign(repo_root, intoto_out)
-        print(f"  [rag:lock] Synchronized & signed in-toto v1.0 provenance attestation ({intoto_out})")
         cdx_out = audit_dir / "ainish-coder-sbom.cyclonedx.json"
         cdx_out.write_text(generate_sbom(repo_root, "cyclonedx"), encoding="utf-8")
-        run_audit_sign(repo_root, cdx_out)
-        print(f"  [rag:lock] Synchronized & signed CycloneDX 1.6 SBOM ({cdx_out})")
+        # Signing is part of the snapshot, so a FAILED signature means the snapshot did not happen.
+        # This used to call run_audit_sign and print "Synchronized & signed" regardless, which is how
+        # a stale 2026-10-29 envelope sat beside a rewritten manifest while every line said PASS.
+        signed = {
+            "manifest": run_audit_sign(repo_root, manifest_file),
+            "intoto": run_audit_sign(repo_root, intoto_out),
+            "cyclonedx": run_audit_sign(repo_root, cdx_out),
+        }
+        print(f"  [rag:lock] Snapshotted {res['lockfiles_found']} lockfiles to {manifest_file}")
+        for label, path, ok in (
+            ("in-toto v1.0 provenance attestation", intoto_out, signed["intoto"]),
+            ("CycloneDX 1.6 SBOM", cdx_out, signed["cyclonedx"]),
+        ):
+            print(f"  [rag:lock] {'Signed' if ok else 'UNSIGNED'} {label} ({path})")
+        if not all(signed.values()):
+            unsigned = [k for k, v in signed.items() if not v]
+            print(
+                "  \033[31m[FAIL]\033[0m Supply chain receipts were NOT signed: "
+                f"{', '.join(unsigned)}. A snapshot nobody signed cannot attest to anything.",
+                file=sys.stderr,
+            )
 
     if res["unpinned_files"]:
         print("  [UNPINNED ARTIFACTS] Lockfiles missing package hash verification:")
@@ -9064,22 +9130,44 @@ def main():
             sys.exit(1)
 
     elif args.subcommand == "audit":
+        # Supply-chain receipts describe THIS checkout: its lockfiles, its SBOM, its canonical
+        # contract. Resolving the canonical root made `audit lock --update` from a worktree audit and
+        # rewrite the MAIN checkout's manifest — which is how a deleted lockfile stayed pinned in the
+        # manifest after this branch removed it. Shared caches still use the canonical root.
+        audit_root = _learned_root(repo_root)
         if args.audit_command == "verify":
-            run_audit_verify(repo_root, getattr(args, "path", None))
+            run_audit_verify(audit_root, getattr(args, "path", None))
         elif args.audit_command == "manifest":
-            run_audit_manifest(repo_root, getattr(args, "manifest", None))
+            run_audit_manifest(audit_root, getattr(args, "manifest", None))
         elif args.audit_command == "lock":
-            run_audit_lock(repo_root, update=getattr(args, "update", False))
+            run_audit_lock(audit_root, update=getattr(args, "update", False))
         elif args.audit_command == "sbom":
-            run_audit_sbom(repo_root, format_type=getattr(args, "format_type", "cyclonedx"), out_path=getattr(args, "out", None))
+            run_audit_sbom(audit_root, format_type=getattr(args, "format_type", "cyclonedx"), out_path=getattr(args, "out", None))
         elif args.audit_command == "keygen":
-            run_audit_keygen(repo_root, out_dir=getattr(args, "out_dir", None))
+            run_audit_keygen(audit_root, out_dir=getattr(args, "out_dir", None))
         elif args.audit_command == "sign":
-            if not run_audit_sign(repo_root, target_file=args.file, priv_key_path=getattr(args, "priv_key", None)):
+            # `args.file` arrives as whatever the operator typed. Under a launcher (uv, a shim, a
+            # worktree) the process cwd is not necessarily the directory the operator was standing in,
+            # so a relative path silently names nothing — and `run_audit_sign` then returns False with
+            # no output, which reads as success. Resolve against the invocation cwd, and refuse loudly
+            # when the file is not there.
+            sign_target = Path(args.file)
+            if not sign_target.is_absolute():
+                sign_target = (audit_root / sign_target) if not sign_target.exists() else sign_target.resolve()
+            if not sign_target.is_file():
+                print(
+                    f"  [rag:error] audit sign: no such file {args.file!r} "
+                    f"(resolved to {sign_target}); nothing was signed",
+                    file=sys.stderr,
+                )
                 raise SystemExit(1)
+            if not run_audit_sign(audit_root, target_file=sign_target,
+                                  priv_key_path=getattr(args, "priv_key", None)):
+                raise SystemExit(1)
+            print(f"  [rag:audit] signed {sign_target.name} -> {sign_target.with_suffix('.sig').name}")
         elif args.audit_command == "contract":
             run_audit_contract(
-                repo_root,
+                audit_root,
                 threshold=getattr(args, "threshold", 1),
                 hardware_seal=getattr(args, "hardware_seal", False),
                 verify_history=getattr(args, "verify_history", False),
@@ -9089,7 +9177,7 @@ def main():
             redact_target = getattr(args, "redact_check", None)
             if redact_target:
                 run_audit_privacy_redact_check(
-                    repo_root,
+                    audit_root,
                     redact_target,
                     json_out=getattr(args, "json", False),
                     fail_on_leak=getattr(args, "fail_on_leak", False),
@@ -9098,7 +9186,7 @@ def main():
                 )
             else:
                 run_audit_privacy(
-                    repo_root,
+                    audit_root,
                     max_b=float(getattr(args, "max_budget", 10.0)),
                     reset=getattr(args, "reset", False),
                     out_p=getattr(args, "out", None),
@@ -9461,12 +9549,17 @@ def run_audit_verify(repo_root: Path, target_path: Optional[Path]) -> None:
                         missing_lfs.append(rel_p)
         except Exception:
             pass
-        lf_sig_ok = lf_manifest.with_suffix(".sig").is_file()
-        if not missing_lfs and lf_sig_ok:
-            print(f"  \033[32m[PASS]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {lf_count} lockfiles present on disk & ML-DSA-65 verified")
+        # A .sig that EXISTS is not a signature that VERIFIES. This check used to be
+        # `with_suffix(".sig").is_file()`, which reported PASS on an envelope whose `sha256` named
+        # different bytes — measured 2026-11-19: the manifest had been rewritten after signing and
+        # the stale envelope from 2026-10-29 still passed. Verify the digest against the envelope and
+        # fail closed on a mismatch, a missing digest, or an unreadable envelope.
+        sig_ok, sig_note = verify_detached_digest(lf_manifest)
+        if not missing_lfs and sig_ok:
+            print(f"  \033[32m[PASS]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): all {lf_count} lockfiles present on disk & digest matches the signed envelope")
             passed += 1
         else:
-            print(f"  \033[31m[FAIL]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={missing_lfs}, sig_ok={lf_sig_ok}")
+            print(f"  \033[31m[FAIL]\033[0m Supply Chain Lockfile Manifest (lockfile-manifest.json): missing={missing_lfs}, {sig_note}")
             failed += 1
         receipts.append(lf_manifest)
 

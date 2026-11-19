@@ -44,10 +44,17 @@ if [ "${AINISH_UV_NO_MANAGED_PYTHON:-0}" = "1" ]; then
     UV_FLAGS="--no-managed-python"
 fi
 
+# `cryptography` provides ML-DSA-65 (FIPS 204), which the engine needs to SIGN things: the wiki
+# ledger, the lockfile manifest, the SBOMs, and the contract. Signing is the only place the engine
+# leaves the standard library, so it is requested per-run rather than made a hard dependency — the
+# `--context` hot path stays importable on a bare Python, and a signing command gets what it needs.
+# Same approach, and the same version floor, as `scripts/scrolls/scroll_manifest.py`.
+SIGN_DEP="cryptography>=47"
+
 if command -v uv >/dev/null 2>&1; then
-    exec uv run $UV_FLAGS "$PY_ENGINE" "$@"
+    exec uv run $UV_FLAGS --with "$SIGN_DEP" "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.local/bin/uv" ]; then
-    exec "$HOME/.local/bin/uv" run $UV_FLAGS "$PY_ENGINE" "$@"
+    exec "$HOME/.local/bin/uv" run $UV_FLAGS --with "$SIGN_DEP" "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.cargo/bin/uv" ]; then
     exec "$HOME/.cargo/bin/uv" run $UV_FLAGS "$PY_ENGINE" "$@"
 elif command -v python3 >/dev/null 2>&1; then
