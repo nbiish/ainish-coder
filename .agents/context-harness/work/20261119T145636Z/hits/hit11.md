@@ -1,0 +1,8 @@
+Multimodal Codebase RAG & Wiki Engine (repo-local)
+## Multimodal Codebase RAG & Wiki Engine (repo-local)
+
+
+
+Universal architecture and knowledge retrieval for the codebase. Graph-first retrieval over the Obsidian wiki vault and the `.agents/` context folders, with no embedding model and no vector store. The EmbeddingGemma-2 GGUF + LanceDB subsystem was **deleted** on 2026-11-12, not merely disabled: its code, its three crates, its tests, and the eight subcommands that existed only to serve it are gone.
+
+- **Context injection is the agent-facing surface (2026-11-07).** `ainish-rag context --task "<text>"` is the one call `AGENTS.md` `<CONTEXT_INJECTION>` directs an agent to make: it returns a single labelled, token-budgeted envelope whose sections are `orientation` (branch, worktree, tree state, today's COMMS, newest task — gathered in code, no model call), `retrieval` (graph walk over the Obsidian wiki + `.agents/` artifacts, with optional decision-model rerank; no embedding model in the default path), `elephant` (session-aware synthesis over a scrubbed `.agents/rag/sessions/{id}.json` sidecar) and `goldfish` (a stateless three-step reviewer that structurally cannot receive session state). **Both roles run as `pi` agents** (2026-11-14) **on `local-router/fallback-models`**: each is a separate `pi --print --no-session --no-tools --mode json --thinking off` invocation with a long role brief, the retrieved files attached via `@pat

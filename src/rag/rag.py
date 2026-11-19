@@ -69,6 +69,45 @@ def resolve_canonical_repo_root(start: Optional[Path] = None) -> Path:
     return Path.cwd().resolve()
 
 
+def resolve_worktree_root(start: Optional[Path] = None) -> Path:
+    """The root of the checkout the caller is standing in — a worktree resolves to ITSELF.
+
+    This is deliberately different from `resolve_canonical_repo_root`, and the difference is not
+    cosmetic. Shared, machine-local state (the graph cache, sessions, the autolearn throttle under
+    `.agents/rag/`) should be one copy per machine, so the canonical root is right for it.
+
+    LEARNED state is TRACKED by git (`.agents/context-harness/`). Measured failure: with the
+    canonical root, `context-seed` run from `/Users/nbiish/code/context-agent-correctness` wrote
+    `prime-profile.json` into the MAIN checkout — a different branch, a working tree nobody was
+    standing in, and untracked state that the branch would never carry. A generation learned on a
+    feature branch must live on that branch, or the merge that lands the work cannot land its tuning.
+    """
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(start or Path.cwd()), capture_output=True, text=True,
+            stdin=subprocess.DEVNULL, timeout=10,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return Path(res.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return (start or Path.cwd()).resolve()
+
+
+def _learned_root(canonical_root: Path) -> Path:
+    """Where TRACKED learned state lives: the checkout the caller is in, when that is a worktree.
+
+    `main`'s resolved `repo_root` is the canonical checkout, which is right for machine-local caches
+    but wrong for `.agents/context-harness/`: that path is committed, so a generation produced on a
+    feature branch must be written on that branch or the merge cannot carry it. Measured on
+    2026-11-19: `context-seed` run inside a feature worktree wrote `prime-profile.json` into the main
+    checkout instead, leaving the branch with no baseline and the main tree with untracked state.
+    """
+    worktree = resolve_worktree_root()
+    return worktree if worktree else canonical_root
+
+
 def _luhn_valid(num_str: str) -> bool:
     digits = [int(c) for c in num_str if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
@@ -5422,7 +5461,10 @@ def _harness_evidence_tree(
             f"- `hits/{name}` — {hit.get('path')}:L{hit.get('start_line')}-L{hit.get('end_line')} "
             f"(score {float(hit.get('decision_score') or 0):.2f}, {len(body)} chars)"
         )
-    index += ["", "## Current tuning", "", "```json",
+    index += ["", "## Current tuning", "",
+              "`max_wiki_pages` and `max_artifacts` are CAPS where 0 means INDEX EVERYTHING "
+              "(the widest setting, not the narrowest).", "",
+              "```json",
               json.dumps(profile.get("graph") or {}, indent=2), "```", ""]
     (dest / "INDEX.md").write_text("\n".join(index), encoding="utf-8")
 
@@ -5447,10 +5489,15 @@ in full. Work only from what is here.
 
 Only two things, and both are data:
 
-1. The `graph` numbers — `max_wiki_pages` (1-16), `max_artifacts` (1-6), `chapter_chars` (400-2400),
+1. The `graph` numbers — `max_wiki_pages` (0-64), `max_artifacts` (0-64), `chapter_chars` (400-2400),
    `hop_bonus` (0.0-1.0), `recency_floor` (0.0-0.95), `shared_term_threshold` (2-8) — and up to 12
    short `[a-z0-9_-]` terms per key in `domain_prior`. A `domain_prior` term promotes retrieved items
    whose text contains it. It cannot add evidence that is not already in the corpus.
+
+   **`0` MEANS "INDEX EVERYTHING", NOT "index nothing".** For `max_wiki_pages` and `max_artifacts`,
+   `0` is the widest setting, not the narrowest. Do not propose `0 -> N` to "fix" it: that would cap
+   a corpus that is currently read in full, and the gate refuses it. Raise a cap only to widen, and
+   prefer leaving both at `0` unless the evidence names a specific crowding problem.
 
 2. A skill, as `skills/learned-<name>/SKILL.md` (+ optional `scripts/*.py`). Skills are ON DEMAND:
    they cost nothing until invoked, which is why they are the preferred form. Frontmatter needs
@@ -5496,6 +5543,41 @@ across generations. Omit the `<skill>` blocks entirely when no skill is warrante
 Reply with `<edits></edits><why></why><kept>yes</kept>` when you are keeping the harness as it is.
 Do not describe what you are about to do. Do not begin with a preamble. Emit only the blocks.
 """
+
+
+def _coverage_loss_guard(profile: Dict[str, Any], candidate: Dict[str, Any]) -> List[str]:
+    """Refuse a generation that SHRINKS the corpus without saying so.
+
+    Measured on 2026-11-19: with the corpus finally indexing everything, the improver's first
+    proposal was `max_wiki_pages: 0 -> 5` — a narrowing justified by "the objective is about the
+    wiki". That is the R1 risk in its most likely form: lowering a cap makes retrieval cheaper and
+    more concentrated, which looks like improvement on any prime-derived reading, while silently
+    making most of the corpus unreadable again. The whole reason the caps are 0 is that capping at 2
+    hid 107 of 167 files.
+
+    Narrowing is not forbidden — an operator may want a smaller corpus on a huge repo — but it must
+    be an explicit, recorded decision rather than a side effect of a tuning pass. So the gate refuses
+    it with a message that names the knob and the reason, and the operator can set it by hand.
+    """
+    errs: List[str] = []
+    live = profile.get("graph") or {}
+    cand = candidate.get("graph") or {}
+    for key in ("max_wiki_pages", "max_artifacts"):
+        before = int(live.get(key, 0) or 0)
+        after = int(cand.get(key, before) or 0)
+        # 0 means "all". Going from all to a number is a loss; so is any decrease between two numbers.
+        if before == 0 and after != 0:
+            errs.append(
+                f"graph.{key} {before} -> {after} would cap a corpus that is currently indexed in "
+                f"full; a learner may widen coverage but not narrow it (change it by hand if that "
+                f"is really wanted)"
+            )
+        elif before != 0 and after != 0 and after < before:
+            errs.append(
+                f"graph.{key} {before} -> {after} narrows the corpus; a learner may widen coverage "
+                f"but not narrow it"
+            )
+    return errs
 
 
 def _apply_edits_to_profile(profile: Dict[str, Any], edits: Dict[str, Any]) -> Dict[str, Any]:
@@ -5619,6 +5701,8 @@ def run_context_learn(
     dry_run: bool = False,
     json_out: bool = False,
     no_remote: bool = False,
+    task_record: Optional[Path] = None,
+    outcome_override: Optional[str] = None,
 ) -> Dict[str, Any]:
     """One propose→outcome→gate cycle. The acceptance gate is OUTCOME-based, not prime-derived.
 
@@ -5640,8 +5724,10 @@ def run_context_learn(
             print(f"[rag:error] {lock_note}", file=sys.stderr)
         return result
     try:
-        return _learn_locked(repo_root, task, dry_run=dry_run, json_out=json_out, no_remote=no_remote,
-                             result=result)
+        return _learn_locked(
+            repo_root, task, dry_run=dry_run, json_out=json_out, no_remote=no_remote,
+            task_record=task_record, outcome_override=outcome_override, result=result,
+        )
     finally:
         context_harness.release_lock(repo_root)
 
@@ -5653,6 +5739,8 @@ def _learn_locked(
     dry_run: bool,
     json_out: bool,
     no_remote: bool,
+    task_record: Optional[Path],
+    outcome_override: Optional[str],
     result: Dict[str, Any],
 ) -> Dict[str, Any]:
     profile, source, errs = context_harness.load_profile(repo_root)
@@ -5670,7 +5758,13 @@ def _learn_locked(
         return result
 
     if not task:
-        task = _newest_task_objective(repo_root)
+        # A task record is a better task than a bare objective line: it carries the scope and branch
+        # the outcome referent needs, so using it here keeps evidence and referent about the same work.
+        if task_record and Path(task_record).is_file():
+            fields = context_harness.task_record_fields(Path(task_record))
+            task = fields.get("objective") or ""
+        if not task:
+            task = _newest_task_objective(repo_root)
     if not task:
         result["errors"] = ["no task text; pass --task or record a task under .agents/tasks/"]
         if json_out:
@@ -5819,9 +5913,14 @@ def _learn_locked(
     # ── the gate ────────────────────────────────────────────────────────────
     reasons: List[str] = []
     reasons += [f"bounds: {e}" for e in context_harness.validate_profile(candidate)]
+    # Coverage is a safety property, not a preference: a generation must not make the corpus
+    # smaller than the one it replaces. See `_coverage_loss_guard`.
+    reasons += [f"coverage: {e}" for e in _coverage_loss_guard(profile, candidate)]
 
     # Non-circular requirement: the proposal must be justified by an OUTCOME, not by the prime.
-    outcome = context_harness.outcome_signal(repo_root, task)
+    outcome = context_harness.outcome_signal(
+        repo_root, task, task_record=task_record, override=outcome_override,
+    )
     result["outcome_signal"] = outcome
     if not outcome.get("available"):
         reasons.append(
@@ -5830,10 +5929,24 @@ def _learn_locked(
             "evidence derived from the prime it changes"
         )
     elif outcome.get("completion") is False:
-        reasons.append(
-            "no completed commit is associated with this task, so there is no evidence the current "
-            "harness works well enough to be worth tuning from"
-        )
+        # The referent is named, because the three ways to be "not done" need different fixes:
+        # a record not yet marked done, a done record whose branch never landed, or no record at all.
+        referent = outcome.get("referent") or "commit-subject"
+        if referent == "task-record":
+            reasons.append(
+                f"the task record says the work has not landed ({outcome.get('reason')}); "
+                f"a harness change cannot be credited against an unfinished task"
+            )
+        elif referent == "override":
+            reasons.append(
+                f"the caller recorded this task as unsuccessful ({outcome.get('reason')}); "
+                f"tuning from a failed run would encode its failure"
+            )
+        else:
+            reasons.append(
+                "no completed commit is associated with this task, so there is no evidence the "
+                "current harness works well enough to be worth tuning from"
+            )
     if not why.strip():
         reasons.append("no <why> offered; a change with no cited motivation is a guess")
     if not any([delta.get("graph"), delta.get("domain_prior"), proposed_skills]):
@@ -5881,6 +5994,12 @@ def _learn_locked(
     # generation: a profile that references a tree which failed validation would be a half-applied
     # state that no rollback of the profile alone could repair.
     staged: List[str] = []
+    # Snapshot the OUTGOING generation before anything of the new one is written. `write_profile`
+    # archives too, but it runs after staging — so the outgoing snapshot would capture the NEW tree
+    # and a rollback would restore skills that belonged to the generation being replaced. Measured
+    # on 2026-11-19: rollback to generation 0 kept `learned-plan-of-record-identification` staged
+    # because generation 0's snapshot had been taken after it appeared.
+    context_harness.archive_live_generation(repo_root, note=_slugify(why)[:40] or "pre-generation")
     if proposed_skills:
         staged, skill_errors = _stage_skills(repo_root, proposed_skills)
         if skill_errors:
@@ -5944,6 +6063,8 @@ def _render_inline_evidence(
         "# THE TASK THE PRIME HAD TO SERVE\n",
         task.strip()[:1500],
         "\n\n# THE HARNESS AS IT IS NOW\n",
+        "`max_wiki_pages` and `max_artifacts` are CAPS where 0 means INDEX EVERYTHING (the widest "
+        "setting, not the narrowest). Any other value is the number of files kept per folder.\n",
         "```json",
         json.dumps({k: profile.get(k) for k in ("graph", "domain_prior")}, indent=2),
         "```\n",
@@ -6021,6 +6142,17 @@ def spawn_autolearn(repo_root: Path, task: str) -> Dict[str, Any]:
 
     engine = Path(__file__).resolve()
     argv = [sys.executable, str(engine), "context-learn", "--task", task[:600], "--background"]
+    # Resolve the task RECORD before spawning, so the child's acceptance referent is the work this
+    # session actually belongs to. Passing only the raw request was the defect: a user query has no
+    # task record and no commit, so every auto-spawned pass was refused for having no outcome —
+    # observed live on 2026-11-19 (`rejected/20261119T141442Z.md`, completion=false).
+    record = context_harness.resolve_task_record(repo_root, task)
+    if record is not None:
+        try:
+            argv.extend(["--task-record", str(record)])
+            info["task_record"] = str(record.relative_to(repo_root)) if record.is_relative_to(repo_root) else str(record)
+        except (OSError, ValueError):
+            pass
     try:
         popen_kw: Dict[str, Any] = {
             "cwd": str(repo_root),
@@ -8077,6 +8209,16 @@ def main():
         help="Run one propose→gate cycle on the context harness (opt-in; costs one model session)",
     )
     learn_p.add_argument("--task", default=None, help="Task text to learn against (default: newest task record's objective)")
+    learn_p.add_argument(
+        "--task-record", type=Path, default=None,
+        help="The .agents/tasks/*.md record whose status/branch is the acceptance referent "
+             "(default: the record that best matches the task, else the newest)",
+    )
+    learn_p.add_argument(
+        "--outcome", default=None, choices=["ok", "fail", "unknown"],
+        help="Assert the outcome directly instead of reading a task record. "
+             "`unknown` is a refusal like any other, not a pass.",
+    )
     learn_p.add_argument("--dry-run", action="store_true", help="Show the proposal and the gate verdict; write nothing")
     learn_p.add_argument("--json", action="store_true")
     learn_p.add_argument("--no-remote", action="store_true", help="Local driver tier only")
@@ -8203,20 +8345,24 @@ def main():
         )
 
     elif args.subcommand == "context-seed":
-        result = run_context_seed(repo_root, json_out=bool(getattr(args, "json", False)))
+        # LEARNED state is tracked, so it belongs to the checkout the caller is standing in, not to
+        # the canonical one. See `resolve_worktree_root`.
+        result = run_context_seed(_learned_root(repo_root), json_out=bool(getattr(args, "json", False)))
         if not result.get("ok") or (result.get("seeded") is False and not result.get("ok")):
             sys.exit(1)
 
     elif args.subcommand == "context-status":
-        run_context_status(repo_root, json_out=bool(getattr(args, "json", False)))
+        run_context_status(_learned_root(repo_root), json_out=bool(getattr(args, "json", False)))
 
     elif args.subcommand == "context-rollback":
-        result = run_context_rollback(repo_root, args.generation, json_out=bool(getattr(args, "json", False)))
+        result = run_context_rollback(_learned_root(repo_root), args.generation,
+                                      json_out=bool(getattr(args, "json", False)))
         if not result.get("ok"):
             sys.exit(1)
 
     elif args.subcommand == "context-promote":
-        result = run_context_promote(repo_root, args.name, json_out=bool(getattr(args, "json", False)))
+        result = run_context_promote(_learned_root(repo_root), args.name,
+                                     json_out=bool(getattr(args, "json", False)))
         if not result.get("ok"):
             sys.exit(1)
 
@@ -8238,18 +8384,20 @@ def main():
         background = bool(getattr(args, "background", False))
         try:
             result = run_context_learn(
-                repo_root,
+                _learned_root(repo_root),
                 task=getattr(args, "task", None),
                 dry_run=bool(getattr(args, "dry_run", False)),
                 json_out=bool(getattr(args, "json", False)) and not background,
                 no_remote=bool(getattr(args, "no_remote", False)),
+                task_record=getattr(args, "task_record", None),
+                outcome_override=getattr(args, "outcome", None),
             )
         finally:
             # The detached child has no terminal. Record the attempt either way, so the throttle
             # measures real runs rather than successful ones — otherwise a consistently failing
             # learner would re-spawn a model session on every single context call.
             if background:
-                context_harness.record_autolearn(repo_root)
+                context_harness.record_autolearn(_learned_root(repo_root))
         # Exit codes: 0 = accepted or KEEP_BASE (both are successful, honest outcomes);
         # 2 = refused by the gate; 1 = the run itself failed and wrote nothing.
         if background:
