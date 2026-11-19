@@ -7508,20 +7508,54 @@ def run_audit_sbom(repo_root: Path, format_type: str = "cyclonedx", out_path: Op
 
 
 def run_audit_keygen(repo_root: Path, out_dir: Optional[Path] = None) -> None:
+    """Create an ML-DSA-65 signing seed and its public anchor.
+
+    The seed is a 32-byte FIPS 204 seed, exactly what `MLDSA65PrivateKey.from_seed_bytes` consumes and
+    what the retired compiled engine wrote, so an existing anchor keeps working.
+
+    This used to fall back to `pub = sha256(priv)` when the compiled binary was absent — a hash, not a
+    public key. It looked like a keypair, verified against nothing, and would have produced a
+    trust anchor no verifier could ever accept. A wrong key is worse than a missing one because the
+    file's presence reassures.
+    """
     target_dir = out_dir if out_dir else (repo_root / ".agents" / "audit" / "keys")
     target_dir.mkdir(parents=True, exist_ok=True)
-    rust_bin = repo_root / "bin" / ("ainish-rag.exe" if os.name == "nt" else "ainish-rag")
-    if rust_bin.exists():
-        res = subprocess.run([str(rust_bin), "audit", "keygen", "--out-dir", str(target_dir)], capture_output=True, text=True)
-        if res.returncode == 0:
-            print(res.stdout)
-            return
-
-    priv = secrets.token_hex(64)
-    pub = hashlib.sha256(priv.encode()).hexdigest()
-    (target_dir / "signer.mldsa65.priv").write_text(priv, encoding="utf-8")
-    (target_dir / "signer.mldsa65.pub").write_text(pub, encoding="utf-8")
-    print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 public key: {target_dir / 'signer.mldsa65.pub'}\n")
+    try:
+        from cryptography.hazmat.primitives.asymmetric import mldsa
+    except ImportError:
+        print(
+            "  [rag:error] python 'cryptography' with ML-DSA support is required to derive a key; "
+            "refusing to write a placeholder that cannot sign",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    seed = os.urandom(32)
+    sk = mldsa.MLDSA65PrivateKey.from_seed_bytes(seed)
+    pk_raw = sk.public_key().public_bytes_raw()
+    priv_path = target_dir / "signer.mldsa65.priv"
+    pub_path = target_dir / "signer.mldsa65.pub"
+    priv_path.write_text(seed.hex(), encoding="utf-8")
+    try:
+        os.chmod(priv_path, 0o600)
+    except OSError:
+        pass
+    pub_path.write_text(
+        json.dumps(
+            {
+                "alg": "ML-DSA-65",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "fingerprint": hashlib.sha256(pk_raw).hexdigest()[:32],
+                "format": "ainish-rag/mldsa65-public/v1",
+                "public_key": base64.b64encode(pk_raw).decode("ascii"),
+                "standard": "FIPS 204",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    print(f"  \033[32m[PASS]\033[0m Derived ML-DSA-65 keypair: {pub_path}")
+    print(f"  fingerprint: {hashlib.sha256(pk_raw).hexdigest()[:32]}")
 
 
 def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool = False, verify_history: bool = False, json_out: bool = False) -> None:
@@ -7591,47 +7625,35 @@ def run_audit_contract(repo_root: Path, threshold: int = 1, hardware_seal: bool 
         except OSError:
             pass
 
-    rust_candidates = [
-        repo_root / "bin" / "ainish-rag.exe",
-        repo_root / "bin" / "ainish-rag-linux",
-        repo_root / "bin" / "ainish-rag-darwin",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "release" / "ainish-rag",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag.exe",
-        repo_root / "src" / "rag" / "target" / "debug" / "ainish-rag",
-    ]
-    for rust_bin in rust_candidates:
-        if not (rust_bin.is_file() and os.access(rust_bin, os.X_OK)):
-            continue
-        try:
-            if rust_bin.read_bytes()[:2] == b"#!":
-                continue
-        except OSError:
-            continue
-        cmd = [str(rust_bin), "audit", "contract", "--threshold", str(threshold)]
-        if hardware_seal:
-            cmd.append("--hardware-seal")
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-        except subprocess.TimeoutExpired:
-            print("  [rag:error] ML-DSA contract signer timed out after 20 seconds", file=sys.stderr)
-            raise SystemExit(1)
-        if res.returncode == 0:
-            print(res.stdout, end="")
-            return
-
-    # A rules edit must not turn into a blocked session because this host lacks the compiled signer:
-    # say what is unsigned, name the machine that can sign, and carry on. Strict mode restores the hard
-    # failure for release gates that genuinely require a signature.
-    message = (
-        "  [rag:warn] No compiled ML-DSA-65 contract signer on this host; AGENTS.md is updated but "
-        "unsigned. Sign it on a machine that has bin/ainish-rag-* (or build src/rag), or set "
-        "AINISH_CONTRACT_STRICT=1 to make this fatal."
-    )
-    if os.environ.get("AINISH_CONTRACT_STRICT") == "1":
-        print("  [rag:error] No compiled ML-DSA-65 contract signer is available; refusing synthetic signatures", file=sys.stderr)
+    # Sign the canonical contract with the Python signer. This used to shell out to the compiled
+    # engine and, when that binary was absent, print a warning and RETURN SUCCESS with AGENTS.md left
+    # unsigned — a deployment that reports "rules updated" while the thing that proves the rules were
+    # not tampered with is missing. Signing is not optional here: if it cannot happen, that is an
+    # error, and AINISH_CONTRACT_STRICT only decides how loud.
+    contract = repo_root / ".agents" / "canonical" / "AGENTS.md"
+    if not contract.is_file():
+        print(f"  [rag:error] no canonical contract at {contract}; nothing to sign", file=sys.stderr)
         raise SystemExit(1)
-    print(message, file=sys.stderr)
+    seed = mldsa_seed(repo_root)
+    if seed is None:
+        message = (
+            "  [rag:error] No ML-DSA-65 seed on this host, so AGENTS.md cannot be signed. "
+            "Provide .agents/audit/signer.mldsa65.priv (run `ainish-context audit keygen`) or "
+            "AINISH_MLDSA65_SEED."
+        )
+        if os.environ.get("AINISH_CONTRACT_STRICT") == "1":
+            print(message, file=sys.stderr)
+            raise SystemExit(1)
+        print(message, file=sys.stderr)
+        raise SystemExit(1)
+    if not run_audit_sign(repo_root, contract):
+        print("  [rag:error] ML-DSA-65 contract signing failed; the contract is NOT signed", file=sys.stderr)
+        raise SystemExit(1)
+    data = contract.read_bytes()
+    (repo_root / ".agents" / "canonical" / "AGENTS.md.sha256").write_text(
+        hashlib.sha256(data).hexdigest() + "  AGENTS.md\n", encoding="utf-8"
+    )
+    print(f"  \033[32m[PASS]\033[0m Signed canonical AGENTS.md (threshold {threshold}) with ML-DSA-65.")
     return
 
 
@@ -8356,6 +8378,22 @@ def normalize_argv(argv: List[str]) -> List[str]:
     return out
 
 
+def _first_retired_verb(argv: List[str], retired: Dict[str, str]) -> str:
+    """The first positional argument naming a retired verb, or "".
+
+    Checked BEFORE argparse so the message explains the RETIREMENT. argparse's own answer is
+    "invalid choice: 'serve' (choose from 'status', ...)", which reads as a typo and sends the reader
+    hunting for a spelling mistake in a command that was deliberately removed. These verbs are also
+    absent from the subparser table on purpose: nine tombstones in `--help` are what taught every
+    agent reading this repo that an embedding model and a vector store were running here.
+    """
+    for arg in argv:
+        if arg.startswith("-"):
+            continue
+        return arg if arg in retired else ""
+    return ""
+
+
 def main():
     global KEEP_SERVER
     if hasattr(sys.stdout, "reconfigure"):
@@ -8440,12 +8478,11 @@ def main():
         "monitor": "vector drift monitoring", "embed-provider": "embedding provider config",
         "service": "the background embedding daemon",
     }
-    for _name in _RETIRED:
-        # `help=argparse.SUPPRESS` does NOT hide a subparser — it literally prints "==SUPPRESS==".
-        # Subparsers are hidden by keeping them out of the metavar, which is what the usage line and
-        # the `{...}` verb list are actually built from.
-        _p = sub.add_parser(_name, help=f"RETIRED — {_RETIRED[_name]} was removed 2026-11-12")
-        _p.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+    # The retired verbs are NOT registered. Registering them put nine tombstones in `--help`, which is
+    # what taught every agent reading this repo that an embedding model and a vector store run here.
+    # Nothing has run them since 2026-11-12. They are intercepted before parsing instead (see
+    # `_retired_verb_message`), so a live cron job still gets an explanation rather than argparse's
+    # "invalid choice: 'serve' (choose from ...)", which reads as a typo.
 
 
     status_p = sub.add_parser("status")
@@ -8657,8 +8694,21 @@ def main():
     # where nine tombstones used to advertise an embedding system that has not existed since 2026-11-12.
     sub.metavar = "{" + ",".join(n for n in sub.choices if n not in _RETIRED) + "}"
 
-    args = parser.parse_args(normalize_argv(sys.argv[1:]))
-    _RETIRED_REASONS = _RETIRED
+    _argv = normalize_argv(sys.argv[1:])
+    _retired_hit = _first_retired_verb(_argv, _RETIRED)
+    if _retired_hit:
+        # Explained, then failed. A retired verb is a real error, not a silent success, or a cron job
+        # would keep "working" while doing nothing.
+        print(
+            f"ainish-context: `{_retired_hit}` was retired 2026-11-12 — it existed only to serve "
+            f"{_RETIRED[_retired_hit]}.\n"
+            "  Retrieval is graph-first over the wiki vault and the .agents/ context folders, with no\n"
+            "  embedding model and no vector store.\n"
+            '  Use:  ainish-coder --context "<request>"',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    args = parser.parse_args(_argv)
     repo_root = resolve_canonical_repo_root()
     client = None
     store = None
@@ -8668,18 +8718,6 @@ def main():
     cpu_affinity = getattr(args, "cpu_affinity", None)
     psk_ttl = getattr(args, "psk_ttl", 86400)
 
-    if args.subcommand in _RETIRED_REASONS:
-        # Say what was removed and what replaced it, then fail: a retired verb is a real error, not a
-        # silent success, or a cron job would keep "working" while doing nothing.
-        print(
-            f"ainish-rag: `{args.subcommand}` was retired 2026-11-12 — it existed only to serve "
-            f"{_RETIRED_REASONS[args.subcommand]}.\n"
-            "  Retrieval is now graph-first over the Obsidian wiki vault and the .agents/ context\n"
-            "  folders, with no embedding model and no vector store.\n"
-            "  Use:  ainish-coder --context \"<request>\"",
-            file=sys.stderr,
-        )
-        sys.exit(1)
 
     if args.subcommand == "cleanup":
         run_cleanup(

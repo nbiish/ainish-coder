@@ -19,8 +19,8 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def load_rag():
-    sys.path.insert(0, str(REPO / "src" / "rag"))
-    spec = importlib.util.spec_from_file_location("ainish_rag", REPO / "src" / "rag" / "rag.py")
+    sys.path.insert(0, str(REPO / "src" / "context"))
+    spec = importlib.util.spec_from_file_location("ainish_rag", REPO / "src" / "context" / "engine.py")
     m = importlib.util.module_from_spec(spec)
     sys.modules["ainish_rag"] = m
     spec.loader.exec_module(m)
