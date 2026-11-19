@@ -108,7 +108,108 @@ def _learned_root(canonical_root: Path) -> Path:
     return worktree if worktree else canonical_root
 
 
-def _luhn_valid(num_str: str) -> bool:
+def native_renderer() -> Optional[List[str]]:
+    """The argv that runs the vault renderer, or None when this host has no compiled build.
+
+    The Obsidian vault format (frontmatter, aliases, [[wikilinks]], the ledger splice) is owned by
+    the Rust engine. The Python `generate_wiki` deliberately REFUSES to overwrite a vault it cannot
+    reproduce, which is the right guard — but until now that refusal was also the only outcome on
+    every real repository, so `--refresh-wiki` could never refresh anything. The context agent is
+    supposed to edit the corpus it learns from; a refresh path that always refuses means it cannot.
+
+    Resolution order, each verified by asking the binary for its own `wiki` verb:
+      1. `AINISH_VAULT_RENDERER`, an explicit override (a path or a command on PATH).
+      2. `ainish-rag` on PATH, when it is the compiled binary rather than our own launcher.
+      3. `src/rag/target/release/ainish-rag` beside this engine (a local `cargo build --release`).
+    """
+    def _advertises_wiki(exe: str) -> bool:
+        # A shell launcher FORWARDS to the Python engine, which also advertises `wiki --path`, so its
+        # help text cannot tell us apart — dispatching to it re-enters this process. A compiled
+        # renderer is a native executable, so a shebang means "wrapper" and is refused outright.
+        try:
+            with open(exe, "rb") as fh:
+                if fh.read(2) == b"#!":
+                    return False
+        except OSError:
+            return False
+        try:
+            res = subprocess.run([exe, "wiki", "--help"], capture_output=True, text=True,
+                                 timeout=20, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError):
+            return False
+        text = (res.stdout or "") + (res.stderr or "")
+        return res.returncode == 0 and "--path" in text
+
+    override = (_env_nonempty("AINISH_VAULT_RENDERER") or "").strip()
+    if override:
+        if Path(override).is_file() and os.access(override, os.X_OK):
+            return [override] if _advertises_wiki(override) else None
+        which = shutil.which(override)
+        return [which] if which and _advertises_wiki(which) else None
+
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here / "target" / "release" / "ainish-rag",
+        here / "target" / "release" / "ainish-rag.exe",
+    ]
+    # A worktree shares the repository but not the gitignored build directory, and the compiled
+    # renderer is a gitignored artifact — so a worktree has no binary of its own even when the main
+    # checkout has one. Looking beside the canonical root is the difference between "refresh works"
+    # and "refresh refuses" for anyone working in a worktree, which is everyone this contract binds.
+    try:
+        canonical = resolve_canonical_repo_root()
+        for base in (canonical, Path.cwd()):
+            candidates.append(base / "src" / "rag" / "target" / "release" / "ainish-rag")
+    except (OSError, ValueError):
+        pass
+    on_path = shutil.which("ainish-rag")
+    if on_path:
+        candidates.append(Path(on_path))
+    for cand in candidates:
+        try:
+            if not cand.is_file() or not os.access(cand, os.X_OK):
+                continue
+        except OSError:
+            continue
+        if _advertises_wiki(str(cand)):
+            return [str(cand)]
+    return None
+
+
+def refresh_vault(repo_root: Path) -> Tuple[str, bool]:
+    """Regenerate the wiki vault. Returns `(note, ok)`.
+
+    Dispatches to the native renderer when one is available, because the vault format is its to own.
+    Falls back to the Python generator for a plain-markdown wiki directory, where there is no vault
+    to damage. The refusal that used to be the only outcome is now the LAST resort and says why.
+    """
+    renderer = native_renderer()
+    if renderer:
+        argv = [*renderer, "wiki", "--path", str(repo_root)]
+        try:
+            res = subprocess.run(argv, cwd=str(repo_root), capture_output=True, text=True,
+                                 timeout=300, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return f"native renderer failed to run: {str(exc)[:120]}", False
+        if res.returncode == 0:
+            pages = len(list((repo_root / ".agents" / "wiki").glob("*.md")))
+            return f"refreshed ({pages} pages, native renderer)", True
+        detail = ((res.stderr or res.stdout or "").strip().splitlines() or ["no output"])[0]
+        return f"native renderer exited {res.returncode}: {detail[:160]}", False
+
+    try:
+        pages = generate_wiki(repo_root)
+        return f"refreshed ({len(pages)} pages, python generator)", True
+    except SystemExit as exc:
+        first = str(exc).splitlines()[0] if str(exc) else "vault guard"
+        return (f"skipped: {first}. This directory holds an Obsidian vault and no compiled renderer "
+                f"was found — build one with `cargo build --release` in src/rag, or point "
+                f"AINISH_VAULT_RENDERER at it. Nothing was modified"), False
+    except Exception as exc:
+        return f"failed: {str(exc)[:160]}", False
+
+
+
     digits = [int(c) for c in num_str if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
         return False
@@ -1200,6 +1301,72 @@ def list_wiki_notes(repo_root: Path) -> List[str]:
 VAULT_TAG = "ainish/wiki"
 
 
+# Vault frontmatter for each generated page: title, aliases, tags, and the `up` link that builds the
+# Obsidian graph. The compiled renderer owns this format, so the Python generator must emit the SAME
+# shape before it is allowed to write into a vault — otherwise a "successful" refresh silently strips
+# every page's frontmatter and every `[[wikilink]]`, deleting the graph that retrieval walks.
+_WIKI_PAGE_META = {
+    "README.md": ("README", ["wiki", "index", "toc"], "ainish/wiki/index", None),
+    "01-architecture.md": ("System Architecture", ["architecture", "arch", "layout"],
+                           "ainish/wiki/architecture", "README"),
+    "02-codebase-connections.md": ("Codebase Connections & Symbols", ["connections", "symbols", "calls"],
+                                   "ainish/wiki/connections", "README"),
+    "03-security-and-governance.md": ("Security & Governance", ["security", "governance", "pqc"],
+                                      "ainish/wiki/security", "README"),
+    "04-improvements-and-debt.md": ("Improvements & Technical Debt", ["improvements", "debt", "refactor"],
+                                    "ainish/wiki/improvements", "README"),
+    "05-research-and-intelligence.md": ("Research & Intelligence", ["research", "intelligence", "sources"],
+                                        "ainish/wiki/research", "README"),
+    "06-marketing-and-positioning.md": ("Marketing & Positioning", ["marketing", "positioning", "value"],
+                                        "ainish/wiki/marketing", "README"),
+}
+
+
+def _vault_frontmatter(fname: str, meta: Tuple[str, List[str], str, Optional[str]], commit: str) -> str:
+    """The YAML header the vault format requires, byte-compatible in shape with the compiled renderer."""
+    title, aliases, tag, up = meta
+    alias_list = ", ".join(f'"{a}"' for a in aliases)
+    lines = [
+        "---",
+        f"title: {title}",
+        f"aliases: [{alias_list}]",
+        f"tags: [{tag}, ainish/wiki/generated]",
+    ]
+    if up:
+        lines.append(f'up: "[[{up}]]"')
+    lines += [
+        f"generated: {datetime.now(timezone.utc).isoformat()}",
+        f"source_commit: {commit}",
+        "decision_source: structural",
+        "---",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _vault_page_links(fname: str) -> str:
+    """A wikilink footer, so every page participates in the Obsidian graph the renderer builds.
+
+    Retrieval extracts edges from `[[target]]` as well as markdown links; a page with none is an
+    orphan in the graph, reachable only by shared vocabulary. The compiled renderer emits these, so
+    the Python generator must too or a refresh would quietly downgrade the graph.
+    """
+    others = [n for n in _WIKI_PAGE_META if n != fname and not n.startswith("README")]
+    links = ", ".join(f"[[{Path(n).stem}]]" for n in others[:5])
+    return f"\n\n## Related\n\n{links}\n"
+
+
+def _wiki_commit(repo_root: Path) -> str:
+    try:
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(repo_root),
+                             capture_output=True, text=True, timeout=5, stdin=subprocess.DEVNULL)
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "unknown"
+
+
 def _vault_pages(wiki_dir: Path) -> List[Path]:
     """Existing pages that are Obsidian-vault pages (carry the `ainish/wiki` tag).
 
@@ -1230,16 +1397,20 @@ def generate_wiki(repo_root: Path) -> List[Path]:
     repo_name = repo_root.name
 
     existing_vault = _vault_pages(wiki_dir)
-    if existing_vault:
+    # A vault IS writable here now, because this generator emits the vault format (frontmatter,
+    # aliases, tags, an `up` link and a wikilink footer) rather than plain markdown. What it must
+    # still refuse is overwriting a page whose CONTENT it cannot reproduce — the operator ledger is
+    # spliced into page 04 by the compiled renderer, which signs it (ML-DSA-65). Rewriting that page
+    # from the Python template would delete signed governance history while reporting success, and a
+    # downgrade that looks like a successful run is exactly what the contract forbids.
+    ledger_note = wiki_dir / "ledger.md"
+    if existing_vault and ledger_note.is_file() and (wiki_dir / "ledger.sig").is_file():
         raise SystemExit(
-            "ainish-rag wiki: refusing to overwrite an Obsidian vault with plain markdown.\n"
-            f"  {len(existing_vault)} vault page(s) carry the '{VAULT_TAG}' tag "
-            f"(e.g. {existing_vault[0].name}).\n"
-            "  The vault renderer is the native engine: run the compiled binary\n"
-            "  (`src/rag/target/release/ainish-rag wiki`) or `ainish-coder --rag wiki`\n"
-            "  on a host where it is on PATH. Overwriting here would drop frontmatter,\n"
-            "  aliases, tags, and every [[wikilink]] — the Obsidian graph and the\n"
-            "  retrieval edges built from it."
+            "ainish-rag wiki: this vault carries a SIGNED operator ledger (ledger.md + ledger.sig).\n"
+            f"  {len(existing_vault)} page(s) carry the '{VAULT_TAG}' tag.\n"
+            "  The compiled renderer splices and signs that ledger; regenerating page 04 here would\n"
+            "  drop the signed history. Run the compiled binary (`cargo build --release` in src/rag,\n"
+            "  or set AINISH_VAULT_RENDERER), or move ledger.md/ledger.sig aside deliberately."
         )
 
     files = [p for p in repo_root.rglob("*") if p.is_file() and not is_ignored_path(p)]
@@ -1350,9 +1521,25 @@ Codebase components in `{repo_name}` communicate across well-defined interfaces 
     }
 
     out_paths = []
+    # A vault carrying `ainish/wiki` frontmatter, or a wiki directory with no pages yet, gets the
+    # full vault format. A directory of plain markdown (the pre-vault layout) keeps the plain shape,
+    # so this generator never converts a corpus it was not asked to convert.
+    as_vault = bool(existing_vault) or not any(wiki_dir.glob("*.md"))
+    commit = _wiki_commit(repo_root)
     for fname, content in pages.items():
         out = wiki_dir / fname
-        out.write_text(content, encoding="utf-8")
+        if as_vault:
+            meta = _WIKI_PAGE_META.get(fname)
+            body = content
+            # The generated bodies are plain markdown; the vault needs a `# Title` heading, which
+            # the first line already provides for pages 01-06. README gets its H1 kept as-is.
+            if meta:
+                body = _vault_frontmatter(fname, meta, commit) + body
+                if fname != "README.md":
+                    body = body.rstrip() + _vault_page_links(fname)
+            out.write_text(body, encoding="utf-8")
+        else:
+            out.write_text(content, encoding="utf-8")
         out_paths.append(out)
 
     return out_paths
@@ -3653,7 +3840,7 @@ GRAPH_MAX_EDGES_PER_NODE = 24
 GRAPH_EXTRA_SOURCES = (
     ("templates", ".agents/templates", True),
     ("research", "research", True),
-    ("pseudoskill", ".agents/wiki/skills", True),
+    ("pseudoskill", ".agents/context-harness/skills", True),
 )
 
 # Relative retrieval weight per node kind. A wider corpus is only an improvement if ranking stays sane:
@@ -4261,8 +4448,19 @@ def render_staged_skills(repo_root: Path, task: str, token_cap: int) -> Tuple[st
         m = re.search(r"^description:\s*(.+)$", fm, re.M)
         if m:
             desc = " ".join(m.group(1).split())[:160]
+        else:
+            # Curated pages spell the same thing `title:` + `trigger:`. Reading only `description:`
+            # meant the six sourced lessons this repo had already learned could never match a task —
+            # they were indexed by the graph but invisible to the prime's skill surfacing.
+            m = re.search(r"^title:\s*(.+)$", fm, re.M)
+            if m:
+                desc = " ".join(m.group(1).split())[:160]
+        trigger_terms = ""
+        m = re.search(r"^trigger:\s*\[([^\]]*)\]", fm, re.M)
+        if m:
+            trigger_terms = " ".join(t.strip().strip('"\'') for t in m.group(1).split(","))
         # Trigger words: the skill's own vocabulary, so a match is about the task, not the name.
-        skill_terms = _graph_terms(f"{name.replace('-', ' ')} {desc}")
+        skill_terms = _graph_terms(f"{name.replace('-', ' ')} {desc} {trigger_terms}")
         overlap = task_terms & skill_terms
         if not overlap:
             continue
@@ -5354,13 +5552,12 @@ def run_context_status(repo_root: Path, json_out: bool = False) -> Dict[str, Any
         graph = info.get("graph") or {}
         print("  tuning: " + "  ".join(f"{k}={v}" for k, v in sorted(graph.items())))
     if info["staged_skills"]:
-        print(f"  staged skills ({len(info['staged_skills'])}): {', '.join(info['staged_skills'])}")
+        # One line, because there is one surface. The separate "wiki pseudo-skills" line reported a
+        # second directory that used to hold the same lessons in an unusable layout; showing both
+        # lists now would suggest two places to look when there is one.
+        print(f"  learned skills ({len(info['staged_skills'])}): {', '.join(info['staged_skills'])}")
     else:
-        print("  staged skills: none")
-    if info.get("pseudo_skills"):
-        print(f"  wiki pseudo-skills ({len(info['pseudo_skills'])}): {', '.join(info['pseudo_skills'])}")
-    else:
-        print("  wiki pseudo-skills: none (author one with `ainish-rag context-skill`)")
+        print("  learned skills: none (author one with `ainish-rag context-skill`)")
     if info["promoted_skills"]:
         print(f"  PROMOTED (standing prompt surface): {', '.join(info['promoted_skills'])}")
     print(f"  history: {info['history_total']} generation(s)" + (f", newest {info['history'][-1]}" if info["history"] else ""))
@@ -5402,8 +5599,9 @@ def run_context_skill(
     if json_out:
         print(json.dumps(result, indent=2))
     elif result.get("ok"):
-        print(f"wrote pseudo-skill {result['path']}")
-        print("  it is wiki corpus now: the next --context call can retrieve it")
+        print(f"wrote learned skill {result['path']}")
+        print("  it is corpus now: the next --context call indexes and can surface it")
+        print("  promote it to standing prompt surface with `ainish-rag context-promote <name>`")
     else:
         for err in result.get("errors") or ["could not write the pseudo-skill"]:
             print(f"[rag:error] {err}", file=sys.stderr)
@@ -6253,16 +6451,9 @@ def run_context_command(
     # refusal is reported rather than swallowed.
     wiki_note = "not refreshed (pass --refresh-wiki to regenerate before retrieval)"
     if refresh_wiki:
-        try:
-            pages = generate_wiki(repo_root)
-            wiki_note = f"refreshed ({len(pages)} pages) before retrieval"
-        except SystemExit as exc:  # the vault guard
-            wiki_note = f"refused: {str(exc).splitlines()[0] if str(exc) else 'vault guard'}"
-            degrade_notes.append(f"wiki refresh refused: {wiki_note}")
-            degraded = True
-        except Exception as exc:
-            wiki_note = f"failed: {str(exc)[:160]}"
-            degrade_notes.append(f"wiki refresh failed: {str(exc)[:160]}")
+        wiki_note, wiki_ok = refresh_vault(repo_root)
+        if not wiki_ok:
+            degrade_notes.append(f"wiki refresh: {wiki_note}")
             degraded = True
 
     retrieved = retrieve_context(repo_root, task, client, store, route_decision, settings=harness_settings)
@@ -8368,7 +8559,7 @@ def main():
 
     elif args.subcommand == "context-skill":
         result = run_context_skill(
-            repo_root,
+            _learned_root(repo_root),
             args.name,
             title=getattr(args, "title", "") or "",
             trigger=getattr(args, "trigger", "") or "",

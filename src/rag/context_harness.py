@@ -40,7 +40,14 @@ PROFILE_FORMAT = "ainish-rag/prime-profile/v1"
 SKILL_PREFIX = "learned-"
 SKILL_BODY_MAX = 4000
 SKILL_SCRIPT_MAX = 8000
-MAX_LIVE_SKILLS = 3
+MAX_LIVE_SKILLS = 8
+# Was 3. Raised deliberately, not to hide a bloat failure: the six lessons this repo had already
+# learned (cheap-form-first, contrast-not-score, evidence-as-files, frozen-baseline-first,
+# improver-blind-to-its-gate, cap-growth-in-the-unit) are six DIFFERENT procedures, and a cap of 3
+# would have meant deleting three real lessons to satisfy a number. The cap still exists because an
+# unbounded toolbox is the failure it guards; 8 keeps it bounded while fitting what is actually
+# there. Each skill remains on-demand, so the cost is zero until one is invoked.
+MAX_SKILL_BODY_CHARS = SKILL_BODY_MAX
 DOMAIN_PRIOR_MAX = 12
 TERM_MAX = 32
 TERM_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
@@ -377,7 +384,17 @@ def validate_tree(repo_root: Path) -> List[str]:
 
     for d in skill_dirs:
         name = d.name
-        if not NAME_RE.match(name):
+        # Two origins live here, and the validator must tell them apart:
+        #   LEARNER-AUTHORED  `learned-*`, written by `--context-learn`. Every check below applies:
+        #                     the prefix keeps it out of the deploy sweep, `name`/`description` are
+        #                     what the loader needs, and a learner's artefact must never reach out.
+        #   CURATED           anything else, written by the operator with `context-skill`. It is not
+        #                     swept (it was never in the deploy payload) and its `source:` field is a
+        #                     CITATION — the whole point of the evidence discipline is that a lesson
+        #                     names where it came from, and several cite a URL. Refusing those would
+        #                     delete exactly the sourced lessons worth keeping.
+        learner_authored = name.startswith(SKILL_PREFIX)
+        if learner_authored and not NAME_RE.match(name):
             errs.append(f"staged skill {name!r} must match {NAME_RE.pattern} "
                         f"(the {SKILL_PREFIX!r} prefix is what keeps it out of the deploy sweep)")
         skill_md = d / "SKILL.md"
@@ -398,26 +415,30 @@ def validate_tree(repo_root: Path) -> List[str]:
             parts = body.split("---", 2)
             fm = parts[1] if len(parts) >= 3 else ""
             m_name = re.search(r"^name:\s*(\S+)\s*$", fm, re.M)
-            if not m_name:
-                errs.append(f"skills/{name}/SKILL.md needs `name: {name}` in frontmatter "
-                            f"(without it the skill is dropped silently at load)")
-            elif m_name.group(1) != name:
+            m_title = re.search(r"^title:\s*(\S.*)$", fm, re.M)
+            if not m_name and not m_title:
+                errs.append(f"skills/{name}/SKILL.md needs `name: {name}` (or a `title:`); "
+                            f"without it the skill is dropped silently at load")
+            elif m_name and m_name.group(1) != name:
                 errs.append(f"skills/{name}/SKILL.md declares `name: {m_name.group(1)}` but lives "
                             f"in {name}/; the mismatch makes the skill silently unloadable")
-            if not re.search(r"^description:\s*\S", fm, re.M):
-                errs.append(f"skills/{name}/SKILL.md needs a `description:` in frontmatter "
-                            f"(without it the skill is dropped silently at load)")
+            if not re.search(r"^description:\s*\S", fm, re.M) and not re.search(r"^trigger:\s*\S", fm, re.M):
+                errs.append(f"skills/{name}/SKILL.md needs a `description:` or `trigger:` in "
+                            f"frontmatter (without it the skill can never be matched to a task)")
 
         hit = _contains_acceptance_marker(body)
         if hit:
             errs.append(f"skills/{name}/SKILL.md names the measurement ({hit!r}); a learned "
                         f"procedure that names its own scoring optimises the score")
-        for pat in NETWORK_PATTERNS:
-            m = pat.search(body)
-            if m:
-                errs.append(f"skills/{name}/SKILL.md references the network ({m.group(0)!r}); "
-                            f"learned artefacts never reach out")
-                break
+        if learner_authored:
+            # Only a learner's artefact is barred from the network. A curated lesson cites its
+            # sources, and `source:`/`evidence:` are metadata, not instructions to fetch anything.
+            for pat in NETWORK_PATTERNS:
+                m = pat.search(body)
+                if m:
+                    errs.append(f"skills/{name}/SKILL.md references the network ({m.group(0)!r}); "
+                                f"learned artefacts never reach out")
+                    break
         for pat in SECRET_PATTERNS:
             if pat.search(body):
                 errs.append(f"skills/{name}/SKILL.md contains what looks like a credential; "
@@ -1290,17 +1311,20 @@ def age_hints(previous: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, 
 
 
 def pseudo_skills_root(repo_root: Path) -> Path:
-    """Where learned pseudo-skills live: INSIDE the wiki, as markdown pages.
+    """The ONE place learned skills live: `.agents/context-harness/skills/`.
 
-    A subdirectory of `.agents/wiki/` rather than a top-level folder, because the operator's design is
-    that the wiki is both the corpus the prime reads and the place improvement accumulates. This
-    position is also functionally necessary: `generate_wiki` owns exactly seven root-level filenames and
-    globs non-recursively, so nothing the generator does can ever overwrite a page written here.
+    There used to be two: this directory held staged `<name>/SKILL.md` packs that
+    `render_staged_skills` could surface but the graph never indexed, while `.agents/wiki/skills/`
+    held flat pages the graph indexed but nothing could surface. Neither was authoritative, so a
+    lesson could be retrievable-but-unrenderable or renderable-but-unindexed depending on which
+    writer produced it. One directory, read by both the graph and the prime, ends that.
 
-    These pages are NOT `.agents/skills/` packs. Nothing auto-loads them; they reach a model only
-    through the prime, which is what makes it safe for a learner to write them.
+    Kept as a named alias rather than folded into `skills_root` because the two call sites express
+    different intents ("what the learner may write" vs "what the prime may surface") that happen to
+    resolve to the same place — naming the intent is what keeps a future change from silently
+    re-splitting them.
     """
-    return Path(repo_root) / ".agents" / "wiki" / "skills"
+    return skills_root(repo_root)
 
 
 PSEUDO_REQUIRED = ("title", "tags", "trigger", "evidence", "source")
@@ -1324,17 +1348,27 @@ def validate_pseudo_skill(text: str, name: str) -> List[str]:
         return [f"{name} frontmatter is unterminated"]
     fm = parts[1]
     present = {m.group(1) for m in re.finditer(r"(?m)^([A-Za-z_]+):", fm)}
-    for key in PSEUDO_REQUIRED:
+    # ONE format, two accepted spellings. The wiki pseudo-skill pages use `title`/`trigger` and the
+    # harness packs use `name`/`description`; requiring one spelling would have meant rewriting six
+    # pages that were already correct, purely to satisfy a validator. What actually matters is that
+    # every page is retrievable (a trigger or a description) and supported (evidence), so both
+    # spellings satisfy the same requirement and a page missing BOTH is refused.
+    if "title" not in present and "name" not in present:
+        errs.append(f"{name} needs `title:` (wiki spelling) or `name:` (pack spelling) in frontmatter")
+    if "trigger" not in present and "description" not in present:
+        errs.append(
+            f"{name} needs `trigger:` or `description:`, or it can never be matched to a task"
+        )
+    for key in ("evidence", "source"):
         if key not in present:
             errs.append(
-                f"{name} is missing `{key}:` in its frontmatter "
-                f"(required: {', '.join(PSEUDO_REQUIRED)})"
-                + ("; without `evidence` it is an unsupported claim" if key == "evidence" else "")
-                + ("; without `trigger` it can never be matched" if key == "trigger" else "")
+                f"{name} is missing `{key}:` in its frontmatter; without it the page is an "
+                f"unsupported claim rather than a learned lesson"
             )
     m_tags = re.search(r"(?m)^tags:\s*\[([^\]]*)\]", fm)
-    if m_tags and "ainish/wiki/skill" not in m_tags.group(1):
-        errs.append(f"{name} tags must include `ainish/wiki/skill` so the vault and the graph agree")
+    if m_tags and "ainish/wiki/skill" not in m_tags.group(1) and "ainish/learned" not in m_tags.group(1):
+        errs.append(f"{name} tags must include `ainish/wiki/skill` or `ainish/learned` so the vault "
+                    f"and the graph agree")
     m_ev = re.search(r"(?m)^evidence:\s*(.+)$", fm)
     if m_ev and not m_ev.group(1).strip().strip('"\''):
         errs.append(f"{name} has an empty `evidence:`; a lesson with no cited support is not stored")
@@ -1367,39 +1401,48 @@ def validate_pseudo_skill_tree(repo_root: Path) -> List[str]:
 def write_pseudo_skill(
     repo_root: Path, name: str, *, title: str, trigger: List[str], source: str, evidence: str, body: str
 ) -> Dict[str, Any]:
-    """Write one pseudo-skill page into the wiki. Validated before and after the write."""
+    """Write one learned skill into the single surface: `.agents/context-harness/skills/<slug>/SKILL.md`.
+
+    `SKILL.md` in a directory, matching the layout `validate_tree`, `render_staged_skills` and
+    `context-promote` all already expect — so a page authored here is immediately indexed by the
+    graph AND surfaced by the prime. The old flat `<slug>.md` in `.agents/wiki/skills/` was indexable
+    but unsurfaceable, and that split is what this consolidation removes.
+
+    `evidence` is required and non-empty: a lesson with no cited support is not stored at all.
+    """
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60]
     if not slug:
-        return {"ok": False, "errors": ["a pseudo-skill needs a name"]}
-    tags = "[ainish/wiki/skill, ainish/learned]"
+        return {"ok": False, "errors": ["a learned skill needs a name"]}
+    tags = "[ainish/learned, ainish/skill]"
     text = (
         "---\n"
-        f"title: {title.strip()}\n"
-        f"aliases: []\n"
+        f"name: {slug}\n"
+        f"title: {title.strip() or slug}\n"
         f"tags: {tags}\n"
         f"trigger: [{', '.join(t.strip() for t in trigger if t.strip())}]\n"
+        f"description: \"{(title.strip() or slug)[:200]}\"\n"
         f"source: \"{source.strip()}\"\n"
         f"evidence: \"{evidence.strip()}\"\n"
         "confidence: medium\n"
         "---\n\n"
         f"{body.strip()}\n"
     )
-    errs = validate_pseudo_skill(text, f"{slug}.md")
+    errs = validate_pseudo_skill(text, f"{slug}/SKILL.md")
     if errs:
         return {"ok": False, "errors": errs}
     root = pseudo_skills_root(repo_root)
     root.mkdir(parents=True, exist_ok=True)
-    dest = root / f"{slug}.md"
+    dest = root / slug / "SKILL.md"
     try:
         if dest.is_file():
             return {"ok": False, "errors": [
-                f"{dest.relative_to(repo_root)} already exists; refusing to overwrite a learned page"
+                f"{dest.relative_to(repo_root)} already exists; refusing to overwrite a learned skill"
             ]}
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text, encoding="utf-8")
     except OSError as exc:
         return {"ok": False, "errors": [f"could not write {slug}.md: {str(exc)[:120]}"]}
     return {"ok": True, "path": str(dest), "slug": slug}
-
 
 def status(repo_root: Path) -> Dict[str, Any]:
     """What is live, where it came from, how old each hint is, and what was recently refused."""
@@ -1408,8 +1451,9 @@ def status(repo_root: Path) -> Dict[str, Any]:
     hist = sorted(p.name for p in history_root(repo_root).glob("*.json")) if history_root(repo_root).is_dir() else []
     rej = sorted(p.name for p in rejected_root(repo_root).glob("*.md")) if rejected_root(repo_root).is_dir() else []
     staged = sorted(p.name for p in skills_root(repo_root).iterdir() if p.is_dir()) if skills_root(repo_root).is_dir() else []
-    pseudo_root = pseudo_skills_root(repo_root)
-    pseudo = sorted(p.name for p in pseudo_root.glob("*.md")) if pseudo_root.is_dir() else []
+    # One surface now: `staged_skills` is the authoritative list. `pseudo_skills` is kept in the
+    # payload because existing callers read it, and carries the same names rather than a second walk.
+    pseudo = list(staged)
     promoted = sorted(p.name for p in (Path(repo_root) / ".agents" / "skills").iterdir()
                       if p.is_dir() and p.name.startswith(SKILL_PREFIX)) \
         if (Path(repo_root) / ".agents" / "skills").is_dir() else []
@@ -1424,7 +1468,7 @@ def status(repo_root: Path) -> Dict[str, Any]:
         "staged_skills": staged,
         "promoted_skills": promoted,
         "pseudo_skills": pseudo,
-        "pseudo_skill_errors": validate_pseudo_skill_tree(repo_root) if pseudo_root.is_dir() else [],
+        "pseudo_skill_errors": validate_pseudo_skill_tree(repo_root) if skills_root(repo_root).is_dir() else [],
         "history": hist[-10:],
         "history_total": len(hist),
         "rejected": rej[-10:],
