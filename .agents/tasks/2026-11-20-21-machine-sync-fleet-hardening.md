@@ -36,3 +36,26 @@ finding that the live watcher fails ~30% of cycles and reports success-shaped bu
 T1 first: it is the highest-frequency failure and the smallest patch. Do not start T4/T7 (policy and
 ergonomics) before T1–T3 make the transport trustworthy, because a fleet that lies about its state
 cannot be debugged.
+
+## Addendum — hermes profiles and the scheduler gap (verified 2026-11-20)
+
+The operator asked for continuously running agents plus the `marketing-engineer` profile.
+
+**Verified working:**
+- `hermes` v0.23.3 at `~/.hermes/hermes-agent`; `hermes profile list` shows
+  `default`, **`marketing-engineer`**, `rev`, `veteran-production-coder`, all with gateway `running`.
+- `hermes -z "<prompt>" -m mimo-v2.6-pro` completes a one-shot prompt and prints the answer
+  (tested: returned `PROFILE_OK`). So a *programmatic, non-interactive* invocation exists and works.
+- Profile selection is a subcommand (`hermes profile`), not a `-p` flag — `hermes -p "text"` fails
+  with `'text' is not a hermes command`. Anyone wiring SEZ into it should use `-z`, and select the
+  profile through `hermes profile` state rather than an inline flag.
+- `hermes cron list` shows exactly one job: `Hermes Federated Backup`, hourly at :50. There is **no**
+  business-operations schedule.
+- `ai.hermes.gateway` is loaded in launchd (pid 68196), separate from
+  `ai.nanoboozhoo.ainish-machine-watch` (pid 20249).
+
+**The real gap for "constantly running agents doing business":** there is no scheduler that runs
+income tasks on a cadence. The sync watcher watches git, and the hermes cron only backs up. Nothing
+currently polls sales, refreshes listings, or drives traffic. That is a new daemon, not a fix to
+`--machine-sync` — recorded here because the operator's request conflated the two, and building it
+inside the sync watcher would make both harder to debug.
