@@ -127,3 +127,28 @@ one clean cycle with no new collision errors.
 
 Do not complete T8 until this is resolved. Registering a repo whose peer history is unrelated turns a
 working federation into a permanently "diverged" one that reports a skipped fast-forward every cycle.
+
+## Addendum 2 — the business scheduler path exists and works (verified)
+
+Follow-up to the scheduler gap noted in Addendum 1. It is closer to ready than that noted.
+
+**Profile-scoped invocation works.** `hermes -z "<prompt>" --profile marketing-engineer` returned
+`SEZ_READY`, so a specific profile can be driven non-interactively from a script. Note the flag is
+`--profile`, not `-p` (which hermes reads as a positional command and rejects).
+
+**The cron scheduler is alive.** `hermes cron status` reports a running ticker (heartbeat 31s), 2
+active jobs, and a next-run time — it is not dormant.
+
+**`hermes cron create` is the missing business-automation path.** It takes a schedule (`30m`,
+`every 2h`, or cron syntax) plus a self-contained prompt, and `--deliver` accepts
+`bot-chat[:profile]`, which injects output into a local profile's canonical bot chat. That is
+exactly "a job runs on a cadence and a named profile does the work".
+
+**One gap to design around:** `cron create` has no `--profile` flag (verified: zero matches). Profile
+targeting happens through the `--deliver bot-chat:<profile>` grammar, not by running the job as that
+profile. So a marketing job must be expressed as a prompt delivered into the marketing-engineer bot
+chat, not as a command executed by that profile.
+
+**Nothing was scheduled.** Creating a job that spends model tokens on a cadence is a spending
+decision for the operator, and the AGENTS.md contract puts unattended spend behind an explicit yes.
+The mechanics are proven; the policy is not mine to set.
