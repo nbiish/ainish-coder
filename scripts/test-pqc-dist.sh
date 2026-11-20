@@ -582,7 +582,13 @@ check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]]
 # forbid it explicitly, because every harness default that offers it is otherwise obeyed.
 contains "contract forbids co-authorship" "$(cat "${REPO}/AGENTS.md")" 'Never co-author a commit'
 contains "contract names the harness identity" "$(cat "${REPO}/AGENTS.md")" 'Nanoboozhoo - embodied by {agent harness}'
-contains "contract points at the identity guard" "$(cat "${REPO}/AGENTS.md")" 'commit-identity-guard.sh'
+# The contract states the RULE, not the scripts that enforce it. Naming the hook files here was noise
+# in a document read on every task, and it made a working implementation detail part of the contract.
+# What must hold is that an agent reading the contract knows the authorship rule and the required form
+# — and that the tooling which enforces it is deployed, which the assertions below prove behaviourally.
+contains "contract keeps the authorship rule" "$(cat "${REPO}/AGENTS.md")" 'the operator is the only author'
+check "contract does not name the enforcement scripts" \
+    "$(grep -cE 'strip-harness-trailers|commit-identity-guard' "${REPO}/AGENTS.md")" "0"
 coauthor_ok=0
 if grep -qiE 'owner is the only author|only author' "${REPO}/AGENTS.md"; then coauthor_ok=1; fi
 check "contract names the owner as sole author" "$coauthor_ok" "1"
@@ -1621,6 +1627,50 @@ contains "hooks install into the common git dir" \
     "$(cat "${REPO}/scripts/setup-hooks.sh")" 'git-common-dir'
 contains "deploy resolves hooks through git, not a hardcoded .git" \
     "$(cat "${REPO}/src/deploy_rules_sync.sh")" 'rev-parse --git-path hooks'
+
+# ── the identity tooling DEPLOYS ────────────────────────────────────────────
+# Rule 4 is in every `AGENTS.md` a target repo receives, so the tooling that makes it true has to
+# travel too. Measured 2026-11-20: a `--rules` target got post-checkout/post-merge/pre-commit and NO
+# identity blocks at all — every commit it generated shipped whatever trailer its harness appended.
+#
+# The copies go into the target's own `.agents/bin/` rather than pointing back at the install that
+# deployed them: a target must not break when that install is a worktree that gets removed, and it
+# must be able to pick up a new harness entry from its own next `--rules` re-run.
+IDDEPLOY="${WORK}/identity-deploy-target"
+rm -rf "$IDDEPLOY"; mkdir -p "$IDDEPLOY"
+( cd "$IDDEPLOY" && git init -q . && git config user.email t@t && git config user.name t \
+    && echo x > a.txt && git add a.txt && git commit -qm init ) >/dev/null 2>&1
+( cd "${REPO}" && AINISH_NON_INTERACTIVE=true REPO_DIR="${REPO}" \
+    ./bin/ainish-coder --rules "$IDDEPLOY" --headless -y ) >"${WORK}/identity-deploy.log" 2>&1
+
+check "deploy copies the harness table into the target" \
+    "$([[ -f "${IDDEPLOY}/.agents/bin/harness-attribution.txt" ]] && echo yes || echo no)" "yes"
+check "deploy copies the stripper into the target" \
+    "$([[ -x "${IDDEPLOY}/.agents/bin/strip-harness-trailers.sh" ]] && echo yes || echo no)" "yes"
+check "deploy copies the author guard into the target" \
+    "$([[ -x "${IDDEPLOY}/.agents/bin/commit-identity-guard.sh" ]] && echo yes || echo no)" "yes"
+check "deploy installs the target commit-msg strip" \
+    "$(grep -c 'IDENTITY STRIP START' "${IDDEPLOY}/.git/hooks/commit-msg" 2>/dev/null || echo 0)" "1"
+check "deploy installs the target post-commit guard" \
+    "$(grep -c 'IDENTITY GUARD START' "${IDDEPLOY}/.git/hooks/post-commit" 2>/dev/null || echo 0)" "1"
+# The target must not reach back into the installing checkout: no absolute path to this repository
+# may appear in its hooks, or removing the install would break it.
+check "deployed hooks do not reference the installing checkout" \
+    "$(grep -rlF "${REPO}" "${IDDEPLOY}/.git/hooks/" 2>/dev/null | wc -l | tr -d ' ')" "0"
+
+# Behavioural: a commit made IN the target arrives without its trailer.
+( cd "$IDDEPLOY" && git config commit.gpgsign false && echo y > b.txt && git add b.txt \
+    && git commit -qm "feat: deployed probe
+
+Co-authored-by: Cursor <cursoragent@cursor.com>" ) >/dev/null 2>&1
+check "a deployed repo strips its own trailers" \
+    "$(git -C "$IDDEPLOY" log -1 --format=%B | grep -ci 'co-authored-by' | tr -d '\n')" "0"
+
+# A deploy with no embedding subsystem must not call into the deleted module.
+check "no rules deploy calls a deleted embed helper" \
+    "$(grep -c 'command not found' "${WORK}/identity-deploy.log" 2>/dev/null | tr -d '\n')" "0"
+check "the embed-provider call is gone from the deploy path" \
+    "$(grep -c 'deploy_embed_provider_detect' "${REPO}/bin/ainish-coder")" "0"
 
 # Behavioural: every real variant is removed, and the message body survives.
 strip_all="$(printf 'feat: x\n\nbody\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\nCo-Authored-By: Warp <agent@warp.dev>\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCo-Authored-By: Oz <oz-agent@warp.dev>\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>\n' | "$STRIP" --stdin)"

@@ -307,14 +307,6 @@ main() {
             cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-skills" || true
         fi
 
-        # Detect PQC/environment embedding credentials (OpenRouter/ZenMux) and route the RAG
-        # engine's embeddings through them; nothing is persisted when no credentials exist.
-        if confirm_action "Detect remote embedding credentials (OpenRouter/ZenMux via PQC) and configure RAG?" "y"; then
-            deploy_embed_provider_detect "$target_dir" || \
-                print_warning "Embedding provider detection reported errors — local embeddings remain active"
-            _TRACK_DETAIL="${_TRACK_DETAIL}+embed-provider"
-        fi
-
         # ── Context harness, generation 0 ───────────────────────────────
         # A per-repo context harness needs a FROZEN baseline before it can ever improve: every later
         # generation is compared against this one, and a learner with no reference is a regression
