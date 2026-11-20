@@ -49,8 +49,10 @@ The operator asked for continuously running agents plus the `marketing-engineer`
 - Profile selection is a subcommand (`hermes profile`), not a `-p` flag — `hermes -p "text"` fails
   with `'text' is not a hermes command`. Anyone wiring SEZ into it should use `-z`, and select the
   profile through `hermes profile` state rather than an inline flag.
-- `hermes cron list` shows exactly one job: `Hermes Federated Backup`, hourly at :50. There is **no**
-  business-operations schedule.
+- `hermes cron list` shows exactly two jobs, both maintenance and both healthy as of this check:
+  `Hermes Federated Backup` (hourly at :50) and `Hermes Federation Adopt` (daily at 05:05), both
+  `no-agent` script jobs. There is **no** business-operations schedule: nothing polls sales,
+  refreshes listings, or drives traffic.
 - `ai.hermes.gateway` is loaded in launchd (pid 68196), separate from
   `ai.nanoboozhoo.ainish-machine-watch` (pid 20249).
 
