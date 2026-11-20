@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: contract-identity-deploy
 date: 2026-11-20
-status: ready
+status: done
 branch: feat/contract-identity-deploy
 worktree: /Users/nbiish/code/contract-identity-deploy
 task_record: .agents/tasks/2026-11-20-10-contract-identity-deploy.md
@@ -129,15 +129,15 @@ ainish-coder --rules <target-git-repo>
 
 ## 5. Todos
 
-- [ ] **T1** Unlock the contract, apply the operator's rule-4 edit, re-sign, verify the chain, relock.
+- [x] **T1** Unlock the contract, apply the operator's rule-4 edit, re-sign, verify the chain, relock.
   - from: §4.1 | done when: rule 4 states the rule only and `audit contract --verify-history` passes | verify: that command
-- [ ] **T2** Delete the dangling `deploy_embed_provider_detect` call.
+- [x] **T2** Delete the dangling `deploy_embed_provider_detect` call.
   - from: §3 | done when: `--rules` prints no `command not found` | verify: a scratch deploy's log
-- [ ] **T3** Copy the three identity files into the target's `.agents/bin/`.
+- [x] **T3** Copy the three identity files into the target's `.agents/bin/`.
   - from: §4.2 | done when: a scratch target has all three, executable where needed | verify: `ls -la <target>/.agents/bin`
-- [ ] **T4** Install `commit-msg` and `post-commit` blocks in the target, pointing at `.agents/bin/`.
+- [x] **T4** Install `commit-msg` and `post-commit` blocks in the target, pointing at `.agents/bin/`.
   - from: §4.2 | done when: a commit in the target has its trailer stripped without the source repo present | verify: a commit in the scratch target
-- [ ] **T5** Add the deployed-hook assertions to the suite.
+- [x] **T5** Add the deployed-hook assertions to the suite.
   - from: §5 | done when: the suite proves target-side stripping, not just source-side | verify: `scripts/test-pqc-dist.sh`
 
 ## 6. Verification

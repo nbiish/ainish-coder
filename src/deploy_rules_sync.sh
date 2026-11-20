@@ -483,6 +483,35 @@ _ainish_rules_target_hooks_dir() {
 }
 
 # Installs the target-side hooks (post-merge + post-checkout) that invoke the refresher.
+# Copies the commit-identity tooling into a target repo's `.agents/bin/`.
+#
+# WHY COPIES AND NOT A REFERENCE:
+# the hooks used to point at `${REPO_DIR}/scripts/...` — the install that DEPLOYED them. A target then
+# broke the moment that path moved (a worktree removed, a reinstall elsewhere), and it could never
+# receive a new harness entry: the table it ran belonged to another repository. Measured 2026-11-20, a
+# `--rules` target received NO identity hooks at all. Copying makes the target self-contained and gives
+# every `--rules` re-run a way to refresh the table, which is the whole point of keeping it data.
+_ainish_rules_deploy_identity_scripts() {
+    local target_dir="$1"
+    local bin_dir="${target_dir}/.agents/bin"
+    local s
+    for s in harness-attribution.txt strip-harness-trailers.sh commit-identity-guard.sh; do
+        [[ -f "${REPO_DIR}/scripts/${s}" ]] || {
+            printf 'missing source file: scripts/%s\n' "$s" >&2
+            return 1
+        }
+    done
+    mkdir -p "$bin_dir" 2>/dev/null || return 1
+    cp "${REPO_DIR}/scripts/harness-attribution.txt"        "${bin_dir}/harness-attribution.txt"        || return 1
+    cp "${REPO_DIR}/scripts/strip-harness-trailers.sh"      "${bin_dir}/strip-harness-trailers.sh"      || return 1
+    cp "${REPO_DIR}/scripts/commit-identity-guard.sh"       "${bin_dir}/commit-identity-guard.sh"       || return 1
+    # The table is DATA (0644); the two scripts are EXECUTABLE. A hook that cannot execute its script
+    # fails silently, which is how the trailer strip looked installed and did nothing.
+    chmod 0644 "${bin_dir}/harness-attribution.txt" 2>/dev/null || true
+    chmod 0755 "${bin_dir}/strip-harness-trailers.sh" "${bin_dir}/commit-identity-guard.sh" 2>/dev/null || true
+    return 0
+}
+
 install_rules_sync_hooks() {
     local target_dir="$1"
     local hooks_dir
@@ -513,6 +542,31 @@ HOOK_BLOCK
 )"
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
     _ainish_rules_install_hook_block "${hooks_dir}/post-checkout" "$block" || true
+
+    # ── commit identity ────────────────────────────────────────────────────
+    # Deployed the same way this repository runs them, and for the same reason: a repo that ships
+    # `AGENTS.md` rule 4 ("the operator is the only author") must have the tooling that makes it true.
+    # Without this, every commit a target repo generates carries whatever trailer its harness appends.
+    #
+    # Both blocks reference `.agents/bin/`, RELATIVE to the target, so the target runs its own copies.
+    # An absolute path to the deploying install would break as soon as that install moved.
+    _ainish_rules_deploy_identity_scripts "$target_dir" || {
+        print_warning "Could not copy the commit-identity tools into ${target_dir}/.agents/bin"
+    }
+    _ainish_rules_install_hook_block "${hooks_dir}/commit-msg" \
+"# --- AINISH-CODER IDENTITY STRIP START ---
+# Remove tool self-attribution before the commit object exists (AGENTS.md rule 4).
+if [ -x .agents/bin/strip-harness-trailers.sh ]; then
+    .agents/bin/strip-harness-trailers.sh \"\$1\" || true
+fi
+# --- AINISH-CODER IDENTITY STRIP END ---" || true
+    _ainish_rules_install_hook_block "${hooks_dir}/post-commit" \
+"# --- AINISH-CODER IDENTITY GUARD START ---
+# Re-author a commit whose author is a harness, re-signing it (AGENTS.md rule 4).
+if [ \"\${AINISH_IDENTITY_GUARD_ACTIVE:-0}\" != \"1\" ] && [ -x .agents/bin/commit-identity-guard.sh ]; then
+    AINISH_IDENTITY_GUARD=on .agents/bin/commit-identity-guard.sh >/dev/null 2>&1 || true
+fi
+# --- AINISH-CODER IDENTITY GUARD END ---" || true
     return 0
 }
 
