@@ -89,3 +89,41 @@ the file, fetch B fails with the exact logged message. With per-process names, b
 **Fix:** remote bundle names carry `$$` and `$RANDOM`.
 **Verification:** `scripts/test-machine-sync.sh` → 60 passed, 0 failed; three concurrent
 `--both --ff-peers` runs completed with zero collision errors and zero leftover bundles on the peer.
+
+## STOPPED: ainish-coder on Windows is an unrelated history (do not merge)
+
+While registering `ainish-coder` itself for federation (T8), the sync reported
+`peer could not fast-forward 'main' (diverged)` and the diagnosis is worse than a lag:
+
+| Check | Mac | Windows |
+|---|---|---|
+| root commit | `dda3a90` | `dc9d7e2` |
+| commit count | 1030 | 915 |
+| tracked files | 568 | 450 |
+| `git merge-base` | — | **NO COMMON ANCESTOR** |
+
+Two different root commits whose message is identical (`Initial commit: reset repo context for AI`).
+These are independent histories of the same project, not one behind the other. The trees overlap in
+purpose but differ in content.
+
+**Nothing was merged or forced.** Fast-forward is genuinely impossible and a merge would produce
+915 invented conflicts decided by a tool. The `--machine-link` registration itself is harmless (it
+only records intent), but it should not be left armed on a pair that cannot reconcile: every cycle
+will deliver refs and then refuse to advance the checkout.
+
+**Whoever resolves this must choose deliberately**, and it is an operator decision:
+
+1. Keep Mac's history and re-clone Windows from it (loses whatever only exists in Windows' 915
+   commits — 118 fewer files, but not a subset).
+2. Keep Windows' history and re-clone Mac.
+3. Find the true shared origin (GitHub `origin` is reachable from both; compare `origin/main` against
+   each) and reconcile deliberately.
+
+**Recorded state:** the concurrency fix is committed on Mac `main` (`f16b286`) and is NOT on Windows.
+Windows still runs the fixed-filename version. The Mac watcher was restarted onto the fix and logged
+one clean cycle with no new collision errors.
+
+## Verdict on T8
+
+Do not complete T8 until this is resolved. Registering a repo whose peer history is unrelated turns a
+working federation into a permanently "diverged" one that reports a skipped fast-forward every cycle.
