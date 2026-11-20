@@ -1365,6 +1365,23 @@ contains "shared-vocabulary edges are bounded per node" "$(cat "${REPO}/src/cont
 # A task that NAMES a layer must retrieve that layer, or "what does the contract say" returns a
 # research transcript that happens to share more words.
 contains "a named layer is boosted, not just matched" "$(cat "${REPO}/src/context/engine.py")" 'KIND_INTENT'
+# "what are the rules here" is the question a deployed agent asks first, and it was the one question
+# that retrieved nothing: the router scored `needs_retrieval` 0.68 and then chose `skip_retrieval`.
+# The word "rules" is ambiguous for RANKING (business rules are not contract sections), so it lives in
+# the force-retrieval list rather than the intent table — overriding a skip costs tokens, while a skip
+# on that question costs the agent the rules it is bound by.
+contains "rules words force retrieval past a skip" \
+    "$(cat "${REPO}/src/context/engine.py")" 'RETRIEVAL_FORCE_WORDS'
+check "the rules question actually retrieves contract sections" \
+    "$( cd "${REPO}" && ./bin/ainish-coder --context "what are the rules here" --retrieval-only 2>/dev/null \
+        | grep -c 'AGENTS.md:L' | tr -d '\n' | awk '{print ($1 > 0) ? "yes" : "no"}' )" "yes"
+check "the rules question is not degraded" \
+    "$( cd "${REPO}" && ./bin/ainish-coder --context "what are the rules here" --retrieval-only 2>/dev/null \
+        | grep -o 'degraded: [a-z]*' | head -1 )" "degraded: false"
+# And a domain task that merely CONTAINS the word still retrieves normally rather than being skewed.
+check "business rules do not break retrieval" \
+    "$( cd "${REPO}" && ./bin/ainish-coder --context "implement business rules for pricing" --retrieval-only 2>/dev/null \
+        | grep -o 'degraded: [a-z]*' | head -1 )" "degraded: false"
 # A learner may widen coverage but never narrow it silently.
 contains "coverage cannot be silently reduced" "$(cat "${REPO}/src/context/engine.py")" '_coverage_loss_guard'
 contains "kinds are weighted so a wider corpus does not dilute" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_KIND_WEIGHTS'

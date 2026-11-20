@@ -3749,8 +3749,7 @@ GRAPH_KIND_WEIGHTS = {
 # matched). No model call, deterministic, testable — see probe_corpus.py.
 KIND_INTENT: Tuple[Tuple[str, str, float], ...] = (
     # (trigger word, kind it names, boost)
-    ("contract", "contract", 2.6),
-    ("agents.md", "contract", 2.6),
+    ("contract", "contract", 2.6),    ("agents.md", "contract", 2.6),
     ("llms.txt", "contract", 1.6),
     ("wiki", "wiki", 2.0),
     ("architecture", "wiki", 1.5),
@@ -3767,6 +3766,42 @@ KIND_INTENT: Tuple[Tuple[str, str, float], ...] = (
     ("paper", "research", 1.8),
     ("transcript", "research", 2.0),
 )
+
+# ── force-retrieval triggers ────────────────────────────────────────────────
+# A SEPARATE list from KIND_INTENT, because the two jobs have different tolerances.
+#
+# KIND_INTENT decides RANKING: which layer wins when several match. A false positive there reorders
+# results, so its triggers must be unambiguous artifact nouns.
+#
+# This list only decides whether to OVERRIDE a `skip_retrieval` route. A false positive costs a few
+# hundred tokens of retrieved context; a false negative means an agent asks "what are the rules here"
+# and receives a prime containing no rules. Measured 2026-11-20: the router scored that question
+# `Needs Retrieval: True (0.68)` and then chose `skip_retrieval` anyway — an internal contradiction,
+# and the one question a deployed agent is most likely to ask. The other realistic tasks that contain
+# "rules" ("add validation rules to the parser") already route to retrieval on their own, so including
+# the word here costs them nothing.
+#
+# "rules" is deliberately NOT in KIND_INTENT: "implement business rules for pricing" should not make
+# `.agents/` outrank the code that implements them.
+RETRIEVAL_FORCE_WORDS: Tuple[str, ...] = (
+    "rules", "rule",
+    "conventions", "convention",
+    "guidelines", "guideline",
+    "policy", "policies",
+    "standard", "standards",
+)
+
+
+def _force_retrieval(task: str) -> str:
+    """The word in `task` that means "this needs the repository's own rules", or "".
+
+    Whole-word matching on a normalised task string, so "rules" fires but "ruleset" does not.
+    """
+    words = set(re.findall(r"[a-z0-9_.-]+", (task or "").lower()))
+    for trigger in RETRIEVAL_FORCE_WORDS:
+        if trigger in words:
+            return trigger
+    return ""
 
 
 def _kind_intent_boosts(task: str) -> Dict[str, float]:
@@ -6301,11 +6336,15 @@ def run_context_command(
     # the prime. The router optimises for "does this need repo context"; naming the contract, the
     # plans, the tasks or the comms IS that need, stated by the caller.
     named_kinds = _kind_intent_boosts(task)
-    if strategy == "skip_retrieval" and named_kinds:
+    forced_word = _force_retrieval(task)
+    if strategy == "skip_retrieval" and (named_kinds or forced_word):
         strategy = "forced_retrieval"
         route_decision = dict(route_decision)
         route_decision["retrieval_strategy"] = strategy
-        route_decision["forced_by"] = f"task names {', '.join(sorted(named_kinds))}"
+        route_decision["forced_by"] = (
+            f"task names {', '.join(sorted(named_kinds))}" if named_kinds
+            else f"task asks about {forced_word!r}, which the repository answers"
+        )
         route_decision["next_action"] = "retrieve: the task named a corpus layer"
     # An explicit --budget is honoured exactly; only the route-derived default carries a floor. A
     # caller that asks for 400 tokens and silently receives 600 cannot reason about its own context
