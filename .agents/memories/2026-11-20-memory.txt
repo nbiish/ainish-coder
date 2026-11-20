@@ -6,3 +6,8 @@
 - Hooks live in `git rev-parse --git-common-dir`/hooks. `--git-dir` inside a worktree points at `.git/worktrees/<name>`, which git never reads.
 - `git filter-repo --message-callback` wraps the file as `def callback(message): <body>` — the body must RETURN bytes, and `__file__` is undefined inside it.
 - filter-repo needs the table path passed via `AINISH_HARNESS_TABLE` because it cannot resolve a path relative to the injected file.
+16:05 UTC -- contract rule 4 + identity deploy (feat/contract-identity-deploy)
+- AGENTS.md and .agents/canonical/AGENTS.md are `uchg` 444. An edit through an editor that does not clear the flag fails with `operation not permitted` and leaves the file byte-identical -- an operator's intended edit can be lost silently. Unlock with `chflags nouchg` + `chmod u+w`, edit, `ainish-context audit contract`, then relock all five files (AGENTS.md, canonical/AGENTS.md, .sha256, .sig, .threshold.sig).
+- `--rules` into a git target now copies harness-attribution.txt, strip-harness-trailers.sh and commit-identity-guard.sh into `<target>/.agents/bin/` and installs commit-msg + post-commit blocks that call them RELATIVELY. Verified self-contained: no absolute path to the installing checkout appears in a target's hooks.
+- `install_root_rules_sync_hook` writes to `${REPO_DIR}` (the source) and takes no target argument; `install_rules_sync_hooks <target>` is the target-side installer. The identity blocks were only ever in the former.
+- Hooks run from the repo ROOT even when the commit is made from a subdirectory (measured), so `.agents/bin/...` in a hook block is safe.
