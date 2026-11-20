@@ -785,8 +785,13 @@ _ms_snapshot_peer() { # host path peer
 
 _ms_push() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
+    # Unique per process. A fixed name collides across CONCURRENT cycles: the watcher retries a
+    # failed cycle while a manual run or the next tick is in flight, and each side deletes the
+    # bundle after use, so one fetch finds the other's file already unlinked. That surfaces as
+    # git claiming the bundle "does not appear to be a git repository" even though scp succeeded,
+    # which is what the watch log recorded on 11 of 37 cycles.
     local remote_bundle
-    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-in.bundle"
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-in-$$-${RANDOM}.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$_MS_SELF")
@@ -869,10 +874,10 @@ _ms_push() { # repo host peer_path peer_name bundle
 
 _ms_pull() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
-    # A distinct filename from the push direction: on a --both run the two transfers would otherwise
-    # share one path in the peer's .git and clobber each other mid-flight.
+    # A distinct filename from the push direction, and unique per process for the same reason:
+    # concurrent cycles must not share a peer-side path that either side deletes when done.
     local remote_bundle
-    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-out.bundle"
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-out-$$-${RANDOM}.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$peer")
