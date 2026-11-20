@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: contract-drop-internals
 date: 2026-11-20
-status: ready
+status: done
 branch: feat/contract-drop-internals
 worktree: /Users/nbiish/code/contract-drop-internals
 task_record: .agents/tasks/2026-11-20-11-contract-drop-internals.md
@@ -115,16 +115,16 @@ reviewer-independence rule, and the degraded-handling rule.
 
 ## 5. Todos
 
-- [ ] **T1** Unlock the contract and rewrite lines 13-15 and 23-33 so no internal mechanism is described.
+- [x] **T1** Unlock the contract and rewrite lines 13-15 and 23-33 so no internal mechanism is described.
   - from: §4 | done when: no `prime`/`corpus`/`embedding`/`vector`/`retrieval constant`/`provenance` remains | verify: grep
-- [ ] **T2** Name the `.agents/` folders an agent should read, inside the same section.
+- [x] **T2** Name the `.agents/` folders an agent should read, inside the same section.
   - from: §4.2 | done when: tasks, plans, comms, memories, suggestions, wiki all appear | verify: grep
-- [ ] **T3** Clean the two incidental references: `wiki_graph_empty` in the degraded list and
+- [x] **T3** Clean the two incidental references: `wiki_graph_empty` in the degraded list and
   `{rag,audit,canonical}` at the bottom.
   - from: §3 | done when: neither string remains | verify: grep
-- [ ] **T4** Sync the canonical copy, re-sign, verify the chain, relock.
+- [x] **T4** Sync the canonical copy, re-sign, verify the chain, relock.
   - from: §3 | done when: `audit contract --verify-history` passes and the file is `uchg` | verify: that command
-- [ ] **T5** Repoint the two assertions and add one that the removed vocabulary stays out.
+- [x] **T5** Repoint the two assertions and add one that the removed vocabulary stays out.
   - from: §5 | done when: suite passes at or above 407 | verify: `scripts/test-pqc-dist.sh`
 
 ## 6. Verification
