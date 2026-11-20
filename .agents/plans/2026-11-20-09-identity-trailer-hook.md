@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: identity-trailer-hook
 date: 2026-11-20
-status: ready
+status: done
 branch: feat/identity-trailer-hook
 worktree: /Users/nbiish/code/identity-trailer-hook
 task_record: .agents/tasks/2026-11-20-09-identity-trailer-hook.md
@@ -126,17 +126,17 @@ git commit
 
 ## 5. Todos
 
-- [ ] **T1** Add `scripts/harness-attribution.txt` and `scripts/strip-harness-trailers.sh`.
+- [x] **T1** Add `scripts/harness-attribution.txt` and `scripts/strip-harness-trailers.sh`.
   - from: §3 | done when: the strip removes every known variant and reports what it removed | verify: `printf 'x\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\n' | ./scripts/strip-harness-trailers.sh --stdin`
-- [ ] **T2** Narrow the guard's early exit to "author correct AND message clean".
+- [x] **T2** Narrow the guard's early exit to "author correct AND message clean".
   - from: §3 | done when: a correct-author commit with a trailer is still stripped | verify: suite assertion
-- [ ] **T3** Install `commit-msg` and `post-commit` from `setup-hooks.sh` and `--rules`, idempotently.
+- [x] **T3** Install `commit-msg` and `post-commit` from `setup-hooks.sh` and `--rules`, idempotently.
   - from: §3 | done when: re-running installs leaves exactly one copy of each block | verify: grep -c
-- [ ] **T4** Prove a signed commit stays signed after the strip.
+- [x] **T4** Prove a signed commit stays signed after the strip.
   - from: §3 | done when: `git verify-commit` passes on a commit whose trailer was stripped | verify: that command
-- [ ] **T5** Rewrite the 20 unpushed commits with filter-repo, keeping a backup ref.
+- [x] **T5** Rewrite the 20 unpushed commits with filter-repo, keeping a backup ref.
   - from: §4.2 | done when: no trailer remains in `origin/main..main` and the tree is unchanged | verify: `git log --format=%B origin/main..main | grep -c Co-authored-by`
-- [ ] **T6** Update `AGENTS.md` and the suite.
+- [x] **T6** Update `AGENTS.md` and the suite.
   - from: §3 | done when: 160 lines and the suite passes at or above baseline | verify: `wc -l` + suite
 
 ## 6. Verification

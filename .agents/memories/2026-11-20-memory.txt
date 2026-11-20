@@ -1,0 +1,8 @@
+15:05 UTC -- harness attribution trailers (feat/identity-trailer-hook)
+- `commit-msg` is the correct hook for stripping attribution: it runs BEFORE the commit object exists, so no amend and no re-sign. `post-commit` must amend, and an amend without `-S` destroys the signature.
+- `scripts/harness-attribution.txt` is the ONE table (17 harnesses). Adding a harness is one line there; adding a name to a script instead is how a tool gets missed.
+- `Co-authored-by:` naming a person and `Signed-off-by:` (a DCO assertion) are NOT stripped. The guard used to strip `signed-off-by`, which deleted a legal statement.
+- The author guard's early exit must require a CLEAN MESSAGE, not just a correct author; otherwise a correctly-authored commit keeps its trailer forever.
+- Hooks live in `git rev-parse --git-common-dir`/hooks. `--git-dir` inside a worktree points at `.git/worktrees/<name>`, which git never reads.
+- `git filter-repo --message-callback` wraps the file as `def callback(message): <body>` — the body must RETURN bytes, and `__file__` is undefined inside it.
+- filter-repo needs the table path passed via `AINISH_HARNESS_TABLE` because it cannot resolve a path relative to the injected file.
