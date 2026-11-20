@@ -59,3 +59,33 @@ income tasks on a cadence. The sync watcher watches git, and the hermes cron onl
 currently polls sales, refreshes listings, or drives traffic. That is a new daemon, not a fix to
 `--machine-sync` — recorded here because the operator's request conflated the two, and building it
 inside the sync watcher would make both harder to debug.
+
+## CORRECTION to D1 (found while implementing T1)
+
+**The original D1 diagnosis was wrong.** I claimed `_ms_peer_tmp` produced a malformed `/C:/...`
+path. It does not. Verified directly:
+
+- `scp` to `windows-128gb:C:/Users/kenwa/AppData/Local/Temp/...` succeeds; the file lands.
+- A real bundle fetched with `git -C 'D:/...' fetch 'C:/Users/.../real-test.bundle'` succeeds and
+  prints `* [new branch] main -> refs/testcheck/main`.
+
+So drive-letter temp paths work as constructed. The `does not appear to be a git repository` error
+is real, but the cause is different.
+
+**Actual root cause: a fixed peer-side bundle filename races across concurrent cycles.**
+`_ms_peer_tmp` returns the peer temp dir, and both directions append a *constant* filename
+(`ainish-machine-sync-in.bundle` / `-out.bundle`) while the local side correctly uses `mktemp`.
+Every path that finishes with the bundle deletes it. So when the watcher's retry overlaps the next
+tick — or a manual run overlaps either — one process unlinks the file the other is about to fetch,
+and git reports the file missing even though `scp` succeeded (exit 0). That is precisely what the
+log recorded on 11 of 37 cycles, always as `sent=false received=true`.
+
+The source already contains a comment about the two *directions* colliding; it did not anticipate
+concurrent runs of the *same* direction.
+
+**Reproduced deterministically** (see commit): with a shared filename, fetch A succeeds, A deletes
+the file, fetch B fails with the exact logged message. With per-process names, both succeed.
+
+**Fix:** remote bundle names carry `$$` and `$RANDOM`.
+**Verification:** `scripts/test-machine-sync.sh` → 60 passed, 0 failed; three concurrent
+`--both --ff-peers` runs completed with zero collision errors and zero leftover bundles on the peer.
