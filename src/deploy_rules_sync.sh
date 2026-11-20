@@ -256,13 +256,21 @@ _ainish_rules_reject_symlinked_layout() {
 _ainish_rules_install_hook_block() {
     local hook="$1"
     local block="$2"
+    # The start marker of THIS block, read from its own first line. It used to compare every block
+    # against `_AINISH_RULES_HOOK_START` (the rules-sync marker), so a DIFFERENT block appended to a
+    # hook was never recognised on the next run and simply got appended again — one checkout
+    # accumulated 12 duplicate identity-guard blocks. Reading the marker from the block itself makes
+    # installation idempotent for any block, without a second parameter to keep in sync.
+    local start_marker end_marker
+    start_marker="$(printf '%s' "$block" | head -1)"
+    end_marker="$(printf '%s' "$block" | tail -1)"
     mkdir -p "$(dirname "$hook")" 2>/dev/null || return 1
 
     if [[ ! -f "$hook" ]]; then
         printf '#!/bin/sh\n\n%s\n' "$block" > "$hook"
-    elif grep -qF "$_AINISH_RULES_HOOK_START" "$hook" 2>/dev/null; then
+    elif grep -qF "$start_marker" "$hook" 2>/dev/null; then
         local tmp="${hook}.tmp.$$"
-        BLOCK="$block" START="$_AINISH_RULES_HOOK_START" END="$_AINISH_RULES_HOOK_END" \
+        BLOCK="$block" START="$start_marker" END="$end_marker" \
             awk '
                 $0 == ENVIRON["START"] { inblock=1; printf "%s\n", ENVIRON["BLOCK"]; next }
                 $0 == ENVIRON["END"]   { inblock=0; next }
@@ -458,6 +466,19 @@ _ainish_rules_target_hooks_dir() {
     target_real="$(cd -P "$target_dir" 2>/dev/null && pwd)" || target_real="$target_dir"
     top_real="$(cd -P "$top" 2>/dev/null && pwd)" || top_real="$top"
     [[ "$top_real" == "$target_real" ]] || return 0
+    # Resolve through git rather than assuming `<root>/.git/hooks`: in a WORKTREE `.git` is a FILE
+    # pointing at the per-worktree git dir, and git only ever runs hooks from the COMMON dir. The old
+    # `${target_real}/.git/hooks` therefore named a path that does not exist in a worktree at all.
+    local hooks
+    hooks="$(git -C "$target_dir" rev-parse --git-path hooks 2>/dev/null || true)"
+    if [[ -n "$hooks" ]]; then
+        # --git-path may answer relatively; anchor it at the target so the caller's cwd cannot matter.
+        case "$hooks" in
+            /*) printf '%s\n' "$hooks" ;;
+            *)  printf '%s\n' "${target_real}/${hooks}" ;;
+        esac
+        return 0
+    fi
     printf '%s\n' "${target_real}/.git/hooks"
 }
 
@@ -525,6 +546,23 @@ ROOT_HOOK_BLOCK
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
     # Second, independent block: a harness that forced its own authorship gets corrected to
     # "Nanoboozhoo - embodied by <harness>" instead of shipping claude/cursor/... as the author.
+    #
+    # This block only fixes the AUTHOR, and it has to amend to do it. Attribution TRAILERS
+    # (`Co-authored-by: Cursor <...>`) are removed earlier, in commit-msg, where editing the message
+    # costs nothing and cannot lose a signature. Deploying only this block is what let 82 commits in
+    # this repository keep a Cursor trailer beside an already-correct author.
+    local quoted_stripper
+    printf -v quoted_stripper "'%s'" "$(printf '%s' "${REPO_DIR}/scripts/strip-harness-trailers.sh" | sed "s/'/'\\\\''/g")"
+    local strip_block
+    strip_block="$(cat <<STRIP_BLOCK
+# --- AINISH-CODER IDENTITY STRIP START ---
+if [ -x ${quoted_stripper} ]; then
+    ${quoted_stripper} "\$1" || true
+fi
+# --- AINISH-CODER IDENTITY STRIP END ---
+STRIP_BLOCK
+)"
+    _ainish_rules_install_hook_block "${hooks_dir}/commit-msg" "$strip_block" || true
     local guard_block
     guard_block="$(cat <<GUARD_BLOCK
 # --- AINISH-CODER IDENTITY GUARD START ---

@@ -1602,6 +1602,45 @@ check "an already-correct commit is left alone (no amend loop)" \
     "$(git commit --allow-empty -qm second >/dev/null 2>&1; git rev-list --count HEAD)" "2"
 cd "$REPO" || exit 1
 
+# ── harness attribution trailers ────────────────────────────────────────────
+# The guard above repairs the AUTHOR. It never removed the `Co-authored-by: Cursor <...>` TRAILER that
+# harnesses append to the message, because it exits as soon as the author is already correct — which is
+# the case for every commit that has one. Measured 2026-11-20: 82 commits carried a harness trailer
+# and 26 of them had a perfectly correct author, so the guard walked past all 26.
+#
+# The fix is a commit-msg hook: it runs BEFORE the commit object exists, so stripping there needs no
+# amend and cannot lose a signature (the author guard's amend does, unless it passes -S).
+STRIP="${REPO}/scripts/strip-harness-trailers.sh"
+TABLE="${REPO}/scripts/harness-attribution.txt"
+contains "the harness table is data, not code" "$(cat "$TABLE")" 'cursoragent@cursor\.com'
+contains "the strip runs from commit-msg, before the object exists" \
+    "$(cat "${REPO}/scripts/setup-hooks.sh")" 'commit-msg'
+# Hooks must be installed where git looks. In a worktree `--git-dir` is the per-worktree dir, which git
+# never runs hooks from; `--git-common-dir` is the one every checkout shares.
+contains "hooks install into the common git dir" \
+    "$(cat "${REPO}/scripts/setup-hooks.sh")" 'git-common-dir'
+contains "deploy resolves hooks through git, not a hardcoded .git" \
+    "$(cat "${REPO}/src/deploy_rules_sync.sh")" 'rev-parse --git-path hooks'
+
+# Behavioural: every real variant is removed, and the message body survives.
+strip_all="$(printf 'feat: x\n\nbody\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\nCo-Authored-By: Warp <agent@warp.dev>\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCo-Authored-By: Oz <oz-agent@warp.dev>\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>\n' | "$STRIP" --stdin)"
+check "every known harness trailer is stripped" \
+    "$(printf '%s' "$strip_all" | grep -ciE 'co-authored-by' | tr -d '\n')" "0"
+check "the message body survives the strip" \
+    "$(printf '%s' "$strip_all" | grep -c '^body$')" "1"
+
+# And it must NOT over-reach. A human collaborator, a DCO sign-off, and prose are not attribution.
+keep_all="$(printf 'feat: x\n\nCo-authored-by: Jane Doe <jane@example.com>\nSigned-off-by: Nanoboozhoo <n@example.com>\nReviewed-by: cursor-enthusiast\n' | "$STRIP" --stdin)"
+check "a human co-author is preserved" \
+    "$(printf '%s' "$keep_all" | grep -c 'Jane Doe')" "1"
+check "a DCO sign-off is preserved" \
+    "$(printf '%s' "$keep_all" | grep -c 'Signed-off-by')" "1"
+check "prose mentioning a harness is preserved" \
+    "$(printf '%s' "$keep_all" | grep -c 'Reviewed-by')" "1"
+
+check "the strip is clean on a clean message" \
+    "$(printf 'feat: plain\n' | "$STRIP" --stdin)" "feat: plain"
+
 # ── the audit checker fails CLOSED ──────────────────────────────────────────
 # The first version of this check was an indented heredoc inside the YAML `run:` block. YAML indents
 # every line, so Python raised IndentationError, printed nothing, and the shell read that as
