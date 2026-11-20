@@ -2,8 +2,14 @@
 
 set -euo pipefail
 
-# Support worktrees: use git's actual hooks directory
-HOOKS_DIR="$(git rev-parse --git-dir)/hooks"
+# Hooks live in the COMMON git directory, not the per-worktree one.
+#
+# `git rev-parse --git-dir` inside a worktree returns `.git/worktrees/<name>`, and this script used to
+# append `/hooks` to that — so it installed a hook git never looks at. Measured 2026-11-20: the
+# worktree reported the hook as installed while `git rev-parse --git-path hooks/commit-msg` resolved
+# to the MAIN checkout's hooks directory, and commits kept their trailers. `--git-common-dir` is the
+# one directory every checkout of this repository shares, and it is where git actually runs hooks from.
+HOOKS_DIR="$(git rev-parse --git-common-dir)/hooks"
 mkdir -p "$HOOKS_DIR"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PRE_COMMIT_HOOK="${HOOKS_DIR}/pre-commit"

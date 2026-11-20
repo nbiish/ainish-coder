@@ -466,6 +466,19 @@ _ainish_rules_target_hooks_dir() {
     target_real="$(cd -P "$target_dir" 2>/dev/null && pwd)" || target_real="$target_dir"
     top_real="$(cd -P "$top" 2>/dev/null && pwd)" || top_real="$top"
     [[ "$top_real" == "$target_real" ]] || return 0
+    # Resolve through git rather than assuming `<root>/.git/hooks`: in a WORKTREE `.git` is a FILE
+    # pointing at the per-worktree git dir, and git only ever runs hooks from the COMMON dir. The old
+    # `${target_real}/.git/hooks` therefore named a path that does not exist in a worktree at all.
+    local hooks
+    hooks="$(git -C "$target_dir" rev-parse --git-path hooks 2>/dev/null || true)"
+    if [[ -n "$hooks" ]]; then
+        # --git-path may answer relatively; anchor it at the target so the caller's cwd cannot matter.
+        case "$hooks" in
+            /*) printf '%s\n' "$hooks" ;;
+            *)  printf '%s\n' "${target_real}/${hooks}" ;;
+        esac
+        return 0
+    fi
     printf '%s\n' "${target_real}/.git/hooks"
 }
 
