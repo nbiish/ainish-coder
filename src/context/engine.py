@@ -7639,8 +7639,11 @@ MASTER_SURFACE_RULES_DEFAULTS: Dict[str, Any] = {
 def load_master_surface_rules(repo_root: Path) -> Dict[str, Any]:
     """Loads the shared rule file, falling back to defaults for any missing key."""
     rules = {key: list(value) for key, value in MASTER_SURFACE_RULES_DEFAULTS.items()}
-    candidates = [repo_root / "src" / "rag" / "master-surfaces.json"]
-    canonical = resolve_canonical_repo_root(repo_root) / "src" / "rag" / "master-surfaces.json"
+    # `src/context/` — this file's own directory. The lookup said `src/rag/` until 2026-11-20, a path
+    # that stopped existing when the engine moved, so the Master Surfaces line silently fell back to
+    # the built-in defaults on every gate run instead of reading the repository's own rule file.
+    candidates = [repo_root / "src" / "context" / "master-surfaces.json"]
+    canonical = resolve_canonical_repo_root(repo_root) / "src" / "context" / "master-surfaces.json"
     if canonical != candidates[0]:
         candidates.append(canonical)
     for path in candidates:
