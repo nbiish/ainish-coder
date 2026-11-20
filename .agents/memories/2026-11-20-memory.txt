@@ -11,3 +11,8 @@
 - `--rules` into a git target now copies harness-attribution.txt, strip-harness-trailers.sh and commit-identity-guard.sh into `<target>/.agents/bin/` and installs commit-msg + post-commit blocks that call them RELATIVELY. Verified self-contained: no absolute path to the installing checkout appears in a target's hooks.
 - `install_root_rules_sync_hook` writes to `${REPO_DIR}` (the source) and takes no target argument; `install_rules_sync_hooks <target>` is the target-side installer. The identity blocks were only ever in the former.
 - Hooks run from the repo ROOT even when the commit is made from a subdirectory (measured), so `.agents/bin/...` in a hook block is safe.
+17:05 UTC -- contract internals removed (feat/contract-drop-internals)
+- AGENTS.md now states what to DO (one command, which .agents folders to read) and never how the context system is built. Removed: four-part prime, orientation/retrieval/elephant/goldfish, background tuning, provenance.harness, retrieval constants, "no embeddings, no vector store", wiki_graph_empty, .agents/{rag,audit,canonical}.
+- Contract is 159 lines. The gate is `<= 160`, not `== 160`; do not pad to reach 160.
+- `src/context/engine.py` was loading `src/rag/master-surfaces.json`, dead since the engine moved; the Master Surfaces gate line had been silently using defaults. Now `src/context/`.
+- Contract edits: unlock all five files (AGENTS.md, canonical/AGENTS.md, .sha256, .sig, .threshold.sig), edit, `ainish-context audit contract`, `audit contract --verify-history`, then chmod 444 + chflags uchg on all five.

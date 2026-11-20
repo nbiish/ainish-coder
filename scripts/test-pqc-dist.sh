@@ -1410,10 +1410,22 @@ g = m.build_wiki_graph(Path(sys.argv[2]))
 print("yes" if any(n["kind"] == "contract" and "AGENTS.md" in n["path"] for n in g["nodes"]) else "no")' \
       "${REPO}/src/context/engine.py" "${REPO}" 2>/dev/null)" \
     "yes"
+# The sentences used to read "one command is the whole context system" and "never call a second command
+# to prime yourself" inside a paragraph that also explained the four-part prime, the background tuning
+# pass, and `provenance.harness`. The RULE is what matters; the mechanism was implementation detail in a
+# document every agent reads whole. These assert the rule survives and the mechanism does not.
 contains "the contract states one command is the whole system" \
     "$(cat "${REPO}/AGENTS.md")" 'one command is the whole context system'
 contains "the contract forbids a second priming command" \
     "$(cat "${REPO}/AGENTS.md")" 'Never call a second command to prime yourself'
+check "the contract describes no context-system internals" \
+    "$(grep -ciE 'four-part|provenance\.harness|retrieval constant|elephant|goldfish|vector store|no embeddings' "${REPO}/AGENTS.md")" \
+    "0"
+# The folders an agent must be told about, because "read .agents/" is not actionable on its own.
+for _folder in tasks plans comms memories suggestions wiki; do
+    check "the contract names .agents/${_folder}/" \
+        "$(grep -c "\`${_folder}/\` for\|and \`${_folder}/\`" "${REPO}/AGENTS.md")" "1"
+done
 contains "a context call spawns the learning pass" "$(cat "${REPO}/src/context/engine.py")" 'def spawn_autolearn'
 contains "the learning pass is detached, never awaited" "$(cat "${REPO}/src/context/engine.py")" 'start_new_session'
 check "the learning pass is throttled" \
