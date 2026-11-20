@@ -1354,6 +1354,55 @@ check "the context-harness docs exist" \
 # The prime used to read 10 of 115 .agents files. These pin the coverage, the tracking that makes
 # learned pages survive a clone, and the ranking that keeps a bigger corpus an improvement.
 contains "the corpus includes the whole coordination history" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_MAX_ARTIFACTS = 0'
+
+# ── context consolidation ───────────────────────────────────────────────────
+# The five coordination folders accumulate one record per event and the graph indexes every one, so
+# the corpus grows without bound. Consolidation summarises old records into dated digests and removes
+# the originals, keeping the three newest untouched.
+#
+# The first real run of this feature DELETED 16 files to replace them with a one-line preamble
+# ("I'll start with the required context call..."). Every file had to be restored from git. These
+# assertions exist because a non-empty check passed that reply.
+CONSOLIDATE="${REPO}/src/context/engine.py"
+contains "consolidation covers the five coordination folders" "$(cat "$CONSOLIDATE")" 'CONSOLIDATION_FOLDERS'
+contains "the three newest records are protected" "$(cat "$CONSOLIDATE")" 'CONSOLIDATION_PROTECTED_NEWEST = 3'
+contains "an unusable digest is rejected, not written" "$(cat "$CONSOLIDATE")" 'def _digest_is_usable'
+contains "the digest is written before its sources are removed" \
+    "$(cat "$CONSOLIDATE")" 'written = digest.is_file() and digest.stat().st_size > 0'
+contains "only summarised records are removed" "$(cat "$CONSOLIDATE")" 'for fname in covered:'
+
+# Behavioural: the exclusion predicate, by construction rather than by what a checkout happens to hold.
+check "consolidation excludes indexes and live sidecars" \
+    "$(python3 -c '
+import sys, tempfile, pathlib, importlib.util
+spec = importlib.util.spec_from_file_location("e", sys.argv[1])
+e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
+d = pathlib.Path(tempfile.mkdtemp())
+cases = {"2026-11-20-team.md": True, "2026-11-10-team.live.txt": False,
+         "2026-11-13-identity-guard.live.txt": False, "llms.txt": False,
+         "DIGEST-comms-2026-11.md": False, "notes.md": False}
+bad = []
+for name, want in cases.items():
+    p = d / name; p.write_text("x")
+    if e._is_consolidatable(p) != want: bad.append(name)
+print("clean" if not bad else ",".join(bad))' "$CONSOLIDATE" 2>/dev/null)" \
+    "clean"
+
+# Behavioural: a dry run must change nothing at all.
+_before_dry="$(cd "${REPO}" && git status --porcelain .agents/ 2>/dev/null | wc -l | tr -d ' ')"
+( cd "${REPO}" && ./bin/ainish-context context-consolidate --dry-run --folder suggestions >/dev/null 2>&1 ) || true
+_after_dry="$(cd "${REPO}" && git status --porcelain .agents/ 2>/dev/null | wc -l | tr -d ' ')"
+check "a consolidation dry run writes and deletes nothing" "$_after_dry" "$_before_dry"
+
+# Behavioural: the reply gate rejects the exact shape that caused the data loss.
+check "the digest gate rejects a preamble" \
+    "$(python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("e", sys.argv[1])
+e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
+ok, _ = e._digest_is_usable("I will start with the required context call, then write the digest.")
+print("rejected" if not ok else "accepted")' "$CONSOLIDATE" 2>/dev/null)" \
+    "rejected"
 contains "the corpus includes research and templates" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_EXTRA_SOURCES'
 # ONE learned-skill surface. It used to be two (staged packs the graph never indexed, plus wiki pages
 # nothing could surface), which meant neither was authoritative.

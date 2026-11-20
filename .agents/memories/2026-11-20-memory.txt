@@ -16,3 +16,10 @@
 - Contract is 159 lines. The gate is `<= 160`, not `== 160`; do not pad to reach 160.
 - `src/context/engine.py` was loading `src/rag/master-surfaces.json`, dead since the engine moved; the Master Surfaces gate line had been silently using defaults. Now `src/context/`.
 - Contract edits: unlock all five files (AGENTS.md, canonical/AGENTS.md, .sha256, .sig, .threshold.sig), edit, `ainish-context audit contract`, `audit contract --verify-history`, then chmod 444 + chflags uchg on all five.
+21:05 UTC -- context consolidation (feat/context-consolidation)
+- `ainish-context context-consolidate` replaces old records with `DIGEST-<folder>-<period>.md`. Protects the 3 newest by FILENAME date (never mtime -- a clone reshuffles it), excludes `llms.txt` and `*.live.*` in code, and removes only records a usable chunk actually summarised.
+- NEVER gate a destructive step on "reply is non-empty". `pi_agent_call` is an agent; it answered "I'll start with the required context call" and 16 files were deleted for it. `_digest_is_usable` requires 200+ chars, 3 of 4 sections, and no promise-opener.
+- A model prompt of 44K chars hangs the local model intermittently (90s/200s/300s timeouts); the same payload with a terse instruction answers in 5s. Chunk at 5 records + one retry per call.
+- `.live.txt` sidecars are DATE-PREFIXED, so a date-only rule matches them; they are gitignored so deletion is unrecoverable. Always test an exclusion predicate against constructed cases, not just the tree.
+- `memories/llms.txt` and `plans/llms.txt` are folder INDEXES living inside the folders they index.
+- One legacy `.txt` is invalid UTF-8: always `errors="replace"` on record reads.

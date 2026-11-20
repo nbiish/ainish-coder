@@ -128,7 +128,8 @@ every commit accounted for, a diffstat matching the task record), then remove it
 - Mark the task record done or blocked, with evidence; append lifecycle lines to the daily COMMS ledger
   and scrubbed facts to the daily memory file; leave the worktree clean.
 - Findings that outlive the task go to `.agents/suggestions/{date}-{HH}-{slug}.md`, one file per topic,
-  so the next context call retrieves them.
+  so the next context call retrieves them. Old records in these folders are consolidated into dated
+  digests, so write the record; do not pre-summarise it.
 
 ## Where everything else lives
 

@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: context-consolidation
 date: 2026-11-20
-status: ready
+status: done
 branch: feat/context-consolidation
 worktree: /Users/nbiish/code/context-consolidation
 task_record: .agents/tasks/2026-11-20-14-context-consolidation.md
@@ -144,17 +144,17 @@ ainish-context context-consolidate [--folder F] [--dry-run] [--period month|week
 
 ## 5. Todos
 
-- [ ] **T1** Add `_is_consolidatable` and `_record_period`, excluding `llms.txt` and `*.live.txt`.
+- [x] **T1** Add `_is_consolidatable` and `_record_period`, excluding `llms.txt` and `*.live.txt`.
   - from: §3 | done when: census reports 5 comms candidates fewer than file count | verify: census output
-- [ ] **T2** Add `folder_census` and the 3-newest protection computed by record date.
+- [x] **T2** Add `folder_census` and the 3-newest protection computed by record date.
   - from: §3 | done when: the 3 newest are never listed as candidates | verify: census on a fixture
-- [ ] **T3** Add the elephant digest prompt and the goldfish review of it.
+- [x] **T3** Add the elephant digest prompt and the goldfish review of it.
   - from: §4.1 | done when: a digest names accomplished/unfinished/insights/recurring and every source | verify: a real dry run
-- [ ] **T4** Write the digest, then remove only its sources, under the shared lock.
+- [x] **T4** Write the digest, then remove only its sources, under the shared lock.
   - from: §3 | done when: a failed digest write leaves every original in place | verify: simulated write failure
-- [ ] **T5** Wire `context-consolidate` into argparse and help; add the `Close` line to AGENTS.md.
+- [x] **T5** Wire `context-consolidate` into argparse and help; add the `Close` line to AGENTS.md.
   - from: §3 | done when: the verb appears in `--help` and AGENTS.md is 160 lines | verify: both
-- [ ] **T6** Add suite assertions for exclusion, protection, ordering, cap, and dry-run.
+- [x] **T6** Add suite assertions for exclusion, protection, ordering, cap, and dry-run.
   - from: §3 | done when: suite passes at or above 418 | verify: `scripts/test-pqc-dist.sh`
 
 ## 6. Verification

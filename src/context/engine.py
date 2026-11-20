@@ -5841,6 +5841,467 @@ def run_context_learn(
         context_harness.release_lock(repo_root)
 
 
+# ── context consolidation ───────────────────────────────────────────────────
+# The five coordination folders accumulate one record per event and the graph indexes every file, so
+# the corpus grows without bound. Consolidation turns old records into dated digests and removes the
+# originals; the three newest are left alone so recent work stays readable.
+#
+# WHAT IS NEVER CONSOLIDATED, and why it is enforced in code rather than described in prose:
+#   `llms.txt`   — the DIRECTORY INDEX for its folder. Consolidating it would delete the map.
+#   `*.live.txt` — operational sidecars, gitignored. There is no `git show` to restore them from, so a
+#                  mistake here is unrecoverable. Measured: five of the 19 comms files are these.
+CONSOLIDATION_FOLDERS = ("memories", "comms", "tasks", "suggestions", "plans")
+CONSOLIDATION_PROTECTED_NEWEST = 3
+CONSOLIDATION_DEFAULT_CAP = 5
+CONSOLIDATION_DIGEST_PREFIX = "DIGEST-"
+
+_RECORD_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+
+
+def _is_consolidatable(path: Path) -> bool:
+    """True when this file is a dated RECORD that consolidation may rewrite.
+
+    Three conditions, each excluding a real class of file by name:
+      - a regular `.md`/`.txt` whose name STARTS WITH A DATE. Records are dated in the filename.
+      - not `*.live.*`. These are operational sidecars and they are GITIGNORED, so removing one is
+        unrecoverable; there is no `git show` to restore it. Measured 2026-11-20: five comms files are
+        these, and four of them are date-prefixed, so the date rule alone does NOT exclude them —
+        this test caught it, a reading of the code did not.
+      - not a DIGEST or the folder index. A digest is generated, and consolidating it would summarise a
+        summary; `llms.txt` is the map of the folder.
+    """
+    if not path.is_file():
+        return False
+    if path.suffix.lower() not in (".md", ".txt"):
+        return False
+    name = path.name
+    if ".live." in name or name.endswith(".live.txt"):
+        return False
+    if name.startswith(CONSOLIDATION_DIGEST_PREFIX) or name == "llms.txt":
+        return False
+    return _RECORD_DATE_RE.match(name) is not None
+
+
+def _record_period(path: Path, period: str = "month") -> str:
+    """`YYYY-MM` or `YYYY-Www` for a record, from its FILENAME.
+
+    The filename is the record's own date and is stable under git; mtime is not (a checkout rewrites
+    it), so grouping by mtime would reshuffle history on a clone.
+    """
+    m = _RECORD_DATE_RE.match(path.name)
+    if not m:
+        return "undated"
+    year, month, day = m.groups()
+    if period == "month":
+        return f"{year}-{month}"
+    try:
+        import datetime as _dt
+        iso = _dt.date(int(year), int(month), int(day)).isocalendar()
+        return f"{iso[0]}-W{iso[1]:02d}"
+    except ValueError:
+        return f"{year}-{month}"
+
+
+def folder_census(repo_root: Path, folder: str) -> Dict[str, Any]:
+    """What a folder holds, what consolidation may touch, and what it must leave alone.
+
+    `protected` is the newest records by RECORD DATE (not mtime), and those files are never read as
+    candidates — the operator's requirement that the three most recent versions stay reviewable in
+    their original form.
+    """
+    directory = Path(repo_root) / ".agents" / folder
+    out: Dict[str, Any] = {
+        "folder": folder, "exists": directory.is_dir(), "originals": 0, "digests": 0,
+        "protected": [], "candidates": [], "ignored": [], "periods": {},
+    }
+    if not out["exists"]:
+        return out
+    try:
+        entries = sorted(p for p in directory.iterdir() if p.is_file())
+    except OSError:
+        return out
+    records: List[Path] = []
+    for p in entries:
+        if p.name.startswith(CONSOLIDATION_DIGEST_PREFIX):
+            out["digests"] += 1
+        elif _is_consolidatable(p):
+            records.append(p)
+        else:
+            # Named in the report rather than silently skipped, so an operator can see that the index
+            # and the live sidecars were considered and deliberately excluded.
+            out["ignored"].append(p.name)
+    records.sort(key=lambda p: p.name, reverse=True)
+    out["originals"] = len(records)
+    out["protected"] = [p.name for p in records[:CONSOLIDATION_PROTECTED_NEWEST]]
+    candidates = records[CONSOLIDATION_PROTECTED_NEWEST:]
+    out["candidates"] = [p.name for p in candidates]
+    grouped: Dict[str, List[str]] = {}
+    for p in candidates:
+        grouped.setdefault(_record_period(p), []).append(p.name)
+    out["periods"] = {k: sorted(v) for k, v in sorted(grouped.items())}
+    return out
+
+
+def _digest_path(repo_root: Path, folder: str, period: str) -> Path:
+    return Path(repo_root) / ".agents" / folder / f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-{period}.md"
+
+
+def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> str:
+    """The evidence handed to the context agents: the records themselves, in full.
+
+    Inline rather than file-pointered because these agents run without tools — see the same decision in
+    `_render_inline_evidence`, which learned it the hard way.
+    """
+    parts = [
+        f"# CONSOLIDATE `.agents/{folder}`, period {period}\n",
+        f"{len(sources)} record(s) from this period. They are reproduced in full below.\n",
+        "Write ONE digest that a future agent can read instead of these files. Keep:\n",
+        "- **Accomplished** — what actually landed, with enough specifics to be checkable.\n",
+        "- **Unfinished** — started but not done, and why it stopped.\n",
+        "- **Insights** — what was learned that is not obvious from the code.\n",
+        "- **Recurring** — the same problem or lesson appearing more than once.\n",
+        "Cite the source filename for anything specific. Do not invent; if a section has nothing, say "
+        "so plainly. This digest REPLACES the files, so omitting a fact loses it unless it is in git.\n",
+    ]
+    for name, body in sources:
+        parts.append(f"\n## SOURCE: {name}\n{body[:6000]}\n")
+    # THE END IS STATED EXPLICITLY. Without this, the model receives 40K+ characters of records and no
+    # marker that the evidence has stopped — measured 2026-11-20: every call with a closing instruction
+    # answered in seconds, and the same payload without one hung until the timeout (90s, then 200s,
+    # then 300s). It was reading the last record as a document to continue rather than material to
+    # summarise.
+    parts.append(
+        "\n---\n\n# END OF RECORDS\n\n"
+        "The records above are complete. Now answer with the digest only — four `## ` sections "
+        "(Accomplished, Unfinished, Insights, Recurring) and nothing else. Do not repeat the records, "
+        "do not describe what you are about to do, and do not ask for anything.\n"
+    )
+    return "".join(parts)
+
+
+def _digest_is_usable(body: str) -> Tuple[bool, str]:
+    """Whether a model reply is an actual DIGEST, not a preamble promising one.
+
+    This exists because the first real consolidation destroyed 16 files for a reply of
+    "I'll start with the required context call, then write the digest." — an agent doing what it was
+    trained to do, in a role that must not. A non-empty check passed it. These checks are what that
+    failure needed:
+
+      - the required sections must be present (the prompt asks for four named headings);
+      - it must be long enough to hold a real summary;
+      - it must not OPEN with a promise to do the work ("I'll start by…", "Let me first…").
+
+    Deliberately checks STRUCTURE, not quality: whether the prose is good is the reviewer's job.
+    """
+    text = (body or "").strip()
+    if len(text) < 200:
+        return False, f"reply is {len(text)} chars — too short to be a digest"
+    low = text.lower()
+    for opener in ("i'll start", "i will start", "let me first", "i'll begin", "sure,", "here's the digest"):
+        if low.startswith(opener):
+            return False, f"reply opens with a preamble ({opener!r}) rather than a digest"
+    sections = [s for s in ("accomplished", "unfinished", "insights", "recurring") if s in low]
+    if len(sections) < 3:
+        return False, (
+            f"reply has {len(sections)}/4 expected sections "
+            f"({', '.join(sections) or 'none'}) — it is not in the requested shape"
+        )
+    return True, ""
+
+
+def _digest_in_chunks(
+    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 5, timeout: float = 150.0
+) -> Tuple[str, List[str], List[str]]:
+    """Summarise a period in fixed-size chunks, then merge the partial digests.
+
+    WHY CHUNKS: one call over a whole period intermittently hangs this local model — measured
+    2026-11-20, a 44,606-char prompt timed out at 90s, 200s, and 300s across repeated attempts, while
+    the SAME payload with a shorter instruction answered in 5s and a 12,312-char prompt answered in
+    12s. The failure is prompt size × instruction complexity, and it is intermittent, so it cannot be
+    tuned away; it has to be bounded.
+
+    5 records per call is the measured-safe size. Partial digests are merged by a final call, which
+    sees only the summaries rather than the records, so it stays comfortably small.
+
+    Returns `(digest_body, errors)`. An empty body means nothing usable came back and NOTHING should
+    be removed.
+    """
+    errors: List[str] = []
+    partials: List[str] = []
+    covered: List[str] = []
+    for i in range(0, len(payload), max(1, chunk)):
+        batch = payload[i:i + max(1, chunk)]
+        text = ""
+        # One retry per chunk, for the same intermittent-hang reason the merge retries.
+        for attempt in (1, 2):
+            reply = pi_agent_call(
+                role="elephant",
+                model=_pi_role_model("elephant"),
+                system_prompt=(
+                    "You are a summarizer, not an agent. You have NO tools and NO repository access, "
+                    "and there is nothing to look up: the records are reproduced in the message. "
+                    "Answer with the digest body only. Do not announce a plan and do not call anything."
+                ),
+                user_prompt=_digest_prompt(folder, period, batch),
+                timeout=timeout if attempt == 1 else 120.0,
+            )
+            text = str((reply or {}).get("text") or "").strip()
+            usable, why = _digest_is_usable(text)
+            if usable:
+                break
+            if attempt == 2:
+                errors.append(
+                    f"chunk {i // chunk + 1} failed twice: "
+                    f"{why or (reply or {}).get('error') or 'no output'}"
+                )
+                text = ""
+        if text:
+            partials.append(text)
+            # Recorded ONLY when a chunk produced something usable: a file that was never summarised
+            # must never be removed, or the digest would silently stand in for records it never saw.
+            covered.extend(name for name, _ in batch)
+
+    if not partials:
+        return "", errors or ["no chunk produced a usable digest"], []
+    if len(partials) == 1:
+        return partials[0], errors, covered
+
+    # Merge. The merge call sees summaries, not records, so it is small by construction.
+    merge_prompt = (
+        f"# MERGE {len(partials)} PARTIAL DIGESTS of `.agents/{folder}`, {period}\n\n"
+        + "\n\n---\n\n".join(f"## PARTIAL {i + 1}\n{p}" for i, p in enumerate(partials))
+        + "\n\n---\n\n# END OF PARTIALS\n\nNow answer with the merged digest only.\n"
+    )
+    merge_system = (
+        "You are merging partial digests of one period into a single digest. Answer with the "
+        "merged digest only: four `## ` sections (Accomplished, Unfinished, Insights, Recurring). "
+        "Combine duplicates instead of repeating them; keep every concrete fact. Do not describe "
+        "what you are about to do."
+    )
+    # Retried, because the hang is INTERMITTENT (measured: the same call succeeded at 5s and failed at
+    # 200s). One retry converts a coin-flip into a reliable step; a second failure falls back.
+    for attempt in (1, 2):
+        merged = pi_agent_call(
+            role="elephant", model=_pi_role_model("elephant"),
+            system_prompt=merge_system, user_prompt=merge_prompt,
+            timeout=timeout if attempt == 1 else 120.0,
+        )
+        merged_text = str((merged or {}).get("text") or "").strip()
+        usable, why = _digest_is_usable(merged_text)
+        if usable:
+            return merged_text, errors, covered
+        if attempt == 2:
+            errors.append(
+                f"merge failed after 2 attempts ({why or (merged or {}).get('error') or 'no output'})"
+            )
+    # A failed merge is not a reason to lose the work: the partial digests ARE faithful summaries of
+    # their own records, so they are kept under one heading rather than discarded. The digest then
+    # reads as a series of batches, which is worse prose and equally true.
+    return (
+        "## Partial digests\n\n"
+        f"The merge step did not complete, so these {len(partials)} partial digests are kept as written. "
+        "Each covers a different batch of the records named above.\n\n"
+        + "\n\n---\n\n".join(p for p in partials)
+    ), errors, covered
+
+
+def _render_digest(folder: str, period: str, sources: List[str], body: str) -> str:
+    """The digest file: YAML frontmatter a reader can audit, then the agents' prose."""
+    stamp = datetime.now(timezone.utc).isoformat()
+    head = [
+        "---",
+        "format: ainish/context-digest/v1",
+        f"folder: {folder}",
+        f"period: {period}",
+        f"records_consolidated: {len(sources)}",
+        f"consolidated_at: {stamp}",
+        "sources:",
+    ]
+    head += [f"  - {s}" for s in sources]
+    head += ["---", "", f"# Digest — `.agents/{folder}`, {period}", ""]
+    head += [
+        f"This digest replaces {len(sources)} record(s) from {period}. Each one is still recoverable",
+        "from git history; the `sources:` list above names them exactly. Anything not said here is not",
+        "in the folder any more, so treat the omissions as deliberate rather than absent.",
+        "",
+    ]
+    return "\n".join(head) + body.strip() + "\n"
+
+
+def run_context_consolidate(
+    repo_root: Path,
+    *,
+    folder: Optional[str] = None,
+    dry_run: bool = False,
+    period: str = "month",
+    cap: int = CONSOLIDATION_DEFAULT_CAP,
+    json_out: bool = False,
+) -> Dict[str, Any]:
+    """Consolidate old records into dated digests, then remove the records they replace.
+
+    ORDER IS THE SAFETY PROPERTY: the digest is written and re-read before any source is removed, so a
+    failed write leaves every original in place. Removal happens only for the exact files the digest
+    names in its `sources:` list.
+
+    The three newest records per folder are never read as candidates. That is the operator's
+    requirement — recent work stays reviewable in its original form — and it is computed from the
+    RECORD DATE in the filename, not mtime, because a clone rewrites mtime.
+    """
+    result: Dict[str, Any] = {
+        "format": "ainish-coder/context-consolidate/v1",
+        "ok": False, "dry_run": dry_run, "period": period, "cap": cap, "folders": {},
+    }
+    targets = [folder] if folder else list(CONSOLIDATION_FOLDERS)
+    unknown = [f for f in targets if f not in CONSOLIDATION_FOLDERS]
+    if unknown:
+        result["errors"] = [f"not a consolidation folder: {', '.join(unknown)}"]
+        return result
+    if period not in ("month", "week"):
+        result["errors"] = [f"period must be month or week, got {period!r}"]
+        return result
+
+    acquired, lock_note = context_harness.acquire_lock(repo_root)
+    if not acquired:
+        result["errors"] = [lock_note]
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"[context:error] {lock_note}", file=sys.stderr)
+        return result
+    try:
+        for name in targets:
+            census = folder_census(repo_root, name)
+            entry: Dict[str, Any] = {
+                "originals": census["originals"], "digests": census["digests"],
+                "protected": census["protected"], "ignored": census["ignored"],
+                "would_consolidate": census["candidates"],
+                "written": [], "removed": [], "skipped": [],
+            }
+            directory = Path(repo_root) / ".agents" / name
+            for per, files in census["periods"].items():
+                digest = _digest_path(repo_root, name, per)
+                if digest.is_file():
+                    # A period already digested is left alone: re-summarising would either duplicate
+                    # its content or silently drop whatever the first pass had captured.
+                    entry["skipped"].append({"period": per, "reason": "digest already exists"})
+                    continue
+                if dry_run or not files:
+                    entry.setdefault("planned", []).append({"period": per, "sources": files})
+                    continue
+                payload: List[Tuple[str, str]] = []
+                for fname in files:
+                    try:
+                        payload.append((fname, (directory / fname).read_text(encoding="utf-8", errors="replace")))
+                    except OSError as exc:
+                        entry["skipped"].append({"period": per, "reason": f"unreadable {fname}: {str(exc)[:60]}"})
+                        payload = []
+                        break
+                if not payload:
+                    continue
+                body, chunk_errors, covered = _digest_in_chunks(name, per, payload)
+                if chunk_errors:
+                    entry["skipped"].extend({"period": per, "reason": e} for e in chunk_errors)
+                usable, why_unusable = _digest_is_usable(body)
+                if not usable:
+                    # NOTHING IS DELETED on an unusable digest. The first real run learned this by
+                    # destroying 16 files for a one-line preamble, and every one had to be restored
+                    # from git. The gate is the only thing standing between a bad reply and data loss.
+                    entry["skipped"].append({
+                        "period": per,
+                        "reason": f"no usable digest for this period: {why_unusable}",
+                    })
+                    continue
+                # The digest names exactly the records it covers — not every candidate — so its
+                # `sources:` list stays a true account of what it replaces.
+                files = [f for f in files if f in covered]
+                # The reviewer sees the draft and the sources — but the sources are BOUNDED, because the
+                # same 40K-character prompt that hangs the digest call hangs this one. A reviewer that
+                # times out is a lost review, not a blocked consolidation; it is reported as absent.
+                review_payload = payload[:5]
+                review = pi_agent_call(
+                    role="goldfish",
+                    model=_pi_role_model("goldfish"),
+                    system_prompt=(
+                        "You are a reviewer, not an agent. You have NO tools and nothing to look up; "
+                        "the sources and the digest draft are both in the message below.\n\n"
+                        "Name anything in the sources that the digest omits and a future reader would "
+                        "miss, and anything the digest asserts that the sources do not support. Be "
+                        "brief and specific. If the digest is faithful, say so in one line. Do not "
+                        "announce what you are about to do — just give the review."
+                    ),
+                    user_prompt=(
+                        _digest_prompt(name, per, review_payload)
+                        + "\n\n## THE DIGEST DRAFT\n" + body[:8000]
+                    ),
+                    timeout=150.0,
+                )
+                review_text = str((review or {}).get("text") or "").strip()
+                rendered = _render_digest(name, per, files, body)
+                if review_text:
+                    rendered += "\n## Review\n\n" + review_text + "\n"
+                written = False
+                try:
+                    digest.write_text(rendered, encoding="utf-8")
+                    # Read back before deleting anything: a write that did not land must not be
+                    # followed by a removal.
+                    written = digest.is_file() and digest.stat().st_size > 0
+                except OSError as exc:
+                    entry["skipped"].append({"period": per, "reason": f"write failed: {str(exc)[:80]}"})
+                if not written:
+                    continue
+                removed: List[str] = []
+                # ONLY the files a usable chunk actually summarised. A file whose chunk failed stays
+                # in the folder, because the digest does not stand in for it.
+                for fname in covered:
+                    target = directory / fname
+                    if not _is_consolidatable(target):
+                        continue
+                    try:
+                        target.unlink()
+                        removed.append(fname)
+                    except OSError:
+                        pass
+                entry["written"].append(digest.name)
+                entry["removed"].extend(removed)
+                left = [f for f in files if f not in covered]
+                if left:
+                    entry["skipped"].append({
+                        "period": per,
+                        "reason": f"{len(left)} record(s) left in place because their chunk was not summarised",
+                    })
+            entry["originals_after"] = max(0, entry["originals"] - len(entry["removed"]))
+            result["folders"][name] = entry
+        result["ok"] = True
+    finally:
+        context_harness.release_lock(repo_root)
+
+    if json_out:
+        print(json.dumps(result, indent=2))
+    else:
+        for name, entry in result["folders"].items():
+            print(f".agents/{name}: {entry['originals']} original(s), {entry['digests']} digest(s)")
+            print(f"  protected (never touched): {', '.join(entry['protected']) or 'none'}")
+            if entry.get("planned"):
+                for pl in entry["planned"]:
+                    print(f"  would consolidate {pl['period']}: {len(pl['sources'])} file(s)")
+            for w in entry["written"]:
+                print(f"  wrote {w}")
+            if entry["removed"]:
+                print(f"  removed {len(entry['removed'])} consolidated file(s)")
+            for sk in entry["skipped"]:
+                print(f"  skipped {sk['period']}: {sk['reason']}")
+            if entry["originals_after"] > cap:
+                if dry_run:
+                    planned = sum(len(p["sources"]) for p in entry.get("planned") or [])
+                    print(f"  {entry['originals_after']} originals, over the {cap} cap; a real run would")
+                    print(f"  consolidate {planned} of them and leave "
+                          f"{entry['originals_after'] - planned}")
+                else:
+                    print(f"  {entry['originals_after']} originals remain, over the {cap} cap —")
+                    print(f"  something in this period could not be digested (see skipped, above)")
+    return result
+
+
 def _learn_locked(
     repo_root: Path,
     task: Optional[str],
@@ -8553,6 +9014,25 @@ def main():
         help="Internal: set by the detached child that `--context` spawns. Silences all output.",
     )
 
+    consolidate_p = sub.add_parser(
+        "context-consolidate",
+        help="Consolidate old .agents/ records into dated digests, keeping the newest three untouched",
+    )
+    consolidate_p.add_argument(
+        "--folder", default=None, choices=list(CONSOLIDATION_FOLDERS),
+        help="One folder to consolidate (default: all five)",
+    )
+    consolidate_p.add_argument(
+        "--period", default="month", choices=["month", "week"],
+        help="Digest granularity; grouping is by the date in each record's filename",
+    )
+    consolidate_p.add_argument(
+        "--cap", type=int, default=CONSOLIDATION_DEFAULT_CAP,
+        help=f"Warn when a folder keeps more originals than this (default {CONSOLIDATION_DEFAULT_CAP})",
+    )
+    consolidate_p.add_argument("--dry-run", action="store_true", help="Report what would be consolidated; write and delete nothing")
+    consolidate_p.add_argument("--json", action="store_true")
+
     audit_p = sub.add_parser("audit", help="Verify post-quantum receipts, manifests, lockfiles, and SBOMs")
     audit_sub = audit_p.add_subparsers(dest="audit_command", required=True)
     audit_verify_p = audit_sub.add_parser("verify", help="Verify ML-DSA-65 audit receipts")
@@ -8711,6 +9191,20 @@ def main():
             json_out=bool(getattr(args, "json", False)),
         )
         if not result.get("ok"):
+            sys.exit(1)
+
+    elif args.subcommand == "context-consolidate":
+        # Learned state and the records it consolidates both live in the checkout the caller is in,
+        # so this resolves the worktree root rather than the canonical one.
+        result = run_context_consolidate(
+            _learned_root(repo_root),
+            folder=getattr(args, "folder", None),
+            dry_run=bool(getattr(args, "dry_run", False)),
+            period=getattr(args, "period", "month"),
+            cap=int(getattr(args, "cap", CONSOLIDATION_DEFAULT_CAP) or CONSOLIDATION_DEFAULT_CAP),
+            json_out=bool(getattr(args, "json", False)),
+        )
+        if result.get("errors"):
             sys.exit(1)
 
     elif args.subcommand == "context-learn":
