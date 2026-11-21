@@ -256,7 +256,7 @@ Everything lives in `references/` relative to this skill:
 |---|---|
 | `references/bridge.mjs` | zero-dependency Node ≥22 bridge: `serve`, `project`, `wait`, `ack`, `stop`, `status` |
 | `references/protocol.md` | wire schemas, projection rules, digest/id algorithms, worked example, error model, lifecycle |
-| `references/canvas-app.tsx` | drop-in tldraw app module: `aiRpcBlock` shape, prompt input, chat feed, query bar, Stop button |
+| `references/canvas-app.tsx` | drop-in tldraw app module, built against tldraw 5.6.2: `aiRpcBlock` shape, prompt input, chat feed, query bar, Stop button |
 
 ```bash
 node references/bridge.mjs serve   [--port 7331] [--session main] [--app DIR] [--allow-origin URL]
