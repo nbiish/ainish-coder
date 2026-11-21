@@ -27,3 +27,19 @@ was too narrow: the watcher has several independent defects and is now net-negat
 The plan's T1–T7 are the watcher defects. The unrelated-history problem for `ainish-coder` itself is
 NOT in that plan: it needs an operator decision on which history to keep, and until then the repo is
 quarantined from the watch set (self-link removed 2026-11-21).
+
+## Restart test (2026-11-21 00:37) — the router fault is REAL, not stuck state
+
+Restarted the launchd agent (`launchctl kickstart -k`) and watched the next cycle:
+`2026-11-21T00:37:36Z failed: …local-router (attempt 57)`.
+
+So a fresh process with current code — including the per-process bundle-name fix — still fails on
+`local-router`. This rules out "the daemon is stale / wedged" as the cause for that repo and confirms
+the fleet plan's diagnosis: the delegated cycle itself is failing, and quarantine (T2) is the
+immediate mitigation because nothing currently stops an unbounded retry chain.
+
+Totals after restart: 48 ok / 81 failed.
+
+Also confirmed only ONE watcher runs under launchd (pid 53897). A second `machine-watch --foreground`
+process seen mid-cycle was the delegated child of a cycle, not a duplicate daemon — worth recording
+because a naive `pgrep | wc -l` reads it as a duplicate and invites an unnecessary kill.
