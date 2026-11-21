@@ -1,0 +1,6 @@
+14:43 UTC -- aiRPC skill lands (skill/airpc)
+- aiRPC skill lives at `.agents/skills/aiRPC/`; block identity = `blk-` + sha256(path + '#' + anchor) first 12 hex, review binding = sha256(path + '\0' + body) first 12 hex — recompute both from the file at call time, never trust stored values.
+- The bridge writes only `$AIRPC_HOME/<session>/` (default `~/.airpc`); the agent is the sole writer of the repo. `wait` exit codes: 0 = one JSON event on stdout, 2 = `--by` deadline expired (never success), 1 = hard error.
+- `/rpc/wait` filters acked calls server-side (at-least-once delivery: an unacked call reprints after a crash) — re-verify the digest before editing any re-delivered call.
+- The tldraw SDK needs a license key for production deployment of the canvas (tldraw.dev/pricing); development use is free.
+- `bunx` esbuild shim is broken on this host (pnpm global path missing); `npx --yes esbuild` works for TSX parse checks.
