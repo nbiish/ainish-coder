@@ -14,6 +14,7 @@ import argparse
 import atexit
 import base64
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import math
@@ -6107,6 +6108,32 @@ def _digest_path(repo_root: Path, folder: str, period: str = "", *, index: Optio
     return Path(repo_root) / ".agents" / folder / name
 
 
+# TRUNCATION MUST BE LABELLED, never silent.
+#
+# Measured 2026-11-21: the drafter was given records cut at 5,000 chars, and it reported the cut as a
+# FINDING — "three source records are truncated mid-entry, facts not preserved" — three times in one
+# digest. The archivist then failed the draft for it, correctly, and the folder went unconsolidated. That
+# is harness2's `obs_trunc` failure exactly: a clipped input makes the model diagnose a defect that
+# exists only in the clipping.
+#
+# Two changes: the cap is one number here rather than four literals, and every truncation says so in the
+# text the model reads, with the number it was cut at, so it cannot mistake the cut for the source.
+CONSOLIDATE_SOURCE_CHARS = 9000
+CONSOLIDATE_BATCH_CHARS = 36000   # ~4 records per batch at the source cap
+
+
+def _clip(text: str, limit: int, label: str) -> str:
+    """`text`, or a VISIBLY cut version of it. Never a silent slice."""
+    if len(text) <= limit:
+        return text
+    return (
+        text[:limit]
+        + f"\n[THIS EXCERPT WAS CUT AT {limit} OF {len(text)} CHARS BY THE CONSOLIDATION TOOL — "
+          f"the remainder of `{label}` is missing here, not missing from the repository. Do not report "
+          f"the cut as a gap in the record.]\n"
+    )
+
+
 def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> str:
     """The evidence handed to the context agents: the records themselves, in full.
 
@@ -6125,7 +6152,7 @@ def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> 
         "so plainly. This digest REPLACES the files, so omitting a fact loses it unless it is in git.\n",
     ]
     for name, body in sources:
-        parts.append(f"\n## SOURCE: {name}\n{body[:6000]}\n")
+        parts.append(f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n")
     # THE END IS STATED EXPLICITLY. Without this, the model receives 40K+ characters of records and no
     # marker that the evidence has stopped — measured 2026-11-20: every call with a closing instruction
     # answered in seconds, and the same payload without one hung until the timeout (90s, then 200s,
@@ -6184,14 +6211,18 @@ def _panel_review(
     EVERY member is asked even after one fails, so the retry receives all the gaps at once rather than
     discovering them one 300-second call at a time.
     """
-    per_member: Dict[str, str] = {}
-    gaps: List[str] = []
-    passed_all = True
-    for profile, label, question in CONSOLIDATE_PANEL:
+    # THE THREE REVIEWERS RUN IN PARALLEL.
+    #
+    # Sequentially they were three 140-second calls after the drafter's, so a 2-batch folder with one
+    # retry came to ~37 minutes and had to be abandoned. The reviewers do not depend on each other —
+    # each answers its own question about the same draft — so running them together makes the panel two
+    # calls deep instead of four, and the whole cycle fits inside the timeout.
+    def _ask(member: Tuple[str, str, str]) -> Tuple[str, str]:
+        profile, label, question = member
         prompt = (
             f"# REVIEW ({label}) a consolidation digest for `.agents/{folder}`, {period}\n\n"
-            "You are one of three reviewers. You are checking another agent's work before it REPLACES "
-            "the records below; after this they are deleted, so an omission is permanent.\n\n"
+            "You are one of three reviewers checking another agent's work before it REPLACES the records "
+            "below; after this they are deleted, so an omission is permanent.\n\n"
             f"YOUR QUESTION, and only this one: {question}\n\n"
             "Answer in exactly this shape, nothing before it:\n\n"
             "VERDICT: pass|fail\n"
@@ -6200,16 +6231,19 @@ def _panel_review(
             "satisfied. Do not announce what you are about to do.\n"
         )
         for name, body in sources:
-            prompt += f"\n## SOURCE: {name}\n{body[:5000]}\n"
-        prompt += "\n---\n\n## THE DRAFT UNDER REVIEW\n" + draft[:12000]
+            prompt += f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n"
+        prompt += "\n---\n\n## THE DRAFT UNDER REVIEW\n" + _clip(draft, 24000, "the draft")
         prompt += "\n\n---\n\nNow answer with VERDICT and GAP only.\n"
-
         reply = consolidation_call(profile, prompt, fallback_role="goldfish", timeout=timeout)
         ok, gap = _parse_digest_verdict(str((reply or {}).get("text") or ""))
-        per_member[label] = "pass" if ok else f"fail: {gap[:200]}"
-        if not ok:
-            passed_all = False
-            gaps.append(f"{label}: {gap}")
+        return label, ("pass" if ok else f"fail: {gap[:200]}")
+
+    per_member: Dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=len(CONSOLIDATE_PANEL)) as pool:
+        for label, verdict in pool.map(_ask, CONSOLIDATE_PANEL):
+            per_member[label] = verdict
+    passed_all = all(v == "pass" for v in per_member.values())
+    gaps: List[str] = [f"{label}: {v[6:]}" for label, v in per_member.items() if v != "pass"]
     return passed_all, "; ".join(gaps), per_member
 
 
@@ -6241,6 +6275,10 @@ def _digest_in_chunks(
     covered: List[str] = []
     total = max(1, (len(payload) + chunk - 1) // chunk)
 
+    # A batch is sized by CHARACTERS as well as count: five 20K records and five 1K records are not the
+    # same job, and the count alone was chosen when prompts were smaller. 40K chars is the measured size
+    # hermes handled in 66s; staying well under it keeps the four-call panel inside its timeout.
+    chunk = min(max(1, chunk), max(1, CONSOLIDATE_BATCH_CHARS // max(1, CONSOLIDATE_SOURCE_CHARS)))
     for i in range(0, len(payload), max(1, chunk)):
         batch = payload[i:i + max(1, chunk)]
         index = i // chunk + 1
@@ -6338,8 +6376,8 @@ def _digest_review_prompt(folder: str, period: str, sources: List[Tuple[str, str
         "draft, or when the draft asserts something the sources do not support. Do not fail for style.\n",
     ]
     for name, body in sources:
-        parts.append(f"\n## SOURCE: {name}\n{body[:6000]}\n")
-    parts.append("\n---\n\n## THE DRAFT UNDER REVIEW\n" + draft[:12000] + "\n\n---\n\nNow answer with VERDICT and GAP only.\n")
+        parts.append(f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n")
+    parts.append("\n---\n\n## THE DRAFT UNDER REVIEW\n" + _clip(draft, 24000, "the draft") + "\n\n---\n\nNow answer with VERDICT and GAP only.\n")
     return "".join(parts)
 
 

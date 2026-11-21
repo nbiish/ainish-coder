@@ -1385,7 +1385,10 @@ contains "the three newest records are protected" "$(cat "$CONSOLIDATE")" 'CONSO
 contains "an unusable digest is rejected, not written" "$(cat "$CONSOLIDATE")" 'def _digest_is_usable'
 contains "the digest is written before its sources are removed" \
     "$(cat "$CONSOLIDATE")" 'written = digest.is_file() and digest.stat().st_size > 0'
-contains "only summarised records are removed" "$(cat "$CONSOLIDATE")" 'for fname in covered:'
+# Only records a verified chunk actually covered may be removed; a record whose chunk failed review must
+# stay, or the digest would stand in for records it never saw.
+check "only summarised records are removed" \
+    "$(grep -cE 'for fname in (covered|covered_sorted):' "$CONSOLIDATE")" "1"
 
 # ── the consolidation PAIR is separate from the prime's pair ────────────────
 # Consolidation used the same elephant/goldfish roles that build the prime, with an ADVISORY review.
