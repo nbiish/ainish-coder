@@ -4546,6 +4546,103 @@ PI_MAX_ATTACH_BYTES = 512 * 1024
 REVIEW_MAX_TOKENS = 2048
 
 
+# ── consolidation transport (hermes profiles) ───────────────────────────────
+# Consolidation runs as its OWN pair of agents, with their own profiles, descriptions and skills, so it
+# is compartmentalized from the elephant/goldfish that build the context prime. A consolidation draft
+# must not be shaped by whatever the prime pair happens to be doing, and the prime pair must not inherit
+# a summariser's habits.
+#
+# WHY HERMES AND NOT `pi`: measured 2026-11-20, `pi` timed out on consolidation payloads at 90s, 200s
+# and 300s — 6 of 6 chunks failed for `.agents/tasks`, so the whole folder produced nothing — while the
+# same payload through hermes answered in 27s at 20K chars and 66s at 40K. `pi` is kept as the fallback
+# so a host without hermes still consolidates, degraded and reported as such.
+CONSOLIDATE_DRAFTER_PROFILE = "consolidate-elephant"
+CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"
+HERMES_BINARY_ENV = "AINISH_HERMES_BIN"
+HERMES_TIMEOUT_DEFAULT = 300.0
+
+
+def hermes_available() -> Optional[str]:
+    pinned = (_env_nonempty(HERMES_BINARY_ENV) or "").strip()
+    if pinned and Path(pinned).is_file():
+        return pinned
+    return shutil.which("hermes")
+
+
+def hermes_profile_call(
+    profile: str,
+    prompt: str,
+    *,
+    timeout: Optional[float] = None,
+    fallback_role: Optional[str] = None,
+    system_prompt: str = "",
+) -> Dict[str, Any]:
+    """One shot through a hermes profile. Never raises, like `pi_agent_call`.
+
+    `hermes -z` takes the prompt as a single argv value and has no system-prompt flag, so a system
+    prompt is prepended into the same text rather than silently dropped.
+    """
+    out: Dict[str, Any] = {"text": "", "source": None, "profile": profile, "transport": None, "error": None}
+    binary = hermes_available()
+    if not binary:
+        out["error"] = f"hermes not found (set {HERMES_BINARY_ENV} or install hermes)"
+        return out
+    text = f"{system_prompt.strip()}\n\n{prompt}" if system_prompt.strip() else prompt
+    seconds = float(timeout if timeout is not None else (_env_nonempty("AINISH_HERMES_TIMEOUT") or HERMES_TIMEOUT_DEFAULT))
+    argv = [binary, "-z", text, "--profile", profile]
+    try:
+        res = subprocess.run(argv, capture_output=True, text=True, timeout=seconds,
+                             stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        out["error"] = f"hermes timed out after {seconds:.0f}s (profile {profile})"
+        return out
+    except (OSError, subprocess.SubprocessError) as exc:
+        out["error"] = f"hermes failed to run: {str(exc)[:120]}"
+        return out
+    if res.returncode != 0:
+        out["error"] = f"hermes exited {res.returncode}: {((res.stderr or '').strip().splitlines() or ['no output'])[0][:160]}"
+        return out
+    body = (res.stdout or "").strip()
+    if not body:
+        out["error"] = "hermes returned no output"
+        return out
+    out.update({"text": body, "source": f"hermes:{profile}", "transport": "hermes"})
+    return out
+
+
+def consolidation_call(
+    profile: str,
+    prompt: str,
+    *,
+    fallback_role: str,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """The consolidation pair's transport: hermes profile first, `pi` role second.
+
+    The fallback is reported, never silent — a run served by `pi` is a run that may be slower and flakier,
+    and the operator should see which one happened.
+    """
+    reply = hermes_profile_call(profile, prompt, timeout=timeout)
+    if reply.get("text"):
+        return reply
+    fallback = pi_agent_call(role=fallback_role, model=_pi_role_model(fallback_role),
+                             system_prompt="", user_prompt=prompt, timeout=timeout)
+    text = str((fallback or {}).get("text") or "").strip()
+    if text:
+        return {
+            "text": text,
+            "source": f"{fallback.get('source')}:fallback({profile})",
+            "profile": profile,
+            "transport": "pi-fallback",
+            "error": None,
+        }
+    reply["error"] = (
+        f"{reply.get('error') or 'hermes produced nothing'}; "
+        f"pi fallback also failed ({fallback.get('error') or 'no output'})"
+    )
+    return reply
+
+
 def pi_available() -> Optional[str]:
     """The pi binary path, or None. Cached per process: a missing binary will not appear mid-run."""
     global _PI_BINARY
@@ -6010,99 +6107,159 @@ def _digest_is_usable(body: str) -> Tuple[bool, str]:
 
 
 def _digest_in_chunks(
-    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 5, timeout: float = 150.0
+    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 10, timeout: float = 300.0
 ) -> Tuple[str, List[str], List[str]]:
-    """Summarise a period in fixed-size chunks, then merge the partial digests.
+    """Draft a period through the consolidation pair, then merge — each step GATED.
 
-    WHY CHUNKS: one call over a whole period intermittently hangs this local model — measured
-    2026-11-20, a 44,606-char prompt timed out at 90s, 200s, and 300s across repeated attempts, while
-    the SAME payload with a shorter instruction answered in 5s and a 12,312-char prompt answered in
-    12s. The failure is prompt size × instruction complexity, and it is intermittent, so it cannot be
-    tuned away; it has to be bounded.
+    THE PAIR IS ITS OWN: `consolidate-elephant` drafts and `consolidate-goldfish` checks, as separate
+    hermes profiles with separate descriptions and skills. They are not the elephant/goldfish that build
+    the context prime, so a summariser's habits cannot leak into the prime and the prime's session
+    context cannot leak into a digest.
 
-    5 records per call is the measured-safe size. Partial digests are merged by a final call, which
-    sees only the summaries rather than the records, so it stays comfortably small.
+    THE GATE BLOCKS. A draft that the reviewer fails is retried ONCE with the reviewer's named gap; a
+    second failure abandons the period and leaves every source in place. Nothing is written or removed on
+    an unverified draft — the first real run of this feature deleted 16 files for a one-line preamble.
 
-    Returns `(digest_body, errors)`. An empty body means nothing usable came back and NOTHING should
-    be removed.
+    SIZE: chunk = 10 records, not 5. Measured 2026-11-20: hermes handled 39,710 chars in 66s where `pi`
+    timed out at 300s, so the smaller chunk was compensating for the wrong transport. Fewer, larger
+    chunks also mean fewer chances for one call to fail the period.
+
+    Returns `(digest_body, errors, covered)`; an empty body means nothing usable and NOTHING is removed.
     """
     errors: List[str] = []
     partials: List[str] = []
     covered: List[str] = []
+    total = max(1, (len(payload) + chunk - 1) // chunk)
+
     for i in range(0, len(payload), max(1, chunk)):
         batch = payload[i:i + max(1, chunk)]
+        index = i // chunk + 1
+        gap = ""
         text = ""
-        # One retry per chunk, for the same intermittent-hang reason the merge retries.
         for attempt in (1, 2):
-            reply = pi_agent_call(
-                role="elephant",
-                model=_pi_role_model("elephant"),
-                system_prompt=(
-                    "You are a summarizer, not an agent. You have NO tools and NO repository access, "
-                    "and there is nothing to look up: the records are reproduced in the message. "
-                    "Answer with the digest body only. Do not announce a plan and do not call anything."
-                ),
-                user_prompt=_digest_prompt(folder, period, batch),
-                timeout=timeout if attempt == 1 else 120.0,
+            prompt = _digest_prompt(folder, period, batch)
+            if gap:
+                prompt += (
+                    f"\n\nA reviewer previously failed a draft of THESE records with this gap:\n"
+                    f"{gap}\nAddress it specifically; do not change anything else.\n"
+                )
+            draft = consolidation_call(
+                CONSOLIDATE_DRAFTER_PROFILE, prompt,
+                fallback_role="elephant", timeout=timeout,
             )
-            text = str((reply or {}).get("text") or "").strip()
-            usable, why = _digest_is_usable(text)
-            if usable:
+            candidate = str((draft or {}).get("text") or "").strip()
+            usable, why = _digest_is_usable(candidate)
+            if not usable:
+                gap = f"{why or (draft or {}).get('error') or 'no output'}"
+                if attempt == 2:
+                    errors.append(f"chunk {index}/{total} not drafted twice: {gap}")
+                continue
+            review = consolidation_call(
+                CONSOLIDATE_REVIEWER_PROFILE,
+                _digest_review_prompt(folder, period, batch, candidate),
+                fallback_role="goldfish", timeout=timeout,
+            )
+            passed, gap = _parse_digest_verdict(str((review or {}).get("text") or ""))
+            if passed:
+                text = candidate
                 break
             if attempt == 2:
-                errors.append(
-                    f"chunk {i // chunk + 1} failed twice: "
-                    f"{why or (reply or {}).get('error') or 'no output'}"
-                )
-                text = ""
+                errors.append(f"chunk {index}/{total} failed review twice: {gap}")
         if text:
             partials.append(text)
-            # Recorded ONLY when a chunk produced something usable: a file that was never summarised
-            # must never be removed, or the digest would silently stand in for records it never saw.
+            # Recorded ONLY when a chunk was drafted AND passed review. A record whose chunk was never
+            # verified must never be removed: the digest would stand in for records it never covered.
             covered.extend(name for name, _ in batch)
 
     if not partials:
-        return "", errors or ["no chunk produced a usable digest"], []
+        return "", errors or ["no chunk produced a verified digest"], []
     if len(partials) == 1:
         return partials[0], errors, covered
 
-    # Merge. The merge call sees summaries, not records, so it is small by construction.
+    # Merge, gated the same way. The merge sees summaries rather than records, so it is small.
     merge_prompt = (
         f"# MERGE {len(partials)} PARTIAL DIGESTS of `.agents/{folder}`, {period}\n\n"
         + "\n\n---\n\n".join(f"## PARTIAL {i + 1}\n{p}" for i, p in enumerate(partials))
-        + "\n\n---\n\n# END OF PARTIALS\n\nNow answer with the merged digest only.\n"
+        + "\n\n---\n\n# END OF PARTIALS\n\nNow answer with the merged digest only: four `## ` sections "
+          "(Accomplished, Unfinished, Insights, Recurring).\n"
     )
-    merge_system = (
-        "You are merging partial digests of one period into a single digest. Answer with the "
-        "merged digest only: four `## ` sections (Accomplished, Unfinished, Insights, Recurring). "
-        "Combine duplicates instead of repeating them; keep every concrete fact. Do not describe "
-        "what you are about to do."
-    )
-    # Retried, because the hang is INTERMITTENT (measured: the same call succeeded at 5s and failed at
-    # 200s). One retry converts a coin-flip into a reliable step; a second failure falls back.
+    merge_gap = ""
     for attempt in (1, 2):
-        merged = pi_agent_call(
-            role="elephant", model=_pi_role_model("elephant"),
-            system_prompt=merge_system, user_prompt=merge_prompt,
-            timeout=timeout if attempt == 1 else 120.0,
+        prompt = merge_prompt if not merge_gap else merge_prompt + f"\nA reviewer failed the last merge: {merge_gap}\n"
+        merged = consolidation_call(
+            CONSOLIDATE_DRAFTER_PROFILE, prompt, fallback_role="elephant", timeout=timeout,
         )
         merged_text = str((merged or {}).get("text") or "").strip()
         usable, why = _digest_is_usable(merged_text)
-        if usable:
+        if not usable:
+            merge_gap = f"{why or (merged or {}).get('error') or 'no output'}"
+            if attempt == 2:
+                errors.append(f"merge not drafted twice: {merge_gap}")
+            continue
+        review = consolidation_call(
+            CONSOLIDATE_REVIEWER_PROFILE,
+            _digest_review_prompt(folder, period, payload[:10], merged_text),
+            fallback_role="goldfish", timeout=timeout,
+        )
+        passed, merge_gap = _parse_digest_verdict(str((review or {}).get("text") or ""))
+        if passed:
             return merged_text, errors, covered
         if attempt == 2:
-            errors.append(
-                f"merge failed after 2 attempts ({why or (merged or {}).get('error') or 'no output'})"
-            )
-    # A failed merge is not a reason to lose the work: the partial digests ARE faithful summaries of
-    # their own records, so they are kept under one heading rather than discarded. The digest then
-    # reads as a series of batches, which is worse prose and equally true.
+            errors.append(f"merge failed review twice: {merge_gap}")
+
+    # A merge that could not be verified is NOT written over the sources. The partials stay as the
+    # digest ONLY if every one of them passed its own review — which they did to get here — so this is
+    # a faithful, if less polished, replacement rather than an unverified one.
     return (
         "## Partial digests\n\n"
-        f"The merge step did not complete, so these {len(partials)} partial digests are kept as written. "
-        "Each covers a different batch of the records named above.\n\n"
-        + "\n\n---\n\n".join(p for p in partials)
+        f"The merge step did not pass review, so these {len(partials)} verified partial digests are kept "
+        "as written. Each covers a different batch of the records named above.\n\n"
+        + "\n\n---\n\n".join(partials)
     ), errors, covered
+
+
+def _digest_review_prompt(folder: str, period: str, sources: List[Tuple[str, str]], draft: str) -> str:
+    """The reviewer's whole input: the sources, the draft, and an explicit verdict format.
+
+    A verdict PREFIX is required because the gate has to be code (contract rule 6: decisions live in
+    code). Prose judgement cannot gate; `VERDICT: pass|fail` plus one named gap can.
+    """
+    parts = [
+        f"# REVIEW a consolidation digest for `.agents/{folder}`, {period}\n\n",
+        "You are checking another agent's work before it REPLACES the records below. The draft will be\n",
+        "written as the only copy of this period; the originals are then removed. Nothing else will read\n",
+        "them again except git archaeology.\n\n",
+        "Answer in exactly this shape, nothing before it:\n\n",
+        "VERDICT: pass|fail\n",
+        "GAP: <the single most important thing the draft omits or misstates, or 'none'>\n\n",
+        "Fail when a concrete fact, decision, or unfinished thread in the sources is missing from the\n",
+        "draft, or when the draft asserts something the sources do not support. Do not fail for style.\n",
+    ]
+    for name, body in sources:
+        parts.append(f"\n## SOURCE: {name}\n{body[:6000]}\n")
+    parts.append("\n---\n\n## THE DRAFT UNDER REVIEW\n" + draft[:12000] + "\n\n---\n\nNow answer with VERDICT and GAP only.\n")
+    return "".join(parts)
+
+
+def _parse_digest_verdict(text: str) -> Tuple[bool, str]:
+    """`(passed, gap)` from a reviewer reply. Anything unparseable is a FAIL.
+
+    Fail closed: a reviewer whose output cannot be read has not approved anything, and treating an
+    unreadable verdict as approval is how a bad digest replaces good records.
+    """
+    body = (text or "").strip()
+    if not body:
+        return False, "reviewer produced nothing"
+    m = re.search(r"VERDICT:\s*(pass|fail)\b", body, re.I)
+    if not m:
+        return False, f"reviewer gave no parseable verdict (first 120 chars: {body[:120]!r})"
+    gap = ""
+    g = re.search(r"GAP:\s*(.+)", body, re.I)
+    if g:
+        gap = g.group(1).strip().splitlines()[0][:300]
+    if m.group(1).lower() == "pass":
+        return True, ""
+    return False, gap or "reviewer failed the draft without naming a gap"
 
 
 def _render_digest(folder: str, period: str, sources: List[str], body: str) -> str:
@@ -6214,31 +6371,11 @@ def run_context_consolidate(
                 # The digest names exactly the records it covers — not every candidate — so its
                 # `sources:` list stays a true account of what it replaces.
                 files = [f for f in files if f in covered]
-                # The reviewer sees the draft and the sources — but the sources are BOUNDED, because the
-                # same 40K-character prompt that hangs the digest call hangs this one. A reviewer that
-                # times out is a lost review, not a blocked consolidation; it is reported as absent.
-                review_payload = payload[:5]
-                review = pi_agent_call(
-                    role="goldfish",
-                    model=_pi_role_model("goldfish"),
-                    system_prompt=(
-                        "You are a reviewer, not an agent. You have NO tools and nothing to look up; "
-                        "the sources and the digest draft are both in the message below.\n\n"
-                        "Name anything in the sources that the digest omits and a future reader would "
-                        "miss, and anything the digest asserts that the sources do not support. Be "
-                        "brief and specific. If the digest is faithful, say so in one line. Do not "
-                        "announce what you are about to do — just give the review."
-                    ),
-                    user_prompt=(
-                        _digest_prompt(name, per, review_payload)
-                        + "\n\n## THE DIGEST DRAFT\n" + body[:8000]
-                    ),
-                    timeout=150.0,
-                )
-                review_text = str((review or {}).get("text") or "").strip()
+                # The review ALREADY HAPPENED, per chunk and per merge, inside `_digest_in_chunks` — and
+                # it BLOCKED. Re-reviewing here would be a second, weaker opinion on work the pair has
+                # passed, and the old advisory version here was what let a timed-out review still write a
+                # digest. The gate is upstream; this only renders what survived it.
                 rendered = _render_digest(name, per, files, body)
-                if review_text:
-                    rendered += "\n## Review\n\n" + review_text + "\n"
                 written = False
                 try:
                     digest.write_text(rendered, encoding="utf-8")
@@ -8214,13 +8351,24 @@ def _memory_files(directory: Path) -> List[Path]:
 
 
 def _task_files(directory: Path) -> List[Path]:
-    """Task records, both schemes, newest first."""
-    return _coordination_files(directory, "-task.md", ".md")
+    """Task records, both schemes, newest first.
+
+    `DIGEST-*` is excluded: a consolidation digest is a summary OF records, not a record with a status
+    or a branch, and reporting one as "the newest task record" made the prime describe work that had
+    already been consolidated instead of the work in flight.
+    """
+    return [p for p in _coordination_files(directory, "-task.md", ".md")
+            if not p.name.startswith(CONSOLIDATION_DIGEST_PREFIX)]
 
 
 def _plan_files(directory: Path) -> List[Path]:
-    """Plans of record, both schemes, newest first. `llms.txt` is the index, not a plan."""
-    return _coordination_files(directory, ".md", exclude=("llms.txt",))
+    """Plans of record, both schemes, newest first.
+
+    `llms.txt` is the index and `DIGEST-*` is a consolidation summary; neither carries a plan's
+    `status:` field, so including them made orientation invent one (`status: designing`).
+    """
+    return [p for p in _coordination_files(directory, ".md", exclude=("llms.txt",))
+            if not p.name.startswith(CONSOLIDATION_DIGEST_PREFIX)]
 
 
 def _comms_files(directory: Path) -> List[Path]:
