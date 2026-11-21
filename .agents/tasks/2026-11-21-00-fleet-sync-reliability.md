@@ -14,7 +14,7 @@ was too narrow: the watcher has several independent defects and is now net-negat
 | Finding | Value |
 |---|---|
 | watcher successes / failures | **45 ok vs 79 failed** in `watch.log` |
-| one bad repo starves the rest | `local-router` retried attempts 51–55 while `goal-first-trillion` went unsynced from 00:10 |
+| one repo never converges | `local-router` failed every attempt through #56; `goal-first-trillion` still synced, but late and irregularly (00:33:45, 00:34:09, 00:35:19) |
 | watcher is not running current code | fix `c105a35` merged 16:45, watcher started 16:46, yet pre-fix error still appears |
 | `--auto-commit` committed a half-written file | skill landed as `01c379c wip(Mac): synced by --auto-commit` mid-authoring |
 | `--auto-commit` holds the index lock | `Unable to create '.git/index.lock': File exists` during a manual commit |

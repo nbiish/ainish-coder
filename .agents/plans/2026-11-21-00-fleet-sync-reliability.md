@@ -28,10 +28,12 @@ Every fact below was verified in this session, from the log, the source, or a li
 
 - **The watcher is losing far more than it wins.** `~/.config/ainish-coder/watch.log` holds
   **45** `Z ok:` lines and **79** `Z failed:` lines — established from `grep -c`.
-- **One failing repo starves the rest.** the `local-router` checkout has been
-  retrying continuously (attempts 51–55 within 11 minutes). During that window
-  the `goal-first-trillion` checkout was **not synced at all** — its last
-  success is `2026-11-21T00:10:09Z` — established from the log timeline.
+- **One permanently-failing repo never converges and burns the loop.** the `local-router`
+  checkout has failed on every attempt up to #56. It does **not** fully block other repos — the
+  `goal-first-trillion` checkout did sync between router failures (00:33:45, 00:34:09, 00:35:19) —
+  but those other repos are synced late and irregularly because each router attempt runs a full
+  timeout-and-backoff before the loop moves on. Established from the log timeline; corrects an
+  earlier, stronger claim that other repos were "not synced at all".
 - **The same repo succeeds when run by hand.** A manual
   `ainish-coder --machine-sync --kind windows --both --ff-peers` in `local-router` completed without
   a fetch error (only `smoke: … unverified`), so the repo and the peer are fine; the failure is in
