@@ -2,8 +2,11 @@
 // Renders the aiRPC manifest as tldraw blocks with per-block prompt inputs;
 // Enter sends the call (repo + block identity + prompt) to the bridge; the
 // side panel is the chat feed across repos and queries, with a query bar and
-// a Stop button that shuts the bridge down. Build against your scaffold's
-// installed tldraw if the ShapeUtil surface drifts.
+// a Stop button that shuts the bridge down. Built and browser-verified against
+// tldraw 5.6.2 (v5 ShapeUtil contract: getGeometry, component, and
+// getIndicatorPath returning a Path2D — indicator() is a deprecated stub).
+// Re-check the ShapeUtil surface against your scaffold's installed tldraw if
+// it drifts.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
 	Editor,
@@ -118,8 +121,11 @@ class AiRpcBlockShapeUtil extends ShapeUtil<AiRpcBlockShape> {
 		)
 	}
 
-	indicator(shape: AiRpcBlockShape) {
-		return <rect width={shape.props.w} height={shape.props.h} rx={8} />
+	getIndicatorPath(shape: AiRpcBlockShape): Path2D {
+		// tldraw v5 indicator API: a Path2D, not JSX (indicator() is a deprecated stub)
+		const path = new Path2D()
+		path.rect(0, 0, shape.props.w, shape.props.h)
+		return path
 	}
 }
 
