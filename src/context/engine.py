@@ -6147,12 +6147,17 @@ def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> 
         f"# CONSOLIDATE `.agents/{folder}`, period {period}\n",
         f"{len(sources)} record(s) from this period. They are reproduced in full below.\n",
         "Write ONE digest that a future agent can read instead of these files. Keep:\n",
-        "- **Accomplished** — what actually landed, with enough specifics to be checkable.\n",
-        "- **Unfinished** — started but not done, and why it stopped.\n",
+        "- **Accomplished** — what actually LANDED. Only work the sources record as done, merged, verified "
+        "or observed working. A requirement written as \"must\" or \"should\", a plan, a proposal, or a "
+        "lesson is NOT an accomplishment — it belongs in Unfinished or Insights.\n",
+        "- **Unfinished** — started but not done, and why it stopped. Include work that is only a "
+        "requirement so far.\n",
         "- **Insights** — what was learned that is not obvious from the code.\n",
         "- **Recurring** — the same problem or lesson appearing more than once.\n",
         "Cite the source filename for anything specific. Do not invent; if a section has nothing, say "
         "so plainly. This digest REPLACES the files, so omitting a fact loses it unless it is in git.\n",
+        "The most common way this goes wrong is calling a plan an accomplishment. A reviewer will fail "
+        "the digest for it, so read what each source records as DONE before writing the first section.\n",
     ]
     for name, body in sources:
         parts.append(f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n")
@@ -6277,12 +6282,15 @@ def _digest_in_chunks(
     errors: List[str] = []
     partials: List[str] = []
     covered: List[str] = []
-    total = max(1, (len(payload) + chunk - 1) // chunk)
 
-    # A batch is sized by CHARACTERS as well as count: five 20K records and five 1K records are not the
-    # same job, and the count alone was chosen when prompts were smaller. 40K chars is the measured size
-    # hermes handled in 66s; staying well under it keeps the four-call panel inside its timeout.
-    chunk = min(max(1, chunk), max(1, CONSOLIDATE_BATCH_CHARS // max(1, CONSOLIDATE_SOURCE_CHARS)))
+    # A batch is sized by CHARACTERS as well as count: six 20K records and six 1K records are not the
+    # same job, and the count alone was chosen when prompts were smaller. The character cap is applied to
+    # the ACTUAL payload here — the old order computed `total` from the caller's chunk before this ran,
+    # which is why error messages read "chunk 2/1".
+    if payload:
+        avg = max(1, sum(len(b) for _, b in payload) // len(payload))
+        chunk = min(max(1, chunk), max(1, CONSOLIDATE_BATCH_CHARS // avg))
+    total = max(1, (len(payload) + max(1, chunk) - 1) // max(1, chunk))
     for i in range(0, len(payload), max(1, chunk)):
         batch = payload[i:i + max(1, chunk)]
         index = i // chunk + 1
