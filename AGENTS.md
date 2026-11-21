@@ -24,12 +24,12 @@ ainish-coder --context "<user request, verbatim, or this step's concrete context
 Pass the request as given, or mid-task the concrete step (file, error, goal). The block holds the rules
 you are bound by and the parts of the repository record that bear on the request. Beyond that, read
 `.agents/` directly: `tasks/` for what is in flight, `plans/` for the plan of record, `comms/` for the
-daily ledger, `memories/` for scrubbed durable facts, `suggestions/` for findings awaiting work, and
-`wiki/` for the architecture. `.agents/llms.txt` maps the whole tree if you need more.
+daily ledger, `memories/` for scrubbed durable facts, `suggestions/` for findings awaiting work, `jobs/`
+for recurring automation, and `wiki/` for the architecture. `.agents/llms.txt` maps the whole tree.
 
-**This one command is the whole context system.** Never call a second command to prime yourself; the
-system keeps its own tuning from this repository's history, and that is not something to manage by hand.
-
+**This one command is the whole context system.** Never call a second command to prime yourself. It
+consolidates old records into dated digests and tunes its own retrieval from this repository's history,
+in the background, after answering; do not pre-summarise a record, write it and consolidation keeps it.
 **The reviewer must not be the drafter.** A pinned reviewer colliding with the drafter is *refused*,
 not run; a same-model reviewer in a fresh `--no-session` context runs with its verdict marked
 **provisional** (shared weights, shared blind spots). `--allow-self-review` records that downgrade.
@@ -128,8 +128,7 @@ every commit accounted for, a diffstat matching the task record), then remove it
 - Mark the task record done or blocked, with evidence; append lifecycle lines to the daily COMMS ledger
   and scrubbed facts to the daily memory file; leave the worktree clean.
 - Findings that outlive the task go to `.agents/suggestions/{date}-{HH}-{slug}.md`, one file per topic,
-  so the next context call retrieves them. Old records in these folders are consolidated into dated
-  digests, so write the record; do not pre-summarise it.
+  so the next context call retrieves them; consolidation digests old records rather than losing them.
 
 ## Where everything else lives
 

@@ -895,6 +895,22 @@ RAG_HELP_SRC="$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/con
 contains "rag help teaches the machine-link setup command" "$RAG_HELP_SRC" 'machine-link'
 contains "rag help teaches the newest-copy query" "$RAG_HELP_SRC" 'machine-sync DIR --latest'
 contains "rag help says how to check the background watcher" "$RAG_HELP_SRC" 'machine-watch --status'
+
+# ── the sync watcher must not lie, and must not author as the operator ──────
+# Measured 2026-11-21: the watcher log held 50 `Z ok:` against 96 `Z failed:`, while watch.state
+# reported `failed=0` — a reader could not tell a clean cycle from one that never completed. And
+# `--auto-commit` used the operator's configured identity, which AGENTS.md rule 4 forbids.
+MW="${REPO}/src/machine_watch.sh"
+MS="${REPO}/src/machine_sync.sh"
+contains "watch.state is written atomically" "$(cat "$MW")" 'mv "$tmp" "$_MW_STATE_FILE"'
+contains "watch.state records when the process started" "$(cat "$MW")" '_MW_STARTED_AT'
+check "startup state does not claim a clean cycle" \
+    "$(grep -c 'no cycle has completed yet' "$MW")" "1"
+contains "auto-commit authors as the machine" "$(cat "$MS")" 'Nanoboozhoo - embodied by ${_ac_machine}'
+contains "auto-commit passes an explicit identity" "$(cat "$MS")" '-c "user.name=${_ac_name}"'
+# A status reader must be able to see the note, or a startup state still reads as a clean cycle.
+check "the status reader surfaces the state note" \
+    "$(grep -c 'note=\"\$(sed -n .s/\^note=//p.' "$MW")" "1"
 contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{HH}-{slug}.md'
 check "AGENTS.md stays within the 160-line gate" \
     "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 160 ]] && echo yes || echo no)" "yes"
@@ -1530,8 +1546,17 @@ spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 print("yes" if m.LEARN_MIN_INTERVAL_S > 0 and m.LEARN_MIN_NEW_COMMITS > 0 else "no")' "$CH_MOD" 2>/dev/null)" \
     "yes"
-check "the spawned child cannot pollute the prime" \
-    "$(grep -c '"stdout": subprocess.DEVNULL' "${REPO}/src/context/engine.py")" "1"
+# Every background pass silences its own stdout, because the caller's stdout IS the prime. There are
+# two passes now (consolidate + learn), so this asserts that each spawn site does it — a count of one
+# was pinning the number of passes rather than the property.
+check "every spawned child silences its stdout" \
+    "$(python3 -c '
+import re, sys
+src = open(sys.argv[1]).read()
+spawns = src.count("subprocess.Popen(argv")
+devnull = src.count("\"stdout\": subprocess.DEVNULL")
+print("yes" if spawns and devnull >= spawns else f"no ({devnull}/{spawns})")' "${REPO}/src/context/engine.py")" \
+    "yes"
 check "a failed background pass still records its attempt" \
     "$(grep -c 'context_harness.record_autolearn(' "${REPO}/src/context/engine.py")" "2"
 contains "no evidence means no learning pass" "$(cat "${REPO}/src/context/engine.py")" 'no retrieved evidence to learn from'
