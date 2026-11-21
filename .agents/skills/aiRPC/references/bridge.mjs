@@ -2,24 +2,35 @@
 // aiRPC bridge v1 — zero-dependency transport between the tldraw canvas and one waiting agent.
 // Requires Node >= 22 (Promise.withResolvers).
 //
-//   node bridge.mjs serve   [--port 7331] [--session main]
-//   node bridge.mjs project --manifest manifest.json [--session main] [--url URL]
+//   node bridge.mjs serve   [--port 7331] [--session main] [--app DIR]
+//   node bridge.mjs project (--manifest FILE | --from name=path)... [--session main] [--url URL]
 //   node bridge.mjs wait    [--session main] [--by ISO] [--url URL]
-//   node bridge.mjs ack     --file ack.json [--session main] [--url URL]
+//   node bridge.mjs ack     --file FILE [--session main] [--url URL]
+//   node bridge.mjs stop    [--session main]
+//   node bridge.mjs status  [--session main]
 //
-// Exit codes: 0 = one event printed on stdout (wait), 2 = --by deadline expired (wait),
-// 1 = hard error. State: $AIRPC_HOME/<session>/{manifest.json,inbox.jsonl,log.jsonl,consumer.lock}.
-// Security: binds 127.0.0.1 only, checks Host/Origin, writes only under $AIRPC_HOME.
+// Exit codes: 0 = success (wait: one event printed on stdout), 2 = --by deadline expired (wait),
+// 1 = hard error. State: $AIRPC_HOME/<session>/{manifest.json,inbox.jsonl,log.jsonl,consumer.lock,
+// serve.pid}. State survives restarts: stop the server, start it again, keep adding to the session.
+// Security: binds 127.0.0.1 only, checks Host/Origin, writes only under $AIRPC_HOME, serves static
+// files only from --app with path traversal rejected.
 import { createServer } from 'node:http'
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync,
+  rmSync, statSync, writeFileSync,
+} from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { createHash, randomUUID } from 'node:crypto'
+import { execSync } from 'node:child_process'
 
 const HOME = process.env.AIRPC_HOME || join(homedir(), '.airpc')
 const DEFAULT_URL = 'http://127.0.0.1:7331'
 const VERSION = 1
 const LONGPOLL_MS = 25_000
+const BODY_CAP = 4000
+const FILE_CAP = 200_000
+const FOLDER_CAP = 6
 
 // ---------- args / primitives ----------
 
@@ -30,7 +41,8 @@ function parseArgs(argv) {
     if (!a.startsWith('--')) { out._.push(a); continue }
     const k = a.slice(2)
     const v = argv[i + 1]
-    if (v !== undefined && !v.startsWith('--')) { out[k] = v; i++ } else out[k] = true
+    const val = v !== undefined && !v.startsWith('--') ? (i++, v) : true
+    out[k] = k in out ? [].concat(out[k], val) : val
   }
   return out
 }
@@ -44,16 +56,14 @@ function hashHex(s) {
   return createHash('sha256').update(s).digest('hex')
 }
 
-export function blockId(path, anchor) {
-  return `blk-${hashHex(`${path}#${anchor}`).slice(0, 12)}`
+export function blockId(repo, path, anchor) {
+  return `blk-${hashHex(`${repo}:${path}#${anchor}`).slice(0, 12)}`
 }
-export function bodyDigest(path, body) {
-  return hashHex(`${path}\u0000${body}`).slice(0, 12)
+export function bodyDigest(repo, path, body) {
+  return hashHex(`${repo}\u0000${path}\u0000${body}`).slice(0, 12)
 }
 
-function sessionDir(session) {
-  return join(HOME, session)
-}
+function sessionDir(session) { return join(HOME, session) }
 function ensureSession(session) {
   mkdirSync(sessionDir(session), { recursive: true })
   return sessionDir(session)
@@ -64,9 +74,7 @@ function readJsonl(file) {
     try { return JSON.parse(line) } catch { die(`malformed JSON at ${file}:${i + 1} (fail closed)`) }
   })
 }
-function appendJsonl(file, obj) {
-  appendFileSync(file, JSON.stringify(obj) + '\n')
-}
+function appendJsonl(file, obj) { appendFileSync(file, JSON.stringify(obj) + '\n') }
 function now() { return new Date().toISOString() }
 
 // ---------- payload validation (fail closed) ----------
@@ -74,14 +82,18 @@ function now() { return new Date().toISOString() }
 function isSafeRelPath(p) {
   return typeof p === 'string' && p.length > 0 && !p.startsWith('/') && !p.split('/').includes('..')
 }
+function isRepoName(r) {
+  return typeof r === 'string' && /^[A-Za-z0-9._-]+$/.test(r)
+}
 function validateBlock(b) {
   if (!b || typeof b !== 'object') return 'block: not an object'
-  for (const k of ['id', 'path', 'anchor', 'title', 'kind', 'digest', 'body']) {
+  for (const k of ['id', 'repo', 'path', 'anchor', 'title', 'kind', 'digest', 'body']) {
     if (typeof b[k] !== 'string') return `block: ${k} must be a string`
   }
+  if (!isRepoName(b.repo)) return 'block: bad repo name'
   if (!isSafeRelPath(b.path)) return 'block: unsafe path'
-  if (b.id !== blockId(b.path, b.anchor)) return 'block: id mismatch'
-  if (b.digest !== bodyDigest(b.path, b.body)) return 'block: digest mismatch'
+  if (b.id !== blockId(b.repo, b.path, b.anchor)) return 'block: id mismatch'
+  if (b.digest !== bodyDigest(b.repo, b.path, b.body)) return 'block: digest mismatch'
   if (!Number.isInteger(b.lane) || b.lane < 0) return 'block: lane must be a non-negative integer'
   if (b.links !== undefined && !Array.isArray(b.links)) return 'block: links must be an array'
   return null
@@ -105,27 +117,126 @@ function validateManifest(m, session) {
 }
 function validateCall(c, session) {
   if (!c || typeof c !== 'object') return 'call: not an object'
-  if (c.v !== VERSION || c.kind !== 'call') return 'call: unsupported version or kind'
+  if (c.v !== VERSION || (c.kind !== 'call' && c.kind !== 'query')) return 'call: unsupported version or kind'
   if (c.session !== undefined && c.session !== session) return 'call: session mismatch'
-  for (const k of ['block_id', 'path', 'anchor', 'digest', 'prompt']) {
+  if (typeof c.prompt !== 'string' || c.prompt.length === 0) return 'call: prompt must be a non-empty string'
+  if (c.kind === 'query') {
+    // a query has no record seat: no path, no block binding, no digest
+    if (c.path !== '' || c.block_id !== '' || c.digest !== '') return 'call: query must carry empty path/block_id/digest'
+    if (typeof c.anchor !== 'string' || c.anchor.length === 0) return 'call: query needs a title in anchor'
+    return null
+  }
+  for (const k of ['repo', 'block_id', 'path', 'anchor', 'digest']) {
     if (typeof c[k] !== 'string') return `call: ${k} must be a string`
   }
-  if (c.prompt.length === 0) return 'call: empty prompt'
+  if (!isRepoName(c.repo)) return 'call: bad repo name'
   if (!isSafeRelPath(c.path)) return 'call: unsafe path'
-  if (c.block_id !== blockId(c.path, c.anchor)) return 'call: block_id mismatch'
+  if (c.block_id !== blockId(c.repo, c.path, c.anchor)) return 'call: block_id mismatch'
   return null
 }
 function validateAck(a, session, inbox) {
   if (!a || typeof a !== 'object') return 'ack: not an object'
   if (a.v !== VERSION || a.kind !== 'ack') return 'ack: unsupported version or kind'
-  for (const k of ['call_id', 'block_id', 'status', 'summary']) {
+  for (const k of ['call_id', 'status', 'summary']) {
     if (typeof a[k] !== 'string') return `ack: ${k} must be a string`
   }
+  if (typeof a.block_id !== 'string') return 'ack: block_id must be a string'
   if (!['done', 'needs-you', 'stale', 'refused'].includes(a.status)) return 'ack: bad status'
-  if (a.status === 'done' && typeof a.new_digest !== 'string') return 'ack: done requires new_digest'
+  if (a.status === 'done' && a.block_id !== '' && typeof a.new_digest !== 'string') {
+    return 'ack: done on a call requires new_digest'
+  }
   if (a.note !== undefined && typeof a.note !== 'string') return 'ack: note must be a string'
-  if (!inbox.some((e) => e.kind === 'call' && e.id === a.call_id)) return 'ack: unknown call_id'
+  if (!inbox.some((e) => e.id === a.call_id && (e.kind === 'call' || e.kind === 'query'))) {
+    return 'ack: unknown call_id'
+  }
   return null
+}
+
+// ---------- projection scanner (project --from name=path) ----------
+// Reference implementation of the projection rules (protocol.md §2): split at `# `..`### `
+// headings, anchor = heading text (duplicates suffixed `~N` = Nth occurrence), body capped at
+// 4000 chars. Deterministic: re-running yields identical ids and digests — that is what makes
+// digest verification possible after an edit.
+
+const LANE_BASE = {
+  contract: 0, architecture: 1, docs: 2, wiki: 3, plan: 4, task: 5, comms: 6, memory: 7, suggestion: 8,
+}
+const FILES = [
+  ['AGENTS.md', 'contract'], ['README.md', 'docs'], ['llms.txt', 'architecture'],
+  ['.agents/llms.txt', 'architecture'],
+]
+const DIRS = [
+  ['.agents/wiki', 'wiki'], ['.agents/plans', 'plan'], ['.agents/tasks', 'task'],
+  ['.agents/comms', 'comms'], ['.agents/memories', 'memory'], ['.agents/suggestions', 'suggestion'],
+]
+
+export function splitSections(text) {
+  const lines = text.split('\n')
+  const sections = []
+  let current = null
+  let preamble = ''
+  for (const line of lines) {
+    const m = /^(#{1,3}) +(.+?)\s*$/.exec(line)
+    if (m) {
+      if (current) sections.push(current)
+      current = { anchor: m[2], body: line + '\n' }
+    } else if (current) {
+      current.body += line + '\n'
+    } else {
+      preamble += line + '\n'
+    }
+  }
+  if (current) sections.push(current)
+  // duplicate anchors: `text` then `text~2`, `text~3` (Nth occurrence)
+  const seen = new Map()
+  const out = []
+  const p = preamble.trim()
+  if (p) out.push({ anchor: '', body: p })
+  for (const s of sections) {
+    const n = (seen.get(s.anchor) ?? 0) + 1
+    seen.set(s.anchor, n)
+    out.push({ anchor: n === 1 ? s.anchor : `${s.anchor}~${n}`, body: s.body.replace(/\n+$/, '') })
+  }
+  return out.filter((s) => s.body.trim().length > 0)
+}
+
+export function scanRepo(name, root, repoIndex) {
+  const abs = resolve(root)
+  const blocks = []
+  const add = (rel, kind) => {
+    const file = join(abs, rel)
+    if (!existsSync(file)) return
+    let text
+    try { text = readFileSync(file, 'utf8') } catch { return }
+    if (text.length > FILE_CAP) return
+    for (const { anchor, body } of splitSections(text)) {
+      const capped = body.length > BODY_CAP ? body.slice(0, BODY_CAP) : body
+      blocks.push({
+        id: blockId(name, rel, anchor),
+        repo: name,
+        path: rel,
+        anchor,
+        title: anchor ? `${rel} › ${anchor}` : rel,
+        kind,
+        digest: bodyDigest(name, rel, capped),
+        lane: LANE_BASE[kind] + repoIndex * 9,
+        body: capped,
+        links: [],
+      })
+    }
+  }
+  for (const [rel, kind] of FILES) add(rel, kind)
+  for (const [dir, kind] of DIRS) {
+    const absDir = join(abs, dir)
+    if (!existsSync(absDir)) continue
+    const names = readdirSync(absDir)
+      .filter((n) => /\.(md|txt)$/.test(n))
+      .sort() // names are date-prefixed: ascending sort, take from the end = newest first
+      .slice(-FOLDER_CAP)
+      .reverse()
+    for (const n of names) add(`${dir}/${n}`, kind)
+  }
+  return blocks
 }
 
 // ---------- long-poll hub ----------
@@ -146,15 +257,47 @@ function hub() {
 
 // ---------- serve ----------
 
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2', '.map': 'application/json',
+}
+
 async function serve(args) {
   const port = Number(args.port ?? 7331)
   const session = String(args.session ?? 'main')
+  const allowedOrigins = new Set([].concat(args['allow-origin'] ?? []).map(String))
   const dir = ensureSession(session)
+  const appDir = args.app ? resolve(String(args.app)) : null
+  if (appDir && (!existsSync(appDir) || !statSync(appDir).isDirectory())) die(`serve: --app ${appDir} is not a directory`)
   const inboxHub = hub()
   const eventHub = hub()
 
   const readInbox = () => readJsonl(join(dir, 'inbox.jsonl'))
   const readLog = () => readJsonl(join(dir, 'log.jsonl'))
+
+  const pidFile = join(dir, 'serve.pid')
+  if (existsSync(pidFile)) {
+    try {
+      const prev = JSON.parse(readFileSync(pidFile, 'utf8'))
+      process.kill(prev.pid, 0)
+      die(`serve: session "${session}" already running (pid ${prev.pid}); stop it first`)
+    } catch { /* stale pid file */ }
+  }
+  writeFileSync(pidFile, JSON.stringify({ pid: process.pid, port, app: appDir, started: now() }))
+
+  let shuttingDown = false
+  const shutdown = (signal) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    try { rmSync(pidFile) } catch { /* already gone */ }
+    server.close(() => process.exit(0))
+    setTimeout(() => process.exit(0), 1000).unref()
+    if (signal) process.stderr.write(`airpc: session "${session}" stopped (${signal})\n`)
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('SIGINT', () => shutdown('SIGINT'))
 
   const server = createServer(async (req, res) => {
     const host = req.headers.host ?? ''
@@ -165,7 +308,7 @@ async function serve(args) {
       res.writeHead(403, { 'content-type': 'application/json' })
       return res.end(JSON.stringify({ error: 'host not allowed' }))
     }
-    if (origin !== undefined && origin !== `http://${self}` && origin !== `http://${selfAlt}`) {
+    if (origin !== undefined && origin !== `http://${self}` && origin !== `http://${selfAlt}` && !allowedOrigins.has(origin)) {
       res.writeHead(403, { 'content-type': 'application/json' })
       return res.end(JSON.stringify({ error: 'origin not allowed' }))
     }
@@ -186,6 +329,7 @@ async function serve(args) {
           session,
           manifest: existsSync(join(dir, 'manifest.json'))
             ? JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')) : null,
+          inbox: readInbox(),
           events: readLog(),
         })
       }
@@ -197,9 +341,9 @@ async function serve(args) {
         for (;;) {
           let rows = read().map((r, i) => ({ ...r, seq: i + 1 })).filter((r) => r.seq > after)
           if (!isEvents) {
-            // protocol: wait surfaces unacked calls; acked ones are settled
+            // wait surfaces unacked calls/queries and end events; acked ones are settled
             const acked = new Set(readLog().filter((e) => e.kind === 'ack').map((e) => e.call_id))
-            rows = rows.filter((r) => r.kind !== 'call' || !acked.has(r.id))
+            rows = rows.filter((r) => (r.kind !== 'call' && r.kind !== 'query') || !acked.has(r.id))
           }
           if (rows.length) return json(200, rows)
           if (Date.now() >= deadline) return json(200, [])
@@ -249,17 +393,34 @@ async function serve(args) {
         inboxHub.wake(); eventHub.wake()
         return json(202, { ok: true })
       }
+      if (req.method === 'POST' && url.pathname === '/shutdown') {
+        json(202, { ok: true })
+        setTimeout(() => shutdown('shutdown endpoint'), 50)
+        return
+      }
+      // static app (only with --app; path traversal rejected)
+      if (req.method === 'GET' && appDir) {
+        const rel = decodeURIComponent(url.pathname === '/' ? 'index.html' : url.pathname.slice(1))
+        if (rel.split('/').includes('..') || rel.includes('\0')) return json(404, { error: 'not found' })
+        const file = resolve(appDir, rel)
+        if (!file.startsWith(appDir)) return json(404, { error: 'not found' })
+        if (existsSync(file) && statSync(file).isFile()) {
+          res.writeHead(200, { 'content-type': MIME[rel.slice(rel.lastIndexOf('.'))] ?? 'application/octet-stream' })
+          return res.end(readFileSync(file))
+        }
+        return json(404, { error: 'not found' })
+      }
       return json(404, { error: 'unknown route' })
     } catch (e) {
       return json(500, { error: String(e?.message ?? e) })
     }
   })
   server.listen(port, '127.0.0.1', () => {
-    process.stdout.write(`airpc: serving session "${session}" on http://127.0.0.1:${port}\n`)
+    process.stdout.write(`airpc: serving session "${session}" on http://127.0.0.1:${port}${appDir ? ` (app: ${appDir})` : ''}\n`)
   })
 }
 
-// ---------- CLI clients (project / ack / wait) ----------
+// ---------- CLI clients (project / wait / ack / stop / status) ----------
 
 async function post(url, pathName, payload) {
   const res = await fetch(new URL(pathName, url), {
@@ -275,9 +436,27 @@ async function post(url, pathName, payload) {
 async function project(args) {
   const session = String(args.session ?? 'main')
   const url = String(args.url ?? DEFAULT_URL)
-  if (!args.manifest) die('project: --manifest FILE is required')
-  const manifest = JSON.parse(readFileSync(String(args.manifest), 'utf8'))
-  manifest.session = session
+  let manifest
+  if (args.manifest) {
+    manifest = JSON.parse(readFileSync(String(args.manifest), 'utf8'))
+    manifest.session = session
+  } else if (args.from) {
+    const froms = [].concat(args.from)
+    const blocks = []
+    for (let i = 0; i < froms.length; i++) {
+      const raw = String(froms[i])
+      const eq = raw.indexOf('=')
+      const name = eq > 0 ? raw.slice(0, eq) : ''
+      const root = eq > 0 ? raw.slice(eq + 1) : ''
+      if (!isRepoName(name) || !root) die(`project: --from name=path, got "${raw}"`)
+      const abs = resolve(root)
+      if (!existsSync(abs) || !statSync(abs).isDirectory()) die(`project: ${abs} is not a directory`)
+      blocks.push(...scanRepo(name, abs, i))
+    }
+    manifest = { v: VERSION, session, generated: now(), blocks }
+  } else {
+    die('project: --manifest FILE or --from name=path is required')
+  }
   const out = await post(url, '/project', manifest)
   process.stdout.write(JSON.stringify(out) + '\n')
 }
@@ -341,13 +520,66 @@ async function waitCmd(args) {
     }
     for (const row of rows) {
       after = Math.max(after, row.seq ?? after)
-      if (row.kind === 'call' || row.kind === 'end') {
+      if (row.kind === 'call' || row.kind === 'query' || row.kind === 'end') {
         process.stdout.write(JSON.stringify(row) + '\n')
         release()
         return
       }
     }
   }
+}
+
+function stopCmd(args) {
+  const session = String(args.session ?? 'main')
+  const pidFile = join(sessionDir(session), 'serve.pid')
+  if (!existsSync(pidFile)) {
+    process.stdout.write(`airpc: session "${session}" is not running\n`)
+    return
+  }
+  let rec
+  try { rec = JSON.parse(readFileSync(pidFile, 'utf8')) } catch { die('stop: malformed serve.pid') }
+  try { process.kill(rec.pid, 0) } catch {
+    rmSync(pidFile, { force: true })
+    process.stdout.write(`airpc: session "${session}" is not running (stale pid file removed)\n`)
+    return
+  }
+  // never signal a pid that is not this bridge (fail closed)
+  let cmdline = ''
+  try { cmdline = execSync(`ps -p ${rec.pid} -o command=`, { encoding: 'utf8' }) } catch { die('stop: cannot inspect pid') }
+  if (!cmdline.includes('bridge.mjs')) die(`stop: pid ${rec.pid} is not an aiRPC bridge; refusing to signal`)
+  process.kill(rec.pid, 'SIGTERM')
+  for (let i = 0; i < 50; i++) {
+    try { process.kill(rec.pid, 0) } catch {
+      rmSync(pidFile, { force: true })
+      process.stdout.write(`airpc: session "${session}" stopped (pid ${rec.pid})\n`)
+      return
+    }
+    execSync('sleep 0.1')
+  }
+  process.kill(rec.pid, 'SIGKILL')
+  rmSync(pidFile, { force: true })
+  process.stdout.write(`airpc: session "${session}" killed (pid ${rec.pid} ignored SIGTERM)\n`)
+}
+
+function statusCmd(args) {
+  const session = String(args.session ?? 'main')
+  const pidFile = join(sessionDir(session), 'serve.pid')
+  let running = false, rec = null
+  if (existsSync(pidFile)) {
+    try {
+      rec = JSON.parse(readFileSync(pidFile, 'utf8'))
+      process.kill(rec.pid, 0)
+      running = true
+    } catch { /* stale */ }
+  }
+  const dir = sessionDir(session)
+  process.stdout.write(JSON.stringify({
+    session, running, pid: rec?.pid ?? null, port: rec?.port ?? null, app: rec?.app ?? null,
+    state_dir: dir,
+    inbox: readJsonl(join(dir, 'inbox.jsonl')).length,
+    events: readJsonl(join(dir, 'log.jsonl')).length,
+    manifest: existsSync(join(dir, 'manifest.json')),
+  }) + '\n')
 }
 
 // ---------- entry ----------
@@ -360,5 +592,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   else if (command === 'project') await project(args)
   else if (command === 'ack') await ack(args)
   else if (command === 'wait') await waitCmd(args)
-  else die('usage: bridge.mjs serve|project|wait|ack [--session ID] [--url URL] [--port N] [--manifest F] [--file F] [--by ISO]')
+  else if (command === 'stop') stopCmd(args)
+  else if (command === 'status') statusCmd(args)
+  else die('usage: bridge.mjs serve|project|wait|ack|stop|status [--session ID] [--url URL] [--port N] [--app DIR] [--manifest F] [--file F] [--from name=path] [--by ISO]')
 }
