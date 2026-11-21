@@ -4,3 +4,8 @@
 - `/rpc/wait` filters acked calls server-side (at-least-once delivery: an unacked call reprints after a crash) — re-verify the digest before editing any re-delivered call.
 - The tldraw SDK needs a license key for production deployment of the canvas (tldraw.dev/pricing); development use is free.
 - `bunx` esbuild shim is broken on this host (pnpm global path missing); `npx --yes esbuild` works for TSX parse checks.
+15:25 UTC -- aiRPC lifecycle, cross-repo, queries, live demo (skill/airpc-lifecycle, skill/airpc-tldraw5)
+- tldraw 5.6.2 ShapeUtil contract: `getGeometry`, `component`, and `getIndicatorPath(shape): Path2D` are abstract; `indicator()` is a deprecated stub that is never rendered — a custom shape without `getIndicatorPath` crashes the render derivation.
+- aiRPC bridge lifecycle: `serve` is the only long-lived process; `stop`/`status` + `POST /shutdown` + `serve.pid`; `stop` verifies the pid is the bridge before signaling (ps argv check). State under `$AIRPC_HOME/<session>/` survives restarts; `wait` resumes at the next unacked call.
+- `git worktree remove` refuses worktrees of repos with submodules: it unregisters the worktree but leaves the directory ("failed to delete: Operation not permitted" on the flag-protected files). Contract files carry macOS `uchg` (user immutable) — `chflags nouchg` only on the task's own worktree copies, never the main checkout.
+- aiRPC query calls (`kind: "query"`, empty path/block_id/digest) are answered in the ack and never edit; `validateAck` requires `new_digest` only when `block_id` is non-empty.

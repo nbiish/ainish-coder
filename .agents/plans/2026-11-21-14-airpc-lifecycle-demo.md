@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: airpc-lifecycle-demo
 date: 2026-11-21
-status: implementing
+status: done
 branch: skill/airpc-lifecycle
 worktree: /Users/nbiish/code/ainish-coder-airpc2
 task_record: .agents/tasks/2026-11-21-14-airpc-lifecycle-demo.md
@@ -126,17 +126,17 @@ running process may exist that neither the user nor the agent can stop.
 
 ## 5. Todos
 
-- [ ] **T1** Bridge: `stop`/`status`/pid/SIGTERM, `POST /shutdown`, `serve --app`.
+- [x] **T1** Bridge: `stop`/`status`/pid/SIGTERM, `POST /shutdown`, `serve --app`.
   - from: §3 | done when: stop kills serve and status reflects it | verify: smoke
-- [ ] **T2** Bridge: `project --from name=path` scanner + repo-aware id/digest + query validation.
+- [x] **T2** Bridge: `project --from name=path` scanner + repo-aware id/digest + query validation.
   - from: §3 | done when: a two-repo manifest validates end to end | verify: smoke
-- [ ] **T3** Canvas: Rectangle2d, same-origin, threads, query bar, Stop button.
+- [x] **T3** Canvas: Rectangle2d, same-origin, threads, query bar, Stop button.
   - from: §3 | done when: parses and matches protocol payloads | verify: esbuild parse
-- [ ] **T4** SKILL.md + protocol.md carry lifecycle, multi-repo, query semantics.
+- [x] **T4** SKILL.md + protocol.md carry lifecycle, multi-repo, query semantics.
   - from: §3 | done when: links resolve, field names match wire | verify: link + grep check
-- [ ] **T5** Extended smoke: stop, restart-resume, query, multi-repo.
+- [x] **T5** Extended smoke: stop, restart-resume, query, multi-repo.
   - from: §3 | done when: all pass | verify: smoke script output
-- [ ] **T6** Demo: build canvas, `serve --app`, project two repos, hand over URL + stop paths.
+- [x] **T6** Demo: build canvas, `serve --app`, project two repos, hand over URL + stop paths.
   - from: §1 | done when: operator can open the canvas and stop everything | verify: curl /state
 
 ## 6. Verification
