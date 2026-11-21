@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -1519,15 +1520,23 @@ That is why the learner never promotes; only you do.
 
 
 def acquire_lock(repo_root: Path) -> Tuple[bool, str]:
-    """One writer per mutation boundary. A stale lock is reported, never silently stolen."""
+    """One writer per mutation boundary. A stale lock is reported, never silently stolen.
+
+    O_EXCL, NOT `write_text`. The previous version called `path.write_text(...)` and caught
+    `FileExistsError` — but `Path.write_text` opens with mode `w`, which TRUNCATES and succeeds on an
+    existing file. The except branch was unreachable and the lock provided no exclusion whatsoever, so
+    a manual consolidation and a background pass could both hold it. Measured 2026-11-21: a background
+    pass rewrote `.agents/suggestions/DIGEST-suggestions-01.md` while an operator-directed run was
+    editing it. `O_CREAT | O_EXCL` is the only create-if-absent that the filesystem enforces atomically.
+    """
     path = lock_path(repo_root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps({
+        "pid": __import__("os").getpid(),
+        "at": datetime.now(timezone.utc).isoformat(),
+    }).encode("utf-8")
     try:
-        path.write_text(json.dumps({
-            "pid": __import__("os").getpid(),
-            "at": datetime.now(timezone.utc).isoformat(),
-        }), encoding="utf-8")
-        return True, ""
+        fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
     except FileExistsError:
         try:
             holder = json.loads(path.read_text(encoding="utf-8"))
@@ -1538,6 +1547,13 @@ def acquire_lock(repo_root: Path) -> Tuple[bool, str]:
         # A filesystem that cannot create the lock is not a reason to block learning entirely, but
         # it must be stated so a race is diagnosable rather than mysterious.
         return True, "lock could not be created; proceeding without mutual exclusion"
+    try:
+        os.write(fd, payload)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+    return True, ""
 
 
 def release_lock(repo_root: Path) -> None:

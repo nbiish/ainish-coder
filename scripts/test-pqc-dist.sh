@@ -1385,7 +1385,10 @@ contains "the three newest records are protected" "$(cat "$CONSOLIDATE")" 'CONSO
 contains "an unusable digest is rejected, not written" "$(cat "$CONSOLIDATE")" 'def _digest_is_usable'
 contains "the digest is written before its sources are removed" \
     "$(cat "$CONSOLIDATE")" 'written = digest.is_file() and digest.stat().st_size > 0'
-contains "only summarised records are removed" "$(cat "$CONSOLIDATE")" 'for fname in covered:'
+# Only records a verified chunk actually covered may be removed; a record whose chunk failed review must
+# stay, or the digest would stand in for records it never saw.
+check "only summarised records are removed" \
+    "$(grep -cE 'for fname in (covered|covered_sorted):' "$CONSOLIDATE")" "1"
 
 # ── the consolidation PAIR is separate from the prime's pair ────────────────
 # Consolidation used the same elephant/goldfish roles that build the prime, with an ADVISORY review.
@@ -1448,6 +1451,23 @@ e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
 ok, _ = e._digest_is_usable("I will start with the required context call, then write the digest.")
 print("rejected" if not ok else "accepted")' "$CONSOLIDATE" 2>/dev/null)" \
     "rejected"
+
+# THE LOCK MUST ACTUALLY EXCLUDE. Measured 2026-11-21: `acquire_lock` used `Path.write_text`, which
+# opens with mode `w` and succeeds on an existing file, so its `except FileExistsError` branch was
+# unreachable and two writers could both "hold" it. A background pass rewrote a digest while an
+# operator-directed run was editing it. O_CREAT|O_EXCL is the only create-if-absent the filesystem
+# enforces atomically, and this assertion is the one that was missing when it broke.
+check "the harness lock actually excludes a second holder" \
+    "$(python3 -c '
+import sys, importlib.util, tempfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+d = Path(tempfile.mkdtemp())
+first, _ = m.acquire_lock(d)
+second, _ = m.acquire_lock(d)
+print("exclusive" if first and not second else "NO-EXCLUSION")' "$CH_MOD" 2>/dev/null)" \
+    "exclusive"
 contains "the corpus includes research and templates" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_EXTRA_SOURCES'
 # ONE learned-skill surface. It used to be two (staged packs the graph never indexed, plus wiki pages
 # nothing could surface), which meant neither was authoritative.

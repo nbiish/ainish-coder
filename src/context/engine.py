@@ -14,6 +14,7 @@ import argparse
 import atexit
 import base64
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import math
@@ -4557,9 +4558,43 @@ REVIEW_MAX_TOKENS = 2048
 # same payload through hermes answered in 27s at 20K chars and 66s at 40K. `pi` is kept as the fallback
 # so a host without hermes still consolidates, degraded and reported as such.
 CONSOLIDATE_DRAFTER_PROFILE = "consolidate-elephant"
-CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"
+CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"   # legacy single-reviewer name, kept for compat
 HERMES_BINARY_ENV = "AINISH_HERMES_BIN"
 HERMES_TIMEOUT_DEFAULT = 300.0
+# The drafter writes 9-10K characters where a reviewer writes a verdict, so it needs a longer budget.
+# Measured 2026-11-21: 188s for a 7,582-char prompt producing 9,830 chars on this host.
+CONSOLIDATE_DRAFT_TIMEOUT = 480.0
+
+# THE PANEL. Four specialized agents, one drafter and three reviewers whose questions are orthogonal —
+# each has caught something the others missed in live runs, which is the whole argument for three rather
+# than one:
+#   fidelity      does the digest follow from the sources? (the original reviewer)
+#   completeness  is anything in the sources left out?      (caught a 24-key secrets-store incident)
+#   coherence     does the digest hold together as one record? (would catch a digest that lists facts
+#                                                                but never states what they amount to)
+# A member that cannot answer REFUSES; the gate never treats silence as assent.
+CONSOLIDATE_PANEL: Tuple[Tuple[str, str, str], ...] = (
+    (
+        "consolidate-goldfish",
+        "fidelity",
+        "Name anything the draft asserts that the sources do not support, or any conclusion it draws "
+        "that the evidence does not carry. Judge only what is written, not what could be written.",
+    ),
+    (
+        "consolidate-archivist",
+        "completeness",
+        "Name anything recorded in the sources that the draft does not represent — every unfinished "
+        "thread, unresolved decision, and incident that was flagged to report but not fix. An omission "
+        "here is permanent, because the sources are deleted after this.",
+    ),
+    (
+        "consolidate-structural",
+        "coherence",
+        "Judge the draft as ONE RECORD rather than a list. Does it state what the period amounted to? "
+        "Do its sections connect, or are they adjacent facts? Would a reader who never saw the sources "
+        "come away with a true picture of what happened?",
+    ),
+)
 
 
 def hermes_available() -> Optional[str]:
@@ -6045,8 +6080,61 @@ def folder_census(repo_root: Path, folder: str) -> Dict[str, Any]:
     return out
 
 
-def _digest_path(repo_root: Path, folder: str, period: str) -> Path:
-    return Path(repo_root) / ".agents" / folder / f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-{period}.md"
+def _next_digest_index(repo_root: Path, folder: str) -> int:
+    """The next sequence number for this folder's digests.
+
+    DIGESTS ARE A SEQUENCE, NOT A PERIOD LOCK. The first design keyed a digest on its period —
+    `DIGEST-comms-2026-11.md` — and a run skipped any period whose digest already existed. That is
+    terminal: a digest written on the 5th could never absorb a record written on the 20th, so the folder
+    went over the cap and stayed there. Measured 2026-11-21: 55 originals across five folders, four of
+    which reported "digest already exists" and consolidated nothing.
+
+    A sequence number makes every run able to take the records that are there now. Old period-named
+    digests are left alone as history; they simply do not reserve a number.
+    """
+    directory = Path(repo_root) / ".agents" / folder
+    highest = 0
+    if directory.is_dir():
+        pattern = re.compile(rf"^{re.escape(CONSOLIDATION_DIGEST_PREFIX)}{re.escape(folder)}-(\d+)$")
+        for p in directory.glob(f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-*"):
+            stem = p.stem
+            m = pattern.match(p.stem)
+            if m:
+                highest = max(highest, int(m.group(1)))
+    return highest + 1
+
+
+def _digest_path(repo_root: Path, folder: str, period: str = "", *, index: Optional[int] = None) -> Path:
+    """`DIGEST-<folder>-<NN>.md` when an index is given, else the legacy period form."""
+    name = (f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-{index:02d}.md" if index is not None
+            else f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-{period}.md")
+    return Path(repo_root) / ".agents" / folder / name
+
+
+# TRUNCATION MUST BE LABELLED, never silent.
+#
+# Measured 2026-11-21: the drafter was given records cut at 5,000 chars, and it reported the cut as a
+# FINDING — "three source records are truncated mid-entry, facts not preserved" — three times in one
+# digest. The archivist then failed the draft for it, correctly, and the folder went unconsolidated. That
+# is harness2's `obs_trunc` failure exactly: a clipped input makes the model diagnose a defect that
+# exists only in the clipping.
+#
+# Two changes: the cap is one number here rather than four literals, and every truncation says so in the
+# text the model reads, with the number it was cut at, so it cannot mistake the cut for the source.
+CONSOLIDATE_SOURCE_CHARS = 9000
+CONSOLIDATE_BATCH_CHARS = 36000   # ~4 records per batch at the source cap
+
+
+def _clip(text: str, limit: int, label: str) -> str:
+    """`text`, or a VISIBLY cut version of it. Never a silent slice."""
+    if len(text) <= limit:
+        return text
+    return (
+        text[:limit]
+        + f"\n[THIS EXCERPT WAS CUT AT {limit} OF {len(text)} CHARS BY THE CONSOLIDATION TOOL — "
+          f"the remainder of `{label}` is missing here, not missing from the repository. Do not report "
+          f"the cut as a gap in the record.]\n"
+    )
 
 
 def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> str:
@@ -6059,15 +6147,20 @@ def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> 
         f"# CONSOLIDATE `.agents/{folder}`, period {period}\n",
         f"{len(sources)} record(s) from this period. They are reproduced in full below.\n",
         "Write ONE digest that a future agent can read instead of these files. Keep:\n",
-        "- **Accomplished** — what actually landed, with enough specifics to be checkable.\n",
-        "- **Unfinished** — started but not done, and why it stopped.\n",
+        "- **Accomplished** — what actually LANDED. Only work the sources record as done, merged, verified "
+        "or observed working. A requirement written as \"must\" or \"should\", a plan, a proposal, or a "
+        "lesson is NOT an accomplishment — it belongs in Unfinished or Insights.\n",
+        "- **Unfinished** — started but not done, and why it stopped. Include work that is only a "
+        "requirement so far.\n",
         "- **Insights** — what was learned that is not obvious from the code.\n",
         "- **Recurring** — the same problem or lesson appearing more than once.\n",
         "Cite the source filename for anything specific. Do not invent; if a section has nothing, say "
         "so plainly. This digest REPLACES the files, so omitting a fact loses it unless it is in git.\n",
+        "The most common way this goes wrong is calling a plan an accomplishment. A reviewer will fail "
+        "the digest for it, so read what each source records as DONE before writing the first section.\n",
     ]
     for name, body in sources:
-        parts.append(f"\n## SOURCE: {name}\n{body[:6000]}\n")
+        parts.append(f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n")
     # THE END IS STATED EXPLICITLY. Without this, the model receives 40K+ characters of records and no
     # marker that the evidence has stopped — measured 2026-11-20: every call with a closing instruction
     # answered in seconds, and the same payload without one hung until the timeout (90s, then 200s,
@@ -6112,8 +6205,59 @@ def _digest_is_usable(body: str) -> Tuple[bool, str]:
     return True, ""
 
 
+def _panel_review(
+    folder: str, period: str, sources: List[Tuple[str, str]], draft: str, *, timeout: float = 300.0
+) -> Tuple[bool, str, Dict[str, str]]:
+    """Run every panel member over the draft. `(all_passed, combined_gaps, per_member)`.
+
+    ALL THREE MUST PASS. A draft is not written, and its sources are not removed, unless fidelity,
+    completeness and coherence each answer `VERDICT: pass`. That is stricter than a single reviewer for a
+    reason: the sources are DELETED after this, so a gap is permanent. In live testing the single
+    reviewer caught an escalated design question and a 24-key secrets-store incident on two different
+    folders — both would have been lost.
+
+    EVERY member is asked even after one fails, so the retry receives all the gaps at once rather than
+    discovering them one 300-second call at a time.
+    """
+    # THE THREE REVIEWERS RUN IN PARALLEL.
+    #
+    # Sequentially they were three 140-second calls after the drafter's, so a 2-batch folder with one
+    # retry came to ~37 minutes and had to be abandoned. The reviewers do not depend on each other —
+    # each answers its own question about the same draft — so running them together makes the panel two
+    # calls deep instead of four, and the whole cycle fits inside the timeout.
+    def _ask(member: Tuple[str, str, str]) -> Tuple[str, str]:
+        profile, label, question = member
+        prompt = (
+            f"# REVIEW ({label}) a consolidation digest for `.agents/{folder}`, {period}\n\n"
+            "You are one of three reviewers checking another agent's work before it REPLACES the records "
+            "below; after this they are deleted, so an omission is permanent.\n\n"
+            f"YOUR QUESTION, and only this one: {question}\n\n"
+            "Answer in exactly this shape, nothing before it:\n\n"
+            "VERDICT: pass|fail\n"
+            "GAP: <the single most important thing, or 'none'>\n\n"
+            "Do not fail for style, length, or formatting. Fail only if your own question is not "
+            "satisfied. Do not announce what you are about to do.\n"
+        )
+        for name, body in sources:
+            prompt += f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n"
+        prompt += "\n---\n\n## THE DRAFT UNDER REVIEW\n" + _clip(draft, 24000, "the draft")
+        prompt += "\n\n---\n\nNow answer with VERDICT and GAP only.\n"
+        reply = consolidation_call(profile, prompt, fallback_role="goldfish", timeout=timeout)
+        ok, gap = _parse_digest_verdict(str((reply or {}).get("text") or ""))
+        return label, ("pass" if ok else f"fail: {gap[:200]}")
+
+    per_member: Dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=len(CONSOLIDATE_PANEL)) as pool:
+        for label, verdict in pool.map(_ask, CONSOLIDATE_PANEL):
+            per_member[label] = verdict
+    passed_all = all(v == "pass" for v in per_member.values())
+    gaps: List[str] = [f"{label}: {v[6:]}" for label, v in per_member.items() if v != "pass"]
+    return passed_all, "; ".join(gaps), per_member
+
+
 def _digest_in_chunks(
-    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 10, timeout: float = 300.0
+    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 6,
+    timeout: float = CONSOLIDATE_DRAFT_TIMEOUT,
 ) -> Tuple[str, List[str], List[str]]:
     """Draft a period through the consolidation pair, then merge — each step GATED.
 
@@ -6126,17 +6270,27 @@ def _digest_in_chunks(
     second failure abandons the period and leaves every source in place. Nothing is written or removed on
     an unverified draft — the first real run of this feature deleted 16 files for a one-line preamble.
 
-    SIZE: chunk = 10 records, not 5. Measured 2026-11-20: hermes handled 39,710 chars in 66s where `pi`
-    timed out at 300s, so the smaller chunk was compensating for the wrong transport. Fewer, larger
-    chunks also mean fewer chances for one call to fail the period.
+    SIZE AND TIMEOUT, both measured 2026-11-21 on a loaded host: a 9,437-char digest prompt through
+    hermes took 141s, while a 3,000-char prompt took 29s. So the cost is prompt COMPLEXITY, not transport
+    — and with FOUR calls per batch (drafter + three reviewers) a 10-record batch could take ten minutes
+    and blow a 300s budget. 6 records per batch keeps each prompt near 6-7K chars, and 420s gives the
+    whole draft-and-review cycle room on a slow host. The earlier 10-record size was tuned when there was
+    one reviewer.
 
     Returns `(digest_body, errors, covered)`; an empty body means nothing usable and NOTHING is removed.
     """
     errors: List[str] = []
     partials: List[str] = []
     covered: List[str] = []
-    total = max(1, (len(payload) + chunk - 1) // chunk)
 
+    # A batch is sized by CHARACTERS as well as count: six 20K records and six 1K records are not the
+    # same job, and the count alone was chosen when prompts were smaller. The character cap is applied to
+    # the ACTUAL payload here — the old order computed `total` from the caller's chunk before this ran,
+    # which is why error messages read "chunk 2/1".
+    if payload:
+        avg = max(1, sum(len(b) for _, b in payload) // len(payload))
+        chunk = min(max(1, chunk), max(1, CONSOLIDATE_BATCH_CHARS // avg))
+    total = max(1, (len(payload) + max(1, chunk) - 1) // max(1, chunk))
     for i in range(0, len(payload), max(1, chunk)):
         batch = payload[i:i + max(1, chunk)]
         index = i // chunk + 1
@@ -6156,21 +6310,18 @@ def _digest_in_chunks(
             candidate = str((draft or {}).get("text") or "").strip()
             usable, why = _digest_is_usable(candidate)
             if not usable:
+                # Reviewing an empty draft wastes three calls to learn what this already knows. Retry the
+                # DRAFT; only a draft that passes the shape check is worth the panel's time.
                 gap = f"{why or (draft or {}).get('error') or 'no output'}"
                 if attempt == 2:
-                    errors.append(f"chunk {index}/{total} not drafted twice: {gap}")
+                    errors.append(f"chunk {index} not drafted twice: {gap}")
                 continue
-            review = consolidation_call(
-                CONSOLIDATE_REVIEWER_PROFILE,
-                _digest_review_prompt(folder, period, batch, candidate),
-                fallback_role="goldfish", timeout=timeout,
-            )
-            passed, gap = _parse_digest_verdict(str((review or {}).get("text") or ""))
+            passed, gap, _members = _panel_review(folder, period, batch, candidate, timeout=timeout)
             if passed:
                 text = candidate
                 break
             if attempt == 2:
-                errors.append(f"chunk {index}/{total} failed review twice: {gap}")
+                errors.append(f"chunk {index}/{total} failed the panel twice: {gap}")
         if text:
             partials.append(text)
             # Recorded ONLY when a chunk was drafted AND passed review. A record whose chunk was never
@@ -6202,16 +6353,13 @@ def _digest_in_chunks(
             if attempt == 2:
                 errors.append(f"merge not drafted twice: {merge_gap}")
             continue
-        review = consolidation_call(
-            CONSOLIDATE_REVIEWER_PROFILE,
-            _digest_review_prompt(folder, period, payload[:10], merged_text),
-            fallback_role="goldfish", timeout=timeout,
+        passed, merge_gap, _members = _panel_review(
+            folder, period, payload[:10], merged_text, timeout=timeout
         )
-        passed, merge_gap = _parse_digest_verdict(str((review or {}).get("text") or ""))
         if passed:
             return merged_text, errors, covered
         if attempt == 2:
-            errors.append(f"merge failed review twice: {merge_gap}")
+            errors.append(f"merge failed the panel twice: {merge_gap}")
 
     # A merge that could not be verified is NOT written over the sources. The partials stay as the
     # digest ONLY if every one of them passed its own review — which they did to get here — so this is
@@ -6242,8 +6390,8 @@ def _digest_review_prompt(folder: str, period: str, sources: List[Tuple[str, str
         "draft, or when the draft asserts something the sources do not support. Do not fail for style.\n",
     ]
     for name, body in sources:
-        parts.append(f"\n## SOURCE: {name}\n{body[:6000]}\n")
-    parts.append("\n---\n\n## THE DRAFT UNDER REVIEW\n" + draft[:12000] + "\n\n---\n\nNow answer with VERDICT and GAP only.\n")
+        parts.append(f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n")
+    parts.append("\n---\n\n## THE DRAFT UNDER REVIEW\n" + _clip(draft, 24000, "the draft") + "\n\n---\n\nNow answer with VERDICT and GAP only.\n")
     return "".join(parts)
 
 
@@ -6341,77 +6489,74 @@ def run_context_consolidate(
                 "written": [], "removed": [], "skipped": [],
             }
             directory = Path(repo_root) / ".agents" / name
-            for per, files in census["periods"].items():
-                digest = _digest_path(repo_root, name, per)
-                if digest.is_file():
-                    # A period already digested is left alone: re-summarising would either duplicate
-                    # its content or silently drop whatever the first pass had captured.
-                    entry["skipped"].append({"period": per, "reason": "digest already exists"})
-                    continue
-                if dry_run or not files:
-                    entry.setdefault("planned", []).append({"period": per, "sources": files})
-                    continue
+            # ONE DIGEST PER RUN over the WHOLE folder. Grouping by period and then refusing when that
+            # period was already digested is what left 55 records unconsolidated: the period was a lock,
+            # and a folder's records almost always share one period. The digest's own frontmatter names
+            # the span it covers, so grouping by period buys nothing the file does not already say.
+            _index = _next_digest_index(repo_root, name)
+            digest = _digest_path(repo_root, name, index=_index)
+            all_files: List[str] = []
+            for _per, _files in sorted(census["periods"].items()):
+                all_files.extend(_files)
+            span = f"{min(census['periods'])}+" if census["periods"] else "none"
+
+            if dry_run:
+                if all_files:
+                    entry.setdefault("planned", []).append(
+                        {"period": span, "digest": digest.name, "sources": all_files}
+                    )
+            elif all_files:
                 payload: List[Tuple[str, str]] = []
-                for fname in files:
+                unreadable: List[str] = []
+                for fname in all_files:
                     try:
                         payload.append((fname, (directory / fname).read_text(encoding="utf-8", errors="replace")))
                     except OSError as exc:
-                        entry["skipped"].append({"period": per, "reason": f"unreadable {fname}: {str(exc)[:60]}"})
-                        payload = []
-                        break
-                if not payload:
-                    continue
-                body, chunk_errors, covered = _digest_in_chunks(name, per, payload)
+                        unreadable.append(f"{fname}: {str(exc)[:60]}")
+                if unreadable:
+                    entry["skipped"].extend({"period": span, "reason": f"unreadable {u}"} for u in unreadable)
+                body, chunk_errors, covered = _digest_in_chunks(name, span, payload)
                 if chunk_errors:
-                    entry["skipped"].extend({"period": per, "reason": e} for e in chunk_errors)
+                    entry["skipped"].extend({"period": span, "reason": e} for e in chunk_errors)
                 usable, why_unusable = _digest_is_usable(body)
                 if not usable:
                     # NOTHING IS DELETED on an unusable digest. The first real run learned this by
-                    # destroying 16 files for a one-line preamble, and every one had to be restored
-                    # from git. The gate is the only thing standing between a bad reply and data loss.
+                    # destroying 16 files for a one-line preamble, and every one had to be restored from
+                    # git. The gate is the only thing between a bad reply and data loss.
                     entry["skipped"].append({
-                        "period": per,
-                        "reason": f"no usable digest for this period: {why_unusable}",
+                        "period": span,
+                        "reason": f"no usable digest for this folder: {why_unusable}",
                     })
-                    continue
-                # The digest names exactly the records it covers — not every candidate — so its
-                # `sources:` list stays a true account of what it replaces.
-                files = [f for f in files if f in covered]
-                # The review ALREADY HAPPENED, per chunk and per merge, inside `_digest_in_chunks` — and
-                # it BLOCKED. Re-reviewing here would be a second, weaker opinion on work the pair has
-                # passed, and the old advisory version here was what let a timed-out review still write a
-                # digest. The gate is upstream; this only renders what survived it.
-                rendered = _render_digest(name, per, files, body)
-                written = False
-                try:
-                    digest.write_text(rendered, encoding="utf-8")
-                    # Read back before deleting anything: a write that did not land must not be
-                    # followed by a removal.
-                    written = digest.is_file() and digest.stat().st_size > 0
-                except OSError as exc:
-                    entry["skipped"].append({"period": per, "reason": f"write failed: {str(exc)[:80]}"})
-                if not written:
-                    continue
-                removed: List[str] = []
-                # ONLY the files a usable chunk actually summarised. A file whose chunk failed stays
-                # in the folder, because the digest does not stand in for it.
-                for fname in covered:
-                    target = directory / fname
-                    if not _is_consolidatable(target):
-                        continue
+                else:
+                    # The digest names exactly the records it covers, so `sources:` stays a true account
+                    # of what it replaces.
+                    covered_sorted = [f for f in all_files if f in covered]
+                    rendered = _render_digest(name, span, covered_sorted, body)
+                    written = False
                     try:
-                        target.unlink()
-                        removed.append(fname)
-                    except OSError:
-                        pass
-                entry["written"].append(digest.name)
-                entry["removed"].extend(removed)
-                left = [f for f in files if f not in covered]
-                if left:
-                    entry["skipped"].append({
-                        "period": per,
-                        "reason": f"{len(left)} record(s) left in place because their chunk was not summarised",
-                    })
+                        digest.write_text(rendered, encoding="utf-8")
+                        written = digest.is_file() and digest.stat().st_size > 0
+                    except OSError as exc:
+                        entry["skipped"].append({"period": span, "reason": f"write failed: {str(exc)[:80]}"})
+                    if written:
+                        removed: List[str] = []
+                        for fname in covered_sorted:
+                            target = directory / fname
+                            if not _is_consolidatable(target):
+                                continue
+                            try:
+                                target.unlink()
+                                removed.append(fname)
+                            except OSError:
+                                pass
+                        entry["written"].append(digest.name)
+                        entry["removed"].extend(removed)
+                        left = [f for f in all_files if f not in covered]
+                        if left:
+                            entry["skipped"].append({
+                                "period": span,
+                                "reason": f"{len(left)} record(s) left in place because their chunk was not summarised",
+                            })
             entry["originals_after"] = max(0, entry["originals"] - len(entry["removed"]))
             result["folders"][name] = entry
         result["ok"] = True
