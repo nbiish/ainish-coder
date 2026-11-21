@@ -4915,10 +4915,16 @@ You have been given a task, retrieved evidence (inline and as attached files), a
 draft note. You share no history with the Elephant, which is exactly why your reading is useful.
 
 WHAT TO PRODUCE
-Restate, in your own words:
+Restating in your own words is the TEST, not a formality. A prime can define every term it uses and
+still fail to hold together — its parts may not connect, its evidence may support a different
+conclusion than the one drawn, its retrieved sections may answer a question nobody asked. Your
+paraphrase is what makes that visible. If you cannot paraphrase a section into a coherent claim, that
+IS the finding: name the section and say why it will not parse.
+
 1. What the evidence actually claims about this repository.
 2. What the agent is being asked to make true.
-3. What you would still NOT know after reading it — the specific gaps a reader would trip over.
+3. Whether (2) follows from (1), or the material is being stretched to reach it.
+4. What you would still NOT know after reading it — the specific gaps a reader would trip over.
 
 RULES
 - Demonstrate comprehension; do not criticise yet. Criticism is step 2.
@@ -6820,6 +6826,74 @@ def _newest_task_objective(repo_root: Path) -> str:
     return ""
 
 
+def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
+    """Start one consolidation pass in the BACKGROUND, when the record needs it.
+
+    The operator's design is that ONE `--context` call both primes the agent and keeps the record
+    consolidated. Answering is synchronous; consolidating is not — it costs two model sessions per
+    batch — so it runs detached, after the prime is assembled, exactly like the learning pass.
+
+    It is gated on need, not on time alone: a folder over the cap with an undigested period is what
+    consolidation is for, and spawning when nothing needs it burns a session to conclude nothing.
+    """
+    info: Dict[str, Any] = {"spawned": False, "reason": ""}
+    if (_env_nonempty("AINISH_CONSOLIDATE_ON_CONTEXT") or "on").strip().lower() in ("0", "off", "false", "no"):
+        info["reason"] = "AINISH_CONSOLIDATE_ON_CONTEXT is off"
+        return info
+    state = context_harness.learn_state_path(repo_root).parent / "context-consolidate-autolearn.json"
+    interval = int(_env_nonempty("AINISH_CONSOLIDATE_INTERVAL_S") or (24 * 3600))
+    now = time.time()
+    try:
+        last = float(json.loads(state.read_text(encoding="utf-8")).get("last_run_epoch") or 0.0)
+    except (OSError, ValueError):
+        last = 0.0
+    if last and (now - last) < interval:
+        info["reason"] = f"last consolidation {int((now - last) / 3600)}h ago; next eligible in {int((interval - (now - last)) / 60)}m"
+        return info
+    # Need: at least one folder over the cap with a candidate older than the protected three.
+    over = []
+    for folder in CONSOLIDATION_FOLDERS:
+        census = folder_census(repo_root, folder)
+        if census["candidates"] and census["originals"] > CONSOLIDATION_DEFAULT_CAP:
+            over.append(folder)
+    if not over:
+        info["reason"] = "no folder is over the cap with an undigested period"
+        return info
+    lock = context_harness.lock_path(repo_root)
+    if lock.is_file():
+        info["reason"] = "another harness pass holds the lock"
+        return info
+    engine = Path(__file__).resolve()
+    argv = [sys.executable, str(engine), "context-consolidate", "--folder", over[0]]
+    try:
+        popen_kw: Dict[str, Any] = {
+            "cwd": str(repo_root),
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,   # never pollute the caller's stdout: it is the prime
+            "stderr": subprocess.DEVNULL,
+            "close_fds": True,
+        }
+        if os.name == "nt":
+            popen_kw["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0) | 0x00000008
+        else:
+            popen_kw["start_new_session"] = True
+        subprocess.Popen(argv, **popen_kw)
+        try:
+            state.parent.mkdir(parents=True, exist_ok=True)
+            state.write_text(json.dumps({
+                "format": "ainish-coder/context-consolidate-autolearn/v1",
+                "last_run_epoch": now,
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "folder": over[0],
+            }, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+        info.update({"spawned": True, "folder": over[0], "reason": f"over cap: {', '.join(over)}"})
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        info["reason"] = f"could not start the consolidation pass: {str(exc)[:120]}"
+    return info
+
+
 def spawn_autolearn(repo_root: Path, task: str) -> Dict[str, Any]:
     """Start one learning pass in the BACKGROUND so the prime is never delayed by it.
 
@@ -7228,6 +7302,9 @@ def run_context_command(
     # already built, so it can never delay or modify the answer the agent is about to read. What it
     # does is read this same call's evidence and propose a harness change for the NEXT call.
     autolearn: Dict[str, Any] = {"spawned": False, "reason": "skipped"}
+    # Defaulted alongside autolearn: the provenance block reports both on EVERY call, so a path that
+    # skips spawning must still have a value to report.
+    consolidate: Dict[str, Any] = {"spawned": False, "reason": "skipped"}
     if retrieval_only:
         autolearn = {"spawned": False, "reason": "--retrieval-only makes no model calls"}
     elif route_skipped or not (retrieved.get("hits") or []):
@@ -7239,6 +7316,9 @@ def run_context_command(
     else:
         # Not gated on --json: the child's stdout is DEVNULL, so it cannot corrupt the envelope, and
         # a machine-read call deserves the same continuous improvement as an interactive one.
+        # CONSOLIDATION FIRST: a smaller, digested corpus is what the learner should tune against, and
+        # the consolidate pass holds the same lock, so ordering them here keeps them from racing.
+        consolidate = spawn_consolidate(repo_root)
         autolearn = spawn_autolearn(repo_root, task)
     # The learned state is reported on EVERY call, including when it is absent. Silence would make a
     # repo whose profile failed to load indistinguishable from one that never had one.
@@ -7254,6 +7334,7 @@ def run_context_command(
         },
         "staged_skills": staged_names,
         "autolearn": autolearn,
+        "consolidate": consolidate,
     }
     if harness_settings.get("section_caps") and harness_settings["section_caps"] != CONTEXT_SECTION_CAPS:
         harness_provenance["section_caps"] = harness_settings["section_caps"]

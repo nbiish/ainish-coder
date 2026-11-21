@@ -298,6 +298,21 @@ main() {
             mkdir -p "$(dirname "$_dst")" 2>/dev/null || true
             cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-${_tpl%%/*}" || true
         done
+
+        # `.agents/jobs/` — recurring agentic automation as data: which harness, which profile, what
+        # prompt, on what cadence. Distributed because a target that receives the contract should also
+        # receive the habit of writing down what recurs; the records are inert, so nothing in them runs.
+        if [[ -d "${REPO_DIR}/.agents/jobs" ]]; then
+            mkdir -p "${target_dir}/.agents/jobs" 2>/dev/null || true
+            # A target's own job records are its own; only the index, the template, and the three
+            # reference jobs are seeded, and never overwritten once present.
+            for _job in "${REPO_DIR}/.agents/jobs"/*.md "${REPO_DIR}/.agents/jobs/llms.txt"; do
+                [[ -f "$_job" ]] || continue
+                _dst="${target_dir}/.agents/jobs/$(basename "$_job")"
+                [[ -e "$_dst" ]] || cp "$_job" "$_dst" 2>/dev/null || true
+            done
+            _TRACK_DETAIL="${_TRACK_DETAIL}+agents-jobs"
+        fi
         # The skills index describes the DISTRIBUTED packs, so it comes from the
         # payload rather than this repository's own curated .agents/skills/.
         _src="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}/llms.txt"

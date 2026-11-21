@@ -1530,8 +1530,17 @@ spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 print("yes" if m.LEARN_MIN_INTERVAL_S > 0 and m.LEARN_MIN_NEW_COMMITS > 0 else "no")' "$CH_MOD" 2>/dev/null)" \
     "yes"
-check "the spawned child cannot pollute the prime" \
-    "$(grep -c '"stdout": subprocess.DEVNULL' "${REPO}/src/context/engine.py")" "1"
+# Every background pass silences its own stdout, because the caller's stdout IS the prime. There are
+# two passes now (consolidate + learn), so this asserts that each spawn site does it — a count of one
+# was pinning the number of passes rather than the property.
+check "every spawned child silences its stdout" \
+    "$(python3 -c '
+import re, sys
+src = open(sys.argv[1]).read()
+spawns = src.count("subprocess.Popen(argv")
+devnull = src.count("\"stdout\": subprocess.DEVNULL")
+print("yes" if spawns and devnull >= spawns else f"no ({devnull}/{spawns})")' "${REPO}/src/context/engine.py")" \
+    "yes"
 check "a failed background pass still records its attempt" \
     "$(grep -c 'context_harness.record_autolearn(' "${REPO}/src/context/engine.py")" "2"
 contains "no evidence means no learning pass" "$(cat "${REPO}/src/context/engine.py")" 'no retrieved evidence to learn from'
