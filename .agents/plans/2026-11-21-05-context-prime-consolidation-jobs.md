@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: context-prime-consolidation-jobs
 date: 2026-11-21
-status: ready
+status: done
 branch: feat/context-prime-consolidation-jobs
 worktree: /Users/nbiish/code/context-prime-consolidation-jobs
 task_record: .agents/tasks/2026-11-21-05-context-prime-consolidation-jobs.md
@@ -145,19 +145,19 @@ ainish-coder --context "<task>"
 
 ## 5. Todos
 
-- [ ] **T1** Capture the two missing sources and the ten personas; correct the dossier to six.
+- [x] **T1** Capture the two missing sources and the ten personas; correct the dossier to six.
   - from: §4.2 | done when: `01-source-extraction.md` lists six and each has a file | verify: ls + grep
-- [ ] **T2** Rewrite the goldfish system prompt from the persona material (paraphrase-first, severity, self-containment).
+- [x] **T2** Rewrite the goldfish system prompt from the persona material (paraphrase-first, severity, self-containment).
   - from: §3 | done when: the prompt carries the paraphrase step and severity levels | verify: grep + a live review
-- [ ] **T3** Create `.agents/jobs/` with schema, index, three real jobs, and a template.
+- [x] **T3** Create `.agents/jobs/` with schema, index, three real jobs, and a template.
   - from: §3 | done when: the four files exist and are indexed | verify: ls
-- [ ] **T4** Distribute `.agents/jobs/` from `--rules`.
+- [x] **T4** Distribute `.agents/jobs/` from `--rules`.
   - from: §3 | done when: a scratch deploy carries the folder | verify: deploy then ls
-- [ ] **T5** Spawn consolidation from the context call, throttled and ordered before learning.
+- [x] **T5** Spawn consolidation from the context call, throttled and ordered before learning.
   - from: §4.1 | done when: an eligible call spawns it and a throttled call does not | verify: provenance
-- [ ] **T6** Fix the watcher: per-repo backoff, quarantine, honest `watch.state`, machine identity for auto-commit.
+- [x] **T6** Fix the watcher: per-repo backoff, quarantine, honest `watch.state`, machine identity for auto-commit.
   - from: §3 | done when: one failing repo does not delay another, and the state file matches the log | verify: scripted
-- [ ] **T7** Update AGENTS.md, help, and the suite.
+- [x] **T7** Update AGENTS.md, help, and the suite.
   - from: §3 | done when: 160 lines and the suite passes above 434 | verify: both
 
 ## 6. Verification
