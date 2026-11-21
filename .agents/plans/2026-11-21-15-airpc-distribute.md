@@ -2,7 +2,7 @@
 plan_format: ainish/plan/v1
 slug: airpc-distribute
 date: 2026-11-21
-status: implementing
+status: done
 branch: skill/airpc-distribute
 worktree: /Users/nbiish/code/ainish-coder-airpc4
 task_record: .agents/tasks/2026-11-21-15-airpc-distribute.md
@@ -87,11 +87,11 @@ move it from `.agents/skills/` (this repo's curated standing prompt surface) int
 
 ## 5. Todos
 
-- [ ] **T1** `git mv .agents/skills/aiRPC skills-to-distribute/skills/aiRPC` in a worktree.
+- [x] **T1** `git mv .agents/skills/aiRPC skills-to-distribute/skills/aiRPC` in a worktree.
   - from: §3 | done when: four files at the payload path, none left in `.agents/skills/` | verify: ls both paths
-- [ ] **T2** `scripts/test-pqc-dist.sh` passes at baseline.
+- [x] **T2** `scripts/test-pqc-dist.sh` passes at baseline.
   - from: §2 | done when: suite output shows no failures | verify: the run itself
-- [ ] **T3** Merge, remove worktree, close records.
+- [x] **T3** Merge, remove worktree, close records.
   - from: AGENTS.md | done when: `git log main..<branch>` empty, records committed | verify: git log
 
 ## 6. Verification
