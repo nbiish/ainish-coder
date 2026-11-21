@@ -4561,6 +4561,9 @@ CONSOLIDATE_DRAFTER_PROFILE = "consolidate-elephant"
 CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"   # legacy single-reviewer name, kept for compat
 HERMES_BINARY_ENV = "AINISH_HERMES_BIN"
 HERMES_TIMEOUT_DEFAULT = 300.0
+# The drafter writes 9-10K characters where a reviewer writes a verdict, so it needs a longer budget.
+# Measured 2026-11-21: 188s for a 7,582-char prompt producing 9,830 chars on this host.
+CONSOLIDATE_DRAFT_TIMEOUT = 480.0
 
 # THE PANEL. Four specialized agents, one drafter and three reviewers whose questions are orthogonal —
 # each has caught something the others missed in live runs, which is the whole argument for three rather
@@ -6248,7 +6251,8 @@ def _panel_review(
 
 
 def _digest_in_chunks(
-    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 6, timeout: float = 420.0
+    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 6,
+    timeout: float = CONSOLIDATE_DRAFT_TIMEOUT,
 ) -> Tuple[str, List[str], List[str]]:
     """Draft a period through the consolidation pair, then merge — each step GATED.
 
@@ -6298,9 +6302,11 @@ def _digest_in_chunks(
             candidate = str((draft or {}).get("text") or "").strip()
             usable, why = _digest_is_usable(candidate)
             if not usable:
+                # Reviewing an empty draft wastes three calls to learn what this already knows. Retry the
+                # DRAFT; only a draft that passes the shape check is worth the panel's time.
                 gap = f"{why or (draft or {}).get('error') or 'no output'}"
                 if attempt == 2:
-                    errors.append(f"chunk {index}/{total} not drafted twice: {gap}")
+                    errors.append(f"chunk {index} not drafted twice: {gap}")
                 continue
             passed, gap, _members = _panel_review(folder, period, batch, candidate, timeout=timeout)
             if passed:
