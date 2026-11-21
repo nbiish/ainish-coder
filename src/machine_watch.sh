@@ -424,12 +424,20 @@ _mw_in_backoff() {
     (( now < next ))
 }
 
-_mw_write_state() { # seen changed failed
+_mw_write_state() { # seen changed failed [note]
     mkdir -p "$_MW_STATE_DIR" 2>/dev/null
     local transport="direct"
     [[ -f "${_MW_STATE_DIR}/transport" ]] && transport="$(cat "${_MW_STATE_DIR}/transport" 2>/dev/null)"
-    printf 'last_cycle=%s\nrepos=%s\nchanged=%s\nfailed=%s\npid=%s\ntransport=%s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" "$$" "${transport:-direct}" > "$_MW_STATE_FILE" 2>/dev/null || true
+    # ATOMIC WRITE. The previous version truncated the real file and then wrote it, so a reader that
+    # looked during the gap saw a half-written or empty state — and a reader that looked after a
+    # startup write saw `failed=0` while the log recorded continuous failures. Writing a temp file and
+    # renaming over the target makes a reader see either the old state or the new one, never a mix.
+    local tmp="${_MW_STATE_FILE}.tmp.$$"
+    printf 'last_cycle=%s\nrepos=%s\nchanged=%s\nfailed=%s\npid=%s\nstarted=%s\ntransport=%s\nnote=%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" "$$" "${_MW_STARTED_AT:-unknown}" \
+        "${transport:-direct}" "${4:-}" > "$tmp" 2>/dev/null && mv "$tmp" "$_MW_STATE_FILE" 2>/dev/null \
+        || { rm -f "$tmp" 2>/dev/null; return 1; }
+    return 0
 }
 
 _mw_write_transport() { # direct|ssh|none
@@ -649,7 +657,7 @@ _mw_status() { # json
             systemctl --user is-active --quiet ainish-machine-watch.service 2>/dev/null && running=true
             ;;
     esac
-    local last="never" repos=0 changed=0 failed=0 transport="unknown"
+    local last="never" repos=0 changed=0 failed=0 transport="unknown" note=""
     # The transport file is the authority: it is written when the loop decides how to reach the repos,
     # and it survives a cycle that could not read them (which is exactly when the operator needs to
     # see why). watch.state mirrors it for convenience but is only rewritten by a completed cycle.
@@ -660,6 +668,10 @@ _mw_status() { # json
         repos="$(sed -n 's/^repos=//p' "$_MW_STATE_FILE" 2>/dev/null)"
         changed="$(sed -n 's/^changed=//p' "$_MW_STATE_FILE" 2>/dev/null)"
         failed="$(sed -n 's/^failed=//p' "$_MW_STATE_FILE" 2>/dev/null)"
+        # A state written at STARTUP says `failed=0` because nothing has run. Without the note a
+        # reader cannot tell that from a genuinely clean cycle — which is how the file came to
+        # contradict a log full of `Z failed:` lines.
+        note="$(sed -n 's/^note=//p' "$_MW_STATE_FILE" 2>/dev/null)"
         if [[ "$transport" == "unknown" ]]; then
             transport="$(sed -n 's/^transport=//p' "$_MW_STATE_FILE" 2>/dev/null)"
             transport="${transport:-unknown}"
@@ -696,6 +708,9 @@ _mw_status() { # json
     printf '  cli:       %s\n' "$(_mw_resolve_stable_cli 2>/dev/null || echo unknown)"
     printf '  mode:      %s\n' "$(_mw_watch_mode 2>/dev/null || echo poll)"
     printf '  last sync: %s  (%s repo(s), %s changed, %s failed)\n' "${last:-never}" "${repos:-0}" "${changed:-0}" "${failed:-0}"
+    # Printed only when present, so a completed cycle stays quiet and an incomplete one cannot be
+    # mistaken for it.
+    [[ -n "$note" ]] && printf '  note:      %s\n' "$note"
     [[ -s "$_MW_LOG" ]] && { printf '  recent log:\n'; tail -5 "$_MW_LOG" 2>/dev/null | sed 's/^/    /'; }
     return 0
 }
@@ -791,7 +806,10 @@ machine_watch() {
     else
         _mw_say "mode: polling every ${interval}s (install fswatch for event-driven latency)"
     fi
-    _mw_write_state "$(_mw_linked_repos | wc -l | tr -d ' ')" 0 0
+    # Startup state says explicitly that no cycle has completed, rather than claiming `failed=0`.
+    # Claiming zero before anything has run is how the file came to contradict the log: a reader had
+    # no way to tell "one clean cycle" from "has not run yet".
+    _mw_write_state "$(_mw_linked_repos | wc -l | tr -d ' ')" 0 0 "starting; no cycle has completed yet"
     _mw_say "Ctrl+C to stop. State: $_MW_STATE_FILE"
     local stopping=false ssh_reported=false
     trap 'stopping=true' INT TERM

@@ -1109,11 +1109,19 @@ machine_sync() {
             _ac_paths="$(git -C "$repo" status --porcelain 2>/dev/null | awk '{print $2}' | head -10)"
             _ac_count="$(git -C "$repo" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
             local _ac_msg
-            _ac_msg="wip($(hostname -s 2>/dev/null || echo machine)): synced by --auto-commit"$'\n\n'"changed ${_ac_count} path(s):"$'\n'"${_ac_paths}"
+            # MACHINE IDENTITY, not the operator's. `git commit` with no `-c user.*` inherits whatever
+            # the operator has configured, so every unattended cycle authored commits as them — which
+            # AGENTS.md rule 4 forbids. The contract's permitted form for forced authorship is
+            # `Nanoboozhoo - embodied by {machine}`.
+            _ac_machine="$(hostname -s 2>/dev/null || echo machine)"
+            _ac_name="Nanoboozhoo - embodied by ${_ac_machine}"
+            _ac_email="$(git -C "$repo" config --get user.email 2>/dev/null || echo 'nanoboozhoo@localhost')"
+            _ac_msg="wip(${_ac_machine}): synced by --auto-commit"$'\n\n'"changed ${_ac_count} path(s):"$'\n'"${_ac_paths}"
             (( _ac_count > 10 )) && _ac_msg="${_ac_msg}"$'\n'"... and $((_ac_count - 10)) more"
             if git -C "$repo" add -A 2>/dev/null && \
-               git -C "$repo" commit -q -m "$_ac_msg" 2>/dev/null; then
-                _ms_ok "committed working-tree edits on $(git -C "$repo" rev-parse --abbrev-ref HEAD)"
+               git -C "$repo" -c "user.name=${_ac_name}" -c "user.email=${_ac_email}" \
+                   commit -q -m "$_ac_msg" 2>/dev/null; then
+                _ms_ok "committed working-tree edits on $(git -C "$repo" rev-parse --abbrev-ref HEAD) as ${_ac_name}"
             else
                 _ms_err "auto-commit failed; the snapshot below still carries the work"
             fi
