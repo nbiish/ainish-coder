@@ -1371,6 +1371,35 @@ contains "the digest is written before its sources are removed" \
     "$(cat "$CONSOLIDATE")" 'written = digest.is_file() and digest.stat().st_size > 0'
 contains "only summarised records are removed" "$(cat "$CONSOLIDATE")" 'for fname in covered:'
 
+# ── the consolidation PAIR is separate from the prime's pair ────────────────
+# Consolidation used the same elephant/goldfish roles that build the prime, with an ADVISORY review.
+# Measured 2026-11-20: seven digests, 91 originals left, tasks failed every chunk — and the reviewer
+# CAUGHT a real omission on comms ("the context-priming master entry's blocker is entirely missing")
+# while an advisory design would have written that lossy digest anyway.
+contains "consolidation has its own drafter profile" "$(cat "$CONSOLIDATE")" 'CONSOLIDATE_DRAFTER_PROFILE = "consolidate-elephant"'
+contains "consolidation has its own reviewer profile" "$(cat "$CONSOLIDATE")" 'CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"'
+contains "the pair is reached through hermes" "$(cat "$CONSOLIDATE")" 'def hermes_profile_call'
+contains "hermes falls back to pi, reported" "$(cat "$CONSOLIDATE")" 'pi-fallback'
+contains "the review gate blocks" "$(cat "$CONSOLIDATE")" 'if passed:'
+contains "an unparseable verdict is a refusal" "$(cat "$CONSOLIDATE")" 'def _parse_digest_verdict'
+
+# Behavioural: the verdict parser fails closed on anything it cannot read.
+check "an unreadable review verdict refuses" \
+    "$(python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("e", sys.argv[1])
+e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
+cases = [("VERDICT: pass\nGAP: none", True), ("VERDICT: fail\nGAP: x", False),
+         ("", False), ("looks fine to me", False)]
+bad = [t for t, want in cases if e._parse_digest_verdict(t)[0] != want]
+print("clean" if not bad else "mismatch: " + repr(bad[:1]))' "$CONSOLIDATE" 2>/dev/null)" \
+    "clean"
+
+# Behavioural: a digest must never be reported as the plan or task of record. A digest carries no
+# `status:` field, so reporting one made the prime claim `status: designing` about a summary.
+check "digests are excluded from the newest plan and task" \
+    "$(grep -c 'if not p.name.startswith(CONSOLIDATION_DIGEST_PREFIX)' "$CONSOLIDATE")" "2"
+
 # Behavioural: the exclusion predicate, by construction rather than by what a checkout happens to hold.
 check "consolidation excludes indexes and live sidecars" \
     "$(python3 -c '
