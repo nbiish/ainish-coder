@@ -29,3 +29,4 @@
 
 - The 915 Windows-only commits were not migrated into Mac history; their work was redone by the operator on Mac and the old checkout was deleted after confirmation.
 - No remote force-push or history rewrite.
+- compat: final federation cleanup is documentation only; no runtime or contract change, both machines converge on main.
