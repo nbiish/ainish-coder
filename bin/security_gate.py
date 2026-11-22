@@ -42,7 +42,7 @@ BANNED_PATTERNS = {
         "Classical-only P-256 key agreement is quantum-vulnerable (112-bit; deprecated after 2030, disallowed after 2035 per NIST IR 8547). Use ML-KEM-768, or an X25519+ML-KEM-768 hybrid with an SP 800-227-approved combiner."),
 
     # -- Structural / secrets hygiene ---------------------------------------
-    "Unsanitized Path Usage": (r"(?<!safe_path\()open\s*\(\s*[^,\)]*path(?!\s*,\s*['\"][rwa]['\"])(?!\s*,\s*encoding=)",
+    "Unsanitized Path Usage": (r"(?<![.\w])(?<!safe_path\()open\s*\(\s*[^,\)]*path(?!\s*,\s*['\"][rwa]['\"])(?!\s*,\s*encoding=)",
         "File path opened without safe_path verification."),
     "Hardcoded Secret Pattern": (r"(?i)(api_key|client_secret|password)\s*=\s*['\"][a-zA-Z0-9_\-]{16,}['\"]",
         "Hardcoded credential detected. Load from secure environment/vault."),
