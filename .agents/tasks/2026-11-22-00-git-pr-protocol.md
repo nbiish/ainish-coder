@@ -31,3 +31,4 @@
 
 - No push, PR, or fleet redeploy: outward-facing actions were not authorized for this task. Delivery stayed local per the repo's existing worktree merge-back law.
 - No separate plan file (the plan was conducted in Plan mode); no changes to sibling `AGENTS.md` files.
+- compat: commit author format is now `Nanoboozhoo embodied by: {harness}`; contract and tooling updated together, no runtime API change.
