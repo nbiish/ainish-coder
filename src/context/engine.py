@@ -8814,7 +8814,7 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
                     diff_text = res2.stdout if res2.returncode == 0 else ""
             except Exception:
                 diff_text = ""
-        patch_eval = run_eval_patch(repo_root, diff_text, client, store, quiet=True)
+        patch_eval = run_eval_patch(repo_root, diff_text, quiet=True)
 
         lock_res = check_lockfiles(repo_root)
         lock_pass = len(lock_res.get("drift_files", [])) == 0
