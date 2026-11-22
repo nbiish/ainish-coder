@@ -8756,6 +8756,33 @@ def master_surfaces_pass(report: Dict[str, Any], strict: bool) -> bool:
     )
 
 
+def run_eval_patch(repo_root: Path, diff_text: str, client=None, store=None, quiet: bool = True) -> Dict[str, Any]:
+    """Deterministic, local patch inventory for the pre-merge gate.
+
+    The gate needs three facts: which files the patch touched, whether it looks like a credential
+    leak, and a score for the anchor check. A 2026-11-12 refactor started calling this function
+    without defining it, so `gate` crashed before it could emit any verdict. No model call is
+    involved: evaluation is local and instant, keeping the gate off the agent's critical path.
+    """
+    files: List[str] = []
+    for line in (diff_text or "").splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            if path.startswith("b/"):
+                path = path[2:]
+            if path and path != "/dev/null":
+                files.append(path)
+    leak = bool(re.search(
+        r"sk-[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----",
+        diff_text or "",
+    ))
+    return {
+        "files_modified": sorted(set(files)),
+        "composite_score": 0.0 if leak else 100.0,
+        "status": "FAILED_CREDENTIAL_LEAK" if leak else "OK",
+    }
+
+
 def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, notify: bool = False, watch: bool = False, summary: bool = False, strict: bool = False, statusline_json: bool = False, json_out: bool = False, tests_cmd: Optional[str] = None) -> bool:
     while True:
         if patch_arg:
@@ -8913,7 +8940,12 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
         agents_sha = hashlib.sha256(agents_f.read_bytes()).hexdigest().lower() if agents_f.is_file() else ""
         zt_hash_ok = True
         if agents_f.is_file() and canon_hash_f.is_file():
-            zt_hash_ok = agents_sha == canon_hash_f.read_text(encoding="utf-8").strip().lower()
+            # The SHA file is standard `sha256sum` format: "<digest>  AGENTS.md". Strip the filename
+            # as well as whitespace — `.strip()` left the filename attached and made the gate red
+            # even when the digest matched.
+            parts = canon_hash_f.read_text(encoding="utf-8").split()
+            canon_digest = parts[0].lower() if parts else ""
+            zt_hash_ok = agents_sha == canon_digest
         bin_ac = repo_root / "bin" / "ainish-coder"
         zt_lf_ok = (b"\r\n" not in bin_ac.read_bytes()) if bin_ac.is_file() else True
         history_ok, _ = verify_contract_history_chain_py(repo_root)

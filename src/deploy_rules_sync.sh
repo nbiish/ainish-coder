@@ -311,6 +311,7 @@ field() {
 SRC=$(field source_repo)
 DEPLOYED_COMMIT=$(field source_commit)
 DEPLOYED_SHA=$(field source_agents_sha256)
+DEPLOYED_PACK=$(field source_pack_sha256)
 [ -n "$SRC" ] || exit 0
 
 CUR_SHA=""
@@ -324,18 +325,38 @@ sha_of() {
     fi
 }
 
+# Digest of a directory tree, mirroring the source's pack digest. Used so a skill-pack
+# edit (not just an AGENTS.md edit) is still seen as a real change.
+sha_dir() {
+    [ -d "$1" ] || return 0
+    local tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-pack.XXXXXX" 2>/dev/null)" || return 0
+    (cd "$1" 2>/dev/null && find . -type f | LC_ALL=C sort | while IFS= read -r f; do
+        printf '%s  %s\n' "$(sha_of "$f")" "$f"
+    done) > "$tmp" 2>/dev/null
+    sha_of "$tmp"
+    rm -f "$tmp"
+}
+
 CURRENT_COMMIT=""
 if command -v git >/dev/null 2>&1; then
     # git -C resolves both a normal checkout and a worktree (where .git is a file).
     CURRENT_COMMIT=$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)
 fi
 
+# Content, not commit SHA, decides staleness: a commit that did not change the deployed
+# bytes must not redeploy and re-sign the whole fleet. Commit equality is only a fallback
+# for manifests written before content hashes were recorded.
 UP_TO_DATE=0
-if [ -n "$CURRENT_COMMIT" ] && [ "$CURRENT_COMMIT" = "$DEPLOYED_COMMIT" ]; then
-    UP_TO_DATE=1
-elif [ -z "$CURRENT_COMMIT" ] && [ -f "$SRC/AGENTS.md" ]; then
+if [ -f "$SRC/AGENTS.md" ] && [ -n "$DEPLOYED_SHA" ]; then
     CUR_SHA=$(sha_of "$SRC/AGENTS.md")
-    [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$DEPLOYED_SHA" ] && UP_TO_DATE=1
+    CUR_PACK=$(sha_dir "$SRC/skills-to-distribute/skills/pqc-secrets")
+    if [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$DEPLOYED_SHA" ] && \
+       { [ -z "$DEPLOYED_PACK" ] || { [ -n "$CUR_PACK" ] && [ "$CUR_PACK" = "$DEPLOYED_PACK" ]; }; }; then
+        UP_TO_DATE=1
+    fi
+elif [ -n "$CURRENT_COMMIT" ] && [ "$CURRENT_COMMIT" = "$DEPLOYED_COMMIT" ]; then
+    UP_TO_DATE=1
 fi
 [ "$UP_TO_DATE" = "1" ] && exit 0
 
@@ -613,7 +634,13 @@ install_root_rules_sync_hook() {
     block="$(cat <<'ROOT_HOOK_BLOCK'
 # --- AINISH-CODER RULES SYNC START ---
 if [ "${AINISH_RULES_SYNC_ACTIVE:-0}" != "1" ] && [ -x REPO_CLI_PLACEHOLDER ]; then
-    AINISH_RULES_SYNC_ACTIVE=1 REPO_CLI_PLACEHOLDER --rules-sync --all --quiet >/dev/null 2>&1 || true
+    # Fast path: a commit that touched no managed rules content cannot make any target stale.
+    # Without this guard every commit re-signed and rewrote all registered repos, which made
+    # ordinary development and every agent commit wait on the whole fleet.
+    if git diff-tree --no-commit-id --name-only -r -m HEAD 2>/dev/null \
+        | grep -qE '(^|/)(AGENTS\.md|llms\.txt|\.gitignore)$|(^|/)\.agents/(skills|comms|templates|plans|bin)/'; then
+        AINISH_RULES_SYNC_ACTIVE=1 REPO_CLI_PLACEHOLDER --rules-sync --all --quiet >/dev/null 2>&1 || true
+    fi
 fi
 # --- AINISH-CODER RULES SYNC END ---
 ROOT_HOOK_BLOCK
@@ -630,7 +657,7 @@ ROOT_HOOK_BLOCK
     _ainish_rules_install_hook_block "${hooks_dir}/post-commit" "$block" || true
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
     # Second, independent block: a harness that forced its own authorship gets corrected to
-    # "Nanoboozhoo - embodied by <harness>" instead of shipping claude/cursor/... as the author.
+    # "Nanoboozhoo embodied by: <harness>" instead of shipping claude/cursor/... as the author.
     #
     # This block only fixes the AUTHOR, and it has to amend to do it. Attribution TRAILERS
     # (`Co-authored-by: Cursor <...>`) are removed earlier, in commit-msg, where editing the message
@@ -917,6 +944,9 @@ rules_status() {
     _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     registry="$(_ainish_rules_registry_file)" || return 1
     src_commit="$(_ainish_rules_source_commit)"
+    local src_hash src_pack
+    src_hash="$(_ainish_rules_source_agents_sha)"
+    src_pack="$(_ainish_rules_pack_digest 2>/dev/null || true)"
 
     local entries="" human=""
     local total=0 current=0 stale=0 missing=0
@@ -933,10 +963,16 @@ rules_status() {
                 status="MISSING_MANIFEST"; label="${YELLOW}?${RESET}"; missing=$((missing + 1))
             else
                 deployed="$(sed -n 's/^[[:space:]]*"source_commit":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
-                if [[ "$deployed" == "$src_commit" ]]; then
+                local deployed_hash deployed_pack
+                deployed_hash="$(sed -n 's/^[[:space:]]*"source_agents_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                deployed_pack="$(sed -n 's/^[[:space:]]*"source_pack_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                # Compare deployed content, not the commit that wrote it: an unrelated commit
+                # must not make every target look stale and trigger a full fleet re-sign.
+                if [[ -n "$deployed_hash" && "$deployed_hash" == "$src_hash" && \
+                      ( -z "$src_pack" || "$deployed_pack" == "$src_pack" ) ]]; then
                     status="CURRENT"; label="${GREEN}CURRENT${RESET}"; current=$((current + 1))
                 else
-                    status="STALE"; label="${YELLOW}STALE${RESET} (deployed ${deployed:0:12})"; stale=$((stale + 1))
+                    status="STALE"; label="${YELLOW}STALE${RESET} (deployed ${deployed_hash:0:12})"; stale=$((stale + 1))
                 fi
             fi
             local p_path=$(_ainish_rules_json_escape "$target")

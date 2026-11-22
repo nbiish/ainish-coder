@@ -1112,9 +1112,9 @@ machine_sync() {
             # MACHINE IDENTITY, not the operator's. `git commit` with no `-c user.*` inherits whatever
             # the operator has configured, so every unattended cycle authored commits as them — which
             # AGENTS.md rule 4 forbids. The contract's permitted form for forced authorship is
-            # `Nanoboozhoo - embodied by {machine}`.
+            # `Nanoboozhoo embodied by: {machine}`.
             _ac_machine="$(hostname -s 2>/dev/null || echo machine)"
-            _ac_name="Nanoboozhoo - embodied by ${_ac_machine}"
+            _ac_name="Nanoboozhoo embodied by: ${_ac_machine}"
             _ac_email="$(git -C "$repo" config --get user.email 2>/dev/null || echo 'nanoboozhoo@localhost')"
             _ac_msg="wip(${_ac_machine}): synced by --auto-commit"$'\n\n'"changed ${_ac_count} path(s):"$'\n'"${_ac_paths}"
             (( _ac_count > 10 )) && _ac_msg="${_ac_msg}"$'\n'"... and $((_ac_count - 10)) more"

@@ -37,7 +37,7 @@ ainish-coder --machine-sync --latest           # which machine holds the newest 
 - **One repo can monopolise the loop.** A permanently-failing repository retries a full
   timeout-and-backoff before others get a turn.
 - **Authored as the operator.** `--auto-commit` once used the operator's identity; the contract permits
-  `Nanoboozhoo - embodied by {machine}` only.
+  `Nanoboozhoo embodied by: {machine}` only.
 
 ## What to check when it fails
 

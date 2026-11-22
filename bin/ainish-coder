@@ -909,7 +909,10 @@ main() {
             _TRACK_DETAIL="lock-rules"
             echo -e "${BRIGHT_BLUE}Locking root AGENTS.md (write-protection active)...${RESET}"
             if lock_agents_contract "${REPO_DIR}/AGENTS.md"; then
-                snapshot_canonical_contract "${REPO_DIR}/AGENTS.md" 2>/dev/null || true
+                if ! snapshot_canonical_contract "${REPO_DIR}/AGENTS.md"; then
+                    print_error "Canonical snapshot/re-sign failed; AGENTS.md is locked but NOT re-signed."
+                    exit 1
+                fi
                 echo -e "${BRIGHT_GREEN}🔒 AGENTS.md is now write-protected (read-only).${RESET}"
                 echo -e "   To edit in root repo: ainish-coder --edit-rules (or --unlock-rules)"
             else

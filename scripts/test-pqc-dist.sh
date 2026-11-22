@@ -581,7 +581,7 @@ check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]]
 # (this repo's own commits carried `Co-authored-by: Cursor` until 2026-11-11). The contract must
 # forbid it explicitly, because every harness default that offers it is otherwise obeyed.
 contains "contract forbids co-authorship" "$(cat "${REPO}/AGENTS.md")" 'Never co-author a commit'
-contains "contract names the harness identity" "$(cat "${REPO}/AGENTS.md")" 'Nanoboozhoo - embodied by {agent harness}'
+contains "contract names the harness identity" "$(cat "${REPO}/AGENTS.md")" 'Nanoboozhoo embodied by: {agent harness}'
 # The contract states the RULE, not the scripts that enforce it. Naming the hook files here was noise
 # in a document read on every task, and it made a working implementation detail part of the contract.
 # What must hold is that an agent reading the contract knows the authorship rule and the required form
@@ -906,7 +906,7 @@ contains "watch.state is written atomically" "$(cat "$MW")" 'mv "$tmp" "$_MW_STA
 contains "watch.state records when the process started" "$(cat "$MW")" '_MW_STARTED_AT'
 check "startup state does not claim a clean cycle" \
     "$(grep -c 'no cycle has completed yet' "$MW")" "1"
-contains "auto-commit authors as the machine" "$(cat "$MS")" 'Nanoboozhoo - embodied by ${_ac_machine}'
+contains "auto-commit authors as the machine" "$(cat "$MS")" 'Nanoboozhoo embodied by: ${_ac_machine}'
 contains "auto-commit passes an explicit identity" "$(cat "$MS")" '-c "user.name=${_ac_name}"'
 # A status reader must be able to see the note, or a startup state still reads as a clean cycle.
 check "the status reader surfaces the state note" \
@@ -1753,9 +1753,15 @@ cp "$GUARD" scripts/
 printf '#!/bin/bash\nexec "$(git rev-parse --show-toplevel)/scripts/commit-identity-guard.sh"\n' > .git/hooks/post-commit
 chmod +x .git/hooks/post-commit scripts/commit-identity-guard.sh
 git add -A >/dev/null 2>&1
-git commit -qm "tool-authored" >/dev/null 2>&1
+# Deterministic across harnesses: clear every marker the guard reads, then set exactly one.
+# Without this the assertion follows whichever harness drives the suite (cursor here, claudecode
+# there, opencode elsewhere) and drifts permanently — a test bug, not a guard bug.
+HARNESS_ENV=(env -u CLAUDECODE -u CURSOR_TRACE_ID -u CURSOR_AGENT -u COPILOT_AGENT -u COPILOT_CLI \
+    -u CODEX_SANDBOX -u OPENCODE -u AIDER -u WINDSURF -u CLINE_AGENT -u DEVIN_AGENT \
+    -u GEMINI_CLI -u ANTIGRAVITY -u JULES_AGENT CURSOR_AGENT=1)
+"${HARNESS_ENV[@]}" git commit -qm "tool-authored" >/dev/null 2>&1
 check "a tool-authored commit is re-authored as the operator" \
-    "$(git log -1 --format='%an')" "Nanoboozhoo - embodied by cursor"
+    "$(git log -1 --format='%an')" "Nanoboozhoo embodied by: cursor"
 check "an already-correct commit is left alone (no amend loop)" \
     "$(git commit --allow-empty -qm second >/dev/null 2>&1; git rev-list --count HEAD)" "2"
 cd "$REPO" || exit 1

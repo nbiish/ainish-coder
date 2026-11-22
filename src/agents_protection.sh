@@ -181,8 +181,13 @@ snapshot_canonical_contract() {
         return 0
     fi
 
-    # Unlock destination if locked from previous run
-    unlock_agents_contract "$dest_copy" 2>/dev/null || true
+    # Unlock every canonical artifact before writing or signing. The signer replaces the
+    # signature and SHA files, and a previous run leaves them 444 + uchg; leaving them locked
+    # made `audit contract` fail with EPERM, which this helper used to suppress.
+    local artifact
+    for artifact in "$dest_copy" "$dest_hash" "${snapshot_dir}/AGENTS.sig" "${snapshot_dir}/AGENTS.threshold.sig"; do
+        [[ -e "$artifact" ]] && unlock_agents_contract "$artifact" 2>/dev/null || true
+    done
 
     cp "$source_file" "$dest_copy" || return 1
     echo "$hash_val" > "$dest_hash"
@@ -197,13 +202,19 @@ snapshot_canonical_contract() {
     # caller indefinitely.
     if [[ -x "${REPO_DIR}/bin/ainish-context" ]]; then
         if ! (cd "${REPO_DIR}" && "${REPO_DIR}/bin/ainish-context" audit contract --threshold 1 </dev/null >/dev/null 2>&1); then
-            echo "  [warn] canonical AGENTS.md was copied but NOT re-signed (ainish-context audit contract failed)" >&2
+            echo "  [error] canonical AGENTS.md was copied but NOT re-signed (ainish-context audit contract failed)" >&2
+            return 1
         fi
     else
-        echo "  [warn] canonical AGENTS.md was copied but NOT re-signed (bin/ainish-context missing)" >&2
+        echo "  [error] canonical AGENTS.md was copied but NOT re-signed (bin/ainish-context missing)" >&2
+        return 1
     fi
 
-    lock_agents_contract "$dest_copy" 2>/dev/null || true
+    # audit contract rewrites the SHA file; prove the digest it recorded is the one deployed.
+    verify_canonical_contract "$source_file" "$snapshot_dir" || return 1
+    for artifact in "$dest_copy" "$dest_hash" "${snapshot_dir}/AGENTS.sig" "${snapshot_dir}/AGENTS.threshold.sig"; do
+        [[ -e "$artifact" ]] && lock_agents_contract "$artifact" 2>/dev/null || true
+    done
     return 0
 }
 
@@ -224,7 +235,9 @@ verify_canonical_contract() {
     fi
 
     local expected_hash actual_hash
-    expected_hash="$(cat "$dest_hash" | tr -d '[:space:]')"
+    # Standard sha256sum format is "<digest>  AGENTS.md"; taking every non-whitespace
+    # character kept the filename attached and produced a permanent false mismatch.
+    expected_hash="$(awk 'NR==1 {print $1}' "$dest_hash" 2>/dev/null | tr 'A-F' 'a-f')"
     actual_hash="$(_calc_sha256 "$source_file" | tr -d '[:space:]')"
 
     if [[ "$expected_hash" != "$actual_hash" ]]; then
