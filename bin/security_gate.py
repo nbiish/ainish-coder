@@ -68,7 +68,9 @@ def verify_canonical_agents_contract(directory: str = ".") -> bool:
         with open(agents_path, "rb") as f:
             actual_hash = hashlib.sha256(f.read()).hexdigest().lower()
         with open(hash_path, "r", encoding="utf-8") as f:
-            expected_hash = f.read().strip().lower()
+            # sha256sum format is "<digest>  <filename>"; compare only the digest.
+            parts = f.read().split()
+            expected_hash = parts[0].lower() if parts else ""
             
         if actual_hash != expected_hash:
             print(f"[\033[91mFAIL\033[0m] AGENTS.md integrity mismatch with .agents/canonical/AGENTS.md.sha256!")
