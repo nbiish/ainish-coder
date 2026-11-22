@@ -1798,7 +1798,9 @@ IDDEPLOY="${WORK}/identity-deploy-target"
 rm -rf "$IDDEPLOY"; mkdir -p "$IDDEPLOY"
 ( cd "$IDDEPLOY" && git init -q . && git config user.email t@t && git config user.name t \
     && echo x > a.txt && git add a.txt && git commit -qm init ) >/dev/null 2>&1
-( cd "${REPO}" && AINISH_NON_INTERACTIVE=true REPO_DIR="${REPO}" \
+# HOME must stay the sandbox: without it this deploy registers the throwaway target in the
+# operator's REAL fleet registry, which is where the pile of dead pqc-dist-test entries came from.
+( cd "${REPO}" && HOME="${HOME_DIR}" AINISH_NON_INTERACTIVE=true REPO_DIR="${REPO}" \
     ./bin/ainish-coder --rules "$IDDEPLOY" --headless -y ) >"${WORK}/identity-deploy.log" 2>&1
 
 check "deploy copies the harness table into the target" \
