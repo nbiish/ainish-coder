@@ -20,6 +20,13 @@ done
 SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 SRC_DIR="${SCRIPT_DIR}/../src"
 
+# A bin directory that cannot be reassigned. Some sourced components (`src/deploy_commands.sh`)
+# set `SCRIPT_DIR` to their OWN directory at source time, which silently pointed every later
+# a component pointed `"${SCRIPT_DIR}/ainish-context"` at `src/` and broke every dispatch.
+# Anything this CLI execs from its own bin/ uses AINISH_BIN_DIR, never SCRIPT_DIR.
+AINISH_BIN_DIR="${SCRIPT_DIR}"
+readonly AINISH_BIN_DIR
+
 # Load shared shell components
 source "${SRC_DIR}/colors.sh"
 source "${SRC_DIR}/paths.sh"
@@ -55,7 +62,7 @@ source "${SRC_DIR}/scroll_integrity.sh"
 source "${SRC_DIR}/deploy_license.sh"
 source "${SRC_DIR}/deploy_signals.sh"
 source "${SRC_DIR}/deploy_llms_txt.sh"
-source "${SRC_DIR}/embed_config.sh"
+# embed_config.sh is gone: there is no embedding provider to configure.
 source "${SRC_DIR}/pqc_dist.sh"
 source "${SRC_DIR}/machine_sync.sh"
 source "${SRC_DIR}/machine_link.sh"
@@ -291,6 +298,21 @@ main() {
             mkdir -p "$(dirname "$_dst")" 2>/dev/null || true
             cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-${_tpl%%/*}" || true
         done
+
+        # `.agents/jobs/` — recurring agentic automation as data: which harness, which profile, what
+        # prompt, on what cadence. Distributed because a target that receives the contract should also
+        # receive the habit of writing down what recurs; the records are inert, so nothing in them runs.
+        if [[ -d "${REPO_DIR}/.agents/jobs" ]]; then
+            mkdir -p "${target_dir}/.agents/jobs" 2>/dev/null || true
+            # A target's own job records are its own; only the index, the template, and the three
+            # reference jobs are seeded, and never overwritten once present.
+            for _job in "${REPO_DIR}/.agents/jobs"/*.md "${REPO_DIR}/.agents/jobs/llms.txt"; do
+                [[ -f "$_job" ]] || continue
+                _dst="${target_dir}/.agents/jobs/$(basename "$_job")"
+                [[ -e "$_dst" ]] || cp "$_job" "$_dst" 2>/dev/null || true
+            done
+            _TRACK_DETAIL="${_TRACK_DETAIL}+agents-jobs"
+        fi
         # The skills index describes the DISTRIBUTED packs, so it comes from the
         # payload rather than this repository's own curated .agents/skills/.
         _src="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL}/llms.txt"
@@ -300,29 +322,21 @@ main() {
             cp "$_src" "$_dst" 2>/dev/null && _TRACK_DETAIL="${_TRACK_DETAIL}+agents-skills" || true
         fi
 
-        # Detect PQC/environment embedding credentials (OpenRouter/ZenMux) and route the RAG
-        # engine's embeddings through them; nothing is persisted when no credentials exist.
-        if confirm_action "Detect remote embedding credentials (OpenRouter/ZenMux via PQC) and configure RAG?" "y"; then
-            deploy_embed_provider_detect "$target_dir" || \
-                print_warning "Embedding provider detection reported errors — local embeddings remain active"
-            _TRACK_DETAIL="${_TRACK_DETAIL}+embed-provider"
-        fi
-
         # ── Context harness, generation 0 ───────────────────────────────
         # A per-repo context harness needs a FROZEN baseline before it can ever improve: every later
         # generation is compared against this one, and a learner with no reference is a regression
         # generator (Harness^2 Figure 7, 73.4 -> 63.2). Seeding is measurement only — no model call,
         # no network — and is idempotent, so a re-run never overwrites a repo's own tuning.
         if [[ "${AINISH_SEED_CONTEXT_HARNESS:-on}" != "off" ]] && [[ -d "${target_dir}/.git" ]]; then
-            # `ainish-rag` resolves its repo root from the CURRENT directory, so the seed must run
+            # `ainish-context` resolves its repo root from the CURRENT directory, so the seed must run
             # from inside the target. Running it from the caller's cwd would seed the wrong repo —
             # silently, and into a tracked path.
-            if ( cd "$target_dir" && "${SCRIPT_DIR}/ainish-rag" context-seed >/dev/null 2>&1 ); then
+            if ( cd "$target_dir" && "${AINISH_BIN_DIR}/ainish-context" context-seed >/dev/null 2>&1 ); then
                 _TRACK_DETAIL="${_TRACK_DETAIL}+context-harness"
             else
                 # A target without a wiki yet cannot be calibrated; that is reported, never faked
                 # with a zeroed profile.
-                print_warning "Context harness seed skipped (run 'ainish-rag context-seed' in the target once its wiki exists)"
+                print_warning "Context harness seed skipped (run 'ainish-context context-seed' in the target once its wiki exists)"
             fi
         fi
 
@@ -405,8 +419,15 @@ main() {
             rules_history "$@"
             ;;
 
+        # `--embed-config` is gone with the embedding subsystem. It is answered rather than ignored:
+        # a silent "unknown command" tells an operator their flag was mistyped, when the truth is that
+        # the thing they are configuring was deleted on 2026-11-12. Neither is a success.
         --embed-config)
-            embed_config "$@"
+            print_error "--embed-config was removed with the embedding subsystem (2026-11-12)"
+            echo "  There is no embedding provider to configure: retrieval is graph-first over the" >&2
+            echo "  wiki vault and .agents/ context folders, with no model and no vector store." >&2
+            echo "  See: ainish-coder --context \"<task>\"  |  ainish-context --help" >&2
+            exit 1
             ;;
 
         --rules-unenroll)
@@ -888,7 +909,10 @@ main() {
             _TRACK_DETAIL="lock-rules"
             echo -e "${BRIGHT_BLUE}Locking root AGENTS.md (write-protection active)...${RESET}"
             if lock_agents_contract "${REPO_DIR}/AGENTS.md"; then
-                snapshot_canonical_contract "${REPO_DIR}/AGENTS.md" 2>/dev/null || true
+                if ! snapshot_canonical_contract "${REPO_DIR}/AGENTS.md"; then
+                    print_error "Canonical snapshot/re-sign failed; AGENTS.md is locked but NOT re-signed."
+                    exit 1
+                fi
                 echo -e "${BRIGHT_GREEN}🔒 AGENTS.md is now write-protected (read-only).${RESET}"
                 echo -e "   To edit in root repo: ainish-coder --edit-rules (or --unlock-rules)"
             else
@@ -992,8 +1016,78 @@ main() {
             pqc_sync_targets "$@"
             ;;
 
+        # `--rag` is kept because deployed rules copies and operator habit still use it, but there is
+        # no RAG engine behind it: it forwards to the context engine, which is the only engine there
+        # is. `--context` is the documented path and the one AGENTS.md names.
         --rag)            _TRACK_DETAIL="rag"
-            "${SCRIPT_DIR}/ainish-rag" "$@"
+            "${AINISH_BIN_DIR}/ainish-context" "$@"
+            ;;
+
+        # The engine by its accurate name, for scripts that want a verb rather than the agent-facing
+        # `--context` wrapper (context-seed, context-status, wiki, gate, audit, ...).
+        --rag-engine|--context-engine)
+            _TRACK_DETAIL="context-engine"
+            "${AINISH_BIN_DIR}/ainish-context" "$@"
+            ;;
+
+        # The one context command. An agent reading AGENTS.md calls this, gets its prime, and the
+        # repo's harness keeps improving from there. Two shapes are accepted, because both are
+        # natural to reach for:
+        #   ainish-coder --context "what I am doing right now"
+        #   ainish-coder --context --task "what I am doing right now" [--json] [--retrieval-only]
+        # The task is passed through verbatim: summarizing the request away is what produces a
+        # vague prime, so this wrapper does not touch the text.
+        --context|--context=*)
+            # One pass, three accepted shapes, everything else forwarded untouched:
+            #   --context=<task> | --context --task <task> | --context <task> [flags]
+            local _ctx_task="" _ctx_args=() _ctx_a="" _ctx_n=0 _ctx_i=0 _ctx_pos=0
+            if [[ "$command" == --context=* ]]; then
+                _ctx_task="${command#--context=}"
+            fi
+            _ctx_n=$#
+            while [[ $_ctx_i -lt $_ctx_n ]]; do
+                _ctx_pos=$((_ctx_i + 1))
+                _ctx_a="${!_ctx_pos}"
+                _ctx_i=$((_ctx_i + 1))
+                case "$_ctx_a" in
+                    --task=*)
+                        _ctx_task="${_ctx_a#--task=}"
+                        ;;
+                    --task)
+                        # The next argument is the value; consume it as one unit.
+                        if [[ $_ctx_i -lt $_ctx_n ]]; then
+                            _ctx_pos=$((_ctx_i + 1))
+                            _ctx_task="${!_ctx_pos}"
+                            _ctx_i=$((_ctx_i + 1))
+                        fi
+                        ;;
+                    -*)
+                        _ctx_args+=("$_ctx_a")
+                        ;;
+                    *)
+                        # A bare argument is the task the first time; anything after it is not
+                        # ours to interpret, so it is forwarded.
+                        if [[ -z "$_ctx_task" ]]; then
+                            _ctx_task="$_ctx_a"
+                        else
+                            _ctx_args+=("$_ctx_a")
+                        fi
+                        ;;
+                esac
+            done
+            if [[ -z "$_ctx_task" ]]; then
+                print_error "Missing context input for --context"
+                echo "Usage: ainish-coder --context \"<your current task, step, or question>\"" >&2
+                echo "   or: ainish-coder --context --task \"<...>\" [--json] [--retrieval-only]" >&2
+                echo "The request is the signal: pass it verbatim." >&2
+                exit 1
+            fi
+            _TRACK_DETAIL="context"
+            # `--task=` is the unambiguous form; it survives spaces, dashes, and newlines intact.
+            # The forwarded-with flag suppresses the launcher's deprecation line: we ARE the documented
+            # command, so telling the caller to use it would be noise on top of every prime.
+            AINISH_CONTEXT_FORWARDED=1 \
+                "${AINISH_BIN_DIR}/ainish-context" context "--task=${_ctx_task}" "${_ctx_args[@]+"${_ctx_args[@]}"}"
             ;;
 
         *)

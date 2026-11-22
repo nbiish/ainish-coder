@@ -785,8 +785,13 @@ _ms_snapshot_peer() { # host path peer
 
 _ms_push() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
+    # Unique per process. A fixed name collides across CONCURRENT cycles: the watcher retries a
+    # failed cycle while a manual run or the next tick is in flight, and each side deletes the
+    # bundle after use, so one fetch finds the other's file already unlinked. That surfaces as
+    # git claiming the bundle "does not appear to be a git repository" even though scp succeeded,
+    # which is what the watch log recorded on 11 of 37 cycles.
     local remote_bundle
-    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-in.bundle"
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-in-$$-${RANDOM}.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$_MS_SELF")
@@ -869,10 +874,10 @@ _ms_push() { # repo host peer_path peer_name bundle
 
 _ms_pull() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
-    # A distinct filename from the push direction: on a --both run the two transfers would otherwise
-    # share one path in the peer's .git and clobber each other mid-flight.
+    # A distinct filename from the push direction, and unique per process for the same reason:
+    # concurrent cycles must not share a peer-side path that either side deletes when done.
     local remote_bundle
-    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-out.bundle"
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-machine-sync-out-$$-${RANDOM}.bundle"
     local -a specs=()
     local s
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$peer")
@@ -1104,11 +1109,19 @@ machine_sync() {
             _ac_paths="$(git -C "$repo" status --porcelain 2>/dev/null | awk '{print $2}' | head -10)"
             _ac_count="$(git -C "$repo" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
             local _ac_msg
-            _ac_msg="wip($(hostname -s 2>/dev/null || echo machine)): synced by --auto-commit"$'\n\n'"changed ${_ac_count} path(s):"$'\n'"${_ac_paths}"
+            # MACHINE IDENTITY, not the operator's. `git commit` with no `-c user.*` inherits whatever
+            # the operator has configured, so every unattended cycle authored commits as them — which
+            # AGENTS.md rule 4 forbids. The contract's permitted form for forced authorship is
+            # `Nanoboozhoo embodied by: {machine}`.
+            _ac_machine="$(hostname -s 2>/dev/null || echo machine)"
+            _ac_name="Nanoboozhoo embodied by: ${_ac_machine}"
+            _ac_email="$(git -C "$repo" config --get user.email 2>/dev/null || echo 'nanoboozhoo@localhost')"
+            _ac_msg="wip(${_ac_machine}): synced by --auto-commit"$'\n\n'"changed ${_ac_count} path(s):"$'\n'"${_ac_paths}"
             (( _ac_count > 10 )) && _ac_msg="${_ac_msg}"$'\n'"... and $((_ac_count - 10)) more"
             if git -C "$repo" add -A 2>/dev/null && \
-               git -C "$repo" commit -q -m "$_ac_msg" 2>/dev/null; then
-                _ms_ok "committed working-tree edits on $(git -C "$repo" rev-parse --abbrev-ref HEAD)"
+               git -C "$repo" -c "user.name=${_ac_name}" -c "user.email=${_ac_email}" \
+                   commit -q -m "$_ac_msg" 2>/dev/null; then
+                _ms_ok "committed working-tree edits on $(git -C "$repo" rev-parse --abbrev-ref HEAD) as ${_ac_name}"
             else
                 _ms_err "auto-commit failed; the snapshot below still carries the work"
             fi

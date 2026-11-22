@@ -6,7 +6,7 @@
 # exporting GIT_AUTHOR_* themselves. The operator's profile must win either way.
 #
 # This runs as a post-commit hook. If the commit was authored by a harness, it rewrites the commit to
-# `Nanoboozhoo - embodied by <harness>` and strips harness attribution lines from the message. If the
+# `Nanoboozhoo embodied by: <harness>` and strips harness attribution lines from the message. If the
 # commit is already the operator's, it does nothing. Idempotent, and it never touches a commit that
 # does not name a harness.
 #
@@ -21,14 +21,10 @@ set -uo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 cd "$repo_root" || exit 0
 
-# The canonical form the operator asked for. {harness} is the tool that forced the commit.
-identity_prefix="Nanoboozhoo - embodied by"
-
-# The prefix was "embodies by" before 2026-11-13. A commit authored under the old spelling is still
-# the operator's own history, so it must count as already-normalised — otherwise the post-commit
-# guard (or any amend of an older commit) would see a mismatch and rewrite an already-correct author,
-# which is an amend loop and a needless rewrite of history nobody asked to change.
-identity_prefix_legacy="Nanoboozhoo - embodies by"
+# The canonical form the operator asked for. {harness} is the tool that forced the commit — never
+# a hardcoded product name: the guard detects the actual harness from env markers or the author.
+# The colon belongs after "by:", exactly as the operator specified.
+identity_prefix="Nanoboozhoo embodied by:"
 
 # Harness names, lowercased, as they appear in authors and in attribution trailers.
 #
@@ -74,12 +70,29 @@ identity="${identity_prefix} ${harness}"
 cur_name="$(git log -1 --format='%an')"
 cur_email="$(git log -1 --format='%ae')"
 
-# Already ours — nothing to do (also prevents amend loops). Both spellings count: history authored
-# before 2026-11-13 says "embodies by" and is still the operator's own.
-[ "$cur_name" = "$identity" ] && exit 0
-case "$cur_name" in
-    "$identity_prefix_legacy "*) exit 0 ;;
-esac
+# Already ours AND the message is clean — nothing to do.
+#
+# The "author is correct" test alone was a bug worth 26 commits: a harness that set the author field
+# correctly AND appended `Co-authored-by: Cursor <...>` produced a commit this guard walked away from,
+# leaving the strip at the bottom of this file unreachable for exactly the commits that needed it.
+# The early exit now requires BOTH conditions, so a correct author with a dirty message is still
+# repaired.
+message_is_clean() {
+    local stripper="${repo_root}/scripts/strip-harness-trailers.sh"
+    [ -x "$stripper" ] || return 0   # no table available: assume clean rather than amend blindly
+    git log -1 --format=%B > "${TMPDIR:-/tmp}/guard-msg.$$" 2>/dev/null || return 0
+    "$stripper" --check "${TMPDIR:-/tmp}/guard-msg.$$" 2>/dev/null
+    local rc=$?
+    rm -f "${TMPDIR:-/tmp}/guard-msg.$$"
+    return $rc
+}
+
+if [ "$cur_name" = "$identity" ] && message_is_clean; then
+    exit 0
+fi
+# Old spellings (`Nanoboozhoo - embodied by ...`, `Nanoboozhoo - embodies by ...`) are deliberately
+# NOT accepted as already-normalised: the newest canonical form is `Nanoboozhoo embodied by: ...`,
+# and an amend of an older commit should bring its author forward rather than preserve a retired form.
 
 # The operator's email stays put; only the display name is corrected.
 email="${cur_email}"
@@ -90,10 +103,22 @@ esac
 
 msg_file="$(mktemp "${TMPDIR:-/tmp}/identity-guard.XXXXXX")"
 trap 'rm -f "$msg_file"' EXIT
-git log -1 --format=%B \
-    | grep -viE "^[[:space:]]*(co-authored-by|signed-off-by|generated-by)[[:space:]]*:.*(${harness_pattern})" \
-    | grep -viE "(${harness_pattern})[[:space:]]*(code|coder|cli|agent|ide)|generated with (${harness_pattern})|made with (${harness_pattern})|🤖" \
-    > "$msg_file" || true
+# One table decides what counts as harness attribution — see scripts/harness-attribution.txt.
+#
+# This block used to carry its OWN regex, and it was wrong in two opposite ways: it stripped
+# `Signed-off-by:` (a DCO assertion the OPERATOR makes, not a tool claiming authorship), and its
+# harness list was narrower than the table's. Two lists drift; one table does not. When the stripper
+# is unavailable the fallback still removes `Co-authored-by:` lines naming a harness, because leaving
+# those is the failure this guard exists to prevent.
+stripper="${repo_root}/scripts/strip-harness-trailers.sh"
+if [ -x "$stripper" ]; then
+    git log -1 --format=%B | "$stripper" --stdin > "$msg_file" 2>/dev/null || \
+        git log -1 --format=%B > "$msg_file"
+else
+    git log -1 --format=%B \
+        | grep -viE "^[[:space:]]*co-authored-by[[:space:]]*:.*(${harness_pattern})" \
+        > "$msg_file" || true
+fi
 # An empty message means the whole body was attribution; keep the subject line.
 [ -s "$msg_file" ] || git log -1 --format=%s > "$msg_file"
 

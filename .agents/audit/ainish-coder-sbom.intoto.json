@@ -1,110 +1,75 @@
 {
   "_type": "link",
-  "byproducts": {
-    "return-value": 0,
-    "stderr": "",
-    "stdout": "in-toto v1.0 link metadata generated with ML-DSA-65 attestation"
-  },
+  "name": "build/provenance",
   "command": [
-    "ainish-rag",
+    "ainish-context",
     "audit",
     "sbom",
     "--format",
     "intoto"
   ],
-  "environment": {
-    "compiler_flags": "none",
-    "name": "ainish-coder",
-    "rustc_version": "rustc 1.98.1 (48a229cea 2026-09-01)",
-    "signature_alg": "ML-DSA-65 (FIPS 204)",
-    "signer_fingerprint": "d98405ea368484f51e64840d725343be",
-    "target_arch": "x86_64",
-    "target_os": "windows",
-    "timestamp": "2026-10-29T17:07:51Z",
-    "tool": "ainish-rag 0.1.0"
-  },
   "materials": {
+    "src/pqc-secrets/Cargo.lock": {
+      "sha256": "d84f954c89d779457f32d4afcc473313a6a8b6e474dc20fa16d1333d5ebc47a9"
+    },
+    "src/cmd-tracker/Cargo.lock": {
+      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+    },
     ".gitattributes": {
-      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
+      "sha256": "80dec44a20cf577e006a61667d0c72f4582c9cccb99da47f34eef016a3d564c7"
     },
     "AGENTS.md": {
-      "sha256": "97701b66dfe9a41fdfdbafe112ad0447ade9c9a6c8f6978f5ab57f282fe82e84"
-    },
-    "src/cmd-tracker/Cargo.lock": {
-      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
-    },
-    "src/pqc-secrets/Cargo.lock": {
-      "sha256": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
-    },
-    "src/rag/Cargo.lock": {
-      "sha256": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+      "sha256": "044b895f35d13ca0ab701b4f0f273e06aa9f5999fa0581f3c726f6518acc4394"
     }
   },
-  "name": "build/provenance",
   "products": {
-    ".agents/audit/2026-10-12-index-receipt.json": {
-      "kind": "data",
-      "sha256": "5442094dc1e2d9422f3d2bd5e10debc555b73bcb2838c0e86414a7e55e8b5fe7"
-    },
-    ".agents/audit/2026-10-28-index-receipt.json": {
-      "kind": "data",
-      "sha256": "9104de6ec3e3fbe99fde270bf069aa1761cf960e8bfeb5af1bb41cd8dbb2943e"
-    },
-    ".agents/audit/2026-10-29-index-receipt.json": {
-      "kind": "data",
-      "sha256": "1c681d174dd8337691880ff8fdb637f66edac67573fd60e91aca50f20c3bbe4e"
-    },
-    ".agents/audit/contract-history.jsonl": {
-      "contract_history_head_sha256": "6b1c884d0e2195ed8cf60e5b263b958e7bba6ce778c438ce4e12a1981bed5583",
-      "kind": "governance_history",
-      "sha256": "4aab1a760e710c723aafd7184a37d86f222ea07638a5084662e0fec608af4c62"
-    },
-    ".agents/audit/contract-history.sig": {
-      "ainish:contract-history-sig:sha256": "1aabc4af0d1cc8cb16d82a2404caa4fc974ef810263dbc2ae155cc313d9f9276",
-      "kind": "governance_signature",
-      "sha256": "1aabc4af0d1cc8cb16d82a2404caa4fc974ef810263dbc2ae155cc313d9f9276"
-    },
-    ".agents/audit/privacy-report.json": {
-      "ainish:privacy-report:sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a",
-      "kind": "privacy_report",
-      "sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a"
-    },
-    ".agents/canonical/AGENTS.md": {
-      "kind": "data",
-      "sha256": "97701b66dfe9a41fdfdbafe112ad0447ade9c9a6c8f6978f5ab57f282fe82e84"
-    },
-    ".agents/wiki/ledger.md": {
-      "kind": "wiki_ledger",
-      "sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891",
-      "wiki_ledger_sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891"
-    },
-    ".gitattributes": {
-      "kind": "file",
-      "sha256": "e082447445dfd6c885187841a0b96dfc5122c593fc8b18f19d4d093ab79f6301"
-    },
-    "embeddinggemma-2-BF16.gguf": {
-      "kind": "machine-learning-model",
-      "sha256": "f315cbbb30dd487e44d501c8902abe88808755e43753a96beed1964f0a48aa4f"
-    },
-    "llama.exe": {
-      "kind": "application",
-      "sha256": "c2782810897e56523965e3286078847d5a5d76829b4826850c2fbf940de02ad7"
-    },
-    "mmproj-F16.gguf": {
-      "kind": "machine-learning-model",
-      "sha256": "74bf65c860d292a1eebafd7ca85b44532a2528f03017f9204fe1695916d2c66f"
-    },
-    "src/cmd-tracker/Cargo.lock": {
-      "kind": "file",
-      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06"
+    "retire-rag": {
+      "sha256": "",
+      "kind": "application"
     },
     "src/pqc-secrets/Cargo.lock": {
-      "kind": "file",
-      "sha256": "7ad1bdd39a001e787073f575b28fbe095e3a2e51de0bfacbe685219ee1d563cd"
+      "sha256": "d84f954c89d779457f32d4afcc473313a6a8b6e474dc20fa16d1333d5ebc47a9",
+      "kind": "file"
     },
-    "src/rag/Cargo.lock": {
-      "kind": "file",
-      "sha256": "5552b05edc1e06d743a73683de80bcd42fc4d0cc08fbf8d29461bea51d96f033"
+    "src/cmd-tracker/Cargo.lock": {
+      "sha256": "d13b593c1e32e44852d1733e9ddc33fa85b3dc13cab27279e1bb73a2a1db6c06",
+      "kind": "file"
+    },
+    ".gitattributes": {
+      "sha256": "80dec44a20cf577e006a61667d0c72f4582c9cccb99da47f34eef016a3d564c7",
+      "kind": "file"
+    },
+    ".agents/wiki/ledger.md": {
+      "sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891",
+      "kind": "wiki_ledger",
+      "wiki_ledger_sha256": "d0975ceacf3a985f83fccbf2f450123afa97dc0218b5d760a6b6b97f0d751891"
+    },
+    ".agents/audit/contract-history.jsonl": {
+      "sha256": "76c6679e046a002dc06d18cba6dc29aa123ad0d2befb9eebda947352ec5533e9",
+      "kind": "governance_history",
+      "contract_history_head_sha256": "6da0a2d779b792652bffe0b3f7522f943c37c0d25e347f2e66f4e77b33c14f35"
+    },
+    ".agents/audit/contract-history.sig": {
+      "sha256": "5216a31ed350b524c8a3a38a181e80b82c70c08ce2f1787112fd8ac186ef2847",
+      "kind": "governance_signature",
+      "ainish:contract-history-sig:sha256": "5216a31ed350b524c8a3a38a181e80b82c70c08ce2f1787112fd8ac186ef2847"
+    },
+    ".agents/audit/privacy-report.json": {
+      "sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a",
+      "kind": "privacy_report",
+      "ainish:privacy-report:sha256": "0b88f9d65fc5bfc5ff33f277e9e4f91ae09203edd68a0164c746878ce8f3144a"
     }
+  },
+  "environment": {
+    "name": "retire-rag",
+    "tool": "ainish-context 0.1.0",
+    "target_os": "darwin",
+    "signature_alg": "ML-DSA-65 (FIPS 204)",
+    "timestamp": "2026-11-19T16:00:05.327470+00:00"
+  },
+  "byproducts": {
+    "return-value": 0,
+    "stderr": "",
+    "stdout": "in-toto v1.0 link metadata generated with ML-DSA-65 attestation"
   }
 }

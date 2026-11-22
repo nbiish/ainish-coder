@@ -113,25 +113,23 @@ _ainish_rules_cli() {
     fi
 }
 
-# Resolves a compiled ainish-rag binary for ML-DSA-65 signing/verification.
-# The shell/Python launcher is intentionally excluded: invoking it here can
-# recursively rebuild or re-enter deployment and stall rules bootstrap.
-_ainish_rag_bin() {
-    if [[ -x "${REPO_DIR}/bin/ainish-rag.exe" ]]; then
-        printf '%s\n' "${REPO_DIR}/bin/ainish-rag.exe"
-    elif [[ -x "${REPO_DIR}/src/rag/target/release/ainish-rag.exe" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/release/ainish-rag.exe"
-    elif [[ -x "${REPO_DIR}/src/rag/target/release/ainish-rag" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/release/ainish-rag"
-    elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag.exe"
-    elif [[ -x "${REPO_DIR}/src/rag/target/debug/ainish-rag" ]]; then
-        printf '%s\n' "${REPO_DIR}/src/rag/target/debug/ainish-rag"
-    else
-        return 1
+# Resolves the context engine for ML-DSA-65 signing and verification.
+#
+# This looked for a COMPILED binary and deliberately excluded the launcher, to avoid re-entering
+# deployment. That reasoning is obsolete: the compiled engine was deleted 2026-11-19 and the launcher
+# runs a short Python command, not a deploy. With no binary to find, every `--rules` manifest would go
+# out UNSIGNED — a supply-chain regression introduced by a rename.
+#
+# Deliberately does NOT fall back to `command -v`: REPO_DIR is the installation doing the deploying,
+# and signing with some OTHER installation's engine would stamp a manifest with a key this install
+# does not own. If this install has no engine, that is the fact to report.
+_ainish_context_bin() {
+    if [[ -x "${REPO_DIR}/bin/ainish-context" ]]; then
+        printf '%s\n' "${REPO_DIR}/bin/ainish-context"
+        return 0
     fi
+    return 1
 }
-
 _ainish_rules_host_path() {
     local path="$1"
     if command -v wslpath >/dev/null 2>&1; then
@@ -164,8 +162,8 @@ _ainish_rules_sign_arg() {
 _ainish_rules_sign_manifest() {
     local manifest="$1"
     local rag
-    rag="$(_ainish_rag_bin)" || {
-        printf 'ainish-rag is required to sign %s\n' "$manifest" >&2
+    rag="$(_ainish_context_bin)" || {
+        printf 'ainish-context is required to sign %s\n' "$manifest" >&2
         return 1
     }
     local sign_target
@@ -204,7 +202,7 @@ _ainish_rules_verify_manifest_sig() {
     [[ -f "$manifest" ]] || { printf 'MISSING_MANIFEST\n'; return 1; }
     [[ -f "$sig" ]] || { printf 'MISSING_SIG\n'; return 1; }
     local rag python
-    rag="$(_ainish_rag_bin)" || { printf 'NO_VERIFIER\n'; return 1; }
+    rag="$(_ainish_context_bin)" || { printf 'NO_VERIFIER\n'; return 1; }
     # Verify the MANIFEST, not its directory. This used to pass `$(dirname "$manifest")`,
     # so `audit verify` swept every receipt in .agents/ and any unrelated stale or
     # differently-keyed receipt failed the whole rules deploy. At a home directory (where
@@ -258,13 +256,21 @@ _ainish_rules_reject_symlinked_layout() {
 _ainish_rules_install_hook_block() {
     local hook="$1"
     local block="$2"
+    # The start marker of THIS block, read from its own first line. It used to compare every block
+    # against `_AINISH_RULES_HOOK_START` (the rules-sync marker), so a DIFFERENT block appended to a
+    # hook was never recognised on the next run and simply got appended again — one checkout
+    # accumulated 12 duplicate identity-guard blocks. Reading the marker from the block itself makes
+    # installation idempotent for any block, without a second parameter to keep in sync.
+    local start_marker end_marker
+    start_marker="$(printf '%s' "$block" | head -1)"
+    end_marker="$(printf '%s' "$block" | tail -1)"
     mkdir -p "$(dirname "$hook")" 2>/dev/null || return 1
 
     if [[ ! -f "$hook" ]]; then
         printf '#!/bin/sh\n\n%s\n' "$block" > "$hook"
-    elif grep -qF "$_AINISH_RULES_HOOK_START" "$hook" 2>/dev/null; then
+    elif grep -qF "$start_marker" "$hook" 2>/dev/null; then
         local tmp="${hook}.tmp.$$"
-        BLOCK="$block" START="$_AINISH_RULES_HOOK_START" END="$_AINISH_RULES_HOOK_END" \
+        BLOCK="$block" START="$start_marker" END="$end_marker" \
             awk '
                 $0 == ENVIRON["START"] { inblock=1; printf "%s\n", ENVIRON["BLOCK"]; next }
                 $0 == ENVIRON["END"]   { inblock=0; next }
@@ -305,6 +311,7 @@ field() {
 SRC=$(field source_repo)
 DEPLOYED_COMMIT=$(field source_commit)
 DEPLOYED_SHA=$(field source_agents_sha256)
+DEPLOYED_PACK=$(field source_pack_sha256)
 [ -n "$SRC" ] || exit 0
 
 CUR_SHA=""
@@ -318,18 +325,38 @@ sha_of() {
     fi
 }
 
+# Digest of a directory tree, mirroring the source's pack digest. Used so a skill-pack
+# edit (not just an AGENTS.md edit) is still seen as a real change.
+sha_dir() {
+    [ -d "$1" ] || return 0
+    local tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-pack.XXXXXX" 2>/dev/null)" || return 0
+    (cd "$1" 2>/dev/null && find . -type f | LC_ALL=C sort | while IFS= read -r f; do
+        printf '%s  %s\n' "$(sha_of "$f")" "$f"
+    done) > "$tmp" 2>/dev/null
+    sha_of "$tmp"
+    rm -f "$tmp"
+}
+
 CURRENT_COMMIT=""
 if command -v git >/dev/null 2>&1; then
     # git -C resolves both a normal checkout and a worktree (where .git is a file).
     CURRENT_COMMIT=$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)
 fi
 
+# Content, not commit SHA, decides staleness: a commit that did not change the deployed
+# bytes must not redeploy and re-sign the whole fleet. Commit equality is only a fallback
+# for manifests written before content hashes were recorded.
 UP_TO_DATE=0
-if [ -n "$CURRENT_COMMIT" ] && [ "$CURRENT_COMMIT" = "$DEPLOYED_COMMIT" ]; then
-    UP_TO_DATE=1
-elif [ -z "$CURRENT_COMMIT" ] && [ -f "$SRC/AGENTS.md" ]; then
+if [ -f "$SRC/AGENTS.md" ] && [ -n "$DEPLOYED_SHA" ]; then
     CUR_SHA=$(sha_of "$SRC/AGENTS.md")
-    [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$DEPLOYED_SHA" ] && UP_TO_DATE=1
+    CUR_PACK=$(sha_dir "$SRC/skills-to-distribute/skills/pqc-secrets")
+    if [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$DEPLOYED_SHA" ] && \
+       { [ -z "$DEPLOYED_PACK" ] || { [ -n "$CUR_PACK" ] && [ "$CUR_PACK" = "$DEPLOYED_PACK" ]; }; }; then
+        UP_TO_DATE=1
+    fi
+elif [ -n "$CURRENT_COMMIT" ] && [ "$CURRENT_COMMIT" = "$DEPLOYED_COMMIT" ]; then
+    UP_TO_DATE=1
 fi
 [ "$UP_TO_DATE" = "1" ] && exit 0
 
@@ -460,10 +487,57 @@ _ainish_rules_target_hooks_dir() {
     target_real="$(cd -P "$target_dir" 2>/dev/null && pwd)" || target_real="$target_dir"
     top_real="$(cd -P "$top" 2>/dev/null && pwd)" || top_real="$top"
     [[ "$top_real" == "$target_real" ]] || return 0
+    # Resolve through git rather than assuming `<root>/.git/hooks`: in a WORKTREE `.git` is a FILE
+    # pointing at the per-worktree git dir, and git only ever runs hooks from the COMMON dir. The old
+    # `${target_real}/.git/hooks` therefore named a path that does not exist in a worktree at all.
+    local hooks
+    hooks="$(git -C "$target_dir" rev-parse --git-path hooks 2>/dev/null || true)"
+    if [[ -n "$hooks" ]]; then
+        # --git-path may answer relatively; anchor it at the target so the caller's cwd cannot matter.
+        case "$hooks" in
+            /*) printf '%s\n' "$hooks" ;;
+            *)  printf '%s\n' "${target_real}/${hooks}" ;;
+        esac
+        return 0
+    fi
     printf '%s\n' "${target_real}/.git/hooks"
 }
 
 # Installs the target-side hooks (post-merge + post-checkout) that invoke the refresher.
+# Copies the commit-identity tooling into a target repo's `.agents/bin/`.
+#
+# WHY COPIES AND NOT A REFERENCE:
+# the hooks used to point at `${REPO_DIR}/scripts/...` — the install that DEPLOYED them. A target then
+# broke the moment that path moved (a worktree removed, a reinstall elsewhere), and it could never
+# receive a new harness entry: the table it ran belonged to another repository. Measured 2026-11-20, a
+# `--rules` target received NO identity hooks at all. Copying makes the target self-contained and gives
+# every `--rules` re-run a way to refresh the table, which is the whole point of keeping it data.
+_ainish_rules_deploy_identity_scripts() {
+    local target_dir="$1"
+    local bin_dir="${target_dir}/.agents/bin"
+    local s
+    for s in harness-attribution.txt strip-harness-trailers.sh commit-identity-guard.sh; do
+        [[ -f "${REPO_DIR}/scripts/${s}" ]] || {
+            printf 'missing source file: scripts/%s\n' "$s" >&2
+            return 1
+        }
+    done
+    mkdir -p "$bin_dir" 2>/dev/null || return 1
+    cp "${REPO_DIR}/scripts/harness-attribution.txt"        "${bin_dir}/harness-attribution.txt"        || return 1
+    cp "${REPO_DIR}/scripts/strip-harness-trailers.sh"      "${bin_dir}/strip-harness-trailers.sh"      || return 1
+    cp "${REPO_DIR}/scripts/commit-identity-guard.sh"       "${bin_dir}/commit-identity-guard.sh"       || return 1
+    # The table is DATA (0644); the two scripts are EXECUTABLE. A hook that cannot execute its script
+    # fails silently, which is how the trailer strip looked installed and did nothing.
+    chmod 0644 "${bin_dir}/harness-attribution.txt" 2>/dev/null || true
+    chmod 0755 "${bin_dir}/strip-harness-trailers.sh" "${bin_dir}/commit-identity-guard.sh" 2>/dev/null || true
+    return 0
+}
+
+# Hermes consolidation profiles are host-level configuration. They are consumed by
+# `ainish-coder --context` (src/context/engine.py) but deliberately NOT created or inspected by
+# `--rules`: deploying rules must never mutate a target's hermes config. Profiles are expected to
+# already exist on the host; --context reports a plain fallback when they do not.
+
 install_rules_sync_hooks() {
     local target_dir="$1"
     local hooks_dir
@@ -494,6 +568,31 @@ HOOK_BLOCK
 )"
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
     _ainish_rules_install_hook_block "${hooks_dir}/post-checkout" "$block" || true
+
+    # ── commit identity ────────────────────────────────────────────────────
+    # Deployed the same way this repository runs them, and for the same reason: a repo that ships
+    # `AGENTS.md` rule 4 ("the operator is the only author") must have the tooling that makes it true.
+    # Without this, every commit a target repo generates carries whatever trailer its harness appends.
+    #
+    # Both blocks reference `.agents/bin/`, RELATIVE to the target, so the target runs its own copies.
+    # An absolute path to the deploying install would break as soon as that install moved.
+    _ainish_rules_deploy_identity_scripts "$target_dir" || {
+        print_warning "Could not copy the commit-identity tools into ${target_dir}/.agents/bin"
+    }
+    _ainish_rules_install_hook_block "${hooks_dir}/commit-msg" \
+"# --- AINISH-CODER IDENTITY STRIP START ---
+# Remove tool self-attribution before the commit object exists (AGENTS.md rule 4).
+if [ -x .agents/bin/strip-harness-trailers.sh ]; then
+    .agents/bin/strip-harness-trailers.sh \"\$1\" || true
+fi
+# --- AINISH-CODER IDENTITY STRIP END ---" || true
+    _ainish_rules_install_hook_block "${hooks_dir}/post-commit" \
+"# --- AINISH-CODER IDENTITY GUARD START ---
+# Re-author a commit whose author is a harness, re-signing it (AGENTS.md rule 4).
+if [ \"\${AINISH_IDENTITY_GUARD_ACTIVE:-0}\" != \"1\" ] && [ -x .agents/bin/commit-identity-guard.sh ]; then
+    AINISH_IDENTITY_GUARD=on .agents/bin/commit-identity-guard.sh >/dev/null 2>&1 || true
+fi
+# --- AINISH-CODER IDENTITY GUARD END ---" || true
     return 0
 }
 
@@ -509,7 +608,13 @@ install_root_rules_sync_hook() {
     block="$(cat <<'ROOT_HOOK_BLOCK'
 # --- AINISH-CODER RULES SYNC START ---
 if [ "${AINISH_RULES_SYNC_ACTIVE:-0}" != "1" ] && [ -x REPO_CLI_PLACEHOLDER ]; then
-    AINISH_RULES_SYNC_ACTIVE=1 REPO_CLI_PLACEHOLDER --rules-sync --all --quiet >/dev/null 2>&1 || true
+    # Fast path: a commit that touched no managed rules content cannot make any target stale.
+    # Without this guard every commit re-signed and rewrote all registered repos, which made
+    # ordinary development and every agent commit wait on the whole fleet.
+    if git diff-tree --no-commit-id --name-only -r -m HEAD 2>/dev/null \
+        | grep -qE '(^|/)(AGENTS\.md|llms\.txt|\.gitignore)$|(^|/)\.agents/(skills|comms|templates|plans|bin)/'; then
+        AINISH_RULES_SYNC_ACTIVE=1 REPO_CLI_PLACEHOLDER --rules-sync --all --quiet >/dev/null 2>&1 || true
+    fi
 fi
 # --- AINISH-CODER RULES SYNC END ---
 ROOT_HOOK_BLOCK
@@ -526,7 +631,24 @@ ROOT_HOOK_BLOCK
     _ainish_rules_install_hook_block "${hooks_dir}/post-commit" "$block" || true
     _ainish_rules_install_hook_block "${hooks_dir}/post-merge" "$block" || true
     # Second, independent block: a harness that forced its own authorship gets corrected to
-    # "Nanoboozhoo - embodied by <harness>" instead of shipping claude/cursor/... as the author.
+    # "Nanoboozhoo embodied by: <harness>" instead of shipping claude/cursor/... as the author.
+    #
+    # This block only fixes the AUTHOR, and it has to amend to do it. Attribution TRAILERS
+    # (`Co-authored-by: Cursor <...>`) are removed earlier, in commit-msg, where editing the message
+    # costs nothing and cannot lose a signature. Deploying only this block is what let 82 commits in
+    # this repository keep a Cursor trailer beside an already-correct author.
+    local quoted_stripper
+    printf -v quoted_stripper "'%s'" "$(printf '%s' "${REPO_DIR}/scripts/strip-harness-trailers.sh" | sed "s/'/'\\\\''/g")"
+    local strip_block
+    strip_block="$(cat <<STRIP_BLOCK
+# --- AINISH-CODER IDENTITY STRIP START ---
+if [ -x ${quoted_stripper} ]; then
+    ${quoted_stripper} "\$1" || true
+fi
+# --- AINISH-CODER IDENTITY STRIP END ---
+STRIP_BLOCK
+)"
+    _ainish_rules_install_hook_block "${hooks_dir}/commit-msg" "$strip_block" || true
     local guard_block
     guard_block="$(cat <<GUARD_BLOCK
 # --- AINISH-CODER IDENTITY GUARD START ---
@@ -556,23 +678,24 @@ GUARD_BLOCK
 # must be a deliberate, reviewed act, not a side effect of `--rules`.
 _ainish_rules_anchor_mismatch() {
     local rag
-    rag="$(_ainish_rag_bin)" || return 0
+    rag="$(_ainish_context_bin)" || return 0
     # The engine resolves its anchor relative to the repo it runs in, so run it in REPO_DIR.
     ( cd "${REPO_DIR}" 2>/dev/null && "$rag" audit anchor-check 2>/dev/null ) || return 0
 }
 
 _ainish_rules_require_signer() {
     local rag
-    if rag="$(_ainish_rag_bin)"; then
+    if rag="$(_ainish_context_bin)"; then
         printf '%s\n' "$rag"
         return 0
     fi
-    print_error "No compiled ainish-rag engine — deploy provenance cannot be signed."
+    print_error "No context engine found — deploy provenance cannot be signed."
     echo "  Rules content deploys fine, but this run would leave an UNSIGNED manifest," >&2
-    echo "  so it is refused rather than half-applied. Build or install the engine:" >&2
+    echo "  so it is refused rather than half-applied. The engine is Python and ships with" >&2
+    echo "  this repository; what is missing is a usable interpreter or the launcher:" >&2
     echo "" >&2
-    echo "    cd ${REPO_DIR}/src/rag && cargo build --release" >&2
-    echo "    cp target/release/ainish-rag* ${REPO_DIR}/bin/" >&2
+    echo "    ls -l ${REPO_DIR}/bin/ainish-context" >&2
+    echo "    command -v uv || python3 --version" >&2
     echo "" >&2
     echo "  Then re-run 'ainish-coder --rules <dir>' and verify with: ainish-coder --rules-status" >&2
     return 1
@@ -794,6 +917,9 @@ rules_status() {
     _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     registry="$(_ainish_rules_registry_file)" || return 1
     src_commit="$(_ainish_rules_source_commit)"
+    local src_hash src_pack
+    src_hash="$(_ainish_rules_source_agents_sha)"
+    src_pack="$(_ainish_rules_pack_digest 2>/dev/null || true)"
 
     local entries="" human=""
     local total=0 current=0 stale=0 missing=0
@@ -810,10 +936,16 @@ rules_status() {
                 status="MISSING_MANIFEST"; label="${YELLOW}?${RESET}"; missing=$((missing + 1))
             else
                 deployed="$(sed -n 's/^[[:space:]]*"source_commit":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
-                if [[ "$deployed" == "$src_commit" ]]; then
+                local deployed_hash deployed_pack
+                deployed_hash="$(sed -n 's/^[[:space:]]*"source_agents_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                deployed_pack="$(sed -n 's/^[[:space:]]*"source_pack_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                # Compare deployed content, not the commit that wrote it: an unrelated commit
+                # must not make every target look stale and trigger a full fleet re-sign.
+                if [[ -n "$deployed_hash" && "$deployed_hash" == "$src_hash" && \
+                      ( -z "$src_pack" || "$deployed_pack" == "$src_pack" ) ]]; then
                     status="CURRENT"; label="${GREEN}CURRENT${RESET}"; current=$((current + 1))
                 else
-                    status="STALE"; label="${YELLOW}STALE${RESET} (deployed ${deployed:0:12})"; stale=$((stale + 1))
+                    status="STALE"; label="${YELLOW}STALE${RESET} (deployed ${deployed_hash:0:12})"; stale=$((stale + 1))
                 fi
             fi
             local p_path=$(_ainish_rules_json_escape "$target")

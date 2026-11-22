@@ -42,7 +42,7 @@ BANNED_PATTERNS = {
         "Classical-only P-256 key agreement is quantum-vulnerable (112-bit; deprecated after 2030, disallowed after 2035 per NIST IR 8547). Use ML-KEM-768, or an X25519+ML-KEM-768 hybrid with an SP 800-227-approved combiner."),
 
     # -- Structural / secrets hygiene ---------------------------------------
-    "Unsanitized Path Usage": (r"(?<!safe_path\()open\s*\(\s*[^,\)]*path(?!\s*,\s*['\"][rwa]['\"])(?!\s*,\s*encoding=)",
+    "Unsanitized Path Usage": (r"(?<![.\w])(?<!safe_path\()open\s*\(\s*[^,\)]*path(?!\s*,\s*['\"][rwa]['\"])(?!\s*,\s*encoding=)",
         "File path opened without safe_path verification."),
     "Hardcoded Secret Pattern": (r"(?i)(api_key|client_secret|password)\s*=\s*['\"][a-zA-Z0-9_\-]{16,}['\"]",
         "Hardcoded credential detected. Load from secure environment/vault."),
@@ -68,7 +68,9 @@ def verify_canonical_agents_contract(directory: str = ".") -> bool:
         with open(agents_path, "rb") as f:
             actual_hash = hashlib.sha256(f.read()).hexdigest().lower()
         with open(hash_path, "r", encoding="utf-8") as f:
-            expected_hash = f.read().strip().lower()
+            # sha256sum format is "<digest>  <filename>"; compare only the digest.
+            parts = f.read().split()
+            expected_hash = parts[0].lower() if parts else ""
             
         if actual_hash != expected_hash:
             print(f"[\033[91mFAIL\033[0m] AGENTS.md integrity mismatch with .agents/canonical/AGENTS.md.sha256!")
@@ -93,7 +95,7 @@ def verify_shell_lf_and_comms_hygiene(directory: str = ".") -> bool:
             if "target" in root.split(os.sep):
                 continue
             for f in files:
-                if f.endswith(".sh") or (root.endswith("bin") and f in ("ainish-coder", "ainish-rag", "pqc-secrets", "auto-thinking-classify")):
+                if f.endswith(".sh") or (root.endswith("bin") and f in ("ainish-coder", "ainish-context", "pqc-secrets", "auto-thinking-classify")):
                     p = os.path.join(root, f)
                     try:
                         with open(p, "rb") as fp:

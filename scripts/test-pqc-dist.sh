@@ -475,7 +475,7 @@ rm -rf "$NOSIGNER"; mkdir -p "$NOSIGNER"
 # REPO_DIR is overridable, so build a minimal root that has the content the
 # deploy path reads but NO engine binary — exactly the fresh-clone shape.
 SIGNERLESS_REPO="${WORK}/signerless-repo"
-mkdir -p "${SIGNERLESS_REPO}/bin" "${SIGNERLESS_REPO}/src/rag"
+mkdir -p "${SIGNERLESS_REPO}/bin" "${SIGNERLESS_REPO}/src/context"
 cp -a "${REPO}/AGENTS.md" "${SIGNERLESS_REPO}/AGENTS.md"
 cp -a "${REPO}/.gitignore" "${SIGNERLESS_REPO}/.gitignore"
 cp -a "${REPO}/src/templates" "${SIGNERLESS_REPO}/src/templates" 2>/dev/null || true
@@ -500,7 +500,10 @@ if grep -qxF "$NOSIGNER" "${HOME_DIR}/.config/ainish-coder/targets.txt" 2>/dev/n
 else
     ok "refused target is not enrolled"
 fi
-contains "refusal names the engine build step" "$(cat "${WORK}/signerless.log")" "cargo build --release"
+# A refused deploy must tell the operator what is actually missing. It used to say `cargo build
+# --release`, which is advice that cannot be followed: the compiled engine was deleted 2026-11-19.
+# What is missing now is a launcher or an interpreter, so the message names those.
+contains "refusal names what is actually missing" "$(cat "${WORK}/signerless.log")" "ainish-context"
 
 echo "== advisory masters are defined and reachable =="
 # The nine niches are a reasoning device, not a rules-file obligation: their definitions live in
@@ -560,13 +563,13 @@ echo "== the context-injection contract is wired end to end =="
 # `<CONTEXT_INJECTION>` envelope means. That promise is only honest if the engine implements the
 # verb, the isolation it claims is really enforced, and the docs a target actually reads agree with
 # the contract. Each of those is asserted here so a future edit cannot leave a dangling instruction.
-RAG_PY="${REPO}/src/rag/rag.py"
-contains "engine implements the context verb" "$(cat "$RAG_PY")" 'sub.add_parser('
-contains "engine registers the context subcommand" "$(cat "$RAG_PY")" '"context",'
-contains "engine names the context envelope format" "$(cat "$RAG_PY")" 'ainish-rag/context/v1'
-contains "engine renders the labelled injection markers" "$(cat "$RAG_PY")" '<CONTEXT_INJECTION>'
-contains "goldfish isolation is signature-declared" "$(cat "$RAG_PY")" 'def goldfish_review('
-contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
+ENGINE_PY="${REPO}/src/context/engine.py"
+contains "engine implements the context verb" "$(cat "$ENGINE_PY")" 'sub.add_parser('
+contains "engine registers the context subcommand" "$(cat "$ENGINE_PY")" '"context",'
+contains "engine names the context envelope format" "$(cat "$ENGINE_PY")" 'ainish-rag/context/v1'
+contains "engine renders the labelled injection markers" "$(cat "$ENGINE_PY")" '<CONTEXT_INJECTION>'
+contains "goldfish isolation is signature-declared" "$(cat "$ENGINE_PY")" 'def goldfish_review('
+contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-coder --context "'
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evidence, not instruction'
 # The rule is "a thin block never stops the work", stated in the contract's own words. Asserting one
@@ -578,8 +581,14 @@ check "contract states the degradation rule" "$([[ "${degrade_rule:-0}" -gt 0 ]]
 # (this repo's own commits carried `Co-authored-by: Cursor` until 2026-11-11). The contract must
 # forbid it explicitly, because every harness default that offers it is otherwise obeyed.
 contains "contract forbids co-authorship" "$(cat "${REPO}/AGENTS.md")" 'Never co-author a commit'
-contains "contract names the harness identity" "$(cat "${REPO}/AGENTS.md")" 'Nanoboozhoo - embodied by {agent harness}'
-contains "contract points at the identity guard" "$(cat "${REPO}/AGENTS.md")" 'commit-identity-guard.sh'
+contains "contract names the harness identity" "$(cat "${REPO}/AGENTS.md")" 'Nanoboozhoo embodied by: {agent harness}'
+# The contract states the RULE, not the scripts that enforce it. Naming the hook files here was noise
+# in a document read on every task, and it made a working implementation detail part of the contract.
+# What must hold is that an agent reading the contract knows the authorship rule and the required form
+# — and that the tooling which enforces it is deployed, which the assertions below prove behaviourally.
+contains "contract keeps the authorship rule" "$(cat "${REPO}/AGENTS.md")" 'the operator is the only author'
+check "contract does not name the enforcement scripts" \
+    "$(grep -cE 'strip-harness-trailers|commit-identity-guard' "${REPO}/AGENTS.md")" "0"
 coauthor_ok=0
 if grep -qiE 'owner is the only author|only author' "${REPO}/AGENTS.md"; then coauthor_ok=1; fi
 check "contract names the owner as sole author" "$coauthor_ok" "1"
@@ -596,16 +605,16 @@ check "contract names no model or provider" "$contract_model_refs" "0"
 contains "prd documents the operator's chain order" "$(cat "${REPO}/llms.txt")" 'local-router/fallback-models` at `localhost:11434'
 contains "prd documents the direct steps" "$(cat "${REPO}/llms.txt")" 'direct transports, not router routes'
 contains "engine sends the literal route id to the router" \
-    "$(cat "${REPO}/src/rag/rag.py")" '"id": "local-router/fallback-models"'
+    "$(cat "${REPO}/src/context/engine.py")" '"id": "local-router/fallback-models"'
 check "chain step 2 is a direct zai call" \
-    "$(grep -A 3 '"id": "glm-5.3-flash"' "${REPO}/src/rag/rag.py" | grep -c '"transport": "zai"')" "1"
+    "$(grep -A 3 '"id": "glm-5.3-flash"' "${REPO}/src/context/engine.py" | grep -c '"transport": "zai"')" "1"
 check "chain step 3 is a direct xiaomi call" \
-    "$(grep -A 3 '"id": "mimo-v2.6-pro"' "${REPO}/src/rag/rag.py" | grep -c '"transport": "xiaomi-mimo"')" "1"
+    "$(grep -A 3 '"id": "mimo-v2.6-pro"' "${REPO}/src/context/engine.py" | grep -c '"transport": "xiaomi-mimo"')" "1"
 check "chain step 4 is a direct openrouter call" \
-    "$(grep -A 3 '"id": "deepseek/deepseek-v4.1-flash-1017"' "${REPO}/src/rag/rag.py" | grep -c '"transport": "openrouter"')" "1"
-contains "z.ai endpoint is the operator's URL" "$(cat "${REPO}/src/rag/rag.py")" 'https://api.z.ai/api/coding/paas/v4'
-contains "xiaomi endpoint is the operator's URL" "$(cat "${REPO}/src/rag/rag.py")" 'https://token-plan-sgp.xiaomimimo.com/v1'
-contains "openrouter endpoint is the operator's URL" "$(cat "${REPO}/src/rag/rag.py")" 'https://openrouter.ai/api/v1'
+    "$(grep -A 3 '"id": "deepseek/deepseek-v4.1-flash-1017"' "${REPO}/src/context/engine.py" | grep -c '"transport": "openrouter"')" "1"
+contains "z.ai endpoint is the operator's URL" "$(cat "${REPO}/src/context/engine.py")" 'https://api.z.ai/api/coding/paas/v4'
+contains "xiaomi endpoint is the operator's URL" "$(cat "${REPO}/src/context/engine.py")" 'https://token-plan-sgp.xiaomimimo.com/v1'
+contains "openrouter endpoint is the operator's URL" "$(cat "${REPO}/src/context/engine.py")" 'https://openrouter.ai/api/v1'
 # A mandatory pack must be invisible to the selector and still be deployed. Both halves are pinned:
 # hiding it alone would let --rules silently ship nothing, and deploying it alone would put a
 # non-choice in front of the operator.
@@ -687,29 +696,40 @@ secure_block="$(sed -n '/--secure)/,/;;/p' "${REPO}/bin/ainish-coder")"
 contains "secure deploys the consolidated standard" "$secure_block" "deployable-standards.md"
 contains "secure writes AGENTS_SECURITY.md" "$secure_block" "AGENTS_SECURITY.md"
 # Orientation is the mechanical half of the retired skill; it must be in the envelope.
-contains "engine emits an orientation section" "$(cat "${REPO}/src/rag/rag.py")" 'def render_orientation_section'
-contains "orientation is a labelled section" "$(cat "${REPO}/src/rag/rag.py")" '"source": "orientation"'
+contains "engine emits an orientation section" "$(cat "${REPO}/src/context/engine.py")" 'def render_orientation_section'
+contains "orientation is a labelled section" "$(cat "${REPO}/src/context/engine.py")" '"source": "orientation"'
 contains "prd documents the orientation section" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
 # A verb the compiled binary answers with a SHORTER report reads as a regression, so the launchers
 # must route it to the Python engine even though the binary advertises it.
-contains "bash launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag")" 'PY_ONLY_SUBCOMMANDS=" context secrets "'
-contains "cmd launcher routes secrets to python" "$(cat "${REPO}/bin/ainish-rag.cmd")" 'PY_ONLY_SUBCOMMANDS= context secrets '
+# There is one engine, so there is no native-binary routing table to get wrong. What must hold is
+# that the launcher points at the Python engine and nothing else.
+contains "the context launcher targets the python engine" \
+    "$(cat "${REPO}/bin/ainish-context")" 'src/context/engine.py'
+check "the context launcher has no native-binary dispatch" \
+    "$(grep -c 'NATIVE_BIN\|native_ok' "${REPO}/bin/ainish-context")" "0"
+contains "the deprecated launcher forwards" \
+    "$(cat "${REPO}/bin/ainish-rag")" 'exec "${SELF_DIR}/ainish-context"'
+contains "the deprecated launcher says so" \
+    "$(cat "${REPO}/bin/ainish-rag")" 'DEPRECATED'
 # The native engine writes UTF-8; decoding with the platform default crashed every native search.
-contains "native query decode is explicit" "$(cat "${REPO}/src/rag/rag.py")" 'errors="replace"'
+contains "native query decode is explicit" "$(cat "${REPO}/src/context/engine.py")" 'errors="replace"'
 # The pair is two calls with two model choices. Pin both halves: that the engine scopes a chain by
 # role, and that the contract tells the reader the roles can diverge.
-contains "engine scopes the chain by role" "$(cat "${REPO}/src/rag/rag.py")" "def chain_steps(self, role"
-contains "roles rotate to a distinct model" "$(cat "${REPO}/src/rag/rag.py")" "def _rotate_for_role"
-contains "both role pins resolve" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_ELEPHANT_MODEL'
-contains "goldfish pin resolves" "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_GOLDFISH_MODEL'
-contains "provenance reports reviewer isolation" "$(cat "${REPO}/src/rag/rag.py")" '"reviewer_isolation"'
-contains "render names the pair" "$(cat "${REPO}/src/rag/rag.py")" "<!-- pair: elephant="
-contains "context exposes a per-role model flag" "$(cat "${REPO}/src/rag/rag.py")" '"--elephant-model"'
+contains "engine scopes the chain by role" "$(cat "${REPO}/src/context/engine.py")" "def chain_steps(self, role"
+contains "roles rotate to a distinct model" "$(cat "${REPO}/src/context/engine.py")" "def _rotate_for_role"
+contains "both role pins resolve" "$(cat "${REPO}/src/context/engine.py")" 'AINISH_RAG_ELEPHANT_MODEL'
+contains "goldfish pin resolves" "$(cat "${REPO}/src/context/engine.py")" 'AINISH_RAG_GOLDFISH_MODEL'
+contains "provenance reports reviewer isolation" "$(cat "${REPO}/src/context/engine.py")" '"reviewer_isolation"'
+contains "render names the pair" "$(cat "${REPO}/src/context/engine.py")" "<!-- pair: elephant="
+contains "context exposes a per-role model flag" "$(cat "${REPO}/src/context/engine.py")" '"--elephant-model"'
 contains "prd documents the per-role pins" "$(cat "${REPO}/llms.txt")" 'AINISH_RAG_GOLDFISH_MODEL'
 # `--context` is the spelling the contract and muscle memory use; argparse needs the subcommand.
-contains "engine normalizes the --context alias" "$(cat "${REPO}/src/rag/rag.py")" "def normalize_argv"
-contains "argparse receives normalized argv" "$(cat "${REPO}/src/rag/rag.py")" "parse_args(normalize_argv"
-contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-rag --context --task'
+contains "engine normalizes the --context alias" "$(cat "${REPO}/src/context/engine.py")" "def normalize_argv"
+# The normalization and the parse are now separate statements (the retired-verb guard reads the
+# normalized argv first), so the property to pin is that argv IS normalized before parsing.
+check "argparse receives normalized argv" \
+    "$(grep -cE '_argv = normalize_argv\(sys\.argv\[1:\]\)' "${REPO}/src/context/engine.py")" "1"
+contains "contract shows the --context form" "$(cat "${REPO}/AGENTS.md")" 'ainish-coder --context "'
 # The section table and role mechanics moved to llms.txt: an always-read file needs the invocation
 # and the one rule about how to read the output, not a catalogue of what each section contains.
 contains "prd documents the envelope sections" "$(cat "${REPO}/llms.txt")" '| `orientation` |'
@@ -871,10 +891,26 @@ contains "contract points at the federation tooling" "$(cat "${REPO}/AGENTS.md")
 # opening line rather than a fixed line number: a hardcoded window silently stopped covering the
 # help text the moment an unrelated paragraph was added above it, which reported three real verbs
 # as missing. Anchor on content, not on an offset.
-RAG_HELP_SRC="$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/rag/rag.py" | head -1 | cut -d: -f1),+95p" "${REPO}/src/rag/rag.py")"
+RAG_HELP_SRC="$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/context/engine.py" | head -1 | cut -d: -f1),+95p" "${REPO}/src/context/engine.py")"
 contains "rag help teaches the machine-link setup command" "$RAG_HELP_SRC" 'machine-link'
 contains "rag help teaches the newest-copy query" "$RAG_HELP_SRC" 'machine-sync DIR --latest'
 contains "rag help says how to check the background watcher" "$RAG_HELP_SRC" 'machine-watch --status'
+
+# ── the sync watcher must not lie, and must not author as the operator ──────
+# Measured 2026-11-21: the watcher log held 50 `Z ok:` against 96 `Z failed:`, while watch.state
+# reported `failed=0` — a reader could not tell a clean cycle from one that never completed. And
+# `--auto-commit` used the operator's configured identity, which AGENTS.md rule 4 forbids.
+MW="${REPO}/src/machine_watch.sh"
+MS="${REPO}/src/machine_sync.sh"
+contains "watch.state is written atomically" "$(cat "$MW")" 'mv "$tmp" "$_MW_STATE_FILE"'
+contains "watch.state records when the process started" "$(cat "$MW")" '_MW_STARTED_AT'
+check "startup state does not claim a clean cycle" \
+    "$(grep -c 'no cycle has completed yet' "$MW")" "1"
+contains "auto-commit authors as the machine" "$(cat "$MS")" 'Nanoboozhoo embodied by: ${_ac_machine}'
+contains "auto-commit passes an explicit identity" "$(cat "$MS")" '-c "user.name=${_ac_name}"'
+# A status reader must be able to see the note, or a startup state still reads as a clean cycle.
+check "the status reader surfaces the state note" \
+    "$(grep -c 'note=\"\$(sed -n .s/\^note=//p.' "$MW")" "1"
 contains "contract names the plan of record path" "$(cat "${REPO}/AGENTS.md")" '.agents/plans/{date}-{HH}-{slug}.md'
 check "AGENTS.md stays within the 160-line gate" \
     "$([[ "$(wc -l < "${REPO}/AGENTS.md" | tr -d ' ')" -le 160 ]] && echo yes || echo no)" "yes"
@@ -958,13 +994,9 @@ check "the legacy ledger's agent entry survives the refresh" \
 
 # Engine predicates: both suffixes must be accepted, the index and the live board must not be.
 check "python engine accepts both memory suffixes" \
-    "$(grep -c '"\-memory.txt", "\-memory.md"' "${REPO}/src/rag/rag.py")" "1"
-check "rust engine shares one memory-ledger predicate" \
-    "$(grep -c 'pub fn is_memory_ledger' "${REPO}/src/rag/src/wiki.rs")" "1"
+    "$(grep -c '"\-memory.txt", "\-memory.md"' "${REPO}/src/context/engine.py")" "1"
 check "python memory discovery orders by mtime, not filename" \
-    "$(grep -A 30 'def _coordination_files' "${REPO}/src/rag/rag.py" | grep -c 'stat().st_mtime')" "1"
-check "rust memory discovery orders by mtime, not filename" \
-    "$(grep -c 'm_files.sort_by_key' "${REPO}/src/rag/src/main.rs")" "1"
+    "$(grep -A 30 'def _coordination_files' "${REPO}/src/context/engine.py" | grep -c 'stat().st_mtime')" "1"
 contains "comms discipline check sees the markdown scheme" \
     "$(cat "${REPO}/bin/security_gate.py")" 'endswith(("-team.txt", "-team.md"))'
 check "git-context finds a markdown comms ledger" \
@@ -975,13 +1007,13 @@ check "live boards are gitignored in both suffixes" \
     "$(grep -c 'comms/\*\.live\.md' "${REPO}/.gitignore")" "1"
 
 # A nested `.agents/` (engine output written to the wrong tree) must never be committable: the one
-# under `src/rag/` carried a private ML-DSA-65 key and a session PSK before it was noticed.
+# under the engine directory carried a private ML-DSA-65 key before it was noticed.
 _nested_probe="$(mktemp -d "${TMPDIR:-/tmp}/nested-agents.XXXXXX")"
-mkdir -p "${_nested_probe}/src/rag/.agents/audit"
-touch "${_nested_probe}/src/rag/.agents/audit/signer.mldsa65.priv"
+mkdir -p "${_nested_probe}/src/context/.agents/audit"
+touch "${_nested_probe}/src/context/.agents/audit/signer.mldsa65.priv"
 cp "${REPO}/.gitignore" "${_nested_probe}/.gitignore"
 git -C "${_nested_probe}" init -q 2>/dev/null
-if git -C "${_nested_probe}" check-ignore -q "src/rag/.agents/audit/signer.mldsa65.priv"; then
+if git -C "${_nested_probe}" check-ignore -q "src/context/.agents/audit/signer.mldsa65.priv"; then
     ok "a nested .agents/ tree is gitignored (keys cannot be committed)"
 else
     not_ok "a nested .agents/ tree is gitignored (keys cannot be committed)"
@@ -992,78 +1024,111 @@ rm -rf "${_nested_probe}"
 # must refuse rather than overwrite one. Without this guard, a single `ainish-rag wiki` on a stock
 # checkout strips frontmatter and every wikilink — deleting the graph retrieval depends on — and
 # still reports success.
-contains "python engine refuses to clobber an Obsidian vault" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'refusing to overwrite an Obsidian vault'
+contains "python engine refuses to clobber a SIGNED vault ledger" \
+    "$(cat "${REPO}/src/context/engine.py")" 'carries a SIGNED operator ledger'
 contains "the refusal names the vault tag it detected" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'VAULT_TAG = "ainish/wiki"'
-check "wiki vector indexing is opt-in, not forced" \
-    "$(grep -A 8 'Also index the generated wiki' "${REPO}/src/rag/src/main.rs" | grep -E '^\s*#\[arg' | grep -c 'default_value_t')" "0"
+    "$(cat "${REPO}/src/context/engine.py")" 'VAULT_TAG = "ainish/wiki"'
 
 echo "== the vector subsystem is deleted, not dormant =="
 # A retired path that is merely unreachable drifts back. These pin the deletion itself: no module,
 # no crate, no subcommand, no embedding call — in either engine.
-for gone in embed store ingest; do
-    check "rust vector module removed: ${gone}.rs" \
-        "$([[ -f "${REPO}/src/rag/src/${gone}.rs" ]] && echo present || echo absent)" "absent"
-done
-check "no vector crates remain in Cargo.toml" \
-    "$(grep -cE '^(lancedb|arrow-schema|arrow-array) ' "${REPO}/src/rag/Cargo.toml")" "0"
+# The whole compiled engine is gone, not just its vector modules. It existed to serve the embedding
+# store, it was the only thing that could sign the wiki ledger from Python's side, and a stale build
+# of it silently regenerated (and overwrote) the wiki on 2026-11-19 while Python owned the format.
+# ── the RAG vocabulary is retired from every live surface ───────────────────
+# The embedding system was deleted on 2026-11-12, but its NAME and its configuration surface stayed:
+# a `rag/` package, `--embed-config`, nine subcommand tombstones, and a plan document. An agent reading
+# this repo could not tell a live system from a headstone, which is the confusion the context tool
+# exists to prevent. These pin the retirement so it cannot drift back one convenient flag at a time.
+check "the engine lives at its accurate path" \
+    "$([[ -f "${REPO}/src/context/engine.py" ]] && echo yes || echo no)" "yes"
+check "the embedding provider configurator is deleted" \
+    "$([[ -f "${REPO}/src/embed_config.sh" ]] && echo present || echo absent)" "absent"
+check "--embed-config is gone, not silently accepted" \
+    "$("${REPO}/bin/ainish-coder" --embed-config 2>&1 >/dev/null | grep -c 'removed with the embedding subsystem')" "1"
+check "the rag plan document is deleted" \
+    "$([[ -f "${REPO}/docs/rag-context-system-plan.md" ]] && echo present || echo absent)" "absent"
+check "no live shell sources the embedding configurator" \
+    "$(grep -cE '^\s*source .*embed_config\.sh' "${REPO}/bin/ainish-coder")" "0"
+# One launcher, one engine, and a backward-compatible name that says it is deprecated.
+check "the deprecated launcher is a shim, not a second engine" \
+    "$(grep -c 'NATIVE_BIN\|PY_ENGINE=' "${REPO}/bin/ainish-rag")" "0"
+# Assert the BEHAVIOUR, not the absence of a variable name: the engine must resolve a signing seed
+# itself and must not carry a candidate list of compiled binaries. Docstrings explain the removal, so
+# a text match on "ainish-rag" would fail on the explanation rather than on a dependency.
+check "signing resolves its own seed" \
+    "$(grep -c 'def mldsa_seed' "${REPO}/src/context/engine.py")" "1"
+check "no compiled-engine candidate list remains" \
+    "$(grep -c 'rust_candidates' "${REPO}/src/context/engine.py")" "0"
+check "keygen derives a real ML-DSA public key, not a hash of the seed" \
+    "$(grep -c 'public_key().public_bytes_raw()' "${REPO}/src/context/engine.py")" "2"
+contains "signing uses the ML-DSA seed directly" \
+    "$(cat "${REPO}/src/context/engine.py")" 'MLDSA65PrivateKey.from_seed_bytes'
+contains "a stale signature is caught by digest, not by existence" \
+    "$(cat "${REPO}/src/context/engine.py")" 'digest MISMATCH'
+
+check "the compiled engine crate is deleted" \
+    "$([[ -d "${REPO}/src/rag" ]] && echo present || echo absent)" "absent"
+check "no Cargo manifest remains for it" \
+    "$(ls "${REPO}"/src/rag/Cargo.toml 2>/dev/null | wc -l | tr -d ' ')" "0"
 check "python engine makes no embedding calls" \
-    "$(grep -cE 'embed_one\(|embed_batch\(|search_vector\(|\.embed_one|LanceStore|EmbedClient' "${REPO}/src/rag/rag.py")" "0"
+    "$(grep -cE 'embed_one\(|embed_batch\(|search_vector\(|\.embed_one|LanceStore|EmbedClient' "${REPO}/src/context/engine.py")" "0"
 check "python engine has no local-model server startup" \
-    "$(grep -cE 'def start_server|start_server\(' "${REPO}/src/rag/rag.py")" "0"
+    "$(grep -cE 'def start_server|start_server\(' "${REPO}/src/context/engine.py")" "0"
 check "retrieval has no vector fallback branch" \
-    "$(grep -c 'AINISH_RAG_VECTOR_FALLBACK' "${REPO}/src/rag/rag.py")" "0"
+    "$(grep -c 'AINISH_RAG_VECTOR_FALLBACK' "${REPO}/src/context/engine.py")" "0"
 # A retired verb must explain itself rather than read as a typo.
 contains "python names a retired verb as retired" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'was retired 2026-11-12'
-contains "rust names a retired verb as retired" \
-    "$(cat "${REPO}/src/rag/src/main.rs")" 'was retired 2026-11-12'
+    "$(cat "${REPO}/src/context/engine.py")" 'was retired 2026-11-12'
+# Retired verbs stay HIDDEN from --help: nine tombstones in the verb list are what taught every
+# agent reading this repo that an embedding system was running here.
+check "retired verbs are hidden from the help verb list" \
+    "$("${REPO}/bin/ainish-context" --help 2>/dev/null | grep -cE '^\s+(serve|index|query|rerank|bench|monitor)\s')" "0"
 
 echo "== EGM reviewer independence (Google Elephant-Goldfish) =="
 # The load-bearing rule: a reviewer with no independent model is not a reviewer. Refusing is the only
 # report that cannot mislead; opt-in self-review is the recorded downgrade.
 contains "reviewer separation is enforced before the call" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'def plan_reviewer_model'
+    "$(cat "${REPO}/src/context/engine.py")" 'def plan_reviewer_model'
 contains "a collision is reported, not honoured" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'resolves to the same model the drafter used'
+    "$(cat "${REPO}/src/context/engine.py")" 'resolves to the same model the drafter used'
 contains "self-review requires an explicit opt-in" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_ALLOW_SELF_REVIEW'
+    "$(cat "${REPO}/src/context/engine.py")" 'AINISH_RAG_ALLOW_SELF_REVIEW'
 check "self-review is not the default" \
-    "$(grep -c 'AINISH_RAG_DISTINCT_REVIEWER' "${REPO}/src/rag/rag.py")" "0"
+    "$(grep -c 'AINISH_RAG_DISTINCT_REVIEWER' "${REPO}/src/context/engine.py")" "0"
 contains "the three-step protocol is present" \
-    "$(cat "${REPO}/src/rag/rag.py")" '1. Comprehension check'
+    "$(cat "${REPO}/src/context/engine.py")" '1. Comprehension check'
 contains "readiness ends in a verdict" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'VERDICT: ready|not-ready'
+    "$(cat "${REPO}/src/context/engine.py")" 'VERDICT: ready|not-ready'
 contains "a failed step is named, not hidden" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'returned nothing'
+    "$(cat "${REPO}/src/context/engine.py")" 'returned nothing'
 contains "reviews get their own timeout" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'AINISH_RAG_REVIEW_TIMEOUT'
+    "$(cat "${REPO}/src/context/engine.py")" 'AINISH_RAG_REVIEW_TIMEOUT'
 contains "context can refresh the vault before retrieval" \
-    "$(cat "${REPO}/src/rag/rag.py")" '"--refresh-wiki"'
+    "$(cat "${REPO}/src/context/engine.py")" '"--refresh-wiki"'
 
 echo "== EGM roles run as pi agents =="
 # The roles moved from an in-process chat call to pi subprocesses. The guards that make that safe are
 # what this pins: no session (freshness), no tools (authority), thinking discarded (cost + honesty),
 # attachments confined to the repo, and a missing pi degrading rather than crashing.
 contains "roles call the pi agent runtime" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'def pi_agent_call('
+    "$(cat "${REPO}/src/context/engine.py")" 'def pi_agent_call('
 contains "pi runs without a session so reviews are genuinely fresh" \
-    "$(cat "${REPO}/src/rag/rag.py")" '"--no-session"'
+    "$(cat "${REPO}/src/context/engine.py")" '"--no-session"'
 contains "pi runs without tools so a context call cannot act" \
-    "$(cat "${REPO}/src/rag/rag.py")" '"--no-tools"'
+    "$(cat "${REPO}/src/context/engine.py")" '"--no-tools"'
 contains "thinking blocks are filtered out of the prime" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'block.get("type") == "text"'
+    "$(cat "${REPO}/src/context/engine.py")" 'block.get("type") == "text"'
 contains "attachment paths are confined to the repo" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'candidate.relative_to(root)'
+    "$(cat "${REPO}/src/context/engine.py")" 'candidate.relative_to(root)'
 contains "attachments are size-capped" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'PI_MAX_ATTACH_BYTES'
+    "$(cat "${REPO}/src/context/engine.py")" 'PI_MAX_ATTACH_BYTES'
 contains "a missing pi degrades with a reason" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'pi not found'
+    "$(cat "${REPO}/src/context/engine.py")" 'pi not found'
 contains "role briefs are full operating instructions" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'HARD RULES'
+    "$(cat "${REPO}/src/context/engine.py")" 'HARD RULES'
 contains "the reviewer gets its own output ceiling" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'REVIEW_MAX_TOKENS'
+    "$(cat "${REPO}/src/context/engine.py")" 'REVIEW_MAX_TOKENS'
 contains "prd documents the pi-backed roles" \
     "$(cat "${REPO}/llms.txt")" 'run as `pi` agents'
 check "the contract still names no engine internals" \
@@ -1074,32 +1139,32 @@ echo "== both EGM roles run on the local router =="
 # review is REPORTED as fresh-context rather than dressed up as independent-model, that a pin can
 # still buy genuine independence, and that the served model is recorded when the request was a route.
 contains "the default role model is the local router" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'PI_DEFAULT_MODEL = "local-router/fallback-models"'
+    "$(cat "${REPO}/src/context/engine.py")" 'PI_DEFAULT_MODEL = "local-router/fallback-models"'
 contains "role resolution ignores the per-role rotation" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'deliberately NOT consulted here'
+    "$(cat "${REPO}/src/context/engine.py")" 'deliberately NOT consulted here'
 contains "same-model review is labelled fresh-context" \
-    "$(cat "${REPO}/src/rag/rag.py")" '"fresh-context"'
+    "$(cat "${REPO}/src/context/engine.py")" '"fresh-context"'
 contains "the router path runs with thinking off" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'PI_THINKING_IN_ROUTER'
+    "$(cat "${REPO}/src/context/engine.py")" 'PI_THINKING_IN_ROUTER'
 contains "the served model is recorded, not assumed" \
-    "$(cat "${REPO}/src/rag/rag.py")" '"served_model": served_model or model'
+    "$(cat "${REPO}/src/context/engine.py")" '"served_model": served_model or model'
 contains "the pair line names who actually served the review" \
-    "$(cat "${REPO}/src/rag/rag.py")" 'served by'
+    "$(cat "${REPO}/src/context/engine.py")" 'served by'
 
 echo "== wiki vault is Obsidian-native =="
 # The vault format is a retrieval contract: without frontmatter and wikilinks Obsidian shows
 # orphan files, and without a wikilink-aware reader `--context` loses every explicit edge.
-contains "wiki pages emit frontmatter tags" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'ainish/wiki'
-contains "wiki pages emit wikilinks" "$(cat "${REPO}/src/rag/src/wiki.rs")" '[[{}|{}]]'
-contains "the graph reader parses wikilinks" "$(cat "${REPO}/src/rag/rag.py")" 'WIKILINK_RE'
+contains "wiki pages emit frontmatter tags" "$(cat "${REPO}/src/context/engine.py")" 'ainish/wiki'
+contains "wiki pages emit wikilinks" "$(cat "${REPO}/src/context/engine.py")" '_vault_page_links'
+contains "the graph reader parses wikilinks" "$(cat "${REPO}/src/context/engine.py")" 'WIKILINK_RE'
 # A reader that ignores `[[...]]` is the exact regression this pair of patterns prevents.
-contains "the graph reader still parses markdown links" "$(cat "${REPO}/src/rag/rag.py")" 'MDLINK_RE'
-contains "navigation headings are excluded from nodes" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_NAV_HEADINGS'
-contains "code spans never count as links" "$(cat "${REPO}/src/rag/rag.py")" '_strip_code_spans'
-contains "vault config is written once" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'fn ensure_vault_config'
-contains "a Rust test pins the vault format" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'generated_vault_is_obsidian_native'
+contains "the graph reader still parses markdown links" "$(cat "${REPO}/src/context/engine.py")" 'MDLINK_RE'
+contains "navigation headings are excluded from nodes" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_NAV_HEADINGS'
+contains "code spans never count as links" "$(cat "${REPO}/src/context/engine.py")" '_strip_code_spans'
+contains "vault frontmatter is built in one place" "$(cat "${REPO}/src/context/engine.py")" '_vault_frontmatter'
+contains "the Python generator reproduces the vault page set" "$(cat "${REPO}/src/context/engine.py")" '_WIKI_PAGE_META'
 # The ledger is operator-owned and signed; generation must never rewrite it.
-contains "ledger is spliced, not regenerated" "$(cat "${REPO}/src/rag/src/wiki.rs")" 'read_operator_ledger'
+contains "the operator ledger is read, never regenerated" "$(cat "${REPO}/src/context/engine.py")" 'read_sanitized_operator_ledger'
 
 
 echo "== rules deploy verifies the manifest, not everything beside it =="
@@ -1117,16 +1182,14 @@ fi
 echo "== audit verify --path <file> verifies one file =="
 # The gate above is only possible if a single-file verify exists: passing a file used to fall
 # through to read_dir and die with NotADirectory, so no caller could check one artifact.
-RAG_MAIN="${REPO}/src/rag/src/main.rs"
-contains "a file path takes the single-file branch" "$(cat "$RAG_MAIN")" 'if audit_dir.is_file() {'
-contains "a missing envelope fails that file" "$(cat "$RAG_MAIN")" 'missing signature envelope for {}'
+ENGINE_MAIN="${REPO}/src/context/engine.py"
 
 echo "== a signer/anchor mismatch is named, never silently accepted =="
 # resolve_or_create_seed invents a random, gitignored seed when neither the env var nor the vault
 # has one, while the anchor stays committed. Every signature from such a machine is unverifiable,
 # and the deploy must say so with both fingerprints instead of reporting integrity it lacks.
-contains "anchor-check is a command" "$(cat "$RAG_MAIN")" 'AnchorCheck'
-contains "the comparison exposes both keys" "$(cat "${REPO}/src/rag/src/pqc.rs")" 'fn anchor_signer_mismatch'
+contains "a stale signature is detected by digest" \
+    "$(cat "${REPO}/src/context/engine.py")" 'def verify_detached_digest'
 contains "the deploy reports the signer" "$(cat "$RULES_SYNC")" 'Signing key does not match the committed trust anchor'
 # Rotation is a deliberate, reviewed act. A deploy that re-anchored itself would let any machine
 # become the trust root as a side effect of installing rules.
@@ -1139,7 +1202,7 @@ fi
 # ── the per-repo context harness ────────────────────────────────────────────
 # Learning machinery is the easiest thing in this repository to let rot: it is opt-in, so nothing
 # fails loudly when it stops working. These pin the properties the design turns on.
-CH_MOD="${REPO}/src/rag/context_harness.py"
+CH_MOD="${REPO}/src/context/context_harness.py"
 CH_TEST_REPO="${WORK}/context-harness-repo"
 mkdir -p "${CH_TEST_REPO}/.agents/tasks" "${CH_TEST_REPO}/.agents/wiki"
 git -C "${CH_TEST_REPO}" init -q 2>/dev/null
@@ -1162,7 +1225,7 @@ contains "the learned predicate matches the writing prefix" \
 # Skill authoring: the improver's skills arrive as literal text in <skill> blocks, never inside
 # JSON. Requiring a model to escape newlines correctly inside a JSON string failed on every attempt,
 # so the delimiter is part of the contract and is pinned here.
-contains "skill bodies arrive as literal text blocks" "$(cat "${REPO}/src/rag/rag.py")" '<skill\s+name='
+contains "skill bodies arrive as literal text blocks" "$(cat "${REPO}/src/context/engine.py")" '<skill\s+name='
 contains "a skill naming a measurement is refused" "$(cat "$CH_MOD")" 'names the measurement'
 check "the skill cap is enforced in code" \
     "$(grep -c 'MAX_LIVE_SKILLS' "$CH_MOD")" "3"
@@ -1175,13 +1238,13 @@ print("yes" if m.SCRIPT_ALLOWED_IMPORTS and "subprocess" not in m.SCRIPT_ALLOWED
       and "socket" not in m.SCRIPT_ALLOWED_IMPORTS else "no")' "$CH_MOD" 2>/dev/null)" \
     "yes"
 
-seed_out=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context-seed --json 2>/dev/null )
+seed_out=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/context/engine.py" context-seed --json 2>/dev/null )
 check "context-seed reports success" \
     "$(printf '%s' "$seed_out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("seeded"))' 2>/dev/null)" \
     "True"
 # Idempotency: a re-run must not overwrite a repository's own tuning.
 seed_before=$(sha256sum "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json" 2>/dev/null | cut -d' ' -f1)
-( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context-seed >/dev/null 2>&1 )
+( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/context/engine.py" context-seed >/dev/null 2>&1 )
 seed_after=$(sha256sum "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json" 2>/dev/null | cut -d' ' -f1)
 check "context-seed is idempotent" "$([[ -n "$seed_before" && "$seed_before" == "$seed_after" ]] && echo yes || echo no)" "yes"
 
@@ -1189,8 +1252,8 @@ check "context-seed is idempotent" "$([[ -n "$seed_before" && "$seed_before" == 
 # shipped behaviour. Any added field except `provenance.harness` is a behaviour change to every repo.
 cp "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json" "${WORK}/profile.bak" 2>/dev/null
 rm -f "${CH_TEST_REPO}/.agents/context-harness/prime-profile.json"
-cp_before=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
-cp_after=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
+cp_before=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/context/engine.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
+cp_after=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/context/engine.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
 check "a repo with no profile reports source absent" \
     "$(printf '%s' "$cp_after" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["source"])' 2>/dev/null)" \
     "absent"
@@ -1216,7 +1279,7 @@ d = {"format": "ainish-rag/prime-profile/v1", "generation": 0,
                "hop_bonus": 5.0, "recency_floor": 0.55, "shared_term_threshold": 3}}
 p.write_text(json.dumps(d))
 PYEOF
-bad_out=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/rag/rag.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
+bad_out=$( cd "${CH_TEST_REPO}" && python3 "${REPO}/src/context/engine.py" context --task "parser header" --retrieval-only --json 2>/dev/null )
 check "an out-of-bounds profile is refused" \
     "$(printf '%s' "$bad_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["source"])' 2>/dev/null)" \
     "invalid: failed validation"
@@ -1225,7 +1288,35 @@ check "an invalid profile degrades the call, it does not fail it" \
     "True"
 check "an invalid profile falls back to the shipped tuning" \
     "$(printf '%s' "$bad_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["provenance"]["harness"]["tuning"]["max_wiki_pages"])' 2>/dev/null)" \
-    "8"
+    "0"
+
+# The shipped caps are 0, meaning "index everything". This assertion used to expect 8, which is how
+# the whole-corpus fix of 2026-11-18 shipped silently disabled: `BASE_PROFILE` said 8 while the engine
+# constant said unlimited, and the profile always wins. A test that asserts the bug is worse than no
+# test, so this now pins the value the engine actually means.
+check "the shipped profile indexes the whole corpus" \
+    "$(python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+g = m.BASE_PROFILE["graph"]
+print("all" if g["max_wiki_pages"] == 0 and g["max_artifacts"] == 0 else "capped")' "$CH_MOD" 2>/dev/null)" \
+    "all"
+# And a 0-cap corpus must actually reach more files than a 2-cap one — the value and its effect.
+check "a 0-cap profile indexes more coordination files than a 2-cap one" \
+    "$(python3 -c '
+import importlib.util, sys, pathlib
+spec = importlib.util.spec_from_file_location("rag", sys.argv[1])
+rag = importlib.util.module_from_spec(spec); sys.modules["rag"] = rag; spec.loader.exec_module(rag)
+root = pathlib.Path(".").resolve()
+wide = {"max_wiki_pages": 0, "max_artifacts": 0, "chapter_chars": 1400, "hop_bonus": 0.35,
+        "recency_floor": 0.55, "shared_term_threshold": 3, "weights": {}, "section_caps": {},
+        "domain_prior": {}}
+narrow = dict(wide, max_artifacts=2)
+w = len([s for s in rag._graph_sources(root, wide) if s["kind"] in ("comms", "plans", "tasks")])
+n = len([s for s in rag._graph_sources(root, narrow) if s["kind"] in ("comms", "plans", "tasks")])
+print("wider" if w > n else f"not-wider({w}<={n})")' "${REPO}/src/context/engine.py" 2>/dev/null)" \
+    "wider"
 
 # Criterion leakage: a learned artefact naming the measurement must be refused. This is the
 # practitioner video's round-3 failure, and the reason the improver is never told the signals.
@@ -1265,12 +1356,12 @@ aged = m.age_hints(
 out, dropped = m.expire_unsupported(aged, max_unsupported=5)
 print("yes" if dropped and "stale" not in (out["domain_prior"]["codebase_symbols"]) else "no")' "$CH_MOD" 2>/dev/null)" \
     "yes"
-contains "the learner refuses without an outcome signal" "$(cat "${REPO}/src/rag/rag.py")" 'no outcome signal available for this task'
+contains "the learner refuses without an outcome signal" "$(cat "${REPO}/src/context/engine.py")" 'no outcome signal available for this task'
 # A malformed improver reply is an unusable answer, never a considered no-op.
-contains "a malformed reply is not a KEEP_BASE" "$(cat "${REPO}/src/rag/rag.py")" 'followed neither protocol tag'
+contains "a malformed reply is not a KEEP_BASE" "$(cat "${REPO}/src/context/engine.py")" 'followed neither protocol tag'
 
 contains "rag help advertises the harness verbs" \
-    "$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/rag/rag.py" | head -1 | cut -d: -f1),+130p" "${REPO}/src/rag/rag.py")" \
+    "$(sed -n "$(grep -n 'The command agents call is:' "${REPO}/src/context/engine.py" | head -1 | cut -d: -f1),+130p" "${REPO}/src/context/engine.py")" \
     'context-learn'
 check "the context-harness docs exist" \
     "$([[ -f "${REPO}/research/context-priming-master/08-phase0-findings.md" ]] && echo yes || echo no)" "yes"
@@ -1278,20 +1369,146 @@ check "the context-harness docs exist" \
 # ── the whole corpus, and wiki pseudo-skills ────────────────────────────────
 # The prime used to read 10 of 115 .agents files. These pin the coverage, the tracking that makes
 # learned pages survive a clone, and the ranking that keeps a bigger corpus an improvement.
-contains "the corpus includes the whole coordination history" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_MAX_ARTIFACTS = 0'
-contains "the corpus includes research and templates" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_EXTRA_SOURCES'
-contains "pseudo-skills live inside the wiki" "$(cat "$CH_MOD")" '.agents" / "wiki" / "skills'
-contains "kinds are weighted so a wider corpus does not dilute" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_KIND_WEIGHTS'
-contains "recency is ranked per kind, not globally" "$(cat "${REPO}/src/rag/rag.py")" 'recency_kind'
+contains "the corpus includes the whole coordination history" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_MAX_ARTIFACTS = 0'
+
+# ── context consolidation ───────────────────────────────────────────────────
+# The five coordination folders accumulate one record per event and the graph indexes every one, so
+# the corpus grows without bound. Consolidation summarises old records into dated digests and removes
+# the originals, keeping the three newest untouched.
+#
+# The first real run of this feature DELETED 16 files to replace them with a one-line preamble
+# ("I'll start with the required context call..."). Every file had to be restored from git. These
+# assertions exist because a non-empty check passed that reply.
+CONSOLIDATE="${REPO}/src/context/engine.py"
+contains "consolidation covers the five coordination folders" "$(cat "$CONSOLIDATE")" 'CONSOLIDATION_FOLDERS'
+contains "the three newest records are protected" "$(cat "$CONSOLIDATE")" 'CONSOLIDATION_PROTECTED_NEWEST = 3'
+contains "an unusable digest is rejected, not written" "$(cat "$CONSOLIDATE")" 'def _digest_is_usable'
+contains "the digest is written before its sources are removed" \
+    "$(cat "$CONSOLIDATE")" 'written = digest.is_file() and digest.stat().st_size > 0'
+# Only records a verified chunk actually covered may be removed; a record whose chunk failed review must
+# stay, or the digest would stand in for records it never saw.
+check "only summarised records are removed" \
+    "$(grep -cE 'for fname in (covered|covered_sorted):' "$CONSOLIDATE")" "1"
+
+# ── the consolidation PAIR is separate from the prime's pair ────────────────
+# Consolidation used the same elephant/goldfish roles that build the prime, with an ADVISORY review.
+# Measured 2026-11-20: seven digests, 91 originals left, tasks failed every chunk — and the reviewer
+# CAUGHT a real omission on comms ("the context-priming master entry's blocker is entirely missing")
+# while an advisory design would have written that lossy digest anyway.
+contains "consolidation has its own drafter profile" "$(cat "$CONSOLIDATE")" 'CONSOLIDATE_DRAFTER_PROFILE = "consolidate-elephant"'
+contains "consolidation has its own reviewer profile" "$(cat "$CONSOLIDATE")" 'CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"'
+contains "the pair is reached through hermes" "$(cat "$CONSOLIDATE")" 'def hermes_profile_call'
+contains "hermes falls back to pi, reported" "$(cat "$CONSOLIDATE")" 'pi-fallback'
+contains "the review gate blocks" "$(cat "$CONSOLIDATE")" 'if passed:'
+contains "an unparseable verdict is a refusal" "$(cat "$CONSOLIDATE")" 'def _parse_digest_verdict'
+
+# Behavioural: the verdict parser fails closed on anything it cannot read.
+check "an unreadable review verdict refuses" \
+    "$(python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("e", sys.argv[1])
+e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
+cases = [("VERDICT: pass\nGAP: none", True), ("VERDICT: fail\nGAP: x", False),
+         ("", False), ("looks fine to me", False)]
+bad = [t for t, want in cases if e._parse_digest_verdict(t)[0] != want]
+print("clean" if not bad else "mismatch: " + repr(bad[:1]))' "$CONSOLIDATE" 2>/dev/null)" \
+    "clean"
+
+# Behavioural: a digest must never be reported as the plan or task of record. A digest carries no
+# `status:` field, so reporting one made the prime claim `status: designing` about a summary.
+check "digests are excluded from the newest plan and task" \
+    "$(grep -c 'if not p.name.startswith(CONSOLIDATION_DIGEST_PREFIX)' "$CONSOLIDATE")" "2"
+
+# Behavioural: the exclusion predicate, by construction rather than by what a checkout happens to hold.
+check "consolidation excludes indexes and live sidecars" \
+    "$(python3 -c '
+import sys, tempfile, pathlib, importlib.util
+spec = importlib.util.spec_from_file_location("e", sys.argv[1])
+e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
+d = pathlib.Path(tempfile.mkdtemp())
+cases = {"2026-11-20-team.md": True, "2026-11-10-team.live.txt": False,
+         "2026-11-13-identity-guard.live.txt": False, "llms.txt": False,
+         "DIGEST-comms-2026-11.md": False, "notes.md": False}
+bad = []
+for name, want in cases.items():
+    p = d / name; p.write_text("x")
+    if e._is_consolidatable(p) != want: bad.append(name)
+print("clean" if not bad else ",".join(bad))' "$CONSOLIDATE" 2>/dev/null)" \
+    "clean"
+
+# Behavioural: a dry run must change nothing at all.
+_before_dry="$(cd "${REPO}" && git status --porcelain .agents/ 2>/dev/null | wc -l | tr -d ' ')"
+( cd "${REPO}" && ./bin/ainish-context context-consolidate --dry-run --folder suggestions >/dev/null 2>&1 ) || true
+_after_dry="$(cd "${REPO}" && git status --porcelain .agents/ 2>/dev/null | wc -l | tr -d ' ')"
+check "a consolidation dry run writes and deletes nothing" "$_after_dry" "$_before_dry"
+
+# Behavioural: the reply gate rejects the exact shape that caused the data loss.
+check "the digest gate rejects a preamble" \
+    "$(python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("e", sys.argv[1])
+e = importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
+ok, _ = e._digest_is_usable("I will start with the required context call, then write the digest.")
+print("rejected" if not ok else "accepted")' "$CONSOLIDATE" 2>/dev/null)" \
+    "rejected"
+
+# THE LOCK MUST ACTUALLY EXCLUDE. Measured 2026-11-21: `acquire_lock` used `Path.write_text`, which
+# opens with mode `w` and succeeds on an existing file, so its `except FileExistsError` branch was
+# unreachable and two writers could both "hold" it. A background pass rewrote a digest while an
+# operator-directed run was editing it. O_CREAT|O_EXCL is the only create-if-absent the filesystem
+# enforces atomically, and this assertion is the one that was missing when it broke.
+check "the harness lock actually excludes a second holder" \
+    "$(python3 -c '
+import sys, importlib.util, tempfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+d = Path(tempfile.mkdtemp())
+first, _ = m.acquire_lock(d)
+second, _ = m.acquire_lock(d)
+print("exclusive" if first and not second else "NO-EXCLUSION")' "$CH_MOD" 2>/dev/null)" \
+    "exclusive"
+contains "the corpus includes research and templates" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_EXTRA_SOURCES'
+# ONE learned-skill surface. It used to be two (staged packs the graph never indexed, plus wiki pages
+# nothing could surface), which meant neither was authoritative.
+contains "learned skills have one home" "$(cat "$CH_MOD")" 'return skills_root(repo_root)'
+contains "the graph indexes the learned-skill surface" \
+    "$(cat "${REPO}/src/context/engine.py")" '("pseudoskill", ".agents/context-harness/skills", True)'
+# Unbounded shared-vocabulary edges made one hop reach most of the graph once the corpus was full.
+contains "shared-vocabulary edges are bounded per node" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_MAX_EDGES_PER_NODE'
+# A task that NAMES a layer must retrieve that layer, or "what does the contract say" returns a
+# research transcript that happens to share more words.
+contains "a named layer is boosted, not just matched" "$(cat "${REPO}/src/context/engine.py")" 'KIND_INTENT'
+# "what are the rules here" is the question a deployed agent asks first, and it was the one question
+# that retrieved nothing: the router scored `needs_retrieval` 0.68 and then chose `skip_retrieval`.
+# The word "rules" is ambiguous for RANKING (business rules are not contract sections), so it lives in
+# the force-retrieval list rather than the intent table — overriding a skip costs tokens, while a skip
+# on that question costs the agent the rules it is bound by.
+contains "rules words force retrieval past a skip" \
+    "$(cat "${REPO}/src/context/engine.py")" 'RETRIEVAL_FORCE_WORDS'
+check "the rules question actually retrieves contract sections" \
+    "$( cd "${REPO}" && ./bin/ainish-coder --context "what are the rules here" --retrieval-only 2>/dev/null \
+        | grep -c 'AGENTS.md:L' | tr -d '\n' | awk '{print ($1 > 0) ? "yes" : "no"}' )" "yes"
+check "the rules question is not degraded" \
+    "$( cd "${REPO}" && ./bin/ainish-coder --context "what are the rules here" --retrieval-only 2>/dev/null \
+        | grep -o 'degraded: [a-z]*' | head -1 )" "degraded: false"
+# And a domain task that merely CONTAINS the word still retrieves normally rather than being skewed.
+check "business rules do not break retrieval" \
+    "$( cd "${REPO}" && ./bin/ainish-coder --context "implement business rules for pricing" --retrieval-only 2>/dev/null \
+        | grep -o 'degraded: [a-z]*' | head -1 )" "degraded: false"
+# A learner may widen coverage but never narrow it silently.
+contains "coverage cannot be silently reduced" "$(cat "${REPO}/src/context/engine.py")" '_coverage_loss_guard'
+contains "kinds are weighted so a wider corpus does not dilute" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_KIND_WEIGHTS'
+contains "recency is ranked per kind, not globally" "$(cat "${REPO}/src/context/engine.py")" 'recency_kind'
 # The gitignore rule that used to swallow every learned wiki page. If this negation disappears, a
 # learner's work is silently untracked and dies on clone.
 check "the root wiki is trackable" \
-    "$(git -C "${REPO}" check-ignore -q .agents/wiki/skills/cheap-form-first.md && echo ignored || echo tracked)" \
+    "$(git -C "${REPO}" check-ignore -q .agents/wiki/01-architecture.md && echo ignored || echo tracked)" \
     "tracked"
 check "a nested wiki stays ignored" \
-    "$(mkdir -p "${REPO}/src/rag/.agents/wiki" && touch "${REPO}/src/rag/.agents/wiki/probe.md" && \
-       git -C "${REPO}" check-ignore -q src/rag/.agents/wiki/probe.md && echo ignored || echo tracked; \
-       rm -rf "${REPO}/src/rag/.agents")" \
+    "$(mkdir -p "${REPO}/src/context/.agents/wiki" && touch "${REPO}/src/context/.agents/wiki/probe.md" && \
+       git -C "${REPO}" check-ignore -q src/context/.agents/wiki/probe.md && echo ignored || echo tracked; \
+       rm -rf "${REPO}/src/context/.agents")" \
     "ignored"
 check "every pseudo-skill validates" \
     "$(python3 -c '
@@ -1303,7 +1520,7 @@ errs = m.validate_pseudo_skill_tree(Path(sys.argv[2]))
 print("clean" if not errs else f"{len(errs)} error(s): {errs[0][:80]}")' "$CH_MOD" "${REPO}" 2>/dev/null)" \
     "clean"
 check "at least six pseudo-skills abstracted from the sources" \
-    "$(ls "${REPO}/.agents/wiki/skills"/*.md 2>/dev/null | wc -l | tr -d ' ')" \
+    "$(ls "${REPO}/.agents/context-harness/skills"/*/SKILL.md 2>/dev/null | wc -l | tr -d ' ')" \
     "6"
 check "the corpus answers research questions it could not before" \
     "$(python3 "${REPO}/research/context-priming-master/probe_answer.py" 2>/dev/null | tail -1 | grep -c 'net +')" \
@@ -1313,7 +1530,7 @@ check "the corpus answers research questions it could not before" \
 # The contract tells an agent to call exactly one command. That command must therefore (a) surface the
 # rules, and (b) keep the harness improving without a second invocation. Both are pinned here because
 # either one silently regressing makes the single-command promise false.
-contains "the contract is retrieval corpus" "$(cat "${REPO}/src/rag/rag.py")" 'GRAPH_CONTRACT_FILES'
+contains "the contract is retrieval corpus" "$(cat "${REPO}/src/context/engine.py")" 'GRAPH_CONTRACT_FILES'
 check "AGENTS.md sections are retrievable as nodes" \
     "$(python3 -c '
 import sys, importlib.util
@@ -1322,14 +1539,26 @@ spec = importlib.util.spec_from_file_location("rag", sys.argv[1])
 m = importlib.util.module_from_spec(spec); sys.modules["rag"] = m; spec.loader.exec_module(m)
 g = m.build_wiki_graph(Path(sys.argv[2]))
 print("yes" if any(n["kind"] == "contract" and "AGENTS.md" in n["path"] for n in g["nodes"]) else "no")' \
-      "${REPO}/src/rag/rag.py" "${REPO}" 2>/dev/null)" \
+      "${REPO}/src/context/engine.py" "${REPO}" 2>/dev/null)" \
     "yes"
+# The sentences used to read "one command is the whole context system" and "never call a second command
+# to prime yourself" inside a paragraph that also explained the four-part prime, the background tuning
+# pass, and `provenance.harness`. The RULE is what matters; the mechanism was implementation detail in a
+# document every agent reads whole. These assert the rule survives and the mechanism does not.
 contains "the contract states one command is the whole system" \
     "$(cat "${REPO}/AGENTS.md")" 'one command is the whole context system'
 contains "the contract forbids a second priming command" \
     "$(cat "${REPO}/AGENTS.md")" 'Never call a second command to prime yourself'
-contains "a context call spawns the learning pass" "$(cat "${REPO}/src/rag/rag.py")" 'def spawn_autolearn'
-contains "the learning pass is detached, never awaited" "$(cat "${REPO}/src/rag/rag.py")" 'start_new_session'
+check "the contract describes no context-system internals" \
+    "$(grep -ciE 'four-part|provenance\.harness|retrieval constant|elephant|goldfish|vector store|no embeddings' "${REPO}/AGENTS.md")" \
+    "0"
+# The folders an agent must be told about, because "read .agents/" is not actionable on its own.
+for _folder in tasks plans comms memories suggestions wiki; do
+    check "the contract names .agents/${_folder}/" \
+        "$(grep -c "\`${_folder}/\` for\|and \`${_folder}/\`" "${REPO}/AGENTS.md")" "1"
+done
+contains "a context call spawns the learning pass" "$(cat "${REPO}/src/context/engine.py")" 'def spawn_autolearn'
+contains "the learning pass is detached, never awaited" "$(cat "${REPO}/src/context/engine.py")" 'start_new_session'
 check "the learning pass is throttled" \
     "$(python3 -c '
 import importlib.util, sys
@@ -1337,11 +1566,122 @@ spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 print("yes" if m.LEARN_MIN_INTERVAL_S > 0 and m.LEARN_MIN_NEW_COMMITS > 0 else "no")' "$CH_MOD" 2>/dev/null)" \
     "yes"
-check "the spawned child cannot pollute the prime" \
-    "$(grep -c '"stdout": subprocess.DEVNULL' "${REPO}/src/rag/rag.py")" "1"
+# Every background pass silences its own stdout, because the caller's stdout IS the prime. There are
+# two passes now (consolidate + learn), so this asserts that each spawn site does it — a count of one
+# was pinning the number of passes rather than the property.
+check "every spawned child silences its stdout" \
+    "$(python3 -c '
+import re, sys
+src = open(sys.argv[1]).read()
+spawns = src.count("subprocess.Popen(argv")
+devnull = src.count("\"stdout\": subprocess.DEVNULL")
+print("yes" if spawns and devnull >= spawns else f"no ({devnull}/{spawns})")' "${REPO}/src/context/engine.py")" \
+    "yes"
 check "a failed background pass still records its attempt" \
-    "$(grep -c 'context_harness.record_autolearn(repo_root)' "${REPO}/src/rag/rag.py")" "2"
-contains "no evidence means no learning pass" "$(cat "${REPO}/src/rag/rag.py")" 'no retrieved evidence to learn from'
+    "$(grep -c 'context_harness.record_autolearn(' "${REPO}/src/context/engine.py")" "2"
+contains "no evidence means no learning pass" "$(cat "${REPO}/src/context/engine.py")" 'no retrieved evidence to learn from'
+
+# ── THE PAIRING, END TO END ─────────────────────────────────────────────────
+# Everything above tests a piece. This tests the thing an operator actually ships: `--rules` seeds a
+# baseline, `--context` returns the rules with it, a completed task lets one learn cycle advance the
+# generation, and rollback restores the previous state EXACTLY. Each step failed in production before
+# this block existed — the caps, the seed path, the referent, and the skill half of rollback.
+E2E="${WORK}/e2e-pairing"
+E2E_SKILLS="${E2E}/.agents/context-harness/skills"
+mkdir -p "${E2E}/.agents/tasks" "${E2E}/.agents/wiki" "${E2E}/.agents/comms"
+git -C "${E2E}" init -q 2>/dev/null
+printf -- '# W\n\n## Parser header\nThe header holds the magic number.\n' > "${E2E}/.agents/wiki/01-a.md"
+printf -- '- status: "done (merged deadbeef; 1 assertion)"\n- branch: `feat/parser-header`\n- objective: make the parser read the header\n- scope: `src/parser.py`\n' \
+    > "${E2E}/.agents/tasks/2026-01-01-parser.md"
+git -C "${E2E}" add -A >/dev/null 2>&1
+git -C "${E2E}" -c user.email=t@t -c user.name=t commit -qm "feat(parser): make the parser read the header" >/dev/null 2>&1
+
+# 1. `--rules` seeds generation 0 (the deploy path; the harness is useless without a baseline).
+( cd "${E2E}" && AINISH_SEED_CONTEXT_HARNESS=on python3 "${REPO}/src/context/engine.py" context-seed >/dev/null 2>&1 )
+check "the deploy seeds generation 0" \
+    "$([[ -f "${E2E}/.agents/context-harness/prime-profile.json" ]] && echo yes || echo no)" "yes"
+
+# 2. One `--context` call returns the rules, the gate line, and at least one contract node.
+E2E_CTX=$( cd "${REPO}" && python3 "${REPO}/src/context/engine.py" context --task "what does the contract say about worktrees" --retrieval-only 2>/dev/null )
+# The scratch repo has no contract of its own, so this assertion runs against the real one: the point
+# is that a single call returns the rules line at all, which it did not before the contract joined the
+# corpus and orientation.
+check "one context call names the rules" \
+    "$(printf '%s' "$E2E_CTX" | grep -c 'rules: .AGENTS.md.')" "1"
+check "one context call carries contract sections" \
+    "$(printf '%s' "$E2E_CTX" | python3 -c 'import sys; n=sum(1 for l in sys.stdin if "Non-negotiables" in l or "The context call" in l or "Worktrees" in l); print("yes" if n else "no")')" \
+    "yes"
+
+# 3. A COMPLETED task record is an acceptance referent the repo can satisfy.
+cat > "${WORK}/e2e_referent.py" <<'PYEOF'
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+r = m.outcome_signal(Path("."), "make the parser read the header",
+                     task_record=Path(".agents/tasks/2026-01-01-parser.md"))
+print("{}:{}".format(r.get("referent"), r.get("completion")))
+PYEOF
+check "a done task record is a usable referent" \
+    "$( cd "${E2E}" && python3 "${WORK}/e2e_referent.py" "${CH_MOD}" 2>/dev/null )" \
+    "task-record:True"
+# An UNFINISHED record must not be one, or the gate accepts work that never landed.
+printf -- '- status: implementing\n- branch: `feat/other`\n- objective: something else\n' \
+    > "${E2E}/.agents/tasks/2026-01-02-open.md"
+check "an unfinished task record is refused" \
+    "$( cd "${E2E}" && python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+r = m.outcome_signal(Path("."), "something else",
+                     task_record=Path(".agents/tasks/2026-01-02-open.md"))
+print("refused" if r.get("completion") is False else "accepted")' "${CH_MOD}" 2>/dev/null )" \
+    "refused"
+# `--outcome unknown` is a refusal, never a pass.
+# KEEP_BASE and refused are both honest: neither advances a generation. What must never happen is
+# `accepted`, and never an error that looks like a considered no-op.
+check "an unknown outcome never advances a generation" \
+    "$( cd "${E2E}" && python3 "${REPO}/src/context/engine.py" context-learn --dry-run --task "x" --outcome unknown --json 2>/dev/null \
+        | python3 -c 'import json,sys; d=json.load(sys.stdin); o=d.get("outcome"); print("advanced" if o in ("accepted", "would_accept") else "held")' 2>/dev/null )" \
+    "held"
+
+# 4. ACCEPT, then ROLL BACK — the loop's two directions. `--outcome ok` supplies the referent so the
+#    test never depends on a model's proposal surviving the gate's coverage rule.
+GEN0_FP=$( python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+p, _, _ = m.load_profile(Path(sys.argv[2]))
+print(m.profile_fingerprint(p))' "${CH_MOD}" "${E2E}" 2>/dev/null )
+E2E_LEARN=$( cd "${E2E}" && python3 "${REPO}/src/context/engine.py" context-learn --task "make the parser read the header" --outcome ok --json 2>/dev/null )
+E2E_OUTCOME=$( printf '%s' "$E2E_LEARN" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("outcome"))' 2>/dev/null )
+# accepted | KEEP_BASE | would_accept | refused-by-gate are all honest outcomes; an ERROR is not.
+E2E_HONEST="error"
+case "$E2E_OUTCOME" in
+    accepted|would_accept|refused|KEEP_BASE) E2E_HONEST="honest" ;;
+    "") E2E_HONEST="error" ;;
+    *) E2E_HONEST="honest" ;;
+esac
+check "one learn cycle reaches an honest outcome" "$E2E_HONEST" "honest"
+( cd "${E2E}" && python3 "${REPO}/src/context/engine.py" context-rollback 0 >/dev/null 2>&1 )
+GEN0_FP_AFTER=$( python3 -c '
+import importlib.util, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("ch", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+p, _, _ = m.load_profile(Path(sys.argv[2]))
+print(m.profile_fingerprint(p))' "${CH_MOD}" "${E2E}" 2>/dev/null )
+check "rollback restores the generation-0 fingerprint" "$GEN0_FP_AFTER" "$GEN0_FP"
+# Rollback must move the SKILLS too. A generation is a profile AND its tree; restoring one without the
+# other leaves a state no future rollback can repair.
+check "rollback restores the staged skill tree with the profile" \
+    "$( cd "${E2E}" && python3 "${REPO}/src/context/engine.py" context-status --json 2>/dev/null \
+        | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("staged_skills") or []))' 2>/dev/null )" \
+    "0"
+
 
 # COMMS entries come in two delimiter styles, and orientation only understood one. A `---`-delimited
 # ledger made it report its own frontmatter fence as "last entry", which is worse than silence: an
@@ -1360,7 +1700,7 @@ with tempfile.TemporaryDirectory() as t:
         "---\nagent: x\n---\n- objective: do the thing\n- status: done\n")
     out = m.render_orientation_section(root, 2000)
     print("yes" if "status: done" in out and "objective: do the thing" in out else "no")' \
-      "${REPO}/src/rag/rag.py" 2>/dev/null)" \
+      "${REPO}/src/context/engine.py" 2>/dev/null)" \
     "yes"
 check "evidence and refusals are pruned, not accumulated" \
     "$(python3 -c '
@@ -1379,8 +1719,19 @@ with tempfile.TemporaryDirectory() as t:
     m.prune_work(root, keep=10, keep_rejected=50)
     print(len(list(work.iterdir())), len(list(rej.iterdir())))' "$CH_MOD" 2>/dev/null)" \
     "10 50"
-contains "harness operational traces are gitignored" \
+# The ignore RULE existing is not the same as it applying: `git add -A` tracks a path once, and the
+# rule is powerless against a tracked file. Measured 2026-11-19 — 16 operational-trace files were
+# committed while this assertion passed, because it only read the rule's text. Both halves are pinned.
+contains "harness operational traces declare an ignore rule" \
     "$(cat "${REPO}/.agents/context-harness/.gitignore" 2>/dev/null)" 'work/'
+check "harness operational traces are actually untracked" \
+    "$(git -C "${REPO}" ls-files .agents/context-harness/work | wc -l | tr -d ' ')" "0"
+check "the ignore rule applies to the work directory" \
+    "$(mkdir -p "${REPO}/.agents/context-harness/work/probe" && \
+       touch "${REPO}/.agents/context-harness/work/probe/x.md" && \
+       git -C "${REPO}" check-ignore -q .agents/context-harness/work/probe/x.md && echo ignored || echo tracked; \
+       rm -rf "${REPO}/.agents/context-harness/work/probe")" \
+    "ignored"
 
 # ── commit identity: the operator is the only author ────────────────────────
 # Two real failures on 2026-11-18, both in the guard itself:
@@ -1402,12 +1753,103 @@ cp "$GUARD" scripts/
 printf '#!/bin/bash\nexec "$(git rev-parse --show-toplevel)/scripts/commit-identity-guard.sh"\n' > .git/hooks/post-commit
 chmod +x .git/hooks/post-commit scripts/commit-identity-guard.sh
 git add -A >/dev/null 2>&1
-git commit -qm "tool-authored" >/dev/null 2>&1
+# Deterministic across harnesses: clear every marker the guard reads, then set exactly one.
+# Without this the assertion follows whichever harness drives the suite (cursor here, claudecode
+# there, opencode elsewhere) and drifts permanently — a test bug, not a guard bug.
+HARNESS_ENV=(env -u CLAUDECODE -u CURSOR_TRACE_ID -u CURSOR_AGENT -u COPILOT_AGENT -u COPILOT_CLI \
+    -u CODEX_SANDBOX -u OPENCODE -u AIDER -u WINDSURF -u CLINE_AGENT -u DEVIN_AGENT \
+    -u GEMINI_CLI -u ANTIGRAVITY -u JULES_AGENT CURSOR_AGENT=1)
+"${HARNESS_ENV[@]}" git commit -qm "tool-authored" >/dev/null 2>&1
 check "a tool-authored commit is re-authored as the operator" \
-    "$(git log -1 --format='%an')" "Nanoboozhoo - embodied by cursor"
+    "$(git log -1 --format='%an')" "Nanoboozhoo embodied by: cursor"
 check "an already-correct commit is left alone (no amend loop)" \
     "$(git commit --allow-empty -qm second >/dev/null 2>&1; git rev-list --count HEAD)" "2"
 cd "$REPO" || exit 1
+
+# ── harness attribution trailers ────────────────────────────────────────────
+# The guard above repairs the AUTHOR. It never removed the `Co-authored-by: Cursor <...>` TRAILER that
+# harnesses append to the message, because it exits as soon as the author is already correct — which is
+# the case for every commit that has one. Measured 2026-11-20: 82 commits carried a harness trailer
+# and 26 of them had a perfectly correct author, so the guard walked past all 26.
+#
+# The fix is a commit-msg hook: it runs BEFORE the commit object exists, so stripping there needs no
+# amend and cannot lose a signature (the author guard's amend does, unless it passes -S).
+STRIP="${REPO}/scripts/strip-harness-trailers.sh"
+TABLE="${REPO}/scripts/harness-attribution.txt"
+contains "the harness table is data, not code" "$(cat "$TABLE")" 'cursoragent@cursor\.com'
+contains "the strip runs from commit-msg, before the object exists" \
+    "$(cat "${REPO}/scripts/setup-hooks.sh")" 'commit-msg'
+# Hooks must be installed where git looks. In a worktree `--git-dir` is the per-worktree dir, which git
+# never runs hooks from; `--git-common-dir` is the one every checkout shares.
+contains "hooks install into the common git dir" \
+    "$(cat "${REPO}/scripts/setup-hooks.sh")" 'git-common-dir'
+contains "deploy resolves hooks through git, not a hardcoded .git" \
+    "$(cat "${REPO}/src/deploy_rules_sync.sh")" 'rev-parse --git-path hooks'
+
+# ── the identity tooling DEPLOYS ────────────────────────────────────────────
+# Rule 4 is in every `AGENTS.md` a target repo receives, so the tooling that makes it true has to
+# travel too. Measured 2026-11-20: a `--rules` target got post-checkout/post-merge/pre-commit and NO
+# identity blocks at all — every commit it generated shipped whatever trailer its harness appended.
+#
+# The copies go into the target's own `.agents/bin/` rather than pointing back at the install that
+# deployed them: a target must not break when that install is a worktree that gets removed, and it
+# must be able to pick up a new harness entry from its own next `--rules` re-run.
+IDDEPLOY="${WORK}/identity-deploy-target"
+rm -rf "$IDDEPLOY"; mkdir -p "$IDDEPLOY"
+( cd "$IDDEPLOY" && git init -q . && git config user.email t@t && git config user.name t \
+    && echo x > a.txt && git add a.txt && git commit -qm init ) >/dev/null 2>&1
+# HOME must stay the sandbox: without it this deploy registers the throwaway target in the
+# operator's REAL fleet registry, which is where the pile of dead pqc-dist-test entries came from.
+( cd "${REPO}" && HOME="${HOME_DIR}" AINISH_NON_INTERACTIVE=true REPO_DIR="${REPO}" \
+    ./bin/ainish-coder --rules "$IDDEPLOY" --headless -y ) >"${WORK}/identity-deploy.log" 2>&1
+
+check "deploy copies the harness table into the target" \
+    "$([[ -f "${IDDEPLOY}/.agents/bin/harness-attribution.txt" ]] && echo yes || echo no)" "yes"
+check "deploy copies the stripper into the target" \
+    "$([[ -x "${IDDEPLOY}/.agents/bin/strip-harness-trailers.sh" ]] && echo yes || echo no)" "yes"
+check "deploy copies the author guard into the target" \
+    "$([[ -x "${IDDEPLOY}/.agents/bin/commit-identity-guard.sh" ]] && echo yes || echo no)" "yes"
+check "deploy installs the target commit-msg strip" \
+    "$(grep -c 'IDENTITY STRIP START' "${IDDEPLOY}/.git/hooks/commit-msg" 2>/dev/null || echo 0)" "1"
+check "deploy installs the target post-commit guard" \
+    "$(grep -c 'IDENTITY GUARD START' "${IDDEPLOY}/.git/hooks/post-commit" 2>/dev/null || echo 0)" "1"
+# The target must not reach back into the installing checkout: no absolute path to this repository
+# may appear in its hooks, or removing the install would break it.
+check "deployed hooks do not reference the installing checkout" \
+    "$(grep -rlF "${REPO}" "${IDDEPLOY}/.git/hooks/" 2>/dev/null | wc -l | tr -d ' ')" "0"
+
+# Behavioural: a commit made IN the target arrives without its trailer.
+( cd "$IDDEPLOY" && git config commit.gpgsign false && echo y > b.txt && git add b.txt \
+    && git commit -qm "feat: deployed probe
+
+Co-authored-by: Cursor <cursoragent@cursor.com>" ) >/dev/null 2>&1
+check "a deployed repo strips its own trailers" \
+    "$(git -C "$IDDEPLOY" log -1 --format=%B | grep -ci 'co-authored-by' | tr -d '\n')" "0"
+
+# A deploy with no embedding subsystem must not call into the deleted module.
+check "no rules deploy calls a deleted embed helper" \
+    "$(grep -c 'command not found' "${WORK}/identity-deploy.log" 2>/dev/null | tr -d '\n')" "0"
+check "the embed-provider call is gone from the deploy path" \
+    "$(grep -c 'deploy_embed_provider_detect' "${REPO}/bin/ainish-coder")" "0"
+
+# Behavioural: every real variant is removed, and the message body survives.
+strip_all="$(printf 'feat: x\n\nbody\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\nCo-Authored-By: Warp <agent@warp.dev>\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCo-Authored-By: Oz <oz-agent@warp.dev>\nCo-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>\n' | "$STRIP" --stdin)"
+check "every known harness trailer is stripped" \
+    "$(printf '%s' "$strip_all" | grep -ciE 'co-authored-by' | tr -d '\n')" "0"
+check "the message body survives the strip" \
+    "$(printf '%s' "$strip_all" | grep -c '^body$')" "1"
+
+# And it must NOT over-reach. A human collaborator, a DCO sign-off, and prose are not attribution.
+keep_all="$(printf 'feat: x\n\nCo-authored-by: Jane Doe <jane@example.com>\nSigned-off-by: Nanoboozhoo <n@example.com>\nReviewed-by: cursor-enthusiast\n' | "$STRIP" --stdin)"
+check "a human co-author is preserved" \
+    "$(printf '%s' "$keep_all" | grep -c 'Jane Doe')" "1"
+check "a DCO sign-off is preserved" \
+    "$(printf '%s' "$keep_all" | grep -c 'Signed-off-by')" "1"
+check "prose mentioning a harness is preserved" \
+    "$(printf '%s' "$keep_all" | grep -c 'Reviewed-by')" "1"
+
+check "the strip is clean on a clean message" \
+    "$(printf 'feat: plain\n' | "$STRIP" --stdin)" "feat: plain"
 
 # ── the audit checker fails CLOSED ──────────────────────────────────────────
 # The first version of this check was an indented heredoc inside the YAML `run:` block. YAML indents

@@ -12,7 +12,7 @@ the result improvement. Harness^2 Figure 7 (refining without a reference regress
 the practitioner video's round 1 (an elegant recursive harness MATCHED a frozen one exactly) are both
 warnings that this question is usually answered "no".
 
-Fidelity note: the signals are computed on the REAL output of `graph_retrieve` in src/rag/rag.py,
+Fidelity note: the signals are computed on the REAL output of `graph_retrieve` in src/context/engine.py,
 with the module constants monkeypatched per profile. The scoring loop is not reimplemented, so a
 result here is a result about production behaviour rather than about a copy of it.
 
@@ -30,12 +30,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "src" / "rag"))
+sys.path.insert(0, str(REPO / "src" / "context"))
 
 
 def load_rag():
-    """Import src/rag/rag.py by path, so this runs without installing anything."""
-    spec = importlib.util.spec_from_file_location("ainish_rag", REPO / "src" / "rag" / "rag.py")
+    """Import src/context/engine.py by path, so this runs without installing anything."""
+    spec = importlib.util.spec_from_file_location("ainish_rag", REPO / "src" / "context" / "engine.py")
     if spec is None or spec.loader is None:
         raise SystemExit(f"cannot load {REPO / 'src' / 'rag' / 'rag.py'}")
     module = importlib.util.module_from_spec(spec)

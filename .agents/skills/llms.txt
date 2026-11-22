@@ -6,7 +6,7 @@ Skills are progressive-loaded procedures. Discovery metadata stays short; detail
 
 ## Selection
 
-- Context, planning, checkpoints, and handoffs are handled by `ainish-rag context` (see `AGENTS.md` `<CONTEXT_INJECTION>`) rather than by a skill: the `orientation` section gathers branch, worktree, tree state, COMMS, and the task record in code, and the `goldfish` section is the stateless reviewer. The former `context-orchestration` skill is retired.
+- Context, planning, checkpoints, and handoffs are handled by `ainish-context context` (see `AGENTS.md` `<CONTEXT_INJECTION>`) rather than by a skill: the `orientation` section gathers branch, worktree, tree state, COMMS, and the task record in code, and the `goldfish` section is the stateless reviewer. The former `context-orchestration` skill is retired.
 - Use the built-in `ainish-security` context for security, prompt-injection, tool, RAG, and production controls. It is mandatory and deployed by `--rules`.
 - Use `typesafe-jev` for calibrated routing, reranking, faithfulness, and retrieval decisions.
 - Use `pqc-secrets` for secret storage and signing operations; security policy is already compiled into `ainish-security`. It is mandatory and deployed by `--rules`.
@@ -20,7 +20,12 @@ Every skill must define a bounded procedure, explicit stop conditions, verificat
 ## Child DOX index
 
 - [`ainish-security/`](./ainish-security/) — the single security contract: code, AI/agentic, secrets, PQC, supply chain, governance. Mandatory.
+- [`aiRPC/`](./aiRPC/) — ai robotic process automation over an interactive tldraw canvas: project
+  the `.agents/` record as blocks, receive per-block Enter calls, edit the record, and wait for the
+  user's next response.
 - [`pqc-secrets/`](./pqc-secrets/) — secret operations and ML-DSA-65 signing. Mandatory.
 - [`typesafe-jev/`](./typesafe-jev/) — typed decision contract.
+- [`specialized-agents/`](./specialized-agents/) — check the `hermes` CLI for the most relevant
+  specialized agent profile before starting a task or automation, and invoke it non-interactively.
 - [`wtf-is-going-on-mcp/`](./wtf-is-going-on-mcp/) — cross-machine agent record, messaging, and task dispatch.
 - [`../templates/egm-design.md`](../templates/egm-design.md) — optional written design artifact; no longer a required gate.

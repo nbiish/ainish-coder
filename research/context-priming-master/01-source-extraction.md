@@ -1,7 +1,8 @@
 # 01 — Source extraction
 
-Four sources were supplied. Two are primary research, two are practitioner accounts. They agree on
-more than they disagree, and where they disagree the disagreement is the useful part.
+**Six** sources were supplied. Three are primary research, one is a reference implementation, and two
+are the model's own published material. They agree on more than they disagree, and where they disagree
+the disagreement is the useful part.
 
 | # | Source | Kind | Weight in this dossier |
 |---|---|---|---|
@@ -9,6 +10,64 @@ more than they disagree, and where they disagree the disagreement is the useful 
 | S2 | [YouTube: mnGNNtzK5lY](https://www.youtube.com/watch?v=mnGNNtzK5lY) | Secondary explainer of Harness² | Low — superseded by S3/S4; useful only as a sanity check on the framing |
 | S3 | [arXiv 2610.14224v1](https://arxiv.org/html/2610.14224v1) | Primary paper, Harness² | **Highest** — the method, the ablations, the failure analysis |
 | S4 | [google-research/harness2](https://github.com/google-research/harness2) | Reference implementation | **Highest** for mechanics — validators, guards, storage shapes |
+| S5 | [google/elephant-goldfish-model](https://github.com/google/elephant-goldfish-model) | Reference implementation of EGM, plus **ten canonical reviewer personas** | **Highest** for the REVIEW half — the personas are the most concrete thing any source gives us about how a goldfish should read |
+| S6 | [Google Open Source Blog: Introducing the EGM plugin](https://opensource.googleblog.com/2026/10/introducing-elephant-goldfish-model-plugin.html) | The model's own announcement | High for **the framing and the vocabulary**; no mechanics |
+
+Captured files:
+
+- `sources/arxiv-2610.14224v1.md`, `sources/video1-XaJi7a0UChs-transcript.txt`,
+  `sources/video2-mnGNNtzK5lY-transcript.txt` (S1–S3).
+- `sources/egm-github-repo-README.txt` and `sources/egm-googleblog-plugin-announcement.txt` (S5, S6).
+- `sources/egm-plugin/persona-*.md` — the ten canonical personas, fetched verbatim from `agents/` in
+  the plugin repo: comprehension, structural, implementation_readiness, design_critic, zoom_out,
+  inventive_catalyst, style, synthesizer, codebase_details, bootstrap_orchestrator.
+- S4 is documented rather than stored: [`02-harness2-mechanics.md`](02-harness2-mechanics.md) is a
+  source-level reading of the repo, which is worth more than a vendored copy.
+
+---
+
+## S6 — what the announcement establishes, and why it changes the vocabulary
+
+The post is dated 2026-10-22 and is signed by the EGM team. Three things in it are load-bearing for us:
+
+1. **"Design is the new code."** The model's premise is that the expensive artifact is no longer the
+   implementation but the intent behind it, and that an AI without a held intent auto-scales mistakes.
+2. **The failure it names is ours.** "AI-powered velocity … has silently introduced a potential
+   reliability crisis by also increasing the velocity of 'slop,' bugs, and session context collapse."
+   Context collapse is exactly the failure our single command exists to prevent.
+3. **The two roles are defined by CONTEXT, not by capability.** Elephant: "context-rich, long-horizon
+   … holds the end-to-end architectural vision and project memory. No code is written here." Goldfish:
+   "stateless, zero-context sessions … they share no 'blind spots' with the designer."
+
+Point 3 is the correction this dossier needed. We had treated reviewer independence as a property of
+the MODEL (a distinct model is better). The published statement is stronger and simpler: independence is
+the absence of shared context, and a fresh session is the mechanism. A distinct model is an additional
+strengthening, not the requirement.
+
+---
+
+## S5 — what the plugin establishes: the personas are the real content
+
+The repo is 291 files of plugin scaffolding for several agent harnesses; beneath that scaffolding sit
+**ten reviewer personas**, and they are the most concrete guidance any source gives on how to read a
+document adversarially.
+
+The technique worth taking is **paraphrase-first**, from `persona-comprehension.md`:
+
+> "Paraphrase First: In your own words, write what the document proposes and how the existing system
+> works, as the document describes it. If you cannot write a paraphrase of a section, report that
+> section as a Blocker. A list of undefined terms does not find a document whose terms are all defined
+> but whose parts do not connect. The paraphrase does."
+
+That last sentence is the single sharpest line in any of the six sources, and it applies directly to a
+context prime: our goldfish should restate what the prime is telling the agent before judging it,
+because a prime can be internally well-formed and still not cohere.
+
+The personas also prescribe output discipline ours lacked: a `Blocker | Major | Nit` severity per
+finding, and a rule that unreadable inputs produce an **incomplete review, never a passing verdict** —
+which is the same fail-closed principle our contract already states.
+
+
 
 ---
 

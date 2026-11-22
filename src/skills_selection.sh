@@ -66,7 +66,7 @@ skills_selection_env_guard() {
 # Two reasons a name is excluded from the *selection* channel:
 #   - retired/consolidated packs (code-security, llm-security, production-security
 #     merged into ainish-security; context-orchestration merged into
-#     `ainish-rag context`; orchestrate-subagent-masters retired);
+#     `ainish-context context`; orchestrate-subagent-masters retired);
 #   - the scroll channel, which has its own explicit distribution surface.
 # Mandatory packs are deliberately NOT named here. Every selection surface hides
 # them by asking _skill_mandatory, the same predicate that decides what ships;

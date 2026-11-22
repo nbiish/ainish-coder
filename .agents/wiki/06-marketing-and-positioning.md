@@ -14,7 +14,7 @@ decision_source: structural
 `ainish-coder` delivers an autonomous, high-integrity AI coding infrastructure combining:
 - **Post-Quantum Cryptographic Security** for all machine identity and secrets operations.
 - **Distributed Agent Coordination** with single-truth ledgers and isolated worktrees.
-- **State-of-the-Art Multimodal RAG** powered by Google DeepMind EmbeddingGemma-2 and LanceDB.
+- **Dependency-Free Context Retrieval:** graph-first over the repo's own wiki and coordination record — no embedding model, no vector store, no key required.
 
 ## 2. Key Differentiators
 - **Zero-Blind Searching:** Deep semantic code and multimodal asset search across 100+ languages and media formats.

@@ -78,9 +78,8 @@ EXCLUDE_PATHS=(
     "scripts/secret-protection-help.sh"
     "scripts/sanitize-settings.sh"
     "scripts/security_scan.sh"
-    "src/rag/rag.py"
-    "src/rag/src/scrub.rs"
-    "src/rag/src/pqc.rs"
+    "src/context/engine.py"
+    "src/context/context_harness.py"
     "SECURITY_REPORT.md"
 )
 
