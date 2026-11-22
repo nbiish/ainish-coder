@@ -34,3 +34,4 @@
 - Signing was kept, per operator decision; no security downgrade.
 - No push or PR; delivery stayed local.
 - Historical COMMS/plans/memory records keep their old author strings — they are evidence of past state, not live tooling.
+- compat: canonical author-format change and signature refresh; live tooling updated in lockstep, no runtime API removed.
