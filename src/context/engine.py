@@ -8831,7 +8831,8 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
             # Several envelopes can coexist (a threshold envelope from an older rotation and a
             # fresh single signature). Accept any one that actually signs the CURRENT bytes;
             # preferring the threshold file unconditionally went red after every re-sign.
-            candidates = [canon_sig, thresh_sig, repo_root / ".agents" / "canonical" / "AGENTS.md.sig"]
+            canon_dir = repo_root / ".agents" / "canonical"
+            candidates = [canon_sig, thresh_sig, canon_dir / "AGENTS.sig", canon_dir / "AGENTS.md.sig"]
             seen: set = set()
             for candidate in candidates:
                 if not candidate or not candidate.exists() or candidate in seen:
