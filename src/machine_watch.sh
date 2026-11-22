@@ -197,6 +197,18 @@ _mw_sync_repo() { # repo
     local -a args=(--machine-sync "$repo" --both --branches --auto-commit --linked-only --quiet)
     [[ -n "${AINISH_MACHINES_FILE:-}" ]] && args+=(--machines-file "$AINISH_MACHINES_FILE")
     [[ -n "${AINISH_LINKS_FILE:-}" ]] && args+=(--links-file "$AINISH_LINKS_FILE")
+    # A repo that owns the tooling (this one) is authored by agents and humans directly. Letting the
+    # watcher auto-commit it produced `wip(Mac)` commits mid-task and an unpushed main — the very
+    # interference federation is supposed to prevent. `.agents/no-watcher-autocommit` opts a repo
+    # out of auto-commit while keeping bidirectional ref sync intact.
+    if [[ -f "${repo}/.agents/no-watcher-autocommit" ]]; then
+        local -a filtered=()
+        local arg
+        for arg in "${args[@]}"; do
+            [[ "$arg" == "--auto-commit" ]] || filtered+=("$arg")
+        done
+        args=("${filtered[@]}")
+    fi
     AINISH_MACHINE_SYNC_ACTIVE=1 "$cli" "${args[@]}" 2>&1
 }
 
