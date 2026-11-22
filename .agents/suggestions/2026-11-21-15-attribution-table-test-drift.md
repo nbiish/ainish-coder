@@ -16,3 +16,9 @@ Settled when the owning session (or the operator) says which value is canonical:
 `claudecode` mapping is right, update the assertion's expected literal; if `cursor` is the
 machine form that must win, fix the table entry. Then `bash scripts/test-pqc-dist.sh` must go
 green at 441/441.
+
+## Resolved 2026-11-22
+
+Neither literal was canonical. The operator set the author form to `Nanoboozhoo embodied by:
+{agent harness}`, and the test now clears all harness env markers and forces one known marker
+before asserting, so it is harness-independent. `scripts/test-pqc-dist.sh` passes 441/441.
