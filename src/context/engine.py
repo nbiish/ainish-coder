@@ -8778,7 +8778,7 @@ def run_eval_patch(repo_root: Path, diff_text: str, client=None, store=None, qui
     ))
     return {
         "files_modified": sorted(set(files)),
-        "composite_score": 0.0 if leak else 100.0,
+        "composite_score": 0.0 if leak else 1.0,
         "status": "FAILED_CREDENTIAL_LEAK" if leak else "OK",
     }
 
@@ -8826,23 +8826,35 @@ def run_gate(repo_root: Path, patch_arg: Optional[str], bell: bool = False, noti
             canon_sig = repo_root / ".agents" / "canonical" / "AGENTS.md.sig"
         canon_pass = False
         canon_label = "\033[33mWARN (envelope missing or unsigned)\033[0m"
-        if canon_file.exists() and canon_sig.exists():
-            try:
-                sig_data = json.loads(canon_sig.read_text(encoding="utf-8"))
-                if sig_data.get("sha256", "").lower() == hashlib.sha256(canon_file.read_bytes()).hexdigest().lower():
+        if canon_file.exists():
+            canon_digest = hashlib.sha256(canon_file.read_bytes()).hexdigest().lower()
+            # Several envelopes can coexist (a threshold envelope from an older rotation and a
+            # fresh single signature). Accept any one that actually signs the CURRENT bytes;
+            # preferring the threshold file unconditionally went red after every re-sign.
+            candidates = [canon_sig, thresh_sig, repo_root / ".agents" / "canonical" / "AGENTS.md.sig"]
+            seen: set = set()
+            for candidate in candidates:
+                if not candidate or not candidate.exists() or candidate in seen:
+                    continue
+                seen.add(candidate)
+                try:
+                    sig_data = json.loads(candidate.read_text(encoding="utf-8"))
+                    if sig_data.get("sha256", "").lower() != canon_digest:
+                        continue
                     if sig_data.get("format") == "ainish-rag/mldsa65-threshold-envelope/v1":
                         k = int(sig_data.get("threshold_k", 1))
                         n = len(sig_data.get("signatures", []))
                         if n >= k:
                             canon_pass = True
                             canon_label = f"\033[32mPASS (FIPS 204 ML-DSA-65 {n}-of-{k} threshold signed)\033[0m"
-                        else:
-                            canon_label = f"\033[31mFAIL (threshold {n}-of-{k} unmet)\033[0m"
+                            break
+                        canon_label = f"\033[31mFAIL (threshold {n}-of-{k} unmet)\033[0m"
                     else:
                         canon_pass = True
                         canon_label = "\033[32mPASS (FIPS 204 ML-DSA-65 signed)\033[0m"
-            except Exception:
-                pass
+                        break
+                except Exception:
+                    pass
 
         audit_dir = repo_root / ".agents" / "audit"
         audit_receipts_passed = 0
