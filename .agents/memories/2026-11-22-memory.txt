@@ -10,4 +10,5 @@
 - Hermes profiles are host config: `--context` consumes them, `--rules` must never create or inspect them. The provisioning call was removed from the deploy path.
 - `--machine-sync --both` already moves work both ways; a repo is one-way only when it is missing from `links.txt`. Link the tool repo, but pair that with `.agents/no-watcher-autocommit` or the watcher will create `wip(<machine>)` commits mid-task and leave an unpushed main.
 - The CI containment gate parses SHA files in `sha256sum` format first field; its path rule is scoped to builtin `open()` so atomic `os.open` locks are not false positives.
-- On Windows a directory with an open handle cannot be renamed even when ACLs allow Modify; for a re-clone, keep the original as backup and activate the fresh clone under a new path.
+- On Windows a directory with an open handle cannot be renamed even when ACLs allow Modify; delete the old path first, then rename the fresh clone into the canonical path.
+- A clean federation has one local branch (`main`) per machine and one peer ref (`windows-128gb/main`); stale branch refs left by `--branches` must be pruned explicitly on both sides, or the machines look divergent even when `main` agrees.

@@ -12,7 +12,7 @@
 
 - Removed `_ainish_rules_provision_consolidation_profiles()` and its call: `--rules` no longer inspects or creates hermes host config. `--context` still uses the existing `consolidate-*` profiles.
 - `links.txt`: removed `local-router` (it failed every watcher cycle, starved other repos, and auto-committed mid-write); added `ainish-coder` → `windows-128gb` / `D:/Code/ainish-coder-macclone`.
-- Windows `ainish-coder` re-cloned from Mac via a bundle of the pushed Mac ref. The original checkout is intact at `D:\Code\ainish-coder` (backup; Windows refused the rename), signer key and `.claude` config preserved in the new clone.
+- Windows `ainish-coder` re-cloned from Mac via a bundle of the pushed Mac ref. The original checkout and old scratch dirs were removed after the operator confirmed their work had been redone on Mac; the fresh clone was renamed to the canonical `D:\Code\ainish-coder`, with signer key and `.claude` config preserved.
 - `src/machine_watch.sh`: a repo carrying `.agents/no-watcher-autocommit` is synced with `--both` but never `--auto-commit`. Added the marker here, so watcher `wip(Mac)` commits no longer land on `main` mid-task.
 - `bin/security_gate.py`: CI gate now parses the digest from `sha256sum` format, and the unsanitized-path rule no longer false-positives on `os.open` atomic locks.
 
@@ -23,9 +23,9 @@
 - `ainish-coder --rules-status` → 11 current, 0 stale, 0 missing.
 - `ainish-coder --machine-sync --both` → Windows checkout fast-forwarded; Mac and Windows `main` both at `21517fa`. A Windows-side commit had previously arrived on Mac, proving reverse direction.
 - No hermes provisioning references remain in `src`/`bin`; `git status` clean; single worktree.
+- Final cleanup (operator confirmed the Windows-only work was redone on Mac): old Windows backup and scratch dirs deleted, fresh clone renamed to `D:\Code\ainish-coder`, Mac link updated, stale branch refs pruned on both machines. Each side now has exactly one local branch (`main`) and the same commit.
 
 ## Deliberately not done
 
-- Windows-only commits (915) were not migrated into Mac history — they remain in the intact backup checkout, per operator decision.
-- The original Windows directory was not deleted (rename was denied by Windows); it is retained as the backup.
+- The 915 Windows-only commits were not migrated into Mac history; their work was redone by the operator on Mac and the old checkout was deleted after confirmation.
 - No remote force-push or history rewrite.
