@@ -533,36 +533,10 @@ _ainish_rules_deploy_identity_scripts() {
     return 0
 }
 
-# Provisions the four consolidation profiles if the host has hermes.
-#
-# The panel is the review half of consolidation: a drafter and three reviewers whose questions are
-# orthogonal (fidelity, completeness, coherence). Without them the tooling falls back to `pi`, which is
-# slower and flakier — measured at 300s timeouts on payloads hermes answered in 66s — so a target with
-# hermes should get them, and a target without it should be told plainly rather than silently degraded.
-_ainish_rules_provision_consolidation_profiles() {
-    command -v hermes >/dev/null 2>&1 || {
-        echo "  [note] hermes not found; consolidation will use the pi fallback (slower, may time out)" >&2
-        return 0
-    }
-    local pair profile desc
-    while IFS='|' read -r profile desc; do
-        [[ -n "$profile" ]] || continue
-        if hermes profile list 2>/dev/null | grep -qE "^[[:space:]]*${profile}[[:space:]]"; then
-            continue
-        fi
-        hermes profile create "$profile" --description "$desc" >/dev/null 2>&1 || {
-            echo "  [warn] could not create hermes profile ${profile}" >&2
-            continue
-        }
-        echo "  created hermes profile ${profile}"
-    done <<'PROFILES'
-consolidate-elephant|Consolidates a repository's old coordination records into one durable digest: what landed, what did not finish, insights, and recurring lessons. Drafts only; never deletes.
-consolidate-goldfish|Reviews a consolidation digest for FIDELITY: anything the draft asserts that the sources do not support. Blocks a digest that is not faithful.
-consolidate-archivist|Reviews a consolidation digest for COMPLETENESS: anything in the sources the digest leaves out, especially unfinished work and unresolved decisions. Blocks a lossy digest.
-consolidate-structural|Reviews a consolidation digest for COHERENCE: whether it reads as one record that says what the period amounted to, rather than a list of adjacent facts. Blocks an incoherent digest.
-PROFILES
-    return 0
-}
+# Hermes consolidation profiles are host-level configuration. They are consumed by
+# `ainish-coder --context` (src/context/engine.py) but deliberately NOT created or inspected by
+# `--rules`: deploying rules must never mutate a target's hermes config. Profiles are expected to
+# already exist on the host; --context reports a plain fallback when they do not.
 
 install_rules_sync_hooks() {
     local target_dir="$1"
@@ -782,7 +756,6 @@ deploy_rules_sync() {
         return 1
     }
     install_rules_sync_hooks "$target_abs" || return 1
-    _ainish_rules_provision_consolidation_profiles || true
     register_rules_target "$target_abs"
     mkdir -p "$target_abs/.agents/memories" 2>/dev/null || true
     # Arm the source repo's fleet hooks too, so a target-only run also enables
