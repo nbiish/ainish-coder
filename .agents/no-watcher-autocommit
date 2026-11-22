@@ -1,0 +1,3 @@
+# Presence of this file opts this repository out of --auto-commit in the machine watcher.
+# The tool repo is authored directly by agents and operators; a watcher wip commit mid-task
+# creates an unpushed main and interferes with updates. Bidirectional --both ref sync still runs.
