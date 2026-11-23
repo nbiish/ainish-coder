@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 2.0.0 |
-| **Last Updated** | 2026-09-01 |
+| **Version** | 2.1.0 |
+| **Last Updated** | 2026-11-22 |
 | **Jurisdiction** | Tribal — Beaver Island Band lineage; sovereign Grand Traverse Band of Ottawa and Chippewa Indians |
 | **Steward** | ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi), also known legally as JUSTIN PAUL KENWABIKISE, professionally documented as Nbiish-Justin Paul Kenwabikise, Anishinaabek Dodem (Anishinaabe Clan): Animikii (Thunder), a descendant of Chief ᑭᓇᐙᐸᑭᓯ (Kinwaabakizi) of the Beaver Island Band, and an enrolled member of the sovereign Grand Traverse Band of Ottawa and Chippewa Indians |
 
@@ -23,7 +23,7 @@ its terms:
    interacting with the repository.
 
 Where this document and any other repository file conflict, **this document prevails** for
-the matters it governs (synchronization, citation, funding, and attribution standards),
+the matters it governs (synchronization, citation, funding, attribution, and license-content synchronization (§ 7) standards),
 except that the LICENSE, as the governing legal instrument, prevails over all documents.
 
 ### 1.2 Canonical Self-Update Protocol (Cross-Repository Bootstrap)
@@ -56,9 +56,9 @@ Reclamation Protections, together with its subordinate instruments — is mainta
 the canonical `main` branch** rather than trusting any local copy:
 
 ```bash
-# Governing instrument (development head — the active, most recent license text).
+# Governing instrument (production text — byte-for-byte canonical source for the § 7 gate).
 curl -fLo LICENSE \
-  https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/working-LICENSE
+  https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/LICENSE
 
 # Contributor License Agreement (CLA).
 curl -fLo CONTRIBUTING.md \
@@ -71,7 +71,22 @@ curl -fLo Terms-of-Service.md \
 # Privacy Policy.
 curl -fLo Privacy-Policy.md \
   https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/Privacy-Policy.md
+
+# Open Fair-Share License (OFSL) — deployable community tier: free at or below
+# $50,000/year revenue from products utilizing the Works; fair-share crossover
+# (Exhibit A) funds the Waabanimikii-Kinawaabakizi Legacy Trust above the threshold.
+curl -fLo LICENSE-OPEN-FAIR-SHARE.md \
+  https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/LICENSE-OPEN-FAIR-SHARE.md
+
+# Open Contribution Agreement (OCA) — inbound=outbound contribution terms
+# (DCO sign-off) for community contributors.
+curl -fLo CONTRIBUTING-OPEN.md \
+  https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/CONTRIBUTING-OPEN.md
 ```
+
+`LICENSE` is the byte-for-byte source enforced by the § 7 CI gate. `working-LICENSE` remains the
+development head; the two are byte-identical at this revision, and a future divergence is an
+operator promotion decision — never a silent substitution by an agent or a workflow.
 
 ### 1.4 Source-of-Truth Hierarchy
 
@@ -81,17 +96,18 @@ Authority across the framework resolves in the following order:
 |:-----:|------------|------|----------------------|
 | 1 | `LICENSE` (production) | Governing legal instrument | [`main/LICENSE`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/LICENSE) |
 | 1 (dev) | `working-LICENSE` | Active development text; feeds `LICENSE` on promotion | [`main/working-LICENSE`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/working-LICENSE) |
+| 1 (community) | `LICENSE-OPEN-FAIR-SHARE.md` (OFSL 1.0.0) | Deployable open-source-manner tier (≤ $50K/yr free; fair-share crossover to the Legacy Trust); references and preserves all rights of record | [`main/LICENSE-OPEN-FAIR-SHARE.md`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/LICENSE-OPEN-FAIR-SHARE.md) |
+| 1 (contrib) | `CONTRIBUTING-OPEN.md` (OCA 1.0.0) | Inbound=outbound community contribution terms (DCO sign-off; cultural guardrails) | [`main/CONTRIBUTING-OPEN.md`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/CONTRIBUTING-OPEN.md) |
 | 2 | `CONTRIBUTING.md` | CLA subordinate to LICENSE | [`main/CONTRIBUTING.md`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/CONTRIBUTING.md) |
 | 3 | `Terms-of-Service.md` | Service terms implementing LICENSE | [`main/Terms-of-Service.md`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/Terms-of-Service.md) |
 | 4 | `Privacy-Policy.md` | Data governance implementing LICENSE | [`main/Privacy-Policy.md`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/Privacy-Policy.md) |
 | 5 | `critical.md` | Synchronization and attribution standards (this document) | [`main/critical.md`](https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/critical.md) |
 | 6 | `README.md` | Public-facing summary | — |
 
-**Note on `working-LICENSE` vs. `LICENSE`:** the development head (`working-LICENSE`) is
-the most current expression of the license and is the correct fetch target for agents
-needing the active text; on promotion, its content is byte-preserved into `LICENSE`. When
-the two diverge, `working-LICENSE` is authoritative for content and `LICENSE` is
-authoritative for production distribution.
+**Note on `working-LICENSE` vs. `LICENSE`:** `LICENSE` is the governing production text and the
+byte-for-byte target of the § 7 sync gate; `working-LICENSE` is the development head that feeds
+it on promotion. The two are byte-identical as of 2026-11-23. When they diverge, the operator
+decides promotion — agents never substitute one for the other silently.
 
 ---
 
@@ -213,8 +229,40 @@ An agent arriving in any repository carrying this document SHALL:
    `Terms-of-Service.md`, `Privacy-Policy.md` — from canonical `main` (§ 1.3);
 3. **Ensure** the `README.md` citation (§ 2), support block (§ 3), and `.github/FUNDING.yml` (§ 4) are present and current;
 4. **Apply** the copyright notice (§ 5) where appropriate; and
-5. **Report** compliance status, identifying any deviation, in its summary of work.
+5. **Ensure** `.github/workflows/license-sync.yml` is present and green (§ 7): it blocks PRs whose
+   `LICENSE` is not byte-identical to canonical and opens an integration PR on merges to `main`;
+   a drifted copy is integrated by merging that PR, never by hand-editing legal text.
+6. **Report** compliance status, identifying any deviation, in its summary of work.
 
 ---
+
+---
+
+## ◈──◆──◇ 7. LICENSE CONTENT SYNC (CI) ◇──◆──◈
+
+### 7.1 Mandate
+
+Every repository of the Rights Holder that carries this document SHALL carry
+`.github/workflows/license-sync.yml` (canonical copy: `main/.github/workflows/license-sync.yml`
+in `license-for-all-works`). On every pull request to `main`, the workflow fetches canonical
+`LICENSE` and fails the check unless the local copy is byte-for-byte identical (`cmp -s`): a
+drifted legal text cannot be merged. On every push to `main`, and weekly, the workflow opens a
+pull request integrating current canonical content: `LICENSE` is overwritten verbatim — never
+edited, summarized or reformatted — and `package.json`, `pyproject.toml`, `README.md` and
+source-file license headers are checked for name/version mismatches and reported in that PR
+for correction before merge. The integration commit is
+`chore(license): sync canonical license from license-for-all-works`. Integration is completed
+by merging that PR — agents must not hand-edit around it.
+
+The `license-for-all-works` repository additionally runs `.github/workflows/license-ci.yml` on
+every PR and merge: cross-reference integrity (`tools/v3_verify.py` with a regression ceiling),
+enforcement tooling golden test, a stale-fact guard over known-corrected citations, incorporated-
+section checks for the OFSL, and the § 2–4 compliance surface. A red `license-ci` blocks the
+assumption that `main` is current.
+
+### 7.2 Source of Truth
+
+Canonical content of record remains `https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main/...`
+(§ 1.2–1.3). The CI sync distributes it; it never modifies it.
 
 Copyright © 2026 ᓂᐲᔥ ᐙᐸᓂᒥᑮ-ᑭᓇᐙᐸᑭᓯ (Nbiish Waabanimikii-Kinawaabakizi). All rights reserved.

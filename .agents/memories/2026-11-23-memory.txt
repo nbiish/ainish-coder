@@ -1,0 +1,13 @@
+2026-11-23 memory — prompt governance + canonical license gate
+
+- `AGENTS.md` is 159/160 lines after adding prompt-governance and canonical-license rules; the
+  universal contract stays repo-agnostic and points at versioned templates rather than carrying them.
+- Prompt policy full text: `.agents/templates/prompt-context-governance.md` (v1.0.0); the contract
+  asserts the pointer and the dist suite asserts it resolves.
+- Canonical legal source is `nbiish/license-for-all-works` `main/LICENSE`; `working-LICENSE` is
+  byte-identical as of 2026-11-23 and divergence is an operator promotion decision.
+- `critical.md` §7 is the cross-repo standard: PRs to `main` fail when `LICENSE` is not
+  byte-for-byte canonical; merges to `main` and a weekly cron open an integration PR.
+- `ainish-coder` LICENSE refreshed from `1d330ecc…` to `6b18aab7…` (470,219 → 482,209 bytes).
+- Dist suite baseline moved 441 → 445 assertions with the new contract/workflow checks.
+- P0 tasks/plans consolidation deferred to an operator-owned task.
