@@ -6,6 +6,7 @@
 - status: done
 - plan: `.agents/plans/2026-11-23-18-prompt-license-governance.md`
 - companion: `license-for-all-works` branch `docs/license-sync-gate` (canonical standard + CI workflow)
+- PRs: `nbiish/ainish-coder#12`, `nbiish/license-for-all-works#6` — open, awaiting human approval
 - scope: `AGENTS.md`, `.agents/templates/prompt-context-governance.md`, `scripts/test-pqc-dist.sh`,
   `.github/workflows/license-sync.yml`, `critical.md`, `LICENSE`, canonical contract artifacts
 - objective: put a concise prompt/context governance rule in the universal contract with a versioned

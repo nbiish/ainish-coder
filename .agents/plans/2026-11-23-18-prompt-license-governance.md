@@ -1,6 +1,6 @@
 ---
 branch: docs/prompt-license-governance
-status: ready
+status: done
 ---
 
 # Plan: prompt governance + canonical license sync gate
