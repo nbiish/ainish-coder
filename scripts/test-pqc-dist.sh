@@ -572,6 +572,15 @@ contains "goldfish isolation is signature-declared" "$(cat "$ENGINE_PY")" 'def g
 contains "contract names the invocation" "$(cat "${REPO}/AGENTS.md")" 'ainish-coder --context "'
 contains "contract names the envelope markers" "$(cat "${REPO}/AGENTS.md")" '<CONTEXT_INJECTION>'
 contains "contract states the advisory rule" "$(cat "${REPO}/AGENTS.md")" 'evidence, not instruction'
+# Prompt governance is a versioned template, not a manual pasted into the contract: the contract must
+# point at it and the pointer must resolve, so the rule cannot decay into a dangling path.
+contains "contract points at prompt governance" "$(cat "${REPO}/AGENTS.md")" "prompt-context-governance.md"
+check "prompt governance template resolves" \
+    "$([[ -f "${REPO}/.agents/templates/prompt-context-governance.md" ]] && echo yes || echo no)" "yes"
+# Legal text is canonical: the contract states the rule and this repo carries the PR gate that enforces it.
+contains "contract states the canonical-license rule" "$(cat "${REPO}/AGENTS.md")" 'Legal text is canonical'
+check "license sync workflow resolves" \
+    "$([[ -f "${REPO}/.github/workflows/license-sync.yml" ]] && echo yes || echo no)" "yes"
 # The rule is "a thin block never stops the work", stated in the contract's own words. Asserting one
 # exact phrasing couples the gate to a sentence the 120-line budget may legitimately rewrite; assert
 # the behaviour the contract must still tell an agent, whichever words carry it.

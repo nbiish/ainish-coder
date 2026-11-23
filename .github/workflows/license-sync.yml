@@ -1,0 +1,123 @@
+name: license-sync
+# Canonical license-content sync (critical.md § 7). Deployed to every repository
+# of the Rights Holder that carries critical.md. Before a PR merges to main the
+# guard job verifies LICENSE is byte-for-byte canonical; on a merge to main (and
+# weekly) the sync job opens an integration PR when canonical content has moved.
+# Uses only each repository's GITHUB_TOKEN — no cross-repo secrets required.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    # The canonical repo changes LICENSE in its own PRs; its license-ci workflow
+    # validates those. The byte gate applies to every receiving repository.
+    if: github.event_name == 'pull_request' && github.repository != 'nbiish/license-for-all-works'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch canonical license content
+        run: |
+          base="https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main"
+          mkdir -p /tmp/canonical
+          for f in LICENSE critical.md LICENSE-OPEN-FAIR-SHARE.md CONTRIBUTING-OPEN.md; do
+            curl -fsSL "$base/$f" -o "/tmp/canonical/$f"
+          done
+
+      - name: Verify LICENSE matches canonical byte-for-byte
+        run: |
+          if ! cmp -s /tmp/canonical/LICENSE LICENSE; then
+            echo "::error::LICENSE differs from the canonical nbiish/license-for-all-works text."
+            echo "canonical sha256: $(sha256sum /tmp/canonical/LICENSE | cut -d' ' -f1)"
+            echo "local sha256:     $(sha256sum LICENSE | cut -d' ' -f1)"
+            echo "Merge the license-sync integration PR, or copy canonical LICENSE verbatim, before merging."
+            exit 1
+          fi
+          echo "LICENSE is byte-for-byte canonical."
+
+      - name: Check license metadata declarations
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+          canonical = "COMPREHENSIVE RESTRICTED USE LICENSE FOR INDIGENOUS CREATIONS"
+          declaration = re.compile(r'(license\s*[:=]|SPDX-License-Identifier|"license"\s*:)', re.I)
+          foreign = re.compile(r'\b(MIT License|Apache[- ]?2\.0|BSD[- ]?[23]-Clause|GPL[- ]?[23](?:\.0)?|ISC License|MPL[- ]?2\.0|Proprietary)\b', re.I)
+          exts = {".py", ".sh", ".js", ".ts", ".rs", ".go", ".c", ".h", ".java", ".rb"}
+          paths = [pathlib.Path(n) for n in ("package.json", "pyproject.toml", "README.md")]
+          for p in pathlib.Path(".").rglob("*"):
+              if p.is_file() and p.suffix.lower() in exts and not any(part.startswith(".") for part in p.parts):
+                  paths.append(p)
+          problems = []
+          for p in paths:
+              if not p.is_file():
+                  continue
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              for n, line in enumerate(text.splitlines(), 1):
+                  if declaration.search(line) and foreign.search(line) and canonical.lower() not in line.lower():
+                      problems.append(f"{p}:{n}: {line.strip()[:160]}")
+          if problems:
+              print("::error::License metadata declares a different license than canonical:")
+              print("\n".join(problems[:20]))
+              sys.exit(1)
+          print("License metadata check: OK")
+          PY
+
+  sync:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch canonical license content
+        run: |
+          base="https://raw.githubusercontent.com/nbiish/license-for-all-works/refs/heads/main"
+          mkdir -p /tmp/canonical
+          for f in LICENSE critical.md LICENSE-OPEN-FAIR-SHARE.md CONTRIBUTING-OPEN.md; do
+            curl -fsSL "$base/$f" -o "/tmp/canonical/$f"
+          done
+
+      - name: Detect drift
+        id: drift
+        run: |
+          changed=""
+          for f in LICENSE critical.md LICENSE-OPEN-FAIR-SHARE.md CONTRIBUTING-OPEN.md; do
+            if ! cmp -s "/tmp/canonical/$f" "$f"; then
+              changed="$changed $f"
+            fi
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "Drifted files:$changed"
+
+      - name: Open integration PR
+        if: steps.drift.outputs.changed != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "license-sync[bot]"
+          git config user.email "license-sync[bot]@users.noreply.github.com"
+          branch="license-sync/$(date -u +%Y%m%d-%H%M%S)"
+          git checkout -b "$branch"
+          for f in ${{ steps.drift.outputs.changed }}; do
+            cp "/tmp/canonical/$f" "$f"
+          done
+          git add ${{ steps.drift.outputs.changed }}
+          git commit -m "chore(license): sync canonical license from license-for-all-works"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "chore(license): sync canonical license from license-for-all-works" \
+            --body "Automated license-content sync from \`nbiish/license-for-all-works\` (trigger: ${{ github.event_name }}). Files integrated:${{ steps.drift.outputs.changed }}. LICENSE is byte-identical to canonical; correct any declaration mismatches reported by the license-sync check before merging (critical.md § 7)."
