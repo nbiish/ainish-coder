@@ -3690,7 +3690,7 @@ def save_elephant_session(repo_root: Path, state: Dict[str, Any]) -> Optional[Pa
 # the tree. Edges are shared vocabulary and explicit markdown links. Retrieval seeds from the task
 # terms, walks one hop, and prefers recent nodes: "latest wiki + latest artifacts" is the contract.
 
-GRAPH_ARTIFACT_DIRS = ("comms", "memories", "plans", "suggestions", "tasks")
+GRAPH_ARTIFACT_DIRS = ("comms", "federation", "memories", "plans", "suggestions", "tasks")
 # 0 means UNLIMITED. The corpus used to be capped at the newest 2 files per folder, which on this
 # repository meant 10 of 115 coordination files were readable and 105 were invisible — the system
 # could not learn from its own history. The whole point of a per-repo context harness is that it reads
@@ -3729,6 +3729,7 @@ GRAPH_KIND_WEIGHTS = {
     "memories": 0.95,
     "plans": 0.95,
     "suggestions": 0.90,
+    "federation": 0.90,
     "tasks": 0.90,
     "comms": 0.85,
     "research": 0.80,
@@ -3758,6 +3759,8 @@ KIND_INTENT: Tuple[Tuple[str, str, float], ...] = (
     ("plans", "plans", 2.4),
     ("comms", "comms", 2.6),
     ("ledger", "comms", 2.8),
+    ("federation", "federation", 2.6),
+    ("cod", "federation", 2.2),
     ("memory", "memories", 2.0),
     ("memories", "memories", 2.0),
     ("suggestion", "suggestions", 2.2),
@@ -6021,6 +6024,23 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
             pass
     if branch in ("main", "master"):
         parts.append("- **warning: on a protected branch** — the contract requires a task worktree")
+
+    # Other active branches/peer refs: reminds the agent that parallel work may already exist so it
+    # can decide whether to integrate into the user's request/existing PR or open a new PR.
+    raw_refs = _git("for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads", "refs/remotes")
+    if raw_refs:
+        other_refs: List[str] = []
+        skip_refs = {branch, "main", "master", "origin/main", "origin/master", "origin/HEAD", "HEAD"}
+        for ref in raw_refs.splitlines():
+            r = ref.strip()
+            if not r or r in skip_refs or r.endswith("/HEAD") or r.endswith("/main") or r.endswith("/master"):
+                continue
+            other_refs.append(r)
+        if other_refs:
+            shown = ", ".join(f"`{r}`" for r in other_refs[:6])
+            more = f" (+{len(other_refs) - 6} more)" if len(other_refs) > 6 else ""
+            parts.append(f"- other branches/peer refs: {shown}{more} — check PRs/branches to decide integrate vs new PR")
+
     parts.append(f"- working tree: {'CLEAN' if dirty_count == 0 else f'{dirty_count} modified path(s)'}")
     if dirty_count and dirty_count <= 8:
         for line in dirty.splitlines()[:8]:
@@ -6064,6 +6084,25 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
                     parts.append(f"  - objective: {objective[:200]}")
                 if status:
                     parts.append(f"  - status: {status}")
+        except OSError:
+            pass
+
+    # Newest cross-machine Federation CoD ledger (`.agents/federation/{date}.md`, gitignored/peer-synced).
+    fed_files = _federation_files(repo_root / ".agents" / "federation")
+    if fed_files:
+        fed_path = next((p for p in fed_files if p.name.startswith(today)), fed_files[0])
+        try:
+            fed_text = fed_path.read_text(encoding="utf-8", errors="replace")
+            fed_blocks = [b.strip() for b in re.split(r"(?m)^(?=### \[)", fed_text) if b.strip().startswith("### [")]
+            if fed_blocks:
+                parts.append(f"- federation CoD (`{fed_path.name}`, last {min(3, len(fed_blocks))} of {len(fed_blocks)}):")
+                for blk in fed_blocks[-3:]:
+                    lines_b = [ln.strip() for ln in blk.splitlines() if ln.strip()]
+                    if lines_b:
+                        parts.append(f"  - {lines_b[0][4:].strip()[:160]}")
+                    for ln in lines_b[1:]:
+                        if ln.startswith(("- cod:", "- integrate:", "- scope:")):
+                            parts.append(f"    {ln[:180]}")
         except OSError:
             pass
 
@@ -9120,7 +9159,7 @@ MASTER_SURFACE_RULES_DEFAULTS: Dict[str, Any] = {
         "uv.lock",
     ],
     "cli_tokens": ["#[arg(", "add_argument(", 'long = "', 'env::var("', 'os.environ.get("', 'os.environ["'],
-    "append_only_prefixes": [".agents/comms/", ".agents/memories/", ".agents/suggestions/"],
+    "append_only_prefixes": [".agents/comms/", ".agents/federation/", ".agents/memories/", ".agents/suggestions/"],
     "spend_prefixes": ["src/rag/", ".github/", "benchmarks/", "scripts/"],
 }
 
@@ -9227,6 +9266,15 @@ def _comms_files(directory: Path) -> List[Path]:
     """COMMS ledgers, both schemes. The live board is a working file, not the ledger."""
     files = _coordination_files(directory, "-team.txt", "-team.md")
     return [p for p in files if not p.name.endswith(".live.md") and not p.name.endswith(".live.txt")]
+
+
+_FEDERATION_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.md$")
+
+
+def _federation_files(directory: Path) -> List[Path]:
+    """Cross-machine Federation CoD ledgers (`YYYY-MM-DD.md`), newest first by mtime."""
+    return [p for p in _coordination_files(directory, ".md", exclude=("llms.txt",))
+            if _FEDERATION_DATE_RE.match(p.name)]
 
 
 def _today_task_files(repo_root: Path) -> List[Path]:
@@ -10344,7 +10392,7 @@ def main():
         wiki_pages = sorted(wiki_dir.glob("*.md")) if wiki_dir.is_dir() else []
         vault_pages = _vault_pages(wiki_dir)
         artifacts = {}
-        for folder in ("comms", "memories", "plans", "suggestions", "tasks"):
+        for folder in ("comms", "federation", "memories", "plans", "suggestions", "tasks"):
             d = repo_root / ".agents" / folder
             artifacts[folder] = len([p for p in d.iterdir() if p.is_file()]) if d.is_dir() else 0
         l_notes = list_wiki_notes(repo_root)

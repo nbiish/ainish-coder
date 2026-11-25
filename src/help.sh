@@ -43,6 +43,10 @@ CORE COMMANDS:
                                 .agents/comms/{date}-team.md (merge-safe: refreshes
                                 the protocol header, preserves agent entries;
                                 the gitignored .live.md board is never touched)
+                              Cross-Machine Federation CoD Ledger:
+                                .agents/federation/{date}.md (gitignored, OS-locked
+                                agent read-only, PQC-exchanged via ML-KEM-768 +
+                                ML-DSA-65 + AES-256-GCM by --machine-sync)
                               The selected skill packs from the distributable
                               payload (skills-to-distribute/skills/), installed
                               into the target's .agents/skills/

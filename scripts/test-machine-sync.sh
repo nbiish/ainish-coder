@@ -23,8 +23,14 @@ check() { # description expected actual
 }
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/machine-sync-test.XXXXXX")"
-cleanup() { rm -rf "$WORK"; }
+cleanup() {
+    command -v chflags >/dev/null 2>&1 && chflags -R nouchg "$WORK" 2>/dev/null || true
+    chmod -R u+w "$WORK" 2>/dev/null || true
+    rm -rf "$WORK"
+}
 trap cleanup EXIT
+
+export AINISH_FEDERATION_KEYS_DIR="${WORK}/fed-keys"
 
 export GIT_AUTHOR_NAME="gate" GIT_AUTHOR_EMAIL="gate@ainish.local"
 export GIT_COMMITTER_NAME="gate" GIT_COMMITTER_EMAIL="gate@ainish.local"
@@ -385,6 +391,44 @@ if printf '%s' "$DOC_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin)
 else
     bad "--machine-sync --doctor --json payload invalid"; printf '%s\n' "$DOC_JSON" | sed 's/^/    | /'
 fi
+
+echo "== 19. PQC agent-read-only gitignored federation CoD exchange =="
+FED_TODAY="$(date -u +%F)"
+FED_A="${WORK}/fed-a/demo"
+FED_B="${WORK}/fed-b/demo"
+mkdir -p "$(dirname "$FED_A")" "$(dirname "$FED_B")"
+git clone -q "$SRC" "$FED_A"
+git clone -q "$SRC" "$FED_B"
+printf '\n.agents/federation/*.md\n' >> "$FED_A/.gitignore"
+printf '\n.agents/federation/*.md\n' >> "$FED_B/.gitignore"
+git -C "$FED_A" add .gitignore && git -C "$FED_A" commit -qm "chore: ignore federation md"
+git -C "$FED_B" add .gitignore && git -C "$FED_B" commit -qm "chore: ignore federation md"
+git -C "$FED_A" checkout -qb feat/fed-alpha
+echo "alpha" > "$FED_A/alpha.txt"
+git -C "$FED_A" add alpha.txt && git -C "$FED_A" commit -qm "feat: alpha on A"
+git -C "$FED_B" checkout -qb feat/fed-beta
+echo "beta" > "$FED_B/beta.txt"
+git -C "$FED_B" add beta.txt && git -C "$FED_B" commit -qm "feat: beta on B"
+
+cat > "${WORK}/machines-fed.txt" <<EOF
+box-18gb=self
+peer-b-64gb=$(dirname "$FED_B")
+EOF
+
+FED_OUT="$("$CLI" --machine-sync --repo "$FED_A" --machines-file "${WORK}/machines-fed.txt" --machine peer-b-64gb --both 2>&1)"
+[[ -f "${FED_A}/.agents/federation/${FED_TODAY}.md" && -f "${FED_B}/.agents/federation/${FED_TODAY}.md" ]] \
+    && ok "PQC federation CoD file materialized on both peers" \
+    || bad "PQC federation CoD file missing after sync: $FED_OUT"
+grep -q 'box-18gb | branch:feat/fed-alpha' "${FED_B}/.agents/federation/${FED_TODAY}.md" \
+    && grep -q 'peer-b-64gb | branch:feat/fed-beta' "${FED_A}/.agents/federation/${FED_TODAY}.md" \
+    && ok "both peers hold union-merged CoD entries from each other" \
+    || bad "federation CoD entries did not union-merge across peers"
+[[ ! -w "${FED_A}/.agents/federation/${FED_TODAY}.md" && ! -w "${FED_B}/.agents/federation/${FED_TODAY}.md" ]] \
+    && ok "federation CoD files are OS-locked read-only for agents on both peers" \
+    || bad "federation CoD files are writable (agent read-only lock missing)"
+[[ -z "$(git -C "$FED_A" status --porcelain)" && -z "$(git -C "$FED_B" status --porcelain)" ]] \
+    && ok "gitignored federation CoD files leave both git trees completely clean" \
+    || bad "federation CoD files dirtied git status"
 
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"

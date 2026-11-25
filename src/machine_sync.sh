@@ -462,9 +462,11 @@ WHAT CROSSES:
     refs/remotes/<machine>/*      every branch the other machine has
     refs/machine-sync/<machine>/* its uncommitted work, snapshotted as a commit
     refs/tags/*                   tags
+    .agents/federation/{date}.md  gitignored, agent-read-only CoD ledgers inside PQC envelopes
+                                  (ML-KEM-768 + ML-DSA-65 + AES-256-GCM; no plaintext downgrade)
 
 WHAT NEVER CROSSES:
-    ignored files (build output, .exe, .env, vector indexes, signing keys) — they are not in git
+    other ignored files (build output, .exe, .env, vector indexes, signing keys) — not in git
     the peers' branch heads, HEAD, working tree, or index — nothing on the peer moves
 
 EXIT: 0 every peer synced · 1 a peer failed (the others still ran)
@@ -1119,6 +1121,252 @@ _ms_pull() { # repo host peer_path peer_name bundle
     return 0
 }
 
+# ── federation CoD ledger transfer (PQC ML-KEM-768 + ML-DSA-65 + agent read-only) ──
+#
+# `.agents/federation/{YYYY-MM-DD}.md` files are gitignored and OS-locked read-only for agents so
+# lower-capability or prompt-injected agents cannot tamper with peer state or leak secrets.
+# `--machine-sync` generates deterministic scrubbed git-metadata checkpoints and transfers ONLY
+# strict `YYYY-MM-DD.md` CoD ledgers inside Sign-then-Encrypt PQC envelopes
+# (`ainish-coder/federation-envelope/v1`: FIPS 203 ML-KEM-768 + FIPS 204 ML-DSA-65 + AES-256-GCM +
+# HKDF-SHA3-256) with pinned peer fingerprints. No plaintext downgrade is ever permitted.
+
+_ms_local_python() {
+    if command -v ainish_python >/dev/null 2>&1; then
+        ainish_python 2>/dev/null && return 0
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        printf 'python3\n'; return 0
+    fi
+    if command -v python >/dev/null 2>&1; then
+        printf 'python\n'; return 0
+    fi
+    return 1
+}
+
+_ms_sync_federation() { # repo host peer_path peer_name direction
+    local repo="$1" host="$2" path="$3" peer="$4" dir="$5"
+    local fed_py="${REPO_DIR:-$repo}/src/federation_pqc.py"
+    local fed_tpl="${REPO_DIR:-$repo}/src/templates/AGENTS.FEDERATION.md"
+    [[ -f "$fed_py" ]] || fed_py="${repo}/src/federation_pqc.py"
+    [[ -f "$fed_tpl" ]] || fed_tpl="${repo}/src/templates/AGENTS.FEDERATION.md"
+    if [[ ! -f "$fed_py" ]]; then
+        _ms_skip "federation CoD: src/federation_pqc.py unavailable — skipped (no plaintext downgrade)"
+        return 0
+    fi
+
+    local py
+    py="$(_ms_local_python)" || {
+        _ms_skip "federation CoD: python interpreter unavailable — skipped (no plaintext downgrade)"
+        return 0
+    }
+
+    local local_fed="${repo}/.agents/federation"
+    local peer_fed="${path%/}/.agents/federation"
+    local repo_name today date_re='^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$'
+    repo_name="$(basename "$repo")"
+    today="$(date -u +%F)"
+
+    # Fail closed on gitignore invariant: never materialize or sync federation CoD files into a
+    # repository that does not gitignore `.agents/federation/*.md` (protects unenrolled repos from
+    # dirty working trees and prevents accidental commits of cross-machine peer state).
+    local local_ignored=false peer_ignored=false
+    if git -C "$repo" check-ignore -q ".agents/federation/${today}.md" 2>/dev/null; then
+        local_ignored=true
+    fi
+    if [[ -z "$host" ]]; then
+        if git -C "$path" check-ignore -q ".agents/federation/${today}.md" 2>/dev/null; then
+            peer_ignored=true
+        fi
+    else
+        if _ms_remote "$host" "git -C '${path}' check-ignore -q '.agents/federation/${today}.md'" >/dev/null 2>&1; then
+            peer_ignored=true
+        fi
+    fi
+    if [[ "$local_ignored" != "true" || "$peer_ignored" != "true" ]]; then
+        return 0
+    fi
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ainish-ms-fedpqc.XXXXXX" 2>/dev/null)" || return 0
+    local self_pub="${tmp_dir}/self.pub.json"
+    local peer_pub="${tmp_dir}/peer.pub.json"
+    local synced=0 f fname dstr
+
+    # 1. Ensure local PQC identity (ML-KEM-768 + ML-DSA-65). Fail closed if FIPS 203/204 unavailable.
+    if ! "$py" "$fed_py" init-identity --machine "$_MS_SELF" --print-pub > "$self_pub" 2>/dev/null; then
+        _ms_err "federation CoD: local host lacks FIPS 203/204 PQC support — skipped (no plaintext downgrade)"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+
+    # 2. Deterministic scrubbed local CoD checkpoint (agent read-only).
+    local -a snap_tpl=()
+    [[ -f "$fed_tpl" ]] && snap_tpl=(--template "$fed_tpl")
+    if [[ "$dir" == "push" || "$dir" == "both" ]]; then
+        "$py" "$fed_py" snapshot --repo "$repo" --machine "$_MS_SELF" --date "$today" ${snap_tpl[@]+"${snap_tpl[@]}"} >/dev/null 2>&1 || true
+    fi
+
+    if [[ -z "$host" ]]; then
+        # Local peer: two independent PQC identities (ML-KEM-768 + ML-DSA-65) exchanging real envelopes.
+        if ! "$py" "$fed_py" init-identity --machine "$peer" --print-pub > "$peer_pub" 2>/dev/null; then
+            _ms_err "federation CoD: peer ${peer} PQC identity init failed — skipped (no plaintext downgrade)"
+            rm -rf "$tmp_dir"
+            return 0
+        fi
+        if ! "$py" "$fed_py" trust-peer --machine "$_MS_SELF" --peer "$peer" --pub-file "$peer_pub" >/dev/null 2>&1; then
+            _ms_err "federation CoD: FAIL CLOSED — PQC fingerprint mismatch for peer ${peer}"
+            rm -rf "$tmp_dir"
+            return 1
+        fi
+        if ! "$py" "$fed_py" trust-peer --machine "$peer" --peer "$_MS_SELF" --pub-file "$self_pub" >/dev/null 2>&1; then
+            _ms_err "federation CoD: FAIL CLOSED — peer ${peer} rejected our PQC fingerprint"
+            rm -rf "$tmp_dir"
+            return 1
+        fi
+        if [[ "$dir" == "pull" || "$dir" == "both" ]]; then
+            "$py" "$fed_py" snapshot --repo "$path" --machine "$peer" --date "$today" ${snap_tpl[@]+"${snap_tpl[@]}"} >/dev/null 2>&1 || true
+            if [[ -d "$peer_fed" ]]; then
+                for f in "$peer_fed"/*.md; do
+                    [[ -f "$f" && ! -L "$f" ]] || continue
+                    fname="$(basename "$f")"
+                    [[ "$fname" =~ $date_re ]] || continue
+                    dstr="${fname%.md}"
+                    local env_in="${tmp_dir}/in-${dstr}.pqc.json"
+                    if "$py" "$fed_py" seal --machine "$peer" --peer "$_MS_SELF" --in "$f" --out "$env_in" --date "$dstr" --repo-name "$repo_name" >/dev/null 2>&1 && \
+                       "$py" "$fed_py" open --machine "$_MS_SELF" --peer "$peer" --in "$env_in" --dest "${local_fed}/${fname}" ${snap_tpl[@]+"${snap_tpl[@]}"} >/dev/null 2>&1; then
+                        synced=$((synced + 1))
+                    else
+                        _ms_err "federation CoD: PQC verification failed pulling ${fname} from ${peer}"
+                        rm -rf "$tmp_dir"
+                        return 1
+                    fi
+                done
+            fi
+        fi
+        if [[ "$dir" == "push" || "$dir" == "both" ]] && [[ -d "$local_fed" ]]; then
+            for f in "$local_fed"/*.md; do
+                [[ -f "$f" && ! -L "$f" ]] || continue
+                fname="$(basename "$f")"
+                [[ "$fname" =~ $date_re ]] || continue
+                dstr="${fname%.md}"
+                local env_out="${tmp_dir}/out-${dstr}.pqc.json"
+                if "$py" "$fed_py" seal --machine "$_MS_SELF" --peer "$peer" --in "$f" --out "$env_out" --date "$dstr" --repo-name "$repo_name" >/dev/null 2>&1 && \
+                   "$py" "$fed_py" open --machine "$peer" --peer "$_MS_SELF" --in "$env_out" --dest "${peer_fed}/${fname}" ${snap_tpl[@]+"${snap_tpl[@]}"} >/dev/null 2>&1; then
+                    synced=$((synced + 1))
+                else
+                    _ms_err "federation CoD: PQC verification failed pushing ${fname} to ${peer}"
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+            done
+        fi
+        rm -rf "$tmp_dir"
+        (( synced > 0 )) && _ms_info "federation CoD (PQC ML-KEM-768+ML-DSA-65): synced ${synced} read-only envelope(s) with ${peer}"
+        return 0
+    fi
+
+    # Remote SSH peer (POSIX sh or Windows PowerShell): PQC envelopes only, zero plaintext on wire.
+    local r_py r_fed_py r_fed_tpl r_tmp_dir
+    r_fed_py="${path%/}/src/federation_pqc.py"
+    r_fed_tpl="${path%/}/src/templates/AGENTS.FEDERATION.md"
+    r_tmp_dir="$(_ms_peer_tmp "$host" "$path")"
+    if [[ "$path" =~ ^[A-Za-z]: ]]; then
+        r_py="py -3"
+    else
+        r_py="python3"
+    fi
+
+    if ! _ms_remote "$host" "$r_py '${r_fed_py}' init-identity --machine '${peer}' --print-pub" > "$peer_pub" 2>/dev/null || [[ ! -s "$peer_pub" ]]; then
+        _ms_skip "federation CoD: peer ${peer} lacks PQC federation support — skipped (no plaintext downgrade)"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+
+    if ! "$py" "$fed_py" trust-peer --machine "$_MS_SELF" --peer "$peer" --pub-file "$peer_pub" >/dev/null 2>&1; then
+        _ms_err "federation CoD: FAIL CLOSED — PQC fingerprint mismatch for peer ${peer}"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    local r_self_pub="${r_tmp_dir}/ainish-fed-pub-$$-${RANDOM}.json"
+    if ! scp -q -o BatchMode=yes -o ConnectTimeout=10 "$self_pub" "${host}:${r_self_pub}" 2>/dev/null; then
+        _ms_skip "federation CoD: failed to send PQC pubkey to ${peer}"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+    if ! _ms_remote "$host" "$r_py '${r_fed_py}' trust-peer --machine '${peer}' --peer '${_MS_SELF}' --pub-file '${r_self_pub}'" >/dev/null 2>&1; then
+        _ms_remote "$host" "$(_ms_rm_cmd "$r_self_pub")" >/dev/null 2>&1 || true
+        _ms_err "federation CoD: FAIL CLOSED — peer ${peer} rejected our PQC fingerprint"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    _ms_remote "$host" "$(_ms_rm_cmd "$r_self_pub")" >/dev/null 2>&1 || true
+
+    # Pull direction: peer snapshots, seals PQC envelope, we fetch ciphertext and open/verify locally.
+    if [[ "$dir" == "pull" || "$dir" == "both" ]]; then
+        _ms_remote "$host" "$r_py '${r_fed_py}' snapshot --repo '${path}' --machine '${peer}' --date '${today}' --template '${r_fed_tpl}'" >/dev/null 2>&1 || true
+        local -a remote_files=()
+        local list_cmd raw
+        if [[ "$path" =~ ^[A-Za-z]: ]]; then
+            list_cmd="Get-ChildItem -LiteralPath '${peer_fed}' -File -Filter '????-??-??.md' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name"
+        else
+            list_cmd="ls -1 '${peer_fed}' 2>/dev/null || true"
+        fi
+        while IFS= read -r raw; do
+            raw="$(printf '%s' "$raw" | tr -d '\r\n')"
+            [[ "$raw" =~ $date_re ]] || continue
+            remote_files+=("$raw")
+        done < <(_ms_remote "$host" "$list_cmd" 2>/dev/null || true)
+
+        for fname in ${remote_files[@]+"${remote_files[@]}"}; do
+            dstr="${fname%.md}"
+            local r_env="${r_tmp_dir}/ainish-fed-out-${dstr}-$$-${RANDOM}.pqc.json"
+            local l_env="${tmp_dir}/in-${dstr}.pqc.json"
+            if _ms_remote "$host" "$r_py '${r_fed_py}' seal --machine '${peer}' --peer '${_MS_SELF}' --in '${peer_fed}/${fname}' --out '${r_env}' --date '${dstr}' --repo-name '${repo_name}'" >/dev/null 2>&1 && \
+               scp -q -o BatchMode=yes -o ConnectTimeout=10 "${host}:${r_env}" "$l_env" 2>/dev/null; then
+                _ms_remote "$host" "$(_ms_rm_cmd "$r_env")" >/dev/null 2>&1 || true
+                if "$py" "$fed_py" open --machine "$_MS_SELF" --peer "$peer" --in "$l_env" --dest "${local_fed}/${fname}" ${snap_tpl[@]+"${snap_tpl[@]}"} >/dev/null 2>&1; then
+                    synced=$((synced + 1))
+                else
+                    _ms_err "federation CoD: PQC verification failed for ${fname} from ${peer}"
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+            else
+                _ms_remote "$host" "$(_ms_rm_cmd "$r_env")" >/dev/null 2>&1 || true
+            fi
+        done
+    fi
+
+    # Push direction: seal local CoD ledger into PQC envelope, transfer ciphertext, peer opens/verifies/locks.
+    if [[ "$dir" == "push" || "$dir" == "both" ]] && [[ -d "$local_fed" ]]; then
+        for f in "$local_fed"/*.md; do
+            [[ -f "$f" && ! -L "$f" ]] || continue
+            fname="$(basename "$f")"
+            [[ "$fname" =~ $date_re ]] || continue
+            dstr="${fname%.md}"
+            local l_env="${tmp_dir}/out-${dstr}.pqc.json"
+            local r_env="${r_tmp_dir}/ainish-fed-in-${dstr}-$$-${RANDOM}.pqc.json"
+            if "$py" "$fed_py" seal --machine "$_MS_SELF" --peer "$peer" --in "$f" --out "$l_env" --date "$dstr" --repo-name "$repo_name" >/dev/null 2>&1 && \
+               scp -q -o BatchMode=yes -o ConnectTimeout=10 "$l_env" "${host}:${r_env}" 2>/dev/null; then
+                if _ms_remote "$host" "$r_py '${r_fed_py}' open --machine '${peer}' --peer '${_MS_SELF}' --in '${r_env}' --dest '${peer_fed}/${fname}' --template '${r_fed_tpl}'" >/dev/null 2>&1; then
+                    synced=$((synced + 1))
+                else
+                    _ms_remote "$host" "$(_ms_rm_cmd "$r_env")" >/dev/null 2>&1 || true
+                    _ms_err "federation CoD: peer ${peer} rejected PQC envelope for ${fname}"
+                    rm -rf "$tmp_dir"
+                    return 1
+                fi
+                _ms_remote "$host" "$(_ms_rm_cmd "$r_env")" >/dev/null 2>&1 || true
+            fi
+        done
+    fi
+
+    rm -rf "$tmp_dir"
+    (( synced > 0 )) && _ms_info "federation CoD (PQC ML-KEM-768+ML-DSA-65): synced ${synced} read-only envelope(s) with ${peer}"
+    return 0
+}
+
 # ── reporting ────────────────────────────────────────────────────────────────
 
 _ms_report_peer() { # repo peer
@@ -1481,6 +1729,14 @@ machine_sync() {
         # existing branch is compared and reported, never moved onto an unrelated tip.
         if [[ "$make_branches" == "true" && "$sent" == "true" ]]; then
             _ms_materialize_branches "$repo" "$host" "$path" "$name"
+        fi
+
+        # Exchange gitignored, agent-read-only `.agents/federation/{date}.md` CoD ledgers inside
+        # PQC envelopes (ML-KEM-768 + ML-DSA-65 + AES-256-GCM; fails closed on fingerprint mismatch).
+        if [[ "$sent" == "true" && "$recv" == "true" ]]; then
+            if ! _ms_sync_federation "$repo" "$host" "$path" "$name" "$_MS_DIRECTION"; then
+                sent=false
+            fi
         fi
 
         if [[ "$sent" == "true" && "$recv" == "true" ]]; then

@@ -1889,6 +1889,60 @@ contains "the audit decision is a real script, not a YAML heredoc" \
 check "no python heredoc remains in the workflow" \
     "$(grep -cE '^[[:space:]]*python3 - <<' "${REPO}/.github/workflows/security.yml")" "0"
 
+# ── PQC Agent-Read-Only Federation CoD Ledger & AGENTS.md parallel-work reminder ─
+contains "contract names .agents/federation/" "$(cat "${REPO}/AGENTS.md")" '`federation/` for'
+contains "contract reminds agents about other PRs/branches for integration" \
+    "$(cat "${REPO}/AGENTS.md")" 'Parallel Work & Integration'
+contains "contract points at read-only PQC federation feed" \
+    "$(cat "${REPO}/AGENTS.md")" '.agents/federation/{date}.md'
+contains ".gitignore ignores federation daily CoD files" \
+    "$(cat "${REPO}/.gitignore")" '.agents/federation/*.md'
+contains "manifest declares .agents/federation" \
+    "$(cat "${REPO}/src/deploy_rules_sync.sh")" '".agents/federation"'
+check "federation child DOX contract ships" \
+    "$([[ -f "${REPO}/.agents/federation/llms.txt" ]] && echo yes || echo no)" "yes"
+check "federation PQC engine ships" \
+    "$([[ -f "${REPO}/src/federation_pqc.py" ]] && echo yes || echo no)" "yes"
+
+FED_DEPLOY="${WORK}/fed-deploy"
+mkdir -p "${FED_DEPLOY}"
+fed_today="$(date -u +%F)"
+(
+    cd "${FED_DEPLOY}"
+    REPO_DIR="${REPO}"
+    export AINISH_FEDERATION_NO_IMMUTABLE=1
+    . "${REPO}/src/colors.sh" 2>/dev/null || true
+    . "${REPO}/src/validation.sh" 2>/dev/null || true
+    . "${REPO}/src/file_operations.sh" 2>/dev/null || true
+    . "${REPO}/src/deploy_agents_federation.sh"
+    deploy_agents_federation .
+) >/dev/null 2>&1 || true
+check "deploy_agents_federation creates daily CoD file" \
+    "$([[ -f "${FED_DEPLOY}/.agents/federation/${fed_today}.md" ]] && echo yes || echo no)" "yes"
+check "deploy_agents_federation ships llms.txt" \
+    "$([[ -f "${FED_DEPLOY}/.agents/federation/llms.txt" ]] && echo yes || echo no)" "yes"
+check "deploy_agents_federation locks daily file read-only" \
+    "$([[ ! -w "${FED_DEPLOY}/.agents/federation/${fed_today}.md" ]] && echo yes || echo no)" "yes"
+# Append a CoD entry, re-deploy, and verify the entry survives merge-safe refresh and stays read-only.
+chmod 644 "${FED_DEPLOY}/.agents/federation/${fed_today}.md"
+printf '\n### [2026-11-25T13:00:00Z] mac-18gb | branch:feat/x | pr:#9 | tip:abc1234 | state:wip\n- cod: keep me\n' \
+    >> "${FED_DEPLOY}/.agents/federation/${fed_today}.md"
+chmod 444 "${FED_DEPLOY}/.agents/federation/${fed_today}.md"
+(
+    cd "${FED_DEPLOY}"
+    REPO_DIR="${REPO}"
+    export AINISH_FEDERATION_NO_IMMUTABLE=1
+    . "${REPO}/src/colors.sh" 2>/dev/null || true
+    . "${REPO}/src/validation.sh" 2>/dev/null || true
+    . "${REPO}/src/file_operations.sh" 2>/dev/null || true
+    . "${REPO}/src/deploy_agents_federation.sh"
+    deploy_agents_federation .
+) >/dev/null 2>&1 || true
+check "deploy_agents_federation preserves CoD entries on refresh" \
+    "$(grep -c 'branch:feat/x' "${FED_DEPLOY}/.agents/federation/${fed_today}.md" 2>/dev/null || echo 0)" "1"
+check "deploy_agents_federation re-locks read-only after refresh" \
+    "$([[ ! -w "${FED_DEPLOY}/.agents/federation/${fed_today}.md" ]] && echo yes || echo no)" "yes"
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1
