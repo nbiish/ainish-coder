@@ -4565,6 +4565,17 @@ CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"   # legacy single-reviewer
 CONTEXT_ELEPHANT_PROFILE = "context-elephant"
 CONTEXT_GOLDFISH_PROFILE = "context-goldfish"
 CONTEXT_RUNTIME_ENV = "AINISH_CONTEXT_RUNTIME"
+# The operator specifies WHICH Hermes profile the elephant runs on. The goldfish is a Pi agent and
+# has no profile in the prime path (operator architecture, 2026-11-25).
+ELEPHANT_PROFILE_ENV = "AINISH_CONTEXT_ELEPHANT_PROFILE"
+# Prime-pair runtimes per role. The two roles are DIFFERENT runtimes on purpose: under EGM the
+# reviewer must not be the drafter's transport either. `driver` is always last; every tier after the
+# first is a degrade, recorded in `degrade_note` (no silent downgrade). `AINISH_CONTEXT_RUNTIME`
+# stays an explicit operator override of this table.
+CONTEXT_ROLE_TIERS: Dict[str, Tuple[str, ...]] = {
+    "elephant": ("hermes", "pi", "driver"),
+    "goldfish": ("pi", "driver"),
+}
 HERMES_BINARY_ENV = "AINISH_HERMES_BIN"
 HERMES_TIMEOUT_DEFAULT = 300.0
 HERMES_PROVIDER_ID = "local-router"
@@ -5562,12 +5573,20 @@ def _context_agent_call(
     max_tokens: Optional[int] = None,
     timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Dispatch a prime context role: Hermes profile -> degraded `pi` -> degraded `DriverEngine`.
+    """Dispatch a prime context role on its PINNED runtime, with explicit degraded fallbacks.
 
-    Honors `AINISH_CONTEXT_RUNTIME` (`auto|hermes|pi|driver`) and `--no-remote` (`driver.allow_remote == False`).
-    Falls back cleanly on tier failure while recording explicit `degrade_note` metadata (no silent downgrade).
+    Operator's architecture (2026-11-25): the elephant runs on a specified Hermes profile
+    (`AINISH_CONTEXT_ELEPHANT_PROFILE`, default `context-elephant`); the goldfish IS a Pi agent —
+    the reviewer is not the drafter's transport either. `CONTEXT_ROLE_TIERS` holds the ladder
+    (`driver` last); every tier after the first is recorded in `degrade_note` (no silent downgrade).
+    `AINISH_CONTEXT_RUNTIME` (`auto|hermes|pi|driver`) and `--no-remote`
+    (`driver.allow_remote == False`) are explicit operator overrides of that table.
     """
-    profile = CONTEXT_ELEPHANT_PROFILE if role == "elephant" else CONTEXT_GOLDFISH_PROFILE
+    profile = (
+        (_env_nonempty(ELEPHANT_PROFILE_ENV) or CONTEXT_ELEPHANT_PROFILE).strip()
+        if role == "elephant"
+        else CONTEXT_GOLDFISH_PROFILE
+    )
     model = _pi_role_model(role)
     attached = [p for p in (attachments or []) if p]
 
@@ -5582,7 +5601,7 @@ def _context_agent_call(
         elif pref == "driver":
             order = ["driver"]
         else:
-            order = ["hermes", "pi", "driver"] if driver is not None else ["hermes", "pi"]
+            order = [t for t in CONTEXT_ROLE_TIERS[role] if t != "driver" or driver is not None]
 
     failures: List[str] = []
     for idx, tier in enumerate(order):
@@ -5615,7 +5634,9 @@ def _context_agent_call(
             if (res.get("text") or "").strip():
                 res["transport"] = "pi"
                 if idx > 0 and failures:
-                    res["fallback_from"] = f"hermes:{profile}"
+                    # Name the tier that FAILED, not a hardcoded hermes label: for a goldfish
+                    # (pi-first) the fallback is from pi, and saying "hermes" would be a lie.
+                    res["fallback_from"] = failures[0].split(":", 1)[0]
                     res["degrade_note"] = f"{role} degraded to pi fallback ({failures[0]})"
                 return res
             failures.append(f"pi: {res.get('error') or 'no output'}")
@@ -5631,7 +5652,7 @@ def _context_agent_call(
                 dres["transport"] = "driver"
                 dres["attached"] = attached
                 if idx > 0 and failures:
-                    dres["fallback_from"] = f"hermes:{profile}"
+                    dres["fallback_from"] = failures[0].split(":", 1)[0]
                     dres["degrade_note"] = f"{role} degraded to DriverEngine ({failures[0]})"
                 return dres
             failures.append(f"driver: {dres.get('error') or 'no output'}")
@@ -6200,6 +6221,8 @@ def render_injection_text(injection: Dict[str, Any]) -> str:
             + (f" | {note}" if note else "")
             + " -->"
         )
+    if prov.get("route_note"):
+        lines.append(f"<!-- route: {prov['route_note']} -->")
     for section in injection.get("sections") or []:
         lines.append("")
         lines.append(f"## {section['source']}")
@@ -6634,7 +6657,9 @@ def run_context_learn(
 #                  mistake here is unrecoverable. Measured: five of the 19 comms files are these.
 CONSOLIDATION_FOLDERS = ("memories", "comms", "tasks", "suggestions", "plans")
 CONSOLIDATION_PROTECTED_NEWEST = 3
-CONSOLIDATION_DEFAULT_CAP = 5
+# Steady state is the protected three plus digests (operator: "maintaining the three most recent
+# files of each context folder"), so the cap IS the retention: anything above it is consolidated.
+CONSOLIDATION_DEFAULT_CAP = CONSOLIDATION_PROTECTED_NEWEST
 CONSOLIDATION_DIGEST_PREFIX = "DIGEST-"
 
 _RECORD_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
@@ -7616,44 +7641,80 @@ def _newest_task_objective(repo_root: Path) -> str:
 
 
 def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
-    """Start one consolidation pass in the BACKGROUND, when the record needs it.
+    """Verify EVERY context folder on every context run; spawn one background condense pass whenever
+    any folder holds records beyond the protected three.
 
-    The operator's design is that ONE `--context` call both primes the agent and keeps the record
-    consolidated. Answering is synchronous; consolidating is not — it costs two model sessions per
-    batch — so it runs detached, after the prime is assembled, exactly like the learning pass.
+    The operator's design (2026-11-25): ONE `--context` call primes the agent AND sweeps the record.
+    Answering is synchronous; consolidating is not — it costs model sessions per batch — so it runs
+    detached, after the prime is assembled, exactly like the learning pass. The verification census
+    itself is filesystem-only and runs synchronously on EVERY call, so provenance can always say
+    whether every folder is consolidated and which records were left in original form (the three
+    newest per folder — the operator's retention requirement).
 
-    It is gated on need, not on time alone: a folder over the cap with an undigested period is what
+    Gated on NEED, not on time: records beyond `CONSOLIDATION_PROTECTED_NEWEST` are what
     consolidation is for, and spawning when nothing needs it burns a session to conclude nothing.
     """
     info: Dict[str, Any] = {"spawned": False, "reason": ""}
     if (_env_nonempty("AINISH_CONSOLIDATE_ON_CONTEXT") or "on").strip().lower() in ("0", "off", "false", "no"):
         info["reason"] = "AINISH_CONSOLIDATE_ON_CONTEXT is off"
         return info
-    state = context_harness.learn_state_path(repo_root).parent / "context-consolidate-autolearn.json"
-    interval = int(_env_nonempty("AINISH_CONSOLIDATE_INTERVAL_S") or (24 * 3600))
+    # THE VERIFICATION: census every folder now and report it always. `candidates` is everything
+    # beyond the protected three — those are the files the sweep must condense.
+    verified: Dict[str, Any] = {}
+    pending: List[str] = []
+    for folder in CONSOLIDATION_FOLDERS:
+        census = folder_census(repo_root, folder)
+        verified[folder] = {
+            "exists": census["exists"],
+            "originals": census["originals"],
+            "digests": census["digests"],
+            "protected": census["protected"],
+            "candidates": len(census["candidates"]),
+        }
+        if census["candidates"]:
+            pending.append(folder)
+    info["verified"] = verified
+    info["folders_needing"] = pending
+    state_dir = context_harness.learn_state_path(repo_root).parent
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "consolidate-sweep.json").write_text(json.dumps({
+            "format": "ainish-coder/context-consolidate-sweep/v1",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "protected_newest": CONSOLIDATION_PROTECTED_NEWEST,
+            # Coverage claim, complete by construction: every indexed artifact folder is either a
+            # consolidation folder above or named here as deliberately excluded (generated or
+            # read-only trees — e.g. `federation`'s PQC CoD ledger — are never digested).
+            "excluded_folders": {
+                name: "not a consolidation folder (generated or read-only by policy)"
+                for name in GRAPH_ARTIFACT_DIRS if name not in CONSOLIDATION_FOLDERS
+            },
+            "folders": verified,
+            "folders_needing": pending,
+        }, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    state = state_dir / "context-consolidate-autolearn.json"
+    interval = int(_env_nonempty("AINISH_CONSOLIDATE_INTERVAL_S") or 0)
     now = time.time()
     try:
         last = float(json.loads(state.read_text(encoding="utf-8")).get("last_run_epoch") or 0.0)
     except (OSError, ValueError):
         last = 0.0
-    if last and (now - last) < interval:
+    if last and interval and (now - last) < interval:
         info["reason"] = f"last consolidation {int((now - last) / 3600)}h ago; next eligible in {int((interval - (now - last)) / 60)}m"
         return info
-    # Need: at least one folder over the cap with a candidate older than the protected three.
-    over = []
-    for folder in CONSOLIDATION_FOLDERS:
-        census = folder_census(repo_root, folder)
-        if census["candidates"] and census["originals"] > CONSOLIDATION_DEFAULT_CAP:
-            over.append(folder)
-    if not over:
-        info["reason"] = "no folder is over the cap with an undigested period"
+    if not pending:
+        info["reason"] = "verified every folder: all records are digested or within the protected three"
         return info
     lock = context_harness.lock_path(repo_root)
     if lock.is_file():
         info["reason"] = "another harness pass holds the lock"
         return info
     engine = Path(__file__).resolve()
-    argv = [sys.executable, str(engine), "context-consolidate", "--folder", over[0]]
+    # ONE CHILD, ALL FOLDERS: the pass sweeps every folder (reporting on each), condensing the ones
+    # with candidates. Narrowing the spawn to a single folder left the rest unverified and waiting.
+    argv = [sys.executable, str(engine), "context-consolidate"]
     try:
         popen_kw: Dict[str, Any] = {
             "cwd": str(repo_root),
@@ -7668,16 +7729,16 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             popen_kw["start_new_session"] = True
         subprocess.Popen(argv, **popen_kw)
         try:
-            state.parent.mkdir(parents=True, exist_ok=True)
             state.write_text(json.dumps({
                 "format": "ainish-coder/context-consolidate-autolearn/v1",
                 "last_run_epoch": now,
                 "last_run_at": datetime.now(timezone.utc).isoformat(),
-                "folder": over[0],
+                "folders": pending,
             }, indent=2) + "\n", encoding="utf-8")
         except OSError:
             pass
-        info.update({"spawned": True, "folder": over[0], "reason": f"over cap: {', '.join(over)}"})
+        info.update({"spawned": True, "folders": pending,
+                     "reason": f"records beyond the protected three in: {', '.join(pending)}"})
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         info["reason"] = f"could not start the consolidation pass: {str(exc)[:120]}"
     return info
@@ -7901,16 +7962,19 @@ def run_context_command(
             }
         )
 
-    # `skip_retrieval` with nothing retrieved is a real, complete answer: the decision model judged
-    # this task answerable without repository context. Emitting a placeholder section (and paying two
-    # driver calls to disclaim it) costs budget to say nothing. Report it in provenance instead.
-    # Orientation is not skipped — branch, tree state, and the last ledger entry are true regardless
-    # of what the route decided about retrieval.
+    # `skip_retrieval` with nothing retrieved is a deliberate design choice, not a degradation: the
+    # decision model judged this task answerable without repository context. The note rides in
+    # provenance (rendered as a `route:` comment) so the envelope says WHY there is no retrieval
+    # section without claiming `degraded: true`. The route governs the CORPUS ONLY — the pair is not
+    # skipped (operator architecture 2026-11-25: the prime IS the elephant+goldfish output), and
+    # orientation is never skipped either: branch, tree state, and the last ledger entry are true
+    # regardless of what the route decided about retrieval.
     route_skipped = strategy == "skip_retrieval" and not retrieval_text
-    if route_skipped:
-        degrade_notes.append(
-            f"retrieval skipped by route: {route_decision.get('next_action') or 'answer from files directly'}"
-        )
+    route_note = (
+        f"retrieval skipped by route: {route_decision.get('next_action') or 'answer from files directly'}"
+        if route_skipped
+        else ""
+    )
     drivers_info: Dict[str, Any] = {}
     session_state: Dict[str, Any] = {}
     sid = session_id or default_session_id(repo_root)
@@ -7930,7 +7994,10 @@ def run_context_command(
     saved_pins = {name: os.environ.get(name) for name in scoped_pins}
     os.environ.update(scoped_pins)
     try:
-        if not retrieval_only and not route_skipped:
+        # The pair runs on EVERY context call — the prime is its concatenated output (operator
+        # architecture 2026-11-25). `skip_retrieval` governs the corpus, never the pair;
+        # `--retrieval-only` is the one mode that makes no model calls at all.
+        if not retrieval_only:
             # `--no-remote` narrows to the local tier; without it, offline detection still wins.
             # Passing an explicit True here (as an earlier revision did) silently disabled the
             # operator's AINISH_RAG_DRIVER_OFFLINE setting, so an "offline" run still called
@@ -8117,19 +8184,23 @@ def run_context_command(
     consolidate: Dict[str, Any] = {"spawned": False, "reason": "skipped"}
     if retrieval_only:
         autolearn = {"spawned": False, "reason": "--retrieval-only makes no model calls"}
-    elif route_skipped or not (retrieved.get("hits") or []):
-        # Nothing was retrieved, so a learning pass would have no evidence to reason over and could
-        # only produce a KEEP_BASE. Observed for real on this repo: a route-skipped task spawned a
-        # session that immediately recorded "no corpus hit for this task". Not spawning is both
-        # cheaper and more honest than spending a call to conclude nothing.
-        autolearn = {"spawned": False, "reason": "no retrieved evidence to learn from on this task"}
+        consolidate = {"spawned": False, "reason": "--retrieval-only makes no model calls"}
     else:
         # Not gated on --json: the child's stdout is DEVNULL, so it cannot corrupt the envelope, and
         # a machine-read call deserves the same continuous improvement as an interactive one.
-        # CONSOLIDATION FIRST: a smaller, digested corpus is what the learner should tune against, and
-        # the consolidate pass holds the same lock, so ordering them here keeps them from racing.
+        # CONSOLIDATION FIRST, AND ON EVERY CALL: the sweep is about the `.agents/` record, not about
+        # this task's retrieval, so even a route-skipped call verifies and condenses the folders. A
+        # smaller, digested corpus is also what the learner should tune against, and the consolidate
+        # pass holds the same lock, so ordering them here keeps them from racing.
         consolidate = spawn_consolidate(repo_root)
-        autolearn = spawn_autolearn(repo_root, task)
+        if route_skipped or not (retrieved.get("hits") or []):
+            # Nothing was retrieved, so a learning pass would have no evidence to reason over and
+            # could only produce a KEEP_BASE. Observed for real on this repo: a route-skipped task
+            # spawned a session that immediately recorded "no corpus hit for this task". Not spawning
+            # is both cheaper and more honest than spending a call to conclude nothing.
+            autolearn = {"spawned": False, "reason": "no retrieved evidence to learn from on this task"}
+        else:
+            autolearn = spawn_autolearn(repo_root, task)
     # The learned state is reported on EVERY call, including when it is absent. Silence would make a
     # repo whose profile failed to load indistinguishable from one that never had one.
     harness_provenance = {
@@ -8159,6 +8230,7 @@ def run_context_command(
             "branch": branch,
             "route": route_decision.get("source"),
             "strategy": strategy,
+            "route_note": route_note or None,
             "session": sid if not retrieval_only else None,
             "drivers": drivers_info,
             "wiki": wiki_note,
