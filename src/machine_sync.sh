@@ -337,8 +337,14 @@ _ms_latest() { # repo
         path="$(_ms_override_for "$peer")"
         [[ -n "$path" ]] || path="$(_ms_linked_path "$repo" "$peer")"
         [[ -n "$path" ]] || path="${_P_ROOT%/}/${repo_name}"
-        if ! _ms_ref_exists "$host" "$path" HEAD; then
-            _ms_skip "$peer — unreachable, latest unknown there"
+        local _probe_rc=0
+        _ms_probe_peer "$host" "$path" || _probe_rc=$?
+        if (( _probe_rc != 0 )); then
+            if (( _probe_rc == 2 )); then
+                _ms_skip "$peer — SSH reachable, no git repo at $path (fix: ainish-coder --machine-link . --peer $peer --peer-path <remote-path>)"
+            else
+                _ms_skip "$peer — SSH unreachable, latest unknown there"
+            fi
             continue
         fi
         while IFS=$'\t' read -r pname psha pdate; do
@@ -376,7 +382,7 @@ _ms_latest() { # repo
     printf '  %-42s %-10s %-18s %s\n' "BRANCH" "NEWEST" "WHEN (UTC)" "NEWEST ON"
     local n when h mark
     for n in "${!order[@]}"; do
-        when="$(date -r "${best_date[$n]:-0}" -u +%Y-%m-%dT%H:%M 2>/dev/null || printf '%s' "${best_date[$n]:-}")"
+        when="$(_ms_fmt_utc "${best_date[$n]:-0}")"
         h="${holders[$n]}"; mark=""
         case "$h" in
             *"+"*) mark=" (+same tip elsewhere)"; h="${h%%+*}" ;;
@@ -385,6 +391,14 @@ _ms_latest() { # repo
         printf '  %-42s %-10s %-18s %s%s\n' "${order[$n]}" "${best_sha[$n]:0:8}" "$when" "$h" "$mark"
     done
     return 0
+}
+
+# Cross-platform epoch seconds -> YYYY-MM-DDTHH:MM UTC (GNU `date -d @` for Windows/Linux, BSD `date -r` for macOS).
+_ms_fmt_utc() {
+    local ts="${1:-0}" out=""
+    out="$(date -u -d "@${ts}" +%Y-%m-%dT%H:%M 2>/dev/null)" && [[ -n "$out" ]] && { printf '%s\n' "$out"; return 0; }
+    out="$(date -r "$ts" -u +%Y-%m-%dT%H:%M 2>/dev/null)" && [[ -n "$out" ]] && { printf '%s\n' "$out"; return 0; }
+    printf '%s\n' "$ts"
 }
 
 # Echo the index of <needle> in the remaining args, or nothing.
@@ -423,6 +437,8 @@ OPTIONS:
     --latest               Read-only report: per branch, the newest commit and which machine holds it.
                            Asks every peer directly (bounded), because cached refs are stale by
                            definition — this is the "what is newest to work from" answer.
+    --doctor               Check peer SSH reachability, linked repos, Hermes profiles, pi wiring,
+                           and loopback local-router health (supports --json).
     --quiet                No output on stdout; errors still go to stderr. For hooks and scripts.
     --push                 Send only: our branches and uncommitted work to the peers.
     --pull                 Receive only: peer branches and their uncommitted work to here.
@@ -698,6 +714,201 @@ _ms_peer_reachable() { # host path
     _ms_remote "$host" "git -C '${path}' rev-parse --git-dir" >/dev/null 2>&1
 }
 
+# Distinguishes SSH transport failure (1) from a missing git repo at the resolved peer path (2).
+_ms_probe_peer() { # host path -> 0 ok, 1 ssh unreachable, 2 ssh ok but no git repo at path
+    local host="$1" path="$2"
+    if [[ -z "$host" ]]; then
+        [[ -d "${path}/.git" ]] && return 0 || return 2
+    fi
+    local out=""
+    if [[ "$path" =~ ^[A-Za-z]: ]]; then
+        out="$(_ms_remote "$host" "if (git -C '${path}' rev-parse --git-dir 2>\$null) { Write-Output 'OK' } else { Write-Output 'NO_REPO' }" 2>/dev/null | tr -d '\r')" || true
+    else
+        out="$(_ms_remote "$host" "if git -C '${path}' rev-parse --git-dir >/dev/null 2>&1; then printf 'OK\n'; else printf 'NO_REPO\n'; fi" 2>/dev/null)" || true
+    fi
+    case "$out" in
+        *OK*)      return 0 ;;
+        *NO_REPO*) return 2 ;;
+        *)         return 1 ;;
+    esac
+}
+
+_ms_resolve_hermes_home() {
+    if [[ -n "${HERMES_HOME:-}" ]]; then
+        printf '%s\n' "${HERMES_HOME//\\//}"
+        return 0
+    fi
+    if [[ "$(_ms_kind)" == "windows" ]]; then
+        local lad="${LOCALAPPDATA:-$HOME/AppData/Local}"
+        printf '%s/hermes\n' "${lad//\\//}"
+    else
+        printf '%s/.hermes\n' "$HOME"
+    fi
+}
+
+_ms_doctor() {
+    local self_name="${_MS_AS:-}" issues=0
+    local mfile="${AINISH_MACHINES_FILE:-$HOME/.config/ainish-coder/machines.txt}"
+    local lfile="${AINISH_LINKS_FILE:-$HOME/.config/ainish-coder/links.txt}"
+    local hhome="$(_ms_resolve_hermes_home)"
+    local pidir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+    pidir="${pidir//\\//}"
+    local router_url="${AINISH_LOCAL_ROUTER_URL:-http://127.0.0.1:11434}"
+
+    if _ms_load_registry "$mfile"; then
+        [[ -n "$self_name" ]] || self_name="$(_ms_self_name || true)"
+    fi
+    [[ -n "$self_name" ]] || self_name="$(hostname -s 2>/dev/null || printf 'self')"
+
+    local -a peer_rows=()
+    local i name spec host ssh_ok
+    for i in "${!_MS_NAMES[@]}"; do
+        name="${_MS_NAMES[$i]}"; spec="${_MS_SPECS[$i]}"
+        [[ "$spec" == "self" || "$name" == "$self_name" ]] && continue
+        _ms_parse_spec "$spec" || continue
+        host="$_P_HOST"
+        if [[ -z "$host" ]]; then
+            [[ -d "${_P_ROOT}" ]] && ssh_ok="ok" || { ssh_ok="missing_root"; issues=$((issues + 1)); }
+        elif _ms_remote "$host" "echo OK" >/dev/null 2>&1; then
+            ssh_ok="ok"
+        else
+            ssh_ok="unreachable"; issues=$((issues + 1))
+        fi
+        peer_rows+=("${name}|${host:-local}|${_P_ROOT}|${ssh_ok}")
+    done
+
+    local -a link_rows=() link_entries=()
+    if [[ -f "$lfile" ]]; then
+        local ln
+        while IFS= read -r ln || [[ -n "$ln" ]]; do
+            [[ "$ln" != \#* && "$ln" == *"|"* ]] || continue
+            link_entries+=("$ln")
+        done < "$lfile"
+    fi
+    if (( ${#link_entries[@]} > 0 )); then
+        local lrepo lpeer lpath lno_auto lstate
+        for ln in "${link_entries[@]}"; do
+            IFS='|' read -r lrepo lpeer lpath <<< "$ln"
+            lrepo="$(printf '%s' "$lrepo" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            lpeer="$(printf '%s' "$lpeer" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            lpath="$(printf '%s' "$lpath" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            lno_auto="false"
+            [[ -f "${lrepo}/.agents/no-watcher-autocommit" ]] && lno_auto="true"
+            if ! git -C "$lrepo" rev-parse --git-dir >/dev/null 2>&1; then
+                lstate="local_missing"; issues=$((issues + 1))
+            else
+                host=""
+                for i in "${!_MS_NAMES[@]}"; do
+                    if [[ "${_MS_NAMES[$i]}" == "$lpeer" ]]; then
+                        _ms_parse_spec "${_MS_SPECS[$i]}" && host="$_P_HOST"
+                        break
+                    fi
+                done
+                local _probe_rc=0
+                _ms_probe_peer "$host" "$lpath" </dev/null || _probe_rc=$?
+                if (( _probe_rc == 0 )); then
+                    lstate="ok"
+                else
+                    case "$_probe_rc" in
+                        2) lstate="peer_repo_missing" ;;
+                        *) lstate="ssh_unreachable" ;;
+                    esac
+                    issues=$((issues + 1))
+                fi
+            fi
+            link_rows+=("${lrepo}|${lpeer}|${lpath}|${lstate}|${lno_auto}")
+        done
+    fi
+
+    local -a ctx_profiles=(context-elephant context-goldfish consolidate-elephant consolidate-goldfish consolidate-archivist consolidate-structural)
+    local p ready_cnt=0
+    local -a missing_profiles=()
+    for p in "${ctx_profiles[@]}"; do
+        if [[ -f "${hhome}/profiles/${p}/config.yaml" ]]; then
+            ready_cnt=$((ready_cnt + 1))
+        else
+            missing_profiles+=("$p")
+            issues=$((issues + 1))
+        fi
+    done
+
+    local pi_wired="false"
+    if [[ -f "${pidir}/models.json" ]] && grep -q '"local-router"' "${pidir}/models.json" 2>/dev/null; then
+        pi_wired="true"
+    else
+        issues=$((issues + 1))
+    fi
+
+    local router_up="false"
+    if curl -sf --max-time 2 "${router_url%/}/v1/models" >/dev/null 2>&1 || curl -sf --max-time 2 "${router_url%/}/api/health" >/dev/null 2>&1; then
+        router_up="true"
+    else
+        issues=$((issues + 1))
+    fi
+
+    if [[ "$_MS_JSON" == "true" ]]; then
+        printf '{"format":"ainish-coder/machine-doctor/v1","ok":%s,"issues":%d,"self":%s,' \
+            "$( (( issues == 0 )) && echo true || echo false )" "$issues" "$(_ms_json_str "$self_name")"
+        printf '"peers":['
+        local first=true row a1 a2 a3 a4 a5
+        for row in ${peer_rows[@]+"${peer_rows[@]}"}; do
+            IFS='|' read -r a1 a2 a3 a4 <<< "$row"
+            [[ "$first" == "true" ]] || printf ','
+            first=false
+            printf '{"name":%s,"host":%s,"root":%s,"status":%s}' \
+                "$(_ms_json_str "$a1")" "$(_ms_json_str "$a2")" "$(_ms_json_str "$a3")" "$(_ms_json_str "$a4")"
+        done
+        printf '],"links":['
+        first=true
+        for row in ${link_rows[@]+"${link_rows[@]}"}; do
+            IFS='|' read -r a1 a2 a3 a4 a5 <<< "$row"
+            [[ "$first" == "true" ]] || printf ','
+            first=false
+            printf '{"repo":%s,"peer":%s,"peer_path":%s,"status":%s,"no_watcher_autocommit":%s}' \
+                "$(_ms_json_str "$a1")" "$(_ms_json_str "$a2")" "$(_ms_json_str "$a3")" "$(_ms_json_str "$a4")" "$a5"
+        done
+        printf '],"context_agents":{"hermes_home":%s,"profiles_ready":%d,"profiles_total":%d,"pi_wired":%s,"router_url":%s,"router_up":%s}}\n' \
+            "$(_ms_json_str "$hhome")" "$ready_cnt" "${#ctx_profiles[@]}" "$pi_wired" "$(_ms_json_str "$router_url")" "$router_up"
+        (( issues == 0 )) && return 0 || return 1
+    fi
+
+    _ms_head "machine-sync --doctor on $self_name"
+    printf '  machines: %s\n' "$mfile"
+    if (( ${#peer_rows[@]} == 0 )); then
+        _ms_skip "no remote peers registered"
+    else
+        for row in "${peer_rows[@]}"; do
+            IFS='|' read -r a1 a2 a3 a4 <<< "$row"
+            if [[ "$a4" == "ok" ]]; then
+                _ms_ok "peer $a1 ($a2 -> $a3): reachable"
+            else
+                _ms_err "peer $a1 ($a2 -> $a3): $a4"
+            fi
+        done
+    fi
+    printf '  links:    %s\n' "$lfile"
+    if (( ${#link_rows[@]} == 0 )); then
+        _ms_skip "no repositories linked yet (link with: ainish-coder --machine-link DIR --peer NAME --peer-path PATH)"
+    else
+        for row in "${link_rows[@]}"; do
+            IFS='|' read -r a1 a2 a3 a4 a5 <<< "$row"
+            if [[ "$a4" == "ok" ]]; then
+                _ms_ok "$a1 -> $a2:$a3 (no-watcher-autocommit=$a5)"
+            else
+                _ms_err "$a1 -> $a2:$a3 ($a4)"
+            fi
+        done
+    fi
+    printf '  hermes:   %s (%d/%d context/consolidate profiles ready)\n' "$hhome" "$ready_cnt" "${#ctx_profiles[@]}"
+    (( ${#missing_profiles[@]} == 0 )) && _ms_ok "all 6 context/consolidate profiles present" \
+        || _ms_err "missing Hermes profiles: ${missing_profiles[*]} (run: ainish-coder --context-setup)"
+    [[ "$pi_wired" == "true" ]] && _ms_ok "pi models.json wired to local-router (${pidir}/models.json)" \
+        || _ms_err "pi models.json missing local-router wiring (run: ainish-coder --context-setup)"
+    [[ "$router_up" == "true" ]] && _ms_ok "local-router online at ${router_url}" \
+        || _ms_err "local-router unreachable at ${router_url}"
+    (( issues == 0 )) && return 0 || return 1
+}
+
 # ── remote snapshot ──────────────────────────────────────────────────────────
 #
 # The pull direction must snapshot the PEER's dirty tree, on the peer, without disturbing it. That
@@ -932,7 +1143,7 @@ _ms_json_str() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; printf '"%s
 
 machine_sync() {
     local repo="" json=false dry=false status=false min_ram=0 kind_filter="" all_linked=false linked_only=false
-    local make_branches=false do_latest=false
+    local make_branches=false do_latest=false do_doctor=false
     local -a explicit=() overrides=()
     local a
 
@@ -960,6 +1171,7 @@ machine_sync() {
             --linked-only) linked_only=true;      shift ;;
             --branches)    make_branches=true;    shift ;;
             --latest)      do_latest=true;        shift ;;
+            --doctor)      do_doctor=true;        shift ;;
             --links-file)  AINISH_LINKS_FILE="${2:-}"; shift 2 ;;
             -h|--help)     _ms_usage; return 0 ;;
             -*)            _ms_err "unknown option: $1 (try --machine-sync --help)"; return 1 ;;
@@ -968,6 +1180,11 @@ machine_sync() {
     done
 
     _MS_JSON="$json"
+
+    if [[ "$do_doctor" == "true" ]]; then
+        _ms_doctor
+        return $?
+    fi
 
     # `--all` fans out over every repo linked on this machine. It runs each repo in a subshell so one
     # unreachable peer or one broken repo cannot abort the rest, and it refuses to guess a repo when
@@ -1225,8 +1442,14 @@ machine_sync() {
             continue
         fi
 
-        if ! _ms_peer_reachable "$host" "$path"; then
-            _ms_err "$name — no git repository at $path"
+        local _probe_rc=0
+        _ms_probe_peer "$host" "$path" || _probe_rc=$?
+        if (( _probe_rc != 0 )); then
+            if (( _probe_rc == 2 )); then
+                _ms_err "$name — SSH reachable, no git repository at $path (link the actual path with: ainish-coder --machine-link \"$repo\" --peer $name --peer-path <remote-path>)"
+            else
+                _ms_err "$name — SSH unreachable or transport failed (host: ${host:-local}, path: $path)"
+            fi
             failures+=("$name")
             continue
         fi
@@ -1317,19 +1540,26 @@ _ms_smoke_peer() {
     root="$(_ms_remote "$host" "git -C '$path' rev-parse --show-toplevel" 2>/dev/null | tr -d '\r\n' || true)"
     [[ -n "$root" ]] || { _ms_info "smoke: $name — no checkout found (unverified)"; return 0; }
 
-    # Pick the launcher the PEER can actually execute. `bin/ainish-coder` is a bash script, so on a
-    # Windows peer (PowerShell login shell) it cannot run at all — the `.cmd` wrapper is the entry
-    # point there. Probing the wrong one reports a healthy machine as unverified.
+    # Pick the launcher the PEER can actually execute. Local runs execute inside this bash session, so
+    # invoking `cmd /c` under MSYS2 would rewrite `/c` and hang in an interactive cmd prompt.
     local cli="" win_root
-    case "$root" in
-        [A-Za-z]:[\\/]*)
-            win_root="$(printf '%s' "$root" | tr '/' '\\')"
-            cli="cmd /c \"${win_root}\\bin\\ainish-coder.cmd\""
-            ;;
-        *)
-            cli="'${root%/}/bin/ainish-coder'"
-            ;;
-    esac
+    if [[ -z "$host" ]]; then
+        if [[ ! -f "${root%/}/bin/ainish-coder" ]]; then
+            _ms_info "smoke: $name — no ainish-coder CLI in checkout (unverified)"
+            return 0
+        fi
+        cli="bash '${root%/}/bin/ainish-coder'"
+    else
+        case "$root" in
+            [A-Za-z]:[\\/]*)
+                win_root="$(printf '%s' "$root" | tr '/' '\\')"
+                cli="cmd /c \"${win_root}\\bin\\ainish-coder.cmd\""
+                ;;
+            *)
+                cli="'${root%/}/bin/ainish-coder'"
+                ;;
+        esac
+    fi
 
     local version="" rules=""
     # `|| true` on every probe: the caller runs under `set -e`, and a peer whose launcher is missing
@@ -1384,16 +1614,26 @@ _ms_linked_path() {
     local repo="$1" peer="$2"
     local links_file="${AINISH_LINKS_FILE:-$HOME/.config/ainish-coder/links.txt}"
     [[ -f "$links_file" ]] || return 0
-    local line r p path
+    local repo_posix=""
+    repo_posix="$( (cd -P "$repo" 2>/dev/null && pwd) || printf '%s' "$repo" )"
+    local line r p path r_posix
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" != \#* && "$line" == *"|"* ]] || continue
         IFS='|' read -r r p path <<< "$line"
         r="$(printf '%s' "$r" | sed 's/[[:space:]]*$//')"
         p="$(printf '%s' "$p" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
         path="$(printf '%s' "$path" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-        if [[ "$r" == "$repo" && "$p" == "$peer" ]]; then
+        [[ "$p" == "$peer" ]] || continue
+        if [[ "$r" == "$repo" || "$r" == "$repo_posix" ]]; then
             printf '%s\n' "$path"
             return 0
+        fi
+        if [[ -d "$r" ]]; then
+            r_posix="$( (cd -P "$r" 2>/dev/null && pwd) || true )"
+            if [[ -n "$r_posix" && "$r_posix" == "$repo_posix" ]]; then
+                printf '%s\n' "$path"
+                return 0
+            fi
         fi
     done < "$links_file"
     return 0

@@ -4559,8 +4559,14 @@ REVIEW_MAX_TOKENS = 2048
 # so a host without hermes still consolidates, degraded and reported as such.
 CONSOLIDATE_DRAFTER_PROFILE = "consolidate-elephant"
 CONSOLIDATE_REVIEWER_PROFILE = "consolidate-goldfish"   # legacy single-reviewer name, kept for compat
+CONTEXT_ELEPHANT_PROFILE = "context-elephant"
+CONTEXT_GOLDFISH_PROFILE = "context-goldfish"
+CONTEXT_RUNTIME_ENV = "AINISH_CONTEXT_RUNTIME"
 HERMES_BINARY_ENV = "AINISH_HERMES_BIN"
 HERMES_TIMEOUT_DEFAULT = 300.0
+HERMES_PROVIDER_ID = "local-router"
+HERMES_MANAGED_MARKER = "# local-router managed"
+HERMES_DEFAULT_MODEL = "local-router/fallback-models"
 # The drafter writes 9-10K characters where a reviewer writes a verdict, so it needs a longer budget.
 # Measured 2026-11-21: 188s for a 7,582-char prompt producing 9,830 chars on this host.
 CONSOLIDATE_DRAFT_TIMEOUT = 480.0
@@ -4597,11 +4603,455 @@ CONSOLIDATE_PANEL: Tuple[Tuple[str, str, str], ...] = (
 )
 
 
+def hermes_home_dir() -> Path:
+    """Resolve Hermes home across Windows (`%LOCALAPPDATA%\\hermes`), POSIX (`~/.hermes`), and `HERMES_HOME`."""
+    explicit = (_env_nonempty("HERMES_HOME") or "").strip()
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    if os.name == "nt":
+        local_app = (os.environ.get("LOCALAPPDATA") or "").strip()
+        base = Path(local_app) if local_app else (Path.home() / "AppData" / "Local")
+        return base / "hermes"
+    return Path.home() / ".hermes"
+
+
+def hermes_profile_dir(profile: str) -> Path:
+    """Directory holding a named Hermes profile."""
+    return hermes_home_dir() / "profiles" / profile
+
+
+def hermes_profile_exists(profile: str) -> bool:
+    """True when a named Hermes profile has an initialized directory and `config.yaml`."""
+    pdir = hermes_profile_dir(profile)
+    return pdir.is_dir() and (pdir / "config.yaml").is_file()
+
+
+def pi_agent_dir() -> Path:
+    """Resolve pi's agent configuration directory (`PI_CODING_AGENT_DIR` or `~/.pi/agent`)."""
+    explicit = (_env_nonempty("PI_CODING_AGENT_DIR") or "").strip()
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    return Path.home() / ".pi" / "agent"
+
+
+def _yaml_scalar(value: str) -> str:
+    """Format a safe YAML scalar without needing third-party PyYAML."""
+    if re.fullmatch(r"[A-Za-z0-9_./:-]+", value) and value.lower() not in ("true", "false", "null", "~"):
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _find_yaml_top_block(lines: List[str], key: str) -> Optional[Tuple[int, int]]:
+    """Return `(start, end)` line indices of a top-level YAML mapping block."""
+    pat = re.compile(rf"^{re.escape(key)}:\s*(?:#.*)?$")
+    start = next((idx for idx, line in enumerate(lines) if pat.match(line)), None)
+    if start is None:
+        return None
+    end = start + 1
+    while end < len(lines):
+        line = lines[end]
+        if line and not line[0].isspace() and not line.startswith("#"):
+            break
+        end += 1
+    return start, end
+
+
+def _find_yaml_sub_block(lines: List[str], parent_start: int, parent_end: int, sub_key: str, indent: int = 2) -> Optional[Tuple[int, int]]:
+    """Return `(start, end)` line indices of an indented YAML sub-key inside `[parent_start, parent_end)`."""
+    prefix = " " * indent
+    pat = re.compile(rf"^{prefix}{re.escape(sub_key)}:\s*(?:#.*)?$")
+    for i in range(parent_start + 1, parent_end):
+        if not pat.match(lines[i]):
+            continue
+        end = i + 1
+        while end < parent_end:
+            line = lines[end]
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                end += 1
+                continue
+            lead = len(line) - len(line.lstrip(" "))
+            if lead <= indent:
+                break
+            end += 1
+        return i, end
+    return None
+
+
+def _upsert_yaml_subkeys(lines: List[str], section: str, pairs: List[Tuple[str, str]]) -> List[str]:
+    """Ensure top-level `section:` exists and update/insert two-space indented scalar pairs."""
+    block = _find_yaml_top_block(lines, section)
+    if block is None:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.append(f"{section}:")
+        for k, v in pairs:
+            lines.append(f"  {k}: {v}")
+        return lines
+
+    start, end = block
+    for k, v in pairs:
+        key_pat = re.compile(rf"^\s{{2}}{re.escape(k)}:")
+        replaced = False
+        for idx in range(start + 1, end):
+            if key_pat.match(lines[idx]):
+                lines[idx] = f"  {k}: {v}"
+                replaced = True
+                break
+        if not replaced:
+            sub = _find_yaml_sub_block(lines, start, end, k, indent=2)
+            if sub is not None:
+                s_start, s_end = sub
+                lines[s_start:s_end] = [f"  {k}: {v}"]
+                delta = 1 - (s_end - s_start)
+                end += delta
+            else:
+                lines.insert(start + 1, f"  {k}: {v}")
+                end += 1
+    return lines
+
+
+def _upsert_hermes_config_yaml(
+    existing_text: str,
+    *,
+    v1_base_url: str,
+    model: str,
+    set_default_model: bool = True,
+    toolless: bool = False,
+    stateless: bool = False,
+) -> str:
+    """Update `providers.local-router` (and optional profile controls) in Hermes `config.yaml` cleanly."""
+    normalized = (existing_text or "").replace("\r\n", "\n")
+    lines = normalized.split("\n") if normalized else []
+    if lines and lines[-1] == "":
+        lines.pop()
+
+    if set_default_model:
+        lines = _upsert_yaml_subkeys(lines, "model", [
+            ("default", _yaml_scalar(model)),
+            ("provider", HERMES_PROVIDER_ID),
+        ])
+
+    provider_lines = [
+        f"  {HERMES_PROVIDER_ID}: {HERMES_MANAGED_MARKER}",
+        "    name: Local Router",
+        f"    base_url: {_yaml_scalar(v1_base_url)}",
+        "    api_key: local-router",
+        f"    model: {_yaml_scalar(model)}",
+        "    discover_models: true",
+        "    models:",
+        f"      {_yaml_scalar(model)}: {{}}",
+    ]
+    pblock = _find_yaml_top_block(lines, "providers")
+    if pblock is None:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.append("providers:")
+        lines.extend(provider_lines)
+    else:
+        sub = _find_yaml_sub_block(lines, pblock[0], pblock[1], HERMES_PROVIDER_ID, indent=2)
+        if sub is not None:
+            r_end = sub[1]
+            while r_end > sub[0] + 1 and not lines[r_end - 1].strip():
+                r_end -= 1
+            lines[sub[0]:r_end] = provider_lines
+        else:
+            ins = pblock[1]
+            while ins > pblock[0] + 1 and not lines[ins - 1].strip():
+                ins -= 1
+            lines[ins:ins] = provider_lines
+
+    if toolless:
+        # Empty `platform_toolsets.cli: []` disables built-in toolsets and MCP merges without `-t none`.
+        lines = _upsert_yaml_subkeys(lines, "platform_toolsets", [("cli", "[]")])
+        lines = _upsert_yaml_subkeys(lines, "agent", [("max_turns", "1")])
+
+    if stateless:
+        lines = _upsert_yaml_subkeys(lines, "memory", [
+            ("memory_enabled", "false"),
+            ("user_profile_enabled", "false"),
+        ])
+
+    return "\n".join(lines) + "\n"
+
+
+def _sync_pi_models_json(
+    base_url: str,
+    model: str,
+    *,
+    pi_dir: Optional[Path] = None,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Merge `providers['local-router']` into `pi`'s `models.json` while keeping all other providers."""
+    clean = base_url.strip().rstrip("/")
+    validate_loopback_host(clean)
+    v1_base = clean if clean.endswith("/v1") else f"{clean}/v1"
+    target_dir = pi_dir or pi_agent_dir()
+    models_path = target_dir / "models.json"
+    doc: Dict[str, Any] = {}
+    if models_path.is_file():
+        raw = models_path.read_text(encoding="utf-8", errors="replace").strip()
+        if raw:
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError(f"{models_path} must be a JSON object")
+            doc = parsed
+    providers = doc.get("providers")
+    if not isinstance(providers, dict):
+        providers = {}
+        doc["providers"] = providers
+
+    desired_ids = [model] if model == PI_DEFAULT_MODEL else [model, PI_DEFAULT_MODEL]
+    next_provider = {
+        "baseUrl": v1_base,
+        "api": "openai-completions",
+        "apiKey": "local-router",
+        "models": [
+            {
+                "id": mid,
+                "name": mid,
+                "reasoning": True,
+                "input": ["text", "image"],
+                "contextWindow": 1050000,
+                "maxTokens": 131072,
+                "thinkingLevelMap": {
+                    "off": "none",
+                    "minimal": "minimal",
+                    "low": "low",
+                    "medium": "medium",
+                    "high": "high",
+                    "xhigh": None,
+                    "max": None,
+                },
+            }
+            for mid in desired_ids
+        ],
+    }
+    changed = providers.get(HERMES_PROVIDER_ID) != next_provider
+    if changed and not dry_run:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        providers[HERMES_PROVIDER_ID] = next_provider
+        tmp_path = models_path.with_name(f".{models_path.name}.{os.getpid()}.tmp")
+        tmp_path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp_path, models_path)
+    return {
+        "ok": True,
+        "models_path": str(models_path),
+        "base_url": v1_base,
+        "models": desired_ids,
+        "changed": changed,
+        "dry_run": dry_run,
+    }
+
+
+def _find_context_agents_manifest(repo_root: Optional[Path] = None) -> Path:
+    """Locate `config/context-agents/manifest.json` from `repo_root` or the `ainish-coder` tree."""
+    candidates: List[Path] = []
+    if repo_root is not None:
+        candidates.append(repo_root / "config" / "context-agents" / "manifest.json")
+    candidates.append(Path(__file__).resolve().parents[2] / "config" / "context-agents" / "manifest.json")
+    for cand in candidates:
+        if cand.is_file():
+            return cand
+    raise FileNotFoundError(f"context-agents manifest not found (checked {', '.join(str(c) for c in candidates)})")
+
+
+def run_context_setup(
+    repo_root: Path,
+    *,
+    group: str = "all",
+    base_url: str = "http://127.0.0.1:11434",
+    model: str = HERMES_DEFAULT_MODEL,
+    wire_pi: bool = True,
+    dry_run: bool = False,
+    json_out: bool = False,
+) -> Dict[str, Any]:
+    """Provision Hermes `context-*` / `consolidate-*` profiles and wire `pi` to loopback local-router."""
+    clean_base = (base_url or "http://127.0.0.1:11434").strip().rstrip("/")
+    validate_loopback_host(clean_base)
+    v1_base = clean_base if clean_base.endswith("/v1") else f"{clean_base}/v1"
+    model_id = (model or HERMES_DEFAULT_MODEL).strip()
+    if not model_id or "\n" in model_id or "\r" in model_id:
+        raise ValueError("Invalid context agent model id")
+
+    manifest_path = _find_context_agents_manifest(repo_root)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_dir = manifest_path.parent
+    hhome = hermes_home_dir()
+    hermes_bin = hermes_available()
+
+    # Repair/sync `providers.local-router` in root Hermes config without altering the operator's global default model.
+    root_cfg_path = hhome / "config.yaml"
+    root_existing = root_cfg_path.read_text(encoding="utf-8", errors="replace") if root_cfg_path.is_file() else ""
+    root_next = _upsert_hermes_config_yaml(
+        root_existing,
+        v1_base_url=v1_base,
+        model=model_id,
+        set_default_model=False,
+        toolless=False,
+        stateless=False,
+    )
+    root_changed = root_next != root_existing
+    if root_changed and not dry_run:
+        hhome.mkdir(parents=True, exist_ok=True)
+        root_cfg_path.write_text(root_next, encoding="utf-8")
+
+    selected = [
+        entry for entry in (manifest.get("profiles") or [])
+        if group == "all" or entry.get("group") == group
+    ]
+    profiles_out: List[Dict[str, Any]] = []
+    for entry in selected:
+        pname = str(entry["name"])
+        desc = str(entry.get("description") or "").strip()
+        skill_rel = str(entry.get("skill") or "").strip()
+        skill_src = (manifest_dir / skill_rel).resolve() if skill_rel else None
+        pdir = hermes_profile_dir(pname)
+        existed = pdir.is_dir()
+
+        if not dry_run:
+            if not existed and hermes_bin:
+                cmd = [
+                    hermes_bin, "profile", "create", pname,
+                    "--no-alias", "--no-skills", "--no-credentials",
+                ]
+                if desc:
+                    cmd.extend(["--description", desc])
+                try:
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=20.0, stdin=subprocess.DEVNULL)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+            (pdir / "skills" / pname).mkdir(parents=True, exist_ok=True)
+            (pdir / "memories").mkdir(parents=True, exist_ok=True)
+            (pdir / "sessions").mkdir(parents=True, exist_ok=True)
+
+            if desc:
+                (pdir / "description.txt").write_text(desc + "\n", encoding="utf-8")
+            if skill_src and skill_src.is_file():
+                (pdir / "skills" / pname / "SKILL.md").write_text(
+                    skill_src.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+
+            cfg_path = pdir / "config.yaml"
+            cfg_existing = cfg_path.read_text(encoding="utf-8", errors="replace") if cfg_path.is_file() else ""
+            cfg_next = _upsert_hermes_config_yaml(
+                cfg_existing,
+                v1_base_url=v1_base,
+                model=model_id,
+                set_default_model=True,
+                toolless=True,
+                stateless=(pname == CONTEXT_GOLDFISH_PROFILE),
+            )
+            cfg_changed = cfg_next != cfg_existing
+            if cfg_changed:
+                cfg_path.write_text(cfg_next, encoding="utf-8")
+        else:
+            cfg_path = pdir / "config.yaml"
+            cfg_changed = True
+
+        profiles_out.append({
+            "name": pname,
+            "group": entry.get("group"),
+            "role": entry.get("role"),
+            "dir": str(pdir),
+            "created": not existed,
+            "config_updated": cfg_changed,
+            "skill_synced": bool(skill_src and skill_src.is_file()),
+        })
+
+    pi_result = (
+        _sync_pi_models_json(clean_base, model_id, dry_run=dry_run)
+        if wire_pi
+        else {"ok": True, "skipped": True}
+    )
+
+    payload = {
+        "format": "ainish-coder/context-setup/v1",
+        "ok": bool(pi_result.get("ok", True)),
+        "dry_run": dry_run,
+        "group": group,
+        "base_url": v1_base,
+        "model": model_id,
+        "hermes_binary": hermes_bin,
+        "hermes_home": str(hhome),
+        "root_config_updated": root_changed,
+        "profiles": profiles_out,
+        "pi": pi_result,
+    }
+    if json_out:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"=== Context Agents Setup ({'dry-run' if dry_run else 'applied'}) ===")
+        print(f"Hermes Home:  {hhome} ({'binary: ' + hermes_bin if hermes_bin else 'binary missing; scaffolded files'})")
+        print(f"Router URL:   {v1_base} (model: {model_id})")
+        print(f"Root Config:  {root_cfg_path} ({'updated' if root_changed else 'unchanged'})")
+        for row in profiles_out:
+            tag = "created" if row["created"] else ("updated" if row["config_updated"] else "ok")
+            print(f"  - {row['name']:<24} [{row['group']}/{row['role']}] {tag}")
+        if wire_pi:
+            state = "updated" if pi_result.get("changed") else "already current"
+            print(f"pi Config:    {pi_result.get('models_path')} ({state})")
+    return payload
+
+
 def hermes_available() -> Optional[str]:
     pinned = (_env_nonempty(HERMES_BINARY_ENV) or "").strip()
     if pinned and Path(pinned).is_file():
         return pinned
     return shutil.which("hermes")
+
+
+def _hermes_extract_stream(stdout: str) -> Tuple[str, Optional[str], Optional[int], Optional[str], Optional[int]]:
+    """Parse Hermes `--format stream-json` JSONL events, with clean plain-text fallback."""
+    text_chunks: List[str] = []
+    result_text: Optional[str] = None
+    error: Optional[str] = None
+    input_tokens: Optional[int] = None
+    served_model: Optional[str] = None
+    duration_ms: Optional[int] = None
+    saw_json = False
+
+    for raw_line in (stdout or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("{"):
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            saw_json = True
+            etype = ev.get("type")
+            if etype == "system" and ev.get("model"):
+                served_model = str(ev["model"])
+            elif etype == "text" and ev.get("text"):
+                text_chunks.append(str(ev["text"]))
+            elif etype == "result":
+                if ev.get("text"):
+                    result_text = str(ev["text"])
+                if ev.get("error"):
+                    error = str(ev["error"])[:220]
+                elif isinstance(ev.get("exit_code"), int) and ev["exit_code"] != 0 and not error:
+                    error = f"hermes result exit_code {ev['exit_code']}"
+                tokens = ev.get("tokens") or {}
+                if isinstance(tokens.get("input"), int):
+                    input_tokens = tokens["input"]
+                if isinstance(ev.get("duration_ms"), int):
+                    duration_ms = ev["duration_ms"]
+            elif etype == "error":
+                error = str(ev.get("message") or ev.get("error") or "hermes error")[:220]
+
+    if saw_json:
+        body = (result_text if result_text is not None else "".join(text_chunks)).strip()
+        return body, error, input_tokens, served_model, duration_ms
+
+    # Plain-text fallback: strip Hermes `Session: ...` and footer `session_id: ...` banners.
+    cleaned = [
+        ln for ln in (stdout or "").splitlines()
+        if not ln.startswith("Session: ") and not ln.startswith("session_id: ")
+    ]
+    return "\n".join(cleaned).strip(), None, None, None, None
 
 
 def hermes_profile_call(
@@ -4611,33 +5061,85 @@ def hermes_profile_call(
     timeout: Optional[float] = None,
     fallback_role: Optional[str] = None,
     system_prompt: str = "",
+    model: Optional[str] = None,
+    reasoning: Optional[str] = None,
+    toolless: bool = True,
 ) -> Dict[str, Any]:
-    """One shot through a hermes profile. Never raises, like `pi_agent_call`.
-
-    `hermes -z` takes the prompt as a single argv value and has no system-prompt flag, so a system
-    prompt is prepended into the same text rather than silently dropped.
-    """
-    out: Dict[str, Any] = {"text": "", "source": None, "profile": profile, "transport": None, "error": None}
+    """One shot through a Hermes profile over stdin `--query-file -`. Never raises."""
+    _ = fallback_role
+    out: Dict[str, Any] = {
+        "text": "",
+        "source": None,
+        "profile": profile,
+        "transport": None,
+        "requested_model": model,
+        "served_model": None,
+        "input_tokens": None,
+        "duration_ms": None,
+        "error": None,
+    }
     binary = hermes_available()
     if not binary:
         out["error"] = f"hermes not found (set {HERMES_BINARY_ENV} or install hermes)"
         return out
+    if _env_nonempty("AINISH_HERMES_SKIP_PROFILE_CHECK") != "1" and not hermes_profile_exists(profile):
+        out["error"] = (
+            f"hermes profile '{profile}' missing in {hermes_profile_dir(profile)} "
+            "(run `ainish-coder --context-setup`)"
+        )
+        return out
     text = f"{system_prompt.strip()}\n\n{prompt}" if system_prompt.strip() else prompt
     seconds = float(timeout if timeout is not None else (_env_nonempty("AINISH_HERMES_TIMEOUT") or HERMES_TIMEOUT_DEFAULT))
-    argv = [binary, "-z", text, "--profile", profile]
+    argv = [
+        binary,
+        "--profile", profile,
+        "chat",
+        "--query-file", "-",
+        "--oneshot",
+        "-Q",
+        "--source", "tool",
+        "--format", "stream-json",
+    ]
+    if toolless:
+        argv.extend(["--max-turns", "1"])
+    if model:
+        if model == HERMES_DEFAULT_MODEL or model.startswith(f"{HERMES_PROVIDER_ID}/"):
+            argv.extend(["--provider", HERMES_PROVIDER_ID, "-m", model])
+        else:
+            argv.extend(["-m", model])
+    if reasoning:
+        argv.extend(["--reasoning", reasoning])
+
+    t_start = time.time()
     try:
-        res = subprocess.run(argv, capture_output=True, text=True, timeout=seconds,
-                             stdin=subprocess.DEVNULL)
+        res = subprocess.run(
+            argv,
+            input=text,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=seconds,
+        )
     except subprocess.TimeoutExpired:
         out["error"] = f"hermes timed out after {seconds:.0f}s (profile {profile})"
         return out
     except (OSError, subprocess.SubprocessError) as exc:
         out["error"] = f"hermes failed to run: {str(exc)[:120]}"
         return out
-    if res.returncode != 0:
-        out["error"] = f"hermes exited {res.returncode}: {((res.stderr or '').strip().splitlines() or ['no output'])[0][:160]}"
+
+    body, stream_err, input_tokens, served_model, duration_ms = _hermes_extract_stream(res.stdout or "")
+    out["served_model"] = served_model
+    out["input_tokens"] = input_tokens
+    out["duration_ms"] = duration_ms if duration_ms is not None else int((time.time() - t_start) * 1000)
+
+    if res.returncode != 0 and not body:
+        stderr_first = ((res.stderr or "").strip().splitlines() or ["no output"])[0][:160]
+        out["error"] = stream_err or f"hermes exited {res.returncode}: {stderr_first}"
         return out
-    body = (res.stdout or "").strip()
+    if stream_err and not body:
+        out["error"] = stream_err
+        return out
     if not body:
         out["error"] = "hermes returned no output"
         return out
@@ -5048,6 +5550,100 @@ def _pi_role_model(role: str) -> Optional[str]:
     return PI_DEFAULT_MODEL
 
 
+def _context_agent_call(
+    role: str,
+    driver: Optional["DriverEngine"],
+    system_prompt: str,
+    user_prompt: str,
+    attachments: Optional[List[str]] = None,
+    max_tokens: Optional[int] = None,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Dispatch a prime context role: Hermes profile -> degraded `pi` -> degraded `DriverEngine`.
+
+    Honors `AINISH_CONTEXT_RUNTIME` (`auto|hermes|pi|driver`) and `--no-remote` (`driver.allow_remote == False`).
+    Falls back cleanly on tier failure while recording explicit `degrade_note` metadata (no silent downgrade).
+    """
+    profile = CONTEXT_ELEPHANT_PROFILE if role == "elephant" else CONTEXT_GOLDFISH_PROFILE
+    model = _pi_role_model(role)
+    attached = [p for p in (attachments or []) if p]
+
+    if driver is not None and driver.allow_remote is False:
+        order = ["driver"]
+    else:
+        pref = (_env_nonempty(CONTEXT_RUNTIME_ENV) or "auto").strip().lower()
+        if pref == "hermes":
+            order = ["hermes"]
+        elif pref == "pi":
+            order = ["pi", "driver"] if driver is not None else ["pi"]
+        elif pref == "driver":
+            order = ["driver"]
+        else:
+            order = ["hermes", "pi", "driver"] if driver is not None else ["hermes", "pi"]
+
+    failures: List[str] = []
+    for idx, tier in enumerate(order):
+        if tier == "hermes":
+            res = hermes_profile_call(
+                profile,
+                user_prompt,
+                timeout=timeout,
+                system_prompt=system_prompt,
+                model=model,
+                toolless=True,
+            )
+            if (res.get("text") or "").strip():
+                res["role"] = role
+                res["attached"] = attached
+                res["model_verified"] = True
+                return res
+            failures.append(f"hermes:{profile}: {res.get('error') or 'no output'}")
+            continue
+
+        if tier == "pi":
+            res = pi_agent_call(
+                role=role,
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                attachments=attached,
+                timeout=timeout,
+            )
+            if (res.get("text") or "").strip():
+                res["transport"] = "pi"
+                if idx > 0 and failures:
+                    res["fallback_from"] = f"hermes:{profile}"
+                    res["degrade_note"] = f"{role} degraded to pi fallback ({failures[0]})"
+                return res
+            failures.append(f"pi: {res.get('error') or 'no output'}")
+            continue
+
+        if tier == "driver" and driver is not None:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            dres = driver.chat(messages, max_tokens=max_tokens, role=role, timeout=timeout)
+            if (dres.get("text") or "").strip():
+                dres["transport"] = "driver"
+                dres["attached"] = attached
+                if idx > 0 and failures:
+                    dres["fallback_from"] = f"hermes:{profile}"
+                    dres["degrade_note"] = f"{role} degraded to DriverEngine ({failures[0]})"
+                return dres
+            failures.append(f"driver: {dres.get('error') or 'no output'}")
+
+    return {
+        "text": "",
+        "source": "unavailable",
+        "transport": None,
+        "role": role,
+        "requested_model": model,
+        "attached": attached,
+        "error": "; ".join(failures) or "no context runtime configured",
+    }
+
+
 def elephant_synthesize(
     driver: Optional["DriverEngine"],
     task: str,
@@ -5074,14 +5670,14 @@ def elephant_synthesize(
         f"Attached evidence files: {', '.join(attachments) if attachments else '(none)'}\n\n"
         f"Write the advisory note now. At most {word_cap} words."
     )
-    result = pi_agent_call(
-        role="elephant",
-        model=_pi_role_model("elephant"),
-        system_prompt=elephant_brief(word_cap),
-        user_prompt=user_prompt,
+    return _context_agent_call(
+        "elephant",
+        driver,
+        elephant_brief(word_cap),
+        user_prompt,
         attachments=attachments,
+        max_tokens=token_cap,
     )
-    return result
 
 
 def goldfish_review(
@@ -5134,6 +5730,8 @@ def goldfish_review(
     parts: List[str] = []
     attempts: List[str] = []
     sources: List[str] = []
+    transports: List[str] = []
+    degrade_notes: List[str] = []
     models: List[str] = []
     served: List[str] = []
     durations: List[int] = []
@@ -5141,16 +5739,21 @@ def goldfish_review(
 
     def _step(label: str, brief: str, prompt: str) -> str:
         nonlocal verified
-        result = pi_agent_call(
-            role="goldfish",
-            model=model,
-            system_prompt=brief,
-            user_prompt=prompt,
+        result = _context_agent_call(
+            "goldfish",
+            driver,
+            brief,
+            prompt,
             attachments=attachments,
+            max_tokens=REVIEW_MAX_TOKENS,
         )
         text = (result.get("text") or "").strip()
         if result.get("source"):
             sources.append(str(result["source"]))
+        if result.get("transport"):
+            transports.append(str(result["transport"]))
+        if result.get("degrade_note"):
+            degrade_notes.append(f"{label}: {result['degrade_note']}")
         if result.get("requested_model"):
             models.append(str(result["requested_model"]))
         if result.get("served_model"):
@@ -5200,10 +5803,11 @@ def goldfish_review(
         parts.append(f"**3. Implementation readiness**\n{verdict}")
 
     text = "\n\n".join(parts)
+    unique_transports = sorted(set(transports))
     return {
         "text": text,
         "source": ", ".join(sorted(set(sources))) if sources else "unavailable",
-        "tier": "pi",
+        "tier": unique_transports[0] if len(unique_transports) == 1 else ("hybrid" if unique_transports else "unavailable"),
         "role": "goldfish",
         "requested_model": models[0] if models else model,
         "models_used": sorted(set(models)),
@@ -5216,6 +5820,7 @@ def goldfish_review(
         # Every failed step is reported even when the review produced some text: a partial review that
         # says nothing about its missing third reads as a complete one.
         "error": "; ".join(attempts) if attempts else None,
+        "degrade_notes": degrade_notes,
         "steps": {
             "comprehension": bool(restatement),
             "antagonistic": bool(findings),
@@ -7299,12 +7904,18 @@ def run_context_command(
                 driver, task, session_state, retrieval_text, caps["elephant"],
                 hits=hits, repo_root=repo_root,
             )
+            eleph_transport = elephant.get("transport") or "agent"
+            eleph_label = (
+                f"hermes ({CONTEXT_ELEPHANT_PROFILE})"
+                if eleph_transport == "hermes"
+                else f"{eleph_transport} agent"
+            )
             sections.append(
                 {
                     "source": "elephant",
                     "text": elephant.get("text") or "",
                     "reason": (
-                        f"pi agent, session-aware ({session_state.get('turns', 0)} prior turns); "
+                        f"{eleph_label}, session-aware ({session_state.get('turns', 0)} prior turns); "
                         f"{len(elephant.get('attached') or [])} file(s) attached"
                         if elephant.get("text")
                         else f"unavailable: {elephant.get('error') or elephant.get('reason')}"
@@ -7312,6 +7923,9 @@ def run_context_command(
                     "driver": elephant.get("source"),
                 }
             )
+            if elephant.get("degrade_note"):
+                degraded = True
+                degrade_notes.append(str(elephant["degrade_note"]))
             if not elephant.get("text"):
                 degraded = True
                 degrade_notes.append(f"elephant unavailable: {elephant.get('error') or elephant.get('reason') or 'no output'}")
@@ -7379,7 +7993,12 @@ def run_context_command(
                 if missing:
                     step_note += f" (incomplete: {', '.join(missing)} returned nothing)"
             else:
-                step_note = f"refused: {separation_reason or goldfish.get('error')}"
+                fail_detail = (
+                    (separation_reason or goldfish.get("error") or "refused")
+                    if reviewer_separation == "refused"
+                    else (goldfish.get("error") or separation_reason or "no output")
+                )
+                step_note = f"{'refused' if reviewer_separation == 'refused' else 'unavailable'}: {fail_detail}"
             sections.append(
                 {
                     "source": "goldfish",
@@ -7388,11 +8007,18 @@ def run_context_command(
                     "driver": goldfish.get("source"),
                 }
             )
+            for gnote in (goldfish.get("degrade_notes") or []):
+                degraded = True
+                if gnote not in degrade_notes:
+                    degrade_notes.append(gnote)
             if not goldfish.get("text"):
                 degraded = True
-                degrade_notes.append(
-                    f"goldfish unavailable: {separation_reason or goldfish.get('error') or 'no output'}"
+                gf_err = (
+                    (separation_reason or goldfish.get("error") or "refused")
+                    if reviewer_separation == "refused"
+                    else (goldfish.get("error") or separation_reason or "no output")
                 )
+                degrade_notes.append(f"goldfish unavailable: {gf_err}")
             # Report both role models explicitly, plus WHETHER the reviewer was actually independent.
             # `distinct_models` comparing transport-qualified sources was the old claim and it could
             # be true while both were one model behind a router. `reviewer_isolation` states the fact
@@ -9368,6 +9994,35 @@ def main():
              "Writes tracked files, so it is off by default.",
     )
 
+    setup_p = sub.add_parser(
+        "context-setup",
+        help="Provision Hermes context/consolidate profiles and wire pi models.json to loopback local-router",
+    )
+    setup_p.add_argument(
+        "--group", choices=("all", "prime", "consolidate"), default="all",
+        help="Which context agent profile group to provision (default: all)",
+    )
+    setup_p.add_argument(
+        "--base-url", default="http://127.0.0.1:11434",
+        help="Loopback URL for local-router (default: http://127.0.0.1:11434)",
+    )
+    setup_p.add_argument(
+        "--model", default=HERMES_DEFAULT_MODEL,
+        help=f"Default model id to configure (default: {HERMES_DEFAULT_MODEL})",
+    )
+    setup_p.add_argument(
+        "--no-pi", action="store_true",
+        help="Skip merging local-router into pi's models.json",
+    )
+    setup_p.add_argument(
+        "--dry-run", action="store_true",
+        help="Compute and report setup changes without writing files",
+    )
+    setup_p.add_argument(
+        "--json", action="store_true",
+        help="Emit ainish-coder/context-setup/v1 JSON output",
+    )
+
     # ── the per-repo context harness ────────────────────────────────────────
     # Learning is deliberately NOT a flag on `context`: a context call must never block the task
     # that asked for it, and a learning step costs a model session. These verbs are separate so the
@@ -9576,6 +10231,19 @@ def main():
             refresh_wiki=bool(getattr(args, "refresh_wiki", False)),
         )
 
+    elif args.subcommand == "context-setup":
+        result = run_context_setup(
+            repo_root,
+            group=str(getattr(args, "group", "all") or "all"),
+            base_url=str(getattr(args, "base_url", "http://127.0.0.1:11434") or "http://127.0.0.1:11434"),
+            model=str(getattr(args, "model", HERMES_DEFAULT_MODEL) or HERMES_DEFAULT_MODEL),
+            wire_pi=not bool(getattr(args, "no_pi", False)),
+            dry_run=bool(getattr(args, "dry_run", False)),
+            json_out=bool(getattr(args, "json", False)),
+        )
+        if not result.get("ok"):
+            sys.exit(1)
+
     elif args.subcommand == "context-seed":
         # LEARNED state is tracked, so it belongs to the checkout the caller is standing in, not to
         # the canonical one. See `resolve_worktree_root`.
@@ -9779,6 +10447,36 @@ def main():
                   "chain start is shared; --context resolves and verifies a distinct reviewer per call")
         )
         print(f"  pair      {mode}")
+        print()
+        print("=== Context Agents (Hermes primary -> pi -> DriverEngine) ===")
+        hbin = hermes_available()
+        hhome = hermes_home_dir()
+        runtime_mode = (_env_nonempty(CONTEXT_RUNTIME_ENV) or "auto").strip().lower()
+        print(f"Runtime Mode:       {runtime_mode} ({CONTEXT_RUNTIME_ENV})")
+        print(f"Hermes Binary:      {hbin or 'not found'}")
+        print(f"Hermes Home:        {hhome}")
+        all_profiles = (
+            CONTEXT_ELEPHANT_PROFILE,
+            CONTEXT_GOLDFISH_PROFILE,
+            CONSOLIDATE_DRAFTER_PROFILE,
+            "consolidate-goldfish",
+            "consolidate-archivist",
+            "consolidate-structural",
+        )
+        present = [p for p in all_profiles if hermes_profile_exists(p)]
+        missing = [p for p in all_profiles if p not in present]
+        print(f"Hermes Profiles:    {len(present)}/{len(all_profiles)} ready"
+              + (f" (missing: {', '.join(missing)})" if missing else ""))
+        pi_bin = pi_available()
+        pi_models_file = pi_agent_dir() / "models.json"
+        pi_wired = False
+        if pi_models_file.is_file():
+            try:
+                pm_doc = json.loads(pi_models_file.read_text(encoding="utf-8", errors="replace") or "{}")
+                pi_wired = bool(((pm_doc.get("providers") or {}).get(HERMES_PROVIDER_ID)))
+            except Exception:
+                pi_wired = False
+        print(f"pi CLI / Wiring:    {pi_bin or 'not found'} | {pi_models_file} ({'local-router wired' if pi_wired else 'unwired'})")
         print()
 
     elif args.subcommand == "wiki":

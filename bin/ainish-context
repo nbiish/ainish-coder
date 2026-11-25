@@ -51,10 +51,25 @@ fi
 # Same approach, and the same version floor, as `scripts/scrolls/scroll_manifest.py`.
 SIGN_DEP="cryptography>=47"
 
+# Only signing/verification subcommands need cryptography>=47; context/setup/secrets avoid cold uv installs.
+_subcmd=""
+for _arg in "$@"; do
+    case "$_arg" in
+        -*) ;;
+        *) _subcmd="$_arg"; break ;;
+    esac
+done
+_extra_with=""
+case "$_subcmd" in
+    audit|wiki|gate|statusline)
+        _extra_with="--with $SIGN_DEP"
+        ;;
+esac
+
 if command -v uv >/dev/null 2>&1; then
-    exec uv run $UV_FLAGS --with "$SIGN_DEP" "$PY_ENGINE" "$@"
+    exec uv run $UV_FLAGS $_extra_with "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.local/bin/uv" ]; then
-    exec "$HOME/.local/bin/uv" run $UV_FLAGS --with "$SIGN_DEP" "$PY_ENGINE" "$@"
+    exec "$HOME/.local/bin/uv" run $UV_FLAGS $_extra_with "$PY_ENGINE" "$@"
 elif [ -f "$HOME/.cargo/bin/uv" ]; then
     exec "$HOME/.cargo/bin/uv" run $UV_FLAGS "$PY_ENGINE" "$@"
 elif command -v python3 >/dev/null 2>&1; then

@@ -25,7 +25,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-RAG_PATH = Path(__file__).resolve().parents[1] / "rag.py"
+RAG_PATH = Path(__file__).resolve().parents[1] / "engine.py"
 _SPEC = importlib.util.spec_from_file_location("ainish_rag_context", RAG_PATH)
 rag = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(rag)
@@ -471,6 +471,16 @@ class ElephantSessionTest(unittest.TestCase):
 
 class GoldfishIsolationTest(unittest.TestCase):
     """Goldfish must not be able to see session state. Enforced by signature, proven by capture."""
+
+    def setUp(self):
+        self._saved_runtime = os.environ.get("AINISH_CONTEXT_RUNTIME")
+        os.environ["AINISH_CONTEXT_RUNTIME"] = "pi"
+
+    def tearDown(self):
+        if self._saved_runtime is None:
+            os.environ.pop("AINISH_CONTEXT_RUNTIME", None)
+        else:
+            os.environ["AINISH_CONTEXT_RUNTIME"] = self._saved_runtime
 
     def test_signature_carries_no_session_parameter(self):
         import inspect
@@ -1337,6 +1347,217 @@ class FileFallbackTest(unittest.TestCase):
         body = rag.render_file_fallback_section(self.root, "zzzz qqqq", 800)
         self.assertIn("Wiki inventory", body)
         self.assertNotIn("unrelated content", body)
+
+
+class HermesContextRuntimeTest(unittest.TestCase):
+    """Hermes primary context runtime, explicit degradation ladder, Goldfish error surfacing, and setup."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "repo"
+        self.hermes_home = Path(self._tmp.name) / "hermes-home"
+        self.pi_dir = Path(self._tmp.name) / "pi-agent"
+        self.root.mkdir(parents=True)
+        (self.root / ".agents" / "wiki").mkdir(parents=True)
+        (self.root / ".agents" / "wiki" / "01-arch.md").write_text(
+            "# Architecture\n\n## Context Runtime\nHermes primary runtime routes through local-router.\n",
+            encoding="utf-8",
+        )
+        self._env_keys = (
+            "HERMES_HOME",
+            "PI_CODING_AGENT_DIR",
+            "AINISH_CONTEXT_RUNTIME",
+            "AINISH_HERMES_BIN",
+            "AINISH_HERMES_SKIP_PROFILE_CHECK",
+        )
+        self._saved_env = {k: os.environ.get(k) for k in self._env_keys}
+        os.environ["HERMES_HOME"] = str(self.hermes_home)
+        os.environ["PI_CODING_AGENT_DIR"] = str(self.pi_dir)
+        os.environ.pop("AINISH_CONTEXT_RUNTIME", None)
+
+    def tearDown(self):
+        for k, prev in self._saved_env.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+        self._tmp.cleanup()
+
+    def test_context_setup_provisions_profiles_preserves_memories_and_wires_pi(self):
+        # Write a pre-existing operator provider in pi/models.json and an existing memory file.
+        self.pi_dir.mkdir(parents=True, exist_ok=True)
+        (self.pi_dir / "models.json").write_text(
+            json.dumps({"providers": {"custom-keep": {"baseUrl": "http://127.0.0.1:9999/v1", "models": []}}}),
+            encoding="utf-8",
+        )
+        eleph_mem = self.hermes_home / "profiles" / "context-elephant" / "memories" / "MEMORY.md"
+        eleph_mem.parent.mkdir(parents=True, exist_ok=True)
+        eleph_mem.write_text("# Keep existing memory\n", encoding="utf-8")
+
+        orig_hermes_avail = rag.hermes_available
+        rag.hermes_available = lambda: None
+        try:
+            res = rag.run_context_setup(
+                Path(__file__).resolve().parents[3],
+                group="all",
+                base_url="http://127.0.0.1:11434",
+                json_out=False,
+            )
+        finally:
+            rag.hermes_available = orig_hermes_avail
+
+        self.assertTrue(res["ok"])
+        self.assertEqual(len(res["profiles"]), 6)
+        self.assertEqual(eleph_mem.read_text(encoding="utf-8"), "# Keep existing memory\n")
+        for pname in (
+            "context-elephant",
+            "context-goldfish",
+            "consolidate-elephant",
+            "consolidate-goldfish",
+            "consolidate-archivist",
+            "consolidate-structural",
+        ):
+            pdir = self.hermes_home / "profiles" / pname
+            cfg = (pdir / "config.yaml").read_text(encoding="utf-8")
+            self.assertIn("provider: local-router", cfg)
+            self.assertIn("http://127.0.0.1:11434/v1", cfg)
+            self.assertIn("platform_toolsets:\n  cli: []", cfg)
+            self.assertTrue((pdir / "skills" / pname / "SKILL.md").is_file())
+        gf_cfg = (self.hermes_home / "profiles" / "context-goldfish" / "config.yaml").read_text(encoding="utf-8")
+        self.assertIn("memory_enabled: false", gf_cfg)
+        models_doc = json.loads((self.pi_dir / "models.json").read_text(encoding="utf-8"))
+        self.assertIn("custom-keep", models_doc["providers"])
+        self.assertEqual(models_doc["providers"]["local-router"]["baseUrl"], "http://127.0.0.1:11434/v1")
+
+    def test_context_setup_rejects_non_loopback_base_url(self):
+        with self.assertRaises(ValueError):
+            rag.run_context_setup(Path(__file__).resolve().parents[3], base_url="https://evil.example.com")
+
+    def test_hermes_profile_call_uses_stream_json_stdin_and_no_t_none(self):
+        # Ensure profile exists on disk, then mock subprocess.run cleanly.
+        pdir = self.hermes_home / "profiles" / "context-elephant"
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / "config.yaml").write_text("model:\n  default: local-router/fallback-models\n", encoding="utf-8")
+
+        captured = {}
+        orig_avail = rag.hermes_available
+        orig_run = rag.subprocess.run
+        rag.hermes_available = lambda: "/fake/hermes"
+
+        class FakeProc:
+            returncode = 0
+            stderr = ""
+            stdout = "\n".join([
+                json.dumps({"type": "system", "subtype": "init", "model": "local-router/fallback-models"}),
+                json.dumps({"type": "text", "text": "Hermes synthesized brief."}),
+                json.dumps({"type": "result", "exit_code": 0, "text": "Hermes synthesized brief.", "tokens": {"input": 42}, "duration_ms": 120}),
+            ])
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            captured["input"] = kwargs.get("input")
+            return FakeProc()
+
+        rag.subprocess.run = fake_run
+        try:
+            res = rag.hermes_profile_call(
+                "context-elephant",
+                "user prompt body",
+                system_prompt="sys prompt",
+                model="local-router/fallback-models",
+                toolless=True,
+            )
+        finally:
+            rag.hermes_available = orig_avail
+            rag.subprocess.run = orig_run
+
+        self.assertEqual(res["text"], "Hermes synthesized brief.")
+        self.assertEqual(res["source"], "hermes:context-elephant")
+        self.assertEqual(res["transport"], "hermes")
+        self.assertEqual(res["served_model"], "local-router/fallback-models")
+        self.assertIn("--query-file", captured["argv"])
+        self.assertIn("stream-json", captured["argv"])
+        self.assertIn("--max-turns", captured["argv"])
+        self.assertNotIn("none", captured["argv"])
+        self.assertNotIn("--no-restore-cwd", captured["argv"])
+        self.assertIn("sys prompt", captured["input"])
+        self.assertIn("user prompt body", captured["input"])
+
+    def test_degraded_fallback_hermes_to_pi_and_driver(self):
+        orig_h = rag.hermes_profile_call
+        orig_pi = rag.pi_agent_call
+
+        # 1. Hermes fails -> pi answers -> degraded note emitted.
+        rag.hermes_profile_call = lambda *a, **kw: {"text": "", "error": "hermes offline"}
+        rag.pi_agent_call = lambda **kw: {
+            "text": "pi fallback output",
+            "source": "pi:local-router",
+            "requested_model": "local-router/fallback-models",
+            "model_verified": True,
+        }
+        try:
+            res1 = rag._context_agent_call("elephant", None, "sys", "usr")
+        finally:
+            rag.hermes_profile_call = orig_h
+            rag.pi_agent_call = orig_pi
+        self.assertEqual(res1["text"], "pi fallback output")
+        self.assertIn("degraded to pi fallback", res1.get("degrade_note") or "")
+
+        # 2. Both Hermes and pi fail -> DriverEngine answers -> degraded note emitted.
+        class FakeDriver:
+            allow_remote = True
+
+            def chat(self, messages, **kw):
+                return {
+                    "text": "driver fallback output",
+                    "source": "local-router:glm-5.3-flash",
+                    "tier": "local-router",
+                    "requested_model": "glm-5.3-flash",
+                    "model_verified": True,
+                }
+
+        rag.hermes_profile_call = lambda *a, **kw: {"text": "", "error": "hermes offline"}
+        rag.pi_agent_call = lambda **kw: {"text": "", "error": "pi missing"}
+        try:
+            res2 = rag._context_agent_call("elephant", FakeDriver(), "sys", "usr")
+        finally:
+            rag.hermes_profile_call = orig_h
+            rag.pi_agent_call = orig_pi
+        self.assertEqual(res2["text"], "driver fallback output")
+        self.assertEqual(res2["transport"], "driver")
+        self.assertIn("degraded to DriverEngine", res2.get("degrade_note") or "")
+
+    def test_goldfish_failure_surfaces_actual_error_under_fresh_context(self):
+        orig_h = rag.hermes_profile_call
+        orig_pi = rag.pi_agent_call
+        orig_drv = rag.DriverEngine
+
+        class NoopDriver:
+            def __init__(self, allow_remote=None):
+                self.allow_remote = False
+
+            def chat(self, messages, **kw):
+                return {"text": "", "error": "offline floor unreachable"}
+
+        rag.DriverEngine = NoopDriver
+        rag.hermes_profile_call = lambda *a, **kw: {"text": "", "error": "hermes down"}
+        rag.pi_agent_call = lambda **kw: {"text": "", "error": "pi model missing"}
+        try:
+            inj = rag.run_context_command(
+                self.root,
+                task="Context Runtime",
+                json_out=True,
+                retrieval_only=False,
+            )
+        finally:
+            rag.hermes_profile_call = orig_h
+            rag.pi_agent_call = orig_pi
+            rag.DriverEngine = orig_drv
+
+        notes = " | ".join(inj.get("degrade_notes") or [])
+        self.assertTrue(inj.get("degraded"))
+        self.assertIn("offline floor unreachable", notes)
+        self.assertNotIn("goldfish unavailable: same model", notes)
 
 
 if __name__ == "__main__":

@@ -352,6 +352,40 @@ else
     bad "--latest misattributed feat/alpha"
 fi
 
+echo "== 18. cross-platform UTC dates, missing-repo vs unreachable hint, and --doctor --json =="
+if printf '%s' "$LT" | grep -qE '20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}'; then
+    ok "--latest formats UTC ISO timestamps (not raw epoch) on this platform"
+else
+    bad "--latest did not format UTC ISO timestamp"; printf '%s\n' "$LT" | sed 's/^/    | /'
+fi
+
+MISSING_PEER="${WORK}/peer-missing-root"
+mkdir -p "$MISSING_PEER"
+printf 'box-18gb=self\ngone-16gb=%s\n' "$MISSING_PEER" > "${WORK}/machines-gone.txt"
+MISS_OUT="$("$CLI" --machine-sync --repo "$M" --machines-file "${WORK}/machines-gone.txt" \
+    --machine gone-16gb --latest 2>&1)"
+if printf '%s' "$MISS_OUT" | grep -q -- '--machine-link'; then
+    ok "missing local repo at peer path suggests --machine-link fix"
+else
+    bad "missing repo did not suggest --machine-link"; printf '%s\n' "$MISS_OUT" | sed 's/^/    | /'
+fi
+
+DOC_HERMES="${WORK}/doc-hermes"
+DOC_PI="${WORK}/doc-pi"
+for p in context-elephant context-goldfish consolidate-elephant consolidate-goldfish consolidate-archivist consolidate-structural; do
+    mkdir -p "${DOC_HERMES}/profiles/${p}"
+    printf 'model:\n  default: local-router/fallback-models\n' > "${DOC_HERMES}/profiles/${p}/config.yaml"
+done
+mkdir -p "$DOC_PI"
+printf '{"providers":{"local-router":{"baseUrl":"http://127.0.0.1:11434/v1"}}}\n' > "${DOC_PI}/models.json"
+DOC_JSON="$(HERMES_HOME="$DOC_HERMES" PI_CODING_AGENT_DIR="$DOC_PI" AINISH_LOCAL_ROUTER_URL="http://127.0.0.1:9" \
+    "$CLI" --machine-sync --doctor --json --machines-file "${WORK}/machines-c.txt" --links-file "$LINKS" 2>/dev/null || true)"
+if printf '%s' "$DOC_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["format"]=="ainish-coder/machine-doctor/v1"; assert d["context_agents"]["profiles_ready"]==6; assert d["context_agents"]["pi_wired"] is True' 2>/dev/null; then
+    ok "--machine-sync --doctor --json reports 6/6 Hermes profiles and pi wiring"
+else
+    bad "--machine-sync --doctor --json payload invalid"; printf '%s\n' "$DOC_JSON" | sed 's/^/    | /'
+fi
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1

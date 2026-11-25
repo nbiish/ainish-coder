@@ -34,5 +34,15 @@ sources are deleted after this.
 
 ## Installing
 
-`ainish-coder --rules` creates the four profiles if absent, sets their descriptions, and copies these
-skills into place. A repository that already has them is left alone.
+Canonical profile blueprints and skills for both the prime context pair (`context-elephant`,
+`context-goldfish`) and the consolidation panel (`consolidate-elephant`, `consolidate-goldfish`,
+`consolidate-archivist`, `consolidate-structural`) live in `config/context-agents/`.
+
+Provision or refresh them on any machine (Windows, macOS, or Linux) with:
+
+```bash
+ainish-coder --context-setup
+```
+
+Existing profile `memories/` are preserved across updates. `--rules` does not provision Hermes
+profiles.
