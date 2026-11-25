@@ -1045,6 +1045,14 @@ main() {
             "${AINISH_BIN_DIR}/ainish-context" context-setup "$@"
             ;;
 
+        # The self-improvement loop over .agents/context-harness/, advertised as `ainish-coder
+        # --context-*` in `ainish-context --help`. Each flag maps 1:1 to its engine subcommand and
+        # forwards every remaining argument untouched (--json, --dry-run, --task, ...).
+        --context-seed|--context-status|--context-learn|--context-rollback|--context-promote)
+            _TRACK_DETAIL="context-${command#--context-}"
+            "${AINISH_BIN_DIR}/ainish-context" "context-${command#--context-}" "$@"
+            ;;
+
         # The one context command. An agent reading AGENTS.md calls this, gets its prime, and the
         # repo's harness keeps improving from there. Two shapes are accepted, because both are
         # natural to reach for:

@@ -31,6 +31,11 @@ AGENT CONTEXT (read before you write code):
     ainish-coder --context "..." --session <id>   # carry continuity across calls
     ainish-coder --context "..." --retrieval-only # no model calls at all
     ainish-coder --context-setup              # provision Hermes context/consolidate profiles + pi routing
+    ainish-coder --context-status             # self-improvement loop: what is live, staged, rejected
+    ainish-coder --context-seed               # establish the frozen generation 0 baseline
+    ainish-coder --context-learn [--dry-run]  # one propose->gate learning cycle (opt-in)
+    ainish-coder --context-rollback <gen>     # restore a past harness generation
+    ainish-coder --context-promote <name>     # move a STAGED skill into .agents/skills/ (operator only)
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      One-time setup of the full rules system:
