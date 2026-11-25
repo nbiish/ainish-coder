@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rag  # noqa: E402
+import engine as rag  # noqa: E402
 
 
 class WikiGraphTest(unittest.TestCase):

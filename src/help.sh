@@ -30,6 +30,7 @@ AGENT CONTEXT (read before you write code):
         say so in one line and read the files yourself. Never block on it.
     ainish-coder --context "..." --session <id>   # carry continuity across calls
     ainish-coder --context "..." --retrieval-only # no model calls at all
+    ainish-coder --context-setup              # provision Hermes context/consolidate profiles + pi routing
 
 CORE COMMANDS:
     --rules [TARGET_DIR]      One-time setup of the full rules system:
@@ -110,9 +111,10 @@ CORE COMMANDS:
                               --push | --pull | --both, --status, --dry-run, --json,
                               --quiet (hooks), --linked-only, --all (every repo
                               linked here), --branches (materialise branches on the
-                              peer), and --latest (which machine holds the newest
-                              commit, per branch). A clean peer on the same branch is
-                              fast-forwarded; --no-ff-peers leaves it alone.
+                              peer), --latest (which machine holds the newest
+                              commit, per branch), and --doctor (verify peer SSH,
+                              linked repos, Hermes profiles, and :11434 health).
+                              A clean peer on the same branch is fast-forwarded; --no-ff-peers leaves it alone.
                               Peer path precedence: --peer-path, then a path recorded
                               by --machine-link, then <peer code root>/<repo name>.
     --machine-link [DIR] --peer NAME [--peer-path PATH] [--watch]
@@ -499,6 +501,7 @@ EXAMPLES:
     ainish-coder --machine-sync --all       # Every repository linked on this machine
     ainish-coder --machine-sync . --branches # Make every branch a local branch on the peer too
     ainish-coder --machine-sync . --latest   # Which machine holds the newest commit, per branch
+    ainish-coder --machine-sync --doctor     # Diagnose SSH, links, Hermes profiles, and :11434
 
     # Link a repo to its copy on another machine: recorded once, then sent on every commit
     ainish-coder --machine-link . --peer windows-128gb --peer-path D:/Code/myrepo

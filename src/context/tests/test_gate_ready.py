@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-RAG_PATH = Path(__file__).resolve().parents[1] / "rag.py"
+RAG_PATH = Path(__file__).resolve().parents[1] / "engine.py"
 _SPEC = importlib.util.spec_from_file_location("ainish_rag", RAG_PATH)
 rag = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(rag)

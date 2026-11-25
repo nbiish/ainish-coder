@@ -1,0 +1,50 @@
+{
+  "format": "ainish-coder/context-agents/v1",
+  "default_provider": "local-router",
+  "default_model": "local-router/fallback-models",
+  "default_base_url": "http://127.0.0.1:11434/v1",
+  "profiles": [
+    {
+      "name": "context-elephant",
+      "group": "prime",
+      "role": "drafter",
+      "description": "Session-aware EGM drafter for ainish-coder --context; tracks continuity, catches superseded beliefs, and learns repository reasoning heuristics.",
+      "skill": "skills/context-elephant/SKILL.md"
+    },
+    {
+      "name": "context-goldfish",
+      "group": "prime",
+      "role": "reviewer",
+      "description": "Stateless EGM adversarial reviewer for ainish-coder --context; runs comprehension, antagonistic review, and readiness verdict with zero session state.",
+      "skill": "skills/context-goldfish/SKILL.md"
+    },
+    {
+      "name": "consolidate-elephant",
+      "group": "consolidate",
+      "role": "drafter",
+      "description": "Consolidation drafter that distills aged .agents/ records into cited digests.",
+      "skill": "skills/consolidate-elephant/SKILL.md"
+    },
+    {
+      "name": "consolidate-goldfish",
+      "group": "consolidate",
+      "role": "fidelity",
+      "description": "Consolidation fidelity reviewer checking that every digest claim is supported by sources.",
+      "skill": "skills/consolidate-goldfish/SKILL.md"
+    },
+    {
+      "name": "consolidate-archivist",
+      "group": "consolidate",
+      "role": "completeness",
+      "description": "Consolidation completeness reviewer checking that no unfinished thread, decision, or incident is omitted.",
+      "skill": "skills/consolidate-archivist/SKILL.md"
+    },
+    {
+      "name": "consolidate-structural",
+      "group": "consolidate",
+      "role": "coherence",
+      "description": "Consolidation coherence reviewer checking that the digest reads as one coherent record.",
+      "skill": "skills/consolidate-structural/SKILL.md"
+    }
+  ]
+}

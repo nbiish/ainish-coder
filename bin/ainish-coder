@@ -1024,10 +1024,16 @@ main() {
             ;;
 
         # The engine by its accurate name, for scripts that want a verb rather than the agent-facing
-        # `--context` wrapper (context-seed, context-status, wiki, gate, audit, ...).
+        # `--context` wrapper (context-seed, context-status, context-setup, wiki, gate, audit, ...).
         --rag-engine|--context-engine)
             _TRACK_DETAIL="context-engine"
             "${AINISH_BIN_DIR}/ainish-context" "$@"
+            ;;
+
+        # Provision Hermes context/consolidate profiles + pi local-router model wiring.
+        --context-setup)
+            _TRACK_DETAIL="context-setup"
+            "${AINISH_BIN_DIR}/ainish-context" context-setup "$@"
             ;;
 
         # The one context command. An agent reading AGENTS.md calls this, gets its prime, and the
