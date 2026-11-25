@@ -9,9 +9,13 @@ src/
 ├── *.sh                # CLI utilities and deployment commands
 ├── templates/          # Deployable, repository-agnostic templates
 │   ├── llms.txt        # User-project llms.txt template
-│   └── AGENTS.COMMS.md # Agent Communication System protocol template
-│                      # (deployed as .agents/comms/{date}-team.md by --rules;
-│                      #  merge-safe — agent entry blocks are preserved)
+│   ├── AGENTS.COMMS.md # Agent Communication System protocol template
+│   │                  # (deployed as .agents/comms/{date}-team.md by --rules;
+│   │                  #  merge-safe — agent entry blocks are preserved)
+│   └── AGENTS.FEDERATION.md # Cross-machine Chain of Draft (CoD) federation template
+│                      # (deployed as gitignored, agent-read-only .agents/federation/{date}.md
+│                      #  by --rules; exchanged via PQC ML-KEM-768 + ML-DSA-65 envelopes in
+│                      #  src/federation_pqc.py during --machine-sync)
 │
 └── pqc-secrets/        # Rust: FIPS 203/204 secrets manager (v1.2.0: ML-KEM-768 seed-form + ML-DSA-65 vault core)
     ├── Cargo.toml

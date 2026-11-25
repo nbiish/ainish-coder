@@ -96,6 +96,8 @@ class MasterSurfaceLensesTest(unittest.TestCase):
         self.assertEqual(rag.shared_state_removals(append_only), [])
         rewritten = "--- a/.agents/comms/2026-10-31-team.txt\n+++ b/.agents/comms/2026-10-31-team.txt\n-old\n+new\n"
         self.assertEqual(len(rag.shared_state_removals(rewritten)), 1)
+        fed_rewritten = "--- a/.agents/federation/2026-11-25.md\n+++ b/.agents/federation/2026-11-25.md\n-old\n+new\n"
+        self.assertEqual(len(rag.shared_state_removals(fed_rewritten)), 1)
         task_rewrite = "--- a/.agents/tasks/2026-10-31-task.md\n+++ b/.agents/tasks/2026-10-31-task.md\n-old\n+new\n"
         self.assertEqual(rag.shared_state_removals(task_rewrite), [])
 

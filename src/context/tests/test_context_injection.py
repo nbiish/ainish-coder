@@ -1126,6 +1126,24 @@ class OrientationSectionTest(unittest.TestCase):
     def test_zero_cap_disables_the_section(self):
         self.assertEqual(rag.render_orientation_section(self.root, 0), "")
 
+    def test_surfaces_federation_cod_and_sibling_branches(self):
+        today = __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+        fed_dir = self.root / ".agents" / "federation"
+        fed_dir.mkdir(parents=True, exist_ok=True)
+        (fed_dir / f"{today}.md").write_text(
+            "# FEDERATION CoD\n\n---\n\n"
+            "### [2026-11-25T13:10:00Z] windows-128gb | branch:feat/peer-work | pr:#22 | tip:abc1234 | state:pr-open\n"
+            "- scope: src/peer.py\n"
+            "- cod: shipped peer -> verified -> PR open\n"
+            "- integrate: fold-into:#22\n",
+            encoding="utf-8",
+        )
+        body = rag.render_orientation_section(self.root, 1200)
+        self.assertIn("federation CoD", body)
+        self.assertIn("windows-128gb", body)
+        self.assertIn("fold-into:#22", body)
+
 
 
 class RoleModelSeparationTest(unittest.TestCase):

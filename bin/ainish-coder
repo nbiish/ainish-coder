@@ -56,6 +56,7 @@ source "${SRC_DIR}/verify_skills.sh"
 source "${SRC_DIR}/skills_selection.sh"
 source "${SRC_DIR}/deploy_unlock.sh"
 source "${SRC_DIR}/deploy_agents_comms.sh"
+source "${SRC_DIR}/deploy_agents_federation.sh"
 source "${SRC_DIR}/deploy_mcp_recipes.sh"
 source "${SRC_DIR}/deploy_scrolls.sh"
 source "${SRC_DIR}/scroll_integrity.sh"
@@ -280,8 +281,16 @@ main() {
             _TRACK_DETAIL="${_TRACK_DETAIL}+agents-comms"
         fi
 
-        # Ensure workspace customizations root (.agents/tasks, .agents/plans, .agents/suggestions, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
-        mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/plans" "$target_dir/.agents/suggestions" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
+        # Cross-Machine Federation CoD Ledger — .agents/federation/{date}.md (gitignored, peer-synced)
+        # Merge-safe: refreshes protocol template, preserves peer CoD entries, ships llms.txt.
+        if confirm_action "Deploy Federation CoD Ledger (.agents/federation/{date}.md)?" "y"; then
+            deploy_agents_federation "$target_dir" || \
+                print_warning "Federation CoD Ledger deployment reported errors — continuing with remaining rules steps"
+            _TRACK_DETAIL="${_TRACK_DETAIL}+agents-federation"
+        fi
+
+        # Ensure workspace customizations root (.agents/tasks, .agents/plans, .agents/suggestions, .agents/federation, .agents/rag, .agents/audit, .agents/wiki, .agents/memories) is scaffolded
+        mkdir -p "$target_dir/.agents/tasks" "$target_dir/.agents/plans" "$target_dir/.agents/suggestions" "$target_dir/.agents/federation" "$target_dir/.agents/rag" "$target_dir/.agents/audit" "$target_dir/.agents/wiki" "$target_dir/.agents/memories" 2>/dev/null || true
 
         # AGENTS.md points every agent at these, so they must exist at the target or the
         # contract ships dangling links (verified: a default deploy left all three absent). They are

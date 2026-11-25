@@ -33,6 +33,7 @@
   ],
   "append_only_prefixes": [
     ".agents/comms/",
+    ".agents/federation/",
     ".agents/memories/",
     ".agents/suggestions/"
   ],
