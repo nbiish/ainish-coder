@@ -6005,10 +6005,17 @@ def render_orientation_section(repo_root: Path, token_cap: int) -> str:
             status = str(gs.get("status") or "?")
             anchor = gs.get("anchor_pct")
             commit_match = gs.get("commit")
-            if status.upper() == "GREEN" and commit_match and commit_match != _git("rev-parse", "--short", "HEAD"):
+            # Staleness is about provenance, not colour: a stale RED misleads an agent just as much
+            # as a stale GREEN, so any verdict recorded at another commit is marked.
+            if commit_match and commit_match != _git("rev-parse", "--short", "HEAD"):
                 parts.append(f"- gate: {status} but for commit {commit_match}, not HEAD (stale verdict)")
             else:
-                parts.append(f"- gate: {status}" + (f" (anchor {anchor}%)" if anchor is not None else ""))
+                detail = f"anchor {anchor}%" if anchor is not None else ""
+                tests = gs.get("tests") or {}
+                if tests.get("provided"):
+                    tests_note = "tests passed" if tests.get("pass") else "tests failed"
+                    detail = f"{detail}, {tests_note}" if detail else tests_note
+                parts.append(f"- gate: {status}" + (f" ({detail})" if detail else ""))
         except (OSError, ValueError):
             parts.append("- gate: status file unreadable")
 
