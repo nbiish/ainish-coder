@@ -971,6 +971,34 @@ class OrientationSectionTest(unittest.TestCase):
         self.assertIn("wire the orientation section", body)
         self.assertIn("newest task record", body)
 
+    def _write_gate(self, payload):
+        gate_dir = self.root / ".agents" / "rag"
+        gate_dir.mkdir(parents=True, exist_ok=True)
+        (gate_dir / "gate-status.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_gate_line_marks_a_stale_verdict_of_any_colour(self):
+        # Staleness is provenance, not colour: a RED recorded at another commit must not read as
+        # "the gate is failing at HEAD".
+        self._write_gate({"status": "RED", "anchor_pct": 100, "commit": "c8cb96a"})
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("- gate: RED but for commit c8cb96a, not HEAD (stale verdict)", body)
+        self.assertNotIn("- gate: RED (anchor 100%)", body)
+
+    def test_gate_line_shows_the_recorded_tests_result(self):
+        # A RED with anchor 100% is a tests verdict; the line must say so instead of leaving the
+        # reader to guess which check failed.
+        self._write_gate({
+            "status": "RED", "anchor_pct": 100, "commit": "",
+            "tests": {"provided": True, "command": "pytest", "exit_code": 1, "pass": False},
+        })
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("- gate: RED (anchor 100%, tests failed)", body)
+
+    def test_gate_line_without_recorded_tests_keeps_the_plain_form(self):
+        self._write_gate({"status": "GREEN", "anchor_pct": 100, "commit": ""})
+        body = rag.render_orientation_section(self.root, 800)
+        self.assertIn("- gate: GREEN (anchor 100%)", body)
+
     def test_reports_the_newest_plan_with_its_open_todo_count(self):
         body = rag.render_orientation_section(self.root, 800)
         self.assertIn("newest plan:", body)

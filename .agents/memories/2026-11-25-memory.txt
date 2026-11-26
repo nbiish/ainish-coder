@@ -1,0 +1,17 @@
+2026-11-25 memory (scrubbed)
+
+- `ainish-coder --context {input}` verified end-to-end against local-router's fallback-models
+  route: full envelope ~76s (elephant/goldfish via hermes profiles `context-elephant`/
+  `context-goldfish`), `--retrieval-only` ~2.7s. The pair is healthy; slow is not hung
+  (HERMES_TIMEOUT_DEFAULT=300s per role bounds every call).
+- PR #18 (fix/context-cli-wiring) wires `ainish-coder --context-{seed,status,learn,rollback,
+  promote}` to their engine subcommands — they were documented in `ainish-context --help` but the
+  launcher returned Unknown command. Orientation `- gate:` line now marks stale verdicts of any
+  colour and shows the recorded tests result.
+- `.agents/rag/gate-status.json` is a cached verdict whose flavour depends on how the gate was last
+  invoked (with/without `--tests`): a RED at anchor 100% is a tests verdict, not a broken patch.
+- scripts/test-pqc-dist.sh takes down the omp session shell mid-run (kills its process group around
+  the --plan-check sandbox section). Run it detached: python3 subprocess with start_new_session=True,
+  output to a file. setsid is unavailable on macOS.
+- gh CLI GraphQL mutations (pr create/edit) were flaky on 2026-11-25; REST `gh api .../pulls/N -X
+  PATCH` worked. pr create with a minimal body then PATCH the full body.
