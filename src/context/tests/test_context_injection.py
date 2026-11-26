@@ -16,6 +16,8 @@ Run with:  py -m unittest discover -s src/rag/tests -p "test_*.py"
 """
 
 import importlib.util
+import contextlib
+import io
 import json
 import os
 import time
@@ -820,9 +822,23 @@ class ContextBudgetContractTest(unittest.TestCase):
         self._saved = {k: os.environ.get(k) for k in ("AINISH_RAG_DRIVER_OFFLINE",)}
         os.environ["AINISH_RAG_DRIVER_OFFLINE"] = "1"  # never reach a real provider
         self._saved_route = rag.DecisionEngine.route
+        # The pair runs on EVERY context call now, so these tests pin the dispatch boundary too: no
+        # real hermes/pi/driver call may happen here — this host has live binaries and a live router.
+        self._saved_agent_call = rag._context_agent_call
+        self.agent_calls: list = []
+
+        def fake_agent_call(role, driver, system_prompt, user_prompt, attachments=None, max_tokens=None, timeout=None):
+            self.agent_calls.append(role)
+            return {
+                "text": f"{role} stub note", "source": f"stub:{role}", "transport": "stub",
+                "requested_model": "stub-model", "model_verified": True,
+            }
+
+        rag._context_agent_call = fake_agent_call
 
     def tearDown(self):
         rag.DecisionEngine.route = self._saved_route
+        rag._context_agent_call = self._saved_agent_call
         for key, value in self._saved.items():
             if value is None:
                 os.environ.pop(key, None)
@@ -860,6 +876,7 @@ class ContextBudgetContractTest(unittest.TestCase):
         self.assertIn("retrieval", sources)
         self.assertNotIn("elephant", sources)
         self.assertNotIn("goldfish", sources)
+        self.assertEqual(self.agent_calls, [], "retrieval-only must not dispatch the pair at all")
 
     def test_budget_below_the_floor_is_raised_and_the_raise_is_reported(self):
         self._stub_route("hybrid_rerank")
@@ -870,15 +887,26 @@ class ContextBudgetContractTest(unittest.TestCase):
         self.assertTrue(any("raised" in note for note in inv["degrade_notes"]))
         self.assertTrue(inv["degraded"], "a silent budget change must surface as degraded")
 
-    def test_skip_retrieval_route_emits_no_filler_and_no_driver_spend(self):
+    def test_skip_retrieval_route_runs_the_pair_without_filler_retrieval(self):
+        # Operator contract 2026-11-25: a skip route governs the CORPUS only. The prime is the
+        # concatenated elephant+goldfish output on every call, the route note rides in provenance,
+        # and a deliberate skip is NOT a degradation.
         self._stub_route("skip_retrieval")
         inv = rag.run_context_command(self.root, "hello there", budget=1200, json_out=True)
         sources = [s["source"] for s in inv["sections"]]
         self.assertNotIn("retrieval", sources, "a skip route must not fabricate a retrieval section")
-        self.assertNotIn("elephant", sources)
-        self.assertNotIn("goldfish", sources)
-        self.assertTrue(any("skipped by route" in note for note in inv["degrade_notes"]))
-        self.assertEqual(inv["provenance"]["drivers"], {})
+        self.assertIn("elephant", sources, "the pair runs even when the route skips retrieval")
+        self.assertIn("goldfish", sources)
+        self.assertLess(sources.index("elephant"), sources.index("goldfish"),
+                        "the prime concatenates elephant before goldfish")
+        self.assertEqual(self.agent_calls[0], "elephant")
+        self.assertIn("goldfish", self.agent_calls)
+        self.assertTrue(inv["provenance"].get("route_note")
+                        and "skipped by route" in inv["provenance"]["route_note"])
+        self.assertFalse(any("skipped by route" in note for note in inv["degrade_notes"]),
+                         "a deliberate skip is provenance, not a degradation")
+        self.assertFalse(inv["degraded"])
+        self.assertTrue(inv["provenance"]["drivers"], "provenance must record what served the pair")
 
     def test_orientation_survives_a_skip_route(self):
         # Branch, tree state, and the last ledger entry are true whatever the route decided about
@@ -1604,6 +1632,404 @@ class HermesContextRuntimeTest(unittest.TestCase):
         self.assertTrue(inj.get("degraded"))
         self.assertIn("offline floor unreachable", notes)
         self.assertNotIn("goldfish unavailable: same model", notes)
+
+
+class RoleRuntimeTierTest(unittest.TestCase):
+    """Prime-pair runtimes are pinned PER ROLE (operator architecture, 2026-11-25): the elephant
+    runs on a specified Hermes profile, the goldfish IS a Pi agent, and every fallback after the
+    first tier is a recorded degrade — never a silent one."""
+
+    def setUp(self):
+        self._env_keys = (
+            "AINISH_CONTEXT_RUNTIME",
+            "AINISH_CONTEXT_ELEPHANT_PROFILE",
+            "AINISH_RAG_ELEPHANT_MODEL",
+            "AINISH_RAG_GOLDFISH_MODEL",
+        )
+        self._saved_env = {k: os.environ.get(k) for k in self._env_keys}
+        for k in self._env_keys:
+            os.environ.pop(k, None)
+        self.calls = []
+        self._orig_hermes = rag.hermes_profile_call
+        self._orig_pi = rag.pi_agent_call
+
+    def tearDown(self):
+        rag.hermes_profile_call = self._orig_hermes
+        rag.pi_agent_call = self._orig_pi
+        for k, prev in self._saved_env.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+    def _stub(self, hermes_text="hermes answer", pi_text="pi answer"):
+        def fake_hermes(profile, prompt, **kw):
+            self.calls.append(("hermes", profile))
+            return {"text": hermes_text, "source": f"hermes:{profile}", "transport": "hermes",
+                    "requested_model": kw.get("model"), "served_model": kw.get("model")}
+
+        def fake_pi(**kw):
+            self.calls.append(("pi", kw.get("role")))
+            return {"text": pi_text, "source": f"pi:{kw.get('role')}", "transport": "pi",
+                    "requested_model": kw.get("model"), "model_verified": True}
+
+        rag.hermes_profile_call = fake_hermes
+        rag.pi_agent_call = fake_pi
+
+    def test_goldfish_is_a_pi_agent_and_never_consults_hermes(self):
+        self._stub()
+        res = rag._context_agent_call("goldfish", None, "sys", "usr")
+        self.assertEqual(res["text"], "pi answer")
+        self.assertEqual(res["transport"], "pi")
+        self.assertEqual([c[0] for c in self.calls], ["pi"],
+                         "the goldfish is a Pi agent: there is no hermes tier in its ladder")
+        self.assertEqual(self.calls[0], ("pi", "goldfish"))
+
+    def test_goldfish_degrades_pi_to_driver_with_a_recorded_note(self):
+        self._stub()
+        rag.pi_agent_call = lambda **kw: {"text": "", "error": "pi missing"}
+
+        class FakeDriver:
+            allow_remote = True
+
+            def chat(self, messages, **kw):
+                return {"text": "driver answer", "source": "local-router:stub", "tier": "local-router",
+                        "requested_model": "stub", "model_verified": True}
+
+        res = rag._context_agent_call("goldfish", FakeDriver(), "sys", "usr")
+        self.assertEqual(res["text"], "driver answer")
+        self.assertEqual(res.get("fallback_from"), "pi",
+                         "the fallback names the tier that FAILED (pi), not a hardcoded hermes label")
+        self.assertIn("degraded to DriverEngine", res.get("degrade_note") or "")
+
+    def test_elephant_runs_on_the_specified_hermes_profile(self):
+        self._stub()
+        res = rag._context_agent_call("elephant", None, "sys", "usr")
+        self.assertEqual(res["text"], "hermes answer")
+        self.assertEqual(self.calls, [("hermes", "context-elephant")])
+
+    def test_elephant_profile_is_operator_specifiable(self):
+        os.environ["AINISH_CONTEXT_ELEPHANT_PROFILE"] = "my-elephant"
+        self._stub()
+        rag._context_agent_call("elephant", None, "sys", "usr")
+        self.assertEqual(self.calls, [("hermes", "my-elephant")])
+
+
+class ConsolidationSweepTest(unittest.TestCase):
+    """The every-run sweep (operator design, 2026-11-25): verify ALL context folders on every
+    context run, condense everything beyond the protected three, and never touch those three."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self._env_keys = ("AINISH_CONSOLIDATE_ON_CONTEXT", "AINISH_CONSOLIDATE_INTERVAL_S")
+        self._saved_env = {k: os.environ.get(k) for k in self._env_keys}
+        os.environ.pop("AINISH_CONSOLIDATE_INTERVAL_S", None)
+        os.environ["AINISH_CONSOLIDATE_ON_CONTEXT"] = "on"
+
+    def tearDown(self):
+        for k, prev in self._saved_env.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+        self.tmp.cleanup()
+
+    def _records(self, folder, names):
+        d = self.root / ".agents" / folder
+        d.mkdir(parents=True, exist_ok=True)
+        for n in names:
+            (d / n).write_text(f"# record {n}\n", encoding="utf-8")
+
+    def _report_path(self):
+        return rag.context_harness.learn_state_path(self.root).parent / "consolidate-sweep.json"
+
+    def test_every_folder_is_verified_on_every_run(self):
+        self._records("tasks", [f"2026-11-{i:02d}-rec.md" for i in range(1, 4)])
+        info = rag.spawn_consolidate(self.root)
+        self.assertFalse(info["spawned"])
+        self.assertEqual(set(info["verified"]), set(rag.CONSOLIDATION_FOLDERS))
+        self.assertEqual(info["folders_needing"], [])
+        report = json.loads(self._report_path().read_text(encoding="utf-8"))
+        self.assertEqual(report["protected_newest"], rag.CONSOLIDATION_PROTECTED_NEWEST)
+        self.assertEqual(len(report["folders"]["tasks"]["protected"]), 3)
+        self.assertIn("federation", report["excluded_folders"],
+                      "the coverage claim must name every indexed folder it deliberately skips")
+
+    def test_one_child_sweeps_all_folders_when_any_needs_condensing(self):
+        self._records("tasks", [f"2026-11-{i:02d}-rec.md" for i in range(1, 7)])
+        self._records("comms", [f"2026-11-0{i}-rec.md" for i in range(1, 5)])
+        captured = {}
+        orig_popen = rag.subprocess.Popen
+
+        def fake_popen(argv, **kw):
+            captured["argv"] = argv
+
+            class P:
+                pass
+
+            return P()
+
+        rag.subprocess.Popen = fake_popen
+        try:
+            info = rag.spawn_consolidate(self.root)
+        finally:
+            rag.subprocess.Popen = orig_popen
+        self.assertTrue(info["spawned"])
+        self.assertEqual(sorted(info["folders_needing"]), ["comms", "tasks"])
+        self.assertIn("context-consolidate", captured["argv"])
+        self.assertIn("--background", captured["argv"])
+        self.assertNotIn("--folder", captured["argv"],
+                         "the sweep must cover every folder, not be narrowed to the first")
+        self.assertEqual(
+            info["profiles"],
+            ["consolidate-elephant", "consolidate-goldfish", "consolidate-archivist", "consolidate-structural"],
+        )
+
+    def test_consolidation_keeps_the_three_newest_records(self):
+        names = [f"2026-11-{i:02d}-rec.md" for i in range(1, 7)]
+        self._records("tasks", names)
+        orig_chunks = rag._digest_in_chunks
+
+        def fake_chunks(folder, period, payload):
+            body = ("Accomplished: everything landed.\nUnfinished: nothing.\nInsights: none.\n" * 12)
+            return body, [], {name for name, _ in payload}
+
+        rag._digest_in_chunks = fake_chunks
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = rag.run_context_consolidate(self.root, folder="tasks", json_out=True)
+        finally:
+            rag._digest_in_chunks = orig_chunks
+        d = self.root / ".agents" / "tasks"
+        left = sorted(p.name for p in d.iterdir() if p.suffix == ".md")
+        remaining = sorted(n for n in left if not n.startswith(rag.CONSOLIDATION_DIGEST_PREFIX))
+        self.assertEqual(remaining, sorted(names[-3:]),
+                         "exactly the three newest records survive in original form")
+        digest_name = next(n for n in left if n.startswith(rag.CONSOLIDATION_DIGEST_PREFIX))
+        text = (d / digest_name).read_text(encoding="utf-8")
+        for n in names[:-3]:
+            self.assertIn(n, text, "the digest's sources: list must account for what it replaced")
+        self.assertEqual(res["folders"]["tasks"]["originals_after"], 3)
+        self.assertEqual(res["folders"]["tasks"]["digests_after"], 1)
+        self.assertTrue(res["ok"])
+
+    def test_an_unusable_digest_deletes_nothing(self):
+        names = [f"2026-11-{i:02d}-rec.md" for i in range(1, 6)]
+        self._records("tasks", names)
+        orig_chunks = rag._digest_in_chunks
+        rag._digest_in_chunks = lambda folder, period, payload: ("too short", [], {n for n, _ in payload})
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = rag.run_context_consolidate(self.root, folder="tasks", json_out=True)
+        finally:
+            rag._digest_in_chunks = orig_chunks
+        left = sorted(p.name for p in (self.root / ".agents" / "tasks").iterdir())
+        self.assertEqual(left, sorted(names), "a failed digest must never cost an original")
+        self.assertTrue(any("no usable digest" in s["reason"] for s in res["folders"]["tasks"]["skipped"]))
+
+    def test_folder_census_sorts_hour_stamped_ahead_of_legacy_day_only(self):
+        self._records("memories", [
+            "2026-11-25-memory.txt",
+            "2026-11-25-12-memory.md",
+            "2026-11-25-13-memory.md",
+            "2026-11-25-22-memory.md",
+            "2026-11-24-memory.txt",
+        ])
+        census = rag.folder_census(self.root, "memories")
+        self.assertEqual(
+            census["protected"],
+            ["2026-11-25-22-memory.md", "2026-11-25-13-memory.md", "2026-11-25-12-memory.md"],
+            "hour-stamped records on the same UTC date must sort newer than legacy day-only files",
+        )
+        self.assertIn("2026-11-25-memory.txt", census["candidates"])
+
+    def test_rolling_digest_compaction_replaces_stale_digests_and_reaches_steady_state(self):
+        names = [f"2026-11-{i:02d}-rec.md" for i in range(1, 7)]
+        self._records("memories", names + ["DIGEST-memories-01.md", "DIGEST-memories-2026-10.md"])
+        seen_sources = []
+        orig_chunks = rag._digest_in_chunks
+
+        def fake_chunks(folder, period, payload):
+            seen_sources.extend(name for name, _ in payload)
+            body = ("## Accomplished\nAll landed.\n\n## Unfinished\nNone.\n\n"
+                    "## Insights\nDeduplicated prior digests.\n\n## Recurring\nNone.\n" * 6)
+            return body, [], {name for name, _ in payload}
+
+        rag._digest_in_chunks = fake_chunks
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = rag.run_context_consolidate(self.root, folder="memories", json_out=True)
+        finally:
+            rag._digest_in_chunks = orig_chunks
+        self.assertIn("DIGEST-memories-01.md", seen_sources)
+        self.assertIn("DIGEST-memories-2026-10.md", seen_sources)
+        d = self.root / ".agents" / "memories"
+        files = sorted(p.name for p in d.iterdir())
+        originals = [f for f in files if not f.startswith(rag.CONSOLIDATION_DIGEST_PREFIX)]
+        digests = [f for f in files if f.startswith(rag.CONSOLIDATION_DIGEST_PREFIX)]
+        self.assertEqual(originals, sorted(names[-3:]))
+        self.assertEqual(len(digests), 1, "prior digests must roll into one current digest")
+        self.assertEqual(digests[0], "DIGEST-memories-02.md")
+        self.assertEqual(res["folders"]["memories"]["originals_after"], 3)
+        self.assertEqual(res["folders"]["memories"]["digests_after"], 1)
+        # Steady state: next sweep must not spawn again.
+        info = rag.spawn_consolidate(self.root)
+        self.assertFalse(info["spawned"])
+        self.assertEqual(info["folders_needing"], [])
+        self.assertEqual(info["last_run"]["status"], "ok")
+
+    def test_multiple_digests_alone_trigger_compaction_and_fail_closed(self):
+        self._records("comms", [
+            "2026-11-23-team.md", "2026-11-24-team.md", "2026-11-25-team.md",
+            "DIGEST-comms-01.md", "DIGEST-comms-02.md",
+        ])
+        census = rag.folder_census(self.root, "comms")
+        self.assertTrue(census["needs_consolidation"])
+        orig_chunks = rag._digest_in_chunks
+        rag._digest_in_chunks = lambda folder, period, payload: ("too short", [], {n for n, _ in payload})
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                rag.run_context_consolidate(self.root, folder="comms", json_out=True)
+        finally:
+            rag._digest_in_chunks = orig_chunks
+        # Fail closed: both digests and all 3 originals remain intact on failed compaction.
+        files = sorted(p.name for p in (self.root / ".agents" / "comms").iterdir())
+        self.assertEqual(len(files), 5)
+
+    def test_consolidation_call_uses_hermes_ignore_rules_skill_and_model(self):
+        hermes_home = self.root / "hermes-home"
+        pdir = hermes_home / "profiles" / "consolidate-elephant"
+        (pdir / "skills" / "consolidate-elephant").mkdir(parents=True, exist_ok=True)
+        (pdir / "config.yaml").write_text("model:\n  default: local-router/fallback-models\n", encoding="utf-8")
+        (pdir / "skills" / "consolidate-elephant" / "SKILL.md").write_text("# skill\n", encoding="utf-8")
+
+        saved_hhome = os.environ.get("HERMES_HOME")
+        os.environ["HERMES_HOME"] = str(hermes_home)
+        captured = {}
+        orig_avail = rag.hermes_available
+        orig_run = rag.subprocess.run
+        rag.hermes_available = lambda: "/fake/hermes"
+
+        class FakeProc:
+            returncode = 0
+            stderr = ""
+            stdout = "\n".join([
+                json.dumps({"type": "system", "subtype": "init", "model": "local-router/fallback-models"}),
+                json.dumps({"type": "result", "exit_code": 0, "text": "## Accomplished\nDone.\n", "duration_ms": 80}),
+            ])
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return FakeProc()
+
+        rag.subprocess.run = fake_run
+        try:
+            reply = rag.consolidation_call("consolidate-elephant", "draft prompt", fallback_role="elephant")
+        finally:
+            rag.hermes_available = orig_avail
+            rag.subprocess.run = orig_run
+            if saved_hhome is None:
+                os.environ.pop("HERMES_HOME", None)
+            else:
+                os.environ["HERMES_HOME"] = saved_hhome
+
+        self.assertEqual(reply["transport"], "hermes")
+        self.assertEqual(reply["source"], "hermes:consolidate-elephant")
+        self.assertIn("--ignore-rules", captured["argv"])
+        self.assertIn("-s", captured["argv"])
+        self.assertIn("consolidate-elephant", captured["argv"])
+        self.assertIn("--provider", captured["argv"])
+        self.assertIn("local-router", captured["argv"])
+        self.assertIn("local-router/fallback-models", captured["argv"])
+
+    def test_upsert_hermes_config_strips_stale_model_overrides_and_sets_reviewers_stateless(self):
+        stale = (
+            "model:\n"
+            "  default: local-router/fallback-models\n"
+            "  provider: local-router\n"
+            "  base_url: https://token-plan-sgp.xiaomimimo.com/v1\n"
+            "  api_mode: chat_completions\n"
+            "  key_env: HERMES_CUSTOM_XIAOMI_MIMO_CODE_PLAN_API_KEY\n"
+        )
+        updated = rag._upsert_hermes_config_yaml(
+            stale,
+            v1_base_url="http://127.0.0.1:11434/v1",
+            model="local-router/fallback-models",
+            set_default_model=True,
+            toolless=True,
+            stateless=True,
+        )
+        self.assertNotIn("token-plan-sgp.xiaomimimo.com", updated)
+        self.assertNotIn("key_env:", updated)
+        self.assertNotIn("api_mode:", updated)
+        self.assertIn("provider: local-router", updated)
+        self.assertIn("memory_enabled: false", updated)
+
+    def test_spawn_consolidate_reclaims_stale_dead_pid_lock_and_respects_live_lock(self):
+        self._records("tasks", [f"2026-11-{i:02d}-rec.md" for i in range(1, 6)])
+        lock = rag.context_harness.lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        # 1. Live PID (current process) -> must NEVER be stolen.
+        lock.write_text(json.dumps({"pid": os.getpid(), "at": "2026-11-26T00:00:00Z"}), encoding="utf-8")
+        info_live = rag.spawn_consolidate(self.root)
+        self.assertFalse(info_live["spawned"])
+        self.assertIn("lock", info_live["reason"])
+        self.assertTrue(lock.is_file())
+
+        # 2. Dead PID -> reclaimed cleanly so background consolidation is not wedged forever.
+        lock.write_text(json.dumps({"pid": 99999999, "at": "2026-11-25T00:00:00Z"}), encoding="utf-8")
+        orig_alive = rag._is_pid_alive
+        orig_popen = rag.subprocess.Popen
+        rag._is_pid_alive = lambda pid: pid == os.getpid()
+        rag.subprocess.Popen = lambda argv, **kw: type("P", (), {"pid": 4242})()
+        try:
+            info_dead = rag.spawn_consolidate(self.root)
+        finally:
+            rag._is_pid_alive = orig_alive
+            rag.subprocess.Popen = orig_popen
+        self.assertTrue(info_dead["spawned"])
+        self.assertIn("reclaimed stale lock", info_dead.get("reclaimed_stale_lock", ""))
+        self.assertEqual(info_dead.get("pid"), 4242)
+
+    def test_run_context_defers_autolearn_when_consolidation_spawns(self):
+        (self.root / ".agents" / "wiki").mkdir(parents=True, exist_ok=True)
+        (self.root / ".agents" / "wiki" / "01-arch.md").write_text(
+            "# Architecture\n\n## Consolidation\nHermes consolidation pipeline.\n",
+            encoding="utf-8",
+        )
+        self._records("tasks", [f"2026-11-{i:02d}-rec.md" for i in range(1, 6)])
+        orig_route = rag.DecisionEngine.route
+        orig_agent = rag._context_agent_call
+        orig_popen = rag.subprocess.Popen
+        orig_autolearn = rag.spawn_autolearn
+        autolearn_called = []
+
+        rag.DecisionEngine.route = lambda self_e, q: {
+            "source": "stub", "retrieval_strategy": "hybrid_rerank",
+            "context_budget_tokens": 2000, "candidate_pool_size": 8,
+            "target_domain": "architectural_wiki", "next_action": "retrieve",
+        }
+        rag._context_agent_call = lambda role, driver, sp, up, **kw: {
+            "text": f"{role} ok", "source": f"stub:{role}", "transport": "stub",
+            "requested_model": "stub-model", "model_verified": True,
+        }
+        rag.subprocess.Popen = lambda argv, **kw: type("P", (), {"pid": 5151})()
+        rag.spawn_autolearn = lambda r, t: (autolearn_called.append(t) or {"spawned": True, "reason": "ok"})
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                inv = rag.run_context_command(self.root, "Consolidation", budget=1500, json_out=True)
+        finally:
+            rag.DecisionEngine.route = orig_route
+            rag._context_agent_call = orig_agent
+            rag.subprocess.Popen = orig_popen
+            rag.spawn_autolearn = orig_autolearn
+
+        harness = inv["provenance"]["harness"]
+        self.assertTrue(harness["consolidate"]["spawned"])
+        self.assertFalse(harness["autolearn"]["spawned"])
+        self.assertIn("deferred", harness["autolearn"]["reason"])
+        self.assertEqual(autolearn_called, [], "autolearn must not race a freshly spawned consolidation pass")
 
 
 if __name__ == "__main__":
