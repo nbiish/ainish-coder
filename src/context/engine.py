@@ -23,6 +23,7 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -4610,9 +4611,10 @@ CONSOLIDATE_PANEL: Tuple[Tuple[str, str, str], ...] = (
     (
         "consolidate-structural",
         "coherence",
-        "Judge the draft as ONE RECORD rather than a list. Does it state what the period amounted to? "
-        "Do its sections connect, or are they adjacent facts? Would a reader who never saw the sources "
-        "come away with a true picture of what happened?",
+        "Judge the draft as ONE RECORD rather than an unsorted dump. Does it clearly summarize what "
+        "the period covered and keep sections organized so a reader who never saw the sources comes "
+        "away with a true picture of what happened? Do not demand forced causal links between "
+        "genuinely independent entries.",
     ),
 )
 
@@ -4726,6 +4728,29 @@ def _upsert_yaml_subkeys(lines: List[str], section: str, pairs: List[Tuple[str, 
     return lines
 
 
+def _remove_yaml_subkeys(lines: List[str], section: str, keys: Tuple[str, ...]) -> List[str]:
+    """Remove two-space indented sub-keys from top-level `section:` when present."""
+    block = _find_yaml_top_block(lines, section)
+    if block is None:
+        return lines
+    start, end = block
+    for k in keys:
+        key_pat = re.compile(rf"^\s{{2}}{re.escape(k)}:")
+        idx = start + 1
+        while idx < end:
+            if key_pat.match(lines[idx]):
+                sub = _find_yaml_sub_block(lines, start, end, k, indent=2)
+                if sub is not None:
+                    del lines[sub[0]:sub[1]]
+                    end -= (sub[1] - sub[0])
+                else:
+                    del lines[idx]
+                    end -= 1
+                continue
+            idx += 1
+    return lines
+
+
 def _upsert_hermes_config_yaml(
     existing_text: str,
     *,
@@ -4742,6 +4767,9 @@ def _upsert_hermes_config_yaml(
         lines.pop()
 
     if set_default_model:
+        # Remove stale direct-provider overrides (`base_url`, `key_env`, `api_mode`) left over from
+        # older profile configs so `provider: local-router` resolves cleanly to `providers.local-router`.
+        lines = _remove_yaml_subkeys(lines, "model", ("base_url", "key_env", "api_mode"))
         lines = _upsert_yaml_subkeys(lines, "model", [
             ("default", _yaml_scalar(model)),
             ("provider", HERMES_PROVIDER_ID),
@@ -4955,7 +4983,10 @@ def run_context_setup(
                 model=model_id,
                 set_default_model=True,
                 toolless=True,
-                stateless=(pname == CONTEXT_GOLDFISH_PROFILE),
+                stateless=(
+                    pname == CONTEXT_GOLDFISH_PROFILE
+                    or pname in tuple(m[0] for m in CONSOLIDATE_PANEL)
+                ),
             )
             cfg_changed = cfg_next != cfg_existing
             if cfg_changed:
@@ -5068,6 +5099,16 @@ def _hermes_extract_stream(stdout: str) -> Tuple[str, Optional[str], Optional[in
     return "\n".join(cleaned).strip(), None, None, None, None
 
 
+CONSOLIDATE_MODEL_ENV = "AINISH_CONSOLIDATE_MODEL"
+_CONSOLIDATION_CALL_LOCK = threading.Lock()
+_CONSOLIDATION_CALL_SINK: Optional[List[Dict[str, Any]]] = None
+
+
+def _consolidate_model() -> str:
+    """Model route for the Hermes consolidation panel (default `local-router/fallback-models`)."""
+    return (_env_nonempty(CONSOLIDATE_MODEL_ENV) or HERMES_DEFAULT_MODEL).strip()
+
+
 def hermes_profile_call(
     profile: str,
     prompt: str,
@@ -5078,6 +5119,8 @@ def hermes_profile_call(
     model: Optional[str] = None,
     reasoning: Optional[str] = None,
     toolless: bool = True,
+    ignore_rules: bool = False,
+    preload_skill: Optional[str] = None,
 ) -> Dict[str, Any]:
     """One shot through a Hermes profile over stdin `--query-file -`. Never raises."""
     _ = fallback_role
@@ -5096,7 +5139,8 @@ def hermes_profile_call(
     if not binary:
         out["error"] = f"hermes not found (set {HERMES_BINARY_ENV} or install hermes)"
         return out
-    if _env_nonempty("AINISH_HERMES_SKIP_PROFILE_CHECK") != "1" and not hermes_profile_exists(profile):
+    skip_profile_check = _env_nonempty("AINISH_HERMES_SKIP_PROFILE_CHECK") == "1"
+    if not skip_profile_check and not hermes_profile_exists(profile):
         out["error"] = (
             f"hermes profile '{profile}' missing in {hermes_profile_dir(profile)} "
             "(run `ainish-coder --context-setup`)"
@@ -5116,6 +5160,15 @@ def hermes_profile_call(
     ]
     if toolless:
         argv.extend(["--max-turns", "1"])
+    if ignore_rules:
+        # Suppress repo-cwd `AGENTS.md` / `SOUL.md` auto-injection: without this, a consolidation
+        # agent invoked inside a repository obeys `AGENTS.md` rule #1 and emits a bash tool-call
+        # to run `ainish-coder --context` instead of writing a digest or verdict (measured 2026-11-26).
+        argv.append("--ignore-rules")
+    if preload_skill:
+        skill_file = hermes_profile_dir(profile) / "skills" / preload_skill / "SKILL.md"
+        if skip_profile_check or skill_file.is_file():
+            argv.extend(["-s", preload_skill])
     if model:
         if model == HERMES_DEFAULT_MODEL or model.startswith(f"{HERMES_PROVIDER_ID}/"):
             argv.extend(["--provider", HERMES_PROVIDER_ID, "-m", model])
@@ -5161,6 +5214,24 @@ def hermes_profile_call(
     return out
 
 
+def _record_consolidation_call(reply: Dict[str, Any]) -> None:
+    """Thread-safely record one consolidation agent call into the active run sink, if any."""
+    with _CONSOLIDATION_CALL_LOCK:
+        if _CONSOLIDATION_CALL_SINK is None:
+            return
+        _CONSOLIDATION_CALL_SINK.append({
+            "profile": reply.get("profile"),
+            "transport": reply.get("transport"),
+            "source": reply.get("source"),
+            "requested_model": reply.get("requested_model"),
+            "served_model": reply.get("served_model"),
+            "duration_ms": reply.get("duration_ms"),
+            "fallback_from": reply.get("fallback_from"),
+            "degrade_note": reply.get("degrade_note"),
+            "error": reply.get("error"),
+        })
+
+
 def consolidation_call(
     profile: str,
     prompt: str,
@@ -5168,29 +5239,53 @@ def consolidation_call(
     fallback_role: str,
     timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """The consolidation pair's transport: hermes profile first, `pi` role second.
+    """The consolidation panel's transport: specialized Hermes profile first, `pi` fallback second.
 
-    The fallback is reported, never silent — a run served by `pi` is a run that may be slower and flakier,
-    and the operator should see which one happened.
+    Always invokes Hermes with `--ignore-rules`, explicit `-s <profile>` skill preload, and
+    `--provider local-router -m <model>` so repo `AGENTS.md` cannot hijack the consolidation agent
+    into running `ainish-coder --context`, and stale `model.*` keys in profile YAML cannot override
+    the local-router provider.
+
+    The fallback is reported, never silent — a run served by `pi` is recorded with `transport:
+    pi-fallback`, `fallback_from`, and `degrade_note`.
     """
-    reply = hermes_profile_call(profile, prompt, timeout=timeout)
+    model = _consolidate_model()
+    reply = hermes_profile_call(
+        profile,
+        prompt,
+        timeout=timeout,
+        model=model,
+        toolless=True,
+        ignore_rules=True,
+        preload_skill=profile,
+    )
     if reply.get("text"):
+        _record_consolidation_call(reply)
         return reply
+    hermes_err = reply.get("error") or "hermes produced nothing"
     fallback = pi_agent_call(role=fallback_role, model=_pi_role_model(fallback_role),
                              system_prompt="", user_prompt=prompt, timeout=timeout)
     text = str((fallback or {}).get("text") or "").strip()
     if text:
-        return {
+        degraded_reply = {
             "text": text,
             "source": f"{fallback.get('source')}:fallback({profile})",
             "profile": profile,
             "transport": "pi-fallback",
+            "requested_model": fallback.get("requested_model") or model,
+            "served_model": fallback.get("served_model"),
+            "duration_ms": fallback.get("duration_ms"),
+            "fallback_from": f"hermes:{profile}",
+            "degrade_note": f"{profile} degraded to pi fallback ({hermes_err})",
             "error": None,
         }
+        _record_consolidation_call(degraded_reply)
+        return degraded_reply
     reply["error"] = (
-        f"{reply.get('error') or 'hermes produced nothing'}; "
+        f"{hermes_err}; "
         f"pi fallback also failed ({fallback.get('error') or 'no output'})"
     )
+    _record_consolidation_call(reply)
     return reply
 
 
@@ -6670,6 +6765,29 @@ CONSOLIDATION_DEFAULT_CAP = CONSOLIDATION_PROTECTED_NEWEST
 CONSOLIDATION_DIGEST_PREFIX = "DIGEST-"
 
 _RECORD_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+_RECORD_DATE_HOUR_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:-(\d{2})(?=-|\.|$))?")
+
+
+def _is_digest_file(path: Path) -> bool:
+    """True when `path` is a consolidation digest (`DIGEST-*.md`/`.txt`)."""
+    return (
+        path.is_file()
+        and path.suffix.lower() in (".md", ".txt")
+        and path.name.startswith(CONSOLIDATION_DIGEST_PREFIX)
+    )
+
+
+def _record_sort_key(path: Path) -> Tuple[int, int, int, int, str]:
+    """Chronological sort key from filename: `(YYYY, MM, DD, HH_or_-1, name)`.
+
+    Avoids raw ASCII drift where legacy day-only `2026-11-25-memory.txt` (`'m'`) sorted ahead of
+    hour-stamped `2026-11-25-22-memory.md` (`'2'`).
+    """
+    m = _RECORD_DATE_HOUR_RE.match(path.name)
+    if not m:
+        return (0, 0, 0, -1, path.name)
+    year, month, day, hour = m.groups()
+    return (int(year), int(month), int(day), int(hour) if hour is not None else -1, path.name)
 
 
 def _is_consolidatable(path: Path) -> bool:
@@ -6719,14 +6837,16 @@ def _record_period(path: Path, period: str = "month") -> str:
 def folder_census(repo_root: Path, folder: str) -> Dict[str, Any]:
     """What a folder holds, what consolidation may touch, and what it must leave alone.
 
-    `protected` is the newest records by RECORD DATE (not mtime), and those files are never read as
-    candidates — the operator's requirement that the three most recent versions stay reviewable in
-    their original form.
+    `protected` is the newest records by RECORD DATE+HOUR (not mtime), and those files are never
+    read as candidates — the operator's requirement that the three most recent versions stay
+    reviewable in their original form. Multiple accumulated `DIGEST-*.md` files also trigger a
+    rolling compaction so agents do not ingest duplicated or superseded digest history.
     """
     directory = Path(repo_root) / ".agents" / folder
     out: Dict[str, Any] = {
         "folder": folder, "exists": directory.is_dir(), "originals": 0, "digests": 0,
-        "protected": [], "candidates": [], "ignored": [], "periods": {},
+        "digest_files": [], "protected": [], "candidates": [], "ignored": [], "periods": {},
+        "needs_consolidation": False,
     }
     if not out["exists"]:
         return out
@@ -6735,17 +6855,20 @@ def folder_census(repo_root: Path, folder: str) -> Dict[str, Any]:
     except OSError:
         return out
     records: List[Path] = []
+    digests: List[str] = []
     for p in entries:
-        if p.name.startswith(CONSOLIDATION_DIGEST_PREFIX):
-            out["digests"] += 1
+        if _is_digest_file(p):
+            digests.append(p.name)
         elif _is_consolidatable(p):
             records.append(p)
         else:
             # Named in the report rather than silently skipped, so an operator can see that the index
             # and the live sidecars were considered and deliberately excluded.
             out["ignored"].append(p.name)
-    records.sort(key=lambda p: p.name, reverse=True)
+    records.sort(key=_record_sort_key, reverse=True)
     out["originals"] = len(records)
+    out["digest_files"] = sorted(digests)
+    out["digests"] = len(digests)
     out["protected"] = [p.name for p in records[:CONSOLIDATION_PROTECTED_NEWEST]]
     candidates = records[CONSOLIDATION_PROTECTED_NEWEST:]
     out["candidates"] = [p.name for p in candidates]
@@ -6753,6 +6876,7 @@ def folder_census(repo_root: Path, folder: str) -> Dict[str, Any]:
     for p in candidates:
         grouped.setdefault(_record_period(p), []).append(p.name)
     out["periods"] = {k: sorted(v) for k, v in sorted(grouped.items())}
+    out["needs_consolidation"] = bool(out["candidates"]) or out["digests"] > 1
     return out
 
 
@@ -6834,6 +6958,12 @@ def _digest_prompt(folder: str, period: str, sources: List[Tuple[str, str]]) -> 
         "so plainly. This digest REPLACES the files, so omitting a fact loses it unless it is in git.\n",
         "The most common way this goes wrong is calling a plan an accomplishment. A reviewer will fail "
         "the digest for it, so read what each source records as DONE before writing the first section.\n",
+        "Open with a concise 1-2 sentence overview of what the period covered, then the four sections. "
+        "Connect items ONLY when the sources themselves record a relationship — never invent causal "
+        "or architectural links between independent entries.\n",
+        "If prior `DIGEST-*.md` files are included below, roll them into this single current digest: "
+        "deduplicate repeated points and drop items explicitly superseded by newer records while "
+        "preserving every still-open thread and durable insight.\n",
     ]
     for name, body in sources:
         parts.append(f"\n## SOURCE: {name}\n{_clip(body, CONSOLIDATE_SOURCE_CHARS, name)}\n")
@@ -6976,8 +7106,9 @@ def _digest_in_chunks(
             prompt = _digest_prompt(folder, period, batch)
             if gap:
                 prompt += (
-                    f"\n\nA reviewer previously failed a draft of THESE records with this gap:\n"
-                    f"{gap}\nAddress it specifically; do not change anything else.\n"
+                    f"\n\nA previous draft of THESE records failed panel review with this gap:\n"
+                    f"{gap}\nAddress every named issue while staying strictly faithful to the sources "
+                    f"(never invent causal links between unrelated entries).\n"
                 )
             draft = consolidation_call(
                 CONSOLIDATE_DRAFTER_PROFILE, prompt,
@@ -7092,7 +7223,114 @@ def _parse_digest_verdict(text: str) -> Tuple[bool, str]:
     return False, gap or "reviewer failed the draft without naming a gap"
 
 
-def _render_digest(folder: str, period: str, sources: List[str], body: str) -> str:
+def _is_pid_alive(pid: int) -> bool:
+    """True when `pid` refers to a currently live OS process."""
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not handle:
+                return False
+            try:
+                code = ctypes.c_ulong(0)
+                ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+                return bool(ok and code.value == STILL_ACTIVE)
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            return True  # fail safe: treat unreadable process state as alive
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def _reclaim_stale_lock(repo_root: Path) -> Optional[str]:
+    """Reclaim `.learn.lock` ONLY when its recorded PID is definitively dead. Never steals a live lock."""
+    lock = context_harness.lock_path(repo_root)
+    if not lock.is_file():
+        return None
+    try:
+        holder = json.loads(lock.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    pid = holder.get("pid") if isinstance(holder, dict) else None
+    if not isinstance(pid, int) or pid <= 0 or pid == os.getpid():
+        return None
+    if _is_pid_alive(pid):
+        return None
+    try:
+        lock.unlink()
+        return f"reclaimed stale lock from dead pid {pid}"
+    except OSError:
+        return None
+
+
+def _consolidate_last_run_path(repo_root: Path) -> Path:
+    return context_harness.learn_state_path(repo_root).parent / "consolidate-last-run.json"
+
+
+def _read_consolidate_last_run(repo_root: Path) -> Optional[Dict[str, Any]]:
+    path = _consolidate_last_run_path(repo_root)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _write_consolidate_last_run(repo_root: Path, payload: Dict[str, Any]) -> None:
+    path = _consolidate_last_run_path(repo_root)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def _summarize_consolidation_calls(calls: List[Dict[str, Any]]) -> Dict[str, Any]:
+    profiles: List[str] = []
+    transports: List[str] = []
+    degraded: List[str] = []
+    for c in calls:
+        p = str(c.get("profile") or "").strip()
+        if p and p not in profiles:
+            profiles.append(p)
+        t = str(c.get("transport") or "").strip()
+        if t and t not in transports:
+            transports.append(t)
+        note = str(c.get("degrade_note") or "").strip()
+        if note:
+            degraded.append(note)
+    return {
+        "profiles_used": profiles,
+        "transports_used": transports,
+        "call_count": len(calls),
+        "degraded_calls": degraded[:10],
+    }
+
+
+def _render_digest(
+    folder: str,
+    period: str,
+    sources: List[str],
+    body: str,
+    *,
+    agents: Optional[Dict[str, Any]] = None,
+) -> str:
     """The digest file: YAML frontmatter a reader can audit, then the agents' prose."""
     stamp = datetime.now(timezone.utc).isoformat()
     head = [
@@ -7102,8 +7340,15 @@ def _render_digest(folder: str, period: str, sources: List[str], body: str) -> s
         f"period: {period}",
         f"records_consolidated: {len(sources)}",
         f"consolidated_at: {stamp}",
-        "sources:",
     ]
+    if agents:
+        profiles = agents.get("profiles_used") or []
+        transports = agents.get("transports_used") or []
+        if profiles:
+            head.append(f"profiles: [{', '.join(profiles)}]")
+        if transports:
+            head.append(f"transports: [{', '.join(transports)}]")
+    head.append("sources:")
     head += [f"  - {s}" for s in sources]
     head += ["---", "", f"# Digest — `.agents/{folder}`, {period}", ""]
     head += [
@@ -7123,20 +7368,25 @@ def run_context_consolidate(
     period: str = "month",
     cap: int = CONSOLIDATION_DEFAULT_CAP,
     json_out: bool = False,
+    background: bool = False,
 ) -> Dict[str, Any]:
-    """Consolidate old records into dated digests, then remove the records they replace.
+    """Consolidate old records into one rolling digest per folder, then remove replaced files.
 
-    ORDER IS THE SAFETY PROPERTY: the digest is written and re-read before any source is removed, so a
-    failed write leaves every original in place. Removal happens only for the exact files the digest
-    names in its `sources:` list.
+    ORDER IS THE SAFETY PROPERTY: the digest is written and re-read before any source or superseded
+    digest is removed, so a failed write or panel refusal leaves every original in place. Removal
+    happens only for the exact files the digest names in its `sources:` list.
 
-    The three newest records per folder are never read as candidates. That is the operator's
-    requirement — recent work stays reviewable in its original form — and it is computed from the
-    RECORD DATE in the filename, not mtime, because a clone rewrites mtime.
+    The three newest original records per folder are never read as candidates. That is the
+    operator's requirement — recent work stays reviewable in its original form — and it is computed
+    from the RECORD DATE+HOUR in the filename, not mtime, because a clone rewrites mtime. Prior
+    `DIGEST-*.md` files are folded into the new rolling digest so steady state stays bounded at the
+    three newest originals plus one current digest.
     """
+    global _CONSOLIDATION_CALL_SINK
     result: Dict[str, Any] = {
         "format": "ainish-coder/context-consolidate/v1",
         "ok": False, "dry_run": dry_run, "period": period, "cap": cap, "folders": {},
+        "agents": {"profiles_used": [], "transports_used": [], "call_count": 0, "degraded_calls": []},
     }
     targets = [folder] if folder else list(CONSOLIDATION_FOLDERS)
     unknown = [f for f in targets if f not in CONSOLIDATION_FOLDERS]
@@ -7147,34 +7397,70 @@ def run_context_consolidate(
         result["errors"] = [f"period must be month or week, got {period!r}"]
         return result
 
+    started_at = datetime.now(timezone.utc).isoformat()
+    reclaimed = _reclaim_stale_lock(repo_root)
+    if reclaimed:
+        result["lock_note"] = reclaimed
     acquired, lock_note = context_harness.acquire_lock(repo_root)
     if not acquired:
         result["errors"] = [lock_note]
-        if json_out:
-            print(json.dumps(result, indent=2))
-        else:
-            print(f"[context:error] {lock_note}", file=sys.stderr)
+        if not dry_run:
+            _write_consolidate_last_run(repo_root, {
+                "format": "ainish-coder/context-consolidate-last-run/v1",
+                "status": "locked",
+                "pid": os.getpid(),
+                "background": background,
+                "started_at": started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "targets": targets,
+                "errors": [lock_note],
+            })
+        if not background:
+            if json_out:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"[context:error] {lock_note}", file=sys.stderr)
         return result
+
+    call_log: List[Dict[str, Any]] = []
+    if not dry_run:
+        _write_consolidate_last_run(repo_root, {
+            "format": "ainish-coder/context-consolidate-last-run/v1",
+            "status": "running",
+            "pid": os.getpid(),
+            "background": background,
+            "started_at": started_at,
+            "targets": targets,
+        })
+    with _CONSOLIDATION_CALL_LOCK:
+        prev_sink = _CONSOLIDATION_CALL_SINK
+        _CONSOLIDATION_CALL_SINK = call_log
     try:
         for name in targets:
             census = folder_census(repo_root, name)
+            prior_digests = list(census["digest_files"])
+            all_originals: List[str] = []
+            for _per, _files in sorted(census["periods"].items()):
+                all_originals.extend(_files)
+            should_compact = bool(all_originals) or len(prior_digests) > 1
+            all_files: List[str] = (prior_digests + all_originals) if should_compact else []
+            span = (
+                f"{min(census['periods'])}+" if census["periods"]
+                else ("rollup" if should_compact else "none")
+            )
             entry: Dict[str, Any] = {
-                "originals": census["originals"], "digests": census["digests"],
-                "protected": census["protected"], "ignored": census["ignored"],
+                "originals": census["originals"],
+                "digests": census["digests"],
+                "protected": census["protected"],
+                "ignored": census["ignored"],
                 "would_consolidate": census["candidates"],
+                "would_compact_digests": prior_digests if should_compact else [],
                 "written": [], "removed": [], "skipped": [],
             }
             directory = Path(repo_root) / ".agents" / name
-            # ONE DIGEST PER RUN over the WHOLE folder. Grouping by period and then refusing when that
-            # period was already digested is what left 55 records unconsolidated: the period was a lock,
-            # and a folder's records almost always share one period. The digest's own frontmatter names
-            # the span it covers, so grouping by period buys nothing the file does not already say.
             _index = _next_digest_index(repo_root, name)
             digest = _digest_path(repo_root, name, index=_index)
-            all_files: List[str] = []
-            for _per, _files in sorted(census["periods"].items()):
-                all_files.extend(_files)
-            span = f"{min(census['periods'])}+" if census["periods"] else "none"
+            protected_set = set(census["protected"])
 
             if dry_run:
                 if all_files:
@@ -7182,6 +7468,7 @@ def run_context_consolidate(
                         {"period": span, "digest": digest.name, "sources": all_files}
                     )
             elif all_files:
+                calls_before = len(call_log)
                 payload: List[Tuple[str, str]] = []
                 unreadable: List[str] = []
                 for fname in all_files:
@@ -7192,6 +7479,8 @@ def run_context_consolidate(
                 if unreadable:
                     entry["skipped"].extend({"period": span, "reason": f"unreadable {u}"} for u in unreadable)
                 body, chunk_errors, covered = _digest_in_chunks(name, span, payload)
+                folder_agents = _summarize_consolidation_calls(call_log[calls_before:])
+                entry["agents"] = folder_agents
                 if chunk_errors:
                     entry["skipped"].extend({"period": span, "reason": e} for e in chunk_errors)
                 usable, why_unusable = _digest_is_usable(body)
@@ -7204,10 +7493,10 @@ def run_context_consolidate(
                         "reason": f"no usable digest for this folder: {why_unusable}",
                     })
                 else:
-                    # The digest names exactly the records it covers, so `sources:` stays a true account
-                    # of what it replaces.
+                    # The digest names exactly the records (and rolled-up digests) it covers, so
+                    # `sources:` stays a true account of what it replaces.
                     covered_sorted = [f for f in all_files if f in covered]
-                    rendered = _render_digest(name, span, covered_sorted, body)
+                    rendered = _render_digest(name, span, covered_sorted, body, agents=folder_agents)
                     written = False
                     try:
                         digest.write_text(rendered, encoding="utf-8")
@@ -7216,9 +7505,17 @@ def run_context_consolidate(
                         entry["skipped"].append({"period": span, "reason": f"write failed: {str(exc)[:80]}"})
                     if written:
                         removed: List[str] = []
+                        digest_resolved = digest.resolve()
                         for fname in covered_sorted:
+                            if fname in protected_set:
+                                continue
                             target = directory / fname
-                            if not _is_consolidatable(target):
+                            try:
+                                if target.resolve() == digest_resolved:
+                                    continue
+                            except OSError:
+                                continue
+                            if not (_is_consolidatable(target) or _is_digest_file(target)):
                                 continue
                             try:
                                 target.unlink()
@@ -7233,36 +7530,82 @@ def run_context_consolidate(
                                 "period": span,
                                 "reason": f"{len(left)} record(s) left in place because their chunk was not summarised",
                             })
-            entry["originals_after"] = max(0, entry["originals"] - len(entry["removed"]))
+            removed_originals = [f for f in entry["removed"] if not f.startswith(CONSOLIDATION_DIGEST_PREFIX)]
+            removed_digests = [f for f in entry["removed"] if f.startswith(CONSOLIDATION_DIGEST_PREFIX)]
+            entry["originals_after"] = max(0, entry["originals"] - len(removed_originals))
+            entry["digests_after"] = max(0, entry["digests"] - len(removed_digests) + len(entry["written"]))
             result["folders"][name] = entry
+        result["agents"] = _summarize_consolidation_calls(call_log)
         result["ok"] = True
+    except Exception as exc:
+        result["errors"] = [f"consolidation crashed: {type(exc).__name__}: {str(exc)[:180]}"]
+        raise
     finally:
+        with _CONSOLIDATION_CALL_LOCK:
+            _CONSOLIDATION_CALL_SINK = prev_sink
         context_harness.release_lock(repo_root)
+        if not dry_run:
+            agents_summary = _summarize_consolidation_calls(call_log)
+            removed_total = sum(len(e.get("removed") or []) for e in result["folders"].values())
+            skipped_total = sum(len(e.get("skipped") or []) for e in result["folders"].values())
+            status = (
+                "failed" if (not result.get("ok") or result.get("errors"))
+                else ("partial" if skipped_total else "ok")
+            )
+            _write_consolidate_last_run(repo_root, {
+                "format": "ainish-coder/context-consolidate-last-run/v1",
+                "status": status,
+                "pid": os.getpid(),
+                "background": background,
+                "started_at": started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "targets": targets,
+                "profiles_used": agents_summary["profiles_used"],
+                "transports_used": agents_summary["transports_used"],
+                "call_count": agents_summary["call_count"],
+                "degraded_calls": agents_summary["degraded_calls"],
+                "removed_total": removed_total,
+                "skipped_total": skipped_total,
+                "folders": {
+                    fname: {
+                        "originals_before": fentry["originals"],
+                        "originals_after": fentry["originals_after"],
+                        "digests_before": fentry["digests"],
+                        "digests_after": fentry["digests_after"],
+                        "written": fentry["written"],
+                        "removed": len(fentry["removed"]),
+                        "skipped": [s.get("reason") for s in (fentry.get("skipped") or [])][:4],
+                    }
+                    for fname, fentry in result["folders"].items()
+                },
+                "errors": result.get("errors") or [],
+            })
 
-    if json_out:
-        print(json.dumps(result, indent=2))
-    else:
-        for name, entry in result["folders"].items():
-            print(f".agents/{name}: {entry['originals']} original(s), {entry['digests']} digest(s)")
-            print(f"  protected (never touched): {', '.join(entry['protected']) or 'none'}")
-            if entry.get("planned"):
-                for pl in entry["planned"]:
-                    print(f"  would consolidate {pl['period']}: {len(pl['sources'])} file(s)")
-            for w in entry["written"]:
-                print(f"  wrote {w}")
-            if entry["removed"]:
-                print(f"  removed {len(entry['removed'])} consolidated file(s)")
-            for sk in entry["skipped"]:
-                print(f"  skipped {sk['period']}: {sk['reason']}")
-            if entry["originals_after"] > cap:
-                if dry_run:
-                    planned = sum(len(p["sources"]) for p in entry.get("planned") or [])
-                    print(f"  {entry['originals_after']} originals, over the {cap} cap; a real run would")
-                    print(f"  consolidate {planned} of them and leave "
-                          f"{entry['originals_after'] - planned}")
-                else:
-                    print(f"  {entry['originals_after']} originals remain, over the {cap} cap —")
-                    print(f"  something in this period could not be digested (see skipped, above)")
+    if not background:
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            for name, entry in result["folders"].items():
+                print(f".agents/{name}: {entry['originals']} original(s), {entry['digests']} digest(s)")
+                print(f"  protected (never touched): {', '.join(entry['protected']) or 'none'}")
+                if entry.get("planned"):
+                    for pl in entry["planned"]:
+                        print(f"  would consolidate {pl['period']}: {len(pl['sources'])} file(s)")
+                for w in entry["written"]:
+                    print(f"  wrote {w}")
+                if entry["removed"]:
+                    print(f"  removed {len(entry['removed'])} consolidated file(s)")
+                for sk in entry["skipped"]:
+                    print(f"  skipped {sk['period']}: {sk['reason']}")
+                if entry["originals_after"] > cap:
+                    if dry_run:
+                        planned = len(entry.get("would_consolidate") or [])
+                        print(f"  {entry['originals_after']} originals, over the {cap} cap; a real run would")
+                        print(f"  consolidate {planned} of them and leave "
+                              f"{entry['originals_after'] - planned}")
+                    else:
+                        print(f"  {entry['originals_after']} originals remain, over the {cap} cap —")
+                        print(f"  something in this period could not be digested (see skipped, above)")
     return result
 
 
@@ -7649,24 +7992,25 @@ def _newest_task_objective(repo_root: Path) -> str:
 
 def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
     """Verify EVERY context folder on every context run; spawn one background condense pass whenever
-    any folder holds records beyond the protected three.
+    any folder holds records beyond the protected three or multiple accumulated digests.
 
     The operator's design (2026-11-25): ONE `--context` call primes the agent AND sweeps the record.
-    Answering is synchronous; consolidating is not — it costs model sessions per batch — so it runs
-    detached, after the prime is assembled, exactly like the learning pass. The verification census
-    itself is filesystem-only and runs synchronously on EVERY call, so provenance can always say
-    whether every folder is consolidated and which records were left in original form (the three
+    Answering is synchronous; consolidating is not — it costs Hermes panel sessions per batch — so
+    it runs detached, after the prime is assembled, exactly like the learning pass. The verification
+    census itself is filesystem-only and runs synchronously on EVERY call, so provenance can always
+    say whether every folder is consolidated and which records were left in original form (the three
     newest per folder — the operator's retention requirement).
 
-    Gated on NEED, not on time: records beyond `CONSOLIDATION_PROTECTED_NEWEST` are what
-    consolidation is for, and spawning when nothing needs it burns a session to conclude nothing.
+    Gated on NEED, not on time: records beyond `CONSOLIDATION_PROTECTED_NEWEST` (or >1 accumulated
+    digests) are what consolidation is for, and spawning when nothing needs it burns sessions for
+    nothing.
     """
     info: Dict[str, Any] = {"spawned": False, "reason": ""}
     if (_env_nonempty("AINISH_CONSOLIDATE_ON_CONTEXT") or "on").strip().lower() in ("0", "off", "false", "no"):
         info["reason"] = "AINISH_CONSOLIDATE_ON_CONTEXT is off"
         return info
     # THE VERIFICATION: census every folder now and report it always. `candidates` is everything
-    # beyond the protected three — those are the files the sweep must condense.
+    # beyond the protected three; `digests > 1` flags accumulated digests needing rolling compaction.
     verified: Dict[str, Any] = {}
     pending: List[str] = []
     for folder in CONSOLIDATION_FOLDERS:
@@ -7677,11 +8021,22 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             "digests": census["digests"],
             "protected": census["protected"],
             "candidates": len(census["candidates"]),
+            "needs_consolidation": census["needs_consolidation"],
         }
-        if census["candidates"]:
+        if census["needs_consolidation"]:
             pending.append(folder)
     info["verified"] = verified
     info["folders_needing"] = pending
+    last_run = _read_consolidate_last_run(repo_root)
+    if last_run:
+        info["last_run"] = {
+            "status": last_run.get("status"),
+            "finished_at": last_run.get("finished_at") or last_run.get("started_at"),
+            "profiles_used": last_run.get("profiles_used") or [],
+            "transports_used": last_run.get("transports_used") or [],
+            "removed_total": last_run.get("removed_total", 0),
+            "errors": (last_run.get("errors") or [])[:3],
+        }
     state_dir = context_harness.learn_state_path(repo_root).parent
     try:
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -7698,6 +8053,7 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             },
             "folders": verified,
             "folders_needing": pending,
+            "last_run": info.get("last_run"),
         }, indent=2) + "\n", encoding="utf-8")
     except OSError:
         pass
@@ -7714,14 +8070,17 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
     if not pending:
         info["reason"] = "verified every folder: all records are digested or within the protected three"
         return info
+    reclaimed = _reclaim_stale_lock(repo_root)
+    if reclaimed:
+        info["reclaimed_stale_lock"] = reclaimed
     lock = context_harness.lock_path(repo_root)
     if lock.is_file():
         info["reason"] = "another harness pass holds the lock"
         return info
     engine = Path(__file__).resolve()
     # ONE CHILD, ALL FOLDERS: the pass sweeps every folder (reporting on each), condensing the ones
-    # with candidates. Narrowing the spawn to a single folder left the rest unverified and waiting.
-    argv = [sys.executable, str(engine), "context-consolidate"]
+    # with candidates or accumulated digests via the specialized Hermes consolidation panel.
+    argv = [sys.executable, str(engine), "context-consolidate", "--background"]
     try:
         popen_kw: Dict[str, Any] = {
             "cwd": str(repo_root),
@@ -7734,18 +8093,25 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             popen_kw["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0) | 0x00000008
         else:
             popen_kw["start_new_session"] = True
-        subprocess.Popen(argv, **popen_kw)
+        proc = subprocess.Popen(argv, **popen_kw)
+        child_pid = getattr(proc, "pid", None)
         try:
             state.write_text(json.dumps({
                 "format": "ainish-coder/context-consolidate-autolearn/v1",
                 "last_run_epoch": now,
                 "last_run_at": datetime.now(timezone.utc).isoformat(),
                 "folders": pending,
+                "pid": child_pid,
             }, indent=2) + "\n", encoding="utf-8")
         except OSError:
             pass
-        info.update({"spawned": True, "folders": pending,
-                     "reason": f"records beyond the protected three in: {', '.join(pending)}"})
+        info.update({
+            "spawned": True,
+            "folders": pending,
+            "pid": child_pid,
+            "profiles": [CONSOLIDATE_DRAFTER_PROFILE, *(m[0] for m in CONSOLIDATE_PANEL)],
+            "reason": f"records beyond the protected three or multiple digests in: {', '.join(pending)}",
+        })
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         info["reason"] = f"could not start the consolidation pass: {str(exc)[:120]}"
     return info
@@ -8200,7 +8566,12 @@ def run_context_command(
         # smaller, digested corpus is also what the learner should tune against, and the consolidate
         # pass holds the same lock, so ordering them here keeps them from racing.
         consolidate = spawn_consolidate(repo_root)
-        if route_skipped or not (retrieved.get("hits") or []):
+        if consolidate.get("spawned"):
+            # Do not race the just-spawned consolidation child for `.learn.lock`: it starts
+            # asynchronously and has not created the lock file yet, so spawning `context-learn`
+            # immediately would let it steal the lock and silently abort consolidation.
+            autolearn = {"spawned": False, "reason": "deferred while background consolidation pass runs"}
+        elif route_skipped or not (retrieved.get("hits") or []):
             # Nothing was retrieved, so a learning pass would have no evidence to reason over and
             # could only produce a KEEP_BASE. Observed for real on this repo: a route-skipped task
             # spawned a session that immediately recorded "no corpus hit for this task". Not spawning
@@ -10233,6 +10604,10 @@ def main():
     )
     consolidate_p.add_argument("--dry-run", action="store_true", help="Report what would be consolidated; write and delete nothing")
     consolidate_p.add_argument("--json", action="store_true")
+    consolidate_p.add_argument(
+        "--background", action="store_true",
+        help="Internal: set by the detached child that `--context` spawns. Silences all output and writes consolidate-last-run.json.",
+    )
 
     audit_p = sub.add_parser("audit", help="Verify post-quantum receipts, manifests, lockfiles, and SBOMs")
     audit_sub = audit_p.add_subparsers(dest="audit_command", required=True)
@@ -10410,13 +10785,15 @@ def main():
     elif args.subcommand == "context-consolidate":
         # Learned state and the records it consolidates both live in the checkout the caller is in,
         # so this resolves the worktree root rather than the canonical one.
+        background = bool(getattr(args, "background", False))
         result = run_context_consolidate(
             _learned_root(repo_root),
             folder=getattr(args, "folder", None),
             dry_run=bool(getattr(args, "dry_run", False)),
             period=getattr(args, "period", "month"),
             cap=int(getattr(args, "cap", CONSOLIDATION_DEFAULT_CAP) or CONSOLIDATION_DEFAULT_CAP),
-            json_out=bool(getattr(args, "json", False)),
+            json_out=bool(getattr(args, "json", False)) and not background,
+            background=background,
         )
         if result.get("errors"):
             sys.exit(1)

@@ -1777,9 +1777,14 @@ class ConsolidationSweepTest(unittest.TestCase):
             rag.subprocess.Popen = orig_popen
         self.assertTrue(info["spawned"])
         self.assertEqual(sorted(info["folders_needing"]), ["comms", "tasks"])
-        self.assertEqual(captured["argv"][-1], "context-consolidate")
+        self.assertIn("context-consolidate", captured["argv"])
+        self.assertIn("--background", captured["argv"])
         self.assertNotIn("--folder", captured["argv"],
                          "the sweep must cover every folder, not be narrowed to the first")
+        self.assertEqual(
+            info["profiles"],
+            ["consolidate-elephant", "consolidate-goldfish", "consolidate-archivist", "consolidate-structural"],
+        )
 
     def test_consolidation_keeps_the_three_newest_records(self):
         names = [f"2026-11-{i:02d}-rec.md" for i in range(1, 7)]
@@ -1806,6 +1811,7 @@ class ConsolidationSweepTest(unittest.TestCase):
         for n in names[:-3]:
             self.assertIn(n, text, "the digest's sources: list must account for what it replaced")
         self.assertEqual(res["folders"]["tasks"]["originals_after"], 3)
+        self.assertEqual(res["folders"]["tasks"]["digests_after"], 1)
         self.assertTrue(res["ok"])
 
     def test_an_unusable_digest_deletes_nothing(self):
@@ -1821,6 +1827,209 @@ class ConsolidationSweepTest(unittest.TestCase):
         left = sorted(p.name for p in (self.root / ".agents" / "tasks").iterdir())
         self.assertEqual(left, sorted(names), "a failed digest must never cost an original")
         self.assertTrue(any("no usable digest" in s["reason"] for s in res["folders"]["tasks"]["skipped"]))
+
+    def test_folder_census_sorts_hour_stamped_ahead_of_legacy_day_only(self):
+        self._records("memories", [
+            "2026-11-25-memory.txt",
+            "2026-11-25-12-memory.md",
+            "2026-11-25-13-memory.md",
+            "2026-11-25-22-memory.md",
+            "2026-11-24-memory.txt",
+        ])
+        census = rag.folder_census(self.root, "memories")
+        self.assertEqual(
+            census["protected"],
+            ["2026-11-25-22-memory.md", "2026-11-25-13-memory.md", "2026-11-25-12-memory.md"],
+            "hour-stamped records on the same UTC date must sort newer than legacy day-only files",
+        )
+        self.assertIn("2026-11-25-memory.txt", census["candidates"])
+
+    def test_rolling_digest_compaction_replaces_stale_digests_and_reaches_steady_state(self):
+        names = [f"2026-11-{i:02d}-rec.md" for i in range(1, 7)]
+        self._records("memories", names + ["DIGEST-memories-01.md", "DIGEST-memories-2026-10.md"])
+        seen_sources = []
+        orig_chunks = rag._digest_in_chunks
+
+        def fake_chunks(folder, period, payload):
+            seen_sources.extend(name for name, _ in payload)
+            body = ("## Accomplished\nAll landed.\n\n## Unfinished\nNone.\n\n"
+                    "## Insights\nDeduplicated prior digests.\n\n## Recurring\nNone.\n" * 6)
+            return body, [], {name for name, _ in payload}
+
+        rag._digest_in_chunks = fake_chunks
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = rag.run_context_consolidate(self.root, folder="memories", json_out=True)
+        finally:
+            rag._digest_in_chunks = orig_chunks
+        self.assertIn("DIGEST-memories-01.md", seen_sources)
+        self.assertIn("DIGEST-memories-2026-10.md", seen_sources)
+        d = self.root / ".agents" / "memories"
+        files = sorted(p.name for p in d.iterdir())
+        originals = [f for f in files if not f.startswith(rag.CONSOLIDATION_DIGEST_PREFIX)]
+        digests = [f for f in files if f.startswith(rag.CONSOLIDATION_DIGEST_PREFIX)]
+        self.assertEqual(originals, sorted(names[-3:]))
+        self.assertEqual(len(digests), 1, "prior digests must roll into one current digest")
+        self.assertEqual(digests[0], "DIGEST-memories-02.md")
+        self.assertEqual(res["folders"]["memories"]["originals_after"], 3)
+        self.assertEqual(res["folders"]["memories"]["digests_after"], 1)
+        # Steady state: next sweep must not spawn again.
+        info = rag.spawn_consolidate(self.root)
+        self.assertFalse(info["spawned"])
+        self.assertEqual(info["folders_needing"], [])
+        self.assertEqual(info["last_run"]["status"], "ok")
+
+    def test_multiple_digests_alone_trigger_compaction_and_fail_closed(self):
+        self._records("comms", [
+            "2026-11-23-team.md", "2026-11-24-team.md", "2026-11-25-team.md",
+            "DIGEST-comms-01.md", "DIGEST-comms-02.md",
+        ])
+        census = rag.folder_census(self.root, "comms")
+        self.assertTrue(census["needs_consolidation"])
+        orig_chunks = rag._digest_in_chunks
+        rag._digest_in_chunks = lambda folder, period, payload: ("too short", [], {n for n, _ in payload})
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                rag.run_context_consolidate(self.root, folder="comms", json_out=True)
+        finally:
+            rag._digest_in_chunks = orig_chunks
+        # Fail closed: both digests and all 3 originals remain intact on failed compaction.
+        files = sorted(p.name for p in (self.root / ".agents" / "comms").iterdir())
+        self.assertEqual(len(files), 5)
+
+    def test_consolidation_call_uses_hermes_ignore_rules_skill_and_model(self):
+        hermes_home = self.root / "hermes-home"
+        pdir = hermes_home / "profiles" / "consolidate-elephant"
+        (pdir / "skills" / "consolidate-elephant").mkdir(parents=True, exist_ok=True)
+        (pdir / "config.yaml").write_text("model:\n  default: local-router/fallback-models\n", encoding="utf-8")
+        (pdir / "skills" / "consolidate-elephant" / "SKILL.md").write_text("# skill\n", encoding="utf-8")
+
+        saved_hhome = os.environ.get("HERMES_HOME")
+        os.environ["HERMES_HOME"] = str(hermes_home)
+        captured = {}
+        orig_avail = rag.hermes_available
+        orig_run = rag.subprocess.run
+        rag.hermes_available = lambda: "/fake/hermes"
+
+        class FakeProc:
+            returncode = 0
+            stderr = ""
+            stdout = "\n".join([
+                json.dumps({"type": "system", "subtype": "init", "model": "local-router/fallback-models"}),
+                json.dumps({"type": "result", "exit_code": 0, "text": "## Accomplished\nDone.\n", "duration_ms": 80}),
+            ])
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return FakeProc()
+
+        rag.subprocess.run = fake_run
+        try:
+            reply = rag.consolidation_call("consolidate-elephant", "draft prompt", fallback_role="elephant")
+        finally:
+            rag.hermes_available = orig_avail
+            rag.subprocess.run = orig_run
+            if saved_hhome is None:
+                os.environ.pop("HERMES_HOME", None)
+            else:
+                os.environ["HERMES_HOME"] = saved_hhome
+
+        self.assertEqual(reply["transport"], "hermes")
+        self.assertEqual(reply["source"], "hermes:consolidate-elephant")
+        self.assertIn("--ignore-rules", captured["argv"])
+        self.assertIn("-s", captured["argv"])
+        self.assertIn("consolidate-elephant", captured["argv"])
+        self.assertIn("--provider", captured["argv"])
+        self.assertIn("local-router", captured["argv"])
+        self.assertIn("local-router/fallback-models", captured["argv"])
+
+    def test_upsert_hermes_config_strips_stale_model_overrides_and_sets_reviewers_stateless(self):
+        stale = (
+            "model:\n"
+            "  default: local-router/fallback-models\n"
+            "  provider: local-router\n"
+            "  base_url: https://token-plan-sgp.xiaomimimo.com/v1\n"
+            "  api_mode: chat_completions\n"
+            "  key_env: HERMES_CUSTOM_XIAOMI_MIMO_CODE_PLAN_API_KEY\n"
+        )
+        updated = rag._upsert_hermes_config_yaml(
+            stale,
+            v1_base_url="http://127.0.0.1:11434/v1",
+            model="local-router/fallback-models",
+            set_default_model=True,
+            toolless=True,
+            stateless=True,
+        )
+        self.assertNotIn("token-plan-sgp.xiaomimimo.com", updated)
+        self.assertNotIn("key_env:", updated)
+        self.assertNotIn("api_mode:", updated)
+        self.assertIn("provider: local-router", updated)
+        self.assertIn("memory_enabled: false", updated)
+
+    def test_spawn_consolidate_reclaims_stale_dead_pid_lock_and_respects_live_lock(self):
+        self._records("tasks", [f"2026-11-{i:02d}-rec.md" for i in range(1, 6)])
+        lock = rag.context_harness.lock_path(self.root)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        # 1. Live PID (current process) -> must NEVER be stolen.
+        lock.write_text(json.dumps({"pid": os.getpid(), "at": "2026-11-26T00:00:00Z"}), encoding="utf-8")
+        info_live = rag.spawn_consolidate(self.root)
+        self.assertFalse(info_live["spawned"])
+        self.assertIn("lock", info_live["reason"])
+        self.assertTrue(lock.is_file())
+
+        # 2. Dead PID -> reclaimed cleanly so background consolidation is not wedged forever.
+        lock.write_text(json.dumps({"pid": 99999999, "at": "2026-11-25T00:00:00Z"}), encoding="utf-8")
+        orig_alive = rag._is_pid_alive
+        orig_popen = rag.subprocess.Popen
+        rag._is_pid_alive = lambda pid: pid == os.getpid()
+        rag.subprocess.Popen = lambda argv, **kw: type("P", (), {"pid": 4242})()
+        try:
+            info_dead = rag.spawn_consolidate(self.root)
+        finally:
+            rag._is_pid_alive = orig_alive
+            rag.subprocess.Popen = orig_popen
+        self.assertTrue(info_dead["spawned"])
+        self.assertIn("reclaimed stale lock", info_dead.get("reclaimed_stale_lock", ""))
+        self.assertEqual(info_dead.get("pid"), 4242)
+
+    def test_run_context_defers_autolearn_when_consolidation_spawns(self):
+        (self.root / ".agents" / "wiki").mkdir(parents=True, exist_ok=True)
+        (self.root / ".agents" / "wiki" / "01-arch.md").write_text(
+            "# Architecture\n\n## Consolidation\nHermes consolidation pipeline.\n",
+            encoding="utf-8",
+        )
+        self._records("tasks", [f"2026-11-{i:02d}-rec.md" for i in range(1, 6)])
+        orig_route = rag.DecisionEngine.route
+        orig_agent = rag._context_agent_call
+        orig_popen = rag.subprocess.Popen
+        orig_autolearn = rag.spawn_autolearn
+        autolearn_called = []
+
+        rag.DecisionEngine.route = lambda self_e, q: {
+            "source": "stub", "retrieval_strategy": "hybrid_rerank",
+            "context_budget_tokens": 2000, "candidate_pool_size": 8,
+            "target_domain": "architectural_wiki", "next_action": "retrieve",
+        }
+        rag._context_agent_call = lambda role, driver, sp, up, **kw: {
+            "text": f"{role} ok", "source": f"stub:{role}", "transport": "stub",
+            "requested_model": "stub-model", "model_verified": True,
+        }
+        rag.subprocess.Popen = lambda argv, **kw: type("P", (), {"pid": 5151})()
+        rag.spawn_autolearn = lambda r, t: (autolearn_called.append(t) or {"spawned": True, "reason": "ok"})
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                inv = rag.run_context_command(self.root, "Consolidation", budget=1500, json_out=True)
+        finally:
+            rag.DecisionEngine.route = orig_route
+            rag._context_agent_call = orig_agent
+            rag.subprocess.Popen = orig_popen
+            rag.spawn_autolearn = orig_autolearn
+
+        harness = inv["provenance"]["harness"]
+        self.assertTrue(harness["consolidate"]["spawned"])
+        self.assertFalse(harness["autolearn"]["spawned"])
+        self.assertIn("deferred", harness["autolearn"]["reason"])
+        self.assertEqual(autolearn_called, [], "autolearn must not race a freshly spawned consolidation pass")
 
 
 if __name__ == "__main__":
