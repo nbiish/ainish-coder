@@ -305,10 +305,10 @@ machine_run() {
                 || { _mr_err "could not create isolated worktree on $peer"; return 1; }
         else
             if [[ "$peer_path" =~ ^[A-Za-z]: ]]; then
-                _ms_remote "$host" "git -C '${peer_path}' worktree add --detach '${wt_dir}' '${wt_ref}' 2>\$null; if (\$LASTEXITCODE -ne 0) { git -C '${peer_path}' worktree add --detach '${wt_dir}' HEAD }" >/dev/null 2>&1 \
+                _ms_remote "$host" "git -C '${peer_path}' worktree add --quiet --detach '${wt_dir}' '${wt_ref}' 2>\$null; if (\$LASTEXITCODE -ne 0) { git -C '${peer_path}' worktree add --quiet --detach '${wt_dir}' HEAD 2>\$null }; exit \$LASTEXITCODE" >/dev/null 2>&1 \
                     || { _mr_err "could not create isolated worktree on $peer"; return 1; }
             else
-                _ms_remote "$host" "git -C '${peer_path}' worktree add --detach '${wt_dir}' '${wt_ref}' >/dev/null 2>&1 || git -C '${peer_path}' worktree add --detach '${wt_dir}' HEAD >/dev/null 2>&1" \
+                _ms_remote "$host" "git -C '${peer_path}' worktree add --quiet --detach '${wt_dir}' '${wt_ref}' >/dev/null 2>&1 || git -C '${peer_path}' worktree add --quiet --detach '${wt_dir}' HEAD >/dev/null 2>&1" \
                     || { _mr_err "could not create isolated worktree on $peer"; return 1; }
             fi
         fi
@@ -334,6 +334,8 @@ machine_run() {
     if [[ -n "$wt_dir" ]]; then
         if [[ -z "$host" ]]; then
             git -C "$peer_path" worktree remove --force "$wt_dir" >/dev/null 2>&1 || true
+        elif [[ "$peer_path" =~ ^[A-Za-z]: ]]; then
+            _ms_remote "$host" "git -C '${peer_path}' worktree remove --force '${wt_dir}' 2>\$null; exit 0" >/dev/null 2>&1 || true
         else
             _ms_remote "$host" "git -C '${peer_path}' worktree remove --force '${wt_dir}'" >/dev/null 2>&1 || true
         fi
