@@ -23,6 +23,8 @@ Every skill must define a bounded procedure, explicit stop conditions, verificat
 - [`aiRPC/`](./aiRPC/) — ai robotic process automation over an interactive tldraw canvas: project
   the `.agents/` record as blocks, receive per-block Enter calls, edit the record, and wait for the
   user's next response.
+- [`browser-use/`](./browser-use/) — real Chromium automation via Browser MCP 2.x (`browsermcp.io/docs`, single batched `browser` tool, Playwright locators, 6-digit pairing) with CDP `browser-use` CLI fallback.
+- [`computer-use/`](./computer-use/) — native desktop GUI automation across macOS, Windows, and Linux via `vercel-labs/agent-desktop` accessibility trees (JSON envelopes, snapshot-scoped refs, headless by default, macOS VM sandboxes).
 - [`pqc-secrets/`](./pqc-secrets/) — secret operations and ML-DSA-65 signing. Mandatory.
 - [`typesafe-jev/`](./typesafe-jev/) — typed decision contract.
 - [`specialized-agents/`](./specialized-agents/) — check the `hermes` CLI for the most relevant

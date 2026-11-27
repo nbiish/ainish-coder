@@ -202,6 +202,9 @@ check "an unreadable repo reports no transport" "none" "$TN"
 # --transport direct must not silently fall back to ssh when the repo is unreadable.
 TDF="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_TRANSPORT=direct; _mw_detect_transport "/nonexistent/repo"' 2>/dev/null)"
 check "--transport direct respects the pin" "none" "$TDF"
+# Multi-repo check: if repo 1 is readable and repo 2 is not, direct must NOT be chosen.
+TMULTI="$(bash -c 'source "'"$REPO"'/src/machine_watch.sh" >/dev/null 2>&1; _MW_TRANSPORT=direct; _mw_detect_transport "'"$A"'" "/nonexistent/repo"' 2>/dev/null)"
+check "multi-repo transport fails direct if any linked repo is unreadable" "none" "$TMULTI"
 
 echo "== 10. --status names the transport in use =="
 printf 'ssh\n' > "${HOME}/.config/ainish-coder/transport" 2>/dev/null || {
