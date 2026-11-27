@@ -150,32 +150,30 @@ class WikiVaultPreservationTest(unittest.TestCase):
         self.assertEqual(rag._vault_pages(self.wiki), [],
                          "pages without the tag are legacy output and may be regenerated")
 
-    def test_generation_refuses_to_clobber_a_vault(self):
+    def test_generation_preserves_vault_frontmatter_and_signed_ledger(self):
         self._vault_page()
-        before = {p.name: p.read_text(encoding="utf-8") for p in self.wiki.glob("*.md")}
-        with self.assertRaises(SystemExit) as ctx:
-            rag.generate_wiki(self.repo)
-        message = str(ctx.exception)
-        self.assertIn("refusing to overwrite an Obsidian vault", message)
-        self.assertIn("ainish/wiki", message, "the refusal must name the tag it detected")
-        self.assertIn("native engine", message, "the refusal must name what CAN do it")
-        after = {p.name: p.read_text(encoding="utf-8") for p in self.wiki.glob("*.md")}
-        self.assertEqual(before, after, "a refused run must leave every page byte-identical")
+        (self.wiki / "ledger.md").write_text("# Operator ledger\n- [RESOLVED] 2026-10-28 Keep ledger.\n", encoding="utf-8")
+        (self.wiki / "ledger.sig").write_text("signed-placeholder\n", encoding="utf-8")
+        pages = rag.generate_wiki(self.repo)
+        self.assertTrue(pages)
+        arch = (self.wiki / "01-architecture.md").read_text(encoding="utf-8")
+        self.assertIn("ainish/wiki", arch, "vault frontmatter tag must be preserved")
+        self.assertIn("[[", arch, "Obsidian wikilinks must be preserved")
+        debt = (self.wiki / "04-improvements-and-debt.md").read_text(encoding="utf-8")
+        self.assertIn("Keep ledger.", debt, "operator ledger must be spliced into page 04")
+        self.assertEqual((self.wiki / "ledger.sig").read_text(encoding="utf-8"), "signed-placeholder\n")
 
     def test_generation_still_works_without_a_vault(self):
         pages = rag.generate_wiki(self.repo)
         self.assertTrue(pages, "a non-vault repo must still generate")
         self.assertTrue(self.wiki.joinpath("README.md").is_file())
 
-    def test_wikilinks_survive_a_refused_run(self):
+    def test_wikilinks_survive_regeneration(self):
         self._vault_page("README.md")
-        links_before = rag._vault_pages(self.wiki)[0].read_text(encoding="utf-8").count("[[")
-        self.assertGreater(links_before, 0)
-        with self.assertRaises(SystemExit):
-            rag.generate_wiki(self.repo)
-        links_after = self.wiki.joinpath("README.md").read_text(encoding="utf-8").count("[[")
-        self.assertEqual(links_before, links_after,
-                         "the Obsidian graph edges are what this guard exists to protect")
+        rag.generate_wiki(self.repo)
+        for p in rag._vault_pages(self.wiki):
+            self.assertGreater(p.read_text(encoding="utf-8").count("[["), 0,
+                               f"{p.name} must keep Obsidian wikilinks")
 
 
 if __name__ == "__main__":

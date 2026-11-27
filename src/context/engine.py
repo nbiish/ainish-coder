@@ -1251,8 +1251,14 @@ _WIKI_PAGE_META = {
 }
 
 
-def _vault_frontmatter(fname: str, meta: Tuple[str, List[str], str, Optional[str]], commit: str) -> str:
-    """The YAML header the vault format requires, byte-compatible in shape with the compiled renderer."""
+def _vault_frontmatter(
+    fname: str,
+    meta: Tuple[str, List[str], str, Optional[str]],
+    commit: str,
+    *,
+    decision_source: str = "structural",
+) -> str:
+    """The YAML header the vault format requires, byte-compatible in shape with the Obsidian vault."""
     title, aliases, tag, up = meta
     alias_list = ", ".join(f'"{a}"' for a in aliases)
     lines = [
@@ -1266,7 +1272,7 @@ def _vault_frontmatter(fname: str, meta: Tuple[str, List[str], str, Optional[str
     lines += [
         f"generated: {datetime.now(timezone.utc).isoformat()}",
         f"source_commit: {commit}",
-        "decision_source: structural",
+        f"decision_source: {decision_source}",
         "---",
         "",
     ]
@@ -1286,12 +1292,42 @@ def _vault_page_links(fname: str) -> str:
 
 
 def _wiki_commit(repo_root: Path) -> str:
+    """Short HEAD SHA for wiki frontmatter; prefers direct `.git/HEAD` read to avoid subprocesses."""
+    root = Path(repo_root)
+    dot_git = root / ".git"
+    if not dot_git.exists():
+        return "unknown"
+    try:
+        git_dir = dot_git
+        if dot_git.is_file():
+            raw = dot_git.read_text(encoding="utf-8", errors="replace").strip()
+            if raw.startswith("gitdir:"):
+                gd = Path(raw[7:].strip())
+                git_dir = gd if gd.is_absolute() else (root / gd).resolve()
+        head_file = git_dir / "HEAD"
+        if head_file.is_file():
+            head = head_file.read_text(encoding="utf-8", errors="replace").strip()
+            if head.startswith("ref:"):
+                ref_name = head[4:].strip()
+                ref_file = git_dir / ref_name
+                if not ref_file.is_file() and (git_dir / "commondir").is_file():
+                    common = Path((git_dir / "commondir").read_text(encoding="utf-8", errors="replace").strip())
+                    common_dir = common if common.is_absolute() else (git_dir / common).resolve()
+                    ref_file = common_dir / ref_name
+                if ref_file.is_file():
+                    sha = ref_file.read_text(encoding="utf-8", errors="replace").strip()
+                    if len(sha) >= 7:
+                        return sha[:7]
+            elif len(head) >= 7 and re.fullmatch(r"[0-9a-fA-F]{7,40}", head):
+                return head[:7]
+    except OSError:
+        pass
     try:
         res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(repo_root),
                              capture_output=True, text=True, timeout=5, stdin=subprocess.DEVNULL)
         if res.returncode == 0 and res.stdout.strip():
             return res.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, TypeError):
         pass
     return "unknown"
 
@@ -1326,22 +1362,10 @@ def generate_wiki(repo_root: Path) -> List[Path]:
     repo_name = repo_root.name
 
     existing_vault = _vault_pages(wiki_dir)
-    # A vault IS writable here now, because this generator emits the vault format (frontmatter,
-    # aliases, tags, an `up` link and a wikilink footer) rather than plain markdown. What it must
-    # still refuse is overwriting a page whose CONTENT it cannot reproduce — the operator ledger is
-    # spliced into page 04 by the compiled renderer, which signs it (ML-DSA-65). Rewriting that page
-    # from the Python template would delete signed governance history while reporting success, and a
-    # downgrade that looks like a successful run is exactly what the contract forbids.
-    ledger_note = wiki_dir / "ledger.md"
-    if existing_vault and ledger_note.is_file() and (wiki_dir / "ledger.sig").is_file():
-        raise SystemExit(
-            "ainish-context wiki: this vault carries a SIGNED operator ledger (ledger.md + ledger.sig).\n"
-            f"  {len(existing_vault)} page(s) carry the '{VAULT_TAG}' tag.\n"
-            "  The compiled renderer splices and signs that ledger; regenerating page 04 here would\n"
-            "  drop the signed history. Run the compiled binary (`cargo build --release` in src/rag,\n"
-            "  or set AINISH_VAULT_RENDERER), or move ledger.md/ledger.sig aside deliberately."
-        )
-
+    # This Python generator IS the Obsidian vault renderer (the compiled Rust crate at `src/rag` was
+    # deleted 2026-11-19). It emits vault YAML frontmatter (`ainish/wiki/*` tags, `up: "[[README]]"`),
+    # `[[wikilinks]]`, and splices `ledger.md` into page 04 while NEVER modifying `ledger.md` or
+    # `ledger.sig`, preserving signed operator governance history intact.
     files = [p for p in repo_root.rglob("*") if p.is_file() and not is_ignored_path(p)]
     code_files = [p for p in files if p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go", ".sh", ".c", ".cpp"}]
     doc_files = [p for p in files if p.suffix.lower() in {".md", ".txt"}]
@@ -1357,25 +1381,25 @@ Generated on: {now_utc}
 Repository: `{repo_name}`
 
 ## Overview
-This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-context --context` retrieves from directly: pages are split into section nodes and walked as a graph, so retrieval needs no embedding model and works on any host.
+This wiki provides a living architectural map, codebase connectivity graph, security governance framework, improvements ledger, and research foundation for `{repo_name}`. It is the curated corpus that `ainish-coder --context` compiles into `.agents/rag/wiki-graph.json` and walks as a graph — no embedding model or vector store is used.
 
 ## Wiki Table of Contents
-1. **[01. System Architecture](01-architecture.md)** — Core components, subsystem boundaries, data flow, and directory taxonomy.
-2. **[02. Codebase Connections & Symbols](02-codebase-connections.md)** — Call graphs, key interfaces, symbol registry, and inter-module coupling.
-3. **[03. Security & Governance](03-security-and-governance.md)** — Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface.
-4. **[04. Improvements & Technical Debt](04-improvements-and-debt.md)** — Refactoring targets, debt ledger, code hotspots, and modernizing paths.
-5. **[05. Research & Intelligence](05-research-and-intelligence.md)** — Algorithmic foundations, model specifications, cultural/philosophical doctrine, and citations.
-6. **[06. Marketing & Positioning](06-marketing-and-positioning.md)** — Strategic positioning, value propositions, key differentiators, and ecosystem role.
+1. **[[01-architecture|01. System Architecture]]** — Core components, subsystem boundaries, data flow, and directory taxonomy.
+2. **[[02-codebase-connections|02. Codebase Connections & Symbols]]** — Call graphs, key interfaces, symbol registry, and inter-module coupling.
+3. **[[03-security-and-governance|03. Security & Governance]]** — Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface.
+4. **[[04-improvements-and-debt|04. Improvements & Technical Debt]]** — Refactoring targets, debt ledger, code hotspots, and modernizing paths.
+5. **[[05-research-and-intelligence|05. Research & Intelligence]]** — Algorithmic foundations, context priming architecture, and citations.
+6. **[[06-marketing-and-positioning|06. Marketing & Positioning]]** — Strategic positioning, value propositions, key differentiators, and ecosystem role.
 
 ---
-*Maintained by ainish-coder Multimodal RAG & Wiki Engine.*
+*Maintained by ainish-coder Graph-First Context & Wiki Engine.*
 """,
         "01-architecture.md": f"""# 01. System Architecture — {repo_name}
 
 ## 1. Executive Summary
 `{repo_name}` is engineered with modular boundaries, strict separation of concerns, and reproducible deployment artifacts.
 
-## 2. Multimodal Asset Distribution
+## 2. Repository Asset Distribution
 - **Total Tracked Files:** {len(files)}
 - **Source Code Files:** {len(code_files)}
 - **Documentation & Notes:** {len(doc_files)}
@@ -1383,17 +1407,18 @@ This wiki provides a living architectural map, codebase connectivity graph, secu
 
 ## 3. Communication & State
 - Operations are isolated on task worktrees (`feat/*`, `fix/*`, `chore/*`).
-- Inter-agent coordination is recorded in dated ledgers (`.agents/comms/{{date}}-team.md`), and
-  durable memory in hour-stamped files (`.agents/memories/{{date}}-{{HH}}-memory.md`).
+- Inter-agent coordination is recorded in dated ledgers (`.agents/comms/{{date}}-team.md`),
+  durable memory in hour-stamped files (`.agents/memories/{{date}}-{{HH}}-memory.md`), and
+  cross-machine peer state in read-only PQC envelopes (`.agents/federation/{{date}}.md`).
 """,
         "02-codebase-connections.md": f"""# 02. Codebase Connections & Symbols — {repo_name}
 
 ## 1. Component Linkage & Call Graph
-Codebase components in `{repo_name}` communicate across well-defined interfaces and CLI surfaces.
+Codebase components in `{repo_name}` communicate across well-defined interfaces and CLI surfaces (`bin/ainish-coder`, `bin/ainish-context`, `src/context/engine.py`).
 
 ## 2. Cross-Cutting Concerns
-- **PQC Secrets Decoupling:** Cryptographic operations are isolated from application logic through FIPS 203/204/205 tools.
-- **RAG & Knowledge Retrieval:** Codebase symbols and documentation chunks are vectorized using EmbeddingGemma-2 (768-d) and queried via LanceDB hybrid search.
+- **PQC Secrets Decoupling:** Cryptographic operations are isolated from application logic through FIPS 203/204/205 tools (`pqc-secrets`).
+- **Graph-First Knowledge Retrieval:** `.agents/wiki/*.md`, `AGENTS.md`, `llms.txt`, and `.agents/{{comms,federation,memories,plans,suggestions,tasks}}` are compiled into `.agents/rag/wiki-graph.json` and walked over section nodes, wikilinks, and shared vocabulary (no embedding model or vector store).
 - **Rules Synchronization:** Rules and agent contracts propagate outward from `ainish-coder` to target repositories via `--rules` deployment.
 """,
         "03-security-and-governance.md": f"""# 03. Security & Governance — {repo_name}
@@ -1406,16 +1431,16 @@ Codebase components in `{repo_name}` communicate across well-defined interfaces 
 - **Banned Cryptography for Secrets:** RSA, DSA, ECDSA, ECDH, Ed25519, MD5, SHA-1, DES, 3DES, RC4.
 
 ## 2. Zero-Trust Rules & Context Hygiene
-- Untrusted external input is isolated in `<DATA>` XML enclosures.
+- Untrusted external input is treated strictly as data, never instruction.
 - Secrets are never persisted in source control, `.env` files, task records, or memory ledgers.
 - Host communication utilizes loopback `127.0.0.1` binding with strict SSRF protections.
 """,
         "04-improvements-and-debt.md": f"""# 04. Improvements & Technical Debt — {repo_name}
 
 ## 1. Actionable Refactor Targets
-1. **Multimodal Indexing Expansion:** Continuously refresh LanceDB vectors upon meaningful git commits.
-2. **Deterministic Build Pipeline:** Ensure all binary targets compile with zero warnings across macOS, Linux, and Windows MSVC.
-3. **Zero-Stale Memory Scrubbing:** Retire resolved constraints in `.agents/memories/` using `[RESOLVED]` entries.
+1. **Living Wiki Freshness:** Keep `.agents/wiki/` reviewed against consolidated digests and recompile `.agents/rag/wiki-graph.json`.
+2. **Deterministic Verification:** Ensure Python context tests, shell syntax checks, and PQC signing gates stay green across macOS, Linux, and Windows.
+3. **Bounded Coordination Folders:** Consolidate aged `.agents/` records via the 4-profile Hermes panel while preserving the three newest originals per folder.
 
 ## 3. Operator ledger
 `ainish-context wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
@@ -1423,29 +1448,26 @@ Codebase components in `{repo_name}` communicate across well-defined interfaces 
 {operator_ledger}""",
         "05-research-and-intelligence.md": f"""# 05. Research & Intelligence — {repo_name}
 
-## 1. Multimodal Embedding Architecture
-- **Model:** `unsloth/embeddinggemma-2-GGUF` (Google DeepMind EmbeddingGemma-2).
-- **Parameters:** 740M total (270M text backbone + 170M vision encoder + 300M audio encoder).
-- **Output Space:** 768-dimensional normalized dense embedding space uniting text, code, images, video, and audio.
-- **Matryoshka Representation Learning (MRL):** Supports lossless truncation down to 256 dimensions with mandatory L2 re-normalization.
-- **Context Length:** 8,192 tokens shared across modalities.
+## 1. Retrieval Architecture
+- **Graph-First Corpus:** `.agents/wiki/*.md`, `AGENTS.md`, `llms.txt`, `.agents/{{comms,federation,memories,plans,suggestions,tasks}}`, `.agents/templates/`, `research/`, and staged learned skills.
+- **No Vector Store:** The EmbeddingGemma-2 / LanceDB subsystem was retired and deleted on 2026-11-12; retrieval runs deterministically on the compiled wiki knowledge graph.
 
-## 2. Vector Database & Storage Engine
-- **Storage:** LanceDB (columnar Arrow table format with embedded IVF-PQ / HNSW vector indexing).
-- **Hybrid Retrieval:** Dense vector similarity combined with lexical BM25/FTS search.
+## 2. Context Priming & Consolidation Protocol
+- **Elephant-Goldfish Model (EGM):** `context-elephant` (Hermes profile) synthesizes session-aware continuity; `goldfish` (`pi` agent) runs stateless 3-step comprehension, antagonistic, and readiness review.
+- **Consolidation Panel:** Four specialized Hermes profiles (`consolidate-elephant`, `consolidate-goldfish`, `consolidate-archivist`, `consolidate-structural`) distill aged coordination records into rolling digests and keep `.agents/wiki/` current.
 """,
         "06-marketing-and-positioning.md": f"""# 06. Marketing & Positioning — {repo_name}
 
 ## 1. Core Value Proposition
 `{repo_name}` delivers an autonomous, high-integrity AI coding infrastructure combining:
-- **Post-Quantum Cryptographic Security** for all machine identity and secrets operations.
-- **Distributed Agent Coordination** with single-truth ledgers and isolated worktrees.
-- **State-of-the-Art Multimodal RAG** powered by Google DeepMind EmbeddingGemma-2 and LanceDB.
+- **Post-Quantum Cryptographic Security** for all machine identity, federation envelopes, and secrets operations.
+- **Distributed Agent Coordination** with single-truth ledgers, isolated worktrees, and PQC cross-machine sync.
+- **Dependency-Free Context Retrieval & Priming** built on a compiled Obsidian wiki graph, EGM pair review, and Hermes consolidation agents.
 
 ## 2. Key Differentiators
-- **Zero-Blind Searching:** Deep semantic code and multimodal asset search across 100+ languages and media formats.
-- **Autonomous Peer Protocol:** Autonomous git worktree branching, green gate validation, and seamless merging.
-- **Living Architectural Wiki:** Automatic generation of structured repository wikis that ground agents and developers in true codebase structure.
+- **Zero-Vector Grounding:** Deterministic graph retrieval over curated markdown wikis and consolidated `.agents/` digests.
+- **Autonomous Peer Protocol:** Isolated git worktrees, fail-closed verification gates, and PR-first delivery.
+- **Living Architectural Wiki:** Agent-reviewed, vault-compatible repository wikis compiled directly into agent context primes.
 """,
     }
 
@@ -5263,6 +5285,16 @@ def consolidation_call(
         _record_consolidation_call(reply)
         return reply
     hermes_err = reply.get("error") or "hermes produced nothing"
+    # Only fall back to `pi` when Hermes is absent/unprovisioned or explicitly opted in via
+    # `AINISH_CONSOLIDATE_PI_FALLBACK=1`. When Hermes IS provisioned, burning another 480s on `pi`
+    # (which lacks consolidation skills and times out on large batches) stalls the panel.
+    hermes_missing = (not hermes_available()) or (
+        _env_nonempty("AINISH_HERMES_SKIP_PROFILE_CHECK") != "1" and not hermes_profile_exists(profile)
+    )
+    allow_pi_fb = hermes_missing or (_env_nonempty("AINISH_CONSOLIDATE_PI_FALLBACK") or "").strip().lower() in ("1", "true", "yes", "on")
+    if not allow_pi_fb:
+        _record_consolidation_call(reply)
+        return reply
     fallback = pi_agent_call(role=fallback_role, model=_pi_role_model(fallback_role),
                              system_prompt="", user_prompt=prompt, timeout=timeout)
     text = str((fallback or {}).get("text") or "").strip()
@@ -6762,18 +6794,24 @@ CONSOLIDATION_PROTECTED_NEWEST = 3
 # Steady state is the protected three plus digests (operator: "maintaining the three most recent
 # files of each context folder"), so the cap IS the retention: anything above it is consolidated.
 CONSOLIDATION_DEFAULT_CAP = CONSOLIDATION_PROTECTED_NEWEST
-CONSOLIDATION_DIGEST_PREFIX = "DIGEST-"
+CONSOLIDATION_DIGEST_PREFIX = "consolidates."
+CONSOLIDATION_LEGACY_DIGEST_PREFIX = "DIGEST-"
 
 _RECORD_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 _RECORD_DATE_HOUR_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:-(\d{2})(?=-|\.|$))?")
 
 
+def _is_digest_name(name: str) -> bool:
+    """True when filename matches the canonical `consolidates.{naming}.md` or legacy `DIGEST-*` schema."""
+    return name.startswith(CONSOLIDATION_DIGEST_PREFIX) or name.startswith(CONSOLIDATION_LEGACY_DIGEST_PREFIX)
+
+
 def _is_digest_file(path: Path) -> bool:
-    """True when `path` is a consolidation digest (`DIGEST-*.md`/`.txt`)."""
+    """True when `path` is a consolidated digest (`consolidates.*.md`/`.txt` or legacy `DIGEST-*.md`/`.txt`)."""
     return (
         path.is_file()
         and path.suffix.lower() in (".md", ".txt")
-        and path.name.startswith(CONSOLIDATION_DIGEST_PREFIX)
+        and _is_digest_name(path.name)
     )
 
 
@@ -6809,7 +6847,7 @@ def _is_consolidatable(path: Path) -> bool:
     name = path.name
     if ".live." in name or name.endswith(".live.txt"):
         return False
-    if name.startswith(CONSOLIDATION_DIGEST_PREFIX) or name == "llms.txt":
+    if _is_digest_name(name) or name == "llms.txt":
         return False
     return _RECORD_DATE_RE.match(name) is not None
 
@@ -6876,28 +6914,22 @@ def folder_census(repo_root: Path, folder: str) -> Dict[str, Any]:
     for p in candidates:
         grouped.setdefault(_record_period(p), []).append(p.name)
     out["periods"] = {k: sorted(v) for k, v in sorted(grouped.items())}
-    out["needs_consolidation"] = bool(out["candidates"]) or out["digests"] > 1
+    has_legacy_digest = any(d.startswith(CONSOLIDATION_LEGACY_DIGEST_PREFIX) for d in digests)
+    out["needs_consolidation"] = bool(out["candidates"]) or out["digests"] > 1 or has_legacy_digest
     return out
 
 
 def _next_digest_index(repo_root: Path, folder: str) -> int:
-    """The next sequence number for this folder's digests.
+    """The next sequence number for `.agents/<folder>/consolidates.<naming>.md`.
 
-    DIGESTS ARE A SEQUENCE, NOT A PERIOD LOCK. The first design keyed a digest on its period —
-    `DIGEST-comms-2026-11.md` — and a run skipped any period whose digest already existed. That is
-    terminal: a digest written on the 5th could never absorb a record written on the 20th, so the folder
-    went over the cap and stayed there. Measured 2026-11-21: 55 originals across five folders, four of
-    which reported "digest already exists" and consolidated nothing.
-
-    A sequence number makes every run able to take the records that are there now. Old period-named
-    digests are left alone as history; they simply do not reserve a number.
+    A sequence suffix keeps every rolling consolidation pass non-colliding: the new file is written
+    and verified BEFORE the superseded `consolidates.*` / legacy `DIGEST-*` file is unlinked.
     """
     directory = Path(repo_root) / ".agents" / folder
     highest = 0
     if directory.is_dir():
-        pattern = re.compile(rf"^{re.escape(CONSOLIDATION_DIGEST_PREFIX)}{re.escape(folder)}-(\d+)$")
-        for p in directory.glob(f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-*"):
-            stem = p.stem
+        pattern = re.compile(rf"^{re.escape(CONSOLIDATION_DIGEST_PREFIX)}.*-(\d+)$")
+        for p in directory.glob(f"{CONSOLIDATION_DIGEST_PREFIX}*"):
             m = pattern.match(p.stem)
             if m:
                 highest = max(highest, int(m.group(1)))
@@ -6905,9 +6937,16 @@ def _next_digest_index(repo_root: Path, folder: str) -> int:
 
 
 def _digest_path(repo_root: Path, folder: str, period: str = "", *, index: Optional[int] = None) -> Path:
-    """`DIGEST-<folder>-<NN>.md` when an index is given, else the legacy period form."""
-    name = (f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-{index:02d}.md" if index is not None
-            else f"{CONSOLIDATION_DIGEST_PREFIX}{folder}-{period}.md")
+    """Canonical ACP/AHP consolidated record path: `.agents/<folder>/consolidates.<naming>.md`."""
+    raw_period = (period or "").strip().rstrip("+")
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "", raw_period)
+    if not slug or slug in ("none", "rollup"):
+        slug = folder
+    name = (
+        f"{CONSOLIDATION_DIGEST_PREFIX}{slug}-{index:02d}.md"
+        if index is not None
+        else f"{CONSOLIDATION_DIGEST_PREFIX}{slug}.md"
+    )
     return Path(repo_root) / ".agents" / folder / name
 
 
@@ -6922,7 +6961,41 @@ def _digest_path(repo_root: Path, folder: str, period: str = "", *, index: Optio
 # Two changes: the cap is one number here rather than four literals, and every truncation says so in the
 # text the model reads, with the number it was cut at, so it cannot mistake the cut for the source.
 CONSOLIDATE_SOURCE_CHARS = 9000
-CONSOLIDATE_BATCH_CHARS = 36000   # ~4 records per batch at the source cap
+# Measured 2026-11-26 live on all 4 Hermes consolidation profiles: ~10-16K char batches pass all 3
+# reviewers unanimously on attempt 1 (~45s), whereas 36K batches packing four 20KB prior digests
+# caused archivist/completeness failures and 26-minute stalls. Pack greedily by actual clipped size.
+CONSOLIDATE_BATCH_CHARS = 18000
+CONSOLIDATE_BATCH_MAX_ITEMS = 4
+
+
+def _pack_consolidation_batches(
+    payload: List[Tuple[str, str]],
+    *,
+    max_items: int = CONSOLIDATE_BATCH_MAX_ITEMS,
+    max_chars: int = CONSOLIDATE_BATCH_CHARS,
+) -> List[List[Tuple[str, str]]]:
+    """Pack `(name, body)` records greedily by ACTUAL clipped char length, never uniform average.
+
+    Uniform `avg = total // N` packed four 20KB digests into one 36KB batch while leaving four 2KB
+    records in another. Greedy packing guarantees every batch stays within `max_chars` (unless a
+    single source alone exceeds it, in which case it runs solo).
+    """
+    batches: List[List[Tuple[str, str]]] = []
+    cur: List[Tuple[str, str]] = []
+    cur_chars = 0
+    cap_items = max(1, int(max_items))
+    cap_chars = max(1000, int(max_chars))
+    for name, body in payload:
+        clipped_len = min(len(body), CONSOLIDATE_SOURCE_CHARS)
+        if cur and (len(cur) >= cap_items or cur_chars + clipped_len > cap_chars):
+            batches.append(cur)
+            cur = []
+            cur_chars = 0
+        cur.append((name, body))
+        cur_chars += clipped_len
+    if cur:
+        batches.append(cur)
+    return batches
 
 
 def _clip(text: str, limit: int, label: str) -> str:
@@ -7062,26 +7135,20 @@ def _panel_review(
 
 
 def _digest_in_chunks(
-    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = 6,
+    folder: str, period: str, payload: List[Tuple[str, str]], *, chunk: int = CONSOLIDATE_BATCH_MAX_ITEMS,
     timeout: float = CONSOLIDATE_DRAFT_TIMEOUT,
 ) -> Tuple[str, List[str], List[str]]:
-    """Draft a period through the consolidation pair, then merge — each step GATED.
+    """Draft a period through the consolidation panel, then merge — each step GATED.
 
-    THE PAIR IS ITS OWN: `consolidate-elephant` drafts and `consolidate-goldfish` checks, as separate
-    hermes profiles with separate descriptions and skills. They are not the elephant/goldfish that build
-    the context prime, so a summariser's habits cannot leak into the prime and the prime's session
-    context cannot leak into a digest.
+    THE PANEL IS ITS OWN: `consolidate-elephant` drafts and `consolidate-goldfish` /
+    `consolidate-archivist` / `consolidate-structural` check, as separate Hermes profiles with
+    separate descriptions and skills. They are not the elephant/goldfish that build the context
+    prime, so a summariser's habits cannot leak into the prime and the prime's session context
+    cannot leak into a digest.
 
-    THE GATE BLOCKS. A draft that the reviewer fails is retried ONCE with the reviewer's named gap; a
-    second failure abandons the period and leaves every source in place. Nothing is written or removed on
-    an unverified draft — the first real run of this feature deleted 16 files for a one-line preamble.
-
-    SIZE AND TIMEOUT, both measured 2026-11-21 on a loaded host: a 9,437-char digest prompt through
-    hermes took 141s, while a 3,000-char prompt took 29s. So the cost is prompt COMPLEXITY, not transport
-    — and with FOUR calls per batch (drafter + three reviewers) a 10-record batch could take ten minutes
-    and blow a 300s budget. 6 records per batch keeps each prompt near 6-7K chars, and 420s gives the
-    whole draft-and-review cycle room on a slow host. The earlier 10-record size was tuned when there was
-    one reviewer.
+    THE GATE BLOCKS. A draft that the panel fails is retried ONCE with the reviewers' named gaps; a
+    second failure abandons that chunk and leaves its sources in place. Nothing is written or
+    removed on an unverified draft.
 
     Returns `(digest_body, errors, covered)`; an empty body means nothing usable and NOTHING is removed.
     """
@@ -7089,27 +7156,30 @@ def _digest_in_chunks(
     partials: List[str] = []
     covered: List[str] = []
 
-    # A batch is sized by CHARACTERS as well as count: six 20K records and six 1K records are not the
-    # same job, and the count alone was chosen when prompts were smaller. The character cap is applied to
-    # the ACTUAL payload here — the old order computed `total` from the caller's chunk before this ran,
-    # which is why error messages read "chunk 2/1".
-    if payload:
-        avg = max(1, sum(len(b) for _, b in payload) // len(payload))
-        chunk = min(max(1, chunk), max(1, CONSOLIDATE_BATCH_CHARS // avg))
-    total = max(1, (len(payload) + max(1, chunk) - 1) // max(1, chunk))
-    for i in range(0, len(payload), max(1, chunk)):
-        batch = payload[i:i + max(1, chunk)]
-        index = i // chunk + 1
+    batches = _pack_consolidation_batches(payload, max_items=chunk, max_chars=CONSOLIDATE_BATCH_CHARS)
+    total = max(1, len(batches))
+    for index, batch in enumerate(batches, start=1):
         gap = ""
+        previous_draft = ""
         text = ""
-        for attempt in (1, 2):
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
             prompt = _digest_prompt(folder, period, batch)
             if gap:
-                prompt += (
-                    f"\n\nA previous draft of THESE records failed panel review with this gap:\n"
-                    f"{gap}\nAddress every named issue while staying strictly faithful to the sources "
-                    f"(never invent causal links between unrelated entries).\n"
-                )
+                if previous_draft:
+                    prompt += (
+                        "\n\n## YOUR PREVIOUS DRAFT (revise surgically; keep every already-verified fact)\n"
+                        + _clip(previous_draft, 18000, "previous draft")
+                        + f"\n\nThe panel rejected the draft above ONLY for this gap:\n{gap}\n"
+                        "Revise the draft above to fix EVERY named gap while keeping all already-covered "
+                        "facts intact and strictly grounded in the sources (never invent causal links).\n"
+                    )
+                else:
+                    prompt += (
+                        f"\n\nA previous draft of THESE records failed panel review with this gap:\n"
+                        f"{gap}\nAddress every named issue while staying strictly faithful to the sources "
+                        f"(never invent causal links between unrelated entries).\n"
+                    )
             draft = consolidation_call(
                 CONSOLIDATE_DRAFTER_PROFILE, prompt,
                 fallback_role="elephant", timeout=timeout,
@@ -7120,15 +7190,16 @@ def _digest_in_chunks(
                 # Reviewing an empty draft wastes three calls to learn what this already knows. Retry the
                 # DRAFT; only a draft that passes the shape check is worth the panel's time.
                 gap = f"{why or (draft or {}).get('error') or 'no output'}"
-                if attempt == 2:
-                    errors.append(f"chunk {index} not drafted twice: {gap}")
+                if attempt == max_attempts:
+                    errors.append(f"chunk {index} not drafted after {max_attempts} attempts: {gap}")
                 continue
             passed, gap, _members = _panel_review(folder, period, batch, candidate, timeout=timeout)
             if passed:
                 text = candidate
                 break
-            if attempt == 2:
-                errors.append(f"chunk {index}/{total} failed the panel twice: {gap}")
+            previous_draft = candidate
+            if attempt == max_attempts:
+                errors.append(f"chunk {index}/{total} failed the panel {max_attempts} times: {gap}")
         if text:
             partials.append(text)
             # Recorded ONLY when a chunk was drafted AND passed review. A record whose chunk was never
@@ -7140,16 +7211,41 @@ def _digest_in_chunks(
     if len(partials) == 1:
         return partials[0], errors, covered
 
-    # Merge, gated the same way. The merge sees summaries rather than records, so it is small.
+    # Merge, gated the same way against the VERIFIED PARTIALS.
+    # Passing `payload[:10]` here was a bug: on folders with >10 aged records, the fidelity reviewer
+    # only saw the first 10 raw files and rejected every merged claim drawn from records #11+.
+    # Each partial already passed unanimous 3-reviewer verification against its exact raw sources.
+    partial_sources = [(f"PARTIAL-{i + 1}", p) for i, p in enumerate(partials)]
     merge_prompt = (
         f"# MERGE {len(partials)} PARTIAL DIGESTS of `.agents/{folder}`, {period}\n\n"
+        "Combine these verified partial digests into ONE concise, deduplicated digest.\n"
+        "Open with a concise 1-2 sentence overview of what the period covered, then the four `## ` "
+        "sections (Accomplished, Unfinished, Insights, Recurring). Preserve every open/unfinished "
+        "thread and cited filename; never invent causal links between unrelated entries.\n\n"
         + "\n\n---\n\n".join(f"## PARTIAL {i + 1}\n{p}" for i, p in enumerate(partials))
-        + "\n\n---\n\n# END OF PARTIALS\n\nNow answer with the merged digest only: four `## ` sections "
-          "(Accomplished, Unfinished, Insights, Recurring).\n"
+        + "\n\n---\n\n# END OF PARTIALS\n\nNow answer with the merged digest only: a 1-2 sentence "
+          "overview followed by four `## ` sections (Accomplished, Unfinished, Insights, Recurring).\n"
     )
     merge_gap = ""
-    for attempt in (1, 2):
-        prompt = merge_prompt if not merge_gap else merge_prompt + f"\nA reviewer failed the last merge: {merge_gap}\n"
+    previous_merge = ""
+    merge_max_attempts = 3
+    for attempt in range(1, merge_max_attempts + 1):
+        if not merge_gap:
+            prompt = merge_prompt
+        elif previous_merge:
+            prompt = (
+                merge_prompt
+                + "\n## YOUR PREVIOUS MERGED DRAFT (revise surgically; keep all already-covered items)\n"
+                + _clip(previous_merge, 18000, "previous merge")
+                + f"\n\nPanel gap to fix:\n{merge_gap}\n"
+                "Fix every named gap while staying strictly faithful to the partials.\n"
+            )
+        else:
+            prompt = (
+                merge_prompt
+                + f"\nA previous merge failed panel review with this gap:\n{merge_gap}\n"
+                  "Address every named issue while staying strictly faithful to the partials.\n"
+            )
         merged = consolidation_call(
             CONSOLIDATE_DRAFTER_PROFILE, prompt, fallback_role="elephant", timeout=timeout,
         )
@@ -7157,16 +7253,17 @@ def _digest_in_chunks(
         usable, why = _digest_is_usable(merged_text)
         if not usable:
             merge_gap = f"{why or (merged or {}).get('error') or 'no output'}"
-            if attempt == 2:
-                errors.append(f"merge not drafted twice: {merge_gap}")
+            if attempt == merge_max_attempts:
+                errors.append(f"merge not drafted after {merge_max_attempts} attempts: {merge_gap}")
             continue
         passed, merge_gap, _members = _panel_review(
-            folder, period, payload[:10], merged_text, timeout=timeout
+            folder, period, partial_sources, merged_text, timeout=timeout
         )
         if passed:
             return merged_text, errors, covered
-        if attempt == 2:
-            errors.append(f"merge failed the panel twice: {merge_gap}")
+        previous_merge = merged_text
+        if attempt == merge_max_attempts:
+            errors.append(f"merge failed the panel {merge_max_attempts} times: {merge_gap}")
 
     # A merge that could not be verified is NOT written over the sources. The partials stay as the
     # digest ONLY if every one of them passed its own review — which they did to get here — so this is
@@ -7336,6 +7433,7 @@ def _render_digest(
     head = [
         "---",
         "format: ainish/context-digest/v1",
+        "schema: consolidates.{naming}.md",
         f"folder: {folder}",
         f"period: {period}",
         f"records_consolidated: {len(sources)}",
@@ -7360,6 +7458,443 @@ def _render_digest(
     return "\n".join(head) + body.strip() + "\n"
 
 
+WIKI_DOMAIN_PAGES: Tuple[str, ...] = (
+    "01-architecture.md",
+    "02-codebase-connections.md",
+    "03-security-and-governance.md",
+    "04-improvements-and-debt.md",
+    "05-research-and-intelligence.md",
+    "06-marketing-and-positioning.md",
+)
+
+# Concrete claims from the retired 2026-11-12/19 vector/Rust-crate era that must never survive a
+# Hermes wiki review as active architecture. Historical notes saying they were DELETED remain valid.
+_WIKI_RETIRED_ACTIVE_PATTERNS: Tuple[str, ...] = (
+    "src/rag/src/main.rs",
+    "src/rag/rag.py",
+    "src/rag/src/wiki.rs",
+    "src/rag/src/decision.rs",
+    "refresh LanceDB vectors",
+    "vectorized using EmbeddingGemma-2",
+    "powered by Google DeepMind EmbeddingGemma-2 and LanceDB",
+)
+
+
+def _wiki_review_last_run_path(repo_root: Path) -> Path:
+    return context_harness.learn_state_path(repo_root).parent / "wiki-review-last-run.json"
+
+
+def _read_wiki_review_last_run(repo_root: Path) -> Optional[Dict[str, Any]]:
+    path = _wiki_review_last_run_path(repo_root)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _write_wiki_review_last_run(repo_root: Path, payload: Dict[str, Any]) -> None:
+    path = _wiki_review_last_run_path(repo_root)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def wiki_status(repo_root: Path) -> Dict[str, Any]:
+    """Inspect `.agents/wiki/` freshness against `HEAD`, retired claims, and compiled graph counts."""
+    wiki_dir = Path(repo_root) / ".agents" / "wiki"
+    head_commit = _wiki_commit(repo_root)
+    out: Dict[str, Any] = {
+        "exists": wiki_dir.is_dir(),
+        "pages": 0,
+        "source_commit": None,
+        "head_commit": head_commit,
+        "retired_hits": [],
+        "stale": False,
+        "reason": "no wiki directory",
+        "graph_nodes": 0,
+        "graph_edges": 0,
+    }
+    cache_path = Path(repo_root) / ".agents" / "rag" / GRAPH_CACHE
+    if cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            out["graph_nodes"] = len(cached.get("nodes") or [])
+            out["graph_edges"] = len(cached.get("edges") or [])
+        except (OSError, ValueError):
+            pass
+    if not out["exists"]:
+        return out
+    existing_pages = [wiki_dir / p for p in WIKI_DOMAIN_PAGES if (wiki_dir / p).is_file()]
+    out["pages"] = len(existing_pages)
+    if not existing_pages:
+        out["reason"] = "no domain wiki pages"
+        return out
+    commits_seen: List[str] = []
+    retired_hits: List[str] = []
+    for p in existing_pages:
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        m = re.search(r"^source_commit:\s*(\S+)", text[:700], re.M)
+        if m:
+            commits_seen.append(m.group(1).strip())
+        for pat in _WIKI_RETIRED_ACTIVE_PATTERNS:
+            if pat in text:
+                retired_hits.append(f"{p.name}: {pat}")
+                break
+    source_commit = commits_seen[0] if commits_seen and len(set(commits_seen)) == 1 else (commits_seen[0] if commits_seen else None)
+    out["source_commit"] = source_commit
+    out["retired_hits"] = retired_hits
+    reasons: List[str] = []
+    if head_commit != "unknown" and source_commit != head_commit:
+        reasons.append(f"source_commit {source_commit or 'none'} != HEAD {head_commit}")
+    if retired_hits:
+        reasons.append(f"{len(retired_hits)} page(s) carry retired active references")
+    out["stale"] = bool(reasons)
+    out["reason"] = "; ".join(reasons) if reasons else f"current at {source_commit or head_commit}"
+    return out
+
+
+def _strip_frontmatter_and_related(text: str) -> str:
+    """Return markdown body without leading YAML frontmatter or trailing `## Related` block."""
+    body = (text or "").replace("\r\n", "\n").strip()
+    if body.startswith("---\n"):
+        end = body.find("\n---", 4)
+        if end != -1:
+            body = body[end + 4:].lstrip("\n")
+    body = re.sub(r"\n##\s+Related\b[\s\S]*\Z", "", body, flags=re.I).rstrip()
+    return body
+
+
+def _validate_wiki_page_edit(
+    fname: str,
+    rendered: str,
+    *,
+    expected_ledger_lines: Optional[List[str]] = None,
+) -> Tuple[bool, str]:
+    """Deterministic fail-closed gate for a Hermes-reviewed `.agents/wiki/` page."""
+    text = (rendered or "").strip()
+    if len(text) < 250:
+        return False, f"page {fname} is {len(text)} chars — too short"
+    if not text.startswith("---\n"):
+        return False, f"page {fname} missing YAML frontmatter"
+    fm_end = text.find("\n---", 4)
+    if fm_end == -1 or VAULT_TAG not in text[:fm_end]:
+        return False, f"page {fname} frontmatter missing '{VAULT_TAG}' vault tag"
+    body = text[fm_end + 4:].lstrip()
+    low_body = body.lower()
+    for opener in ("i'll start", "i will start", "let me first", "here is the updated", "here's the updated", "{\"tool_calls\""):
+        if low_body.startswith(opener):
+            return False, f"page {fname} opens with preamble/tool-call ({opener!r})"
+    headings = re.findall(r"(?m)^##\s+\S+", body)
+    if len(headings) < 2:
+        return False, f"page {fname} has only {len(headings)} '##' section(s); need >= 2"
+    if "[[" not in text:
+        return False, f"page {fname} missing Obsidian [[wikilinks]]"
+    for pat in _WIKI_RETIRED_ACTIVE_PATTERNS:
+        if pat in text:
+            return False, f"page {fname} still contains retired active reference ({pat!r})"
+    if fname == "04-improvements-and-debt.md" and expected_ledger_lines:
+        for line in expected_ledger_lines:
+            if line not in text:
+                return False, f"page {fname} dropped operator ledger entry ({line[:60]!r})"
+    return True, ""
+
+
+def _wiki_evidence_bundle(repo_root: Path) -> str:
+    """Grounded repository snapshot handed to Hermes for `.agents/wiki/` review and editing."""
+    root = Path(repo_root)
+    files = [p for p in root.rglob("*") if p.is_file() and not is_ignored_path(p)]
+    code_files = [p for p in files if p.suffix.lower() in {".rs", ".py", ".ts", ".js", ".go", ".sh", ".c", ".cpp"}]
+    doc_files = [p for p in files if p.suffix.lower() in {".md", ".txt"}]
+    img_files = [p for p in files if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg", ".webp"}]
+
+    entrypoints: List[str] = []
+    for rel_dir in ("bin", "src", "src/context", "config/context-agents"):
+        d = root / rel_dir
+        if d.is_dir():
+            for child in sorted(d.iterdir()):
+                if child.is_file() and not is_ignored_path(child):
+                    entrypoints.append(str(child.relative_to(root)).replace("\\", "/"))
+    agents_dirs = []
+    agents_root = root / ".agents"
+    if agents_root.is_dir():
+        agents_dirs = sorted(
+            f".agents/{p.name}/" for p in agents_root.iterdir()
+            if p.is_dir() and not p.name.startswith(".")
+        )
+
+    parts = [
+        f"# GROUNDED REPOSITORY EVIDENCE ({root.name}, HEAD={_wiki_commit(root)})\n",
+        f"- Tracked/unignored files: {len(files)} total ({len(code_files)} code, {len(doc_files)} docs, {len(img_files)} images)\n",
+        f"- `.agents/` subsystems: {', '.join(agents_dirs) or 'none'}\n",
+        f"- Verified existing entrypoints/modules: {', '.join(entrypoints[:45])}\n",
+        "- Confirmed DELETED (do NOT mention these paths or claim they are active): the former Rust RAG crate (`src/rag/`) and the EmbeddingGemma-2 / LanceDB vector store.\n",
+    ]
+    help_path = root / "src" / "help.sh"
+    if help_path.is_file():
+        help_text = help_path.read_text(encoding="utf-8", errors="replace")
+        parts.append("\n## VERIFIED CLI SURFACE (`src/help.sh`)\n" + _clip(help_text, 4000, "src/help.sh") + "\n")
+    agents_md = root / "AGENTS.md"
+    if agents_md.is_file():
+        parts.append("\n## UNIVERSAL CONTRACT (`AGENTS.md`)\n" + _clip(agents_md.read_text(encoding="utf-8", errors="replace"), 3500, "AGENTS.md") + "\n")
+    llms_path = root / "llms.txt"
+    if llms_path.is_file():
+        llms_text = llms_path.read_text(encoding="utf-8", errors="replace")
+        parts.append("\n## REPO CONTRACT (`llms.txt`)\n" + _clip(llms_text, 9000, "llms.txt") + "\n")
+
+    parts.append("\n## CONSOLIDATED `.agents/` DIGESTS & NEWEST RECORDS\n")
+    for folder in CONSOLIDATION_FOLDERS:
+        census = folder_census(root, folder)
+        parts.append(
+            f"- `.agents/{folder}`: {census['originals']} original(s) "
+            f"(protected 3: {', '.join(census['protected']) or 'none'}), "
+            f"{census['digests']} digest(s) ({', '.join(census['digest_files']) or 'none'})\n"
+        )
+        for df in census["digest_files"][-1:]:
+            dpath = root / ".agents" / folder / df
+            try:
+                dtext = dpath.read_text(encoding="utf-8", errors="replace")
+                parts.append(f"\n### `.agents/{folder}/{df}`\n{_clip(dtext, 2200, df)}\n")
+            except OSError:
+                pass
+    return "".join(parts)
+
+
+def run_wiki_review(
+    repo_root: Path,
+    *,
+    pages: Optional[List[str]] = None,
+    dry_run: bool = False,
+    json_out: bool = False,
+    background: bool = False,
+) -> Dict[str, Any]:
+    """Review and update `.agents/wiki/` via Hermes (`consolidate-elephant` + `consolidate-goldfish`),
+    then recompile `.agents/rag/wiki-graph.json`.
+
+    Preserves Obsidian vault frontmatter (`ainish/wiki/*` tags, `up: "[[README]]"`), `[[wikilinks]]`,
+    and the signed operator ledger (`ledger.md` / `ledger.sig` are NEVER modified; `ledger.md` is
+    spliced deterministically into `04-improvements-and-debt.md`). Fails closed per page.
+    """
+    global _CONSOLIDATION_CALL_SINK
+    root = Path(repo_root)
+    wiki_dir = root / ".agents" / "wiki"
+    head_commit = _wiki_commit(root)
+    targets = [p for p in (pages or list(WIKI_DOMAIN_PAGES)) if p in WIKI_DOMAIN_PAGES]
+    result: Dict[str, Any] = {
+        "format": "ainish-coder/context-wiki-review/v1",
+        "ok": False,
+        "dry_run": dry_run,
+        "head_commit": head_commit,
+        "updated": [],
+        "skipped": [],
+        "graph_nodes": 0,
+        "graph_edges": 0,
+        "agents": {"profiles_used": [], "transports_used": [], "call_count": 0, "degraded_calls": []},
+    }
+    if not targets:
+        result["errors"] = ["no valid domain wiki pages selected"]
+        return result
+    if not wiki_dir.is_dir() or not any((wiki_dir / p).is_file() for p in targets):
+        if dry_run:
+            result["ok"] = True
+            result["skipped"].append({"page": "*", "reason": "wiki not initialized yet (would run generate_wiki first)"})
+            return result
+        generate_wiki(root)
+
+    evidence = _wiki_evidence_bundle(root)
+    operator_ledger = read_sanitized_operator_ledger(root).strip()
+    expected_ledger_lines = [
+        ln.strip() for ln in operator_ledger.splitlines()
+        if ln.strip().startswith("- ")
+    ]
+    call_log: List[Dict[str, Any]] = []
+    started_at = datetime.now(timezone.utc).isoformat()
+    with _CONSOLIDATION_CALL_LOCK:
+        prev_sink = _CONSOLIDATION_CALL_SINK
+        _CONSOLIDATION_CALL_SINK = call_log
+    try:
+        for fname in targets:
+            page_path = wiki_dir / fname
+            existing = page_path.read_text(encoding="utf-8", errors="replace") if page_path.is_file() else ""
+            if dry_run:
+                result["updated"].append({"page": fname, "dry_run": True})
+                continue
+
+            meta = _WIKI_PAGE_META[fname]
+            draft_prompt = (
+                f"# REVIEW & UPDATE `.agents/wiki/{fname}` (HEAD={head_commit})\n\n"
+                "You are updating ONE Obsidian wiki page that `ainish-coder --context` compiles into "
+                "its retrieval graph for coding agents.\n"
+                "Rules:\n"
+                "- Output ONLY the markdown body starting with `# <Page Title>` and at least two `## ` sections.\n"
+                "- Do NOT output YAML frontmatter (`---`) and do NOT output a `## Related` footer or "
+                "the `# Operator ledger` section — deterministic code adds those automatically.\n"
+                "- Keep every fact strictly grounded in the evidence below. Do NOT mention deleted file paths "
+                "(the former Rust `src/rag/` files) or active LanceDB/EmbeddingGemma-2 anywhere in the page "
+                "— not even in notes about their removal; simply document the live Python graph-first engine "
+                "at `src/context/engine.py`.\n"
+                "- Preserve accurate existing content and include `[[wikilinks]]` to sibling pages where natural.\n"
+                "- Never write preambles, offers, or secrets.\n\n"
+                f"## CURRENT PAGE: `.agents/wiki/{fname}`\n{_clip(existing, 6000, fname)}\n\n"
+                f"{evidence}\n---\n# END OF EVIDENCE\nNow emit ONLY the updated markdown body for `{fname}`.\n"
+            )
+            gap = ""
+            previous_body = ""
+            approved_rendered = ""
+            for attempt in (1, 2, 3):
+                if not gap:
+                    prompt = draft_prompt
+                elif previous_body:
+                    prompt = (
+                        draft_prompt
+                        + "\n## YOUR PREVIOUS DRAFT BODY (revise surgically to fix the gap below)\n"
+                        + _clip(previous_body, 10000, "previous wiki draft")
+                        + f"\n\nReview/validation gap to fix: {gap}\n"
+                        "Fix ONLY the named gap while keeping every grounded fact intact.\n"
+                    )
+                else:
+                    prompt = (
+                        draft_prompt
+                        + f"\nPrevious draft failed review with gap: {gap}\nFix it strictly from the evidence.\n"
+                    )
+                draft_reply = consolidation_call(
+                    CONSOLIDATE_DRAFTER_PROFILE, prompt, fallback_role="elephant", timeout=CONSOLIDATE_DRAFT_TIMEOUT,
+                )
+                raw_body = _strip_frontmatter_and_related(str((draft_reply or {}).get("text") or ""))
+                # Strip any duplicated operator ledger block on page 04 before deterministic splice.
+                if fname == "04-improvements-and-debt.md":
+                    raw_body = re.sub(r"\n##\s+3\.\s+Operator ledger[\s\S]*\Z", "", raw_body, flags=re.I).rstrip()
+                    raw_body = re.sub(r"\n#\s+Operator ledger[\s\S]*\Z", "", raw_body, flags=re.I).rstrip()
+                assembled = (
+                    _vault_frontmatter(fname, meta, head_commit, decision_source="hermes-reviewed")
+                    + raw_body.strip()
+                    + _vault_page_links(fname)
+                )
+                if fname == "04-improvements-and-debt.md" and operator_ledger:
+                    assembled = (
+                        assembled.rstrip()
+                        + "\n\n## 3. Operator ledger\n"
+                        + "Spliced verbatim from `.agents/wiki/ledger.md` (read-only historical operator log; "
+                        + "never rewritten by `ainish-coder --context-wiki-review`).\n\n"
+                        + operator_ledger
+                        + "\n"
+                    )
+                valid, why = _validate_wiki_page_edit(
+                    fname, assembled, expected_ledger_lines=expected_ledger_lines if fname == "04-improvements-and-debt.md" else None
+                )
+                if not valid:
+                    gap = why
+                    previous_body = raw_body
+                    if attempt == 3:
+                        result["skipped"].append({"page": fname, "reason": f"validation failed 3 times: {why}"})
+                    continue
+
+                review_prompt = (
+                    f"# REVIEW (fidelity) updated `.agents/wiki/{fname}` (HEAD={head_commit})\n\n"
+                    "Verify that every architectural, file-path, CLI, and security claim in the proposed "
+                    "wiki page is supported by the grounded repository evidence below, and that no retired "
+                    "subsystems are presented as active.\n\n"
+                    "Answer in exactly this shape, nothing before it:\n\n"
+                    "VERDICT: pass|fail\n"
+                    "GAP: <the single most important unsupported claim, or 'none'>\n\n"
+                    f"{evidence}\n---\n## PROPOSED PAGE: `{fname}`\n{_clip(assembled, 14000, fname)}\n\n"
+                    "---\nNow answer with VERDICT and GAP only.\n"
+                )
+                rev_reply = consolidation_call(
+                    CONSOLIDATE_REVIEWER_PROFILE, review_prompt, fallback_role="goldfish", timeout=CONSOLIDATE_DRAFT_TIMEOUT,
+                )
+                passed, gap = _parse_digest_verdict(str((rev_reply or {}).get("text") or ""))
+                if passed:
+                    approved_rendered = assembled
+                    break
+                previous_body = raw_body
+                if attempt == 3:
+                    result["skipped"].append({"page": fname, "reason": f"fidelity review failed 3 times: {gap}"})
+
+            if approved_rendered:
+                tmp = page_path.with_name(f".{page_path.name}.{os.getpid()}.tmp")
+                tmp.write_text(approved_rendered, encoding="utf-8")
+                os.replace(tmp, page_path)
+                result["updated"].append(fname)
+
+        # Keep README.md frontmatter current with HEAD commit & timestamp without touching its links.
+        readme_path = wiki_dir / "README.md"
+        if not dry_run and result["updated"] and readme_path.is_file():
+            readme_body = _strip_frontmatter_and_related(readme_path.read_text(encoding="utf-8", errors="replace"))
+            readme_body = re.sub(
+                r"^Generated on:.*$",
+                f"Generated on: {datetime.now(timezone.utc).isoformat()} (UTC)",
+                readme_body,
+                count=1,
+                flags=re.M,
+            )
+            readme_rendered = (
+                _vault_frontmatter("README.md", _WIKI_PAGE_META["README.md"], head_commit, decision_source="hermes-reviewed")
+                + readme_body.strip()
+                + "\n\n## Related\n- [[01-architecture|System Architecture]]\n- [[03-security-and-governance|Security & Governance]]\n- [[04-improvements-and-debt|Improvements & Debt]]\n"
+            )
+            tmp = readme_path.with_name(f".README.md.{os.getpid()}.tmp")
+            tmp.write_text(readme_rendered, encoding="utf-8")
+            os.replace(tmp, readme_path)
+
+        # Recompile the wiki knowledge graph immediately so `--context` reads the fresh vault.
+        if not dry_run:
+            settings, _, _ = context_harness.settings_for(root)
+            compiled = load_wiki_graph(root, settings=settings)
+            result["graph_nodes"] = len(compiled.get("nodes") or [])
+            result["graph_edges"] = len(compiled.get("edges") or [])
+        result["agents"] = _summarize_consolidation_calls(call_log)
+        result["ok"] = True
+    finally:
+        with _CONSOLIDATION_CALL_LOCK:
+            _CONSOLIDATION_CALL_SINK = prev_sink
+        if not dry_run:
+            agents_summary = _summarize_consolidation_calls(call_log)
+            status = (
+                "failed" if (not result.get("ok") or result.get("errors"))
+                else ("partial" if result["skipped"] else "ok")
+            )
+            _write_wiki_review_last_run(root, {
+                "format": "ainish-coder/context-wiki-review-last-run/v1",
+                "status": status,
+                "pid": os.getpid(),
+                "background": background,
+                "started_at": started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "head_commit": head_commit,
+                "updated": result["updated"],
+                "skipped": result["skipped"],
+                "graph_nodes": result["graph_nodes"],
+                "graph_edges": result["graph_edges"],
+                "profiles_used": agents_summary["profiles_used"],
+                "transports_used": agents_summary["transports_used"],
+                "call_count": agents_summary["call_count"],
+                "degraded_calls": agents_summary["degraded_calls"],
+            })
+
+    if not background:
+        if json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f".agents/wiki review (HEAD={head_commit}): updated {len(result['updated'])} page(s), skipped {len(result['skipped'])}")
+            for p in result["updated"]:
+                print(f"  updated {p}")
+            for sk in result["skipped"]:
+                print(f"  skipped {sk['page']}: {sk['reason']}")
+            if not dry_run:
+                print(f"  compiled wiki graph: {result['graph_nodes']} nodes, {result['graph_edges']} edges")
+    return result
+
+
 def run_context_consolidate(
     repo_root: Path,
     *,
@@ -7369,6 +7904,7 @@ def run_context_consolidate(
     cap: int = CONSOLIDATION_DEFAULT_CAP,
     json_out: bool = False,
     background: bool = False,
+    review_wiki: bool = False,
 ) -> Dict[str, Any]:
     """Consolidate old records into one rolling digest per folder, then remove replaced files.
 
@@ -7442,8 +7978,15 @@ def run_context_consolidate(
             all_originals: List[str] = []
             for _per, _files in sorted(census["periods"].items()):
                 all_originals.extend(_files)
-            should_compact = bool(all_originals) or len(prior_digests) > 1
-            all_files: List[str] = (prior_digests + all_originals) if should_compact else []
+            should_compact = bool(census["needs_consolidation"])
+            protected_set = set(census["protected"])
+            # Defense-in-depth: the 3 chronologically newest original files are NEVER fed into
+            # consolidation payloads and NEVER unlinked.
+            all_files: List[str] = (
+                [f for f in (prior_digests + all_originals) if f not in protected_set]
+                if should_compact
+                else []
+            )
             span = (
                 f"{min(census['periods'])}+" if census["periods"]
                 else ("rollup" if should_compact else "none")
@@ -7459,8 +8002,7 @@ def run_context_consolidate(
             }
             directory = Path(repo_root) / ".agents" / name
             _index = _next_digest_index(repo_root, name)
-            digest = _digest_path(repo_root, name, index=_index)
-            protected_set = set(census["protected"])
+            digest = _digest_path(repo_root, name, span, index=_index)
 
             if dry_run:
                 if all_files:
@@ -7530,11 +8072,29 @@ def run_context_consolidate(
                                 "period": span,
                                 "reason": f"{len(left)} record(s) left in place because their chunk was not summarised",
                             })
-            removed_originals = [f for f in entry["removed"] if not f.startswith(CONSOLIDATION_DIGEST_PREFIX)]
-            removed_digests = [f for f in entry["removed"] if f.startswith(CONSOLIDATION_DIGEST_PREFIX)]
+            removed_originals = [f for f in entry["removed"] if not _is_digest_name(f)]
+            removed_digests = [f for f in entry["removed"] if _is_digest_name(f)]
             entry["originals_after"] = max(0, entry["originals"] - len(removed_originals))
             entry["digests_after"] = max(0, entry["digests"] - len(removed_digests) + len(entry["written"]))
             result["folders"][name] = entry
+        # Review/edit `.agents/wiki/` and recompile the wiki graph when explicitly requested, or in
+        # background mode after consolidating folders / when wiki `source_commit` lags `HEAD`.
+        wiki_auto = (
+            background
+            and (_env_nonempty("AINISH_WIKI_REVIEW_ON_CONSOLIDATE") or "on").strip().lower()
+            not in ("0", "off", "false", "no")
+            and (
+                any(e.get("written") for e in result["folders"].values())
+                or wiki_status(repo_root).get("stale")
+            )
+        )
+        if not dry_run and (review_wiki or wiki_auto) and (Path(repo_root) / ".agents" / "wiki").is_dir():
+            result["wiki_review"] = run_wiki_review(repo_root, dry_run=False, json_out=False, background=True)
+        elif not dry_run and any(e.get("written") for e in result["folders"].values()):
+            # Always recompile the wiki graph cache after writing digests / removing originals so
+            # subsequent `--context` calls never serve removed filenames.
+            settings, _, _ = context_harness.settings_for(repo_root)
+            load_wiki_graph(repo_root, settings=settings)
         result["agents"] = _summarize_consolidation_calls(call_log)
         result["ok"] = True
     except Exception as exc:
@@ -8027,6 +8587,19 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             pending.append(folder)
     info["verified"] = verified
     info["folders_needing"] = pending
+    wstatus = wiki_status(repo_root)
+    info["wiki"] = {
+        "exists": wstatus["exists"],
+        "stale": wstatus["stale"],
+        "source_commit": wstatus["source_commit"],
+        "head_commit": wstatus["head_commit"],
+        "reason": wstatus["reason"],
+    }
+    wiki_auto_enabled = (
+        (_env_nonempty("AINISH_WIKI_REVIEW_ON_CONSOLIDATE") or "on").strip().lower()
+        not in ("0", "off", "false", "no")
+    )
+    wiki_needs_review = bool(wstatus["exists"] and wstatus["stale"] and wiki_auto_enabled)
     last_run = _read_consolidate_last_run(repo_root)
     if last_run:
         info["last_run"] = {
@@ -8053,6 +8626,7 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             },
             "folders": verified,
             "folders_needing": pending,
+            "wiki": info["wiki"],
             "last_run": info.get("last_run"),
         }, indent=2) + "\n", encoding="utf-8")
     except OSError:
@@ -8067,7 +8641,7 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
     if last and interval and (now - last) < interval:
         info["reason"] = f"last consolidation {int((now - last) / 3600)}h ago; next eligible in {int((interval - (now - last)) / 60)}m"
         return info
-    if not pending:
+    if not pending and not wiki_needs_review:
         info["reason"] = "verified every folder: all records are digested or within the protected three"
         return info
     reclaimed = _reclaim_stale_lock(repo_root)
@@ -8105,12 +8679,17 @@ def spawn_consolidate(repo_root: Path) -> Dict[str, Any]:
             }, indent=2) + "\n", encoding="utf-8")
         except OSError:
             pass
+        reason_parts: List[str] = []
+        if pending:
+            reason_parts.append(f"records beyond the protected three or multiple digests in: {', '.join(pending)}")
+        if wiki_needs_review:
+            reason_parts.append(f"wiki needs review ({wstatus['reason']})")
         info.update({
             "spawned": True,
             "folders": pending,
             "pid": child_pid,
             "profiles": [CONSOLIDATE_DRAFTER_PROFILE, *(m[0] for m in CONSOLIDATE_PANEL)],
-            "reason": f"records beyond the protected three or multiple digests in: {', '.join(pending)}",
+            "reason": "; ".join(reason_parts),
         })
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         info["reason"] = f"could not start the consolidation pass: {str(exc)[:120]}"
@@ -8277,17 +8856,32 @@ def run_context_command(
         caps = {name: max(0, int(effective_budget * float(section_caps.get(name, 0))))
                 for name in CONTEXT_SECTION_CAPS}
 
-    # Refresh the vault BEFORE retrieval, so the prime reads the pages as they are now. Doing it
-    # after would retrieve the stale corpus and then update it, which is the failure mode where a
-    # context call confidently cites the previous version of the wiki. Off by default because it
-    # writes tracked files; `generate_wiki` refuses to clobber a vault it cannot reproduce, and that
-    # refusal is reported rather than swallowed.
-    wiki_note = "not refreshed (pass --refresh-wiki to regenerate before retrieval)"
+    # Refresh/review the vault BEFORE retrieval when `--refresh-wiki` is passed, so the prime reads
+    # the freshly reviewed and compiled wiki graph. Without `--refresh-wiki`, still compile the graph
+    # cache on source changes and report accurate wiki freshness + compiled node/edge counts.
+    wstat = wiki_status(repo_root)
+    wiki_note = (
+        f"compiled ({wstat['graph_nodes']} nodes, {wstat['graph_edges']} edges; {wstat['reason']})"
+        if wstat["exists"]
+        else "no wiki directory"
+    )
     if refresh_wiki:
-        wiki_note, wiki_ok = refresh_vault(repo_root)
-        if not wiki_ok:
-            degrade_notes.append(f"wiki refresh: {wiki_note}")
-            degraded = True
+        if wstat["exists"] and wstat["pages"] > 0 and not retrieval_only:
+            wrev = run_wiki_review(repo_root, dry_run=False, json_out=False, background=True)
+            if wrev.get("ok") and not wrev.get("errors"):
+                wiki_note = (
+                    f"hermes-reviewed ({len(wrev.get('updated') or [])} page(s) updated, "
+                    f"compiled {wrev.get('graph_nodes', 0)} nodes / {wrev.get('graph_edges', 0)} edges)"
+                )
+            else:
+                wiki_note = f"wiki review degraded: {'; '.join(wrev.get('errors') or ['failed'])}"
+                degrade_notes.append(wiki_note)
+                degraded = True
+        else:
+            wiki_note, wiki_ok = refresh_vault(repo_root)
+            if not wiki_ok:
+                degrade_notes.append(f"wiki refresh: {wiki_note}")
+                degraded = True
 
     retrieved = retrieve_context(repo_root, task, client, store, route_decision, settings=harness_settings)
     retrieval_text = render_retrieval_section(retrieved["hits"], repo_root, caps["retrieval"])
@@ -9694,22 +10288,22 @@ def _memory_files(directory: Path) -> List[Path]:
 def _task_files(directory: Path) -> List[Path]:
     """Task records, both schemes, newest first.
 
-    `DIGEST-*` is excluded: a consolidation digest is a summary OF records, not a record with a status
-    or a branch, and reporting one as "the newest task record" made the prime describe work that had
-    already been consolidated instead of the work in flight.
+    `consolidates.*` and legacy `DIGEST-*` are excluded: a consolidated digest is a summary OF
+    records, not a record with a status or a branch, and reporting one as "the newest task record"
+    made the prime describe work that had already been consolidated instead of the work in flight.
     """
     return [p for p in _coordination_files(directory, "-task.md", ".md")
-            if not p.name.startswith(CONSOLIDATION_DIGEST_PREFIX)]
+            if not _is_digest_name(p.name)]
 
 
 def _plan_files(directory: Path) -> List[Path]:
     """Plans of record, both schemes, newest first.
 
-    `llms.txt` is the index and `DIGEST-*` is a consolidation summary; neither carries a plan's
-    `status:` field, so including them made orientation invent one (`status: designing`).
+    `llms.txt` is the index and `consolidates.*` / `DIGEST-*` are consolidation summaries; neither
+    carries a plan's `status:` field, so including them made orientation invent one (`status: designing`).
     """
     return [p for p in _coordination_files(directory, ".md", exclude=("llms.txt",))
-            if not p.name.startswith(CONSOLIDATION_DIGEST_PREFIX)]
+            if not _is_digest_name(p.name)]
 
 
 def _comms_files(directory: Path) -> List[Path]:
@@ -10605,9 +11199,24 @@ def main():
     consolidate_p.add_argument("--dry-run", action="store_true", help="Report what would be consolidated; write and delete nothing")
     consolidate_p.add_argument("--json", action="store_true")
     consolidate_p.add_argument(
+        "--review-wiki", action="store_true",
+        help="Also run Hermes review/edit on .agents/wiki/ and recompile the wiki knowledge graph",
+    )
+    consolidate_p.add_argument(
         "--background", action="store_true",
         help="Internal: set by the detached child that `--context` spawns. Silences all output and writes consolidate-last-run.json.",
     )
+
+    wiki_rev_p = sub.add_parser(
+        "context-wiki-review",
+        help="Review and update .agents/wiki/ via Hermes (consolidate-elephant + consolidate-goldfish) and recompile the wiki graph",
+    )
+    wiki_rev_p.add_argument(
+        "--page", action="append", default=None, choices=list(WIKI_DOMAIN_PAGES),
+        help="Specific wiki page(s) to review (default: all six domain pages)",
+    )
+    wiki_rev_p.add_argument("--dry-run", action="store_true", help="Report pages that would be reviewed; write nothing")
+    wiki_rev_p.add_argument("--json", action="store_true")
 
     audit_p = sub.add_parser("audit", help="Verify post-quantum receipts, manifests, lockfiles, and SBOMs")
     audit_sub = audit_p.add_subparsers(dest="audit_command", required=True)
@@ -10716,8 +11325,12 @@ def main():
         # A context call must never block the task that asked for it: drivers are optional and a
         # degraded host returns a labelled degraded prime instead of an error. Only a missing/empty
         # --task is a hard failure. No embedding server is started — there is no embedding path.
+        # Resolve `_learned_root(repo_root)` so a caller standing inside a git worktree retrieves,
+        # attaches, consolidates, and reviews THAT worktree's `.agents/` and `.agents/wiki/`
+        # rather than reading stale files from the main checkout (which caused `pi` File-not-found
+        # errors on files consolidated in the worktree; measured 2026-11-26).
         run_context_command(
-            repo_root,
+            _learned_root(repo_root),
             task=args.task,
             budget=getattr(args, "budget", None),
             json_out=bool(getattr(args, "json", False)),
@@ -10794,6 +11407,17 @@ def main():
             cap=int(getattr(args, "cap", CONSOLIDATION_DEFAULT_CAP) or CONSOLIDATION_DEFAULT_CAP),
             json_out=bool(getattr(args, "json", False)) and not background,
             background=background,
+            review_wiki=bool(getattr(args, "review_wiki", False)),
+        )
+        if result.get("errors"):
+            sys.exit(1)
+
+    elif args.subcommand == "context-wiki-review":
+        result = run_wiki_review(
+            _learned_root(repo_root),
+            pages=getattr(args, "page", None),
+            dry_run=bool(getattr(args, "dry_run", False)),
+            json_out=bool(getattr(args, "json", False)),
         )
         if result.get("errors"):
             sys.exit(1)
