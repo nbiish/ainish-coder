@@ -734,8 +734,10 @@ _mw_uninstall_cron() {
     return 0
 }
 
+_mw_win_vbs_path() { printf '%s/ainish-machine-watch-hidden.vbs\n' "$_MW_STATE_DIR"; }
+
 _mw_install_windows() {
-    local cli win_cmd
+    local cli win_cmd vbs win_vbs
     cli="$(_mw_cli)" || { _mw_err "cannot locate ainish-coder"; return 1; }
     local cmd_cli="${cli}.cmd"
     if [[ -f "$cmd_cli" ]]; then
@@ -743,8 +745,18 @@ _mw_install_windows() {
     else
         win_cmd="$cli"
     fi
+    vbs="$(_mw_win_vbs_path)"
+    mkdir -p "$_MW_STATE_DIR" 2>/dev/null || true
+    # Wrap the .cmd invocation in a minimal WSH script with window style 0 (hidden) so Task
+    # Scheduler never flashes a visible cmd.exe console window on the operator's desktop every minute.
+    cat > "$vbs" <<'VBS'
+Set sh = CreateObject("WScript.Shell")
+sh.Run """" & WScript.Arguments(0) & """ --machine-watch --once --pull-now", 0, False
+VBS
+    win_vbs="$vbs"
     if command -v cygpath >/dev/null 2>&1; then
         win_cmd="$(cygpath -w "$win_cmd")"
+        win_vbs="$(cygpath -w "$vbs")"
     fi
     if ! command -v schtasks.exe >/dev/null 2>&1 && ! command -v schtasks >/dev/null 2>&1; then
         _mw_err "schtasks not available; run --machine-watch --foreground"
@@ -752,22 +764,24 @@ _mw_install_windows() {
     fi
     local st="schtasks.exe"
     command -v schtasks.exe >/dev/null 2>&1 || st="schtasks"
-    local tr="\"${win_cmd}\" --machine-watch --once --pull-now"
+    local tr="wscript.exe //B //NoLogo \"${win_vbs}\" \"${win_cmd}\""
     # MSYS2 path-conversion disabled so /Create /F /SC etc. reach schtasks verbatim.
     MSYS_NO_PATHCONV=1 "$st" /Create /F /SC MINUTE /MO 1 /TN "$_MW_WIN_TASK" /TR "$tr" >/dev/null 2>&1 || {
         _mw_err "Windows Task Scheduler refused to create ${_MW_WIN_TASK}"
         return 1
     }
-    _mw_log "installed Windows Scheduled Task ${_MW_WIN_TASK}"
-    _mw_say "verified: Windows Scheduled Task ${_MW_WIN_TASK} installed (runs --once --pull-now every minute)"
+    _mw_log "installed Windows Scheduled Task ${_MW_WIN_TASK} (hidden via wscript)"
+    _mw_say "verified: Windows Scheduled Task ${_MW_WIN_TASK} installed (hidden, runs --once --pull-now every minute)"
     return 0
 }
 
 _mw_uninstall_windows() {
     local st="schtasks.exe"
     command -v schtasks.exe >/dev/null 2>&1 || st="schtasks"
-    command -v "$st" >/dev/null 2>&1 || return 0
-    MSYS_NO_PATHCONV=1 "$st" /Delete /F /TN "$_MW_WIN_TASK" >/dev/null 2>&1 || true
+    if command -v "$st" >/dev/null 2>&1; then
+        MSYS_NO_PATHCONV=1 "$st" /Delete /F /TN "$_MW_WIN_TASK" >/dev/null 2>&1 || true
+    fi
+    rm -f "$(_mw_win_vbs_path)" 2>/dev/null || true
     _mw_log "removed Windows Scheduled Task ${_MW_WIN_TASK}"
     return 0
 }
