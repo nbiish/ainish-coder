@@ -430,6 +430,127 @@ grep -q 'box-18gb | branch:feat/fed-alpha' "${FED_B}/.agents/federation/${FED_TO
     && ok "gitignored federation CoD files leave both git trees completely clean" \
     || bad "federation CoD files dirtied git status"
 
+echo "== 20. symmetric --pull --branches materialises peer branches & fast-forwards clean local branch =="
+SYM_A="${WORK}/sym-a/demo"
+SYM_B="${WORK}/sym-b/demo"
+mkdir -p "$(dirname "$SYM_A")" "$(dirname "$SYM_B")"
+git clone -q "$SRC" "$SYM_A"
+git clone -q "$SRC" "$SYM_B"
+# Peer B advances main AND creates a peer-only feature branch.
+printf 'peer main advance\n' >> "$SYM_B/tracked.txt"
+git -C "$SYM_B" commit -qam "peer advance main"
+SYM_B_MAIN="$(git -C "$SYM_B" rev-parse main)"
+git -C "$SYM_B" checkout -qb feat/from-peer
+printf 'peer feature\n' > "$SYM_B/peer-feat.txt"
+git -C "$SYM_B" add peer-feat.txt && git -C "$SYM_B" commit -qm "peer feat"
+SYM_B_FEAT="$(git -C "$SYM_B" rev-parse feat/from-peer)"
+git -C "$SYM_B" checkout -q main
+printf 'box-18gb=self\npeer-sym-64gb=%s\n' "$(dirname "$SYM_B")" > "${WORK}/machines-sym.txt"
+SYM_OUT="$("$CLI" --machine-sync --repo "$SYM_A" --machines-file "${WORK}/machines-sym.txt" --machine peer-sym-64gb --pull --branches 2>&1)"
+check "symmetric pull exits 0" "0" "$?"
+check "clean local main fast-forwarded from peer" "$SYM_B_MAIN" "$(git -C "$SYM_A" rev-parse main)"
+check "peer-only branch materialized locally" "$SYM_B_FEAT" "$(git -C "$SYM_A" rev-parse feat/from-peer 2>/dev/null || echo MISSING)"
+
+echo "== 21. --all forwards --branches and --linked-only in isolated subshells =="
+ALL_A="${WORK}/all-a/demo"
+ALL_B="${WORK}/all-b/demo"
+mkdir -p "$(dirname "$ALL_A")" "$(dirname "$ALL_B")"
+git clone -q "$SRC" "$ALL_A"
+git clone -q "$SRC" "$ALL_B"
+git -C "$ALL_A" checkout -qb feat/all-flag-check
+git -C "$ALL_A" commit -q --allow-empty -m "all flag check"
+git -C "$ALL_A" checkout -q main
+printf 'box-18gb=self\npeer-all-32gb=%s\nunlinked-99gb=%s/nonexistent\n' "$(dirname "$ALL_B")" "$WORK" > "${WORK}/machines-all.txt"
+LINKS_ALL="${WORK}/links-all.txt"
+"$CLI" --machine-link --repo "$ALL_A" --peer peer-all-32gb --peer-path "$ALL_B" \
+    --machines-file "${WORK}/machines-all.txt" --links-file "$LINKS_ALL" --no-hooks >/dev/null 2>&1
+ALL_OUT="$("$CLI" --machine-sync --all --push --branches --linked-only \
+    --machines-file "${WORK}/machines-all.txt" --links-file "$LINKS_ALL" 2>&1)"
+check "--all --branches --linked-only exits 0 (ignores unlinked broken peer)" "0" "$?"
+check "--all forwarded --branches to materialize feat/all-flag-check on peer" \
+    "$(git -C "$ALL_A" rev-parse feat/all-flag-check)" "$(git -C "$ALL_B" rev-parse feat/all-flag-check 2>/dev/null || echo MISSING)"
+
+echo "== 22. _ml_cli_path resolves worktrees to the durable main checkout =="
+ML_CLI="$(bash -c 'source "'"$REPO"'/src/machine_link.sh" >/dev/null 2>&1; _ml_cli_path' 2>/dev/null)"
+[[ -x "$ML_CLI" ]] && ok "_ml_cli_path returns an executable CLI ($ML_CLI)" || bad "_ml_cli_path not executable: $ML_CLI"
+case "$ML_CLI" in
+    *"/ainish-coder-worktrees/"*) bad "_ml_cli_path pointed into disposable worktree: $ML_CLI" ;;
+    *) ok "_ml_cli_path resolved out of disposable worktree" ;;
+esac
+
+echo "== 23. sibling worktree uncommitted edits are snapshotted across peers =="
+WT_MAIN="${WORK}/wt-a/demo"
+WT_PEER="${WORK}/wt-b/demo"
+WT_SIB="${WORK}/wt-a-sib"
+mkdir -p "$(dirname "$WT_MAIN")" "$(dirname "$WT_PEER")"
+git clone -q "$SRC" "$WT_MAIN"
+git clone -q "$SRC" "$WT_PEER"
+git -C "$WT_MAIN" worktree add -q -b feat/wt-parallel "$WT_SIB"
+printf 'parallel agent wip\n' > "$WT_SIB/wt-note.txt"
+printf 'box-18gb=self\npeer-wt-64gb=%s\n' "$(dirname "$WT_PEER")" > "${WORK}/machines-wt.txt"
+WT_OUT="$("$CLI" --machine-sync --repo "$WT_MAIN" --machines-file "${WORK}/machines-wt.txt" --machine peer-wt-64gb --push 2>&1)"
+check "sync with dirty sibling worktree exits 0" "0" "$?"
+check "peer received sibling worktree WIP snapshot" "parallel agent wip" \
+    "$(git -C "$WT_PEER" show 'refs/machine-sync/box-18gb/feat/wt-parallel:wt-note.txt' 2>/dev/null || echo MISSING)"
+
+echo "== 24. --bootstrap clones a missing peer repo from bundle =="
+BOOT_ROOT="${WORK}/boot-peer"
+mkdir -p "$BOOT_ROOT"
+printf 'box-18gb=self\ncloud-a100-80gb=%s\n' "$BOOT_ROOT" > "${WORK}/machines-boot.txt"
+BOOT_OUT="$("$CLI" --machine-sync --repo "$ALL_A" --machines-file "${WORK}/machines-boot.txt" --machine cloud-a100-80gb --push --branches --bootstrap 2>&1)"
+check "--bootstrap exits 0" "0" "$?"
+[[ -d "${BOOT_ROOT}/demo/.git" ]] && ok "--bootstrap initialized peer repo at ${BOOT_ROOT}/demo" || bad "--bootstrap did not create repo: $BOOT_OUT"
+check "--bootstrap delivered feat/all-flag-check to new peer" \
+    "$(git -C "$ALL_A" rev-parse feat/all-flag-check)" "$(git -C "${BOOT_ROOT}/demo" rev-parse feat/all-flag-check 2>/dev/null || echo MISSING)"
+
+echo "== 25. incremental push skips identical refs (0 bytes transferred) =="
+INC_OUT="$("$CLI" --machine-sync --repo "$ALL_A" --machines-file "${WORK}/machines-boot.txt" --machine cloud-a100-80gb --push 2>&1)"
+check "repeat push exits 0" "0" "$?"
+if printf '%s' "$INC_OUT" | grep -q '0 bytes transferred'; then
+    ok "identical push skipped bundle transfer (0 bytes transferred)"
+else
+    bad "identical push did not short-circuit"; printf '%s\n' "$INC_OUT" | sed 's/^/    | /'
+fi
+
+echo "== 26. --machine-pick selects highest-capacity reachable peer =="
+PICK_REG="${WORK}/machines-pick.txt"
+cat > "$PICK_REG" <<EOF
+box-18gb=self
+small-16gb=$(dirname "$SYM_B")
+cloud-h100-128gb=$(dirname "$SYM_B")
+medium-64gb=$(dirname "$SYM_B")
+EOF
+PICKED="$("$CLI" --machine-pick --repo "$SYM_A" --machines-file "$PICK_REG" --min-ram 32 2>/dev/null)"
+check "--machine-pick picks highest RAM >= 32 (cloud-h100-128gb)" "cloud-h100-128gb" "$PICKED"
+PICK_KIND="$("$CLI" --machine-pick --repo "$SYM_A" --machines-file "$PICK_REG" --kind medium 2>/dev/null)"
+check "--machine-pick filters by --kind" "medium-64gb" "$PICK_KIND"
+PICK_JSON="$("$CLI" --machine-pick --repo "$SYM_A" --machines-file "$PICK_REG" --min-ram 32 --json 2>/dev/null)"
+if printf '%s' "$PICK_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["format"]=="ainish-coder/machine-pick/v1"; assert d["peer"]=="cloud-h100-128gb"; assert d["ram_gb"]==128' 2>/dev/null; then
+    ok "--machine-pick --json parses with peer and ram_gb"
+else
+    bad "--machine-pick --json invalid: $PICK_JSON"
+fi
+
+echo "== 27. --machine-run syncs before, executes remotely, syncs results back, and propagates exit code =="
+RUN_A="${WORK}/run-a/demo"
+RUN_B="${WORK}/run-b/demo"
+mkdir -p "$(dirname "$RUN_A")" "$(dirname "$RUN_B")"
+git clone -q "$SRC" "$RUN_A"
+git clone -q "$SRC" "$RUN_B"
+printf 'box-18gb=self\nworker-64gb=%s\n' "$(dirname "$RUN_B")" > "${WORK}/machines-run.txt"
+RUN_OUT="$("$CLI" --machine-run "$RUN_A" --machines-file "${WORK}/machines-run.txt" --min-ram 32 -- \
+    "printf 'produced on worker\n' > worker-out.txt && git add worker-out.txt && git commit -qm 'worker result'" 2>&1)"
+check "--machine-run exits 0 on remote success" "0" "$?"
+check "remote commit synced back into local working tree" "produced on worker" "$(cat "$RUN_A/worker-out.txt" 2>/dev/null || echo MISSING)"
+# Isolated --worktree execution must leave peer main clean while running cleanly.
+WT_RUN_OUT="$("$CLI" --machine-run "$RUN_A" --machines-file "${WORK}/machines-run.txt" --machine worker-64gb --worktree -- \
+    "test -f worker-out.txt && echo WT_OK" 2>&1)"
+check "--machine-run --worktree exits 0" "0" "$?"
+printf '%s' "$WT_RUN_OUT" | grep -q 'WT_OK' && ok "--machine-run --worktree saw synced file in isolated worktree" || bad "--machine-run --worktree output missing WT_OK"
+# Fail-closed exit code propagation.
+"$CLI" --machine-run "$RUN_A" --machines-file "${WORK}/machines-run.txt" --machine worker-64gb -- "exit 42" >/dev/null 2>&1
+check "--machine-run propagates remote non-zero exit code (42)" "42" "$?"
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1
