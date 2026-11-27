@@ -101,3 +101,22 @@ agent-desktop sandbox stop demo && agent-desktop sandbox rm demo
 ```
 
 Note: Sandboxes isolate the desktop, not the host network — keep one trust level per host. For Linux/Windows containerized desktops, follow `https://agent-browser.dev/desktop/guides/docker-container`.
+
+---
+
+## 7. Cross-Machine Control via `ainish-coder --machine-run`
+
+Drive native desktop applications on a federated peer (e.g., controlling `windows-128gb` from `mac-18gb`, or vice versa) over your existing SSH link:
+
+```bash
+# Inspect Windows UI Automation status and running apps from macOS
+ainish-coder --machine-run . --kind windows --no-sync-before --no-sync-after -- "agent-desktop status"
+ainish-coder --machine-run . --kind windows --no-sync-before --no-sync-after -- "agent-desktop list-windows"
+
+# Snapshot a Windows app and act on a quoted ref (PowerShell requires single quotes around @refs)
+ainish-coder --machine-run . --kind windows --no-sync-before --no-sync-after -- "agent-desktop snapshot --app 'Notepad' -i --compact"
+ainish-coder --machine-run . --kind windows --no-sync-before --no-sync-after -- "agent-desktop click '@s8f3k2p9:e4'"
+```
+
+When the remote task also produces repository commits or artifacts, omit `--no-sync-before --no-sync-after` so `--machine-run` pushes your branch first and pulls commits + PQC CoD checkpoints back automatically.
+

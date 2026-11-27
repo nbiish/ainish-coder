@@ -123,10 +123,10 @@ check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state 
 # carried the same two names in _skill_mandatory AND _skill_channel_excluded, so a pack added to the
 # first stayed selectable, while _skills_mandatory_names named a third, shorter set.
 mandatory_ok=1
-for _p in pqc-secrets ainish-security; do
+for _p in pqc-secrets ainish-security browser-use computer-use; do
     _skill_mandatory "$_p" || mandatory_ok=0
 done
-check "mandatory set is pqc-secrets, ainish-security" "$mandatory_ok" "1"
+check "mandatory set is pqc-secrets, ainish-security, browser-use, computer-use" "$mandatory_ok" "1"
 if _skill_mandatory typesafe-jev; then
     not_ok "an optional pack is not mandatory"
 else
@@ -138,15 +138,15 @@ else
     ok "the retired pack is not mandatory"
 fi
 channel_dupes=0
-for _p in pqc-secrets ainish-security; do
+for _p in pqc-secrets ainish-security browser-use computer-use; do
     _skill_channel_excluded "$_p" && channel_dupes=1
 done
 check "channel exclusion carries no mandatory pack" "$channel_dupes" "0"
 _mand_names="$(_skills_mandatory_names | tr '\n' ' ')"
-check "mandatory names derive from the payload" "${_mand_names% }" "ainish-security pqc-secrets"
+check "mandatory names derive from the payload" "${_mand_names% }" "ainish-security browser-use computer-use pqc-secrets"
 selector_leaks=0
 _selection_list="$(HOME="$HOME_DIR" skills_selection_list "$TARGET_ON" 2>/dev/null)"
-for _p in pqc-secrets ainish-security; do
+for _p in pqc-secrets ainish-security browser-use computer-use; do
     printf '%s\n' "$_selection_list" | grep -q "[[:space:]]${_p}\$" && selector_leaks=1
 done
 check "selector list hides every mandatory pack" "$selector_leaks" "0"
@@ -820,7 +820,7 @@ check "local .agents/skills is a curated subset (<=6 packs)" "$(( local_packs <=
 check "local subset is a strict subset of the payload" \
     "$(( local_packs < payload_packs ))" "1"
 # 3. Every contract-critical pack an agent here is told to read must actually be readable locally.
-for required in ainish-security pqc-secrets question-me; do
+for required in ainish-security browser-use computer-use pqc-secrets question-me; do
     check "contract-critical pack readable locally: ${required}" \
         "$([[ -d "${REPO}/.agents/skills/${required}" ]] && echo yes || echo no)" "yes"
     check "contract-critical pack also distributable: ${required}" \
