@@ -128,17 +128,33 @@ _mw_can_read_via_ssh() { # repo
 }
 
 # Decide this machine's transport once and record it. Echoes: direct | ssh | none
-_mw_detect_transport() {
-    local repo="$1"
+#
+# Checks EVERY passed repository (not just the first): a launchd daemon on macOS can read an
+# internal-disk repo directly while TCC denies an external-volume repo. If ANY linked repo fails
+# direct read, delegate the cycle to ssh.
+_mw_detect_transport() { # repo...
+    local r all_direct=true all_ssh=true
+    (( $# > 0 )) || { printf 'none\n'; return 0; }
     case "$_MW_TRANSPORT" in
-        direct) _mw_can_read "$repo" && { printf 'direct\n'; return 0; }; printf 'none\n'; return 0 ;;
-        ssh)    _mw_can_read_via_ssh "$repo" && { printf 'ssh\n'; return 0; }; printf 'none\n'; return 0 ;;
+        direct)
+            for r in "$@"; do _mw_can_read "$r" || { printf 'none\n'; return 0; }; done
+            printf 'direct\n'; return 0 ;;
+        ssh)
+            for r in "$@"; do _mw_can_read_via_ssh "$r" || { printf 'none\n'; return 0; }; done
+            printf 'ssh\n'; return 0 ;;
     esac
-    _mw_can_read "$repo" && { printf 'direct\n'; return 0; }
-    if _mw_can_read_via_ssh "$repo"; then
-        _mw_log "transport: TCC denies direct reads here; delegating the cycle to loopback ssh"
-        printf 'ssh\n'
-        return 0
+    for r in "$@"; do
+        _mw_can_read "$r" || { all_direct=false; break; }
+    done
+    if [[ "$all_direct" == "true" ]]; then
+        printf 'direct\n'; return 0
+    fi
+    for r in "$@"; do
+        _mw_can_read_via_ssh "$r" || { all_ssh=false; break; }
+    done
+    if [[ "$all_ssh" == "true" ]]; then
+        _mw_log "transport: TCC denies direct reads on a linked repo; delegating the cycle to loopback ssh"
+        printf 'ssh\n'; return 0
     fi
     printf 'none\n'
 }
@@ -616,8 +632,9 @@ _mw_install_macos() {
 </dict>
 </plist>
 PLIST
-    # bootout first so a re-install picks up new arguments; a missing job is not an error.
+    # bootout first so a re-install picks up new arguments; wait briefly for teardown before bootstrap.
     launchctl bootout "gui/$(id -u)/${_MW_LABEL}" >/dev/null 2>&1 || true
+    sleep 1
     launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null || launchctl load -w "$plist" 2>/dev/null || {
         _mw_err "launchctl refused to load $plist"; return 1; }
     launchctl enable "gui/$(id -u)/${_MW_LABEL}" >/dev/null 2>&1 || true
@@ -984,10 +1001,12 @@ machine_watch() {
     fi
 
     # Foreground loop. Under a service manager this IS the background process; run interactively it
-    # prints each cycle so the operator can see it working.
-    local first_repo transport
-    first_repo="$(_mw_linked_repos | head -1)"
-    transport="$(_mw_detect_transport "$first_repo")"
+    # prints each cycle so the operator can see it working. Probe EVERY linked repo so a mix of
+    # internal and external-volume repos properly detects macOS TCC denial on the external repo.
+    local -a all_repos=()
+    local _lr transport
+    while IFS= read -r _lr; do [[ -n "$_lr" ]] && all_repos+=("$_lr"); done < <(_mw_linked_repos)
+    transport="$(_mw_detect_transport "${all_repos[@]}")"
     _mw_write_transport "$transport"
 
     if [[ "$transport" == "none" ]]; then

@@ -398,15 +398,16 @@ UTILITY COMMANDS:
                               intake: new/renamed/deleted packs in the
                               distributable payload are picked up each run (new
                               packs follow the repo's default policy).
-                              Deploys 18 skill packs (pqc-secrets and
+                              Deploys 19 skill packs (pqc-secrets and
                               ainish-security are mandatory — shipped on every
                               run, never selectable; the rest are opt-in):
                               - advisory-council/          (Multi-expert advisory council)
                               - ainish-security/           (The full security contract: code, AI/agentic, secrets, PQC, supply chain, governance) [mandatory]
                               - anishinaabe-cyberpunk-style/ (Cultural aesthetic rules)
                               - browser-skill/             (Drive the real logged-in Chromium via bsk)
-                              - browser-use/               (CDP browser automation)
+                              - browser-use/               (Browser MCP 2.x — browsermcp.io/docs — + CDP fallback)
                               - comfyui-orchestration/     (Local ComfyUI operation)
+                              - computer-use/              (Native desktop GUI automation via vercel-labs/agent-desktop)
                               - document-enhancer/         (Knowledge fusion & document hardening)
                               - gstack-coder/              (Multi-tool coding orchestration)
                               - modern-prompting/          (OOReDAct advanced prompting)
