@@ -1,16 +1,14 @@
 ---
-title: ainish-coder — Knowledge & Architecture Wiki
-aliases: ["README", "index", "home"]
+title: README
+aliases: ["wiki", "index", "toc"]
 tags: [ainish/wiki/index, ainish/wiki/generated]
-up: "[[README]]"
-generated: 2026-11-13T01:02:49.095228+00:00
-source_commit: 2225493
-decision_source: structural
+generated: 2026-11-27T02:41:11.253930+00:00
+source_commit: 015da87
+decision_source: hermes-reviewed
 ---
-
 # ainish-coder — Knowledge & Architecture Wiki
 
-Generated on: 2026-11-13T01:02:49.095228+00:00 (UTC)
+Generated on: 2026-11-27T02:41:11.253752+00:00 (UTC)
 Repository: `ainish-coder`
 
 ## Overview
@@ -32,11 +30,7 @@ backlinks, and tag search — and the same pages are parsed by `ainish-context` 
 - **As an agent:** `ainish-coder --context` retrieves whole sections from these pages, so keep headings meaningful.
 - **Operator notes:** `[[ledger]]` is hand-maintained and never regenerated — append one dated line per cycle.
 
-
 ## Related
 - [[01-architecture|System Architecture]]
 - [[03-security-and-governance|Security & Governance]]
 - [[04-improvements-and-debt|Improvements & Debt]]
-
----
-*Maintained by ainish-coder Multimodal RAG & Wiki Engine.*
