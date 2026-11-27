@@ -339,6 +339,13 @@ check "--pull-now exits 0" "0" "$?"
 check "idle local checkout received and fast-forwarded peer commit" "from peer while local idle" \
     "$(cat "$WWT_A_R/from-peer-idle.txt" 2>/dev/null || echo MISSING)"
 
+echo "== 17. Windows Task Scheduler installer uses hidden wscript launcher =="
+if grep -q 'wscript\.exe //B //NoLogo' "${REPO}/src/machine_watch.sh" && grep -q 'ainish-machine-watch-hidden\.vbs' "${REPO}/src/machine_watch.sh"; then
+    ok "Windows installer wraps .cmd with hidden wscript launcher (no console popup)"
+else
+    bad "Windows installer missing hidden wscript launcher"
+fi
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1
