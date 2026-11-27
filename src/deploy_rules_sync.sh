@@ -312,16 +312,17 @@ SRC=$(field source_repo)
 DEPLOYED_COMMIT=$(field source_commit)
 DEPLOYED_SHA=$(field source_agents_sha256)
 DEPLOYED_PACK=$(field source_pack_sha256)
+DEPLOYED_MANDATORY=$(field source_mandatory_skills_sha256)
 [ -n "$SRC" ] || exit 0
 
 CUR_SHA=""
 sha_of() {
     if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "$1" 2>/dev/null | awk '{print $1}'
+        sha256sum "$1" 2>/dev/null | awk '{print $1}' | tr 'A-F' 'a-f'
     elif command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
+        shasum -a 256 "$1" 2>/dev/null | awk '{print $1}' | tr 'A-F' 'a-f'
     elif command -v openssl >/dev/null 2>&1; then
-        openssl dgst -sha256 "$1" 2>/dev/null | awk '{print $NF}'
+        openssl dgst -sha256 "$1" 2>/dev/null | awk '{print $NF}' | tr 'A-F' 'a-f'
     fi
 }
 
@@ -338,6 +339,34 @@ sha_dir() {
     rm -f "$tmp"
 }
 
+# Mandatory skill names derived from source _skill_mandatory() so adding or
+# updating any mandatory pack (e.g. computer-use, browser-use) triggers refresh.
+mandatory_packs() {
+    if [ -f "$SRC/src/skills_selection.sh" ]; then
+        sed -n '/^_skill_mandatory()/,/^}/s/^[[:space:]]*\([a-zA-Z0-9_|-]*\))[[:space:]]*return 0.*/\1/p' "$SRC/src/skills_selection.sh" 2>/dev/null \
+            | tr '|' '\n' | LC_ALL=C sort -u
+    else
+        printf '%s\n' ainish-security browser-use computer-use pqc-secrets
+    fi
+}
+
+sha_mandatory() {
+    [ -d "$1" ] || return 0
+    local tmp p
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-mandatory.XXXXXX" 2>/dev/null)" || return 0
+    mandatory_packs | while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        [ -d "$1/$p" ] || continue
+        (cd "$1/$p" 2>/dev/null && find . -type f | LC_ALL=C sort | while IFS= read -r f; do
+            printf '%s  %s/%s\n' "$(sha_of "$f")" "$p" "${f#./}"
+        done)
+    done > "$tmp" 2>/dev/null
+    if [ -s "$tmp" ]; then
+        sha_of "$tmp"
+    fi
+    rm -f "$tmp"
+}
+
 CURRENT_COMMIT=""
 if command -v git >/dev/null 2>&1; then
     # git -C resolves both a normal checkout and a worktree (where .git is a file).
@@ -351,8 +380,10 @@ UP_TO_DATE=0
 if [ -f "$SRC/AGENTS.md" ] && [ -n "$DEPLOYED_SHA" ]; then
     CUR_SHA=$(sha_of "$SRC/AGENTS.md")
     CUR_PACK=$(sha_dir "$SRC/skills-to-distribute/skills/pqc-secrets")
+    CUR_MANDATORY=$(sha_mandatory "$SRC/skills-to-distribute/skills")
     if [ -n "$CUR_SHA" ] && [ "$CUR_SHA" = "$DEPLOYED_SHA" ] && \
-       { [ -z "$DEPLOYED_PACK" ] || { [ -n "$CUR_PACK" ] && [ "$CUR_PACK" = "$DEPLOYED_PACK" ]; }; }; then
+       { [ -z "$DEPLOYED_PACK" ] || { [ -n "$CUR_PACK" ] && [ "$CUR_PACK" = "$DEPLOYED_PACK" ]; }; } && \
+       { [ -z "$CUR_MANDATORY" ] || { [ -n "$DEPLOYED_MANDATORY" ] && [ "$CUR_MANDATORY" = "$DEPLOYED_MANDATORY" ]; }; }; then
         UP_TO_DATE=1
     fi
 elif [ -n "$CURRENT_COMMIT" ] && [ "$CURRENT_COMMIT" = "$DEPLOYED_COMMIT" ]; then
@@ -419,19 +450,58 @@ _ainish_rules_pack_digest() {
     rm -f "$tmp"
 }
 
+# Digest across ALL mandatory skill packs (_skill_mandatory in skills_selection.sh),
+# complementing source_pack_sha256 (which pins pqc-secrets specifically for PQC
+# attestation). Ensures adding or updating any mandatory skill (e.g. computer-use,
+# browser-use, ainish-security) marks enrolled targets STALE and triggers refresh.
+_ainish_rules_mandatory_skills_digest() {
+    local root="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL:-skills-to-distribute/skills}"
+    [[ -d "$root" ]] || return 1
+    local packs=""
+    if declare -F _skills_mandatory_names >/dev/null 2>&1; then
+        packs="$(_skills_mandatory_names 2>/dev/null | LC_ALL=C sort -u)"
+    fi
+    if [[ -z "$packs" && -f "${REPO_DIR}/src/skills_selection.sh" ]]; then
+        packs="$(sed -n '/^_skill_mandatory()/,/^}/s/^[[:space:]]*\([a-zA-Z0-9_|-]*\))[[:space:]]*return 0.*/\1/p' "${REPO_DIR}/src/skills_selection.sh" 2>/dev/null | tr '|' '\n' | LC_ALL=C sort -u)"
+    fi
+    if [[ -z "$packs" ]]; then
+        packs="$(printf '%s\n' ainish-security browser-use computer-use pqc-secrets)"
+    fi
+    [[ -n "$packs" ]] || return 1
+    local tmp p
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-mandatory.XXXXXX" 2>/dev/null)" || return 1
+    while IFS= read -r p; do
+        [[ -n "$p" && -d "${root}/${p}" ]] || continue
+        (
+            cd "${root}/${p}" || exit 1
+            find . -type f | LC_ALL=C sort | while IFS= read -r file; do
+                printf '%s  %s/%s\n' \
+                    "$(_calc_sha256 "$file" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')" \
+                    "$p" "${file#./}"
+            done
+        )
+    done <<< "$packs" > "$tmp" 2>/dev/null
+    if [[ -s "$tmp" ]]; then
+        _calc_sha256 "$tmp" 2>/dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f'
+    fi
+    rm -f "$tmp"
+}
+
 _ainish_rules_manifest_write() {
     local target_dir="$1"
     local manifest="${target_dir}/.agents/ainish-deploy.json"
     local source_repo="$2"
     local source_commit="$3"
     local source_sha="$4"
-    local source_pack_sha
+    local source_pack_sha source_mandatory_sha
     source_pack_sha="$(_ainish_rules_pack_digest 2>/dev/null || true)"
-    local source_repo_json source_commit_json source_sha_json source_pack_sha_json
+    source_mandatory_sha="$(_ainish_rules_mandatory_skills_digest 2>/dev/null || true)"
+    local source_repo_json source_commit_json source_sha_json source_pack_sha_json source_mandatory_sha_json
     source_repo_json="$(_ainish_rules_json_escape "$source_repo")"
     source_commit_json="$(_ainish_rules_json_escape "$source_commit")"
     source_sha_json="$(_ainish_rules_json_escape "$source_sha")"
     source_pack_sha_json="$(_ainish_rules_json_escape "$source_pack_sha")"
+    source_mandatory_sha_json="$(_ainish_rules_json_escape "$source_mandatory_sha")"
     mkdir -p "$(dirname "$manifest")" 2>/dev/null || return 1
 
     cat > "$manifest" <<MANIFEST_EOF
@@ -441,6 +511,7 @@ _ainish_rules_manifest_write() {
   "source_commit": "${source_commit_json}",
   "source_agents_sha256": "${source_sha_json}",
   "source_pack_sha256": "${source_pack_sha_json}",
+  "source_mandatory_skills_sha256": "${source_mandatory_sha_json}",
   "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "auto_sync": true,
   "managed_paths": [
@@ -768,6 +839,17 @@ deploy_rules_sync() {
     return 0
 }
 
+# True when an enrolled target still carries a pre-upgrade refresher that does
+# not check source_mandatory_skills_sha256. Running the old refresher would exit
+# 0 without deploying newly-added mandatory skills (e.g. computer-use).
+_ainish_rules_refresher_needs_upgrade() {
+    local target="$1"
+    local script="${target}/.agents/bin/ainish-rules-sync"
+    [[ -x "$script" ]] || return 0
+    grep -q 'source_mandatory_skills_sha256' "$script" 2>/dev/null && return 1
+    return 0
+}
+
 # Runs the deployed refresher for one target, or falls back to a headless rules deploy.
 rules_sync_target() {
     local target_dir="${1:-.}"
@@ -779,15 +861,20 @@ rules_sync_target() {
         install_root_rules_sync_hook
         return 0
     fi
-    if [[ -x "${target_abs}/.agents/bin/ainish-rules-sync" ]]; then
+    if [[ -x "${target_abs}/.agents/bin/ainish-rules-sync" ]] && \
+       ! _ainish_rules_refresher_needs_upgrade "$target_abs"; then
         local rc=0
         AINISH_RULES_SYNC_ACTIVE=1 "${target_abs}/.agents/bin/ainish-rules-sync" || rc=$?
         return "$rc"
     fi
-    echo -e "${YELLOW}No sync script in ${target_abs}; deploying rules once...${RESET}"
+    if [[ -x "${target_abs}/.agents/bin/ainish-rules-sync" ]]; then
+        echo -e "${YELLOW}Upgrading rules refresher & mandatory skills in ${target_abs}...${RESET}"
+    else
+        echo -e "${YELLOW}No sync script in ${target_abs}; deploying rules once...${RESET}"
+    fi
     local cli
     cli="$(_ainish_rules_cli)" || return 1
-    AINISH_HEADLESS=true "$cli" --rules "$target_abs" --headless -y
+    AINISH_RULES_SYNC_ACTIVE=1 AINISH_HEADLESS=true "$cli" --rules "$target_abs" --headless -y
 }
 
 # Prunes registry entries whose target directories no longer exist. Echoes the number
@@ -849,9 +936,9 @@ rules_sync_all() {
         if [[ ! -d "$target" ]]; then
             [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${YELLOW}⊘ Missing target: ${target}${RESET}"
             failed=$((failed + 1)); state="missing"
-        elif [[ ! -x "${target}/.agents/bin/ainish-rules-sync" ]]; then
-            # Legacy enrollment: no refresher yet, so deploy the full bundle once.
-            # That writes the manifest + refresher and arms this repo permanently.
+        elif [[ ! -x "${target}/.agents/bin/ainish-rules-sync" ]] || _ainish_rules_refresher_needs_upgrade "$target"; then
+            # Legacy enrollment or pre-upgrade refresher: deploy the full bundle once
+            # so mandatory skills, manifest hashes, and the refresher script all upgrade.
             local cli
             if ! cli="$(_ainish_rules_cli)"; then
                 [[ "$quiet" == "true" && "$json" != "true" ]] || echo -e "${RED}✗ ainish-coder CLI not found; cannot enroll ${target}${RESET}"
@@ -918,9 +1005,10 @@ rules_status() {
     _ainish_rules_migrate_legacy_registry >/dev/null 2>&1 || true
     registry="$(_ainish_rules_registry_file)" || return 1
     src_commit="$(_ainish_rules_source_commit)"
-    local src_hash src_pack
+    local src_hash src_pack src_mandatory
     src_hash="$(_ainish_rules_source_agents_sha)"
     src_pack="$(_ainish_rules_pack_digest 2>/dev/null || true)"
+    src_mandatory="$(_ainish_rules_mandatory_skills_digest 2>/dev/null || true)"
 
     local entries="" human=""
     local total=0 current=0 stale=0 missing=0
@@ -937,13 +1025,15 @@ rules_status() {
                 status="MISSING_MANIFEST"; label="${YELLOW}?${RESET}"; missing=$((missing + 1))
             else
                 deployed="$(sed -n 's/^[[:space:]]*"source_commit":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
-                local deployed_hash deployed_pack
+                local deployed_hash deployed_pack deployed_mandatory
                 deployed_hash="$(sed -n 's/^[[:space:]]*"source_agents_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
                 deployed_pack="$(sed -n 's/^[[:space:]]*"source_pack_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
+                deployed_mandatory="$(sed -n 's/^[[:space:]]*"source_mandatory_skills_sha256":[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
                 # Compare deployed content, not the commit that wrote it: an unrelated commit
                 # must not make every target look stale and trigger a full fleet re-sign.
                 if [[ -n "$deployed_hash" && "$deployed_hash" == "$src_hash" && \
-                      ( -z "$src_pack" || "$deployed_pack" == "$src_pack" ) ]]; then
+                      ( -z "$src_pack" || "$deployed_pack" == "$src_pack" ) && \
+                      ( -z "$src_mandatory" || "$deployed_mandatory" == "$src_mandatory" ) ]]; then
                     status="CURRENT"; label="${GREEN}CURRENT${RESET}"; current=$((current + 1))
                 else
                     status="STALE"; label="${YELLOW}STALE${RESET} (deployed ${deployed_hash:0:12})"; stale=$((stale + 1))
