@@ -30,11 +30,15 @@
 
 : "${AINISH_WATCH_INTERVAL:=2}"
 : "${AINISH_WATCH_DEBOUNCE:=2}"
+: "${AINISH_WATCH_PULL_INTERVAL:=30}"
 
 _MW_STATE_DIR="${HOME}/.config/ainish-coder"
 _MW_STATE_FILE="${_MW_STATE_DIR}/watch.state"
 _MW_LOG="${_MW_STATE_DIR}/watch.log"
 _MW_LABEL="ai.nanoboozhoo.ainish-machine-watch"
+_MW_WIN_TASK="AinishMachineWatch"
+_MW_CRON_TAG="# AINISH-CODER MACHINE-WATCH"
+_MW_PULL_NOW=false
 
 _mw_err()  { printf 'machine-watch: %s\n' "$*" >&2; }
 _mw_say()  { printf 'machine-watch: %s\n' "$*"; }
@@ -54,6 +58,10 @@ OPTIONS:
     --interval SECONDS     How often to look for changes (default 2).
     --debounce SECONDS     How long a tree must be quiet before syncing (default 2). A burst of
                            saves becomes one commit, not twenty.
+    --pull-interval SECS   How often to pull peer updates even when local files are idle (default
+                           30; 0 disables periodic peer pulls). Keeps idle machines current.
+    --pull-now             With --once (e.g. cron / Windows Task Scheduler), always run a peer pull
+                           even if local files did not change.
     --once                 Run a single cycle and exit. Useful in CI and for testing.
     --foreground           Run in the foreground even when a service is installed.
     --transport MODE       auto (default) | direct | ssh. Auto probes whether this process can read
@@ -79,9 +87,11 @@ WHAT IT WILL NOT DO
     Merge diverged histories — that is a human decision, reported every cycle until resolved.
 
 INSTALLED AS
-    macOS  ~/Library/LaunchAgents/ai.nanoboozhoo.ainish-machine-watch.plist  (RunAtLoad, KeepAlive)
-    Linux  ~/.config/systemd/user/ainish-machine-watch.service
-    State  ~/.config/ainish-coder/watch.state, log at ~/.config/ainish-coder/watch.log
+    macOS    ~/Library/LaunchAgents/ai.nanoboozhoo.ainish-machine-watch.plist (RunAtLoad, KeepAlive)
+    Linux    ~/.config/systemd/user/ainish-machine-watch.service (or user crontab fallback)
+    WSL      systemd --user (if active) or managed user crontab (# AINISH-CODER MACHINE-WATCH)
+    Windows  Task Scheduler job AinishMachineWatch (runs --once --pull-now every minute)
+    State    ~/.config/ainish-coder/watch.state, log at ~/.config/ainish-coder/watch.log
 
 EXIT: 0 ok · 1 failure (a cycle that failed, or a service that would not install)
 EOF
@@ -153,22 +163,39 @@ _mw_cycle_via_ssh() { # cli interval debounce verbose
 
     # AINISH_WATCH_TRANSPORT=direct on the far side forces the direct path there: sshd has the access,
     # so the inner process must not rediscover the same denial and try ssh again (an infinite fork).
+    local pull_arg=""
+    [[ -n "${AINISH_WATCH_PULL_INTERVAL:-}" ]] && pull_arg=" --pull-interval ${AINISH_WATCH_PULL_INTERVAL}"
+    [[ "$_MW_PULL_NOW" == "true" ]] && pull_arg="${pull_arg} --pull-now"
     ssh -o BatchMode=yes -o ConnectTimeout=5 localhost \
-        "AINISH_WATCH_TRANSPORT=direct ${q_cli} --machine-watch --once --interval ${interval} --debounce ${debounce}${argstr}" 2>&1
+        "AINISH_WATCH_TRANSPORT=direct ${q_cli} --machine-watch --once --interval ${interval} --debounce ${debounce}${pull_arg}${argstr}" 2>&1
 }
 
 # ── change detection ────────────────────────────────────────────────────────
 
 # A cheap fingerprint of everything that would make a sync necessary: HEAD, the branch, and the exact
-# porcelain output (which names every changed path). Hashing the porcelain rather than the file
-# mtimes matters: `git status` already honours the repo's own ignore rules, so a build directory
-# churning underneath us is not a change worth syncing.
+# porcelain output across the main checkout AND every active linked worktree. Hashing porcelain
+# honours .gitignore, while walking `git worktree list` ensures parallel agent worktrees trigger sync.
 _mw_fingerprint() { # repo
-    local repo="$1"
+    local repo="$1" line wt="" prunable=false
     {
         git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || printf 'no-head'
         git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'no-branch'
         git -C "$repo" status --porcelain 2>/dev/null | LC_ALL=C sort
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            case "$line" in
+                "worktree "*) wt="${line#worktree }"; prunable=false ;;
+                "prunable"*)  prunable=true ;;
+                "")
+                    if [[ -n "$wt" && "$prunable" != "true" && "$wt" != "$repo" && -d "$wt" ]]; then
+                        printf 'WT:%s\n' "$wt"
+                        git -C "$wt" rev-parse -q --verify HEAD 2>/dev/null || printf 'no-head'
+                        git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'no-branch'
+                        git -C "$wt" status --porcelain 2>/dev/null | LC_ALL=C sort
+                    fi
+                    wt=""; prunable=false
+                    ;;
+            esac
+        done < <(git -C "$repo" worktree list --porcelain 2>/dev/null; printf '\n')
     } | cksum 2>/dev/null | awk '{print $1 "-" $2}'
 }
 
@@ -212,6 +239,30 @@ _mw_sync_repo() { # repo
     AINISH_MACHINE_SYNC_ACTIVE=1 "$cli" "${args[@]}" 2>&1
 }
 
+# _mw_pull_repo <repo> <cli> — lightweight peer pull + symmetric branch materialisation (no commit).
+_mw_pull_repo() { # repo cli
+    local repo="$1" cli="$2"
+    local -a args=(--machine-sync "$repo" --pull --branches --linked-only --quiet)
+    [[ -n "${AINISH_MACHINES_FILE:-}" ]] && args+=(--machines-file "$AINISH_MACHINES_FILE")
+    [[ -n "${AINISH_LINKS_FILE:-}" ]] && args+=(--links-file "$AINISH_LINKS_FILE")
+    AINISH_MACHINE_SYNC_ACTIVE=1 "$cli" "${args[@]}" 2>&1
+}
+
+_mw_pull_ts_file() { printf '%s/pull-%s\n' "$_MW_STATE_DIR" "$(printf '%s' "$1" | cksum | awk '{print $1}')"; }
+_mw_pull_due() { # repo
+    [[ "$_MW_PULL_NOW" == "true" ]] && return 0
+    local iv="${AINISH_WATCH_PULL_INTERVAL:-0}"
+    (( iv > 0 )) || return 1
+    local f last now
+    f="$(_mw_pull_ts_file "$1")"
+    now="$(date +%s)"
+    if [[ ! -f "$f" ]]; then return 0; fi
+    last="$(cat "$f" 2>/dev/null | tr -dc '0-9')"
+    [[ "$last" =~ ^[0-9]+$ ]] || return 0
+    (( now - last >= iv ))
+}
+_mw_mark_pulled() { mkdir -p "$_MW_STATE_DIR" 2>/dev/null; date +%s > "$(_mw_pull_ts_file "$1")" 2>/dev/null || true; }
+
 # _mw_resolve_stable_cli — a launcher path that survives the way this repo is developed.
 #
 # AGENTS.md mandates a worktree per task, so `ainish-coder` is usually run from
@@ -254,6 +305,20 @@ _mw_resolve_stable_cli() {
         fi
     fi
     printf '%s\n' "$candidate"
+}
+
+# _mw_current_cli — the CLI binary for THIS running checkout (used by live cycles and tests so a
+# worktree runs its own code rather than silently invoking a stale `main` checkout). Service
+# installers (`_mw_install_*`) still call `_mw_resolve_stable_cli` so login items survive worktree removal.
+_mw_current_cli() {
+    local self_dir candidate
+    self_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || return 1
+    candidate="${self_dir}/../bin/ainish-coder"
+    if [[ -x "$candidate" ]]; then
+        ( cd -P "$(dirname "$candidate")" 2>/dev/null && printf '%s/%s\n' "$(pwd)" "$(basename "$candidate")" )
+        return 0
+    fi
+    command -v ainish-coder 2>/dev/null || return 1
 }
 
 _mw_cli() {
@@ -340,7 +405,7 @@ _mw_wait_for_change() { # mode interval repos...
 # Run one pass over every linked repo. Echoes nothing; logs outcomes.
 _mw_cycle() { # verbose
     local verbose="$1" cli repo fp
-    cli="$(_mw_cli)" || { _mw_err "cannot locate ainish-coder"; return 1; }
+    cli="$(_mw_current_cli)" || { _mw_err "cannot locate ainish-coder"; return 1; }
     local seen=0 changed=0 failed=0
     while IFS= read -r repo; do
         [[ -n "$repo" ]] || continue
@@ -348,7 +413,30 @@ _mw_cycle() { # verbose
         fp="$(_mw_fingerprint "$repo")"
         local last
         last="$(_mw_read_fp "$repo")"
-        [[ "$fp" == "$last" ]] && { [[ "$verbose" == "true" ]] && _mw_say "no change: $repo"; continue; }
+        if [[ "$fp" == "$last" ]]; then
+            # No local edits: still run periodic peer pull when due so commits made on other
+            # machines arrive here automatically without waiting for a local save.
+            if _mw_pull_due "$repo" && ! _mw_in_backoff "$repo"; then
+                _mw_log "pulling peer updates: $repo"
+                local pout prc=0
+                pout="$(_mw_pull_repo "$repo" "$cli")" || prc=$?
+                _mw_mark_pulled "$repo"
+                if (( prc == 0 )); then
+                    _mw_write_fp "$repo" "$(_mw_fingerprint "$repo")"
+                    _mw_clear_failures "$repo"
+                    [[ "$verbose" == "true" ]] && _mw_say "pulled: $repo"
+                else
+                    failed=$((failed + 1))
+                    local pn; pn="$(_mw_bump_failures "$repo")"
+                    _mw_log "pull failed: $repo (attempt $pn)"
+                    printf 'machine-watch: pull failed for %s (attempt %s, retrying with backoff)\n%s\n' \
+                        "$repo" "$pn" "$pout" >&2
+                fi
+            else
+                [[ "$verbose" == "true" ]] && _mw_say "no change: $repo"
+            fi
+            continue
+        fi
 
         # A repo in backoff is skipped until its next attempt. Its fingerprint is NOT recorded, so the
         # change stays pending and is retried when the window opens. Backoff exists so an unreachable
@@ -377,6 +465,7 @@ _mw_cycle() { # verbose
         out="$(_mw_sync_repo "$repo" "$cli")" || rc=$?
         if (( rc == 0 )); then
             _mw_write_fp "$repo" "$(_mw_fingerprint "$repo")"
+            _mw_mark_pulled "$repo"
             _mw_clear_failures "$repo"
             [[ "$verbose" == "true" ]] && _mw_say "synced: $repo"
             _mw_log "ok: $repo"
@@ -513,6 +602,7 @@ _mw_install_macos() {
         <string>--foreground</string>
         <string>--interval</string><string>${interval}</string>
         <string>--debounce</string><string>${debounce}</string>
+        <string>--pull-interval</string><string>${AINISH_WATCH_PULL_INTERVAL:-30}</string>
     </array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
@@ -594,9 +684,84 @@ _mw_info_uninstall_hint() {
     _mw_err "remove it with: ainish-coder --machine-watch --uninstall"
 }
 
+_mw_install_cron() {
+    local cli
+    cli="$(_mw_cli)" || { _mw_err "cannot locate ainish-coder"; return 1; }
+    command -v crontab >/dev/null 2>&1 || { _mw_err "crontab not available; run --machine-watch --foreground"; return 1; }
+    mkdir -p "$_MW_STATE_DIR" 2>/dev/null || true
+    local existing filtered entry
+    existing="$(crontab -l 2>/dev/null || true)"
+    filtered="$(printf '%s\n' "$existing" | grep -vF "$_MW_CRON_TAG" || true)"
+    entry="* * * * * \"${cli}\" --machine-watch --once --pull-now >> \"${_MW_LOG}\" 2>&1 ${_MW_CRON_TAG}"
+    {
+        [[ -n "$filtered" ]] && printf '%s\n' "$filtered"
+        printf '%s\n' "$entry"
+    } | crontab - || { _mw_err "crontab install failed"; return 1; }
+    _mw_log "installed user crontab watcher (${_MW_CRON_TAG})"
+    _mw_say "verified: managed user crontab installed (runs --once --pull-now every minute)"
+    return 0
+}
+
+_mw_uninstall_cron() {
+    command -v crontab >/dev/null 2>&1 || return 0
+    local existing filtered
+    existing="$(crontab -l 2>/dev/null || true)"
+    [[ "$existing" == *"$_MW_CRON_TAG"* ]] || return 0
+    filtered="$(printf '%s\n' "$existing" | grep -vF "$_MW_CRON_TAG" || true)"
+    if [[ -n "$filtered" ]]; then
+        printf '%s\n' "$filtered" | crontab - >/dev/null 2>&1 || true
+    else
+        crontab -r >/dev/null 2>&1 || true
+    fi
+    _mw_log "removed user crontab watcher"
+    return 0
+}
+
+_mw_install_windows() {
+    local cli win_cmd
+    cli="$(_mw_cli)" || { _mw_err "cannot locate ainish-coder"; return 1; }
+    local cmd_cli="${cli}.cmd"
+    if [[ -f "$cmd_cli" ]]; then
+        win_cmd="$cmd_cli"
+    else
+        win_cmd="$cli"
+    fi
+    if command -v cygpath >/dev/null 2>&1; then
+        win_cmd="$(cygpath -w "$win_cmd")"
+    fi
+    if ! command -v schtasks.exe >/dev/null 2>&1 && ! command -v schtasks >/dev/null 2>&1; then
+        _mw_err "schtasks not available; run --machine-watch --foreground"
+        return 1
+    fi
+    local st="schtasks.exe"
+    command -v schtasks.exe >/dev/null 2>&1 || st="schtasks"
+    local tr="\"${win_cmd}\" --machine-watch --once --pull-now"
+    # MSYS2 path-conversion disabled so /Create /F /SC etc. reach schtasks verbatim.
+    MSYS_NO_PATHCONV=1 "$st" /Create /F /SC MINUTE /MO 1 /TN "$_MW_WIN_TASK" /TR "$tr" >/dev/null 2>&1 || {
+        _mw_err "Windows Task Scheduler refused to create ${_MW_WIN_TASK}"
+        return 1
+    }
+    _mw_log "installed Windows Scheduled Task ${_MW_WIN_TASK}"
+    _mw_say "verified: Windows Scheduled Task ${_MW_WIN_TASK} installed (runs --once --pull-now every minute)"
+    return 0
+}
+
+_mw_uninstall_windows() {
+    local st="schtasks.exe"
+    command -v schtasks.exe >/dev/null 2>&1 || st="schtasks"
+    command -v "$st" >/dev/null 2>&1 || return 0
+    MSYS_NO_PATHCONV=1 "$st" /Delete /F /TN "$_MW_WIN_TASK" >/dev/null 2>&1 || true
+    _mw_log "removed Windows Scheduled Task ${_MW_WIN_TASK}"
+    return 0
+}
+
 _mw_install_linux() {
     local cli unit
     cli="$(_mw_cli)" || { _mw_err "cannot locate ainish-coder"; return 1; }
+    if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
+        _mw_install_cron
+        return $?
+    fi
     unit="$(_mw_unit_path)"
     mkdir -p "$(dirname "$unit")" 2>/dev/null || { _mw_err "cannot create $(dirname "$unit")"; return 1; }
     cat > "$unit" <<UNIT
@@ -606,7 +771,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${cli} --machine-watch --foreground --interval ${AINISH_WATCH_INTERVAL:-2} --debounce ${AINISH_WATCH_DEBOUNCE:-2}
+ExecStart=${cli} --machine-watch --foreground --interval ${AINISH_WATCH_INTERVAL:-2} --debounce ${AINISH_WATCH_DEBOUNCE:-2} --pull-interval ${AINISH_WATCH_PULL_INTERVAL:-30}
 Restart=always
 RestartSec=30
 
@@ -615,21 +780,21 @@ WantedBy=default.target
 UNIT
     systemctl --user daemon-reload >/dev/null 2>&1 || true
     systemctl --user enable --now ainish-machine-watch.service >/dev/null 2>&1 || {
-        _mw_err "systemctl --user could not enable the unit"; return 1; }
+        _mw_err "systemctl --user could not enable the unit; falling back to user crontab"
+        _mw_install_cron
+        return $?
+    }
     _mw_log "installed systemd user unit"
     return 0
 }
 
 _mw_install_service() {
     case "$(uname -s 2>/dev/null)" in
-        Darwin) _mw_install_macos ;;
-        Linux)  if grep -qi microsoft /proc/version 2>/dev/null; then
-                    _mw_err "WSL: run --machine-watch --foreground under your own supervisor (systemd may be absent)"
-                    return 1
-                fi
-                _mw_install_linux ;;
-        *)      _mw_err "no service manager known for this platform; use --machine-watch --foreground"
-                return 1 ;;
+        Darwin)                _mw_install_macos ;;
+        Linux)                 _mw_install_linux ;;
+        MINGW*|MSYS*|CYGWIN*)  _mw_install_windows ;;
+        *)                     _mw_err "no service manager known for this platform; use --machine-watch --foreground"
+                               return 1 ;;
     esac
 }
 
@@ -642,10 +807,16 @@ _mw_uninstall_service() {
             _mw_log "removed launchd agent"
             ;;
         Linux)
-            systemctl --user disable --now ainish-machine-watch.service >/dev/null 2>&1 || true
-            rm -f "$(_mw_unit_path)" 2>/dev/null || true
-            systemctl --user daemon-reload >/dev/null 2>&1 || true
-            _mw_log "removed systemd unit"
+            if command -v systemctl >/dev/null 2>&1; then
+                systemctl --user disable --now ainish-machine-watch.service >/dev/null 2>&1 || true
+                rm -f "$(_mw_unit_path)" 2>/dev/null || true
+                systemctl --user daemon-reload >/dev/null 2>&1 || true
+            fi
+            _mw_uninstall_cron
+            _mw_log "removed Linux/WSL watcher"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            _mw_uninstall_windows
             ;;
         *) : ;;
     esac
@@ -665,8 +836,21 @@ _mw_status() { # json
             fi
             ;;
         Linux)
-            [[ -f "$(_mw_unit_path)" ]] && installed=true
-            systemctl --user is-active --quiet ainish-machine-watch.service 2>/dev/null && running=true
+            if [[ -f "$(_mw_unit_path)" ]]; then
+                installed=true
+                systemctl --user is-active --quiet ainish-machine-watch.service 2>/dev/null && running=true
+            elif command -v crontab >/dev/null 2>&1 && crontab -l 2>/dev/null | grep -qF "$_MW_CRON_TAG"; then
+                installed=true
+                running=true
+            fi
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            local st="schtasks.exe"
+            command -v schtasks.exe >/dev/null 2>&1 || st="schtasks"
+            if command -v "$st" >/dev/null 2>&1 && MSYS_NO_PATHCONV=1 "$st" /Query /TN "$_MW_WIN_TASK" >/dev/null 2>&1; then
+                installed=true
+                running=true
+            fi
             ;;
     esac
     local last="never" repos=0 changed=0 failed=0 transport="unknown" note=""
@@ -731,35 +915,41 @@ _mw_status() { # json
 
 machine_watch() {
     local interval="$AINISH_WATCH_INTERVAL" debounce="$AINISH_WATCH_DEBOUNCE"
+    local pull_interval="$AINISH_WATCH_PULL_INTERVAL" pull_interval_set=false
     local once=false foreground=false verbose=false json=false status=false uninstall=false install=false
+    _MW_PULL_NOW=false
     local a
 
     while (( $# )); do
         case "$1" in
-            --interval)   interval="${2:-2}";            shift 2 ;;
-            --debounce)   debounce="${2:-2}";            shift 2 ;;
-            --once)       once=true;                     shift ;;
-            --foreground) foreground=true;               shift ;;
-            --verbose)    verbose=true;                  shift ;;
-            --json)       json=true;                     shift ;;
-            --status)     status=true;                   shift ;;
-            --uninstall)  uninstall=true;                shift ;;
-            --install)    install=true;                  shift ;;
-            --transport)  _MW_TRANSPORT="${2:-auto}";    shift 2 ;;
-            --event-watch) _MW_WATCH_MODE="event";       shift ;;
-            --poll)        _MW_WATCH_MODE="poll";        shift ;;
+            --interval)      interval="${2:-2}";            shift 2 ;;
+            --debounce)      debounce="${2:-2}";            shift 2 ;;
+            --pull-interval) pull_interval="${2:-30}"; pull_interval_set=true; shift 2 ;;
+            --pull-now)      _MW_PULL_NOW=true;             shift ;;
+            --once)          once=true;                     shift ;;
+            --foreground)    foreground=true;               shift ;;
+            --verbose)       verbose=true;                  shift ;;
+            --json)          json=true;                     shift ;;
+            --status)        status=true;                   shift ;;
+            --uninstall)     uninstall=true;                shift ;;
+            --install)       install=true;                  shift ;;
+            --transport)     _MW_TRANSPORT="${2:-auto}";    shift 2 ;;
+            --event-watch)   _MW_WATCH_MODE="event";        shift ;;
+            --poll)          _MW_WATCH_MODE="poll";         shift ;;
             --machines-file) AINISH_MACHINES_FILE="${2:-}"; shift 2 ;;
             --links-file)    AINISH_LINKS_FILE="${2:-}";    shift 2 ;;
-            -h|--help)    _mw_usage; return 0 ;;
-            -*)           _mw_err "unknown option: $1 (try --machine-watch --help)"; return 1 ;;
-            *)            shift ;;
+            -h|--help)       _mw_usage; return 0 ;;
+            -*)              _mw_err "unknown option: $1 (try --machine-watch --help)"; return 1 ;;
+            *)               shift ;;
         esac
     done
 
     [[ "$interval" =~ ^[0-9]+$ ]] || { _mw_err "--interval must be a whole number of seconds"; return 1; }
     [[ "$debounce" =~ ^[0-9]+$ ]] || { _mw_err "--debounce must be a whole number of seconds"; return 1; }
+    [[ "$pull_interval" =~ ^[0-9]+$ ]] || { _mw_err "--pull-interval must be a whole number of seconds"; return 1; }
     AINISH_WATCH_INTERVAL="$interval"
     AINISH_WATCH_DEBOUNCE="$debounce"
+    AINISH_WATCH_PULL_INTERVAL="$pull_interval"
 
     if [[ "$status" == "true" ]]; then _mw_status "$json"; return 0; fi
     if [[ "$uninstall" == "true" ]]; then
@@ -782,6 +972,11 @@ machine_watch() {
 
     if [[ "$once" == "true" ]]; then
         _mw_lock || { _mw_err "another cycle is running"; return 1; }
+        # In bare single-shot mode (`--once` without `--pull-now` or explicit `--pull-interval`),
+        # skip timer-driven pull so an unchanged local tree stays a fast no-op.
+        if [[ "$_MW_PULL_NOW" != "true" && "$pull_interval_set" != "true" ]]; then
+            AINISH_WATCH_PULL_INTERVAL=0
+        fi
         _mw_cycle "$verbose"
         local rc=$?
         _mw_unlock
@@ -830,7 +1025,7 @@ machine_watch() {
             # The whole cycle runs under sshd's authority, because this process cannot read the repos
             # at all. Delegate rather than duplicate: one implementation of the cycle, in one place.
             local out rc=0
-            out="$(_mw_cycle_via_ssh "$(_mw_cli)" "$interval" "$debounce" "$verbose")" || rc=$?
+            out="$(_mw_cycle_via_ssh "$(_mw_current_cli)" "$interval" "$debounce" "$verbose")" || rc=$?
             if (( rc != 0 )); then
                 _mw_log "ssh cycle failed"
                 printf '%s\n' "$out" >&2

@@ -124,13 +124,27 @@ CORE COMMANDS:
                               (<kind>-<ram>gb), so --min-ram 64 picks the big box.
                               --push | --pull | --both, --status, --dry-run, --json,
                               --quiet (hooks), --linked-only, --all (every repo
-                              linked here), --branches (materialise branches on the
-                              peer), --latest (which machine holds the newest
-                              commit, per branch), and --doctor (verify peer SSH,
-                              linked repos, Hermes profiles, and :11434 health).
-                              A clean peer on the same branch is fast-forwarded; --no-ff-peers leaves it alone.
+                              linked here, forwarding all flags in isolated subshells),
+                              --branches (symmetric local branch materialisation on both
+                              sides), --bootstrap (clone/init a missing peer repo from
+                              bundle over SSH), --full-bundle (bypass incremental delta),
+                              --latest (which machine holds the newest commit, per branch),
+                              and --doctor (verify peer SSH, linked repos, PQC federation,
+                              Hermes profiles, and :11434 health).
+                              Clean checkouts on the same branch fast-forward on both push
+                              and pull; --no-ff-peers leaves them alone.
+                              Uncommitted edits in sibling worktrees are also snapshotted.
                               Peer path precedence: --peer-path, then a path recorded
                               by --machine-link, then <peer code root>/<repo name>.
+    --machine-pick [DIR]      Select the highest-capacity reachable peer matching
+                              --min-ram GB, --kind KIND, or --machine NAME (--require-repo,
+                              --json). Useful for SSH tasks, crons, and cloud dispatch.
+    --machine-run [DIR] [OPTIONS] -- <command...>
+                              Federated remote execution: pick a peer (--machine | --min-ram |
+                              --kind), push latest branches/CoD (--bootstrap optional), execute
+                              <command...> inside the peer's repo (or an isolated --worktree),
+                              and pull commits/snapshots/CoD back before returning the remote
+                              exit code (--dry-run, --no-sync-before, --no-sync-after, --json).
     --machine-link [DIR] --peer NAME [--peer-path PATH] [--watch]
                               Record that this repository is the SAME repository on
                               another machine, so --machine-sync addresses it correctly
@@ -148,16 +162,15 @@ CORE COMMANDS:
                                 ainish-coder --machine-link ~/code-external/repo \
                                     --peer windows-128gb \
                                     --peer-path D:/Code/repo --watch
-    --machine-watch [--interval N] [--debounce N] [--once] [--foreground] [--verbose]
+    --machine-watch [--interval N] [--debounce N] [--pull-interval N] [--pull-now] [--once] [--foreground] [--verbose]
                               Run the background sync loop, or manage the service:
                               --status (installed? running? last cycle?), --install,
-                              --uninstall. For every linked repo, when the working tree
-                              has changed and stopped changing, it runs
-                              --machine-sync --both --branches --auto-commit
-                              --linked-only — so an uncommitted save becomes a commit
-                              with an honest wip(<machine>) message and lands on the
-                              peers. Polls (no fswatch/inotifywait on macOS); default
-                              interval 2s, debounce 2s, so a burst of saves is ONE commit.
+                              --uninstall (macOS LaunchAgent, Linux systemd/cron, WSL cron,
+                              Windows Task Scheduler). Watches main checkout AND active
+                              linked worktrees, pushes local changes via --machine-sync
+                              --both --branches --auto-commit --linked-only, and runs a
+                              periodic peer pull heartbeat (--pull-interval, default 30s)
+                              so idle machines receive remote commits automatically.
                               A peer with unsaved work is NEVER overwritten — reported
                               and skipped. Divergence is reported, never merged.
     --embed-config --provider api --api-base URL --model NAME [--dim N] [DIR]

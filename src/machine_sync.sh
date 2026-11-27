@@ -41,12 +41,16 @@ _MS_AUTO_COMMIT=false
 _MS_SELF=""
 _MS_JSON=false
 _MS_FF_PEERS=true
+_MS_BOOTSTRAP=false
+_MS_FULL_BUNDLE=false
 _MS_PEER_REF=""
 _MS_PEER_BRANCH=""
 _MS_QUIET=false
 _MS_MAT_CREATED=""
 _MS_MAT_DIVERGED=""
 _MS_MAT_SAME=""
+_MS_MAT_LOCAL_CREATED=""
+_MS_MAT_LOCAL_DIVERGED=""
 # Peers selected for the current run, published for helpers that need them without threading arrays
 # through every call (`_ms_latest` asks each peer what it has).
 _MS_PEER_SELECTED=()
@@ -292,6 +296,158 @@ _ms_materialize_branches() { # repo host path peer
     return 0
 }
 
+# _ms_materialize_local_branches <repo> <peer>
+#
+# Symmetric counterpart to `_ms_materialize_branches`: after pulling `refs/remotes/<peer>/*`,
+# turns peer branches into real local branches on THIS machine. Additive and safe:
+#   - absent locally -> created at the peer's tip
+#   - behind locally -> fast-forwarded if not checked out in any worktree (checked-out branch is
+#                       handled separately by `_ms_fast_forward_local`, only when tree is clean)
+#   - ahead locally  -> left alone
+#   - diverged       -> reported with both tips and never moved
+_ms_materialize_local_branches() { # repo peer
+    local repo="$1" peer="$2"
+    _MS_MAT_LOCAL_CREATED=""
+    _MS_MAT_LOCAL_DIVERGED=""
+
+    local cur_branch
+    cur_branch="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+
+    local -a peer_arr=() peer_sha_arr=() local_arr=() local_sha_arr=()
+    local name sha _rest
+    while IFS=$'\t' read -r name sha _rest; do
+        [[ -n "$name" && "$name" != "HEAD" ]] || continue
+        peer_arr+=("$name"); peer_sha_arr+=("$sha")
+    done < <(_ms_list_branches "" "$repo" "refs/remotes/${peer}/")
+
+    while IFS=$'\t' read -r name sha _rest; do
+        [[ -n "$name" ]] || continue
+        local_arr+=("$name"); local_sha_arr+=("$sha")
+    done < <(_ms_list_branches "" "$repo" "refs/heads/")
+
+    local i j local_sha rel
+    for i in "${!peer_arr[@]}"; do
+        name="${peer_arr[$i]}"; sha="${peer_sha_arr[$i]}"
+        local_sha=""
+        for j in "${!local_arr[@]}"; do
+            [[ "${local_arr[$j]}" == "$name" ]] && { local_sha="${local_sha_arr[$j]}"; break; }
+        done
+
+        if [[ -z "$local_sha" ]]; then
+            if git -C "$repo" branch "$name" "$sha" >/dev/null 2>&1; then
+                _MS_MAT_LOCAL_CREATED="${_MS_MAT_LOCAL_CREATED}${name}"$'\n'
+                _ms_info "  branch $name: created locally from $peer at ${sha:0:8}"
+            else
+                _ms_err "local — could not create branch '$name' from $peer"
+            fi
+            continue
+        fi
+
+        [[ "$local_sha" == "$sha" ]] && continue
+
+        rel="$(_ms_branch_relation "$repo" "$local_sha" "$sha")"
+        case "$rel" in
+            behind)
+                if [[ "$name" == "$cur_branch" ]]; then
+                    # Checked-out branch is moved only by _ms_fast_forward_local when tree is clean.
+                    continue
+                fi
+                # `git branch -f` refuses to move a branch checked out in any linked worktree,
+                # preserving active agent worktrees automatically.
+                if git -C "$repo" branch -f "$name" "$sha" >/dev/null 2>&1; then
+                    _MS_MAT_LOCAL_CREATED="${_MS_MAT_LOCAL_CREATED}${name}"$'\n'
+                    _ms_info "  branch $name: fast-forwarded locally ${local_sha:0:8} -> ${sha:0:8} (from $peer)"
+                else
+                    _ms_skip "branch $name: behind $peer (${local_sha:0:8} -> ${sha:0:8}) but checked out in a worktree — left alone"
+                fi
+                ;;
+            ahead)
+                _ms_info "  branch $name: local is ahead (${local_sha:0:8}), left alone"
+                ;;
+            *)
+                _MS_MAT_LOCAL_DIVERGED="${_MS_MAT_LOCAL_DIVERGED}${name} ${local_sha:0:8} ${sha:0:8}"$'\n'
+                _ms_skip "branch $name: DIVERGED — local has ${local_sha:0:8}, $peer has ${sha:0:8}; not touched"
+                ;;
+        esac
+    done
+    return 0
+}
+
+# _ms_fast_forward_local <repo> <peer> <branch>
+#
+# Symmetric counterpart to `_ms_fast_forward_peer`: when pulling, fast-forward our own checked-out
+# branch onto `refs/remotes/<peer>/<branch>` ONLY if our working tree is completely clean and the
+# peer's tip is a strict descendant. Dirty or diverged local checkouts are never touched.
+_ms_fast_forward_local() { # repo peer branch
+    local repo="$1" peer="$2" branch="$3"
+    [[ -n "$branch" && "$branch" != "HEAD" && "$branch" != detached* ]] || return 0
+
+    local local_sha peer_sha dirty
+    peer_sha="$(git -C "$repo" rev-parse -q --verify "refs/remotes/${peer}/${branch}" 2>/dev/null || true)"
+    [[ -n "$peer_sha" ]] || return 0
+    local_sha="$(git -C "$repo" rev-parse -q --verify HEAD 2>/dev/null || true)"
+    [[ -n "$local_sha" && "$local_sha" != "$peer_sha" ]] || return 0
+
+    # Only advance if peer is strictly ahead of local (local is an ancestor of peer).
+    if ! git -C "$repo" merge-base --is-ancestor "$local_sha" "$peer_sha" 2>/dev/null; then
+        if ! git -C "$repo" merge-base --is-ancestor "$peer_sha" "$local_sha" 2>/dev/null; then
+            _ms_skip "local '${branch}' diverged from ${peer} — ref received, local checkout untouched"
+        fi
+        return 0
+    fi
+
+    dirty="$(git -C "$repo" status --porcelain 2>/dev/null || true)"
+    if [[ -n "$dirty" ]]; then
+        _ms_skip "local '${branch}' has uncommitted changes — ref received from ${peer}, checkout untouched"
+        return 0
+    fi
+
+    if git -C "$repo" merge --ff-only "refs/remotes/${peer}/${branch}" >/dev/null 2>&1; then
+        _ms_ok "local '${branch}' fast-forwarded from ${peer} (${local_sha:0:8} -> ${peer_sha:0:8})"
+    else
+        _ms_skip "local '${branch}' could not fast-forward from ${peer} — ref received, checkout untouched"
+    fi
+    return 0
+}
+
+# _ms_worktree_entries <repo>
+#
+# Emit "<path>\t<branch>" for every active, existing linked worktree of <repo> (excluding <repo>
+# itself and bare/prunable entries) so uncommitted work in parallel agent worktrees gets snapshotted.
+_ms_worktree_entries() { # repo
+    local repo="$1" main_real line wt="" br="" prunable=false wt_real
+    main_real="$( (cd -P "$repo" 2>/dev/null && pwd) || printf '%s' "$repo" )"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        case "$line" in
+            "worktree "*)
+                wt="${line#worktree }"
+                br=""; prunable=false
+                ;;
+            "branch refs/heads/"*)
+                br="${line#branch refs/heads/}"
+                ;;
+            "detached")
+                br="detached"
+                ;;
+            "prunable"*)
+                prunable=true
+                ;;
+            "")
+                if [[ -n "$wt" && "$prunable" != "true" && -d "$wt" ]]; then
+                    wt_real="$( (cd -P "$wt" 2>/dev/null && pwd) || printf '%s' "$wt" )"
+                    if [[ "$wt_real" != "$main_real" ]]; then
+                        if [[ -z "$br" || "$br" == "detached" ]]; then
+                            br="detached-$(git -C "$wt_real" rev-parse --short HEAD 2>/dev/null || echo wt)"
+                        fi
+                        printf '%s\t%s\n' "$wt_real" "$br"
+                    fi
+                fi
+                wt=""; br=""; prunable=false
+                ;;
+        esac
+    done < <(git -C "$repo" worktree list --porcelain 2>/dev/null; printf '\n')
+}
+
 _ms_ref_exists() { # host path ref
     local host="$1" path="$2" ref="$3"
     if [[ -z "$host" ]]; then
@@ -429,16 +585,18 @@ OPTIONS:
                            path recorded by --machine-link, then <peer code root>/<repo name>.
     --all                  Run every repository linked on this machine (see --machine-link).
     --linked-only          Sync only with peers this repository is linked to. The git hook uses it.
-    --branches             Materialise every branch on the peer as a real LOCAL branch, so switching
-                           machines means switching to a branch and not to a remote-tracking ref.
-                           Additive: a missing branch is created; an existing branch that agrees is
-                           left alone; one that is behind is fast-forwarded; one that has diverged is
-                           reported with both tips and never moved.
+    --branches             Materialise branches symmetrically as real LOCAL branches on both sides
+                           (push materialises our branches on the peer; pull materialises peer
+                           branches here). Additive: missing branches are created, behind non-HEAD
+                           branches fast-forward, diverged branches are reported and never moved.
     --latest               Read-only report: per branch, the newest commit and which machine holds it.
                            Asks every peer directly (bounded), because cached refs are stale by
                            definition — this is the "what is newest to work from" answer.
-    --doctor               Check peer SSH reachability, linked repos, Hermes profiles, pi wiring,
-                           and loopback local-router health (supports --json).
+    --doctor               Check peer SSH reachability, linked repos, PQC federation keys, Hermes
+                           profiles, pi wiring, and loopback local-router health (supports --json).
+    --bootstrap            When a peer is SSH-reachable but has no repository yet at the target path,
+                           clone/initialize it from our bundle over SSH (ideal for fresh cloud hosts).
+    --full-bundle          Disable incremental bundle delta optimization and send a full git bundle.
     --quiet                No output on stdout; errors still go to stderr. For hooks and scripts.
     --push                 Send only: our branches and uncommitted work to the peers.
     --pull                 Receive only: peer branches and their uncommitted work to here.
@@ -848,6 +1006,21 @@ _ms_doctor() {
         issues=$((issues + 1))
     fi
 
+    # PQC federation readiness: local FIPS 203/204 support + pinned peer count (advisory in doctor so
+    # an environment without federation keys yet surfaces clearly without breaking legacy tests).
+    local fed_pqc_ok="false" fed_pinned=0 fed_py_doc="" fed_keys_dir
+    fed_keys_dir="${AINISH_FEDERATION_KEYS_DIR:-$HOME/.config/ainish-coder/federation-keys}"
+    fed_py_doc="$(_ms_local_python 2>/dev/null || true)"
+    if [[ -n "$fed_py_doc" ]] && "$fed_py_doc" -c 'from cryptography.hazmat.primitives.asymmetric.mlkem import MLKEM768PrivateKey; from cryptography.hazmat.primitives.asymmetric.mldsa import MLDSA65PrivateKey' >/dev/null 2>&1; then
+        fed_pqc_ok="true"
+    fi
+    if [[ -d "${fed_keys_dir}/${self_name}/peers" ]]; then
+        local _pf
+        for _pf in "${fed_keys_dir}/${self_name}/peers"/*.pub.json; do
+            [[ -f "$_pf" ]] && fed_pinned=$((fed_pinned + 1))
+        done
+    fi
+
     if [[ "$_MS_JSON" == "true" ]]; then
         printf '{"format":"ainish-coder/machine-doctor/v1","ok":%s,"issues":%d,"self":%s,' \
             "$( (( issues == 0 )) && echo true || echo false )" "$issues" "$(_ms_json_str "$self_name")"
@@ -869,7 +1042,9 @@ _ms_doctor() {
             printf '{"repo":%s,"peer":%s,"peer_path":%s,"status":%s,"no_watcher_autocommit":%s}' \
                 "$(_ms_json_str "$a1")" "$(_ms_json_str "$a2")" "$(_ms_json_str "$a3")" "$(_ms_json_str "$a4")" "$a5"
         done
-        printf '],"context_agents":{"hermes_home":%s,"profiles_ready":%d,"profiles_total":%d,"pi_wired":%s,"router_url":%s,"router_up":%s}}\n' \
+        printf '],"federation_pqc":{"local_ready":%s,"pinned_peers":%d,"keys_dir":%s},' \
+            "$fed_pqc_ok" "$fed_pinned" "$(_ms_json_str "$fed_keys_dir")"
+        printf '"context_agents":{"hermes_home":%s,"profiles_ready":%d,"profiles_total":%d,"pi_wired":%s,"router_url":%s,"router_up":%s}}\n' \
             "$(_ms_json_str "$hhome")" "$ready_cnt" "${#ctx_profiles[@]}" "$pi_wired" "$(_ms_json_str "$router_url")" "$router_up"
         (( issues == 0 )) && return 0 || return 1
     fi
@@ -901,6 +1076,9 @@ _ms_doctor() {
             fi
         done
     fi
+    printf '  fed-pqc:  %s (local ML-KEM-768/ML-DSA-65=%s, pinned peers=%d)\n' "$fed_keys_dir" "$fed_pqc_ok" "$fed_pinned"
+    [[ "$fed_pqc_ok" == "true" ]] && _ms_ok "local PQC federation primitives ready" \
+        || _ms_skip "local Python lacks ML-KEM-768/ML-DSA-65 (install cryptography>=46 or uv)"
     printf '  hermes:   %s (%d/%d context/consolidate profiles ready)\n' "$hhome" "$ready_cnt" "${#ctx_profiles[@]}"
     (( ${#missing_profiles[@]} == 0 )) && _ms_ok "all 6 context/consolidate profiles present" \
         || _ms_err "missing Hermes profiles: ${missing_profiles[*]} (run: ainish-coder --context-setup)"
@@ -996,8 +1174,113 @@ _ms_snapshot_peer() { # host path peer
 
 # ── transfer ─────────────────────────────────────────────────────────────────
 
+# _ms_bootstrap_peer <host> <path> <peer> <bundle> <branch>
+#
+# Initialize a missing peer repository directly from our git bundle so fresh workstations or cloud
+# hosts become first-class federated peers without a manual clone round-trip.
+_ms_bootstrap_peer() { # host path peer bundle branch
+    local host="$1" path="$2" peer="$3" bundle="$4" branch="$5"
+    [[ -n "$bundle" && -f "$bundle" ]] || { _ms_err "$peer — cannot bootstrap without a git bundle"; return 1; }
+    local remote_bundle rc=0
+    remote_bundle="$(_ms_peer_tmp "$host" "$path")/ainish-bootstrap-$$-${RANDOM}.bundle"
+
+    if [[ -z "$host" ]]; then
+        mkdir -p "$(dirname "$path")" 2>/dev/null || return 1
+        git clone -q "$bundle" "$path" >/dev/null 2>&1 || return 1
+        git -C "$path" remote remove origin >/dev/null 2>&1 || true
+        if [[ -n "$branch" && "$branch" != "HEAD" && "$branch" != detached* ]]; then
+            git -C "$path" checkout -q "$branch" >/dev/null 2>&1 || true
+        fi
+    else
+        scp -q -o BatchMode=yes -o ConnectTimeout=10 "$bundle" "${host}:${remote_bundle}" || return 1
+        if [[ "$path" =~ ^[A-Za-z]: ]]; then
+            _ms_remote "$host" "New-Item -ItemType Directory -Force -Path (Split-Path -Parent '${path}') | Out-Null; git clone -q '${remote_bundle}' '${path}'; git -C '${path}' remote remove origin" >/dev/null 2>&1 || rc=$?
+        else
+            _ms_remote "$host" "mkdir -p \"\$(dirname '${path}')\" && git clone -q '${remote_bundle}' '${path}' && git -C '${path}' remote remove origin" >/dev/null 2>&1 || rc=$?
+        fi
+        _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
+        (( rc == 0 )) || { _ms_err "$peer — bootstrap clone failed at $path"; return 1; }
+    fi
+    _ms_probe_peer "$host" "$path" || { _ms_err "$peer — bootstrap read-back failed at $path"; return 1; }
+    _ms_ok "$peer bootstrapped at $path"
+    return 0
+}
+
+# _ms_build_push_bundle <repo> <host> <path> <full_bundle> <out_inc_bundle>
+#
+# Returns:
+#   0 -> incremental bundle written to <out_inc_bundle> (caller should clean it up)
+#   2 -> peer already holds every ref SHA we would send (skip scp/fetch completely!)
+#   3 -> use <full_bundle> instead
+_ms_build_push_bundle() { # repo host path full_bundle out_inc
+    local repo="$1" host="$2" path="$3" full_bundle="$4" out_inc="$5"
+    [[ "$_MS_FULL_BUNDLE" == "true" ]] && return 3
+
+    local peer_refs="" local_refs=""
+    local fmt="%(refname)%09%(objectname)"
+    if [[ -z "$host" ]]; then
+        peer_refs="$(git -C "$path" for-each-ref --format="$fmt" "refs/remotes/${_MS_SELF}" "refs/machine-sync/${_MS_SELF}" 2>/dev/null || true)"
+    else
+        peer_refs="$(_ms_remote "$host" "git -C '${path}' for-each-ref --format='${fmt}' 'refs/remotes/${_MS_SELF}' 'refs/machine-sync/${_MS_SELF}'" 2>/dev/null | tr -d '\r' || true)"
+    fi
+    [[ -n "$peer_refs" ]] || return 3
+
+    # Build comparable normalized ref->sha lists to detect 100% no-op pushes cleanly.
+    local norm_peer="" norm_local="" ref sha
+    local -a basis=()
+    while IFS=$'\t' read -r ref sha; do
+        [[ -n "$ref" && "$sha" =~ ^[0-9a-f]{40}$ ]] || continue
+        case "$ref" in
+            "refs/remotes/${_MS_SELF}/"*)
+                norm_peer="${norm_peer}heads/${ref#"refs/remotes/${_MS_SELF}/"}=${sha}"$'\n' ;;
+            "refs/machine-sync/${_MS_SELF}/"*)
+                norm_peer="${norm_peer}wip/${ref#"refs/machine-sync/${_MS_SELF}/"}=${sha}"$'\n' ;;
+        esac
+        if git -C "$repo" cat-file -e "${sha}^{commit}" 2>/dev/null; then
+            _ms_in_list "^${sha}" ${basis[@]+"${basis[@]}"} || basis+=("^${sha}")
+        fi
+    done <<< "$peer_refs"
+
+    local_refs="$(git -C "$repo" for-each-ref --format="$fmt" "refs/heads" "refs/machine-sync/${_MS_SELF}" 2>/dev/null || true)"
+    while IFS=$'\t' read -r ref sha; do
+        [[ -n "$ref" && "$sha" =~ ^[0-9a-f]{40}$ ]] || continue
+        case "$ref" in
+            "refs/heads/"*)
+                norm_local="${norm_local}heads/${ref#"refs/heads/"}=${sha}"$'\n' ;;
+            "refs/machine-sync/${_MS_SELF}/"*)
+                norm_local="${norm_local}wip/${ref#"refs/machine-sync/${_MS_SELF}/"}=${sha}"$'\n' ;;
+        esac
+    done <<< "$local_refs"
+
+    if [[ -n "$norm_local" ]]; then
+        local sp sl
+        sp="$(printf '%s' "$norm_peer" | LC_ALL=C sort)"
+        sl="$(printf '%s' "$norm_local" | LC_ALL=C sort)"
+        if [[ "$sp" == "$sl" ]]; then
+            return 2
+        fi
+    fi
+
+    (( ${#basis[@]} > 0 )) || return 3
+    if git -C "$repo" bundle create "$out_inc" --branches --tags '--glob=refs/machine-sync/*' "${basis[@]}" >/dev/null 2>&1; then
+        [[ -s "$out_inc" ]] && return 0
+    fi
+    rm -f "$out_inc" 2>/dev/null || true
+    return 3
+}
+
 _ms_push() { # repo host peer_path peer_name bundle
     local repo="$1" host="$2" path="$3" peer="$4" bundle="$5"
+    local inc_bundle="${bundle}.inc.$$-${RANDOM}"
+    local use_bundle="$bundle" inc_rc=3
+    _ms_build_push_bundle "$repo" "$host" "$path" "$bundle" "$inc_bundle" || inc_rc=$?
+    if (( inc_rc == 2 )); then
+        _ms_info "push: $peer already holds identical refs (0 bytes transferred)"
+        return 0
+    elif (( inc_rc == 0 )); then
+        use_bundle="$inc_bundle"
+    fi
+
     # Unique per process. A fixed name collides across CONCURRENT cycles: the watcher retries a
     # failed cycle while a manual run or the next tick is in flight, and each side deletes the
     # bundle after use, so one fetch finds the other's file already unlinked. That surfaces as
@@ -1010,31 +1293,41 @@ _ms_push() { # repo host peer_path peer_name bundle
     while IFS= read -r s; do [[ -n "$s" ]] && specs+=("$s"); done < <(_ms_fetch_refspecs "$_MS_SELF")
 
     if [[ -z "$host" ]]; then
-        cp -f "$bundle" "$remote_bundle" || return 1
+        cp -f "$use_bundle" "$remote_bundle" || { rm -f "$inc_bundle"; return 1; }
         git -C "$path" fetch "$remote_bundle" "${specs[@]}" >/dev/null 2>&1
         local rc=$?
-        rm -f "$remote_bundle"
+        if (( rc != 0 )) && [[ "$use_bundle" == "$inc_bundle" ]]; then
+            # Incremental basis missing on peer — transparent fallback to full bundle.
+            cp -f "$bundle" "$remote_bundle" && git -C "$path" fetch "$remote_bundle" "${specs[@]}" >/dev/null 2>&1
+            rc=$?
+        fi
+        rm -f "$remote_bundle" "$inc_bundle"
         if (( rc != 0 )); then _ms_err "$peer — local fetch failed"; return 1; fi
     else
-        local attempt out rc
+        local attempt out rc cur_src="$use_bundle"
         # A peer on a slow or virtualised mount can hand a truncated bundle to git: the copy returns,
-        # the fetch then fails or lands nothing. Retry once before calling the peer broken, and keep
-        # the bundle in place until the ref is verified so a retry has something to fetch.
+        # the fetch then fails or lands nothing. Retry once (with full bundle fallback if incremental
+        # failed) before calling the peer broken, and keep the bundle in place until verified.
         for attempt in 1 2; do
             rc=0
-            scp -q -o BatchMode=yes -o ConnectTimeout=10 "$bundle" "${host}:${remote_bundle}" || rc=1
+            scp -q -o BatchMode=yes -o ConnectTimeout=10 "$cur_src" "${host}:${remote_bundle}" || rc=1
             if (( rc == 0 )); then
                 out="$(_ms_remote "$host" "git -C '${path}' fetch '${remote_bundle}' $(printf "'%s' " "${specs[@]}")" 2>&1)" || rc=$?
             fi
             if (( rc == 0 )); then break; fi
+            if [[ "$cur_src" == "$inc_bundle" ]]; then
+                cur_src="$bundle"
+            fi
             if (( attempt == 2 )); then
                 _ms_err "$peer — the peer's git refused the fetch:"
                 printf '%s\n' "${out:-no output}" | sed 's/^/    /' >&2
                 _ms_remote "$host" "$(_ms_rm_cmd "$remote_bundle")" >/dev/null 2>&1 || true
+                rm -f "$inc_bundle"
                 return 1
             fi
             sleep 1
         done
+        rm -f "$inc_bundle"
     fi
 
     # The peer's fetch has been observed to apply every ref except the checked-out branch's
@@ -1266,18 +1559,50 @@ _ms_sync_federation() { # repo host peer_path peer_name direction
     fi
 
     # Remote SSH peer (POSIX sh or Windows PowerShell): PQC envelopes only, zero plaintext on wire.
-    local r_py r_fed_py r_fed_tpl r_tmp_dir
-    r_fed_py="${path%/}/src/federation_pqc.py"
-    r_fed_tpl="${path%/}/src/templates/AGENTS.FEDERATION.md"
+    # Resolve `src/federation_pqc.py` from:
+    #   1. target repo itself (`<path>/src/federation_pqc.py`, when syncing ainish-coder)
+    #   2. peer's ainish-coder install under its registered code root (`<peer_root>/ainish-coder/src/federation_pqc.py`)
+    #   3. peer's user data dir (`~/.local/share/ainish-coder/src/federation_pqc.py`)
+    # Without this fallback, non-ainish-coder repos (like goal-first-trillion) could NEVER exchange PQC CoD.
+    local r_py="" r_fed_py="" r_fed_tpl="" r_tmp_dir peer_root="${6:-}"
     r_tmp_dir="$(_ms_peer_tmp "$host" "$path")"
+
     if [[ "$path" =~ ^[A-Za-z]: ]]; then
-        r_py="py -3"
+        local c1="${path%/}/src/federation_pqc.py"
+        local c2="${peer_root:+${peer_root%/}/ainish-coder/src/federation_pqc.py}"
+        local probe_ps="\$cands = @('${c1}'"
+        [[ -n "$c2" ]] && probe_ps="${probe_ps}, '${c2}'"
+        probe_ps="${probe_ps}, (Join-Path \$env:USERPROFILE '.local\\share\\ainish-coder\\src\\federation_pqc.py')); foreach (\$c in \$cands) { if (Test-Path -LiteralPath \$c) { Write-Output (\$c -replace '\\\\','/'); break } }"
+        r_fed_py="$(_ms_remote "$host" "$probe_ps" 2>/dev/null | tr -d '\r' | tail -1 || true)"
+        if [[ -n "$r_fed_py" ]]; then
+            local py_probe="foreach (\$cmd in @('py -3','python')) { \$parts = \$cmd -split ' '; \$exe = \$parts[0]; \$pargs = @(); if (\$parts.Length -gt 1) { \$pargs = \$parts[1..(\$parts.Length-1)] }; & \$exe @pargs -c 'from cryptography.hazmat.primitives.asymmetric.mlkem import MLKEM768PrivateKey; from cryptography.hazmat.primitives.asymmetric.mldsa import MLDSA65PrivateKey' 2>\$null; if (\$LASTEXITCODE -eq 0) { Write-Output \$cmd; break } }"
+            r_py="$(_ms_remote "$host" "$py_probe" 2>/dev/null | tr -d '\r' | tail -1 || true)"
+        fi
     else
-        r_py="python3"
+        local c1="${path%/}/src/federation_pqc.py"
+        local c2="${peer_root:+${peer_root%/}/ainish-coder/src/federation_pqc.py}"
+        local probe_sh="for c in '${c1}' ${c2:+'${c2}'} \"\$HOME/.local/share/ainish-coder/src/federation_pqc.py\"; do if [ -f \"\$c\" ]; then printf '%s\n' \"\$c\"; break; fi; done"
+        r_fed_py="$(_ms_remote "$host" "$probe_sh" 2>/dev/null | tr -d '\r' | tail -1 || true)"
+        if [[ -n "$r_fed_py" ]]; then
+            local py_probe='if python3 -c "from cryptography.hazmat.primitives.asymmetric.mlkem import MLKEM768PrivateKey; from cryptography.hazmat.primitives.asymmetric.mldsa import MLDSA65PrivateKey" >/dev/null 2>&1; then printf "python3\n"; elif UV_BIN="$(command -v uv 2>/dev/null || [ -x "$HOME/.local/bin/uv" ] && printf "%s" "$HOME/.local/bin/uv")"; [ -n "$UV_BIN" ] && "$UV_BIN" run --quiet --with cryptography python3 -c "from cryptography.hazmat.primitives.asymmetric.mlkem import MLKEM768PrivateKey; from cryptography.hazmat.primitives.asymmetric.mldsa import MLDSA65PrivateKey" >/dev/null 2>&1; then printf "%s run --quiet --with cryptography python3\n" "$UV_BIN"; fi'
+            r_py="$(_ms_remote "$host" "$py_probe" 2>/dev/null | tr -d '\r' | tail -1 || true)"
+        fi
     fi
 
+    if [[ -z "$r_fed_py" ]]; then
+        _ms_skip "federation CoD: peer ${peer} has no ainish-coder src/federation_pqc.py under ${peer_root:-$path} — skipped (no plaintext downgrade)"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+    if [[ -z "$r_py" ]]; then
+        _ms_skip "federation CoD: peer ${peer} Python lacks FIPS 203/204 cryptography (ML-KEM-768/ML-DSA-65) — skipped (no plaintext downgrade)"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+    r_fed_tpl="${r_fed_py%/federation_pqc.py}/templates/AGENTS.FEDERATION.md"
+
     if ! _ms_remote "$host" "$r_py '${r_fed_py}' init-identity --machine '${peer}' --print-pub" > "$peer_pub" 2>/dev/null || [[ ! -s "$peer_pub" ]]; then
-        _ms_skip "federation CoD: peer ${peer} lacks PQC federation support — skipped (no plaintext downgrade)"
+        _ms_skip "federation CoD: peer ${peer} PQC identity init failed — skipped (no plaintext downgrade)"
         rm -rf "$tmp_dir"
         return 0
     fi
@@ -1408,6 +1733,8 @@ machine_sync() {
             --auto-commit) _MS_AUTO_COMMIT=true;   shift ;;
             --no-auto-commit) _MS_AUTO_COMMIT=false; shift ;;
             --no-ff-peers) _MS_FF_PEERS=false;    shift ;;
+            --bootstrap)   _MS_BOOTSTRAP=true;    shift ;;
+            --full-bundle) _MS_FULL_BUNDLE=true;  shift ;;
             --push)        _MS_DIRECTION="push";  shift ;;
             --pull)        _MS_DIRECTION="pull";  shift ;;
             --both)        _MS_DIRECTION="both";  shift ;;
@@ -1458,16 +1785,28 @@ machine_sync() {
         fi
         local failed=0 lrepo
         for lrepo in "${linked_repos[@]}"; do
-            # Recurse without --all/--quiet: each repo reports itself, and the per-repo call reads the
-            # same links file to resolve the peer path.
+            # Run each repo in a true subshell so _MS_* globals never leak across repos, and forward
+            # every caller flag faithfully (never dropping --branches, --latest, --linked-only, etc.).
             local -a sub=(--repo "$lrepo")
             [[ "$json" == "true" ]] && sub+=(--json)
             [[ "$status" == "true" ]] && sub+=(--status)
             [[ "$dry" == "true" ]] && sub+=(--dry-run)
+            [[ "$make_branches" == "true" ]] && sub+=(--branches)
+            [[ "$do_latest" == "true" ]] && sub+=(--latest)
+            [[ "$linked_only" == "true" ]] && sub+=(--linked-only)
+            [[ "$_MS_QUIET" == "true" ]] && sub+=(--quiet)
+            [[ "$_MS_AUTO_COMMIT" == "true" ]] && sub+=(--auto-commit) || sub+=(--no-auto-commit)
+            [[ "$_MS_BOOTSTRAP" == "true" ]] && sub+=(--bootstrap)
+            [[ "$_MS_FULL_BUNDLE" == "true" ]] && sub+=(--full-bundle)
+            (( min_ram > 0 )) && sub+=(--min-ram "$min_ram")
+            [[ -n "$kind_filter" ]] && sub+=(--kind "$kind_filter")
+            [[ -n "${_MS_AS:-}" ]] && sub+=(--as "$_MS_AS")
+            [[ -n "${AINISH_MACHINES_FILE:-}" ]] && sub+=(--machines-file "$AINISH_MACHINES_FILE")
+            [[ -n "${AINISH_LINKS_FILE:-}" ]] && sub+=(--links-file "$AINISH_LINKS_FILE")
             sub+=(--"$_MS_DIRECTION")
             [[ "$_MS_FF_PEERS" == "true" ]] && sub+=(--ff-peers) || sub+=(--no-ff-peers)
             (( ${#explicit[@]} > 0 )) && { local e0; for e0 in "${explicit[@]}"; do sub+=(--machine "$e0"); done; }
-            machine_sync "${sub[@]}" || failed=$((failed + 1))
+            ( machine_sync "${sub[@]}" ) || failed=$((failed + 1))
         done
         (( failed == 0 )) || { _ms_err "$failed linked repo(s) failed"; return 1; }
         return 0
@@ -1594,9 +1933,28 @@ machine_sync() {
         snap="$(_ms_wip_snapshot "$repo" "$branch" "$self_ref")" || rc=$?
         case "$rc" in
             0) wip_state="snapshot $snap" ;;
-            3) wip_state="clean" ;;
+            3) wip_state="clean"; _ms_drop_stale_snapshot "" "$repo" "$self_ref" ;;
             *) wip_state="snapshot FAILED"; _ms_err "could not snapshot the working tree; nothing leaves this machine" ;;
         esac
+        # Also snapshot uncommitted work inside active linked worktrees so parallel agent worktrees
+        # cross to peers on `refs/machine-sync/<self>/<wt-branch>` without disturbing those worktrees.
+        if [[ "$rc" != "1" ]]; then
+            local wt_path wt_br wt_ref wt_snap wt_rc wt_snaps=0
+            while IFS=$'\t' read -r wt_path wt_br; do
+                [[ -n "$wt_path" && -n "$wt_br" ]] || continue
+                wt_ref="refs/machine-sync/${_MS_SELF}/${wt_br}"
+                wt_rc=0
+                wt_snap="$(_ms_wip_snapshot "$wt_path" "$wt_br" "$wt_ref")" || wt_rc=$?
+                if (( wt_rc == 0 )); then
+                    wt_snaps=$((wt_snaps + 1))
+                elif (( wt_rc == 3 )); then
+                    _ms_drop_stale_snapshot "" "$repo" "$wt_ref"
+                fi
+            done < <(_ms_worktree_entries "$repo")
+            if (( wt_snaps > 0 )); then
+                wip_state="${wip_state} (+${wt_snaps} worktree snapshot(s))"
+            fi
+        fi
         if ! _ms_quiet; then
             printf '  wip:      %s\n' "$wip_state"
         fi
@@ -1692,9 +2050,21 @@ machine_sync() {
 
         local _probe_rc=0
         _ms_probe_peer "$host" "$path" || _probe_rc=$?
+        if (( _probe_rc == 2 )) && [[ "$_MS_BOOTSTRAP" == "true" ]]; then
+            # Fresh peer / cloud compute node: clone from our bundle on first sync.
+            if [[ -z "$bundle" || ! -f "$bundle" ]]; then
+                _ms_bundle_create "$repo" "$bundle" || true
+            fi
+            if _ms_bootstrap_peer "$host" "$path" "$name" "$bundle" "$branch"; then
+                _probe_rc=0
+            else
+                failures+=("$name")
+                continue
+            fi
+        fi
         if (( _probe_rc != 0 )); then
             if (( _probe_rc == 2 )); then
-                _ms_err "$name — SSH reachable, no git repository at $path (link the actual path with: ainish-coder --machine-link \"$repo\" --peer $name --peer-path <remote-path>)"
+                _ms_err "$name — SSH reachable, no git repository at $path (re-run with --bootstrap to initialize it, or link the actual path with: ainish-coder --machine-link \"$repo\" --peer $name --peer-path <remote-path>)"
             else
                 _ms_err "$name — SSH unreachable or transport failed (host: ${host:-local}, path: $path)"
             fi
@@ -1720,21 +2090,27 @@ machine_sync() {
             esac
         fi
 
-        if [[ "$_MS_FF_PEERS" == "true" && "$sent" == "true" ]]; then
+        if [[ "$_MS_FF_PEERS" == "true" && "$sent" == "true" && ( "$_MS_DIRECTION" == "push" || "$_MS_DIRECTION" == "both" ) ]]; then
             _ms_fast_forward_peer "$host" "$path" "$branch"
         fi
+        if [[ "$_MS_FF_PEERS" == "true" && "$recv" == "true" && ( "$_MS_DIRECTION" == "pull" || "$_MS_DIRECTION" == "both" ) ]]; then
+            _ms_fast_forward_local "$repo" "$name" "$branch"
+        fi
 
-        # Turn delivered refs into real branches on the peer, so switching machines means switching to
-        # a branch rather than to a remote-tracking ref. Additive: absent branches are created, an
-        # existing branch is compared and reported, never moved onto an unrelated tip.
-        if [[ "$make_branches" == "true" && "$sent" == "true" ]]; then
+        # Turn delivered refs into real branches symmetrically on BOTH sides:
+        #   - push: materialise our branches on the peer
+        #   - pull: materialise peer branches locally from refs/remotes/<peer>/*
+        if [[ "$make_branches" == "true" && "$sent" == "true" && ( "$_MS_DIRECTION" == "push" || "$_MS_DIRECTION" == "both" ) ]]; then
             _ms_materialize_branches "$repo" "$host" "$path" "$name"
+        fi
+        if [[ "$make_branches" == "true" && "$recv" == "true" && ( "$_MS_DIRECTION" == "pull" || "$_MS_DIRECTION" == "both" ) ]]; then
+            _ms_materialize_local_branches "$repo" "$name"
         fi
 
         # Exchange gitignored, agent-read-only `.agents/federation/{date}.md` CoD ledgers inside
         # PQC envelopes (ML-KEM-768 + ML-DSA-65 + AES-256-GCM; fails closed on fingerprint mismatch).
         if [[ "$sent" == "true" && "$recv" == "true" ]]; then
-            if ! _ms_sync_federation "$repo" "$host" "$path" "$name" "$_MS_DIRECTION"; then
+            if ! _ms_sync_federation "$repo" "$host" "$path" "$name" "$_MS_DIRECTION" "$_P_ROOT"; then
                 sent=false
             fi
         fi
@@ -1750,8 +2126,11 @@ machine_sync() {
             if [[ "$make_branches" == "true" && -n "$_MS_MAT_DIVERGED" ]]; then
                 _ms_skip "$name — diverged branches left untouched (see above); merge them by hand"
             fi
+            if [[ "$make_branches" == "true" && -n "$_MS_MAT_LOCAL_DIVERGED" ]]; then
+                _ms_skip "local — diverged branches from $name left untouched (see above); merge them by hand"
+            fi
             _ms_report_peer "$repo" "$name"
-            _ms_smoke_peer "$host" "$path" "$name"
+            [[ -f "${repo}/bin/ainish-coder" ]] && _ms_smoke_peer "$host" "$path" "$name"
         else
             _ms_err "$name — sync failed (sent=$sent received=$recv)"
             failures+=("$name")

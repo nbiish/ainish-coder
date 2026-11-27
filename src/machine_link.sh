@@ -435,19 +435,37 @@ machine_link() {
     return $rc
 }
 
-# _ml_cli_path — a launcher the hook can actually execute.
+# _ml_cli_path — a durable launcher the hook can actually execute.
 #
-# Prefer an absolute path into this checkout. `command -v ainish-coder` would find whatever happens to
-# be on PATH, which may be a different (or stale) install than the one the operator just used.
+# Prefer an absolute path into this checkout, AND resolve disposable worktrees back to the main
+# checkout owning `--git-common-dir` (same rule as `_mw_resolve_stable_cli` in machine_watch.sh).
+# Otherwise linking from a task worktree bakes a path into post-commit/post-merge that vanishes the
+# moment the worktree is removed, silently disabling hook sync.
 _ml_cli_path() {
-    local self_dir
+    local self_dir candidate repo_root gitdir common gd cd_abs main_checkout
     self_dir="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || return 1
-    local candidate="${self_dir}/../bin/ainish-coder"
-    if [[ -x "$candidate" ]]; then
-        ( cd -P "$(dirname "$candidate")" && printf '%s/%s\n' "$(pwd)" "$(basename "$candidate")" )
+    candidate="${self_dir}/../bin/ainish-coder"
+    if [[ ! -x "$candidate" ]]; then
+        command -v ainish-coder 2>/dev/null || return 1
         return 0
     fi
-    command -v ainish-coder 2>/dev/null || return 1
+    candidate="$( cd -P "$(dirname "$candidate")" 2>/dev/null && printf '%s/%s\n' "$(pwd)" "$(basename "$candidate")" )"
+
+    repo_root="$( cd -P "${self_dir}/.." 2>/dev/null && pwd )" || { printf '%s\n' "$candidate"; return 0; }
+    gitdir="$(git -C "$repo_root" rev-parse --git-dir 2>/dev/null || true)"
+    common="$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null || true)"
+    if [[ -n "$gitdir" && -n "$common" ]]; then
+        gd="$( cd -P "$repo_root" 2>/dev/null && cd "$gitdir" 2>/dev/null && pwd )" || gd=""
+        cd_abs="$( cd -P "$repo_root" 2>/dev/null && cd "$common" 2>/dev/null && pwd )" || cd_abs=""
+        if [[ -n "$gd" && -n "$cd_abs" && "$gd" != "$cd_abs" ]]; then
+            main_checkout="$(dirname "$cd_abs")"
+            if [[ -x "${main_checkout}/bin/ainish-coder" ]]; then
+                printf '%s/bin/ainish-coder\n' "$main_checkout"
+                return 0
+            fi
+        fi
+    fi
+    printf '%s\n' "$candidate"
 }
 
 # The registry lives in machine_sync.sh; these two thin wrappers keep the dependency in one place.

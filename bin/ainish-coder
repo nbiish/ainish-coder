@@ -68,6 +68,7 @@ source "${SRC_DIR}/pqc_dist.sh"
 source "${SRC_DIR}/machine_sync.sh"
 source "${SRC_DIR}/machine_link.sh"
 source "${SRC_DIR}/machine_watch.sh"
+source "${SRC_DIR}/machine_run.sh"
 source "${SRC_DIR}/plan_gate.sh"
 
 # Main function
@@ -492,6 +493,14 @@ main() {
 
         --machine-watch)
             machine_watch "$@"
+            ;;
+
+        --machine-pick)
+            machine_pick "$@"
+            ;;
+
+        --machine-run)
+            machine_run "$@"
             ;;
 
         --rules-watch)

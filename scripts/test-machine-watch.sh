@@ -302,6 +302,40 @@ else
 fi
 check "the commit subject stays a scannable one-liner" "1" "$(printf '%s' "$BODY" | head -1 | grep -c '^wip(')"
 
+echo "== 15. sibling worktree edit triggers watcher snapshot without auto-committing worktree =="
+WWT_A="${WORK}/wwt-a/demo"
+WWT_B="${WORK}/wwt-b/demo"
+WWT_SIB="${WORK}/wwt-a-sib"
+mkdir -p "$(dirname "$WWT_A")" "$(dirname "$WWT_B")"
+git clone -q "$SRC" "$WWT_A"
+git clone -q "$SRC" "$WWT_B"
+WWT_A_R="$(git -C "$WWT_A" rev-parse --show-toplevel)"
+WWT_B_R="$(git -C "$WWT_B" rev-parse --show-toplevel)"
+printf 'box-18gb=self\npeer-wwt-64gb=%s\n' "$(dirname "$WWT_B_R")" > "${WORK}/machines-wwt.txt"
+printf '%s | peer-wwt-64gb | %s\n' "$WWT_A_R" "$WWT_B_R" > "${WORK}/links-wwt.txt"
+# Baseline cycle so main checkout fingerprint is recorded.
+AINISH_MACHINES_FILE="${WORK}/machines-wwt.txt" AINISH_LINKS_FILE="${WORK}/links-wwt.txt" \
+    "$CLI" --machine-watch --once >/dev/null 2>&1
+git -C "$WWT_A_R" worktree add -q -b feat/watched-wt "$WWT_SIB"
+printf 'unsaved worktree edit\n' > "$WWT_SIB/wt-draft.txt"
+AINISH_MACHINES_FILE="${WORK}/machines-wwt.txt" AINISH_LINKS_FILE="${WORK}/links-wwt.txt" \
+    "$CLI" --machine-watch --once >/dev/null 2>&1
+check "watcher cycle with dirty worktree exits 0" "0" "$?"
+check "peer received sibling worktree draft snapshot" "unsaved worktree edit" \
+    "$(git -C "$WWT_B_R" show 'refs/machine-sync/box-18gb/feat/watched-wt:wt-draft.txt' 2>/dev/null || echo MISSING)"
+git -C "$WWT_SIB" status --porcelain wt-draft.txt | grep -q '^??' \
+    && ok "watcher did not auto-commit inside sibling agent worktree" \
+    || bad "watcher unexpectedly committed inside sibling worktree"
+
+echo "== 16. --pull-now delivers peer commits to an idle local checkout =="
+printf 'from peer while local idle\n' > "$WWT_B_R/from-peer-idle.txt"
+git -C "$WWT_B_R" add from-peer-idle.txt && git -C "$WWT_B_R" commit -qm "peer idle commit"
+AINISH_MACHINES_FILE="${WORK}/machines-wwt.txt" AINISH_LINKS_FILE="${WORK}/links-wwt.txt" \
+    "$CLI" --machine-watch --once --pull-now >/dev/null 2>&1
+check "--pull-now exits 0" "0" "$?"
+check "idle local checkout received and fast-forwarded peer commit" "from peer while local idle" \
+    "$(cat "$WWT_A_R/from-peer-idle.txt" 2>/dev/null || echo MISSING)"
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1
