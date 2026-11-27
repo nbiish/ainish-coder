@@ -35,6 +35,7 @@ AGENT CONTEXT (read before you write code):
     ainish-coder --context "..." --retrieval-only # no model calls at all
     ainish-coder --context-setup              # provision Hermes context/consolidate profiles + pi routing
     ainish-coder --context-consolidate        # run Hermes consolidation panel across .agents/ folders now
+    ainish-coder --context-wiki-review        # review/edit .agents/wiki/ via Hermes and recompile wiki graph
     ainish-coder --context-status             # self-improvement loop: what is live, staged, rejected
     ainish-coder --context-seed               # establish the frozen generation 0 baseline
     ainish-coder --context-learn [--dry-run]  # one propose->gate learning cycle (opt-in)

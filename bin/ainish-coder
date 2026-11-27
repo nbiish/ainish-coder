@@ -1048,7 +1048,7 @@ main() {
         # The self-improvement loop over .agents/context-harness/, advertised as `ainish-coder
         # --context-*` in `ainish-context --help`. Each flag maps 1:1 to its engine subcommand and
         # forwards every remaining argument untouched (--json, --dry-run, --task, ...).
-        --context-seed|--context-status|--context-learn|--context-rollback|--context-promote|--context-consolidate)
+        --context-seed|--context-status|--context-learn|--context-rollback|--context-promote|--context-consolidate|--context-wiki-review)
             _TRACK_DETAIL="context-${command#--context-}"
             "${AINISH_BIN_DIR}/ainish-context" "context-${command#--context-}" "$@"
             ;;

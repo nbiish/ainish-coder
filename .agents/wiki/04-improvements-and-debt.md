@@ -3,50 +3,36 @@ title: Improvements & Technical Debt
 aliases: ["improvements", "debt", "todo", "refactors"]
 tags: [ainish/wiki/improvements, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-13T01:02:49.068950+00:00
-source_commit: 2225493
-decision_source: structural
+generated: 2026-11-27T02:57:00+00:00
+source_commit: 015da87
+decision_source: hermes-reviewed
 ---
 
 # 04. Improvements & Technical Debt — ainish-coder
 
-## 1. In-Flight Debt & Code Hotspots
-The following actionable items and markers were identified across the codebase:
-- **`bin/egm-check.sh:53`**: if grep -nE '(^|[^[:alnum:]])TODO([^[:alnum:]]|$)|<short name>|<path>' "$design" >/dev/null 2>&1; then
-- **`bin/egm-check.sh:54`**: echo 'FAIL: unresolved placeholder or TODO'
-- **`scripts/commit-identity-guard.sh:63`**: msg_file="$(mktemp "${TMPDIR:-/tmp}/identity-guard.XXXXXX")"
-- **`scripts/test-machine-sync.sh:25`**: WORK="$(mktemp -d "${TMPDIR:-/tmp}/machine-sync-test.XXXXXX")"
-- **`scripts/test-pqc-dist.sh:33`**: WORK="$(mktemp -d "${TMPDIR:-/tmp}/pqc-dist-test.XXXXXX")"
-- **`src/deploy_rules_sync.sh:382`**: tmp="$(mktemp "${TMPDIR:-/tmp}/ainish-pack.XXXXXX" 2>/dev/null)" || return 1
-- **`src/pqc_dist.sh:52`**: tmp="$(mktemp "${TMPDIR:-/tmp}/pqc-pack.XXXXXX" 2>/dev/null)" || return 1
-- **`src/machine_sync.sh:254`**: idx="$(mktemp "${TMPDIR:-/tmp}/ainish-ms-idx.XXXXXX" 2>/dev/null)" || return 1
-- **`src/machine_sync.sh:744`**: bundle="$(mktemp "${TMPDIR:-/tmp}/ainish-ms-bundle.XXXXXX" 2>/dev/null)" || { _ms_err "mktemp failed"; return 1; }
-- **`src/verify_skills.sh:543`**: ing_root="$(mktemp -d "$skills_source/.ainish-ingest.XXXXXX")"
-- **`src/file_operations.sh:11`**: if tmp="$(mktemp "${dest}.XXXXXX" 2>/dev/null)"; then
-- **`src/rag/rag.py:3410`**: ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
-- **`src/rag/src/decision.rs:1043`**: ("technical_debt", "known gaps, TODOs, refactors, drift, or maintenance risk"),
-- **`src/rag/src/wiki.rs:263`**: if line.contains("TODO") || line.contains("FIXME") || line.contains("XXX") {
-- **`src/rag/src/wiki.rs:513`**: todo_list.push_str("- No explicit TODO/FIXME markers discovered in codebase.\n");
-
+## 1. Active Debt & Code Hotspots
+Grounded items tracked across the live codebase and consolidated digests:
+- **Test baseline drift:** `test_shared_rules_file_is_loaded_and_strip_ansi` in `src/context/tests/test_gate_ready.py` remains a pre-existing failure independent of the context consolidation pipeline.
+- **Local-router chain health & stale builds:** `.agents/suggestions/2026-11-26-14-local-router-stale-build-trap.md` and `2026-11-25-18-local-router-chain-drift-and-health-401s.md` track upstream provider quarantine/401 drift and launchd stale-build restarts outside this repo.
+- **Pair transport durability:** `.agents/suggestions/2026-11-25-18-pair-transport-durability.md` tracks `pi` intermittent empty blocks and Hermes latency budgets on high-latency hosts.
+- **Shell temp-file hygiene:** `bin/egm-check.sh`, `scripts/commit-identity-guard.sh`, `src/deploy_rules_sync.sh`, `src/pqc_dist.sh`, `src/machine_sync.sh`, `src/verify_skills.sh`, and `src/file_operations.sh` manage temporary files via `mktemp` and should preserve trap-based cleanup.
 
 ## 2. Recommended Architectural Refactors
-1. **Multimodal Indexing Expansion:** Continuously refresh LanceDB vectors upon meaningful git commits.
-2. **Deterministic Build Pipeline:** Ensure all binary targets compile with zero warnings across macOS, Linux, and Windows MSVC.
-3. **Zero-Stale Memory Scrubbing:** Retire resolved constraints in `.agents/memories/` using `[RESOLVED]` entries.
-
-## 3. Operator ledger
-`ainish-context wiki` rewrites pages 01–06 and README.md. It never writes `.agents/wiki/ledger.md`. Append one dated line there per cycle. This section is that file, spliced in on each generation.
-
+1. **Living Wiki Freshness & Compilation:** Keep `.agents/wiki/` reviewed via `ainish-coder --context-wiki-review` and compiled into `.agents/rag/wiki-graph.json` alongside every consolidation sweep.
+2. **Bounded Coordination Folders:** Maintain steady state across `.agents/{comms,memories,plans,suggestions,tasks}` at the 3 newest chronological originals plus 1 canonical `consolidates.{naming}.md` file via the 4-profile Hermes consolidation panel (`consolidate-elephant`, `consolidate-goldfish`, `consolidate-archivist`, `consolidate-structural`).
+3. **Cross-Platform Verification:** Keep `src/context/tests/` Python tests, shell syntax checks, and FIPS 203/204 PQC signing gates green across macOS, Linux, and Windows.
 
 ## Related
 - [[03-security-and-governance|Security & Governance]]
 - [[05-research-and-intelligence|Research & Intelligence]]
 - [[README|Vault index]]
 
+## 3. Operator ledger
+Spliced verbatim from `.agents/wiki/ledger.md` (read-only historical operator log; never rewritten by `ainish-coder --context-wiki-review`).
 
 # Operator ledger
 
-`ainish-context wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. Append one dated line per cycle. The generator splices this file into `04-improvements-and-debt.md`.
+`ainish-rag wiki` regenerates `01`–`06` and `README.md`. It does not touch this file. Append one dated line per cycle. The generator splices this file into `04-improvements-and-debt.md`.
 
 - [RESOLVED] 2026-10-28 Wiki pages were overwritten on every `wiki` run, so iterative notes never survived. The generator now splices this ledger into page 04.
 - [RESOLVED] 2026-10-28 Psionics vault RAG records probe misses in `psionics-self-hypnosis/.agents/wiki/ledger.md` (`uv run -m tools.rag.verify`). Read that file before the next index or context-map pass.

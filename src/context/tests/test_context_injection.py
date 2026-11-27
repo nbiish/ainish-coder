@@ -1866,11 +1866,12 @@ class ConsolidationSweepTest(unittest.TestCase):
         self.assertIn("DIGEST-memories-2026-10.md", seen_sources)
         d = self.root / ".agents" / "memories"
         files = sorted(p.name for p in d.iterdir())
-        originals = [f for f in files if not f.startswith(rag.CONSOLIDATION_DIGEST_PREFIX)]
-        digests = [f for f in files if f.startswith(rag.CONSOLIDATION_DIGEST_PREFIX)]
+        originals = [f for f in files if not rag._is_digest_name(f)]
+        digests = [f for f in files if rag._is_digest_name(f)]
         self.assertEqual(originals, sorted(names[-3:]))
         self.assertEqual(len(digests), 1, "prior digests must roll into one current digest")
-        self.assertEqual(digests[0], "DIGEST-memories-02.md")
+        self.assertTrue(digests[0].startswith("consolidates.") and digests[0].endswith(".md"),
+                        f"canonical consolidated filename must match consolidates.<naming>.md, got {digests[0]}")
         self.assertEqual(res["folders"]["memories"]["originals_after"], 3)
         self.assertEqual(res["folders"]["memories"]["digests_after"], 1)
         # Steady state: next sweep must not spawn again.
@@ -2030,6 +2031,115 @@ class ConsolidationSweepTest(unittest.TestCase):
         self.assertFalse(harness["autolearn"]["spawned"])
         self.assertIn("deferred", harness["autolearn"]["reason"])
         self.assertEqual(autolearn_called, [], "autolearn must not race a freshly spawned consolidation pass")
+
+    def test_multi_batch_merge_reviews_against_verified_partials_not_truncated_payload(self):
+        # 14 aged records -> multiple chunks; merge review must receive the verified PARTIAL-* summaries,
+        # never payload[:10] (which dropped records #11..#14 and caused false fidelity failures).
+        payload = [(f"2026-11-{i:02d}-rec.md", f"record body {i}\n" * 40) for i in range(1, 15)]
+        panel_seen = []
+        orig_call = rag.consolidation_call
+        orig_panel = rag._panel_review
+
+        def fake_call(profile, prompt, **kw):
+            body = ("Overview of the period.\n\n## Accomplished\nLanded items.\n\n"
+                    "## Unfinished\nNone.\n\n## Insights\nDetails.\n\n## Recurring\nNone.\n" * 4)
+            return {"text": body, "transport": "hermes", "profile": profile, "source": f"hermes:{profile}"}
+
+        def fake_panel(folder, period, sources, draft, **kw):
+            panel_seen.append([name for name, _ in sources])
+            return True, "", {"fidelity": "pass", "completeness": "pass", "coherence": "pass"}
+
+        rag.consolidation_call = fake_call
+        rag._panel_review = fake_panel
+        try:
+            body, errs, covered = rag._digest_in_chunks("tasks", "2026-11+", payload, chunk=5)
+        finally:
+            rag.consolidation_call = orig_call
+            rag._panel_review = orig_panel
+
+        self.assertTrue(body)
+        self.assertEqual(errs, [])
+        self.assertEqual(len(covered), 14)
+        self.assertGreaterEqual(len(panel_seen), 4, "3 chunk reviews + 1 merge review")
+        self.assertTrue(all(name.startswith("PARTIAL-") for name in panel_seen[-1]),
+                        f"merge review must inspect PARTIAL-* summaries, got {panel_seen[-1]}")
+
+    def test_greedy_batch_packer_separates_large_digests_from_small_records(self):
+        payload = [
+            ("DIGEST-memories-01.md", "a" * 20000),
+            ("DIGEST-memories-02.md", "b" * 20000),
+            ("2026-11-01-memory.txt", "c" * 2000),
+            ("2026-11-02-memory.txt", "d" * 2000),
+            ("2026-11-03-memory.txt", "e" * 2000),
+            ("2026-11-04-memory.txt", "f" * 2000),
+        ]
+        batches = rag._pack_consolidation_batches(payload, max_items=4, max_chars=18000)
+        self.assertGreaterEqual(len(batches), 2)
+        for batch in batches:
+            clipped_total = sum(min(len(b), rag.CONSOLIDATE_SOURCE_CHARS) for _, b in batch)
+            self.assertLessEqual(clipped_total, 18000)
+            self.assertLessEqual(len(batch), 4)
+
+    def test_run_wiki_review_updates_approved_pages_preserves_ledger_and_compiles_graph(self):
+        wiki_dir = self.root / ".agents" / "wiki"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+        (wiki_dir / "ledger.md").write_text("# Operator ledger\n- [RESOLVED] 2026-10-28 Preserved note.\n", encoding="utf-8")
+        (wiki_dir / "ledger.sig").write_text("sig-bytes\n", encoding="utf-8")
+        rag.generate_wiki(self.root)
+
+        orig_call = rag.consolidation_call
+
+        def fake_call(profile, prompt, **kw):
+            if profile == rag.CONSOLIDATE_DRAFTER_PROFILE:
+                return {
+                    "text": (
+                        "# 04. Improvements & Technical Debt\n\n"
+                        "## 1. Current Debt\nKeep `.agents/wiki/` reviewed via Hermes profiles and compiled into the wiki graph.\n\n"
+                        "## 2. Verification\nRun `unittest` and PQC signing gates before merge. See [[01-architecture]].\n"
+                    ),
+                    "transport": "hermes", "profile": profile, "source": f"hermes:{profile}",
+                }
+            return {"text": "VERDICT: pass\nGAP: none", "transport": "hermes", "profile": profile, "source": f"hermes:{profile}"}
+
+        rag.consolidation_call = fake_call
+        try:
+            res = rag.run_wiki_review(self.root, pages=["04-improvements-and-debt.md"], background=True)
+        finally:
+            rag.consolidation_call = orig_call
+
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["updated"], ["04-improvements-and-debt.md"])
+        self.assertGreater(res["graph_nodes"], 0)
+        debt = (wiki_dir / "04-improvements-and-debt.md").read_text(encoding="utf-8")
+        self.assertIn("decision_source: hermes-reviewed", debt)
+        self.assertIn("Preserved note.", debt, "operator ledger must survive wiki review verbatim")
+        self.assertEqual((wiki_dir / "ledger.sig").read_text(encoding="utf-8"), "sig-bytes\n")
+        self.assertTrue((self.root / ".agents" / "rag" / "wiki-graph.json").is_file())
+        self.assertTrue((self.root / ".agents" / "rag" / "wiki-review-last-run.json").is_file())
+
+    def test_run_wiki_review_fails_closed_on_retired_active_references(self):
+        wiki_dir = self.root / ".agents" / "wiki"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+        rag.generate_wiki(self.root)
+        before = (wiki_dir / "01-architecture.md").read_text(encoding="utf-8")
+
+        orig_call = rag.consolidation_call
+        rag.consolidation_call = lambda profile, prompt, **kw: {
+            "text": (
+                "# 01. Architecture\n\n## 1. Entrypoints\nRuns `src/rag/src/main.rs` and refreshes LanceDB vectors.\n\n"
+                "## 2. Links\nSee [[02-codebase-connections]].\n"
+            ),
+            "transport": "hermes", "profile": profile, "source": f"hermes:{profile}",
+        }
+        try:
+            res = rag.run_wiki_review(self.root, pages=["01-architecture.md"], background=True)
+        finally:
+            rag.consolidation_call = orig_call
+
+        self.assertEqual(res["updated"], [])
+        self.assertTrue(any("retired active reference" in s["reason"] for s in res["skipped"]))
+        self.assertEqual((wiki_dir / "01-architecture.md").read_text(encoding="utf-8"), before,
+                         "failed wiki review must leave the existing page untouched")
 
 
 if __name__ == "__main__":
