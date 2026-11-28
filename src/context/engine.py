@@ -7646,6 +7646,10 @@ def _validate_wiki_page_edit(
     for pat in _WIKI_RETIRED_ACTIVE_PATTERNS:
         if pat in text:
             return False, f"page {fname} still contains retired active reference ({pat!r})"
+    low_text = text.lower()
+    for pat in (".scrolls", "deploy_scrolls", "8thfire-scrolls", "ghost-layer", "canadian aboriginal syllabics"):
+        if pat in low_text:
+            return False, f"page {fname} contains excluded easter-egg/scrolls reference ({pat!r})"
     if fname == "04-improvements-and-debt.md" and expected_ledger_lines:
         for line in expected_ledger_lines:
             if line not in text:
@@ -7667,7 +7671,10 @@ def _wiki_evidence_bundle(repo_root: Path) -> str:
         if d.is_dir():
             for child in sorted(d.iterdir()):
                 if child.is_file() and not is_ignored_path(child):
-                    entrypoints.append(str(child.relative_to(root)).replace("\\", "/"))
+                    rel = str(child.relative_to(root)).replace("\\", "/")
+                    if any(tok in rel.lower() for tok in ("scroll", "8thfire", "ghost")):
+                        continue
+                    entrypoints.append(rel)
     agents_dirs = []
     agents_root = root / ".agents"
     if agents_root.is_dir():
@@ -7786,6 +7793,9 @@ def run_wiki_review(
                 "(the former Rust `src/rag/` files) or active LanceDB/EmbeddingGemma-2 anywhere in the page "
                 "— not even in notes about their removal; simply document the live Python graph-first engine "
                 "at `src/context/engine.py`.\n"
+                "- Focus solely on `ainish-coder`'s `--rules`, `--skills*`, `--context`/`--context-digest`, "
+                "`--machine-sync`, and `pqc-secrets` tooling. Do NOT mention `.scrolls*`, `deploy_scrolls`, "
+                "`8thfire-scrolls`, `ghost-layer`, or syllabics easter-egg content.\n"
                 "- Preserve accurate existing content and include `[[wikilinks]]` to sibling pages where natural.\n"
                 "- Never write preambles, offers, or secrets.\n\n"
                 f"## CURRENT PAGE: `.agents/wiki/{fname}`\n{_clip(existing, 6000, fname)}\n\n"

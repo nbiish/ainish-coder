@@ -224,7 +224,7 @@ Universal architecture and knowledge retrieval for the codebase. Graph-first ret
   2. `02-codebase-connections.md`: symbol relationships, dispatchers, CLI workflows.
   3. `03-security-and-governance.md`: Zero-Trust, FIPS 203/204/205 PQC mandate, CI security gates.
   4. `04-improvements-and-debt.md`: code smells, test coverage gaps, performance targets.
-  5. `05-research-and-intelligence.md`: post-quantum cryptography, Canadian Aboriginal Syllabics, research sources.
+  5. `05-research-and-intelligence.md`: graph-first retrieval, Chain-of-Draft priming, Elephant-Goldfish Model (EGM), rolling digests, and decision/federation architecture.
   6. `06-marketing-and-positioning.md`: developer onboarding, command cheat sheets, value propositions.
 
   Filenames are the ones on disk; an older note listing `01-architecture-and-system-design.md` and
