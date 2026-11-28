@@ -123,38 +123,47 @@ check "deselected pack resolves off" "$(HOME="$HOME_DIR" skills_selection_state 
 # carried the same two names in _skill_mandatory AND _skill_channel_excluded, so a pack added to the
 # first stayed selectable, while _skills_mandatory_names named a third, shorter set.
 mandatory_ok=1
-for _p in pqc-secrets ainish-security browser-use computer-use; do
+for _p in pqc-secrets ainish-security; do
     _skill_mandatory "$_p" || mandatory_ok=0
 done
-check "mandatory set is pqc-secrets, ainish-security, browser-use, computer-use" "$mandatory_ok" "1"
+check "mandatory set is pqc-secrets, ainish-security" "$mandatory_ok" "1"
 if _skill_mandatory typesafe-jev; then
     not_ok "an optional pack is not mandatory"
 else
     ok "an optional pack is not mandatory"
 fi
+for _opt in browser-use computer-use; do
+    if _skill_mandatory "$_opt"; then
+        not_ok "${_opt} is selectable (not mandatory)"
+    else
+        ok "${_opt} is selectable (not mandatory)"
+    fi
+done
 if _skill_mandatory security-first-agent; then
     not_ok "the retired pack is not mandatory"
 else
     ok "the retired pack is not mandatory"
 fi
 channel_dupes=0
-for _p in pqc-secrets ainish-security browser-use computer-use; do
+for _p in pqc-secrets ainish-security; do
     _skill_channel_excluded "$_p" && channel_dupes=1
 done
 check "channel exclusion carries no mandatory pack" "$channel_dupes" "0"
 _mand_names="$(_skills_mandatory_names | tr '\n' ' ')"
-check "mandatory names derive from the payload" "${_mand_names% }" "ainish-security browser-use computer-use pqc-secrets"
+check "mandatory names derive from the payload" "${_mand_names% }" "ainish-security pqc-secrets"
 selector_leaks=0
 _selection_list="$(HOME="$HOME_DIR" skills_selection_list "$TARGET_ON" 2>/dev/null)"
-for _p in pqc-secrets ainish-security browser-use computer-use; do
+for _p in pqc-secrets ainish-security; do
     printf '%s\n' "$_selection_list" | grep -q "[[:space:]]${_p}\$" && selector_leaks=1
 done
 check "selector list hides every mandatory pack" "$selector_leaks" "0"
-if printf '%s\n' "$_selection_list" | grep -q '[[:space:]]typesafe-jev$'; then
-    ok "selector list still shows optional packs"
-else
-    not_ok "selector list still shows optional packs"
-fi
+for _opt in typesafe-jev browser-use computer-use; do
+    if printf '%s\n' "$_selection_list" | grep -q "[[:space:]]${_opt}\$"; then
+        ok "selector list shows optional pack: ${_opt}"
+    else
+        not_ok "selector list shows optional pack: ${_opt}"
+    fi
+done
 
 echo "== provenance stamp is readable across WSL and Windows Git Bash =="
 # `.ainish-source` stores whichever absolute POSIX path the WRITER saw:
@@ -1944,7 +1953,7 @@ check "deploy_agents_federation re-locks read-only after refresh" \
     "$([[ ! -w "${FED_DEPLOY}/.agents/federation/${fed_today}.md" ]] && echo yes || echo no)" "yes"
 
 # ── Mandatory-skills drift tracking in --rules-status and --rules-sync ────────
-echo "== mandatory skills digest tracks computer-use/browser-use in --rules-status & --rules-sync =="
+echo "== mandatory skills digest tracks all mandatory packs in --rules-status & --rules-sync =="
 MAND_TARGET="${WORK}/mandatory-drift-target"
 MAND_REG="${WORK}/mandatory-drift-targets.txt"
 mkdir -p "${MAND_TARGET}/.agents/bin" "${MAND_TARGET}/.agents/skills"
@@ -2024,10 +2033,10 @@ PQC_SKIP_MANIFEST_SIGN=1 \
 AINISH_RULES_SKIP_SIGN=1 \
     "${REPO}/bin/ainish-coder" --rules-sync "${MAND_TARGET}" >/dev/null 2>&1 || true
 
-check "rules-sync deploys computer-use to pre-upgrade target" \
-    "$([[ -f "${MAND_TARGET}/.agents/skills/computer-use/SKILL.md" ]] && echo yes || echo no)" "yes"
-check "rules-sync deploys browser-use to pre-upgrade target" \
-    "$([[ -f "${MAND_TARGET}/.agents/skills/browser-use/SKILL.md" ]] && echo yes || echo no)" "yes"
+check "rules-sync deploys ainish-security to pre-upgrade target" \
+    "$([[ -f "${MAND_TARGET}/.agents/skills/ainish-security/SKILL.md" ]] && echo yes || echo no)" "yes"
+check "rules-sync deploys pqc-secrets to pre-upgrade target" \
+    "$([[ -f "${MAND_TARGET}/.agents/skills/pqc-secrets/SKILL.md" ]] && echo yes || echo no)" "yes"
 contains "upgraded manifest records source_mandatory_skills_sha256" \
     "$(cat "${MAND_TARGET}/.agents/ainish-deploy.json")" "\"source_mandatory_skills_sha256\": \"${mand_bash_digest}\""
 contains "upgraded refresher tracks source_mandatory_skills_sha256" \

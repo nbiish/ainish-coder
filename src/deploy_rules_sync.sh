@@ -340,13 +340,13 @@ sha_dir() {
 }
 
 # Mandatory skill names derived from source _skill_mandatory() so adding or
-# updating any mandatory pack (e.g. computer-use, browser-use) triggers refresh.
+# updating any mandatory pack (e.g. ainish-security, pqc-secrets) triggers refresh.
 mandatory_packs() {
     if [ -f "$SRC/src/skills_selection.sh" ]; then
         sed -n '/^_skill_mandatory()/,/^}/s/^[[:space:]]*\([a-zA-Z0-9_|-]*\))[[:space:]]*return 0.*/\1/p' "$SRC/src/skills_selection.sh" 2>/dev/null \
             | tr '|' '\n' | LC_ALL=C sort -u
     else
-        printf '%s\n' ainish-security browser-use computer-use pqc-secrets
+        printf '%s\n' ainish-security pqc-secrets
     fi
 }
 
@@ -452,8 +452,8 @@ _ainish_rules_pack_digest() {
 
 # Digest across ALL mandatory skill packs (_skill_mandatory in skills_selection.sh),
 # complementing source_pack_sha256 (which pins pqc-secrets specifically for PQC
-# attestation). Ensures adding or updating any mandatory skill (e.g. computer-use,
-# browser-use, ainish-security) marks enrolled targets STALE and triggers refresh.
+# attestation). Ensures adding or updating any mandatory skill (e.g. ainish-security)
+# marks enrolled targets STALE and triggers refresh.
 _ainish_rules_mandatory_skills_digest() {
     local root="${REPO_DIR}/${AINISH_SKILLS_SOURCE_REL:-skills-to-distribute/skills}"
     [[ -d "$root" ]] || return 1
@@ -465,7 +465,7 @@ _ainish_rules_mandatory_skills_digest() {
         packs="$(sed -n '/^_skill_mandatory()/,/^}/s/^[[:space:]]*\([a-zA-Z0-9_|-]*\))[[:space:]]*return 0.*/\1/p' "${REPO_DIR}/src/skills_selection.sh" 2>/dev/null | tr '|' '\n' | LC_ALL=C sort -u)"
     fi
     if [[ -z "$packs" ]]; then
-        packs="$(printf '%s\n' ainish-security browser-use computer-use pqc-secrets)"
+        packs="$(printf '%s\n' ainish-security pqc-secrets)"
     fi
     [[ -n "$packs" ]] || return 1
     local tmp p
