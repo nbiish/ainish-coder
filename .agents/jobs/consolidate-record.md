@@ -36,6 +36,20 @@ ainish-context context-consolidate --folder comms        # one folder
 ainish-context context-consolidate                       # all five
 ```
 
+## Reviewing, checking off, and pruning digest items
+
+Use `ainish-coder --context-digest` (or `ainish-context context-digest`) to audit and prune `consolidates.*.md` entries safely:
+
+```bash
+ainish-coder --context-digest --review                   # read-only CoD inventory with IDs (<folder>:<n>)
+ainish-coder --context-digest --folder plans --check plans:2   # mark item `- [x]` (supports --dry-run)
+ainish-coder --context-digest --folder plans --uncheck plans:2 # revert `- [x]`
+ainish-coder --context-digest --folder plans --prune --dry-run # preview removal of ONLY `- [x]` items
+ainish-coder --context-digest --folder plans --prune     # remove checked items, stamp frontmatter, refresh graph
+```
+
+`--prune` fails closed (never removes unchecked items), logs pruned entries to `.agents/rag/digest-prune-log.jsonl`, and future consolidation sweeps automatically omit `- [x]` items during compaction. Removed items remain recoverable from git history.
+
 ## What it has gotten wrong
 
 - **Half-digested a period.** Chunked drafting let one chunk pass and another fail, so a digest was

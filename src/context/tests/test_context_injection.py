@@ -2142,5 +2142,123 @@ class ConsolidationSweepTest(unittest.TestCase):
                          "failed wiki review must leave the existing page untouched")
 
 
+class CoDContextAndDigestReviewTest(unittest.TestCase):
+    """CoD concision for `--context` and fail-closed review/check/prune for `consolidates.*.md`."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / ".agents" / "plans").mkdir(parents=True)
+        (self.root / ".agents" / "wiki").mkdir(parents=True)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_retrieval_emits_cod_pointers_and_demotes_agents_md_for_non_rule_tasks(self):
+        hits = [
+            {"path": "AGENTS.md", "start_line": 1, "end_line": 40, "score": 1.0,
+             "content": "## Non-negotiables\n1. Plan first then work in a worktree off main."},
+            {"path": ".agents/jobs/consolidate-record.md", "start_line": 1, "end_line": 30, "score": 0.9,
+             "content": "# consolidate-record\nTurns old records into one dated digest per folder."},
+            {"path": ".agents/plans/consolidates.2026-11-02.md", "start_line": 1, "end_line": 50, "score": 0.85,
+             "content": "# Digest\nRolling plan digest covering period 2026-11+."},
+        ]
+        rendered = rag.render_retrieval_section(hits, self.root, 300, task="how to prune consolidates digests")
+        first_para = rendered.split("\n\n")[0]
+        self.assertIn("`.agents/jobs/consolidate-record.md:L1-L30`", first_para)
+        self.assertIn("`.agents/plans/consolidates.2026-11-02.md:L1-L50`", first_para)
+        self.assertLess(
+            first_para.index("consolidate-record.md"),
+            first_para.index("AGENTS.md"),
+            "non-rule task must demote AGENTS.md behind domain hits",
+        )
+
+    def test_goldfish_review_enforces_token_cap(self):
+        original = rag.pi_agent_call
+        long_prose = ("word " * 250).strip()
+        rag.pi_agent_call = lambda **kw: {
+            "text": long_prose, "source": "pi:test", "requested_model": "m", "model_verified": True
+        }
+        try:
+            res = rag.goldfish_review(None, task="t", retrieval_text="e", elephant_text="d", token_cap=160)
+        finally:
+            rag.pi_agent_call = original
+        self.assertLessEqual(rag.estimate_tokens(res["text"]), 260)
+        self.assertIn("1. Comprehension check", res["text"])
+        self.assertIn("2. Antagonistic review", res["text"])
+        self.assertIn("3. Implementation readiness", res["text"])
+
+    def test_render_injection_deduplicates_degrade_notes(self):
+        inv = rag.assemble_injection(
+            "task",
+            [{"source": "retrieval", "text": "a", "reason": "r", "driver": None}],
+            1000,
+            {"commit": "1234567890ab"},
+            True,
+            ["trimmed retrieved tail", "trimmed retrieved tail"],
+        )
+        text = rag.render_injection_text(inv)
+        self.assertEqual(text.count("trimmed retrieved tail"), 1)
+
+    def test_context_digest_review_check_uncheck_and_fail_closed_prune(self):
+        digest = self.root / ".agents" / "plans" / "consolidates.2026-11-02.md"
+        digest.write_text(
+            "---\n"
+            "format: ainish/context-digest/v1\n"
+            "folder: plans\n"
+            "sources:\n"
+            "  - old-plan.md\n"
+            "---\n\n"
+            "# Digest\n\n"
+            "## Accomplished\n"
+            "- Shipped context prime pipeline.\n"
+            "- Shipped legacy shim cleanup.\n\n"
+            "## Unfinished\n"
+            "- Pending live watch install.\n",
+            encoding="utf-8",
+        )
+
+        # 1. Read-only review
+        rev = rag.run_context_digest(self.root, folder="plans", json_out=False)
+        self.assertTrue(rev["ok"])
+        self.assertEqual(rev["folders"]["plans"]["open"], 3)
+        self.assertEqual(rev["folders"]["plans"]["checked"], 0)
+
+        # 2. Fail-closed prune with nothing checked removes nothing
+        nop = rag.run_context_digest(self.root, folder="plans", prune=True)
+        self.assertEqual(nop["pruned"], [])
+        self.assertIn("Shipped legacy shim cleanup.", digest.read_text(encoding="utf-8"))
+
+        # 3. Check item by ID, verify dry-run does not mutate, then real check
+        dry = rag.run_context_digest(self.root, folder="plans", check=["plans:2"], dry_run=True)
+        self.assertEqual(len(dry["checked"]), 1)
+        self.assertNotIn("- [x] Shipped legacy shim cleanup.", digest.read_text(encoding="utf-8"))
+
+        chk = rag.run_context_digest(self.root, folder="plans", check=["plans:2"])
+        self.assertEqual(len(chk["checked"]), 1)
+        txt = digest.read_text(encoding="utf-8")
+        self.assertIn("- [x] Shipped legacy shim cleanup.", txt)
+        self.assertIn("last_reviewed_at:", txt)
+
+        # 4. Uncheck and re-check by substring
+        unchk = rag.run_context_digest(self.root, folder="plans", uncheck=["plans:2"])
+        self.assertEqual(len(unchk["unchecked"]), 1)
+        self.assertNotIn("- [x] ", digest.read_text(encoding="utf-8"))
+
+        rag.run_context_digest(self.root, folder="plans", check=["legacy shim"])
+        self.assertIn("- [x] Shipped legacy shim cleanup.", digest.read_text(encoding="utf-8"))
+
+        # 5. Prune removes ONLY the checked item, keeps unchecked items, stamps frontmatter & audit log
+        pruned = rag.run_context_digest(self.root, folder="plans", prune=True)
+        self.assertEqual(len(pruned["pruned"]), 1)
+        after = digest.read_text(encoding="utf-8")
+        self.assertNotIn("Shipped legacy shim cleanup.", after)
+        self.assertIn("- Shipped context prime pipeline.", after)
+        self.assertIn("- Pending live watch install.", after)
+        self.assertIn("pruned_count: 1", after)
+        self.assertIn("last_pruned_at:", after)
+        self.assertTrue((self.root / ".agents" / "rag" / "digest-prune-log.jsonl").is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
