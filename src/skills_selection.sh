@@ -88,12 +88,9 @@ _skill_channel_excluded() {
 # `pqc-secrets`: every secret resolution goes through it.
 # `ainish-security`: the universal AGENTS.md links to it by path, so a deploy that
 #   omitted it shipped a contract with a dangling link.
-# `browser-use` & `computer-use`: baseline web (Browser MCP 2.x + CDP) and native
-#   desktop (vercel-labs/agent-desktop) automation capabilities required for agents
-#   operating across macOS, Windows, and Linux federated machines.
 _skill_mandatory() {
     case "$1" in
-        pqc-secrets|ainish-security|browser-use|computer-use) return 0 ;;
+        pqc-secrets|ainish-security) return 0 ;;
         *) return 1 ;;
     esac
 }
