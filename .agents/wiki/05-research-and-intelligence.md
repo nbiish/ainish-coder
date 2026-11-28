@@ -3,46 +3,29 @@ title: Research & Intelligence
 aliases: ["research", "intelligence", "sources"]
 tags: [ainish/wiki/research, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-27T02:01:58.015410+00:00
-source_commit: 015da87
+generated: 2026-11-28T15:35:00+00:00
+source_commit: e0ff062
 decision_source: hermes-reviewed
 ---
 # 05. Research & Intelligence — ainish-coder
 
-## 1. Retrieval Architecture
+## 1. Graph-First Retrieval Architecture
+- **Engine:** `src/context/engine.py` compiles `.agents/wiki/*.md`, `AGENTS.md`, `llms.txt`, `.agents/{comms,federation,memories,plans,suggestions,tasks}`, `.agents/templates/`, `research/`, and staged learned skills into `.agents/rag/wiki-graph.json`.
+- **Graph mechanics:** markdown sections are nodes; `[[wikilinks]]`, markdown links, and bounded shared vocabulary are edges; rare task terms seed a 1-hop expansion with recency tie-breaking and `KIND_INTENT` boosts when a query names a corpus layer.
+- **No external vector stack:** retrieval requires no embedding model, no vector store, and no background server; the cache invalidates automatically on source mtime or corpus-definition changes.
 
-- **Status:** the EmbeddingGemma-2 GGUF model, its 768-d space, Matryoshka truncation, and the LanceDB store were **DELETED on 2026-11-12**, not disabled. The `src/rag/` Rust crate was **DELETED on 2026-11-19** (`2026-11-19-team.md`, `consolidates.2026-11-01.md` memories digest). There is no model to download, no dimension to configure, and no vector index to build.
-- **What runs instead:** graph-first retrieval over this vault and the `.agents/` context folders, collapsed into one Python context engine at `src/context/engine.py` behind `ainish-coder --context "<input>"` (`2026-11-19-team.md`, comms digest). `ainish-context` is the launcher; `ainish-rag` is a deprecation shim only. Nodes are markdown sections; edges are `[[wikilinks]]`, markdown links, and bounded shared vocabulary (per-node edge bounds reduced 42,216 → 4,220); seeds are the task's rare terms; one hop of expansion; recency breaks ties. `KIND_INTENT` boosts named layers and forces retrieval past `skip_retrieval` (comms digest).
-- **Why:** retrieval answers "which curated section explains this", not "which chunk is near this string". The vault is already curated by the agents who wrote it, so a vector index added a dependency without adding evidence — and it turned a missing key into a degraded host.
+## 2. Chain-of-Draft (CoD) Context Priming & EGM Pair
+- **CoD envelope:** `ainish-coder --context` emits compact, arrow-chained output across `orientation`, `retrieval` (pointer index first + bounded excerpts, demoting `AGENTS.md` unless the query asks about rules/contract), `elephant`, and `goldfish`.
+- **Elephant-Goldfish Model (EGM):** `context-elephant` (Hermes profile) synthesizes session-aware continuity; `goldfish` (`pi --print --no-session --no-tools`) runs stateless 3-step review (comprehension, antagonistic, readiness verdict) strictly bounded by `token_cap` so reviewer prose never starves `retrieval`.
+- **Per-repo harness tuning:** `.agents/context-harness/prime-profile.json` holds generation-tracked retrieval tuning (`--context-seed`, `--context-status`, `--context-learn`, `--context-rollback`, `--context-promote`).
 
-## 2. Retrieval Engine
+## 3. Rolling Consolidation & Digest Curation
+- **Consolidation panel:** background sweeps (`--context-consolidate`) run four Hermes profiles (`consolidate-elephant`, `consolidate-goldfish`, `consolidate-archivist`, `consolidate-structural`) to roll aged records into one `consolidates.{naming}.md` per folder while protecting the 3 newest chronological originals.
+- **Fail-closed digest pruning:** `ainish-coder --context-digest` (`--review`, `--check`, `--uncheck`, `--prune`) provides stable `<folder>:<n>` IDs so operators can audit and prune obsolete digest bullets without risking unreviewed data loss; future consolidation sweeps omit `- [x]` items during compaction.
 
-- **Corpus:** `.agents/wiki/*.md`, `AGENTS.md`, `llms.txt`, `.agents/{comms,memories,plans,suggestions,tasks}`, `.agents/templates/`, `research/`, and the learned skills under `.agents/context-harness/skills/`. Last verified whole-corpus measurement: 164 files, 411 nodes (comms digest, 2026-11-19).
-- **Cache:** `.agents/rag/wiki-graph.json`, keyed on source mtimes and on the corpus DEFINITION, so a tuning or source-set change cannot be served a stale graph.
-- **Tuning:** per-repo, in `.agents/context-harness/prime-profile.json`, reported on every call as `provenance.harness`. Engine settings derive from `BASE_PROFILE` via `base_settings()`; never hand-edit the engine constants (comms digest).
-- **Task records & acceptance:** `--task-record` with `--outcome ok|fail|unknown` plus `_coverage_loss_guard` bound acceptance of retrieval changes (comms digest).
-- **Wiki refresh** dispatches to the native renderer or the vault format; learned skills live on one surface under `.agents/context-harness/skills/` (comms digest).
-
-## 3. Retrieval Quality Measurement
-
-- **Bench harness:** an nDCG/token/embedding-identity regression gate with a committed baseline was built to measure retrieval quality (suggestions digest). Gate exercised in all three states; the two Windows-only failures were proven pre-existing at pristine HEAD.
-- **Open measurement gaps:** the EGM split and the direct-transport chain remain unmeasured or unlanded, as does the signing-anchor rotation (memories digest). Treat claims in those areas as provisional.
-
-## 4. Federation & Intelligence Feeds
-
-- A PQC-signed federation feed was stood up during 2026-11 (memories digest), with later profile cleanup work landed (`2026-11-22-14-federation-profile-cleanup.plan.md`, tasks digest). Verification of federation behavior is tracked in `2026-11-11-federation-verify-task.md` and discoverability work in `2026-11-17-13-federation-discoverability.md` (tasks/plans digests).
-- **Recurring caution:** an Obsidian-vault downgrade was silently introduced and later fixed (suggestions digest) — retrieval results sourced from vault markdown must stay on the full vault format, not the downgraded one. A background pass also once clobbered a manual digest (`2026-11-21-15-background-pass-clobber.md`, suggestions digest), so any automated rewrite of retrieval artifacts needs the same protection the digest tooling now carries.
-
-## 5. Signing & Identity in the Intelligence Path
-
-- Signing of context artifacts moved to Python ML-DSA-65 over a 32-byte seed when the Rust crate was retired (comms digest). Identity and secret handling for these paths follow the PQC mandate in the repo contract: AES-256-GCM wrapped with ML-KEM-768 in `~/.config/pqc-secrets/secrets.bundle.json`, never plaintext in configs or logs.
-- The direct-transport chain and pair-transport durability remain flagged for follow-up (`2026-11-25-18-pair-transport-durability.md`, `2026-11-25-18-local-router-chain-drift-and-health-401s.md`, suggestions).
-
-## Sibling Pages
-- [[02-codebase-connections|Codebase Connections]]
-- [[04-improvements-and-debt|Improvements & Debt]]
-- [[README|Vault index]]
+## 4. Federation & Decision Layer
+- **TypeSafe Jev & Local Calibrated Router:** `DecisionEngine` routes queries (`needs_retrieval`, domain, freshness, budget) via OpenRouter / loopback Local Router Decisions API with deterministic local calibrated fallback.
+- **PQC Federation CoD:** `.agents/federation/{date}.md` exchanges ultra-terse `<≤7w> -> <≤7w> -> <≤7w>` peer branch/PR state across machines inside ML-KEM-768 + ML-DSA-65 + AES-256-GCM envelopes.
 
 ## Related
-
 [[01-architecture]], [[02-codebase-connections]], [[03-security-and-governance]], [[04-improvements-and-debt]], [[06-marketing-and-positioning]]

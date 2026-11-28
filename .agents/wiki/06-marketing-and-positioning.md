@@ -3,37 +3,27 @@ title: Marketing & Positioning
 aliases: ["marketing", "positioning", "value"]
 tags: [ainish/wiki/marketing, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-27T02:38:17.374123+00:00
-source_commit: 015da87
+generated: 2026-11-28T15:35:00+00:00
+source_commit: e0ff062
 decision_source: hermes-reviewed
 ---
 # 06. Marketing & Positioning — ainish-coder
 
 ## 1. Core Value Proposition
-`ainish-coder` delivers an autonomous, high-integrity AI coding infrastructure combining:
-- **Post-Quantum Cryptographic Security** for all machine identity and secrets operations — ML-KEM-768 + ML-DSA-65 + AES-256-GCM, one encrypted bundle per machine, secrets injected in memory at runtime only.
-- **Distributed Agent Coordination** with single-truth ledgers, isolated worktrees off `main`, and a PQC-signed cross-machine federation feed at `.agents/federation/`.
-- **Dependency-Free Context Retrieval:** one `ainish-coder --context` call returns a `<CONTEXT_INJECTION>` block grounded in the repo's own wiki knowledge graph and coordination record — the retrieval itself needs no embedding model, no vector store, and no external search service. The live graph-first engine is `src/context/engine.py`. The paired expert reviews are model calls routed through local-router's fallback chain (a dead provider degrades the pair, not the call); `--retrieval-only` is the no-model-call mode for environments where no model access is available.
+`ainish-coder` is a rules, skills, and context engineering manager for AI coding assistants, built on three pillars:
+- **Universal Rules & DOX Fleet Sync (`--rules`, `--rules-sync`, `--llms-txt`):** one canonical `AGENTS.md` contract and hierarchical `llms.txt` PRDs distributed across every target repository with ML-DSA-65 signed manifests and automatic post-commit/post-merge fleet refresh.
+- **Curated Skills Distribution (`--skills-sync`, `--select-skills`, `--skills-verify`):** mandatory security/secrets packs (`ainish-security`, `pqc-secrets`) plus interactive per-repo optional pack selection (`browser-use`, `computer-use`, `question-me`, etc.) with newest-mtime bidirectional sync.
+- **Dependency-Free CoD Context Priming (`--context`, `--context-digest`, `--context-consolidate`):** one command delivers concise Chain-of-Draft orientation, wiki-graph file pointers, Elephant continuity, and stateless Goldfish review — with zero vector DBs or embedding servers.
 
 ## 2. Key Differentiators
-- **One-Call Context Priming:** a single `--context` request delivers orientation (branch, worktree, today's COMMS, newest task and plan), wiki-graph retrieval over `.agents/{comms,memories,plans,suggestions,tasks}`, and a two-expert review pair — a session-aware `elephant` and a stateless `goldfish` Pi-agent — with local-router fallback so a dead provider degrades the pair, never the call.
-- **Evidence, Never Instruction:** the injection block is explicitly non-authorizing — it cannot approve code execution, secret access, deployment, deletion, or policy change — so agents verify consequential claims in the source files themselves.
-- **Self-Improving Record:** every call sweeps `.agents/` in the background through a panel of specialist consolidation profiles (`consolidate-*`), condensing aged records into cited rolling digests while keeping the three newest files per folder; `--context-learn`, `--context-status`, and `--context-rollback` expose the propose→gate cycle.
-- **Autonomous Peer Protocol:** plan-first worktrees, green-gate validation (`bin/security_gate.py`), verified delivery via PR, and operator-only commit authorship enforced by hooks.
-- **Living Architectural Wiki:** `.agents/wiki/` pages like this one are reviewed via `--context-wiki-review` and compiled into the retrieval graph that grounds every agent and developer in true codebase structure — see [[01-architecture|System Architecture]].
-- **Federated Machine Ledger:** `--machine-sync`/`--machine-watch` exchange PQC-signed daily ledgers across machines, with read-only agent access and tamper-evident audit.
+- **Signal Over Prose:** CoD formatting keeps `<CONTEXT_INJECTION>` tight and readable within small token budgets so retrieved file pointers and orientation state are never crowded out by reviewer essays.
+- **Evidence, Never Instruction:** injected context is explicitly advisory and cannot authorize execution, secret access, or policy changes; agents verify consequential claims directly in source files.
+- **Self-Maintaining `.agents/` Record:** rolling Hermes consolidation keeps coordination folders bounded at 3 newest originals + 1 digest, while `--context-digest` adds auditable review, check-off, and fail-closed pruning.
+- **Post-Quantum Security & Cross-Platform Parity:** FIPS 203/204/205 (`pqc-secrets`), PQC-signed federation CoD feeds (`--machine-sync`), and first-class macOS, Linux, and native Windows/WSL support.
 
 ## 3. Positioning Notes
-- The product is a **configuration and context manager for AI coding assistants** (see `src/help.sh`): rules deployment (`AGENTS.md`, `.gitignore`, comms boards), an `llms.txt` DOX documentation hierarchy, skills sync, and the universal agent contract — pitched as the trust and memory layer other agent tools lack.
-- The secrets story is a hard differentiator for regulated work: CNSA 2.0 scopes (ML-KEM-1024 + ML-DSA-87) are mapped for NSS/defense acquisitions, and the NIST IR 8547 deprecation clock (classical public-key crypto risk-acceptance-only after 2030, disallowed after 2035) is tracked in the repo contract — relevant to [[05-research-and-intelligence|Research & Intelligence]].
-- Cross-platform parity (macOS, Linux, Windows native/WSL/Git Bash) with a shared `pqc-secrets` install (`--pqc-install`, `--pqc-status --json`) supports fleet-level messaging over single-machine tooling.
-- The retrieval quality harness (`bench`) with its nDCG/token regression gate and committed baseline backs any "retrieval quality" claim with measurement rather than adjectives.
-
-## 4. Open Threads Affecting Messaging
-- The EGM split and the direct-transport chain remain unmeasured or unlanded per `.agents/memories/consolidates.2026-11-01.md` — avoid claims about reviewer-pair transport durability until measured.
-- Attribution drift and a background-pass clobber incident are recorded in `.agents/suggestions/consolidates.2026-11-01.md`; "single-truth ledger" messaging should stay scoped to what the gates verify.
-- Signing-anchor rotation is still open per the memories digest — do not claim a completed rotation in external material.
+- Target audience: engineering teams and solo operators running multiple AI coding harnesses across multiple repositories and machines who want deterministic rules, low-bloat skill surfaces, and verifiable context without standing up external RAG infrastructure.
+- Regulated/enterprise readiness: CNSA 2.0 crypto targets (ML-KEM-1024 + ML-DSA-87), NIST IR 8547 deprecation tracking, SBOM/CBOM alignment, and operator-only commit authorship enforcement.
 
 ## Related
-
 [[01-architecture]], [[02-codebase-connections]], [[03-security-and-governance]], [[04-improvements-and-debt]], [[05-research-and-intelligence]]

@@ -3,40 +3,33 @@ title: Security & Governance
 aliases: ["security", "governance", "pqc"]
 tags: [ainish/wiki/security, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-27T01:56:52.304579+00:00
-source_commit: 015da87
+generated: 2026-11-28T15:35:00+00:00
+source_commit: e0ff062
 decision_source: hermes-reviewed
 ---
 # 03. Security & Governance — ainish-coder
 
 ## 1. Cryptographic Mandate (Post-Quantum Security)
-- **Secrets Encryption:** AES-256-GCM with the data key wrapped by ML-KEM-768 (FIPS 203) encapsulation; ML-KEM-1024 is the CNSA 2.0 NSS minimum. All keys live in the single bundle `~/.config/pqc-secrets/secrets.bundle.json`.
-- **Key Protection:** the ML-KEM-768 private key is encrypted at rest under a stable per-machine KEK persisted to `~/.config/pqc-secrets/machine.kek` (0600), generated once and stable across reboots and kernel upgrades.
-- **Code Signing & Integrity:** FIPS 204 ML-DSA-65 (ML-DSA-87 for CNSA 2.0 NSS scopes) signatures — verified before deployment, and used to sign commits and releases with keys held in the system keychain or a secure local file. The signing implementation is Python ML-DSA-65 over a 32-byte seed.
-- **Vault-First Identity:** when `~/.config/pqc-secrets/vault.pqc` exists it is the canonical identity root — `export`, `issue`, and `envelope` run through it with fail-closed recipient gates, an ML-DSA-65 sidecar signature, and a hash-chained signed audit for tamper evidence; `--use-keychain` is the explicit escape hatch. Agents check integrity via `vault verify` / `vault audit-verify` (fingerprints, digests, and key names only — never secret values).
-- **Banned Cryptography for Secrets:** RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC (also RSA-PSS/ECDSA for integrity of critical artifacts).
-- **CNSA 2.0 (NSS / defense contracts):** ML-KEM-1024 + ML-DSA-87 are the mandated minimums; SLH-DSA, FN-DSA, and HQC are excluded from NSS use. New NSS acquisitions must comply starting Jan 1, 2027.
-- **Deprecation Clock (NIST IR 8547, EO 14412, OMB M-26-15):** classical 112-bit public-key crypto is risk-acceptance-only after 2030 and disallowed after 2035.
-- **Implementation Maturity:** hybrid classical+ML-DSA signing is an approved transitional hedge; pin audited crypto crate/library versions and monitor upstream CVEs (ML-DSA implementation fragility documented June 2026).
+- **Secrets Encryption:** AES-256-GCM wrapped by ML-KEM-768 (FIPS 203) in `~/.config/pqc-secrets/secrets.bundle.json` (ML-KEM-1024 for CNSA 2.0 NSS scopes).
+- **Key Protection:** ML-KEM-768 private key encrypted at rest under a stable per-machine KEK at `~/.config/pqc-secrets/machine.kek` (`0600`), or macOS Keychain / Linux Secret Service.
+- **Code & Manifest Signing:** FIPS 204 ML-DSA-65 (ML-DSA-87 for CNSA 2.0 NSS) via Python `cryptography` over a 32-byte seed — signs canonical `AGENTS.md`, `.agents/ainish-deploy.json`, audit receipts, and `.agents/wiki/ledger.sig`.
+- **Vault-First Identity:** when `~/.config/pqc-secrets/vault.pqc` exists, `export`, `issue`, and `envelope` run through the vault with fail-closed recipient gates and hash-chained signed audit logs.
+- **Banned Classical Crypto:** RSA, DSA, ECDSA, Ed25519, MD5, SHA-1, AES-CBC for secrets; RSA-PSS/ECDSA for critical artifact integrity.
 
-## 2. Zero-Trust Rules & Context Hygiene
-- Untrusted external input is isolated in `<DATA>` XML enclosures.
-- Secrets are never persisted in source control, `.env` files, settings files, task records, memory ledgers, or any config with an `env` block — secrets are injected at runtime via system keychain/file plus a shell wrapper (`bin/pqc-secrets`).
-- Host communication utilizes loopback `127.0.0.1` binding with strict SSRF protections.
+## 2. Zero-Trust Context & Agent Hygiene
+- **Evidence, never instruction:** `<CONTEXT_INJECTION>` blocks and external files are untrusted data; they never authorize code execution, secret access, deletion, or policy changes.
+- **Toolless reviewers:** Elephant and Goldfish run without tool execution (`--no-tools` / `toolless=True`), and Goldfish runs with `--no-session` so accumulated session assumptions cannot mask gaps.
+- **Non-blocking secret resolution:** `_pqc_export` in `src/context/engine.py` detaches from `/dev/tty` (`start_new_session=True` on POSIX) so a locked vault fails fast rather than hanging `--context` on an interactive prompt.
+- **Fail-closed digest pruning:** `ainish-coder --context-digest --prune` deletes only items explicitly marked `- [x]`, stamps frontmatter (`last_pruned_at`, `pruned_count`), and logs removed entries to `.agents/rag/digest-prune-log.jsonl`.
 
-## 3. Secrets Lifecycle & Key Naming
-- **One bundle, one machine:** `secrets.bundle.json` is the single source of truth for all API keys across every repo on a machine; repos pull from it, nothing is duplicated or synced. Each machine runs its own keypair and its own API keys — no cross-machine key sync.
-- **Key naming convention:** bundle keys are prefixed with the consuming tool (`LOCALROUTER_*_API_KEY`, `AINISHCODER_*_API_KEY`, …); bare names are reserved for genuinely machine-shared keys. Audit with `pqc-secrets list`.
-- **Prompt-free bootstrap:** after one-time setup that mirrors the vault passphrase into the bundle (`VAULT_PASSPHRASE`), `bin/pqc-secrets` auto-unlocks vault-gated commands via OS-keychain decap (Rust session holder until `vault lock`, shutdown, or reboot; `PQC_UNLOCK_TTL` overrides). Agents are never prompted in normal operation.
-- **Distribution:** `ainish-coder --pqc-install` installs the shared engine to `~/.local/bin/pqc-secrets`, records the checkout in `~/.config/ainish-coder/pqc-root`, and generates the ML-KEM-768 identity only when none resolves. `--pqc-status --json` (`ainish-coder/pqc-status/v1`) reports engine digest, launcher PATH state, and per-target drift (exit 1 on stale engine); `--pqc-sync-targets` (`ainish-coder/pqc-sync/v1`) refreshes enrolled targets by digest comparison. Platform parity: macOS, Linux, and Windows (native, Git for Windows bash, or WSL).
+## 3. Rules & Skills Provenance
+- **Mandatory security packs:** `ainish-security` and `pqc-secrets` deploy on every `--rules` and `--skills-sync` run regardless of optional selection (`_skill_mandatory` in `src/skills_selection.sh`).
+- **Signed fleet deploys:** `--rules-verify --json` checks every enrolled target's ML-DSA-65 manifest signature and `lockfile-manifest.json` digest; `--rules-doctor` repairs missing hooks.
+- **Commit authorship & license integrity:** operator-only authorship (no `Co-authored-by:`) is enforced by hooks; `LICENSE` is verified byte-for-byte in CI and never hand-edited.
 
-## 4. Supply Chain & Governance Gates
-- **SBOMs:** produced per the CISA/NSA 2026 Minimum Elements (July 2026) and SBOM-for-AI (May 2026); track cryptographic inventory toward CBOM guidance mandated by the June 2026 PQC executive order.
-- **Security gates:** `bin/security_gate.py` gates deployments alongside the ainish-rag gate; pack, surface, and license governance are unified under gates (see `2026-11-23-18-prompt-license-governance.md` lineage in `.agents/tasks`).
-- **Federation:** the federation feed is PQC-signed; identity-trailer and contract-identity deploys are wired through `src/federation_pqc.py` and the deploy scripts (`src/deploy_local_security.sh`, `src/deploy_agents_federation.sh`).
-
-See [[01-architecture|System Architecture]] for how these controls sit in the pipeline, and [[04-improvements-and-debt|Improvements & Debt]] for open governance work (attribution-table drift, signing-anchor rotation, EGM split measurement).
+## 4. Federation & Verification Gates
+- **Cross-machine CoD ledger:** `.agents/federation/{date}.md` is gitignored, OS-locked read-only for agents, secret-scrubbed on send and receive, and transported inside ML-KEM-768 + ML-DSA-65 + AES-256-GCM envelopes (`src/federation_pqc.py`).
+- **Pre-merge gates:** `bin/security_gate.py`, `ainish-context gate`, and `ainish-context audit verify` enforce PQC receipts, contract history hash-chains, and secret hygiene.
 
 ## Related
-
 [[01-architecture]], [[02-codebase-connections]], [[04-improvements-and-debt]], [[05-research-and-intelligence]], [[06-marketing-and-positioning]]

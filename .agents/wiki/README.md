@@ -2,35 +2,33 @@
 title: README
 aliases: ["wiki", "index", "toc"]
 tags: [ainish/wiki/index, ainish/wiki/generated]
-generated: 2026-11-27T02:41:11.253930+00:00
-source_commit: 015da87
+generated: 2026-11-28T15:35:00+00:00
+source_commit: e0ff062
 decision_source: hermes-reviewed
 ---
 # ainish-coder — Knowledge & Architecture Wiki
 
-Generated on: 2026-11-27T02:41:11.253752+00:00 (UTC)
+Generated on: 2026-11-28T15:35:00+00:00 (UTC)
 Repository: `ainish-coder`
 
 ## Overview
-This vault is the repository's living architectural map, connectivity graph, security governance
-framework, improvements ledger, and research foundation. Pages are plain markdown with YAML
-frontmatter and double-bracket hyperlinks, so they open directly in Obsidian with a working graph,
-backlinks, and tag search — and the same pages are parsed by `ainish-context` for agent retrieval.
+Living architectural map for `ainish-coder` — covering rules deployment (`--rules`, `--llms-txt`), skill-pack distribution (`--skills-sync`, `--select-skills`), graph-first Chain-of-Draft context priming (`--context`, `--context-digest`, `--context-consolidate`), PQC secrets (`pqc-secrets`), and cross-machine federation (`--machine-sync`). Pages are plain markdown with Obsidian frontmatter and `[[wikilinks]]`, compiled by `src/context/engine.py` into `.agents/rag/wiki-graph.json`.
 
 ## Contents
-- [[01-architecture|01. System Architecture]] — Core components, subsystem boundaries, data flow, and directory taxonomy.
-- [[02-codebase-connections|02. Codebase Connections & Symbols]] — Call graphs, key interfaces, symbol registry, and inter-module coupling.
-- [[03-security-and-governance|03. Security & Governance]] — Zero-Trust mandates, Post-Quantum Cryptography (PQC), secrets hygiene, and attack surface.
-- [[04-improvements-and-debt|04. Improvements & Technical Debt]] — Refactoring targets, debt ledger, code hotspots, and modernizing paths.
-- [[05-research-and-intelligence|05. Research & Intelligence]] — Algorithmic foundations, model specifications, cultural/philosophical doctrine, and citations.
-- [[06-marketing-and-positioning|06. Marketing & Positioning]] — Strategic positioning, value propositions, key differentiators, and ecosystem role.
+- [[01-architecture|01. System Architecture]] — Rules deployment, skills payload split, CoD context engine, and `.agents/` folder taxonomy.
+- [[02-codebase-connections|02. Codebase Connections & Symbols]] — CLI entrypoints, shell deploy modules, Python context engine, and PQC/federation wiring.
+- [[03-security-and-governance|03. Security & Governance]] — Post-Quantum Cryptography (FIPS 203/204/205), Zero-Trust context hygiene, signed manifests, and security gates.
+- [[04-improvements-and-debt|04. Improvements & Technical Debt]] — Active debt, architectural refactors, and the signed operator ledger.
+- [[05-research-and-intelligence|05. Research & Intelligence]] — Graph-first retrieval, Chain-of-Draft priming, Elephant-Goldfish Model (EGM), and rolling digest curation.
+- [[06-marketing-and-positioning|06. Marketing & Positioning]] — Core value proposition across `--rules`, `--skills`, and `--context` workflows.
 
 ## How to read this vault
-- **In Obsidian:** open `.agents/wiki/` as a vault; the graph view shows the six domain pages wired to this index.
-- **As an agent:** `ainish-coder --context` retrieves whole sections from these pages, so keep headings meaningful.
+- **In Obsidian:** open `.agents/wiki/` as a vault; the graph view wires all six domain pages to this index.
+- **As an agent:** `ainish-coder --context "<task>"` retrieves sections from these pages as a CoD pointer index + bounded excerpts.
 - **Operator notes:** `[[ledger]]` is hand-maintained and never regenerated — append one dated line per cycle.
 
 ## Related
 - [[01-architecture|System Architecture]]
+- [[02-codebase-connections|Codebase Connections]]
 - [[03-security-and-governance|Security & Governance]]
 - [[04-improvements-and-debt|Improvements & Debt]]

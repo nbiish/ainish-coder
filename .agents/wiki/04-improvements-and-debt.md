@@ -3,8 +3,8 @@ title: Improvements & Technical Debt
 aliases: ["improvements", "debt", "todo", "refactors"]
 tags: [ainish/wiki/improvements, ainish/wiki/generated]
 up: "[[README]]"
-generated: 2026-11-27T02:57:00+00:00
-source_commit: 015da87
+generated: 2026-11-28T15:35:00+00:00
+source_commit: e0ff062
 decision_source: hermes-reviewed
 ---
 
@@ -12,14 +12,14 @@ decision_source: hermes-reviewed
 
 ## 1. Active Debt & Code Hotspots
 Grounded items tracked across the live codebase and consolidated digests:
-- **Test baseline drift:** `test_shared_rules_file_is_loaded_and_strip_ansi` in `src/context/tests/test_gate_ready.py` remains a pre-existing failure independent of the context consolidation pipeline.
+- **Test baseline drift:** `test_shared_rules_file_is_loaded_and_strip_ansi` in `src/context/tests/test_gate_ready.py` remains a pre-existing failure independent of the context and wiki pipelines.
 - **Local-router chain health & stale builds:** `.agents/suggestions/2026-11-26-14-local-router-stale-build-trap.md` and `2026-11-25-18-local-router-chain-drift-and-health-401s.md` track upstream provider quarantine/401 drift and launchd stale-build restarts outside this repo.
 - **Pair transport durability:** `.agents/suggestions/2026-11-25-18-pair-transport-durability.md` tracks `pi` intermittent empty blocks and Hermes latency budgets on high-latency hosts.
 - **Shell temp-file hygiene:** `bin/egm-check.sh`, `scripts/commit-identity-guard.sh`, `src/deploy_rules_sync.sh`, `src/pqc_dist.sh`, `src/machine_sync.sh`, `src/verify_skills.sh`, and `src/file_operations.sh` manage temporary files via `mktemp` and should preserve trap-based cleanup.
 
 ## 2. Recommended Architectural Refactors
-1. **Living Wiki Freshness & Compilation:** Keep `.agents/wiki/` reviewed via `ainish-coder --context-wiki-review` and compiled into `.agents/rag/wiki-graph.json` alongside every consolidation sweep.
-2. **Bounded Coordination Folders:** Maintain steady state across `.agents/{comms,memories,plans,suggestions,tasks}` at the 3 newest chronological originals plus 1 canonical `consolidates.{naming}.md` file via the 4-profile Hermes consolidation panel (`consolidate-elephant`, `consolidate-goldfish`, `consolidate-archivist`, `consolidate-structural`).
+1. **Living Wiki Freshness & Compilation:** Keep `.agents/wiki/` focused strictly on `ainish-coder` `--rules`/`--skills`/`--context` tooling, reviewed via `ainish-coder --context-wiki-review`, and compiled into `.agents/rag/wiki-graph.json`.
+2. **Bounded Coordination Folders & Digest Curation:** Maintain steady state across `.agents/{comms,memories,plans,suggestions,tasks}` at the 3 newest originals plus 1 canonical `consolidates.{naming}.md`, and periodically prune resolved items with `ainish-coder --context-digest --review/--check/--prune`.
 3. **Cross-Platform Verification:** Keep `src/context/tests/` Python tests, shell syntax checks, and FIPS 203/204 PQC signing gates green across macOS, Linux, and Windows.
 
 ## Related

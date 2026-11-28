@@ -2259,6 +2259,29 @@ class CoDContextAndDigestReviewTest(unittest.TestCase):
         self.assertIn("last_pruned_at:", after)
         self.assertTrue((self.root / ".agents" / "rag" / "digest-prune-log.jsonl").is_file())
 
+    def test_run_wiki_review_fails_closed_on_scrolls_references(self):
+        wiki_dir = self.root / ".agents" / "wiki"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+        rag.generate_wiki(self.root)
+        before = (wiki_dir / "01-architecture.md").read_text(encoding="utf-8")
+
+        orig_call = rag.consolidation_call
+        rag.consolidation_call = lambda profile, prompt, **kw: {
+            "text": (
+                "# 01. Architecture\n\n## 1. Entrypoints\nDeploys `.scrolls*` via `deploy_scrolls.sh`.\n\n"
+                "## 2. Links\nSee [[02-codebase-connections]].\n"
+            ),
+            "transport": "hermes", "profile": profile, "source": f"hermes:{profile}",
+        }
+        try:
+            res = rag.run_wiki_review(self.root, pages=["01-architecture.md"], background=True)
+        finally:
+            rag.consolidation_call = orig_call
+
+        self.assertEqual(res["updated"], [])
+        self.assertTrue(any("excluded easter-egg/scrolls reference" in s["reason"] for s in res["skipped"]))
+        self.assertEqual((wiki_dir / "01-architecture.md").read_text(encoding="utf-8"), before)
+
 
 if __name__ == "__main__":
     unittest.main()
