@@ -1943,6 +1943,113 @@ check "deploy_agents_federation preserves CoD entries on refresh" \
 check "deploy_agents_federation re-locks read-only after refresh" \
     "$([[ ! -w "${FED_DEPLOY}/.agents/federation/${fed_today}.md" ]] && echo yes || echo no)" "yes"
 
+# ── Mandatory-skills drift tracking in --rules-status and --rules-sync ────────
+echo "== mandatory skills digest tracks computer-use/browser-use in --rules-status & --rules-sync =="
+MAND_TARGET="${WORK}/mandatory-drift-target"
+MAND_REG="${WORK}/mandatory-drift-targets.txt"
+mkdir -p "${MAND_TARGET}/.agents/bin" "${MAND_TARGET}/.agents/skills"
+printf '%s\n' "${MAND_TARGET}" > "${MAND_REG}"
+# Seed a pre-upgrade manifest (matching AGENTS.md + pqc-secrets, missing source_mandatory_skills_sha256)
+# and a pre-upgrade refresher script that lacks source_mandatory_skills_sha256.
+mand_bash_digest="$(
+    REPO_DIR="${REPO}"
+    . "${REPO}/src/colors.sh" 2>/dev/null || true
+    . "${REPO}/src/validation.sh" 2>/dev/null || true
+    . "${REPO}/src/file_operations.sh" 2>/dev/null || true
+    . "${REPO}/src/agents_protection.sh" 2>/dev/null || true
+    . "${REPO}/src/skills_selection.sh"
+    . "${REPO}/src/deploy_rules_sync.sh"
+    _ainish_rules_mandatory_skills_digest
+)"
+check "mandatory skills digest is 64-char hex" \
+    "$([[ "${mand_bash_digest}" =~ ^[0-9a-f]{64}$ ]] && echo yes || echo no)" "yes"
+
+mand_agents_sha="$(
+    REPO_DIR="${REPO}"
+    . "${REPO}/src/colors.sh" 2>/dev/null || true
+    . "${REPO}/src/validation.sh" 2>/dev/null || true
+    . "${REPO}/src/file_operations.sh" 2>/dev/null || true
+    . "${REPO}/src/agents_protection.sh" 2>/dev/null || true
+    . "${REPO}/src/deploy_rules_sync.sh"
+    _ainish_rules_source_agents_sha
+)"
+mand_pack_sha="$(
+    REPO_DIR="${REPO}"
+    . "${REPO}/src/colors.sh" 2>/dev/null || true
+    . "${REPO}/src/validation.sh" 2>/dev/null || true
+    . "${REPO}/src/file_operations.sh" 2>/dev/null || true
+    . "${REPO}/src/agents_protection.sh" 2>/dev/null || true
+    . "${REPO}/src/deploy_rules_sync.sh"
+    _ainish_rules_pack_digest
+)"
+cat > "${MAND_TARGET}/.agents/ainish-deploy.json" <<EOF
+{
+  "format": "ainish-coder/rules-deploy/v1",
+  "source_repo": "${REPO}",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "source_agents_sha256": "${mand_agents_sha}",
+  "source_pack_sha256": "${mand_pack_sha}",
+  "deployed_at": "2026-11-25T14:39:22Z",
+  "auto_sync": true
+}
+EOF
+cat > "${MAND_TARGET}/.agents/bin/ainish-rules-sync" <<'EOF'
+#!/bin/sh
+# Legacy pre-upgrade refresher that only checks AGENTS.md + pqc-secrets
+exit 0
+EOF
+chmod 755 "${MAND_TARGET}/.agents/bin/ainish-rules-sync"
+
+mand_status_before="$(
+    AINISH_RULES_REGISTRY="${MAND_REG}" "${REPO}/bin/ainish-coder" --rules-status --json 2>/dev/null || true
+)"
+contains "pre-upgrade target without source_mandatory_skills_sha256 is STALE" \
+    "${mand_status_before}" '"status": "STALE"'
+
+# Verify refresher upgrade detection triggers full deploy via --rules-sync
+mand_needs_upgrade="$(
+    REPO_DIR="${REPO}"
+    . "${REPO}/src/colors.sh" 2>/dev/null || true
+    . "${REPO}/src/validation.sh" 2>/dev/null || true
+    . "${REPO}/src/file_operations.sh" 2>/dev/null || true
+    . "${REPO}/src/deploy_rules_sync.sh"
+    _ainish_rules_refresher_needs_upgrade "${MAND_TARGET}" && echo yes || echo no
+)"
+check "pre-upgrade refresher flagged for upgrade" "${mand_needs_upgrade}" "yes"
+
+AINISH_RULES_REGISTRY="${MAND_REG}" \
+AINISH_SKILLS_SELECTION="${WORK}/mandatory-skills-sel.json" \
+AINISH_FEDERATION_NO_IMMUTABLE=1 \
+PQC_SKIP_MANIFEST_SIGN=1 \
+AINISH_RULES_SKIP_SIGN=1 \
+    "${REPO}/bin/ainish-coder" --rules-sync "${MAND_TARGET}" >/dev/null 2>&1 || true
+
+check "rules-sync deploys computer-use to pre-upgrade target" \
+    "$([[ -f "${MAND_TARGET}/.agents/skills/computer-use/SKILL.md" ]] && echo yes || echo no)" "yes"
+check "rules-sync deploys browser-use to pre-upgrade target" \
+    "$([[ -f "${MAND_TARGET}/.agents/skills/browser-use/SKILL.md" ]] && echo yes || echo no)" "yes"
+contains "upgraded manifest records source_mandatory_skills_sha256" \
+    "$(cat "${MAND_TARGET}/.agents/ainish-deploy.json")" "\"source_mandatory_skills_sha256\": \"${mand_bash_digest}\""
+contains "upgraded refresher tracks source_mandatory_skills_sha256" \
+    "$(cat "${MAND_TARGET}/.agents/bin/ainish-rules-sync")" 'source_mandatory_skills_sha256'
+
+# Verify POSIX sh sha_mandatory() in the generated refresher matches bash digest byte-for-byte
+mand_sh_digest="$(
+    sh -c '
+        SRC="'"${REPO}"'"
+        '"$(sed -n '/^sha_of()/,/^CURRENT_COMMIT=/p' "${MAND_TARGET}/.agents/bin/ainish-rules-sync" | sed '$d')"'
+        sha_mandatory "$SRC/skills-to-distribute/skills"
+    ' 2>/dev/null || true
+)"
+check "POSIX sh refresher digest matches bash mandatory skills digest" \
+    "${mand_sh_digest}" "${mand_bash_digest}"
+
+mand_status_after="$(
+    AINISH_RULES_REGISTRY="${MAND_REG}" "${REPO}/bin/ainish-coder" --rules-status --json 2>/dev/null || true
+)"
+contains "upgraded target reports CURRENT in --rules-status" \
+    "${mand_status_after}" '"status": "CURRENT"'
+
 if (( FAIL > 0 )); then
     echo "FAILED: ${FAIL} assertion(s), ${PASS} passed"
     exit 1
